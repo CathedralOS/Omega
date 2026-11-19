@@ -75,7 +75,7 @@ impl PublishedExecutableProgram {
         let artifact = Arc::clone(execution.effective_artifact(source.artifact())?);
         let evidence = match execution.folded_program() {
             Some(folded) => {
-                if source.has_applications() {
+                if !source.applications().is_empty() {
                     return Err(
                         "folded constant custody requires an unbound portable product".into(),
                     );

@@ -128,7 +128,7 @@ pub struct TerminalRuntimeHostProvisions<A> {
 impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
     pub fn admit(
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
-        host: Vec<TerminalRuntimeHostProvision>,
+        mut host: Vec<TerminalRuntimeHostProvision>,
         input: AdmittedRuntimeInput<'_>,
         selected: &effects::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
@@ -138,7 +138,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
         let boundaries = input.boundary_machines();
         let identities = &module.identities;
         let mut host_requirements = Vec::new();
-        for provision in &host {
+        for provision in &mut host {
             let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
                 &provision.realization
             else {
@@ -152,6 +152,39 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
                 .ok_or("runtime host provision lost its exact boundary declaration")?;
             if matching.next().is_some() {
                 return Err("runtime host provision repeats its boundary declaration".into());
+            }
+            if let target_operations::NormalizedForeignCallMechanism::CompilerImport {
+                import,
+                requirement_identity,
+                selected_plan,
+            } = &binding.mechanism
+            {
+                // Psi ends its simulated process. Only native execution calls the operating system.
+                if input.target_context().map(|context| context.target())
+                    != Some(import.locator().target().target_name())
+                    || selected
+                        .selected_requirement_row(requirement_identity)
+                        .is_none_or(|(plan, _)| plan.identity_digest().as_bytes() != selected_plan)
+                    || identities.text(boundary.identity) != Some(requirement_identity.as_str())
+                    || !binding.has_valid_entry_mechanism()
+                    || terminal_semantics::closed_conformances::hosted_primitive_requirement(
+                        module, boundary,
+                    )?
+                    .is_none()
+                {
+                    return Err(
+                        "runtime process exit does not match the checked primitive and target"
+                            .into(),
+                    );
+                }
+                provision.realization = match import {
+                    target_operations::CompilerImport::WindowsProcessExit => {
+                        target_operations::BoundarySettlementRealization::Builtin(
+                            target_operations::HostedExitProcessI32Realization.into(),
+                        )
+                    }
+                };
+                continue;
             }
             let abi = module.calling_abi_identity(provision.boundary)?;
             let mut native_rows = native
@@ -470,6 +503,10 @@ pub struct NativeRuntimePlan<A> {
     identity: TerminalPsiIdentity,
     manifest: [u8; 32],
     entry: MachineId,
+    native_entry: MachineId,
+    selected_providers: [u8; 32],
+    source_providers: [u8; 32],
+    source_native_bindings: [u8; 32],
     source_signature_identity: [u8; 32],
     target_slot: target::ProgramEntrySlotDeclaration,
     target_provider_proposals: Vec<TerminalTargetProviderProposal>,
@@ -487,6 +524,10 @@ impl<A> NativeRuntimePlan<A> {
             identity: self.identity,
             manifest: self.manifest,
             entry: self.entry,
+            native_entry: self.native_entry,
+            selected_providers: self.selected_providers,
+            source_providers: self.source_providers,
+            source_native_bindings: self.source_native_bindings,
             source_signature_identity: self.source_signature_identity,
             target_slot: self.target_slot,
             target_provider_proposals: self.target_provider_proposals,
@@ -536,6 +577,39 @@ impl<A> NativeRuntimePlan<A> {
     pub fn matches_artifact(&self, artifact: &terminal_codec::CanonicalTerminalArtifact) -> bool {
         self.identity == artifact.view().identity()
             && &self.manifest == artifact.manifest().identity().as_bytes()
+    }
+
+    /// A physical adapter can have a different machine ID from the semantic entry.
+    pub fn matches_retained_program(&self, program: &crate::RetainedTerminalArtifact) -> bool {
+        let Some(proposal) = program.native_realization_proposal() else {
+            return false;
+        };
+        let entry = proposal.program_entry();
+        let checked = entry.checked_entry();
+        let physical = entry
+            .physical_adapter()
+            .map_or(checked.terminal_entry(), |adapter| adapter.machine());
+        self.matches_artifact(program.artifact())
+            && self.entry == checked.terminal_entry()
+            && self.native_entry == physical
+            && self.source_signature_identity == checked.source_signature_identity()
+            && self.target_slot == entry.source().target_slot()
+            && self.target_slot.owner == proposal.target_profile()
+            && &self.source_providers == proposal.providers().selection.identity_digest().as_bytes()
+            && self.source_native_bindings == proposal.providers().native_bindings.identity_digest()
+    }
+
+    pub fn matches_image(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        native_entry: MachineId,
+        profile: target::TargetProfile,
+        selected_providers: &[u8; 32],
+    ) -> bool {
+        self.matches_artifact(artifact)
+            && self.native_entry == native_entry
+            && self.target_slot.owner == profile
+            && &self.selected_providers == selected_providers
     }
 
     pub fn with_target_provider_proposals(
@@ -593,7 +667,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
         input: AdmittedRuntimeInput<'_>,
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
-        selected: &effects::SelectedProviderPlanFacts,
+        execution: &crate::PreparedNativeExecution,
         external_bindings: &[calling_conventions::ExternalBindingRow],
         native: NativeBindingRuntimeInputs<'_>,
     ) -> Result<Self, String> {
@@ -604,7 +678,17 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
         let native_entry = program_entry
             .physical_adapter()
             .map_or(checked.terminal_entry(), |adapter| adapter.machine());
-        if input.entry() != native_entry
+        let selected = execution.selection();
+        if execution
+            .authorization()
+            .artifact()
+            .manifest()
+            .identity()
+            .as_bytes()
+            != &input.manifest_identity()
+            || execution.scope().entry() != native_entry
+            || execution.scope().target_context().target() != target_slot.owner.target_name()
+            || input.entry() != native_entry
             || checked.source_signature_identity() != program_entry.source().identity().bytes()
             || program_entry
                 .physical_adapter()
@@ -632,6 +716,13 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             identity: checked.terminal_psi_identity(),
             manifest: input.manifest_identity(),
             entry: checked.terminal_entry(),
+            native_entry,
+            selected_providers: execution.scope().selected_provider_closure(),
+            source_providers: *execution.source_selection().identity_digest().as_bytes(),
+            source_native_bindings: execution
+                .scope()
+                .source_native_bindings()
+                .ok_or("runtime execution has no admitted native bindings")?,
             source_signature_identity: checked.source_signature_identity(),
             target_slot,
             target_provider_proposals: Vec::new(),

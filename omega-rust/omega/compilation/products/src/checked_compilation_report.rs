@@ -25,6 +25,10 @@ use target::NativeApplicationMetadata;
 
 pub enum CheckedProductReport {
     Complete(Box<CompileReport>),
+    PublishedPsi {
+        settlement: CompileReportSettlement,
+        rollback: OptimizationRollbackSettlement,
+    },
     Terminal {
         settlement: CompileReportSettlement,
         rollback: OptimizationRollbackSettlement,
@@ -39,6 +43,7 @@ pub enum CheckedProductReport {
 pub enum ProductReportRequest {
     Check,
     Terminal(OptimizationRollback),
+    PublishedPsi(OptimizationRollback),
     Native(NativeProductRequest),
 }
 
@@ -47,6 +52,7 @@ impl ProductReportRequest {
         match self {
             Self::Check => RequestedCompileProduct::Check,
             Self::Terminal(_) => RequestedCompileProduct::TerminalArtifact,
+            Self::PublishedPsi(_) => RequestedCompileProduct::PublishedPsi,
             Self::Native(_) => RequestedCompileProduct::NativeArtifact,
         }
     }
@@ -54,7 +60,7 @@ impl ProductReportRequest {
     fn rollback(&self) -> OptimizationRollback {
         match self {
             Self::Check => OptimizationRollback::default(),
-            Self::Terminal(rollback) => rollback.clone(),
+            Self::Terminal(rollback) | Self::PublishedPsi(rollback) => rollback.clone(),
             Self::Native(request) => request.optimization_rollback.clone(),
         }
     }
@@ -144,6 +150,11 @@ impl ProductReportPlan {
         let build_outputs = checked.build().completed_outputs()?;
         let artifact_only = checked.build_admission().artifact_only();
         requested.admit_build_requirements(artifact_only, &rollback)?;
+        if artifact_only && requested == RequestedCompileProduct::PublishedPsi {
+            return Err(diagnostics(
+                "this build only produces declared files and has no portable program to save",
+            ));
+        }
         if artifact_only {
             let outputs = build_outputs
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
@@ -159,7 +170,10 @@ impl ProductReportPlan {
                 })
                 .map_err(diagnostics);
         }
-        let terminal = requested == RequestedCompileProduct::TerminalArtifact;
+        let terminal = matches!(
+            requested,
+            RequestedCompileProduct::TerminalArtifact | RequestedCompileProduct::PublishedPsi
+        );
         let settlement = CompileReportSettlement {
             source_completion_accounting: checked.source_completion_accounting().clone(),
             expected_kind: if terminal {
@@ -173,11 +187,19 @@ impl ProductReportPlan {
                 &checked.build().config.settings,
                 checked.execution().target_profile(),
             ),
-            build_outputs,
+            build_outputs: if requested == RequestedCompileProduct::PublishedPsi {
+                None
+            } else {
+                build_outputs
+            },
             build_observation: checked.build().observation_identity(),
             timings,
         };
         match product {
+            ProductReportRequest::PublishedPsi(_) => Ok(CheckedProductReport::PublishedPsi {
+                settlement,
+                rollback: settled_rollback,
+            }),
             ProductReportRequest::Terminal(_) => Ok(CheckedProductReport::Terminal {
                 settlement,
                 rollback: settled_rollback,
@@ -215,15 +237,13 @@ impl CompileReportSettlement {
         artifact: RetainedTerminalArtifact,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let product =
-            CompletedProduct::from_terminal(artifact, None, rollback).map_err(diagnostics)?;
+        let product = CompletedProduct::from_terminal(artifact, rollback).map_err(diagnostics)?;
         self.finish_product(product)
     }
 
     pub fn finish_terminal_runtime(
         mut self,
-        artifact: RetainedTerminalArtifact,
-        provisions: Option<crate::TerminalRuntimeProvisions>,
+        program: product_publication::AdmittedRuntimeProgram,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         if self.expected_kind != CompileOutputKind::RetainedNativeArtifact {
@@ -232,18 +252,26 @@ impl CompileReportSettlement {
             ));
         }
         self.expected_kind = CompileOutputKind::TerminalArtifact;
-        let product =
-            CompletedProduct::from_terminal(artifact, provisions, rollback).map_err(diagnostics)?;
+        let product = CompletedProduct::from_runtime(program, rollback);
         self.finish_product(product)
+    }
+
+    pub fn finish_published_psi(
+        self,
+        artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+        rollback: Option<OptimizationRollbackReceipt>,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        self.finish_product(
+            CompletedProduct::from_published_psi(artifact, rollback).map_err(diagnostics)?,
+        )
     }
 
     pub fn finish_native(
         self,
-        artifact: impl Into<FinishedNativeImage>,
+        image: FinishedNativeImage,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let product =
-            CompletedProduct::from_native(artifact.into(), rollback, self.application.clone());
+        let product = CompletedProduct::from_native(image, rollback, self.application.clone());
         self.finish_product(product)
     }
 

@@ -22,6 +22,11 @@ pub fn prepare_exit_requirements(
     use WholeFunctionExitContractError as Error;
     let mut rows = encoding.rows().iter();
     let physical = program.physical();
+    let abi = register_environment::TargetExitAbi::from_environment(&program.environment);
+    let integer = abi
+        .preservation(physical)
+        .and_then(|selected| selected.convention.result_views.first())
+        .and_then(|view| physical.model().view(*view));
     let mut functions = Vec::new();
     for function in program.functions.iter() {
         let machine = program
@@ -53,23 +58,8 @@ pub fn prepare_exit_requirements(
                 if row.instruction != instruction.id || machine.instruction != instruction.id {
                     return Err(Error::InstructionRosterMismatch(instruction.id));
                 }
-                let convention = match program.target.architecture {
-                    Architecture::X86_64 => isa_x86_64::x86_64_preservation_convention_for_target(
-                        physical,
-                        program.target,
-                    ),
-                    Architecture::Aarch64 => {
-                        isa_aarch64::aarch64_preservation_convention_for_target(
-                            physical,
-                            program.target,
-                        )
-                    }
-                };
-                let integer = convention
-                    .and_then(|convention| convention.result_views.first())
-                    .and_then(|view| physical.model().view(*view))
-                    .ok_or(Error::InvalidConvention);
                 let returned = integer
+                    .ok_or(Error::InvalidConvention)
                     .and_then(|integer| {
                         scalar_return_view(
                             physical,
@@ -123,6 +113,7 @@ pub fn prepare_exit_requirements(
                     ),
                 };
                 instructions.push(ExitRowRequirements {
+                    encoding: ExitInstructionEncoding::from_row(row),
                     instruction: instruction.id,
                     alternative: crate::layout_requirements::prepare_alternative(machine)
                         .alternative,
@@ -144,7 +135,21 @@ pub fn prepare_exit_requirements(
     if let Some(row) = rows.next() {
         return Err(Error::DuplicateInstruction(row.instruction));
     }
-    Ok(EncodedExitRequirements { functions })
+    Ok(EncodedExitRequirements {
+        abi,
+        encoding: ExitEncoding {
+            selected: encoding.selected(),
+            machine: encoding.machine(),
+            identity: encoding.identity(),
+            frame: encoding
+                .frame
+                .as_ref()
+                .map(machine_code::target_frame_layout_identity),
+            has_machine_optimization: encoding.post_allocation_machine_optimization().is_some(),
+            decoded: std::sync::Arc::clone(&encoding.encoded),
+        },
+        functions,
+    })
 }
 
 pub fn prepare_non_return(

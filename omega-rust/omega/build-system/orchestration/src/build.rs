@@ -160,7 +160,9 @@ fn select_base_directory(
     request: &BuildRequest,
 ) -> Result<(Option<TemporaryDirectory>, std::path::PathBuf), BuildError> {
     let check_workspace = match &request.product {
-        ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
+        ProjectProduct::Check
+        | ProjectProduct::PublishedPsi(_)
+        | ProjectProduct::Inspection { .. } => {
             Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
         }
         ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
@@ -177,7 +179,7 @@ fn select_base_directory(
     Ok((check_workspace, base_directory))
 }
 
-fn target_profiles(targets: &BuildTargets) -> Result<Vec<TargetProfile>, BuildError> {
+pub(crate) fn target_profiles(targets: &BuildTargets) -> Result<Vec<TargetProfile>, BuildError> {
     match targets {
         BuildTargets::Single(profile) => Ok(vec![*profile]),
         BuildTargets::Batch(targets) => Ok(targets.profiles().to_vec()),

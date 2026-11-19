@@ -30,10 +30,10 @@ fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
     .result
     .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
     let accepted = checked.terminal_publication().accepted().unwrap().closure();
-    terminal_codec::EvidenceSealValidator::new(&accepted.elaboration.module, &accepted.seals)
+    terminal_codec::EvidenceSealValidator::new(&accepted.elaboration().module, accepted.seals())
         .validate_all()
         .expect("native publication must retain the checked count-fit seal");
-    let mut changed = accepted.elaboration.module.clone();
+    let mut changed = accepted.elaboration().module.clone();
     let source_element = changed
         .structural_types
         .iter()
@@ -53,7 +53,7 @@ fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
     ));
     assert!(
         matches!(
-            terminal_codec::EvidenceSealValidator::new(&changed, &accepted.seals).validate_all(),
+            terminal_codec::EvidenceSealValidator::new(&changed, accepted.seals()).validate_all(),
             Err(terminal_codec::EvidenceSealValidationError::SealMismatch { .. })
         ),
         "changing the source stride must invalidate its previously sealed count goal"

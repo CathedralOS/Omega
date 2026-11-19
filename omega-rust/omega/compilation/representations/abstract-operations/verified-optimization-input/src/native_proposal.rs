@@ -597,10 +597,11 @@ impl RetainedTerminalArtifact {
         artifact: terminal_installation::AuthorizedTerminalArtifact,
         native_realization_proposal: TerminalNativeRealizationProposal,
     ) -> Self {
+        let evidence = artifact.artifact().published_evidence().cloned();
         Self {
             artifact,
             native_realization_proposal: Some(native_realization_proposal),
-            evidence: None,
+            evidence,
         }
     }
 
@@ -610,6 +611,14 @@ impl RetainedTerminalArtifact {
         mut self,
         evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        if self.artifact.artifact().publication_metadata().is_some() {
+            if evidence.is_some() && self.evidence != evidence {
+                return Err(vec![Diagnostic::error(
+                    "supplied evidence differs from the authorized Psi publication",
+                )]);
+            }
+            return Ok(self);
+        }
         if let Some(evidence) = &evidence {
             validate_operation_evidence(self.artifact.artifact(), evidence)?;
         }

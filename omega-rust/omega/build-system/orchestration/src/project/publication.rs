@@ -63,6 +63,33 @@ pub(crate) fn publish_products(
             result,
         });
     }
+    if let ProjectProduct::PublishedPsi(path) = product
+        && outcomes.iter().all(|target| target.result.is_ok())
+    {
+        let result = timings.record_result(
+            StageMeta::new("publish", "portable program", "saved Psi file"),
+            || {
+                let reports = outcomes
+                    .iter_mut()
+                    .map(|target| match &mut target.result {
+                        Ok(BuildOutcome {
+                            output: CompilationOutput::Report(report),
+                            ..
+                        }) => Ok(report),
+                        _ => Err("the compiler returned no portable program to save".to_owned()),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                products::CompileReport::save_shared_psi(reports, path)
+            },
+        );
+        for target in &mut outcomes {
+            match (&result, &mut target.result) {
+                (Err(reason), outcome) => *outcome = Err(BuildError::Publication(reason.clone())),
+                (Ok(()), Ok(outcome)) => outcome.timings = timings.clone(),
+                _ => {}
+            }
+        }
+    }
     outcomes
 }
 
@@ -88,7 +115,8 @@ fn publish_product(
             }
             (output, None)
         }
-        ProjectProduct::Native {
+        ProjectProduct::PublishedPsi(_)
+        | ProjectProduct::Native {
             destination: NativeDestination::Published,
             ..
         } => {
@@ -103,13 +131,17 @@ fn publish_product(
                     || validators.run(product, profile, Some(&report)),
                 )?;
             }
-            let (report, path) = timings
-                .record_result(
-                    StageMeta::new("publish", "retained product", "published product"),
-                    || publish_compilation(report, directory),
-                )
-                .map_err(BuildError::Publication)?;
-            (CompilationOutput::Report(report), path)
+            if matches!(product, ProjectProduct::PublishedPsi(_)) {
+                (CompilationOutput::Report(report), None)
+            } else {
+                let (report, path) = timings
+                    .record_result(
+                        StageMeta::new("publish", "retained product", "published product"),
+                        || publish_compilation(report, directory),
+                    )
+                    .map_err(BuildError::Publication)?;
+                (CompilationOutput::Report(report), path)
+            }
         }
     };
     Ok(BuildOutcome {

@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+compiler-storage = { path = "../../foundation/compiler-storage" }
+evaluation-contracts = { path = "../evaluation-contracts" }
 build-time-values = { path = "../build-time-values" }
 semantic-vocabulary = { path = "../../compilation/representations/semantic-vocabulary" }
 terminal-codec = { path = "../../compilation/representations/terminal-psi/codec" }

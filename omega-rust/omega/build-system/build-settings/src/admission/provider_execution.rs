@@ -65,6 +65,7 @@ impl BuildProviderPlans {
                 installation: Some(&checked),
                 native_code_layouts: None,
                 host_imports: &[],
+                external_completions: &[],
                 entry: None,
                 x86_flags: None,
                 memory_ordering: None,

@@ -82,6 +82,82 @@ pub struct LinuxWriteLineRealization;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ClaimCompletionOnlyRealization;
 
+/// Fixed operating-system imports used to implement a sealed compiler primitive.
+/// A Build-issued import carries its own independent receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompilerImport {
+    WindowsProcessExit,
+}
+
+impl CompilerImport {
+    pub const fn tag(self) -> u8 {
+        match self {
+            Self::WindowsProcessExit => 0,
+        }
+    }
+
+    pub const fn from_tag(tag: u8) -> Option<Self> {
+        match tag {
+            0 => Some(Self::WindowsProcessExit),
+            _ => None,
+        }
+    }
+
+    pub fn locator(self) -> &'static target::NormalizedForeignLocator {
+        use std::sync::OnceLock;
+        static EXIT: OnceLock<target::NormalizedForeignLocator> = OnceLock::new();
+        match self {
+            Self::WindowsProcessExit => EXIT.get_or_init(|| {
+                target::normalize_foreign_locator(
+                    target::ForeignLocatorCandidate::PeByName {
+                        library: b"kernel32.dll".to_vec(),
+                        export: b"ExitProcess".to_vec(),
+                    },
+                    target::TargetProfile::WindowsX64,
+                )
+                .expect("kernel32 ExitProcess is a Windows import")
+            }),
+        }
+    }
+
+    pub fn entry_plan(self) -> &'static BoundaryEntryPlan {
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
+        use std::sync::OnceLock;
+        static PLAN: OnceLock<BoundaryEntryPlan> = OnceLock::new();
+        match self {
+            Self::WindowsProcessExit => PLAN.get_or_init(|| {
+                calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                    CallingPolicy::native_for_target(
+                        target::TargetProfile::WindowsX64.native_target(),
+                    ),
+                    &CallSignature {
+                        parameters: vec![ValueShape::integer(4, 4)],
+                        result: None,
+                    },
+                )
+                .expect("ExitProcess takes one Windows DWORD and never returns")
+                .plan()
+                .clone()
+            }),
+        }
+    }
+
+    pub fn binding(
+        self,
+        requirement_identity: String,
+        selected_plan: [u8; 32],
+    ) -> NormalizedForeignCallBinding {
+        NormalizedForeignCallBinding {
+            boundary_entry_plan: self.entry_plan().clone(),
+            mechanism: NormalizedForeignCallMechanism::CompilerImport {
+                import: self,
+                requirement_identity,
+                selected_plan,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedForeignCallBinding {
     pub boundary_entry_plan: BoundaryEntryPlan,
@@ -90,6 +166,11 @@ pub struct NormalizedForeignCallBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedForeignCallMechanism {
+    CompilerImport {
+        import: CompilerImport,
+        requirement_identity: String,
+        selected_plan: [u8; 32],
+    },
     /// Hosted calls use the receiving operating system stack, not a finite
     /// claim about the opaque callee's demand.
     HostedImport {
@@ -132,7 +213,7 @@ impl NormalizedForeignCallMechanism {
                 same_stack_contribution,
                 ..
             } => Some(same_stack_contribution),
-            Self::SystemCall(_) | Self::HostedImport { .. } => None,
+            Self::SystemCall(_) | Self::HostedImport { .. } | Self::CompilerImport { .. } => None,
         }
     }
 }
@@ -180,8 +261,31 @@ impl NormalizedForeignCallBinding {
         }
     }
 
+    pub fn external_execution(
+        &self,
+        execution: super::BoundaryExecutionBinding,
+    ) -> Option<super::ExternalExecutionBinding> {
+        if let (
+            super::BoundaryExecutionBinding::CompilerBuiltin(
+                super::CompilerBuiltinExecution::HostedExitProcessI32,
+            ),
+            NormalizedForeignCallMechanism::CompilerImport {
+                import: CompilerImport::WindowsProcessExit,
+                ..
+            },
+        ) = (execution, &self.mechanism)
+        {
+            return Some(super::ExternalExecutionBinding::CompilerImport(
+                CompilerImport::WindowsProcessExit,
+            ));
+        }
+        execution.external()
+    }
+
     pub fn matches_execution(&self, execution: super::ExternalExecutionBinding) -> bool {
         match execution {
+            super::ExternalExecutionBinding::CompilerImport(expected) => matches!(self.mechanism,
+                NormalizedForeignCallMechanism::CompilerImport { import, .. } if import == expected) && self.has_valid_entry_mechanism(),
             super::ExternalExecutionBinding::Provider(provider) => match self.mechanism.same_stack_contribution() {
                 Some(contribution) => contribution.provider_plan_report_identity() == provider.provider_plan_report_identity().get(),
                 None => self.system_call().is_some_and(|binding| matches!(binding.execution,
@@ -230,6 +334,9 @@ impl NormalizedForeignCallBinding {
             | NormalizedForeignCallMechanism::HostedImport { locator, .. } => {
                 Some(locator.target().native_target())
             }
+            NormalizedForeignCallMechanism::CompilerImport { import, .. } => {
+                Some(import.locator().target().native_target())
+            }
             NormalizedForeignCallMechanism::Component { locator, .. } => {
                 Some(locator.target().native_target())
             }
@@ -248,6 +355,10 @@ impl NormalizedForeignCallBinding {
         identities: &'identities terminal_psi::TerminalIdentityTable,
     ) -> Option<&'identities str> {
         if let NormalizedForeignCallMechanism::HostedImport {
+            requirement_identity,
+            ..
+        }
+        | NormalizedForeignCallMechanism::CompilerImport {
             requirement_identity,
             ..
         } = &self.mechanism
@@ -278,6 +389,15 @@ impl NormalizedForeignCallBinding {
         };
         let call = &self.boundary_entry_plan.call;
         match &self.mechanism {
+            NormalizedForeignCallMechanism::CompilerImport {
+                import,
+                requirement_identity,
+                selected_plan,
+            } => {
+                *selected_plan != [0; 32]
+                    && !requirement_identity.is_empty()
+                    && self.boundary_entry_plan == *import.entry_plan()
+            }
             NormalizedForeignCallMechanism::Component {
                 locator,
                 provider,
@@ -337,6 +457,7 @@ impl NormalizedForeignCallBinding {
             NormalizedForeignCallMechanism::SystemCall(binding) => Some(binding),
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::HostedImport { .. }
+            | NormalizedForeignCallMechanism::CompilerImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => None,
         }
@@ -355,6 +476,7 @@ impl NormalizedForeignCallBinding {
             } => Some((locator, same_stack_contribution)),
             NormalizedForeignCallMechanism::SystemCall(_)
             | NormalizedForeignCallMechanism::HostedImport { .. }
+            | NormalizedForeignCallMechanism::CompilerImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => None,
         }
@@ -366,6 +488,9 @@ impl NormalizedForeignCallBinding {
             | NormalizedForeignCallMechanism::HostedImport { locator, .. } => {
                 Some(target::NormalizedImportLocatorRef::Foreign(locator))
             }
+            NormalizedForeignCallMechanism::CompilerImport { import, .. } => Some(
+                target::NormalizedImportLocatorRef::Foreign(import.locator()),
+            ),
             NormalizedForeignCallMechanism::Component { locator, .. } => {
                 Some(target::NormalizedImportLocatorRef::Component(locator))
             }
@@ -383,6 +508,7 @@ impl NormalizedForeignCallBinding {
     pub fn hosted_import(&self) -> Option<&target::NormalizedForeignLocator> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::HostedImport { locator, .. } => Some(locator),
+            NormalizedForeignCallMechanism::CompilerImport { import, .. } => Some(import.locator()),
             _ => None,
         }
     }
@@ -398,6 +524,7 @@ impl NormalizedForeignCallBinding {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::HostedImport { .. }
+            | NormalizedForeignCallMechanism::CompilerImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => true,
             NormalizedForeignCallMechanism::SystemCall(_) => false,

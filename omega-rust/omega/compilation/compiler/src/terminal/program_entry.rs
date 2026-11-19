@@ -11,7 +11,7 @@ use terminal_installation::application::{
 pub(crate) fn bind_folded_entry_dependencies(
     custody: &mut crate::execution_settlement::SelectedProviderCustody,
 ) -> Result<(), Vec<Diagnostic>> {
-    let program = &custody.source_program;
+    let program = &custody.published_program;
     custody
         .execution
         .bind_folded_entry(

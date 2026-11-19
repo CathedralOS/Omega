@@ -5,9 +5,9 @@
 // same-stack contribution and producing a `NativeProviderSettlement`.
 
 use ::wire::digest_encoder::DomainDigestEncoder;
+use artifact_lowering::AdmittedNativeComponentCall;
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
-use native_program_planning::AdmittedNativeComponentCall;
 use provider_admission::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
 use task_plans::{SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment};
 

@@ -129,7 +129,8 @@ fn check_preserved_rejection() {
             bindings: &[],
         },
         terminal_codec::TerminalPublication::Portable,
-    );
+    )
+    .expect("fixture must lower to checker input");
     let prepared = match prepared.program {
         TerminalCompilation::Prepared(prepared) => prepared,
         stopped => panic!("the unchanged source must reach complete preparation: {stopped:?}"),

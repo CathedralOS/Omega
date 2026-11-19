@@ -6,10 +6,10 @@
 // export roster matches the admitted call roster 1-for-1.
 
 use crate::realization::{ComponentExportImage, ComponentExportRequest, ComponentNativeCall};
+use artifact_lowering::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
 use native_artifact::NativeComponentProduct;
-use native_program_planning::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use provider_admission::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
@@ -30,7 +30,7 @@ pub(crate) struct PreparedComponent<'input> {
     compilation: &'input ComponentCompilation<'input>,
     pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
     pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
-    exports: Vec<native_program_planning::PreparedNativeExecution>,
+    exports: Vec<artifact_lowering::PreparedNativeExecution>,
 }
 
 pub(crate) fn prepare_components<'input>(
@@ -73,6 +73,11 @@ pub(crate) fn prepare_components<'input>(
     Ok(prepared)
 }
 
+pub(crate) struct CompiledComponent {
+    pub product: Arc<NativeComponentProduct>,
+    pub originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
+}
+
 pub(crate) struct EmittedComponent<'input> {
     image: ComponentExportImage<'input>,
     call: AdmittedNativeComponentCall<'input>,
@@ -90,10 +95,14 @@ impl EmittedComponent<'_> {
         )
     }
 
-    pub(crate) fn into_product(self) -> Result<Arc<NativeComponentProduct>, Vec<Diagnostic>> {
+    pub(crate) fn into_product(mut self) -> Result<CompiledComponent, Vec<Diagnostic>> {
+        let originals = self.image.stage_originals.take();
         self.image
             .into_product(&self.call)
-            .map(Arc::new)
+            .map(|product| CompiledComponent {
+                product: Arc::new(product),
+                originals,
+            })
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 }
@@ -115,8 +124,7 @@ pub(crate) fn emit_components<'input>(
         let exports = crate::realization::emit_component_exports(
             &component.input,
             work,
-            scalars
-                .map(|completed| native_program_planning::NativeScalarApplications { completed }),
+            scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed }),
             ComponentExportRequest {
                 retain_native_stage_inputs,
                 accepted_package_permissions: component.accepted_package_permissions,

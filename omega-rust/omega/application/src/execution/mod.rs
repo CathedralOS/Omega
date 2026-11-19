@@ -186,7 +186,10 @@ impl std::fmt::Display for RunError {
 
 impl std::error::Error for RunError {}
 
-pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
+pub fn run_project(
+    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    request: RunRequest,
+) -> Result<RunOutcome, RunError> {
     let psi_work_budget = request
         .psi_work_budget
         .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
@@ -194,13 +197,14 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
     if request.selection == ExecutionSelection::Terminal {
-        return run_terminal(request, build_dir, psi_work_budget);
+        return run_terminal(request, artifact, build_dir, psi_work_budget);
     }
     let compilation::ProbeCompilation {
         report,
         target_name,
         ..
     } = compilation::compile(
+        artifact,
         request.private_entry_ram,
         request.build_snapshot,
         CompileOptions {
@@ -305,6 +309,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
 
 fn run_terminal(
     request: RunRequest,
+    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
     build_dir: PathBuf,
     psi_work_budget: u64,
 ) -> Result<RunOutcome, RunError> {
@@ -313,6 +318,7 @@ fn run_terminal(
         target_name,
         ..
     } = compilation::compile(
+        artifact,
         request.private_entry_ram,
         request.build_snapshot,
         CompileOptions {
@@ -417,7 +423,10 @@ pub struct CaseRunOutcome {
     pub cases: Vec<CaseOutcome>,
 }
 
-pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunError> {
+pub fn run_project_cases(
+    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    request: CaseRunRequest,
+) -> Result<CaseRunOutcome, RunError> {
     let psi_work_budget = request
         .psi_work_budget
         .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
@@ -440,6 +449,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         interpretations,
         ..
     } = compilation::compile(
+        artifact,
         request.private_entry_ram,
         request.build_snapshot,
         CompileOptions {

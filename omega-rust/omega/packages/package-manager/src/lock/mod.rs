@@ -39,7 +39,6 @@ pub(crate) use limits::PackageLockRecoveryLimits;
 pub(crate) use occurrences::{
     PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
 };
-use review_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,28 +49,26 @@ pub(crate) struct PackageLockTarget {
 }
 
 impl PackageLockTarget {
-    pub(crate) fn from_accepted_policies(
+    pub(crate) fn from_accepted_reviews(
         source: CanonicalSourceClosureSubject,
-        policies: &[(
-            PackageCheckedContext,
-            &PackagePolicyBaseline,
-            &[package_compilation::AcceptedSemanticBinding],
-        )],
+        reviews: &crate::review::CompilerIssuedPackageReviewSet,
         compiler_identity: [u8; 32],
         decisions: HistoricalPackagePolicyDecisions,
     ) -> Result<Self, Error> {
         let mut occurrences = Vec::new();
         let mut associations = Vec::new();
-        crate::reserve!(occurrences, policies.len(), Error);
-        crate::reserve!(associations, policies.len(), Error);
-        for (context, policy, bindings) in policies {
-            occurrences.push(PackagePolicyOccurrence::from_policy(
-                policy,
-                *context,
-                compiler_identity,
-                bindings,
-            )?);
-            associations.push((*context, *policy));
+        crate::reserve!(occurrences, reviews.reviews().len(), Error);
+        crate::reserve!(associations, reviews.reviews().len(), Error);
+        for package in source.packages() {
+            for purpose in DependencyPurpose::ALL {
+                if let Some(review) = reviews.review_occurrence(package.key(), purpose) {
+                    occurrences.push(PackagePolicyOccurrence::from_review(
+                        review,
+                        compiler_identity,
+                    )?);
+                    associations.push((review.checked_context(), review.policy()));
+                }
+            }
         }
         let value = Self::from_occurrences(source, occurrences, decisions)?;
         let limits = PackageLockRecoveryLimits::default();

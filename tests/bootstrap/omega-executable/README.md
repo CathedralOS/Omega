@@ -227,9 +227,9 @@ The source-built peer's `--omega-utf8` customer extracts `DecodedScalar` and
 append/read declarations. [utf8_controls.omg](utf8_controls.omg) checks 28
 valid/invalid UTF-8 boundaries and an absent large index. The companion
 [controls_arithmetic.epsilon](controls_arithmetic.epsilon) checks arithmetic
-limits, five abnormal overflow/underflow traps, left-value capture across a
+limits, six abnormal overflow/underflow traps, left-value capture across a
 mutating right operand, short-circuit suppression, reference forwarding and
-fifty-six refusal/reset checks. The terminal-call cases exercise precedence,
+sixty-five refusal/reset checks. The terminal-call cases exercise precedence,
 grouping, nested calls, left-to-right argument evaluation, skipped and selected
 crashes, loans, blocking markers and entry preconditions. An unsupported
 indexed carrier returns a coverage refusal. An unknown name in a checked
@@ -237,7 +237,11 @@ scalar operand remains a source error. Each refusal leaves the tape empty
 and unsealed. Transition predicates also exercise keyword-spelled local names,
 lookup in an uncalled machine and Boolean literal selection.
 
-Nine fresh evaluator processes bound cumulative allocation. The first receives
+The carrier-cast batches compare the combined and parenthesized domain additions,
+execute a mutating operand once, and trap on overflow after preserving a full
+unsigned 64-bit value.
+
+Eleven fresh evaluator processes bound cumulative allocation. The first receives
 the full decoder source. Each refusal batch reuses one compiler instance and
-ends with a successful compilation. The host stamps and runs all thirty-six
+ends with a successful compilation. The host stamps and runs all forty-five
 published tapes, distinguishing Linux SIGILL from a normal process exit.

@@ -260,8 +260,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 52,195 bytes, SHA-256
-`ee2db20ec8008e3127aca61b5661e153317b42aa1c2819d26a3a588b6577317b`. The customer is the bound compiler closure followed by this entry.
+The [customer](main.epsilon) entry is bound at 60,921 bytes, SHA-256
+`9a7bc8e364b792c740dd89a23b05305dc89089b03e194754d84a5820035b7c3a`. The customer is the bound compiler closure followed by this entry.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

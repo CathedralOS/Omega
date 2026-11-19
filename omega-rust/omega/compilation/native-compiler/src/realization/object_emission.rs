@@ -5,26 +5,17 @@
 use crate::pipeline::{self, BodyEmissionError};
 use crate::realization::callback_thunks::{PreparedCallbackBodies, prepare_installed_callbacks};
 use crate::realization::selected_physical_pipeline_failed;
-use crate::request::NativeRealizationRequest;
+use artifact_lowering::ValidatedNativeProgramEntrySettlement;
 use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
-use native_program_planning::NativeBodyPlanningError;
-use native_program_planning::{AdmittedBoundarySettlement, OptimizedTargetLoweringRequest};
-use native_program_planning::{
-    AdmittedProviderInstallation, ValidatedNativeProgramEntrySettlement,
-    VerifiedNativeArtifactInput,
-};
 use provider_admission::provider_admission::realization_error;
 
 pub(crate) struct EmittedRealizationObject {
+    pub stage_replay: crate::NativeStageReplay,
     pub physical_originals: native_artifact::NativePhysicalOriginals,
     pub object: PublishedFragmentObject,
-    pub runtime_provisions: Option<
-        native_artifact::TerminalRuntimeProvisions<super::auxiliary_native::ObjectForeignAdapter>,
-    >,
-    pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
 }
 
 /// The root and the closed private roster advance together. The next stage
@@ -51,84 +42,17 @@ impl<Root, Private> BodyRoster<Root, Private> {
     }
 }
 
-fn lower_target(
-    input: VerifiedNativeArtifactInput,
-    provider_installation: Option<AdmittedProviderInstallation>,
-    settlements: &[AdmittedBoundarySettlement<'_>],
-    request: &NativeRealizationRequest<'_>,
-) -> Result<native_program_planning::NativeBodyPlan, Vec<Diagnostic>> {
-    native_program_planning::plan_native_body(
-        input,
-        OptimizedTargetLoweringRequest {
-            target: request.admission.providers.target(),
-            settlements,
-            installation: provider_installation,
-        },
-        request.optimization_selections,
-        request.optimization_budget(),
-        request.observation.native_body(),
-        request.retain_native_stage_inputs,
-    )
-    .map_err(|error| match error {
-        NativeBodyPlanningError::AbstractOptimization(error) => {
-            realization_error("canonical abstract optimization", error)
-        }
-        NativeBodyPlanningError::Target(error) => realization_error("target lowering", error),
-    })
-}
-
 pub(crate) fn emit_realization_object(
-    input: VerifiedNativeArtifactInput,
-    provider_installation: Option<AdmittedProviderInstallation>,
-    settlements: &[AdmittedBoundarySettlement<'_>],
+    roster: crate::callable_planning::PlannedProgramBodies<'_>,
     program_entry: Option<&ValidatedNativeProgramEntrySettlement>,
-    program_provider_context: &std::sync::Arc<
-        provider_admission::provider_admission::AdmittedProgramProviderContext,
-    >,
     runtime_provisions: Option<
-        native_runtime_provisions::NativeRuntimePlan<
-            native_runtime_provisions::NativeForeignAdapterRequest,
+        crate::runtime_provisions::NativeRuntimePlan<
+            crate::runtime_provisions::NativeForeignAdapterRequest,
         >,
     >,
-    request: &NativeRealizationRequest<'_>,
+    observation: &crate::observations::NativePipelineObservation,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
-    let native_callbacks = input
-        .optimization_input()
-        .admitted_native_callbacks()
-        .to_vec();
-    let installed_interrupts = input
-        .optimization_input()
-        .admitted_installed_interrupts()
-        .clone();
-    if installed_interrupts.psi() != input.optimization_input().plan().psi {
-        return Err(realization_error(
-            "installed interrupt callback emission",
-            "admitted entries belong to another Terminal program",
-        ));
-    }
-    let target = lower_target(input, provider_installation, settlements, request)?;
-    let callback_request =
-        native_program_planning::callable_planning::NativeCallbackPlanningRequest {
-            proposal: request.proposal,
-            execution: request.execution,
-            scalar_applications: request
-                .scalar_applications
-                .as_ref()
-                .map(|scalars| scalars.completed),
-            admission: &request.admission,
-            callback_thunks: request.callback_thunks,
-            optimization_selections: request.optimization_selections,
-            budget: request.optimization_budget(),
-            retain_native_stage_inputs: request.retain_native_stage_inputs,
-        };
-    let roster = native_program_planning::callable_planning::ClosedCallbackRoster::plan(
-        &callback_request,
-        program_provider_context,
-        &target,
-        &native_callbacks,
-        &installed_interrupts,
-    )?;
-    let prepared_callbacks = PreparedCallbackBodies::from_roster(roster, &target)?;
+    let (target, prepared_callbacks) = PreparedCallbackBodies::from_roster(roster)?;
     let physical_root = program_entry
         .filter(|entry| entry.source().target_slot().owner == target::TargetProfile::UefiX64)
         .and_then(|entry| {
@@ -146,36 +70,34 @@ pub(crate) fn emit_realization_object(
         ));
     }
     let requirements = prepare_installed_callbacks(&target, &prepared_callbacks, physical_root)?;
-    let installations = pipeline::plan_installations(&target, None, requirements)
-        .map_err(|reason| realization_error("installed handler stack", reason))?;
-    let physical = pipeline::prepare_physical_body(
-        target,
-        installations,
-        request.observation,
-        request.retain_native_stage_inputs,
-    )
-    .map_err(|error| match error {
-        BodyEmissionError::Physical(error) => {
-            selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
+    let selections = target.selections().clone();
+    let root_error = |error| match error {
+        BodyEmissionError::Physical(error) => selected_physical_pipeline_failed(&selections, error),
+        BodyEmissionError::Installation(reason) => {
+            realization_error("installed handler stack", reason)
         }
         BodyEmissionError::Object(diagnostics) => diagnostics,
-    })?;
+    };
+    let physical = pipeline::prepare_physical_body(target, None, requirements, observation)
+        .map_err(root_error)?;
     let private_bodies = prepared_callbacks.finish_physical()?;
-    let hosted_entry = if physical_planning::hosted_program::needs_hosted_entry(
-        &physical.frame,
-        &physical.facts.program,
+    let hosted_entry = if entry_planning::hosted_program::needs_hosted_entry(
+        &physical.stage.program().frame,
+        &physical.stage.facts().semantic.program,
         program_entry.map(|entry| entry.source().target_slot().owner),
     ) {
         let demand = super::body_resources::plan(&physical, &private_bodies)?;
-        let program = &physical.frame.instructions;
+        let program = &physical.stage.program().frame.instructions;
         let receiver = program_entry
             .map(|entry| {
                 verified_optimization_input::hosted_receiver::AdmittedHostedReceiver::admit(
                     program.target,
                     program.contracts.profile(),
-                    &physical.facts.admission,
+                    &physical.stage.facts().semantic.admission,
                     physical
-                        .facts
+                        .stage
+                        .facts()
+                        .semantic
                         .program
                         .functions
                         .iter()
@@ -187,10 +109,10 @@ pub(crate) fn emit_realization_object(
             .transpose()
             .map_err(|error| vec![error])?;
         Some(
-            physical_planning::hosted_program::plan_hosted_program_entry(
-                physical_planning::hosted_program::HostedProgramEntryRequest {
-                    frame: &physical.frame,
-                    program: &physical.facts.program,
+            entry_planning::hosted_program::plan_hosted_program_entry(
+                entry_planning::hosted_program::HostedProgramEntryRequest {
+                    frame: &physical.stage.program().frame,
+                    program: &physical.stage.facts().semantic.program,
                     receiver,
                     demand,
                 },
@@ -209,7 +131,7 @@ pub(crate) fn emit_realization_object(
                     "semantic entry requires an explicitly selected checked physical adapter",
                 )
             })?;
-            if physical.frame.instructions.entry != adapter.machine() {
+            if physical.stage.program().frame.instructions.entry != adapter.machine() {
                 return Err(realization_error(
                     "physical program entry",
                     "physical root is not the selected physical adapter",
@@ -230,23 +152,30 @@ pub(crate) fn emit_realization_object(
             let private_entries = private_bodies
                 .iter()
                 .map(
-                    |body| physical_planning::physical_entry::PrivatePhysicalEntry {
-                        psi: body.callable.body.frame.instructions.psi,
-                        target: body.callable.body.frame.instructions.target,
-                        authority: &body.callable.body.installations,
+                    |body| entry_planning::physical_entry::PrivatePhysicalEntry {
+                        psi: body.callable.body.stage.program().frame.instructions.psi,
+                        target: body.callable.body.stage.program().frame.instructions.target,
+                        installations: body
+                            .callable
+                            .body
+                            .stage
+                            .installations()
+                            .for_entry_planning(),
                         entry: &body.entry,
                     },
                 )
                 .collect::<Vec<_>>();
-            physical_planning::physical_entry::plan_physical_entry(
-                physical_planning::physical_entry::PhysicalEntryPlanningRequest {
-                    frame: &physical.frame,
+            entry_planning::physical_entry::plan_physical_entry(
+                entry_planning::physical_entry::PhysicalEntryPlanningRequest {
+                    frame: &physical.stage.program().frame,
                     selection: physical
-                        .facts
+                        .stage
+                        .facts()
+                        .semantic
                         .admission
                         .physical_entry(entry)
                         .map_err(|reason| realization_error("physical image entry", reason))?,
-                    authority: &physical.installations,
+                    installations: physical.stage.installations().for_entry_planning(),
                     private_entries: &private_entries,
                     physical: calling.plan(),
                     contract,
@@ -256,8 +185,6 @@ pub(crate) fn emit_realization_object(
             .map_err(|error| vec![error])
         })
         .transpose()?;
-    let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::plan));
     let handlers =
         super::callback_thunks::retained_handler_measurements(&physical, &private_bodies)?;
     let physical = physical.bind(&handlers, physical_root)?;
@@ -265,6 +192,14 @@ pub(crate) fn emit_realization_object(
         .into_iter()
         .map(|body| body.bind(&handlers))
         .collect::<Result<Vec<_>, _>>()?;
+    let hosted_entry = hosted_entry.map(installation_binding::entries::bind_hosted_entry);
+    let physical_entry = physical_entry.map(installation_binding::entries::bind_physical_entry);
+    let runtime_provisions = runtime_provisions.map(|runtime| {
+        runtime.map_adapters(|request| {
+            super::auxiliary_native::plan(request)
+                .map(installation_binding::entries::bind_foreign_adapter)
+        })
+    });
     // Body membership, entry transport and installation resources are now closed.
     // Encoding consumes these plans and cannot discover or request another body.
     let runtime_provisions =
@@ -277,32 +212,30 @@ pub(crate) fn emit_realization_object(
         .map(native_encoding::physical_entry::encode_physical_entry)
         .transpose()
         .map_err(|error| vec![error])?;
-    let root_error = |error| match error {
-        BodyEmissionError::Physical(error) => {
-            selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
-        }
-        BodyEmissionError::Object(diagnostics) => diagnostics,
-    };
     let encoded = BodyRoster {
         root: physical,
         private: private_bodies,
     }
     .try_map(
-        |body| pipeline::encode_physical_body(body, request.observation).map_err(root_error),
+        |body| pipeline::encode_physical_body(body, observation).map_err(root_error),
         |body| body.encode(),
     )?;
     let runtime_provisions =
         runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::place));
     let hosted_entry = hosted_entry
-        .map(function_layout::program_entry_placement::place_hosted_program)
+        .map(placement::program_entry_layout::resolve_hosted_program)
         .transpose()
-        .map_err(|error| vec![error])?;
+        .map_err(|error| vec![error])?
+        .map(relaxation::retain_fixed_entry)
+        .map(function_layout::place_fixed_entry);
     let physical_entry = physical_entry
-        .map(function_layout::program_entry_placement::place_physical_program)
+        .map(placement::program_entry_layout::resolve_physical_program)
         .transpose()
-        .map_err(|error| vec![error])?;
+        .map_err(|error| vec![error])?
+        .map(relaxation::retain_fixed_entry)
+        .map(function_layout::place_fixed_entry);
     let layouts = encoded.try_map(
-        |body| pipeline::layout_encoded_body(body, request.observation).map_err(root_error),
+        |body| pipeline::layout_encoded_body(body, observation).map_err(root_error),
         |body| body.layout(),
     )?;
     let runtime_provisions =
@@ -315,32 +248,34 @@ pub(crate) fn emit_realization_object(
         |body| pipeline::construct_body_object(body).map_err(root_error),
         |body| body.construct_object(),
     )?;
-    let fragments = objects.try_map(
-        |body| pipeline::emit_body_fragment(body).map_err(root_error),
-        |body| body.emit_fragment(),
-    )?;
-    let mut private_functions = Vec::with_capacity(fragments.private.len());
-    let mut private_originals = Vec::with_capacity(fragments.private.len());
-    for (object, original) in fragments.private {
-        private_originals.push((object.identity, original));
-        private_functions.push(object);
+    let mut private_functions = Vec::with_capacity(objects.private.len());
+    let mut private_originals = Vec::with_capacity(objects.private.len());
+    let mut private_replays = Vec::new();
+    for body in objects.private {
+        if let Some(inputs) = body.stage_originals {
+            private_replays.push((body.object.identity, inputs));
+        }
+        private_originals.push((body.object.identity, body.physical_original));
+        private_functions.push(body.object);
     }
     let physical_originals = native_artifact::NativePhysicalOriginals::new(private_originals)
         .map_err(|reason| realization_error("private physical originals", reason))?;
     let object = publish_fragment_object(
-        fragments.root,
+        objects.root.projection,
         FragmentObjectPublicationRequest {
+            runtime: runtime_provisions,
             program_entry,
             physical_entry,
             hosted_entry,
             private_functions: &private_functions,
         },
     )?;
+    let stage_replay =
+        crate::NativeStageReplay::from_bodies(objects.root.originals, private_replays)
+            .map_err(|error| vec![error])?;
     Ok(EmittedRealizationObject {
+        stage_replay,
         physical_originals,
-        runtime_provisions: runtime_provisions
-            .map(native_artifact::TerminalRuntimeProvisions::from_plan),
-        borrowed_storage_layouts: object.object.borrowed_storage_layouts().clone(),
         object,
     })
 }
@@ -356,31 +291,27 @@ mod tests {
         for refused in [None, Some("installed handler")] {
             let events = RefCell::new(Vec::new());
             let construct = |body| {
-                events.borrow_mut().push((8, body));
+                events.borrow_mut().push(body);
                 if refused == Some(body) {
                     Err(body)
                 } else {
                     Ok(body)
                 }
             };
-            let emit = |body| {
-                events.borrow_mut().push((9, body));
-                Ok(body)
-            };
             let result = BodyRoster {
                 root: bodies[0],
                 private: bodies[1..].to_vec(),
             }
             .try_map(construct, construct)
-            .and_then(|objects| objects.try_map(emit, emit));
-            let mut expected = bodies.map(|body| (8, body)).to_vec();
+            .inspect(|_| events.borrow_mut().push("image"));
+            let mut expected = bodies.to_vec();
             match refused {
                 Some(reason) => assert_eq!(result.err(), Some(reason)),
                 None => {
-                    let fragments = result.unwrap();
-                    assert_eq!(fragments.root, bodies[0]);
-                    assert_eq!(fragments.private.as_slice(), &bodies[1..]);
-                    expected.extend(bodies.map(|body| (9, body)));
+                    let objects = result.unwrap();
+                    assert_eq!(objects.root, bodies[0]);
+                    assert_eq!(objects.private.as_slice(), &bodies[1..]);
+                    expected.push("image");
                 }
             }
             assert_eq!(events.into_inner(), expected);

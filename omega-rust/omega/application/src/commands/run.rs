@@ -67,21 +67,43 @@ const COMPARISON_DECLINED: i32 = 204;
 use std::path::PathBuf;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
+    let artifact = if arguments
+        .main_path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
+    {
+        Some(
+            crate::inspection::open_trusted_program(
+                &arguments.main_path,
+                arguments.trusted_artifact.as_deref(),
+            )
+            .unwrap_or_else(|diagnostics| {
+                let error = RunError::Compilation(diagnostics);
+                eprintln!("{error}");
+                std::process::exit(compile_failure_status(&error))
+            }),
+        )
+    } else {
+        None
+    };
     if let Some(outputs) = arguments.outputs.clone() {
-        run_cases(arguments, outputs);
+        run_cases(arguments, outputs, artifact);
     }
     let selection = arguments.selection;
-    let outcome = match run_project(RunRequest {
-        build_snapshot: arguments
-            .build_inputs
-            .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
-        private_entry_ram: arguments.private_entry_ram,
-        root_path: arguments.main_path,
-        target_name: arguments.target_name,
-        selection: arguments.selection,
-        psi_work_budget: arguments.psi_work_budget,
-        keep_artifacts: arguments.keep,
-    }) {
+    let outcome = match run_project(
+        artifact,
+        RunRequest {
+            build_snapshot: arguments
+                .build_inputs
+                .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
+            private_entry_ram: arguments.private_entry_ram,
+            root_path: arguments.main_path,
+            target_name: arguments.target_name,
+            selection: arguments.selection,
+            psi_work_budget: arguments.psi_work_budget,
+            keep_artifacts: arguments.keep,
+        },
+    ) {
         Ok(outcome) => outcome,
         Err(error) => {
             match (&error, selection) {
@@ -210,7 +232,11 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
     }
 }
 
-fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
+fn run_cases(
+    arguments: RunArguments,
+    outputs: PathBuf,
+    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+) -> ! {
     let cases = match &arguments.inputs {
         Some(inputs) => {
             let mut cases = match std::fs::read_dir(inputs) {
@@ -235,18 +261,21 @@ fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
         }
         None => arguments.input_files.clone(),
     };
-    let outcome = match run_project_cases(CaseRunRequest {
-        build_snapshot: arguments
-            .build_inputs
-            .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
-        private_entry_ram: arguments.private_entry_ram,
-        root_path: arguments.main_path,
-        compare_interpreter: arguments.selection == ExecutionSelection::Both,
-        psi_work_budget: arguments.psi_work_budget,
-        inputs: cases,
-        output_directory: outputs.clone(),
-        keep_artifacts: arguments.keep,
-    }) {
+    let outcome = match run_project_cases(
+        artifact,
+        CaseRunRequest {
+            build_snapshot: arguments
+                .build_inputs
+                .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
+            private_entry_ram: arguments.private_entry_ram,
+            root_path: arguments.main_path,
+            compare_interpreter: arguments.selection == ExecutionSelection::Both,
+            psi_work_budget: arguments.psi_work_budget,
+            inputs: cases,
+            output_directory: outputs.clone(),
+            keep_artifacts: arguments.keep,
+        },
+    ) {
         Ok(outcome) => outcome,
         Err(error) => {
             eprintln!("{error}");

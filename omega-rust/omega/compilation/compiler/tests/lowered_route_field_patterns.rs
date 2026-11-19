@@ -263,14 +263,14 @@ fn guarded_cases_emit_the_wildcard_call_once() {
     };
     let named = |name: &str| {
         closure
-            .elaboration
+            .elaboration()
             .names
             .iter()
             .find_map(|(id, names)| (names.machine.rsplit("::").next() == Some(name)).then_some(id))
             .unwrap()
     };
     let fallback = named("pattern_default");
-    let pick = closure.elaboration.module.machine(named("pick")).unwrap();
+    let pick = closure.elaboration().module.machine(named("pick")).unwrap();
     let calls = |callee| {
         pick.blocks
             .iter()

@@ -1,0 +1,37 @@
+[package]
+name = "typed-trees-to-terminal-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+autotests = false
+autoexamples = false
+autobenches = false
+
+[features]
+test-support = []
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+source-declarations = { path = "../../representations/source-declarations" }
+typed-trees = { path = "../../representations/typed-trees" }
+declaration-contracts = { path = "../../representations/declaration-contracts" }
+schema-reflection = { path = "../../representations/schema-reflection" }
+application-identity = { path = "../../representations/application-identity" }
+numeric-literals = { path = "../../representations/numeric-literals" }
+source-admission = { path = "../../representations/source-admission" }
+source-text = { path = "../../../foundation/source-text" }
+bignum = { path = "../../../foundation/bignum" }
+wire = { path = "../../../foundation/wire" }
+arena = { path = "../../../foundation/arena" }
+diagnostics = { path = "../../../foundation/diagnostics" }
+language-core = { path = "../../representations/source-vocabulary" }
+numerics = { path = "../../representations/scalar-values" }
+semantic-vocabulary = { path = "../../representations/semantic-vocabulary" }
+symbols = { path = "../../representations/declaration-identity" }
+terminal-check-tables = { path = "../../representations/terminal-psi/check-tables" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-installation = { path = "../../terminal-installation" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }

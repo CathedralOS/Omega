@@ -79,3 +79,12 @@ pub struct PhysicalFrameProgram<Origin> {
     pub frame: ValidatedTargetFrameLayout,
     pub protocols: PlannedTargetFrameProtocols<Origin>,
 }
+
+/// All executable references and helper recipes selected for the framed body.
+#[derive(Debug)]
+pub struct PlannedFunctionBody<FrameOrigin, ImportOrigin> {
+    pub frame: PhysicalFrameProgram<FrameOrigin>,
+    pub private_references: Vec<function_identity::MachineFunctionIdentity>,
+    pub imports: crate::imports::PhysicalImportProgram<ImportOrigin>,
+    pub windows_internet: Option<crate::windows_internet::WindowsInternetProgram<ImportOrigin>>,
+}

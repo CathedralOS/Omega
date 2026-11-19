@@ -155,7 +155,7 @@ impl CheckedCompilation {
         })
     }
 
-    /// Retain the source-free publication projected before provider planning.
+    /// Retain the exact program Psi issued before provider planning.
     pub fn with_published_program(
         mut self,
         published: Arc<crate::PublishedProgram>,
@@ -163,7 +163,7 @@ impl CheckedCompilation {
         let source = self
             .terminal_publication
             .require_published(self.terminal_publication.optimizations())?;
-        if !published.belongs_to(&source) {
+        if !Arc::ptr_eq(&published, &source) {
             return Err(vec![Diagnostic::error(
                 "published code belongs to another checked source",
             )]);
@@ -178,12 +178,9 @@ impl CheckedCompilation {
     pub fn into_published(self) -> Result<crate::PublishedCompilation, Vec<Diagnostic>> {
         let source = match &self.published_program {
             Some(source) => Arc::clone(source),
-            None => {
-                let program = self
-                    .terminal_publication
-                    .require_published(self.terminal_publication.optimizations())?;
-                Arc::new(crate::PublishedProgram::from_source(&program))
-            }
+            None => self
+                .terminal_publication
+                .require_published(self.terminal_publication.optimizations())?,
         };
         let program =
             crate::PublishedExecutableProgram::for_execution(&source, &self.execution.settled)

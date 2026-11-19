@@ -880,12 +880,7 @@ mod tests {
             let site =
                 CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(service))
                     .unwrap();
-            let revision = declaration_contracts::source_identity::toolchain_owned_identity_digest(
-                "core",
-                vec![site.file.to_str().unwrap().to_owned()],
-                site.source,
-            )
-            .unwrap();
+            let revision = language_core::bundled_files::core_revision::FILESYSTEM_AUTHORITY;
             let nominal = |owner| {
                 compound(
                     NameForm::Nominal,

@@ -17,12 +17,16 @@ pub(crate) struct RunArguments {
     pub(crate) inputs: Option<std::path::PathBuf>, // Directory of *.stdin cases run against one compilation.
     pub(crate) input_files: Vec<std::path::PathBuf>, // Explicit case files (--input, repeatable), named by file stem.
     pub(crate) outputs: Option<std::path::PathBuf>, // Where each case's streams and results.tsv are written.
+    pub(crate) trusted_artifact: Option<String>,
     pub(crate) main_path: std::path::PathBuf,
 }
 
 macro_rules! run_help {
     (synopsis) => {
-        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>"
+        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
+    };
+    (host_packages) => {
+        "For saved Psi, OMEGA_HOST_PACKAGE_LOCK selects an absolute path to the host's reviewed omega.lock. Set OMEGA_HOST_PACKAGE_LOCK_SHA256 to its approved SHA-256 digest."
     };
     (work_budget) => {
         "--psi-work-budget applies to --engine psi and to --both without --target."
@@ -35,6 +39,8 @@ pub(super) const USAGE: &str = concat!(
     run_help!(synopsis),
     "\n",
     run_help!(work_budget),
+    "\n",
+    run_help!(host_packages),
     "\nWithout --target, --both runs native code and Psi on this host and compares their exits.\nWith --target, the default engine, --engine native, and --both emit artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
 );
 
@@ -53,6 +59,7 @@ pub(super) fn parse_arguments(
     let mut input_files = Vec::new();
     let mut outputs = None;
     let mut main_path = None;
+    let mut trusted_artifact = None;
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
             Some(flag @ ("--build-input" | "--optional-build-input")) => {
@@ -135,6 +142,9 @@ pub(super) fn parse_arguments(
                     .collect::<Result<Vec<_>, String>>()?;
                 private_entry_ram
                     .push(products::PrivateEntryRamInitialization { position, contents });
+            }
+            Some("--trusted-artifact") => {
+                super::parse_trusted_artifact(&mut arguments, &mut trusted_artifact)?
             }
             Some("--input") => {
                 let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;
@@ -225,7 +235,15 @@ pub(super) fn parse_arguments(
             build_inputs,
         )?)
     };
+    if trusted_artifact.is_some()
+        && !main_path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
+    {
+        return Err("--trusted-artifact applies to a saved .psi program".into());
+    }
     Ok(Some(RunArguments {
+        trusted_artifact,
         build_inputs,
         private_entry_ram,
         selection,

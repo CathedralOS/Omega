@@ -34,6 +34,8 @@ mod layout_demand_tests {
             application: None,
             subject,
             requirement,
+            requirement_identity: "DarwinTimespec::read".into(),
+            service_declaration: [1; 32],
             target: ProductTarget::MacosArm64,
             locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 1 },
             producer: NativeBindingProducer {

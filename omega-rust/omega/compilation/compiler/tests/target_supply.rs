@@ -658,7 +658,7 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
             semantic_vocabulary::ExternalCompletionKind::ProcessExit,
         )
     );
-    let projected = native_program_planning::hosted_requirement_schema(
+    let projected = provider_realization::hosted_requirement_schema(
         accepted.module(),
         language_core::sealed_intrinsics::HostedOperation::ProcessExit,
         boundary.id,
@@ -796,6 +796,21 @@ fn native_supply(
             application: None,
             subject: requirement.slot,
             requirement: requirement.requirement,
+            requirement_identity: {
+                let typed = accepted.source();
+                let (owner, signature) = typed
+                    .trait_machine_signature(requirement.requirement)
+                    .unwrap();
+                typed.trait_requirement_callable_identity_text(owner, signature)
+            },
+            service_declaration: accepted
+                .module()
+                .boundary_machine(requirement.boundary)
+                .unwrap()
+                .declaration
+                .as_ref()
+                .unwrap()
+                .service_declaration,
             target,
             locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 39 },
             producer: declaration_contracts::selection::NativeBindingProducer {
@@ -1087,10 +1102,10 @@ fn execution(
     profile: Option<target::TargetProfile>,
     publication: &source_compiler::SourcePublication,
     settled: &SettledTargetSupply,
-) -> Result<native_program_planning::SelectedExecution, String> {
+) -> Result<provider_realization::SelectedExecution, String> {
     let accepted = publication.accepted().map_err(first)?;
     if settled.requirements().is_empty() {
-        return native_program_planning::test_support::select_realization(
+        return provider_realization::test_support::select_realization(
             accepted.module(),
             profile,
             settled
@@ -1100,7 +1115,7 @@ fn execution(
         .map_err(first);
     }
     let schemas = settled_supply::published_slot_schemas(publication).map_err(first)?;
-    native_program_planning::test_support::select_realization(
+    provider_realization::test_support::select_realization(
         accepted.module(),
         profile,
         settled
@@ -1121,7 +1136,7 @@ fn execution(
 fn execution_inputs(
     publication: &source_compiler::SourcePublication,
     settled: &SettledTargetSupply,
-) -> Result<native_program_planning::target_supply::TargetSupplyExecutionInputs, String> {
+) -> Result<provider_realization::target_supply::TargetSupplyExecutionInputs, String> {
     let accepted = publication.accepted().map_err(first)?;
     let source = accepted.source();
     let sources = package_compilation::BuildSourceCustody {
@@ -1490,17 +1505,16 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
     let settled = target.supply.settle().unwrap();
     let execution = execution(Some(profile()), &target.publication, &settled).unwrap();
     let plan = &execution.plans().plans()[0];
-    let program = native_program_planning::calling_policy_plans::CallingProgram {
+    let program = provider_realization::calling_policy_plans::CallingProgram {
         artifact: produced(accepted),
     };
-    let applications =
-        native_program_planning::calling_policy_plans::component_calling_applications(
-            profile(),
-            &program,
-            &[plan],
-            &[],
-        )
-        .expect("every member has a materializable declaration application");
+    let applications = provider_realization::calling_policy_plans::component_calling_applications(
+        profile(),
+        &program,
+        &[plan],
+        &[],
+    )
+    .expect("every member has a materializable declaration application");
     assert_eq!(applications.len(), 2);
 
     let mut changed = plan.clone();
@@ -1517,7 +1531,7 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
         })
         .unwrap();
     changed.rows[0].calling_signature = Some(sibling.id);
-    let error = native_program_planning::calling_policy_plans::component_calling_applications(
+    let error = provider_realization::calling_policy_plans::component_calling_applications(
         profile(),
         &program,
         &[&changed],
@@ -1802,9 +1816,13 @@ machine build(builder: @mut Build) {{
             let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
                 &main, Some(profile.target_name()),
             )?;
-            let checked = fixture_package_inputs::check_fixture(
+            let build = fixture_package_inputs::prepare_fixture_package(
                 &mut prepared, profile.target_name(), Default::default(),
             )?;
+            let host_packages = orchestration::installed_package_providers(profile, &build)
+                .expect("the host's reviewed product packages supply their evaluated target bindings");
+            let checked = prepared.session.compiler().check_package_build(build)
+                .map_err(|failure| failure.into_diagnostics())?;
             let accepted = checked.terminal_publication().accepted()?;
             let module = accepted.module();
             let realization = checked.execution().realization();
@@ -1843,18 +1861,32 @@ machine build(builder: @mut Build) {{
             leaf.validate_plain_execution(module, realization.evaluated_native_bindings(),
                 realization.evaluated_binding_identities()).unwrap();
 
-            let source = accepted.closure().elaboration.boundaries.get(boundary.id)
+            let source = accepted.closure().elaboration().boundaries.get(boundary.id)
                 .expect("the binding has its exact source correspondence");
             let supply = checked.build().config.native_bindings.iter().find(|supply|
                 supply.selection.requirement == *source
                     && supply.selection.target.canonical_name() == profile.target_name())
                 .expect("the dependency Build produced the actual selected locator");
             let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-            let wrong = native_program_planning::native_bindings::normalize_native_binding(
-                &supply.materialization(), "wrong-requirement-for-the-same-completed-locator", &mut identities,
+            let refusal = provider_realization::native_bindings::normalize_native_binding(
+                &supply.materialization(), "wrong-requirement-for-the-same-completed-locator", &supply.selection.service_declaration, &mut identities,
+            ).expect_err("a completed Build locator cannot be issued for a different requirement");
+            assert_eq!(refusal, "completed Build binding belongs to a different requirement");
+            let mut other_contract = supply.selection.service_declaration;
+            other_contract[0] ^= 1;
+            let refusal = provider_realization::native_bindings::normalize_native_binding(
+                &supply.materialization(), &supply.selection.requirement_identity, &other_contract, &mut identities,
+            ).expect_err("the same callable cannot authorize another checked service contract");
+            assert_eq!(refusal, "completed Build binding belongs to a different service contract");
+            let other_supply = checked.build().config.native_bindings.iter().find(|other|
+                other.selection.requirement_identity != supply.selection.requirement_identity
+                    && other.selection.target == supply.selection.target)
+                .expect("the same package Build supplies another target requirement");
+            let other_receipt = provider_realization::native_bindings::normalize_native_binding(
+                &other_supply.materialization(), &other_supply.selection.requirement_identity, &other_supply.selection.service_declaration, &mut identities,
             ).unwrap();
-            let refusal = leaf.validate_plain_execution(module, &[wrong], &identities.build())
-                .expect_err("a completed locator for another requirement is not this supply");
+            let refusal = leaf.validate_plain_execution(module, &[other_receipt], &identities.build())
+                .expect_err("the selected leaf refuses a genuine receipt for another requirement");
             assert!(refusal.contains("unique completed Build locator receipt"), "{refusal}");
 
             let mut wrong = leaf.clone();
@@ -1878,6 +1910,60 @@ machine build(builder: @mut Build) {{
                 realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
                 .expect_err("the Calling application must still name its public requirement");
             assert_eq!(refusal, "direct foreign execution changed its public declaration ABI");
+
+            // The caller of the raw write gets its permission from the package
+            // that declared the schema. Native planning must retain that owner
+            // after the source selections have been released.
+            let request = module.calling_policy_requests.iter().find(|request| {
+                request.instances.as_ref().is_ok_and(|instances| {
+                    instances.iter().any(|instance| instance.declaring_application == schema.application)
+                })
+            }).expect("the Console write has a declared calling policy");
+            let declaration = *request.declaration.as_ref().unwrap();
+            let publication = checked.terminal_publication();
+            let portable = publication.require_published(publication.optimizations())?;
+            let artifact = Arc::clone(portable.artifact());
+            let released = Arc::downgrade(accepted.source());
+            let packages = prepared.package_inputs.as_ref().expect("Console uses a dependency Build");
+            let standard = packages.direct_dependencies(build_declarations::DependencyPurpose::Product)
+                .find(|(_, package)| packages.package_name(*package) == Some("omega_language_std"))
+                .expect("the standard library declares the raw Console write").1;
+            let expected = semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(standard);
+            let saved = artifact.to_bytes();
+            let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&saved).unwrap();
+            let producer = terminal_installation::HostProducerTrust::accept("fixture source compiler");
+            let authorized = terminal_installation::authorize_terminal_artifact(
+                Arc::new(reopened), Some(&producer),
+            ).unwrap();
+            drop(portable);
+            drop(checked);
+            drop(prepared);
+            assert!(released.upgrade().is_none());
+            let reopened = authorized.shared_artifact();
+            assert_eq!(reopened.manifest().identity(), artifact.manifest().identity());
+            assert_eq!(reopened.publication_metadata().unwrap().calling_schema_custody(declaration).unwrap(), expected);
+
+            let mut other = terminal_psi::TerminalModule::declarations();
+            other.identities = terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
+            let other = terminal_codec::InvocationTerminalCode::new(other).unwrap();
+            assert_eq!(reopened.calling_declaration_owner(other.view(), declaration).unwrap_err(),
+                "source declaration custody belongs to another program or invocation");
+            let installation = host_packages.for_program(&authorized);
+            let report = orchestration::prepare_saved_program(
+                authorized, &workspace.join("main.psi"), profile, installation,
+                orchestration::NativeDestination::Retained, &[],
+            ).map_err(orchestration::BuildError::into_diagnostics)?;
+            let image = report.retained_native_artifact().expect("the installed bindings emit an executable");
+            #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+            {
+                let path = workspace.join("reviewed-console.exe");
+                std::fs::write(&path, &image.image().output().bytes).unwrap();
+                let result = std::process::Command::new(path)
+                    .stdin(std::process::Stdio::null()).output().unwrap();
+                assert_eq!(result.status.code(), Some(0), "{result:?}");
+                assert_eq!(result.stdout, b"A");
+            }
+            assert!(!image.image().output().bytes.is_empty());
             Ok::<(), Vec<diagnostics::Diagnostic>>(())
         }).unwrap().join().unwrap()
     }).unwrap_or_else(|refused| panic!("completed plain binding: {refused:?}"));

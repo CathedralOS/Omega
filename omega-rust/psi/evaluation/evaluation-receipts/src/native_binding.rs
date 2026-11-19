@@ -4,7 +4,7 @@
 // the invocation's own usage counters (excluding aggregate sponsorship so
 // concurrent package billing cannot perturb the provider's semantic identity).
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct NativeBuildEvaluation {
     pub terminal_code: terminal_psi::TerminalPsiIdentity,
     pub usage: evaluation_contracts::BuildEvaluationUsage,
@@ -61,8 +61,10 @@ impl NativeBuildEvaluation {
 /// The value and receipt of a completed native-binding invocation. Source
 /// settlement joins its requirement first; native consumers receive no symbol
 /// table handle, source span, or declaration lookup capability.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct NativeBindingMaterialization {
+    pub requirement_identity: String,
+    pub service_declaration: [u8; 32],
     pub target: String,
     pub locator: semantic_vocabulary::NativeBindingLocator,
     pub producer_identity: String,

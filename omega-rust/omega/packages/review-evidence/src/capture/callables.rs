@@ -46,7 +46,7 @@ impl PolicySource<'_> {
             .ok_or_else(|| unavailable("the accepted Build entry"))?;
         let mut origins = accepted
             .closure()
-            .elaboration
+            .elaboration()
             .machines
             .iter()
             .filter(|(machine, _)| *machine == entry);
@@ -118,7 +118,7 @@ impl PolicySource<'_> {
         let mut effects_validated = false;
         let mut bodies: Vec<_> = accepted
             .closure()
-            .elaboration
+            .elaboration()
             .machines
             .iter()
             .map(|(entry, original)| (*original, entry))
@@ -572,7 +572,7 @@ pub(super) fn service_origins(
         };
         let original = *accepted
             .closure()
-            .elaboration
+            .elaboration()
             .boundaries
             .get(boundary.id)
             .ok_or_else(|| unavailable("a service's original boundary declaration"))?;
@@ -729,7 +729,7 @@ pub(super) fn body_effects(
     let module = accepted.module();
     let tables = accepted
         .closure()
-        .elaboration
+        .elaboration()
         .tables
         .machines
         .get(body.id)

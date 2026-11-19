@@ -393,7 +393,7 @@ impl PolicySource<'_> {
             });
         }
         super::callables::validate_body_effect_inventory(module)?;
-        if accepted.closure().elaboration.boundaries.len() != declarations.boundaries.len() {
+        if accepted.closure().elaboration().boundaries.len() != declarations.boundaries.len() {
             return Err(unavailable(
                 "the accepted module's complete boundary inventory",
             ));
@@ -515,7 +515,7 @@ impl PolicySource<'_> {
             .collect::<Vec<_>>();
         native_owners.sort_unstable();
         native_owners.dedup();
-        let original_boundaries = &declarations.accepted.closure().elaboration.boundaries;
+        let original_boundaries = &declarations.accepted.closure().elaboration().boundaries;
         // The checked roster names each requirement even without a provider.
         // Join its source declarations by the service and signature identities.
         let mut unsupplied = Vec::new();
@@ -768,7 +768,7 @@ impl PolicySource<'_> {
                 "the selected provider's local source declaration",
             ));
         }
-        let declaration_symbols = &declarations.accepted.closure().elaboration.boundaries;
+        let declaration_symbols = &declarations.accepted.closure().elaboration().boundaries;
         let mut signatures = methods.iter().collect::<Vec<_>>();
         signatures.sort_unstable_by_key(|signature| symbol_key(signature.symbol));
         let provider_rows = &plan.rows;
@@ -890,7 +890,7 @@ impl PolicySource<'_> {
         let realization = *declarations
             .accepted
             .closure()
-            .elaboration
+            .elaboration()
             .machines
             .get(candidate)
             .ok_or_else(|| unavailable("the selected provider's original declaration"))?;

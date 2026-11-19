@@ -33,6 +33,7 @@ impl NativeBuildOutputs {
                 || declaration.source.producer.callable_identity.is_empty()
                 || declaration.source.requirement_path.is_empty()
                 || declaration.requirement_identity.is_empty()
+                || declaration.service_declaration == [0; 32]
                 || declaration.requirement.kind() != symbols::SymbolKind::State
                 || declaration.requirement.source().dependency_scope
                     != declaration_contracts::source_identity::DependencyScope::Product
@@ -63,6 +64,43 @@ impl NativeBuildOutputs {
             intents,
             evaluation,
         })
+    }
+}
+
+impl PackageBuildHandoff {
+    /// Keep the complete checked declaration and evaluation for each binding
+    /// this package supplied. The receiver selects the requirements it reaches.
+    pub fn append_native_bindings(
+        &self,
+        profile: target::TargetProfile,
+        bindings: &mut Vec<evaluation_receipts::NativeBindingMaterialization>,
+    ) -> Result<(), String> {
+        if self.target() != profile {
+            return Err("installed package belongs to a different target".into());
+        }
+        for intent in self
+            .native_intents()
+            .iter()
+            .filter(|intent| intent.target.canonical_name() == profile.target_name())
+        {
+            // The checked handoff validates every declaration index and requires
+            // the completed evaluation whenever the Build produced an intent.
+            let declaration = &self.native_declarations()[intent.declaration as usize];
+            let evaluation = self
+                .native_evaluation()
+                .ok_or("installed native binding lost its completed Build evaluation")?;
+            bindings.push(evaluation_receipts::NativeBindingMaterialization {
+                requirement_identity: declaration.requirement_identity.clone(),
+                service_declaration: declaration.service_declaration,
+                target: profile.target_name().to_owned(),
+                producer_identity: declaration.source.producer.callable_identity.clone(),
+                supplier_package: self.package(),
+                source_occurrence_digest: declaration.source.source_occurrence_digest,
+                locator: intent.locator.clone(),
+                evaluation: Arc::clone(evaluation),
+            });
+        }
+        Ok(())
     }
 }
 

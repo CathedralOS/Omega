@@ -23,9 +23,9 @@ const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
     :CheckingInteriorState
 */
 pub(super) const CHECKING_STATE_ROOTS: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/preparation/src",
-    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src",
-    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src",
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi/src",
 ];
 const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
 

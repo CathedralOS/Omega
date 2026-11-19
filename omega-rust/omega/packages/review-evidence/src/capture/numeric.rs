@@ -110,7 +110,7 @@ pub(super) fn prepare(
     for boundary in numeric {
         let original = *accepted
             .closure()
-            .elaboration
+            .elaboration()
             .boundaries
             .get(boundary.id)
             .ok_or_else(|| unavailable("the numeric requirement's original declaration"))?;

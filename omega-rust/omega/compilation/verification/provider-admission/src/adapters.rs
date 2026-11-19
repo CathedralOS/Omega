@@ -151,6 +151,10 @@ impl AdmittedProgramProviderContext {
         Ok(())
     }
 
+    pub const fn profile(&self) -> target::TargetProfile {
+        self.profile
+    }
+
     pub const fn providers(&self) -> Option<&AdmittedProviderSelections> {
         self.providers.as_ref()
     }

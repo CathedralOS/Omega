@@ -739,6 +739,9 @@ pub(super) fn decode_external_execution(
 ) -> Result<target_vocabulary::ExternalExecutionBinding, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         0 => decode_provider_execution(cursor).map(Into::into),
+        2 => target_vocabulary::CompilerImport::from_tag(cursor.byte()?)
+            .map(target_vocabulary::ExternalExecutionBinding::CompilerImport)
+            .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution),
         1 => target_vocabulary::NativeBindingExecution::from_commitments(
             cursor.array::<32>()?,
             cursor.array::<32>()?,

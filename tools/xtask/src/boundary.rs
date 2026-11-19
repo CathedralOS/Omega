@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const NATIVE_ROOT: &str = "omega-rust/omega/compilation/native-compiler";
+const PUBLISHED_PROGRAM: &str = "omega-rust/omega/compilation/published-program";
 pub const PROVIDER_SELECTION_ROOT: &str =
     "omega-rust/omega/compilation/verification/provider-correspondence";
 pub const PROVIDER_ADMISSION_ROOT: &str =
@@ -70,6 +71,7 @@ const PSI_FACADE: &str = linear_pipeline::STAGES[1];
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
 const OMEGA_COMPILATION: &[&str] = &[
     NATIVE_ROOT,
+    PUBLISHED_PROGRAM,
     PROVIDER_ADMISSION_ROOT,
     PROVIDER_SELECTION_ROOT,
     "omega-rust/omega/compilation/pipeline",
@@ -78,6 +80,10 @@ const OMEGA_COMPILATION: &[&str] = &[
     "omega-rust/omega/compilation/verification",
 ];
 const SOURCE_SIDE_PSI: &[&str] = &[
+    "omega-rust/psi/compilation/representations/bundled-declarations",
+    "omega-rust/psi/compilation/representations/source-declarations",
+    "omega-rust/psi/compilation/representations/symbol-resolved-trees",
+    "omega-rust/psi/compilation/representations/typed-trees",
     PSI_PIPELINE,
     "omega-rust/psi/compilation/representations/source-admission",
     "omega-rust/psi/compilation/representations/syntax-trees",
@@ -173,9 +179,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         ),
         rule(
             vec![PRODUCT_COORDINATOR],
-            vec![
-                STAGES[3], STAGES[4], STAGES[5], STAGES[6], STAGES[7], STAGES[8], STAGES[9],
-            ],
+            STAGES[3..].to_vec(),
             "the native driver orders target compilation",
         ),
         rule(
@@ -195,14 +199,11 @@ pub fn forbidden_rules() -> Vec<Rule> {
             vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
             "review evidence is captured independently of package policy and compilation",
         ),
-        Rule {
-            except_owners: vec![STAGES[2]],
-            ..rule(
-                OMEGA_COMPILATION.to_vec(),
-                SOURCE_SIDE_PSI.to_vec(),
-                "native compilation consumes canonical Psi and admitted inputs",
-            )
-        },
+        rule(
+            OMEGA_COMPILATION.to_vec(),
+            SOURCE_SIDE_PSI.to_vec(),
+            "native compilation consumes canonical Psi and admitted inputs",
+        ),
         rule(
             vec![PROVIDER_SELECTION_ROOT],
             vec![PSI_PIPELINE, NATIVE_ROOT],
@@ -229,25 +230,25 @@ pub fn forbidden_rules() -> Vec<Rule> {
             "package management does not execute compiler stages",
         )
     });
-    for stage in 3..=9 {
+    for (index, stage) in STAGES.iter().enumerate().skip(3) {
         let mut external = rule(
             vec![""],
-            vec![STAGES[stage]],
-            "only the native driver and the neighboring phase may consume native stage APIs",
+            vec![stage],
+            "only the native driver and the next stage consume a stage API in production",
         );
-        // These harnesses exercise multiple stages. The production-edge walk
-        // rejects every non-test-support dependency into the harness tree.
         external.except_owners.extend([
             linear_pipeline::TEST_SUPPORT,
             NATIVE_ROOT,
-            STAGES[stage],
-            STAGES[stage + 1],
+            *stage,
             "omega-rust/omega/compilation/verification",
         ]);
+        external
+            .except_owners
+            .extend(STAGES.get(index + 1).copied());
         rules.push(external);
     }
     rules.push(rule(
-        vec![STAGES[4]],
+        STAGES[7..=11].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
         "physical planning reads the retained target operations",
     ));
@@ -380,8 +381,10 @@ const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
     "omega-rust/omega/compilation/target-description/register-environment",
-    "omega-rust/omega/compilation/pipeline/06_native-encoding",
-    "omega-rust/omega/compilation/pipeline/07_native-layout",
+    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
 ];
 
 /// The crate that defines the sealed Terminal Psi module
@@ -399,8 +402,10 @@ const AFTER_SELECTION: &[&str] = &[
     "omega-rust/omega/compilation/representations/register-homes",
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/pipeline/06_native-encoding",
-    "omega-rust/omega/compilation/pipeline/07_native-layout",
+    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
@@ -423,8 +428,10 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/representations/post-allocation-machine",
     "omega-rust/omega/compilation/representations/machine-code",
     "omega-rust/omega/compilation/target-description/register-environment",
-    "omega-rust/omega/compilation/pipeline/06_native-encoding",
-    "omega-rust/omega/compilation/pipeline/07_native-layout",
+    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
 ];
 
 /// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
@@ -647,7 +654,7 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// The crate that defines the validator, and the one production caller: the
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/preparation/",
+    "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/preparation/",
     "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
 ];
 
@@ -663,8 +670,8 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 /// Stage 02 and its preparation crate, and the one file through which image
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/",
-    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/target_lowering/",
+    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
     "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
 ];
 
@@ -672,17 +679,17 @@ const WORKING_PROGRAM_READERS: &[&str] = &[
 /// cannot give object production access to stage 02's working program.
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
-    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
-    "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/validation.rs",
+    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/validation.rs",
 ];
 const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
     (
-        "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/lib.rs",
+        "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/lib.rs",
         "mod retained_working_program;",
     ),
     (
-        "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments.rs",
+        "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments.rs",
         "pub(super) mod retained_source_validation;",
     ),
 ];
@@ -758,13 +765,18 @@ fn call_violations_in(
 /// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
-        "omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/lib.rs",
-        "plan_physical_program",
-        3,
+        "omega-rust/omega/compilation/pipeline/06_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs",
+        "stage_optimized_instruction_selection",
+        1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/06_native-encoding/src/lib.rs",
-        "stage_optimized_layout_independent_selected_form_encoding",
+        "omega-rust/omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine/src/lib.rs",
+        "plan_function_frame",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding/src/lib.rs",
+        "encode_bound_function_body",
         1,
     ),
     (
@@ -773,9 +785,14 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/07_native-layout/src/lib.rs",
-        "layout_program",
-        3,
+        "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "place_encoded_program",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout/src/lib.rs",
+        "relax_resolved_layout",
+        1,
     ),
     (
         "omega-rust/omega/compilation/verification/encoding-admission/src/layout/mod.rs",
@@ -783,9 +800,9 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout/src/function_realization.rs",
+        "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions/src/function_realization.rs",
         "assemble_fixed_frame_realization",
-        2,
+        1,
     ),
 ];
 
@@ -896,30 +913,22 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         "omega-rust",
         &["publish_package_review_numeric_requirements"],
         &[
-            "omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/package_review.rs",
+            "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi/src/provider_supply/package_review.rs",
         ],
         &[(
-            "omega-rust/psi/compilation/pipeline/01_source-compilation/src/package_review.rs",
+            "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi/src/package_review.rs",
             "pub(crate) fn publish_package_review_numeric_requirements(",
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",
     );
+    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["omega-rust/omega/compilation/pipeline/06_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("omega-rust/omega/compilation/representations/physical-program/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
+    errors.extend(call_violations(root, &["into_framed_body_facts"], &["omega-rust/omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("omega-rust/omega/compilation/representations/physical-program/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
     errors.extend(call_violations(
         root,
         &["retain_target_operations"],
-        &["omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/mod.rs"],
+        &["omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/target_lowering/mod.rs"],
         &[(TARGET_REPLAY_RECORD, "pub fn retain_target_operations(")],
         "only native program planning can issue the archived target with its emitted facts",
-    ));
-    errors.extend(call_violations(
-        root,
-        &["into_target_replay"],
-        &["omega-rust/omega/compilation/native-compiler/src/pipeline.rs"],
-        &[(
-            "omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_lowering/mod.rs",
-            "pub fn into_target_replay(",
-        )],
-        "only the native driver may retain a completed target on the explicit audit route",
     ));
     errors.extend(call_violations(
         root,
@@ -929,13 +938,14 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
             "::retained_target_operations",
         ],
         &[
-            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/retained_working_program.rs",
-            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs",
+            "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
+            "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
             "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
-            ("omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
+            ("omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
         ],
         "only explicit object correspondence audits may inspect the original target forms",
     ));
@@ -958,11 +968,11 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
 pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
     call_violations_in(
         root,
-        "omega-rust/omega/compilation/pipeline/09_image-construction",
+        "omega-rust/omega/compilation/pipeline/17_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
             "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
-            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
         "backend production reads an earlier execution plan; read current execution contracts",
@@ -1106,6 +1116,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             RUNTIME_ROOT,
             &runtime_owners,
         )?);
+        let mut published_program_owners = runtime_owners.clone();
+        published_program_owners.extend([
+            NATIVE_ROOT,
+            PUBLISHED_PROGRAM,
+            "omega-rust/omega/compilation/products/optimization-requests",
+        ]);
+        violations.extend(dependency_violations(
+            &metadata,
+            PUBLISHED_PROGRAM,
+            &published_program_owners,
+        )?);
         let mut native_provider_owners = vec![
             NATIVE_PROVIDER_RUNTIME_ROOT,
             "omega-rust/omega/host-support/bounded-process",
@@ -1207,7 +1228,7 @@ mod tests {
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
         const LIBRARY: &str =
-            "omega-rust/omega/compilation/pipeline/07_native-layout/function-layout";
+            "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions";
         const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
         for (owner, dependency, kind, permitted) in [
             (NATIVE_ROOT, linear_pipeline::STAGES[9], None, true),
@@ -1217,17 +1238,12 @@ mod tests {
             (PACKAGES, linear_pipeline::STAGES[3], None, false),
             (PACKAGES, linear_pipeline::STAGES[1], None, false),
             (PACKAGES, linear_pipeline::TEXT_READER, None, true),
-            (
-                LIBRARY,
-                "omega-rust/omega/compilation/pipeline/03_native-program-planning/runtime-provisions",
-                None,
-                false,
-            ),
+            (LIBRARY, linear_pipeline::STAGES[3], None, false),
             // Machine emission reads stage 09's output as a representation.
             (LIBRARY, linear_pipeline::STAGES[9], None, false),
             // Image writers must not reach back to select instructions.
             (
-                "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission",
+                "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission",
                 linear_pipeline::STAGES[4],
                 None,
                 false,
@@ -1504,20 +1520,22 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let image =
-            "omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src";
+        let image = "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src";
         let files = [
             (
                 "omega-rust/omega/packages/review-evidence/src/projection.rs".to_owned(),
                 "let recalculate = AcceptedTerminalSource::publish_package_review_numeric_requirements;\n\
                  let pair = SemanticEmissionFacts::retain_target_operations;\n\
-                 let issue = ValidatedOptimizedTargetOperations::into_target_replay;\n\
                  let read = RetainedTargetOperations::target_for_correspondence;\n\
                  let retained = ObjectArtifact::retained_target_operations;\n",
             ),
             (
                 "omega-rust/omega/compilation/verification/published-objects/src/lib.rs".to_owned(),
                 "current.working_program_for_validation();\ncurrent.execution_plan();\n",
+            ),
+            (
+                "omega-rust/omega/compilation/native-compiler/src/pipeline.rs".to_owned(),
+                "let pair = SemanticEmissionFacts::retain_target_operations;\n",
             ),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
@@ -1650,7 +1668,7 @@ mod tests {
                 workspace_root: "/repo".to_owned(),
                 packages: vec![pkg(
                     "selection",
-                    linear_pipeline::STAGES[4],
+                    linear_pipeline::STAGES[7],
                     &[("dependency", dependency, kind)],
                 )],
             };

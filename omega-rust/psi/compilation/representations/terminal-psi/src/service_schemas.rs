@@ -344,17 +344,11 @@ fn read_core_filesystem_declaration(
                 if site.declaration != path {
                     continue;
                 }
-                let file = site
-                    .file
-                    .to_str()
-                    .ok_or(TypeIdentityVisitError::UnsupportedEmbeddedName)?;
-                let revision =
-                    declaration_contracts::source_identity::toolchain_owned_identity_digest(
-                        "core",
-                        vec![file.to_owned()],
-                        site.source,
-                    )
-                    .map_err(|_| TypeIdentityVisitError::MalformedIdentity)?;
+                if site.source != language_core::bundled_files::BundledFile::CoreFilesystemAuthority
+                {
+                    return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
+                }
+                let revision = language_core::bundled_files::core_revision::FILESYSTEM_AUTHORITY;
                 if digest != Some(revision) {
                     return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
                 }
@@ -420,7 +414,7 @@ mod tests {
         declaration_contracts::source_identity::toolchain_owned_identity_digest(
             namespace,
             vec![file.to_owned()],
-            site.source,
+            bundled_declarations::bytes(site.source),
         )
         .unwrap()
     }

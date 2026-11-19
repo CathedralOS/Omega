@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+published-program = { path = "../../compilation/published-program" }
 declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
 optimization-requests = { path = "../../compilation/products/optimization-requests" }
 evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
@@ -20,7 +21,7 @@ terminal-installation = { path = "../../../psi/compilation/terminal-installation
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
 evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 artifacts = { path = "../../compilation/products/measurements" }
@@ -45,4 +46,4 @@ build-declarations = { path = "../../packages/build-declarations" }
 [dev-dependencies]
 tokens = { path = "../../../psi/compilation/representations/tokens" }
 
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation", features = ["test-support"] }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }

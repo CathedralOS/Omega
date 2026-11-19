@@ -264,12 +264,13 @@ fn a_program_receives_the_bindings_of_the_standard_library() {
 fn windows_console_emits_with_its_authored_imports() {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command.args(["run", "--both"]);
+    if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        command.args(["--target", "windows_x86_64"]);
+    }
+    let output = command
         .args([
-            "run",
-            "--both",
-            "--target",
-            "windows_x86_64",
             "--build-input",
             "build.omg",
             "--build-input",
@@ -282,8 +283,20 @@ fn windows_console_emits_with_its_authored_imports() {
         .expect("omega runs");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{stderr}");
-    assert!(
-        stderr.contains("compiled for target `windows_x86_64`"),
-        "{stderr}"
-    );
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        assert_eq!(output.stdout, b"K\n");
+        assert!(
+            stderr.lines().any(|line| line == "native exit 0"),
+            "{stderr}"
+        );
+        assert!(
+            stderr.lines().any(|line| line == "interp exit: 0"),
+            "{stderr}"
+        );
+    } else {
+        assert!(
+            stderr.contains("compiled for target `windows_x86_64`"),
+            "{stderr}"
+        );
+    }
 }

@@ -1,0 +1,39 @@
+[package]
+name = "provider-demand-to-selected-execution"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+application-identity = { path = "../../../../psi/compilation/representations/application-identity" }
+arena = { path = "../../../../psi/foundation/arena" }
+artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
+backend-plan = { path = "../../representations/provider-plans" }
+build-time-values = { path = "../../../../psi/evaluation/build-time-values" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+declaration-contracts = { path = "../../../../psi/compilation/representations/declaration-contracts" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+effects = { path = "../../representations/native-effects" }
+evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounting" }
+evaluation-contracts = { path = "../../../../psi/evaluation/evaluation-contracts" }
+evaluation-receipts = { path = "../../../../psi/evaluation/evaluation-receipts" }
+language-core = { path = "../../../../psi/compilation/representations/source-vocabulary" }
+layout = { path = "../../target-description/layout" }
+optimization = { path = "../../../../psi/compilation/representations/optimization-policy" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+program-entry-plan = { path = "../../representations/program-entry" }
+provider-admission = { path = "../../verification/provider-admission" }
+provider-correspondence = { path = "../../verification/provider-correspondence" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+target = { path = "../../target-description/target" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+terminal-interpreter = { path = "../../../../psi/interpreter" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+wire = { path = "../../../../psi/foundation/wire" }

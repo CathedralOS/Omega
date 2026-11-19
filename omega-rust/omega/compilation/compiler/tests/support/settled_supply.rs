@@ -1,6 +1,6 @@
 //! Exercise source choices through the canonical native entrance in tests.
 use diagnostics::Diagnostic;
-use native_program_planning::target_supply::{NormalizedNativeSupplies, NormalizedNativeSupply};
+use provider_realization::target_supply::{NormalizedNativeSupplies, NormalizedNativeSupply};
 use semantic_vocabulary::BoundaryMachineId;
 use source_compiler::provider_choice_inputs::ProviderSelectionSubject;
 use source_compiler::provider_supply::{SettledTargetSupply, SupplySelection};
@@ -14,11 +14,11 @@ pub trait SettledSupplyNative {
     fn realize_no_demand(
         &self,
         module: &TerminalModule,
-    ) -> Result<native_program_planning::target_supply::RealizedTargetSupply, Vec<Diagnostic>>;
+    ) -> Result<provider_realization::target_supply::RealizedTargetSupply, Vec<Diagnostic>>;
     fn realize(
         &self,
         planning: SupplyPlanning<'_>,
-    ) -> Result<native_program_planning::target_supply::RealizedTargetSupply, Vec<Diagnostic>>;
+    ) -> Result<provider_realization::target_supply::RealizedTargetSupply, Vec<Diagnostic>>;
     fn plans(
         &self,
         planning: SupplyPlanning<'_>,
@@ -56,9 +56,10 @@ impl SettledSupplyNative for SettledTargetSupply {
                 .ok_or_else(|| {
                     refuse("the accepted requirement has no complete callable identity".to_owned())
                 })?;
-            let binding = native_program_planning::native_bindings::normalize_native_binding(
+            let binding = provider_realization::native_bindings::normalize_native_binding(
                 &supply.materialization(),
                 callable,
+                &declaration.service_declaration,
                 &mut identities,
             )
             .map_err(refuse)?;
@@ -83,22 +84,22 @@ impl SettledSupplyNative for SettledTargetSupply {
     fn realize_no_demand(
         &self,
         module: &TerminalModule,
-    ) -> Result<native_program_planning::target_supply::RealizedTargetSupply, Vec<Diagnostic>> {
+    ) -> Result<provider_realization::target_supply::RealizedTargetSupply, Vec<Diagnostic>> {
         if !self.requirements().is_empty() {
             return Err(vec![Diagnostic::error(
                 "nonempty provider supply needs its exact accepted module and execution inputs",
             )]);
         }
         let Some(target) = self.target() else {
-            return native_program_planning::target_supply::RealizedTargetSupply::unscoped(
+            return provider_realization::target_supply::RealizedTargetSupply::unscoped(
                 module,
                 &[],
             )
             .map_err(|reason| vec![Diagnostic::error(reason)]);
         };
-        native_program_planning::target_supply::RealizedTargetSupply::from_checked(
+        provider_realization::target_supply::RealizedTargetSupply::from_checked(
             module,
-            native_program_planning::target_supply::TargetSupplyRealizationInput {
+            provider_realization::target_supply::TargetSupplyRealizationInput {
                 target: target.to_owned(),
                 reached: Vec::new(),
                 plans: Vec::new(),
@@ -119,7 +120,7 @@ impl SettledSupplyNative for SettledTargetSupply {
     fn realize(
         &self,
         planning: SupplyPlanning<'_>,
-    ) -> Result<native_program_planning::target_supply::RealizedTargetSupply, Vec<Diagnostic>> {
+    ) -> Result<provider_realization::target_supply::RealizedTargetSupply, Vec<Diagnostic>> {
         if self.requirements().is_empty() {
             return self.realize_no_demand(planning.module);
         }
@@ -243,8 +244,8 @@ impl SettledSupplyNative for SettledTargetSupply {
             &reached,
         )
         .map_err(|error| refuse(&realization_diagnostic(error, module, &diagnostic_choices)))?;
-        let realization = native_program_planning::target_supply::realize_target_supply(
-            native_program_planning::target_supply::TargetSupplyRealizationRequest::from_execution_inputs(
+        let realization = provider_realization::target_supply::realize_target_supply(
+            provider_realization::target_supply::TargetSupplyRealizationRequest::from_execution_inputs(
                 module,
                 &logical,
                 planning.execution,
@@ -274,11 +275,11 @@ impl SettledSupplyNative for SettledTargetSupply {
 }
 
 fn realization_diagnostic(
-    error: native_program_planning::target_supply::TargetSupplyRealizationError,
+    error: provider_realization::target_supply::TargetSupplyRealizationError,
     module: &TerminalModule,
     choices: &[(&terminal_psi::TerminalProviderSelection, &str)],
 ) -> String {
-    use native_program_planning::target_supply::TargetSupplyRealizationError;
+    use provider_realization::target_supply::TargetSupplyRealizationError;
 
     let TargetSupplyRealizationError::MissingCheckedRow {
         provider_declaration,
@@ -329,7 +330,7 @@ pub struct SlotSchema {
 pub struct SupplyPlanning<'a> {
     pub module: &'a TerminalModule,
     pub schemas: &'a [SlotSchema],
-    pub execution: native_program_planning::target_supply::TargetSupplyExecutionInputs,
+    pub execution: provider_realization::target_supply::TargetSupplyExecutionInputs,
     pub installation_requirements: &'a [BoundaryMachineId],
 }
 

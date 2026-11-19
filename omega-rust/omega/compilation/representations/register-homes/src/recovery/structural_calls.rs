@@ -912,6 +912,25 @@ fn decode_call_binding(
     cursor: &mut Cursor<'_>,
 ) -> Result<NormalizedForeignCallBinding, FixedViewCopyDecodeError> {
     let mut target_name = decode_string(cursor)?;
+    if target_name == "@compiler-import" {
+        let import = target_vocabulary::CompilerImport::from_tag(cursor.byte()?)
+            .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution)?;
+        let binding = NormalizedForeignCallBinding {
+            mechanism: target_vocabulary::NormalizedForeignCallMechanism::CompilerImport {
+                import,
+                selected_plan: cursor.array::<32>()?,
+                requirement_identity: decode_string(cursor)?,
+            },
+            boundary_entry_plan: BoundaryEntryPlan {
+                call: decode_call_plan(cursor)?,
+                state: decode_state_plan(cursor)?,
+            },
+        };
+        return binding
+            .has_valid_entry_mechanism()
+            .then_some(binding)
+            .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution);
+    }
     let hosted = target_name == "@hosted";
     if hosted {
         target_name = decode_string(cursor)?;
@@ -2166,6 +2185,26 @@ mod tests {
         let mut changed = Vec::new();
         encode_call_binding(&mut changed, &source.call.binding);
         assert!(decode_call_binding(&mut Cursor::new(&changed)).is_err());
+    }
+
+    #[test]
+    fn recovered_compiler_import_requires_its_exact_windows_entry_plan() {
+        use target_vocabulary::{CompilerImport, ExternalExecutionBinding, NativeBindingExecution};
+        let import = CompilerImport::WindowsProcessExit;
+        let mut binding = import.binding("checked primitive".into(), [7; 32]);
+        let mut bytes = Vec::new();
+        encode_call_binding(&mut bytes, &binding);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_call_binding(&mut cursor).unwrap(), binding);
+        assert_eq!(cursor.remaining(), 0);
+        assert!(binding.matches_execution(ExternalExecutionBinding::CompilerImport(import)));
+        let build = NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32]).unwrap();
+        assert!(!binding.matches_execution(ExternalExecutionBinding::NativeBinding(build)));
+
+        binding.boundary_entry_plan.call.parameters.clear();
+        let mut wrong_signature = Vec::new();
+        encode_call_binding(&mut wrong_signature, &binding);
+        assert!(decode_call_binding(&mut Cursor::new(&wrong_signature)).is_err());
     }
 
     #[test]

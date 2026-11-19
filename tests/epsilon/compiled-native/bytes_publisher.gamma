@@ -1,0 +1,27 @@
+; Candidate direct traversal of a public Delta Bytes value. The adapter has
+; already checked the complete result length. A zero-length node has no byte.
+; One pending pair per concatenation stores its right child until the left
+; child is exhausted. The counter distinguishes an empty pending stack.
+(def $byte_finish ((count Int) (pending Int)) Int
+  (if (eq count 0)
+    (pair 0 1)
+    ($byte_walk (first pending) (- count 1) (second pending))))
+
+(def $byte_input ((index Int) (length Int)) Int
+  (if (eq index length)
+    0
+    (let emitted Int (write (read index))
+      ($byte_input (+ index 1) length))))
+
+(def $byte_walk ((value Int) (count Int) (pending Int)) Int
+  (let length Int (first value)
+    (if (eq length 0)
+      ($byte_finish count pending)
+      (let ((node Int (second value)) (tag Int (first node)) (data Int (second node)))
+        (if (eq tag 1)
+          (let emitted Int (write data) ($byte_finish count pending))
+          (if (eq tag 2)
+            ($byte_walk (first data) (+ count 1) (pair (second data) pending))
+            (if (eq tag 3)
+              (let emitted Int ($byte_input 0 length) ($byte_finish count pending))
+              (/ 1 0))))))))

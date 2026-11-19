@@ -66,7 +66,34 @@ use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
 
 use super::TerminalRuntimeError;
 
-pub(super) fn executes_internally(
+/// Ordinary host calls and nonreturning external outcomes have different binding APIs in Psi.
+#[derive(Default)]
+pub(super) struct HostBoundarySelections {
+    pub imports: Vec<semantic_vocabulary::BoundaryMachineId>,
+    pub external_completions: Vec<semantic_vocabulary::BoundaryMachineId>,
+}
+
+impl HostBoundarySelections {
+    pub fn add(
+        &mut self,
+        program: &TerminalProgram,
+        provision: &published_runtime_input::TerminalRuntimeHostProvision,
+    ) {
+        if executes_internally(program, provision) {
+            return;
+        }
+        if program
+            .external_completion_requirement(provision.boundary)
+            .is_some()
+        {
+            self.external_completions.push(provision.boundary);
+        } else {
+            self.imports.push(provision.boundary);
+        }
+    }
+}
+
+fn executes_internally(
     program: &TerminalProgram,
     provision: &published_runtime_input::TerminalRuntimeHostProvision,
 ) -> bool {

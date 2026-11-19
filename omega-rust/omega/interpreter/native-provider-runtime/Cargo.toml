@@ -26,4 +26,4 @@ windows-sys = { version = "0.61.2", features = [
 [dev-dependencies]
 native-provider-sponsor = { path = "../../host-support/native-provider-sponsor", features = ["test-support"] }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
-image-emission = { path = "../../compilation/pipeline/09_image-construction/image-emission" }
+image-emission = { path = "../../compilation/pipeline/17_objects-to-image/image-emission" }

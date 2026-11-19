@@ -15,6 +15,60 @@ dependencies = [
 ]
 
 [[package]]
+name = "abstract-operations-to-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "arena",
+ "optimization",
+ "optimization-core",
+ "optimization-unit",
+ "optimization-unit-semantics",
+ "semantic-vocabulary",
+ "source-compiler",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-psi-to-abstract-operations",
+ "terminal-semantics",
+ "terminal-work",
+ "verified-optimization-input",
+ "wire",
+]
+
+[[package]]
+name = "abstract-operations-to-target-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "application-identity",
+ "arena",
+ "calling-conventions",
+ "diagnostics",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "legalized-operations",
+ "native-vocabulary",
+ "optimization-core",
+ "optimization-unit",
+ "optimization-unit-semantics",
+ "provider-admission",
+ "register-environment",
+ "runtime-abi",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "target-operations-to-selected-instructions",
+ "target-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+ "verified-optimization-input",
+]
+
+[[package]]
 name = "access-admission"
 version = "0.1.0"
 dependencies = [
@@ -88,7 +142,9 @@ name = "artifact-evaluation"
 version = "0.1.0"
 dependencies = [
  "build-time-values",
+ "compiler-storage",
  "evaluation-accounting",
+ "evaluation-contracts",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-installation",
@@ -227,6 +283,7 @@ dependencies = [
  "package-compilation",
  "products",
  "provider-admission",
+ "published-program",
  "runtime-abi",
  "semantic-vocabulary",
  "source-admission",
@@ -252,6 +309,14 @@ dependencies = [
  "layout-plans",
  "numeric-literals",
  "numerics",
+]
+
+[[package]]
+name = "bundled-declarations"
+version = "0.1.0"
+dependencies = [
+ "declaration-contracts",
+ "language-core",
 ]
 
 [[package]]
@@ -329,6 +394,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "checked-terminal-psi-to-published-psi"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "bundled-declarations",
+ "compiler-storage",
+ "declaration-contracts",
+ "diagnostics",
+ "evaluation-receipts",
+ "language-core",
+ "numerics",
+ "optimization",
+ "provider-choices",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-lexer",
+ "source-parser",
+ "source-text",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-psi-to-checked-terminal-psi",
+ "terminal-semantics",
+ "tokens",
+ "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
+ "wire",
+]
+
+[[package]]
 name = "command-group"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -342,13 +444,16 @@ dependencies = [
 name = "compilation-inputs"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
  "diagnostics",
  "installation-evidence",
  "optimization-core",
  "optimization-requests",
  "provider-admission",
  "target",
+ "terminal-codec",
  "terminal-installation",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -356,6 +461,8 @@ name = "compiler"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
  "access-admission",
  "application-identity",
  "arena",
@@ -368,11 +475,13 @@ dependencies = [
  "build-settings",
  "calling-conventions",
  "cap-std",
+ "compilation-inputs",
  "compiler-storage",
  "component-description",
  "declaration-contracts",
  "diagnostics",
  "effects",
+ "entry-planning",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
@@ -395,7 +504,6 @@ dependencies = [
  "native-artifact",
  "native-compiler",
  "native-encoding",
- "native-program-planning",
  "numerics",
  "object-file",
  "optimization",
@@ -406,7 +514,6 @@ dependencies = [
  "orchestration",
  "package-compilation",
  "package-manager",
- "physical-planning",
  "platform-custody",
  "portable-publication",
  "products",
@@ -415,6 +522,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
+ "provider-demand-to-selected-execution",
  "published-object-verification",
  "register-homes",
  "register-model",
@@ -437,10 +545,12 @@ dependencies = [
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "terminal-runtime",
  "terminal-semantics",
  "terminal-work",
  "tokens",
+ "verified-optimization-input",
  "wire",
 ]
 
@@ -609,6 +719,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "entry-planning"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "diagnostics",
+ "frame-admission",
+ "function-identity",
+ "installation-admission",
+ "installation-evidence",
+ "machine-code",
+ "native-vocabulary",
+ "physical-program",
+ "physical-recipes",
+ "post-allocation-machine",
+ "post-allocation-machine-to-framed-machine",
+ "program-entry-plan",
+ "register-model",
+ "runtime-abi",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-aarch64",
+ "target-x86_64",
+ "terminal-psi",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -639,6 +777,7 @@ dependencies = [
 name = "evaluation-receipts"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "evaluation-contracts",
  "semantic-vocabulary",
  "terminal-psi",
@@ -738,42 +877,29 @@ dependencies = [
 name = "function-layout"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
- "arena",
  "calling-conventions",
  "diagnostics",
  "encoding-admission",
  "frame-admission",
  "function-identity",
- "installation-admission",
- "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
  "layout-plans",
- "legalized-operations",
  "machine-code",
- "native-verification",
- "native-vocabulary",
  "optimization-core",
- "physical-program",
  "physical-recipes",
  "post-allocation-machine",
- "provider-admission",
  "register-environment",
  "register-homes",
  "register-model",
- "runtime-abi",
- "selected-instruction-analyses",
+ "resolved-layout-to-resolved-layout",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-aarch64",
- "target-operations",
  "target-vocabulary",
  "target-x86_64",
- "task-plans",
  "terminal-psi",
- "verified-optimization-input",
  "wire",
 ]
 
@@ -850,8 +976,9 @@ dependencies = [
  "arena",
  "boundary-applications",
  "calling-conventions",
+ "compiler",
  "diagnostics",
- "encoding-admission",
+ "entry-planning",
  "extents",
  "function-identity",
  "iced-x86",
@@ -869,16 +996,15 @@ dependencies = [
  "legalized-operations",
  "machine-code",
  "native-encoding",
- "native-program-planning",
  "native-vocabulary",
  "object-file",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
- "physical-planning",
  "physical-program",
  "physical-recipes",
  "post-allocation-machine",
+ "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
  "register-homes",
@@ -887,6 +1013,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "source-compiler",
  "target",
  "target-aarch64",
  "target-operations",
@@ -906,12 +1033,15 @@ dependencies = [
 name = "image-fixtures"
 version = "0.1.0"
 dependencies = [
+ "entry-planning",
  "function-layout",
  "image",
+ "installation-binding",
  "machine-code",
  "native-encoding",
  "object-file",
- "physical-planning",
+ "resolved-layout-to-resolved-layout",
+ "selected-form-encoding-to-resolved-layout",
  "target",
 ]
 
@@ -940,12 +1070,12 @@ dependencies = [
  "arena",
  "calling-conventions",
  "diagnostics",
+ "entry-planning",
  "image",
  "image-fixtures",
  "machine-code",
  "native-encoding",
  "object-file",
- "physical-planning",
  "runtime-abi",
  "target",
 ]
@@ -991,6 +1121,7 @@ dependencies = [
  "bound-installations",
  "calling-conventions",
  "frame-admission",
+ "function-identity",
  "installation-evidence",
  "language-core",
  "machine-code",
@@ -1012,10 +1143,16 @@ dependencies = [
 name = "installation-binding"
 version = "0.1.0"
 dependencies = [
+ "entry-planning",
+ "function-identity",
  "installation-admission",
  "installation-evidence",
- "physical-planning",
+ "machine-code",
+ "physical-program",
+ "physical-recipes",
+ "post-allocation-machine-to-framed-machine",
  "runtime-abi",
+ "selected-instructions",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -1306,6 +1443,7 @@ dependencies = [
  "installation-evidence",
  "legalized-operations",
  "machine-code",
+ "native-vocabulary",
  "object-file",
  "optimization-core",
  "platform-custody",
@@ -1336,6 +1474,8 @@ name = "native-compiler"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
  "arena",
  "backend-plan",
  "bound-installations",
@@ -1344,42 +1484,51 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "encoding-admission",
+ "entry-planning",
  "function-identity",
  "function-layout",
+ "iced-x86",
  "image-emission",
  "image-fixtures",
  "installation-admission",
  "installation-binding",
  "installation-evidence",
+ "isa-aarch64",
+ "isa-x86_64",
  "legalized-operations",
  "machine-code",
  "native-artifact",
  "native-encoding",
- "native-layout",
- "native-program-planning",
- "native-runtime-provisions",
- "native-verification",
  "object-file",
  "optimization-core",
  "optimization-unit",
- "physical-planning",
  "physical-program",
  "post-allocation-machine",
+ "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
+ "provider-demand-to-selected-execution",
  "published-object-verification",
  "register-environment",
  "register-homes",
+ "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
  "runtime-abi",
+ "selected-form-encoding-to-resolved-layout",
  "selected-instruction-analyses",
  "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
+ "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "verified-optimization-input",
  "wire",
 ]
@@ -1392,12 +1541,13 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "encoding-admission",
+ "entry-planning",
  "frame-admission",
  "function-identity",
+ "installation-binding",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
- "physical-planning",
  "physical-recipes",
  "post-allocation-machine",
  "register-environment",
@@ -1408,79 +1558,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-vocabulary",
-]
-
-[[package]]
-name = "native-layout"
-version = "0.1.0"
-dependencies = [
- "encoding-admission",
- "isa-aarch64",
- "isa-x86_64",
- "machine-code",
- "optimization-core",
- "post-allocation-machine",
- "register-model",
- "selected-instructions",
- "semantic-vocabulary",
- "target",
-]
-
-[[package]]
-name = "native-program-planning"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "application-identity",
- "arena",
- "artifact-evaluation",
- "backend-plan",
- "boundary-applications",
- "build-time-values",
- "calling-conventions",
- "component-description",
- "declaration-contracts",
- "diagnostics",
- "effects",
- "evaluation-accounting",
- "evaluation-contracts",
- "evaluation-receipts",
- "flow-effects",
- "function-identity",
- "installation-evidence",
- "language-core",
- "layout",
- "layout-plans",
- "legalized-operations",
- "native-runtime-provisions",
- "native-vocabulary",
- "numerics",
- "optimization",
- "optimization-core",
- "optimization-unit",
- "optimization-unit-semantics",
- "physical-planning",
- "program-entry-plan",
- "proof-admission",
- "provider-admission",
- "provider-correspondence",
- "register-environment",
- "runtime-abi",
- "selected-instructions",
- "semantic-vocabulary",
- "symbols",
- "target",
- "target-operations",
- "target-vocabulary",
- "task-plans",
- "terminal-codec",
- "terminal-installation",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-semantics",
- "terminal-work",
- "verified-optimization-input",
- "wire",
 ]
 
 [[package]]
@@ -1510,44 +1587,6 @@ dependencies = [
  "image-fixtures",
  "native-provider-runtime",
  "product-publication",
- "target",
-]
-
-[[package]]
-name = "native-runtime-provisions"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "effects",
- "semantic-vocabulary",
- "target",
- "terminal-installation",
- "verified-optimization-input",
-]
-
-[[package]]
-name = "native-verification"
-version = "0.1.0"
-dependencies = [
- "arena",
- "calling-conventions",
- "diagnostics",
- "encoding-admission",
- "iced-x86",
- "image-fixtures",
- "isa-aarch64",
- "isa-x86_64",
- "machine-code",
- "native-encoding",
- "native-layout",
- "optimization-core",
- "physical-planning",
- "post-allocation-machine",
- "register-environment",
- "register-homes",
- "register-model",
- "selected-instruction-analyses",
- "semantic-vocabulary",
  "target",
 ]
 
@@ -1637,6 +1676,7 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "function-layout",
+ "installation-admission",
  "layout-plans",
  "machine-code",
  "optimization-core",
@@ -1669,6 +1709,7 @@ dependencies = [
  "products",
  "resolver-execution",
  "semantic-vocabulary",
+ "sha2",
  "source-acquisition",
  "target",
  "terminal-codec",
@@ -1683,11 +1724,15 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "bounded-process",
+ "declaration-contracts",
  "libc",
  "serde",
  "serde_json",
  "sha2",
+ "source-admission",
+ "source-compiler",
 ]
 
 [[package]]
@@ -1765,12 +1810,12 @@ dependencies = [
  "execution-admission",
  "native-artifact",
  "native-compiler",
- "native-program-planning",
  "package-compilation",
  "package-manager",
  "platform-custody",
  "products",
  "published-object-verification",
+ "published-program",
  "rayon",
  "semantic-vocabulary",
  "sha2",
@@ -1825,6 +1870,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
+ "backend-plan",
  "boundary-applications",
  "build-declarations",
  "build-output",
@@ -1832,11 +1878,13 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "compiler",
+ "compiler-storage",
  "declaration-contracts",
  "diagnostics",
  "effects",
  "evaluation-accounting",
  "evaluation-contracts",
+ "evaluation-receipts",
  "filesystem-authority",
  "optimization-core",
  "package-compilation",
@@ -1862,53 +1910,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "physical-planning"
-version = "0.1.0"
-dependencies = [
- "access-admission",
- "access-vocabulary",
- "arena",
- "bound-installations",
- "calling-conventions",
- "diagnostics",
- "frame-admission",
- "function-identity",
- "installation-admission",
- "installation-evidence",
- "language-core",
- "layout-plans",
- "legalized-operations",
- "machine-code",
- "native-vocabulary",
- "optimization-core",
- "physical-program",
- "physical-recipes",
- "post-allocation-machine",
- "program-entry-plan",
- "provider-admission",
- "register-environment",
- "register-homes",
- "register-model",
- "runtime-abi",
- "selected-instruction-analyses",
- "selected-instructions",
- "semantic-vocabulary",
- "storage-access",
- "target",
- "target-aarch64",
- "target-operations",
- "target-vocabulary",
- "target-x86_64",
- "task-plans",
- "terminal-installation",
- "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
 name = "physical-program"
 version = "0.1.0"
 dependencies = [
+ "function-identity",
+ "installation-admission",
  "machine-code",
  "selected-instructions",
  "verified-optimization-input",
@@ -1949,16 +1955,15 @@ name = "portable-publication"
 version = "0.1.0"
 dependencies = [
  "backend-plan",
+ "checked-terminal-psi-to-published-psi",
  "diagnostics",
  "effects",
  "optimization",
  "package-compilation",
  "semantic-vocabulary",
- "source-compiler",
  "target",
- "terminal-codec",
- "terminal-installation",
  "terminal-psi",
+ "typed-trees",
 ]
 
 [[package]]
@@ -1980,6 +1985,37 @@ dependencies = [
  "target-x86_64",
  "terminal-psi",
  "wire",
+]
+
+[[package]]
+name = "post-allocation-machine-to-framed-machine"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "frame-admission",
+ "installation-admission",
+ "legalized-operations",
+ "machine-code",
+ "native-vocabulary",
+ "optimization-core",
+ "physical-program",
+ "physical-recipes",
+ "post-allocation-machine",
+ "register-environment",
+ "register-homes",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "runtime-abi",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-aarch64",
+ "target-operations",
+ "target-vocabulary",
+ "target-x86_64",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2047,6 +2083,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
+ "published-program",
  "published-runtime-input",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2162,15 +2199,87 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-demand-to-selected-execution"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "artifact-evaluation",
+ "backend-plan",
+ "build-time-values",
+ "calling-conventions",
+ "declaration-contracts",
+ "diagnostics",
+ "effects",
+ "evaluation-accounting",
+ "evaluation-contracts",
+ "evaluation-receipts",
+ "language-core",
+ "layout",
+ "optimization",
+ "optimization-core",
+ "program-entry-plan",
+ "provider-admission",
+ "provider-correspondence",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-work",
+ "wire",
+]
+
+[[package]]
 name = "published-object-verification"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations-to-target-operations",
  "diagnostics",
+ "encoding-admission",
+ "frame-admission",
+ "function-identity",
  "image-emission",
  "installation-admission",
- "native-program-planning",
+ "machine-code",
  "optimization-core",
- "physical-planning",
+ "post-allocation-machine",
+ "post-allocation-machine-to-framed-machine",
+ "register-environment",
+ "register-homes",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "resolved-layout-to-resolved-layout",
+ "selected-instruction-analyses",
+ "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
+ "semantic-vocabulary",
+]
+
+[[package]]
+name = "published-program"
+version = "0.1.0"
+dependencies = [
+ "artifact-evaluation",
+ "backend-plan",
+ "compilation-inputs",
+ "diagnostics",
+ "effects",
+ "native-compiler",
+ "product-publication",
+ "provider-admission",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-runtime",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -2262,6 +2371,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "register-homes-to-post-allocation-machine"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "physical-program",
+ "post-allocation-machine",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "target",
+ "target-x86_64",
+]
+
+[[package]]
 name = "register-model"
 version = "0.1.0"
 dependencies = [
@@ -2269,6 +2394,21 @@ dependencies = [
  "sha2",
  "target",
  "wire",
+]
+
+[[package]]
+name = "resolved-layout-to-resolved-layout"
+version = "0.1.0"
+dependencies = [
+ "isa-x86_64",
+ "machine-code",
+ "optimization-core",
+ "post-allocation-machine",
+ "register-model",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
 ]
 
 [[package]]
@@ -2388,6 +2528,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "selected-form-encoding-to-resolved-layout"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "encoding-admission",
+ "function-identity",
+ "isa-aarch64",
+ "isa-x86_64",
+ "machine-code",
+ "native-encoding",
+ "physical-recipes",
+ "post-allocation-machine",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-aarch64",
+ "target-x86_64",
+]
+
+[[package]]
 name = "selected-instruction-analyses"
 version = "0.1.0"
 dependencies = [
@@ -2427,6 +2588,43 @@ dependencies = [
  "terminal-psi",
  "terminal-wire",
  "wire",
+]
+
+[[package]]
+name = "selected-instructions-to-register-homes"
+version = "0.1.0"
+dependencies = [
+ "native-vocabulary",
+ "optimization-core",
+ "physical-program",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-instruction-analyses",
+ "selected-instructions",
+ "selected-instructions-to-selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
+]
+
+[[package]]
+name = "selected-instructions-to-selected-instructions"
+version = "0.1.0"
+dependencies = [
+ "native-vocabulary",
+ "optimization-core",
+ "physical-program",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-instruction-analyses",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "target-operations-to-selected-instructions",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2586,6 +2784,7 @@ dependencies = [
  "artifact-evaluation",
  "bignum",
  "build-time-values",
+ "checked-terminal-psi-to-published-psi",
  "compiler-storage",
  "declaration-contracts",
  "diagnostics",
@@ -2612,20 +2811,47 @@ dependencies = [
  "sha2",
  "source-admission",
  "source-capture",
+ "source-declarations",
  "source-lexer",
  "source-parser",
  "source-syntax",
  "source-text",
+ "symbol-resolved-trees",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-check-tables",
  "terminal-codec",
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-psi-to-checked-terminal-psi",
  "terminal-semantics",
  "terminal-work",
  "tokens",
+ "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
+ "wire",
+]
+
+[[package]]
+name = "source-declarations"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "bundled-declarations",
+ "compiler-storage",
+ "declaration-contracts",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-text",
+ "symbols",
  "wire",
 ]
 
@@ -2707,6 +2933,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "symbol-resolved-trees"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "compiler-storage",
+ "declaration-contracts",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "wire",
+]
+
+[[package]]
+name = "symbol-resolved-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "compiler-storage",
+ "declaration-contracts",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-lexer",
+ "source-parser",
+ "source-text",
+ "symbol-resolved-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens",
+ "typed-trees",
+ "wire",
+]
+
+[[package]]
 name = "symbols"
 version = "0.1.0"
 dependencies = [
@@ -2756,6 +3026,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "syntax-trees-to-symbol-resolved-trees"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "bignum",
+ "bundled-declarations",
+ "compiler-storage",
+ "declaration-contracts",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "source-admission",
+ "source-declarations",
+ "source-lexer",
+ "source-parser",
+ "source-text",
+ "symbol-resolved-trees",
+ "symbols",
+ "syntax-trees",
+ "tokens",
+ "wire",
+]
+
+[[package]]
 name = "target"
 version = "0.1.0"
 dependencies = [
@@ -2800,6 +3096,37 @@ dependencies = [
  "target-vocabulary",
  "task-plans",
  "terminal-psi",
+]
+
+[[package]]
+name = "target-operations-to-selected-instructions"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations-to-target-operations",
+ "access-admission",
+ "access-vocabulary",
+ "bound-installations",
+ "calling-conventions",
+ "diagnostics",
+ "installation-admission",
+ "installation-evidence",
+ "language-core",
+ "layout-plans",
+ "legalized-operations",
+ "native-vocabulary",
+ "optimization-core",
+ "physical-program",
+ "provider-admission",
+ "register-environment",
+ "register-model",
+ "runtime-abi",
+ "selected-instruction-analyses",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2875,6 +3202,7 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "optimization",
  "semantic-vocabulary",
  "terminal-psi",
@@ -2938,6 +3266,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
+ "bundled-declarations",
  "compiler-storage",
  "declaration-contracts",
  "flow-effects",
@@ -2950,6 +3279,68 @@ dependencies = [
  "source-audit",
  "source-text",
  "symbols",
+ "wire",
+]
+
+[[package]]
+name = "terminal-psi-to-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "backend-plan",
+ "boundary-applications",
+ "diagnostics",
+ "effects",
+ "installation-evidence",
+ "optimization-core",
+ "provider-admission",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-semantics",
+ "verified-optimization-input",
+]
+
+[[package]]
+name = "terminal-psi-to-checked-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "bignum",
+ "bundled-declarations",
+ "declaration-contracts",
+ "diagnostics",
+ "execution-admission",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "rayon",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-lexer",
+ "source-parser",
+ "source-text",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-work",
+ "tokens",
+ "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
  "wire",
 ]
 
@@ -3095,6 +3486,85 @@ dependencies = [
 ]
 
 [[package]]
+name = "typed-trees"
+version = "0.1.0"
+dependencies = [
+ "access-admission",
+ "access-vocabulary",
+ "application-identity",
+ "arena",
+ "bignum",
+ "bundled-declarations",
+ "compiler-storage",
+ "declaration-contracts",
+ "diagnostics",
+ "flow-effects",
+ "language-core",
+ "layout-plans",
+ "numeric-literals",
+ "numerics",
+ "schema-reflection",
+ "semantic-vocabulary",
+ "serde",
+ "serde_json",
+ "sha2",
+ "source-admission",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "wire",
+]
+
+[[package]]
+name = "typed-trees-to-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "bignum",
+ "declaration-contracts",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "schema-reflection",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-semantics",
+ "typed-trees",
+ "wire",
+]
+
+[[package]]
+name = "typed-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "compiler-storage",
+ "declaration-contracts",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "typed-trees",
+ "typed-trees-to-terminal-psi",
+ "wire",
+]
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3140,6 +3610,7 @@ dependencies = [
  "symbols",
  "target",
  "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-codec",
  "terminal-installation",

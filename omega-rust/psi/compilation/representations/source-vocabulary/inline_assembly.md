@@ -70,9 +70,9 @@ Unknown mnemonics fail separately. Service-admission candidates
 (`cl*`/`tlbi`/`ic`/`dc`) stay unrecognized until each has its own contract.
 Target gates never substitute another ISA's instruction.
 
-[Parsing](../../pipeline/01_source-compilation/src/operations/parsing/assembly/parse.rs)
+[Parsing](../../pipeline/01_tokens-to-syntax-trees/assembly/parse.rs)
 records instruction spelling, operands, clauses and labels, and checks separators.
-[Instruction preparation](../../pipeline/01_source-compilation/src/operations/resolution/declarations/assembly/mod.rs)
+[Instruction preparation](../../pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs)
 looks up contracts, checks transfer position and the exact clobber union, and
 builds the block graph. Requires and ensures clauses become assertions around the
 instructions, with a proof-neutral entry marker for an ensures-only block.

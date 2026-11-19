@@ -65,6 +65,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
             },
             terminal_codec::TerminalPublication::Portable,
         )
+        .expect("fixture must lower to checker input")
         .program,
     )
     .into_iter();
@@ -330,6 +331,7 @@ fn named_predicate_terms_form_under_their_own_inputs() {
                 },
                 terminal_codec::TerminalPublication::Invocation,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         let [verdict] = verdicts.as_slice() else {
@@ -341,7 +343,7 @@ fn named_predicate_terms_form_under_their_own_inputs() {
             };
             assert_eq!(
                 accepted
-                    .elaboration
+                    .elaboration()
                     .module
                     .scalar_predicate_definitions
                     .len(),

@@ -48,10 +48,9 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
         .unwrap()
         .with_operation_evidence(product.artifact(), Some(seals.clone()))
         .unwrap();
-    let (input, _) =
-        native_program_planning::lower_native_execution(proposal, execution, &[], None)
-            .expect("lower the checked entry and its selected callees with their evidence");
-    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+    let (input, _) = artifact_lowering::lower_native_execution(proposal, execution, &[], None)
+        .expect("lower the checked entry and its selected callees with their evidence");
+    let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
         input.into_optimization_input(),
         terminal_work::WorkSchedule::CURRENT.identity(),
     )
@@ -252,14 +251,14 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         !expected.is_empty(),
         "the program has discharged operations"
     );
-    let input = native_program_planning::lower_artifact(
+    let input = artifact_lowering::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
     .expect("native planning lowers the published module with its seals")
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+    let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
     )
@@ -366,7 +365,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
 }
 
 /// The Terminal product the default compile builds for `fixture`.
-fn default_product(fixture: &str) -> native_program_planning::RetainedTerminalArtifact {
+fn default_product(fixture: &str) -> artifact_lowering::RetainedTerminalArtifact {
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
@@ -604,11 +603,11 @@ mod evidence_seal_tests {
     };
     use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
-    use native_program_planning::lower_artifact;
-    use native_program_planning::test_support::{
-        ObligationEvidence, VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnitBuildError,
-        build_verified_psi_optimization_unit,
+    use abstract_optimization::{
+        VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
     };
+    use artifact_lowering::lower_artifact;
+    use verified_optimization_input::{ObligationEvidence, VerifiedPsiOptimizationInput};
 
     fn u32_type() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())

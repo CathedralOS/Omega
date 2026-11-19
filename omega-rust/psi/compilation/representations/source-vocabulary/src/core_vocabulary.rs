@@ -15,7 +15,8 @@ source commitment. A lookalike user declaration, or an edited toolchain file,
 is therefore ordinary code to every consumer.
 */
 
-use crate::sealed_intrinsics::{SealedDeclaration, SealedDeclarationSite};
+use crate::bundled_files::BundledFile;
+use crate::sealed_intrinsics::{BundledDeclaration, SealedDeclaration};
 use std::path::Path;
 
 /// A core declaration that typed rules recognize by identity.
@@ -195,40 +196,14 @@ pub enum TaskRegisterOperation {
 struct CoreVocabularyRow {
     file: &'static str,
     declaration: &'static str,
-    source: &'static [u8],
+    source: BundledFile,
     vocabulary: CoreVocabulary,
 }
-
-macro_rules! core_source {
-    ($file:literal) => {
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/",
-            $file
-        ))
-    };
-}
-
-const ASSEMBLY: &[u8] = core_source!("assembly.omg");
-const CODE_SEGMENT: &[u8] = core_source!("code_segment.omg");
-const DATA_SEGMENT: &[u8] = core_source!("data_segment.omg");
-const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
-const INTERRUPT: &[u8] = core_source!("interrupt.omg");
-const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
-const REFLECT: &[u8] = core_source!("reflect.omg");
-const LAYOUT: &[u8] = core_source!("layout.omg");
-const EXTENT: &[u8] = core_source!("extent.omg");
-const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
-const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
-const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
-const INTEGER: &[u8] = core_source!("integer.omg");
-const NEVER: &[u8] = core_source!("never.omg");
-const FILESYSTEM_AUTHORITY: &[u8] = core_source!("filesystem_authority.omg");
 
 const fn row(
     file: &'static str,
     declaration: &'static str,
-    source: &'static [u8],
+    source: BundledFile,
     vocabulary: CoreVocabulary,
 ) -> CoreVocabularyRow {
     CoreVocabularyRow {
@@ -242,7 +217,7 @@ const fn row(
 const fn selector(
     file: &'static str,
     declaration: &'static str,
-    source: &'static [u8],
+    source: BundledFile,
     operation: SegmentSelectorOperation,
 ) -> CoreVocabularyRow {
     row(
@@ -257,279 +232,289 @@ const ROWS: &[CoreVocabularyRow] = &[
     row(
         "filesystem_authority.omg",
         "FilesystemContentRead",
-        FILESYSTEM_AUTHORITY,
+        BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::ContentRead),
     ),
     row(
         "filesystem_authority.omg",
         "FilesystemContentWrite",
-        FILESYSTEM_AUTHORITY,
+        BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::ContentWrite),
     ),
     row(
         "filesystem_authority.omg",
         "FilesystemMetadataQuery",
-        FILESYSTEM_AUTHORITY,
+        BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::MetadataQuery),
     ),
     row(
         "filesystem_authority.omg",
         "FilesystemMetadataMutation",
-        FILESYSTEM_AUTHORITY,
+        BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::MetadataMutation),
     ),
     row(
         "filesystem_authority.omg",
         "DirectoryEnumeration",
-        FILESYSTEM_AUTHORITY,
+        BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::DirectoryEnumeration),
     ),
     row(
         "filesystem_authority.omg",
         "FilesystemNamespaceMutation",
-        FILESYSTEM_AUTHORITY,
+        BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::NamespaceMutation),
     ),
-    row("never.omg", "Never", NEVER, CoreVocabulary::Never),
+    row(
+        "never.omg",
+        "Never",
+        BundledFile::CoreNever,
+        CoreVocabulary::Never,
+    ),
     row(
         "representation.omg",
         "OpaqueRepresentation",
-        core_source!("representation.omg"),
+        BundledFile::CoreRepresentation,
         CoreVocabulary::OpaqueRepresentation,
     ),
     row(
         "layout.omg",
         "PrivateCallbackSlot",
-        LAYOUT,
+        BundledFile::CoreLayout,
         CoreVocabulary::PrivateCallbackSlot,
     ),
     row(
         "layout.omg",
         "FixedLayout::plan",
-        LAYOUT,
+        BundledFile::CoreLayout,
         CoreVocabulary::FixedLayoutPlan,
     ),
     row(
         "layout.omg",
         "AccessPolicy",
-        LAYOUT,
+        BundledFile::CoreLayout,
         CoreVocabulary::AccessPolicy,
     ),
     row(
         "layout.omg",
         "AccessPolicy::plan",
-        LAYOUT,
+        BundledFile::CoreLayout,
         CoreVocabulary::AccessPolicyPlan,
     ),
     row(
         "layout.omg",
         "AccessPlan",
-        LAYOUT,
+        BundledFile::CoreLayout,
         CoreVocabulary::AccessPlan,
     ),
     row(
         "assembly.omg",
         "MachineControl",
-        ASSEMBLY,
+        BundledFile::CoreAssembly,
         CoreVocabulary::MachineControlService,
     ),
     row(
         "assembly.omg",
         "PortIo",
-        ASSEMBLY,
+        BundledFile::CoreAssembly,
         CoreVocabulary::PortIoService,
     ),
     selector(
         "code_segment.omg",
         "reload_code_segment",
-        CODE_SEGMENT,
+        BundledFile::CoreCodeSegment,
         SegmentSelectorOperation::ReloadCode,
     ),
     selector(
         "code_segment.omg",
         "read_code_selector",
-        CODE_SEGMENT,
+        BundledFile::CoreCodeSegment,
         SegmentSelectorOperation::ReadCode,
     ),
     selector(
         "data_segment.omg",
         "reload_data_segments",
-        DATA_SEGMENT,
+        BundledFile::CoreDataSegment,
         SegmentSelectorOperation::ReloadData,
     ),
     selector(
         "data_segment.omg",
         "read_data_selector",
-        DATA_SEGMENT,
+        BundledFile::CoreDataSegment,
         SegmentSelectorOperation::ReadData,
     ),
     selector(
         "data_segment.omg",
         "read_extra_selector",
-        DATA_SEGMENT,
+        BundledFile::CoreDataSegment,
         SegmentSelectorOperation::ReadExtra,
     ),
     selector(
         "data_segment.omg",
         "read_stack_selector",
-        DATA_SEGMENT,
+        BundledFile::CoreDataSegment,
         SegmentSelectorOperation::ReadStack,
     ),
     selector(
         "data_segment.omg",
         "read_fs_selector",
-        DATA_SEGMENT,
+        BundledFile::CoreDataSegment,
         SegmentSelectorOperation::ReadFs,
     ),
     selector(
         "data_segment.omg",
         "read_gs_selector",
-        DATA_SEGMENT,
+        BundledFile::CoreDataSegment,
         SegmentSelectorOperation::ReadGs,
     ),
     row(
         "task_register.omg",
         "activate_task_register",
-        TASK_REGISTER,
+        BundledFile::CoreTaskRegister,
         CoreVocabulary::TaskRegister(TaskRegisterOperation::Activate),
     ),
     row(
         "task_register.omg",
         "read_task_register",
-        TASK_REGISTER,
+        BundledFile::CoreTaskRegister,
         CoreVocabulary::TaskRegister(TaskRegisterOperation::Read),
     ),
     row(
         "interrupt.omg",
         "InterruptAcknowledgement",
-        INTERRUPT,
+        BundledFile::CoreInterrupt,
         CoreVocabulary::InterruptAcknowledgement,
     ),
     row(
         "interrupt.omg",
         "InterruptAcknowledgement::Pending",
-        INTERRUPT,
+        BundledFile::CoreInterrupt,
         CoreVocabulary::InterruptAcknowledgementPending,
     ),
     row(
         "interrupt.omg",
         "InterruptAcknowledgementCompletion",
-        INTERRUPT,
+        BundledFile::CoreInterrupt,
         CoreVocabulary::InterruptAcknowledgementCompletion,
     ),
     row(
         "interrupt.omg",
         "InterruptAcknowledgementCompletion::complete",
-        INTERRUPT,
+        BundledFile::CoreInterrupt,
         CoreVocabulary::InterruptAcknowledgementCompletionComplete,
     ),
     row(
         "static_interrupt.omg",
         "StaticInterruptCompletionPermit",
-        STATIC_INTERRUPT,
+        BundledFile::CoreStaticInterrupt,
         CoreVocabulary::StaticInterruptCompletionPermit,
     ),
     row(
         "reflect.omg",
         "reflect::schema",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::Schema),
     ),
     row(
         "integer.omg",
         "integer::carrier",
-        INTEGER,
+        BundledFile::CoreInteger,
         CoreVocabulary::IntegerCarrier(IntegerCarrierDeclaration::Query),
     ),
     row(
         "integer.omg",
         "integer::Carrier",
-        INTEGER,
+        BundledFile::CoreInteger,
         CoreVocabulary::IntegerCarrier(IntegerCarrierDeclaration::Carrier),
     ),
     row(
         "reflect.omg",
         "reflect::TypeSchema",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::TypeSchema),
     ),
     row(
         "reflect.omg",
         "reflect::callable",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::Callable),
     ),
     row(
         "reflect.omg",
         "reflect::field",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::Field),
     ),
     row(
         "reflect.omg",
         "reflect::parameter",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::Parameter),
     ),
     row(
         "reflect.omg",
         "reflect::ParameterInfo",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::ParameterInfo),
     ),
     row(
         "reflect.omg",
         "reflect::CallableInfo",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::CallableInfo),
     ),
     row(
         "reflect.omg",
         "reflect::CaseInfo",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::CaseInfo),
     ),
     row(
         "reflect.omg",
         "reflect::FieldInfo",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::FieldInfo),
     ),
     row(
         "reflect.omg",
         "reflect::visit_runtime_fields",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields),
     ),
     row(
         "reflect.omg",
         "reflect::visit_runtime_fields_mut",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut),
     ),
     row(
         "reflect.omg",
         "reflect::inspect_record_fields",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields),
     ),
     row(
         "reflect.omg",
         "reflect::visit_active_fields",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFields),
     ),
     row(
         "reflect.omg",
         "reflect::visit_active_fields_mut",
-        REFLECT,
+        BundledFile::CoreReflect,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
     ),
-    row("extent.omg", "Extent", EXTENT, CoreVocabulary::Extent),
+    row(
+        "extent.omg",
+        "Extent",
+        BundledFile::CoreExtent,
+        CoreVocabulary::Extent,
+    ),
     row(
         "extent.omg",
         "Extent::Vacant",
-        EXTENT,
+        BundledFile::CoreExtent,
         CoreVocabulary::ExtentDomain(ExtentDomain::Vacant),
     ),
     // The generic domain `Extent::Resident<P, T>` is declared under its own
@@ -537,55 +522,55 @@ const ROWS: &[CoreVocabularyRow] = &[
     row(
         "extent.omg",
         "Resident",
-        EXTENT,
+        BundledFile::CoreExtent,
         CoreVocabulary::ExtentDomain(ExtentDomain::Resident),
     ),
     row(
         "extent.omg",
         "Extent::Granted",
-        EXTENT,
+        BundledFile::CoreExtent,
         CoreVocabulary::ExtentDomain(ExtentDomain::Granted),
     ),
     row(
         "extent.omg",
         "ProgramStorageEntry",
-        EXTENT,
+        BundledFile::CoreExtent,
         CoreVocabulary::ProgramStorageEntry,
     ),
     row(
         "fixed_vec.omg",
         "FixedVec",
-        FIXED_VEC,
+        BundledFile::CoreFixedVec,
         CoreVocabulary::FixedVec,
     ),
     row(
         "assembly_model.omg",
         "port_written",
-        ASSEMBLY_MODEL,
+        BundledFile::CoreAssemblyModel,
         CoreVocabulary::AssemblyEffect(AssemblyEffect::PortWritten),
     ),
     row(
         "assembly_model.omg",
         "model_specific_written",
-        ASSEMBLY_MODEL,
+        BundledFile::CoreAssemblyModel,
         CoreVocabulary::AssemblyEffect(AssemblyEffect::ModelSpecificWritten),
     ),
     row(
         "assembly_model.omg",
         "atomic_release_written",
-        ASSEMBLY_MODEL,
+        BundledFile::CoreAssemblyModel,
         CoreVocabulary::AssemblyEffect(AssemblyEffect::AtomicReleaseWritten),
     ),
     row(
         "external_binding.omg",
         "ForeignBinding",
-        EXTERNAL_BINDING,
+        BundledFile::CoreExternalBinding,
         CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::ForeignBinding),
     ),
     row(
         "external_binding.omg",
         "DllImport",
-        EXTERNAL_BINDING,
+        BundledFile::CoreExternalBinding,
         CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::DllImport),
     ),
 ];
@@ -610,39 +595,39 @@ pub enum CoreSource {
     CodeLayout,
 }
 
-const CORE_SOURCES: &[(CoreSource, &str, &[u8])] = &[
+const CORE_SOURCES: &[(CoreSource, &str, BundledFile)] = &[
     (
         CoreSource::Activation,
         "activation.omg",
-        core_source!("activation.omg"),
+        BundledFile::CoreActivation,
     ),
-    (CoreSource::Atomic, "atomic.omg", core_source!("atomic.omg")),
+    (CoreSource::Atomic, "atomic.omg", BundledFile::CoreAtomic),
     (
         CoreSource::Relation,
         "relation.omg",
-        core_source!("relation.omg"),
+        BundledFile::CoreRelation,
     ),
     (
         CoreSource::FloatOperations,
         "float_operations.omg",
-        core_source!("float_operations.omg"),
+        BundledFile::CoreFloatOperations,
     ),
     (
         CoreSource::FloatFormat,
         "float_format.omg",
-        core_source!("float_format.omg"),
+        BundledFile::CoreFloatFormat,
     ),
     (
         CoreSource::FloatMeaning,
         "float_meaning.omg",
-        core_source!("float_meaning.omg"),
+        BundledFile::CoreFloatMeaning,
     ),
-    (CoreSource::Layout, "layout.omg", core_source!("layout.omg")),
-    (CoreSource::Run, "run.omg", core_source!("run.omg")),
+    (CoreSource::Layout, "layout.omg", BundledFile::CoreLayout),
+    (CoreSource::Run, "run.omg", BundledFile::CoreRun),
     (
         CoreSource::CodeLayout,
         "code_layout.omg",
-        core_source!("code_layout.omg"),
+        BundledFile::CoreCodeLayout,
     ),
 ];
 
@@ -670,9 +655,9 @@ pub struct CoreVocabularyCatalog;
 impl CoreVocabularyCatalog {
     /// The receiver's bundled declaration, without reopening source. These
     /// coordinates identify a catalog row; they grant no execution authority.
-    pub fn declaration(vocabulary: CoreVocabulary) -> Option<SealedDeclarationSite<'static>> {
+    pub fn declaration(vocabulary: CoreVocabulary) -> Option<BundledDeclaration> {
         let row = ROWS.iter().find(|row| row.vocabulary == vocabulary)?;
-        Some(SealedDeclarationSite {
+        Some(BundledDeclaration {
             file: Path::new(row.file),
             declaration: row.declaration,
             source: row.source,
@@ -681,175 +666,30 @@ impl CoreVocabularyCatalog {
 
     /// Returns the vocabulary the site's declaration is, or `None` when no row
     /// matches every part of the site.
-    pub fn classify(site: SealedDeclarationSite<'_>) -> Option<CoreVocabulary> {
+    pub fn match_declaration(
+        file: &Path,
+        declaration: &str,
+        matches_source: impl Fn(BundledFile) -> bool,
+    ) -> Option<CoreVocabulary> {
         ROWS.iter()
             .find(|row| {
-                site.file == Path::new(row.file)
-                    && SealedDeclaration::Exact(row.declaration).matches(site.declaration)
-                    && row.source == site.source
+                file == Path::new(row.file)
+                    && SealedDeclaration::Exact(row.declaration).matches(declaration)
+                    && matches_source(row.source)
             })
             .map(|row| row.vocabulary)
     }
 
     /// The core source the site's file is, matching path and exact bytes.
-    pub fn source(file: &Path, source: &[u8]) -> Option<CoreSource> {
+    pub fn match_source(
+        file: &Path,
+        matches_source: impl Fn(BundledFile) -> bool,
+    ) -> Option<CoreSource> {
         CORE_SOURCES
             .iter()
-            .find(|(_, candidate, bytes)| file == Path::new(candidate) && *bytes == source)
+            .find(|(_, candidate, bundled_file)| {
+                file == Path::new(candidate) && matches_source(*bundled_file)
+            })
             .map(|(core, _, _)| *core)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn filesystem_services_require_the_exact_bundled_declaration() {
-        for service in FilesystemService::ALL {
-            let vocabulary = CoreVocabulary::FilesystemService(service);
-            let declared = CoreVocabularyCatalog::declaration(vocabulary).unwrap();
-            assert_eq!(CoreVocabularyCatalog::classify(declared), Some(vocabulary));
-            for changed in [
-                site("other.omg", declared.declaration, declared.source),
-                site("filesystem_authority.omg", "Lookalike", declared.source),
-                site("filesystem_authority.omg", declared.declaration, b"edited"),
-            ] {
-                assert_eq!(CoreVocabularyCatalog::classify(changed), None);
-            }
-        }
-    }
-
-    fn site<'a>(
-        file: &'a str,
-        declaration: &'a str,
-        source: &'a [u8],
-    ) -> SealedDeclarationSite<'a> {
-        SealedDeclarationSite {
-            file: Path::new(file),
-            declaration,
-            source,
-        }
-    }
-
-    #[test]
-    fn never_identifies_only_the_exact_bundled_ordinary_declaration() {
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("never.omg", "Never", NEVER)),
-            Some(CoreVocabulary::Never)
-        );
-        for candidate in [
-            site("other.omg", "Never", NEVER),
-            site("never.omg", "Other", NEVER),
-            site("never.omg", "Never", b"public data Never {}"),
-        ] {
-            assert_eq!(CoreVocabularyCatalog::classify(candidate), None);
-        }
-    }
-
-    #[test]
-    fn rows_match_only_their_exact_file_declaration_and_source() {
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("assembly.omg", "MachineControl", ASSEMBLY)),
-            Some(CoreVocabulary::MachineControlService)
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site(
-                "data_segment.omg",
-                "read_gs_selector",
-                DATA_SEGMENT
-            )),
-            Some(CoreVocabulary::SegmentSelector(
-                SegmentSelectorOperation::ReadGs
-            ))
-        );
-        // A selector name in the other segment file is not that primitive.
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site(
-                "code_segment.omg",
-                "read_gs_selector",
-                CODE_SEGMENT
-            )),
-            None
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("assembly.omg", "MachineControl", b"edited")),
-            None
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::source(Path::new("atomic.omg"), core_source!("atomic.omg")),
-            Some(CoreSource::Atomic)
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::source(Path::new("atomic.omg"), b"edited"),
-            None
-        );
-        assert_eq!(
-            CoreSource::from_file(CoreSource::Layout.file()),
-            Some(CoreSource::Layout)
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("extent.omg", "Resident", EXTENT)),
-            Some(CoreVocabulary::ExtentDomain(ExtentDomain::Resident))
-        );
-        // `reflect.omg` declares `module reflect`: rows use the full
-        // package path, and the bare name matches nothing.
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site(
-                "reflect.omg",
-                "reflect::inspect_record_fields",
-                REFLECT
-            )),
-            Some(CoreVocabulary::Reflection(
-                ReflectionDeclaration::InspectRecordFields
-            ))
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("reflect.omg", "inspect_record_fields", REFLECT)),
-            None
-        );
-        // The integer carrier query is one exact declaration of `integer.omg`;
-        // the family queries built on it are ordinary machines with no row.
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("integer.omg", "integer::carrier", INTEGER)),
-            Some(CoreVocabulary::IntegerCarrier(
-                IntegerCarrierDeclaration::Query
-            ))
-        );
-        for unrecognized in ["carrier", "integer::is_integer", "integer::is_signed"] {
-            assert_eq!(
-                CoreVocabularyCatalog::classify(site("integer.omg", unrecognized, INTEGER)),
-                None,
-                "{unrecognized}"
-            );
-        }
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("integer.omg", "integer::carrier", b"edited")),
-            None
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site(
-                "reflect.omg",
-                "core::reflect::inspect_record_fields",
-                REFLECT
-            )),
-            None
-        );
-    }
-    #[test]
-    fn never_recognition_requires_its_unchanged_core_declaration() {
-        let source = core_source!("never.omg");
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("never.omg", "Never", source)),
-            Some(CoreVocabulary::Never),
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("never.omg", "Other", source)),
-            None
-        );
-        assert_eq!(
-            CoreVocabularyCatalog::classify(site("never.omg", "Never", b"public data Never {}")),
-            None
-        );
     }
 }

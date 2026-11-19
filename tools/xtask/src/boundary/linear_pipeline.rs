@@ -7,42 +7,82 @@ use std::path::Path;
 
 pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
 
-pub(super) const STAGES: [&str; 11] = [
-    "omega-rust/omega/compilation/pipeline/00_compilation-inputs",
-    "omega-rust/psi/compilation/pipeline/01_source-compilation",
-    "omega-rust/omega/compilation/pipeline/02_portable-publication",
-    "omega-rust/omega/compilation/pipeline/03_native-program-planning",
-    "omega-rust/omega/compilation/pipeline/04_physical-program-planning",
-    "omega-rust/omega/compilation/pipeline/05_installation-binding",
-    "omega-rust/omega/compilation/pipeline/06_native-encoding",
-    "omega-rust/omega/compilation/pipeline/07_native-layout",
-    "omega-rust/omega/compilation/pipeline/08_object-construction",
-    "omega-rust/omega/compilation/pipeline/09_image-construction",
-    "omega-rust/omega/compilation/pipeline/10_product-publication",
+pub(super) const STAGES: [&str; 20] = [
+    "omega-rust/omega/compilation/pipeline/01_compilation-request-to-admitted-inputs",
+    "omega-rust/psi/compilation/pipeline/source-compilation",
+    "omega-rust/omega/compilation/products/source-publication",
+    "omega-rust/omega/compilation/pipeline/02_provider-demand-to-selected-execution",
+    "omega-rust/omega/compilation/pipeline/03_terminal-psi-to-abstract-operations",
+    "omega-rust/omega/compilation/pipeline/04_abstract-operations-to-abstract-operations",
+    "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations",
+    "omega-rust/omega/compilation/pipeline/06_target-operations-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/07_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/08_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/09_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine",
+    "omega-rust/omega/compilation/pipeline/11_framed-machine-to-bound-framed-machine",
+    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
+    "omega-rust/omega/compilation/pipeline/16_placed-functions-to-objects",
+    "omega-rust/omega/compilation/pipeline/17_objects-to-image",
+    "omega-rust/omega/compilation/pipeline/18_finished-products-to-installed-files",
 ];
-const RETIRED: [&str; 3] = [
+const RETIRED: [&str; 4] = [
+    "omega-rust/omega/compilation/pipeline/07_native-layout",
     "omega-rust/omega/compilation/backend",
     "omega-rust/omega/compilation/realization",
     "omega-rust/omega/foundation",
 ];
 pub(super) const TEXT_READER: &str =
-    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/source-syntax";
+    "omega-rust/psi/compilation/pipeline/source-compilation/src/operations/source-syntax";
 
 pub(super) const FRONTEND: [&str; 4] = [
-    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lexing",
-    "omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/parsing",
+    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
+    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
     "omega-rust/psi/compilation/representations/tokens",
     "omega-rust/psi/compilation/representations/syntax-trees",
 ];
 
-fn stage(path: &str) -> Option<usize> {
-    STAGES.iter().position(|root| under(path, &[*root]))
+const PSI_STAGES: [&str; 8] = [
+    FRONTEND[0],
+    FRONTEND[1],
+    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi",
+    "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi",
+];
+
+fn stage(path: &str) -> Option<(usize, usize)> {
+    if let Some(index) = PSI_STAGES.iter().position(|root| under(path, &[*root])) {
+        return Some((1, index));
+    }
+    STAGES
+        .iter()
+        .position(|root| under(path, &[*root]))
+        .map(|position| (position, usize::MAX))
 }
 
 fn forbidden_frontend(start: &str, dependency: &str) -> bool {
     let [lexer, parser, tokens, syntax] = FRONTEND;
     match start {
         TEXT_READER => stage(dependency).is_some() && ![lexer, parser].contains(&dependency),
+        path if path == PSI_STAGES[6] => {
+            under(dependency, &PSI_STAGES[..6])
+                || under(
+                    dependency,
+                    &[
+                        tokens,
+                        syntax,
+                        "omega-rust/psi/compilation/representations/source-declarations",
+                        "omega-rust/psi/compilation/representations/symbol-resolved-trees",
+                        "omega-rust/psi/compilation/representations/typed-trees",
+                    ],
+                )
+        }
         path if path == lexer => [parser, syntax].contains(&dependency),
         path if path == parser => dependency == lexer,
         path if path == tokens || path == syntax => FRONTEND.contains(&dependency),
@@ -87,7 +127,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
         }
         adjacency.entry(owner).or_default().push(dependency);
     }
-    for root in STAGES {
+    for root in STAGES.into_iter().chain(PSI_STAGES[2..].iter().copied()) {
         if !names.keys().any(|path| under(path, &[root])) {
             errors.push(format!("numbered pipeline owner has no package: {root}"));
         }
@@ -124,11 +164,25 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     .get(next)
                     .ok_or_else(|| format!("undeclared workspace dependency: {next}"))?;
                 let chain = format!("{chain} -> {name}");
-                let later =
-                    stage(next).is_some_and(|number| phase.is_some_and(|start| number > start));
-                if later || (runtime && stage(next).is_some()) || forbidden_frontend(start, next) {
+                let dependency_phase = stage(next);
+                let later = dependency_phase
+                    .is_some_and(|number| phase.is_some_and(|start| number > start));
+                // Follow shared dependencies until the next stage API. Each numbered
+                // owner is checked separately, so its own predecessor starts a new walk.
+                let native_pair = phase
+                    .zip(dependency_phase)
+                    .filter(|((owner, _), (dependency, _))| *owner >= 3 && *dependency >= 3);
+                let skips_predecessor =
+                    native_pair.is_some_and(|((owner, _), (dependency, _))| dependency + 1 < owner);
+                if later
+                    || skips_predecessor
+                    || (runtime && dependency_phase.is_some())
+                    || forbidden_frontend(start, next)
+                {
                     errors.push(format!("forbidden production dependency: {chain} ({next})"));
-                } else {
+                } else if !native_pair
+                    .is_some_and(|((owner, _), (dependency, _))| dependency + 1 == owner)
+                {
                     queue.push_back((next.as_str(), chain));
                 }
             }
@@ -145,14 +199,13 @@ mod tests {
     #[test]
     fn nested_stages_and_streaming_reject_indirect_production_edges() {
         const SHARED: &str = "shared";
-        const ENCODER: &str =
-            "omega-rust/omega/compilation/pipeline/06_native-encoding/test-encoder";
+        const ENCODER: &str = "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding/test-encoder";
         const FIXTURE: &str = "omega-rust/test-support/image-fixtures";
-        let paths =
-            STAGES
-                .into_iter()
-                .chain(FRONTEND)
-                .chain([TEXT_READER, SHARED, ENCODER, FIXTURE]);
+        let paths = STAGES
+            .into_iter()
+            .chain(FRONTEND)
+            .chain(PSI_STAGES[2..].iter().copied())
+            .chain([TEXT_READER, SHARED, ENCODER, FIXTURE]);
         let mut packages: Vec<_> = paths
             .map(|path| Package {
                 name: path.rsplit('/').next().unwrap().to_string(),
@@ -180,7 +233,12 @@ mod tests {
         edge(SHARED, FIXTURE, None);
         edge(STAGES[1], FIXTURE, Some("dev"));
         edge(TEXT_READER, SHARED, None);
+        edge(PSI_STAGES[6], SHARED, None);
+        edge(PSI_STAGES[6], PSI_STAGES[5], Some("dev"));
         edge(STAGES[4], SHARED, None);
+        edge(STAGES[9], SHARED, None);
+        edge(SHARED, STAGES[3], None);
+        edge(STAGES[8], STAGES[10], None);
         edge(FRONTEND[0], FRONTEND[1], Some("dev"));
         edge(FRONTEND[1], SHARED, Some("build"));
         edge(SHARED, ENCODER, None);
@@ -191,16 +249,21 @@ mod tests {
             packages,
         })
         .unwrap();
-        assert!(
-            errors
-                .iter()
-                .any(|v| v.contains("04_physical-program-planning -> shared -> test-encoder"))
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|v| v.contains("parsing -> shared -> lexing"))
-        );
+        assert!(errors.iter().any(|v| {
+            v.contains("03_terminal-psi-to-abstract-operations -> shared -> test-encoder")
+        }));
+        assert!(errors.iter().any(|v| {
+            v.contains("01_tokens-to-syntax-trees -> shared -> 00_source-files-to-tokens")
+        }));
+        assert!(errors.iter().any(|error| error.contains(
+            "07_selected-instructions-to-selected-instructions -> 09_register-homes-to-post-allocation-machine"
+        )));
+        assert!(errors.iter().any(|error| error.contains(
+            "06_terminal-psi-to-checked-terminal-psi -> shared -> 00_source-files-to-tokens"
+        )));
+        assert!(errors.iter().any(|v| v.contains(
+            "08_selected-instructions-to-register-homes -> shared -> 02_provider-demand-to-selected-execution"
+        )));
         let fixture_errors: Vec<_> = errors
             .iter()
             .filter(|v| v.contains("production dependency on a test fixture"))
@@ -213,11 +276,15 @@ mod tests {
         assert_eq!(feature_errors.len(), 1);
         assert!(feature_errors[0].contains("shared -> alias"));
         assert!(fixture_errors[0].contains("shared -> omega-rust/test-support/image-fixtures"));
-        assert!(!errors.iter().any(|v| v.contains("lexing -> parsing")));
+        assert!(
+            !errors
+                .iter()
+                .any(|v| v.contains("00_source-files-to-tokens -> 01_tokens-to-syntax-trees"))
+        );
         assert!(
             errors
                 .iter()
-                .any(|v| v.contains("source-syntax -> shared -> 01_source-compilation"))
+                .any(|v| v.contains("source-syntax -> shared -> source-compilation"))
         );
         assert!(
             errors
@@ -227,7 +294,7 @@ mod tests {
         assert!(
             !errors
                 .iter()
-                .any(|v| v.contains("source-syntax -> shared -> lexing"))
+                .any(|v| v.contains("source-syntax -> shared -> 00_source-files-to-tokens"))
         );
     }
 }

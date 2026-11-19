@@ -186,6 +186,7 @@ fn runtime_supplies(
             installation: Some(admitted.selection()),
             entry: Some(TargetMachineCallable::Machine(admitted.candidate())),
             host_imports: &[],
+            external_completions: &[],
             x86_flags: None,
             memory_ordering: None,
             target_machines: Some(targets),

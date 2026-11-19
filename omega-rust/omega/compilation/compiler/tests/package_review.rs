@@ -804,20 +804,20 @@ fn historical_constant_source() -> PathBuf {
         .join("samples/cli/facts/target_layout_derived_constant/main.omg")
 }
 
-fn historical_constant_snapshot() -> package_compilation::BuildSnapshotRequest {
+fn main_and_build_snapshot() -> package_compilation::BuildSnapshotRequest {
     use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
-    // Each nested placement is a different project with its own Answer.
+    // These projects declare exactly the Build file and the entry source as inputs.
     let source = BuildSourceCaptureRequest::new(["build.omg", "main.omg"].map(|file| {
         (
             file.as_bytes().to_vec(),
             BuildSourceCaptureObligation::Required,
         )
     }))
-    .expect("exact historical source inventory");
+    .expect("exact inputs for the fixture Build");
     package_compilation::BuildSnapshotRequest::scoped([], source)
 }
 
-fn historical_answer_workspace(source: &Path, directory: &Path) -> PathBuf {
+fn copy_build_and_entry_source(source: &Path, directory: &Path) -> PathBuf {
     std::fs::create_dir_all(directory).unwrap();
     std::fs::copy(source, directory.join("main.omg")).unwrap();
     std::fs::copy(
@@ -862,7 +862,7 @@ fn historical_constant_build_retains_its_authored_answer_selections() {
             source,
             session_path,
             target,
-            Some(historical_constant_snapshot()),
+            Some(main_and_build_snapshot()),
         );
         let handoff = build.build_handoff();
         assert_eq!(handoff.target(), target);
@@ -916,7 +916,7 @@ fn historical_constant_build_retains_its_authored_answer_selections() {
     .unwrap();
     check(&source, &workspace.path().join("original"), Some("Small"));
 
-    let project = historical_answer_workspace(&source, &workspace.path().join("project"));
+    let project = copy_build_and_entry_source(&source, &workspace.path().join("project"));
     let original_build = std::fs::read_to_string(source.with_file_name("build.omg")).unwrap();
     let package = check(&project, &workspace.path().join("small"), Some("Small"));
     select_historical_linux_answer(&project, &original_build, Some("Same"));
@@ -931,38 +931,52 @@ fn historical_constant_build_retains_its_authored_answer_selections() {
     );
 }
 
+fn build_fixture_product(
+    root: &Path,
+    profile: target::TargetProfile,
+    product: orchestration::ProjectProduct,
+    directory: PathBuf,
+) -> compiler::CompileReport {
+    use orchestration::{BuildRequest, BuildTargets};
+    let outcomes = orchestration::build(BuildRequest {
+        stage_validators: Default::default(),
+        root_path: root.to_path_buf(),
+        build_directory: Some(directory),
+        targets: BuildTargets::Single(profile),
+        product,
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: Some(main_and_build_snapshot()),
+    })
+    .expect("admit the source-backed package request");
+    let [outcome] =
+        <[_; 1]>::try_from(outcomes).unwrap_or_else(|_| panic!("one requested fixture target"));
+    assert_eq!(outcome.target, profile);
+    outcome
+        .result
+        .unwrap_or_else(|error| panic!("source reaches its requested product: {error}"))
+        .into_report()
+        .expect("report of the requested product")
+        .report
+}
+
 #[test]
 fn historical_constant_closure_requires_exact_target_and_provider() {
-    use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+    use orchestration::{NativeDestination, ProjectProduct};
 
     fn produce(root: &Path, target_name: &str, product: ProjectProduct) -> compiler::CompileReport {
-        let profile = target::TargetProfile::from_canonical_target_name(target_name).unwrap();
-        let outcomes = orchestration::build(BuildRequest {
-            stage_validators: Default::default(),
-            root_path: root.to_path_buf(),
-            build_directory: Some(std::env::temp_dir().join(format!(
-                "omega-layout-closure-{}-{target_name}",
-                std::process::id(),
-            ))),
-            targets: BuildTargets::Single(profile),
+        build_fixture_product(
+            root,
+            target::TargetProfile::from_canonical_target_name(target_name).unwrap(),
             product,
-            timings: false,
-            offline: true,
-            verify: false,
-            require_package_project: true,
-            optimization_rollback: Default::default(),
-            build_snapshot: Some(historical_constant_snapshot()),
-        })
-        .expect("admit the source-backed package request");
-        let [outcome] = <[_; 1]>::try_from(outcomes)
-            .unwrap_or_else(|_| panic!("one requested historical layout target"));
-        assert_eq!(outcome.target, profile);
-        outcome
-            .result
-            .unwrap_or_else(|error| panic!("source reaches its requested product: {error}"))
-            .into_report()
-            .expect("report of the requested product")
-            .report
+            std::env::temp_dir().join(format!(
+                "omega-layout-closure-{}-{target_name}",
+                std::process::id()
+            )),
+        )
     }
 
     let root = historical_constant_source();
@@ -973,7 +987,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     .unwrap();
     // Compare two actual selections for one exact package. A second
     // package's identity could independently falsify the substitution.
-    let project = historical_answer_workspace(&root, &workspace.path().join("project"));
+    let project = copy_build_and_entry_source(&root, &workspace.path().join("project"));
     let retained = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
         .into_retained_terminal_artifact()
         .expect("native proposal");
@@ -983,7 +997,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         &project,
         &workspace.path().join("checked"),
         target::TargetProfile::LinuxX64,
-        Some(historical_constant_snapshot()),
+        Some(main_and_build_snapshot()),
     );
     let checked = session
         .compiler()
@@ -1014,11 +1028,45 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         &mut source_compiler::UnmeasuredProduction,
     )
     .expect("source publishes the exact Linux scalar reach");
-    let backend_plan::ProviderDemandInputs::Target { folded_entry, .. } = demand.inputs() else {
+    let backend_plan::ProviderDemandInputs::Target {
+        folded_entry,
+        origins,
+        ..
+    } = demand.inputs()
+    else {
         panic!("expected target-specific provider demand");
     };
+    let installation = origins.installation().clone();
+    let reopened = std::sync::Arc::new(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&original_bytes)
+            .expect("reopen the original published program"),
+    );
+    installation
+        .clone()
+        .attach(
+            std::sync::Arc::clone(&reopened),
+            target::TargetProfile::LinuxX64,
+        )
+        .expect("the installation still names the decoded program");
+    assert_eq!(
+        installation
+            .clone()
+            .attach(
+                std::sync::Arc::clone(&reopened),
+                target::TargetProfile::WindowsX64
+            )
+            .err(),
+        Some("provider installation belongs to a different target"),
+    );
     let reach = folded_entry.clone().unwrap();
-    let planner = native_compiler::select_published_providers(demand)
+    let producer = terminal_installation::HostProducerTrust::accept("package review fixture");
+    let admitted = compilation_inputs::admit_published_provider_demand(
+        std::sync::Arc::clone(source.artifact()),
+        Some(&producer),
+        demand,
+    )
+    .expect("admit the source publication before provider selection");
+    let planner = native_compiler::select_published_providers(admitted)
         .expect("plan native providers from the published demand");
     let mut selected = planner.clone();
     selected
@@ -1033,6 +1081,15 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         retained.artifact().view().identity()
     );
     assert_ne!(folded.view().identity(), original.identity());
+    assert_eq!(
+        installation
+            .attach(
+                std::sync::Arc::clone(folded),
+                target::TargetProfile::LinuxX64
+            )
+            .err(),
+        Some("provider installation belongs to a different Psi artifact"),
+    );
     let mut without_dependencies = folded.semantic_module().clone();
     without_dependencies.folded_constants = Default::default();
     assert_eq!(&without_dependencies, original.module());
@@ -1044,9 +1101,23 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
             .require_published(publication.optimizations())
             .unwrap()
     ));
-    assert!(source.build_bindings().calls_for(original.into()).is_some());
+    let produced = checked
+        .terminal_publication()
+        .accepted()
+        .unwrap()
+        .produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
+        .unwrap();
     assert!(
-        source
+        produced
+            .build_bindings()
+            .calls_for(original.into())
+            .is_some()
+    );
+    assert!(
+        produced
             .build_bindings()
             .calls_for(folded.view().into())
             .is_none()
@@ -1524,6 +1595,183 @@ fn numeric_review_retains_calls_inside_a_selected_provider() {
             }),
         "an arithmetic call reached only through a provider is still deployed"
     );
+}
+
+#[test]
+fn saved_program_uses_the_hosts_evaluated_native_binding() {
+    let profile = target::TargetProfile::WindowsX64;
+    let root = kept_fixture("run/providers/native_boundary_supply/main.omg");
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "saved-native-binding",
+        false,
+    )
+    .unwrap();
+    let saved = workspace.path().join("program.psi");
+    let (host_packages, package_record, package_permissions, semantic_bindings, source_image) = {
+        let producer = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "native-binding-producer",
+            false,
+        )
+        .unwrap();
+        let root = copy_build_and_entry_source(&root, &producer.path().join("project"));
+        let source = build_fixture_product(
+            &root,
+            profile,
+            orchestration::ProjectProduct::Native {
+                destination: orchestration::NativeDestination::Retained,
+                private_entry_ram: Vec::new(),
+                installation_assumptions: Vec::new(),
+            },
+            producer.path().join("direct"),
+        );
+        let source_image = source
+            .retained_native_artifact()
+            .unwrap()
+            .image()
+            .output()
+            .bytes
+            .clone();
+        let (mut session, build, _) = captured_package_build(
+            &root,
+            &producer.path().join("build"),
+            profile,
+            Some(main_and_build_snapshot()),
+        );
+        let host_packages = orchestration::installed_package_providers(profile, &build).unwrap();
+        let checked = session.compiler().check_package_build(build).unwrap();
+        let publication = checked.terminal_publication();
+        let demand = publication
+            .prepare_provider_demand(
+                Some(profile.target_name()),
+                &checked.build().config.provider_selections,
+                &checked.build().config.native_bindings,
+                false,
+            )
+            .unwrap();
+        let demand = portable_publication::ProductCodeSource {
+            publication,
+            sources: checked.sources(),
+        }
+        .publish_provider_demand(
+            Some(profile),
+            demand,
+            &mut source_compiler::UnmeasuredProduction,
+        )
+        .unwrap();
+        let (backend_plan::ProviderDemandInputs::Target { origins, .. }, _) = demand.into_parts()
+        else {
+            panic!("the host selected a Windows deployment");
+        };
+        std::fs::write(&saved, origins.artifact().to_bytes()).unwrap();
+        let inputs = origins.inputs();
+        let bindings = inputs
+            .bindings
+            .iter()
+            .cloned()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        (
+            host_packages,
+            compiler_storage::encode(&bindings, Default::default()).unwrap(),
+            inputs.package_permissions.clone(),
+            inputs.semantic_bindings.clone(),
+            source_image,
+        )
+    };
+
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&std::fs::read(&saved).unwrap())
+            .unwrap();
+    let producer = terminal_installation::HostProducerTrust::accept("fixture source compiler");
+    let authorized = terminal_installation::authorize_terminal_artifact(
+        std::sync::Arc::new(artifact),
+        Some(&producer),
+    )
+    .unwrap();
+    let empty = backend_plan::TargetProviderInstallation::new(
+        authorized.identity(),
+        profile,
+        Default::default(),
+    );
+    let receive = |installation| {
+        orchestration::prepare_saved_program(
+            authorized.clone(),
+            &saved,
+            profile,
+            installation,
+            orchestration::NativeDestination::Retained,
+            &[],
+        )
+    };
+    let missing = receive(empty).expect_err("a process ID needs a supplied binding");
+    assert!(
+        missing
+            .into_diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("has no provider")
+                && diagnostic.message.contains("HostProcessId"))
+    );
+    let bindings: Vec<evaluation_receipts::NativeBindingMaterialization> =
+        compiler_storage::decode(&package_record, Default::default()).unwrap();
+    let install = |bindings: Vec<evaluation_receipts::NativeBindingMaterialization>| {
+        backend_plan::TargetProviderInstallation::new(
+            authorized.identity(),
+            profile,
+            backend_plan::ProviderInstallationInputs {
+                bindings: bindings.into_iter().map(Ok).collect(),
+                package_permissions: package_permissions.clone(),
+                semantic_bindings: semantic_bindings.clone(),
+            },
+        )
+    };
+    let mut wrong = bindings;
+    wrong[0].service_declaration[0] ^= 1;
+    let changed =
+        receive(install(wrong)).expect_err("the same name cannot supply a changed service");
+    assert!(changed.into_diagnostics().iter().any(|error| {
+        error
+            .message
+            .contains("completed Build binding belongs to a different service contract")
+    }));
+    let report = receive(host_packages.clone().for_program(&authorized))
+        .expect("admit the independently supplied root package process-ID binding");
+    let image = report.retained_native_artifact().unwrap().image().output();
+    assert!(image.bytes.windows(8).any(|bytes| bytes == b"_getpid\0"));
+    assert!(
+        image.bytes == source_image,
+        "source and saved-file compilation produced different Windows executables"
+    );
+    let interpreted = orchestration::prepare_saved_program(
+        authorized.clone(),
+        &saved,
+        profile,
+        host_packages.for_program(&authorized),
+        orchestration::NativeDestination::RuntimeAdmission,
+        &[],
+    )
+    .expect("saved program reaches independent runtime admission");
+    let runtime = interpreted
+        .published_runtime_provisions()
+        .expect("admitted runtime");
+    assert_eq!(runtime.identity(), authorized.artifact().view().identity());
+    assert_eq!(runtime.target_slot().owner, profile);
+    assert_eq!(
+        runtime.source_signature_identity(),
+        report
+            .published_runtime_provisions()
+            .unwrap()
+            .source_signature_identity()
+    );
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        let exe = workspace.path().join("process-id.exe");
+        std::fs::write(&exe, &image.bytes).unwrap();
+        let result = std::process::Command::new(exe)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(0), "{result:?}");
+    }
 }
 
 #[test]
@@ -2501,7 +2749,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     let scope = artifact
         .object()
         .native_execution_scope(
-            artifact.psi_artifact(),
+            artifact.psi_artifact().view().identity(),
             *artifact.selected_provider_closure_digest().as_bytes(),
         )
         .expect("rejoin the actual image's artifact, target, entry and provider choices")
@@ -2512,9 +2760,10 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     );
     for occurrence in scope.callbacks() {
         let callback = module
-            .callback_application(occurrence.application_index())
+            .callback_application(occurrence.application_index)
             .expect("the executed callback must retain its exact application");
-        assert_eq!(callback.registrar, occurrence.terminal_operation());
+        assert_eq!(callback.registrar, occurrence.terminal_operation);
+        assert!(scope.contains_machine(callback.registrar_machine));
         let operation = module
             .machine(callback.registrar_machine)
             .expect("retained callback registrar machine")

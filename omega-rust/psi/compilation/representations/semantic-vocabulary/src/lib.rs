@@ -252,7 +252,7 @@ mod boundary {
     }
 
     pub(crate) mod foreign_locator {
-        #[derive(Debug, Clone, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum ForeignLocatorCandidate {
             PeByName {
                 library: Vec<u8>,
@@ -284,7 +284,7 @@ mod boundary {
             }
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum NativeBindingLocator {
             Import(ForeignLocatorCandidate),
             Syscall { number: u64 },

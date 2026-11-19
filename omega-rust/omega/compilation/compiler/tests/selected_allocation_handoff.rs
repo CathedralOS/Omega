@@ -1,14 +1,14 @@
-//! Register allocation (Omega 05) allocates every program through one
-//! entrance, whatever selected-instruction optimization (Omega 04) did first.
+//! Register allocation (stage 08) allocates every program through one
+//! entrance, whatever selected-instruction optimization (stage 07) did first.
 //!
 //! Each test compiles one of two kept programs, one with few live values and
 //! one with more live values than allocation has registers, natively for
-//! linux_x86_64. Their builds select one rule from each Omega 04 phase and both
+//! linux_x86_64. Their builds select one rule from each stage 07 phase and both
 //! allocation-recovery rules; a test rolls back every rule except the ones it
 //! checks. The tests then read the allocation manifest of the emitted object:
-//! the Omega 04 record it carries, the recovery rewrites allocation applied,
-//! and whether it spilled. With validators requested the object also keeps
-//! Omega 04's completed run, which the independent replay validator checks.
+//! the stage 07 record it carries, the recovery rewrites allocation applied,
+//! and whether it spilled. With validators requested the compilation report also keeps
+//! stage 07's completed run, which the independent replay validator checks.
 
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -43,7 +43,15 @@ fn compile<R>(
     fixture: &str,
     keep: &[&str],
     retain_for_validators: bool,
-    inspect: impl FnOnce(Result<&image_emission::ObjectArtifact, String>) -> R,
+    inspect: impl FnOnce(
+        Result<
+            (
+                &image_emission::ObjectArtifact,
+                &published_object_verification::NativeStageReplay,
+            ),
+            String,
+        >,
+    ) -> R,
 ) -> R {
     let root = repo_root().join(fixture).join("main.omg");
     let rollback = compiler::OptimizationRollback::from_exact_names(
@@ -66,24 +74,15 @@ fn compile<R>(
     };
     let outcome = &outcomes.outcomes()[0];
     match outcome.report() {
-        Some(report) => inspect(Ok(report
-            .retained_native_artifact()
-            .expect("a native compile emits an artifact")
-            .object())),
+        Some(report) => inspect(Ok((
+            report
+                .retained_native_artifact()
+                .expect("a native compile emits an artifact")
+                .object(),
+            report.native_stage_replay(),
+        ))),
         None => inspect(Err(format!("{:?}", outcome.diagnostics()))),
     }
-}
-
-fn emission(
-    object: &image_emission::ObjectArtifact,
-) -> &function_layout::StagedOptimizedFunctionFragmentEmissionSource {
-    object
-        .retained_fragment_source()
-        .expect("the object keeps its fragment producer")
-        .source()
-        .source()
-        .source()
-        .source()
 }
 
 fn manifest(object: &image_emission::ObjectArtifact) -> PostAllocationOptimizationManifest {
@@ -125,17 +124,19 @@ fn identity_input_allocates_with_and_without_pressure() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (fixture, pressure) in [(LOW_PRESSURE, false), (HIGH_PRESSURE, true)] {
         compile(fixture, &[], true, |object| {
-            let object = object.unwrap_or_else(|error| panic!("{fixture}: {error}"));
+            let (object, archive) = object.unwrap_or_else(|error| panic!("{fixture}: {error}"));
             let manifest = manifest(object);
             assert_eq!(manifest.selected_lowering_completion, None);
             assert_eq!(manifest.pre_allocation_completion, None);
             check_pressure(&manifest, 0, pressure);
             assert!(
                 matches!(
-                    published_object_verification::verify_retained_selected_optimization(object),
+                    published_object_verification::verify_retained_selected_optimization(
+                        object, archive
+                    ),
                     Ok(false)
                 ),
-                "no Omega 04 run produced an identity program"
+                "no stage 07 run produced an identity program"
             );
         });
     }
@@ -148,12 +149,12 @@ fn omega_04_rewrites_preserve_default_allocator_availability() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let available = |keep: &[&str]| {
         compile(LOW_PRESSURE, keep, false, |object| {
-            let object = object.unwrap_or_else(|error| panic!("{keep:?}: {error}"));
+            let (object, _) = object.unwrap_or_else(|error| panic!("{keep:?}: {error}"));
             manifest(object).allocator_availability
         })
     };
     let baseline = available(&[]);
-    // Omega 04 may use caller-saved views while deciding a rewrite. Those
+    // stage 07 may use caller-saved views while deciding a rewrite. Those
     // private constraints must not restrict mandatory allocation afterward.
     assert_eq!(available(&[SELECTED_LOWERING]), baseline);
     assert_eq!(available(&[PRE_ALLOCATION]), baseline);
@@ -166,13 +167,14 @@ fn pre_allocation_output_allocates_with_and_without_pressure() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (fixture, pressure) in [(LOW_PRESSURE, false), (HIGH_PRESSURE, true)] {
         compile(fixture, &[PRE_ALLOCATION], true, |object| {
-            let object = object.unwrap_or_else(|error| panic!("{fixture}: {error}"));
+            let (object, archive) = object.unwrap_or_else(|error| panic!("{fixture}: {error}"));
             let manifest = manifest(object);
             assert!(manifest.pre_allocation_completion.is_some());
             assert_eq!(manifest.selected_lowering_completion, None);
-            let (run, record) = emission(object)
-                .selected_optimization_evidence()
-                .expect("validators keep the evidence");
+            let (run, record) = archive
+                .root()
+                .expect("validators keep the evidence")
+                .selected_optimization_evidence();
             assert!(run.is_some(), "the run is kept for the validator");
             assert_eq!(
                 record.pre_allocation_completion,
@@ -182,11 +184,13 @@ fn pre_allocation_output_allocates_with_and_without_pressure() {
                 manifest
                     .selected_transformations
                     .starts_with(&record.transformations),
-                "allocation keeps the Omega 04 record first"
+                "allocation keeps the stage 07 record first"
             );
             check_pressure(&manifest, record.transformations.len(), pressure);
             assert!(matches!(
-                published_object_verification::verify_retained_selected_optimization(object),
+                published_object_verification::verify_retained_selected_optimization(
+                    object, archive
+                ),
                 Ok(true)
             ));
         });
@@ -199,11 +203,14 @@ fn selected_lowering_output_allocates_through_the_same_entrance() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[SELECTED_LOWERING], true, |object| {
-        let object = object.unwrap_or_else(|error| panic!("{error}"));
+        let (object, archive) = object.unwrap_or_else(|error| panic!("{error}"));
         let manifest = manifest(object);
         assert!(manifest.selected_lowering_completion.is_some());
         assert_eq!(manifest.pre_allocation_completion, None);
-        let (_, record) = emission(object).selected_optimization_evidence().unwrap();
+        let (_, record) = archive
+            .root()
+            .expect("validators keep the evidence")
+            .selected_optimization_evidence();
         assert!(record.transformations.iter().all(|transformation| matches!(
             transformation,
             PostAllocationSelectedTransformation::LiteralFold(_)
@@ -215,7 +222,7 @@ fn selected_lowering_output_allocates_through_the_same_entrance() {
         );
         check_pressure(&manifest, record.transformations.len(), false);
         assert!(matches!(
-            published_object_verification::verify_retained_selected_optimization(object),
+            published_object_verification::verify_retained_selected_optimization(object, archive),
             Ok(true)
         ));
     });
@@ -227,7 +234,7 @@ fn a_default_compile_keeps_no_omega_04_run() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[PRE_ALLOCATION], false, |object| {
-        let object = object.unwrap_or_else(|error| panic!("{error}"));
+        let (object, archive) = object.unwrap_or_else(|error| panic!("{error}"));
         assert!(
             object.retained_fragment_source().is_none(),
             "ordinary images cannot retain compiler producers"
@@ -237,8 +244,9 @@ fn a_default_compile_keeps_no_omega_04_run() {
             "ordinary images cannot recover a selected instruction graph"
         );
         assert!(manifest(object).pre_allocation_completion.is_some());
-        let error = published_object_verification::verify_retained_selected_optimization(object)
-            .expect_err("a default compile retains nothing to replay");
+        let error =
+            published_object_verification::verify_retained_selected_optimization(object, archive)
+                .expect_err("a default compile retains nothing to replay");
         assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
     });
 }
@@ -249,11 +257,26 @@ fn a_retained_run_refuses_another_programs_record() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[PRE_ALLOCATION], true, |low| {
-        let low = low.unwrap_or_else(|error| panic!("{error}"));
+        let (low, low_archive) = low.unwrap_or_else(|error| panic!("{error}"));
         compile(HIGH_PRESSURE, &[PRE_ALLOCATION], true, |high| {
-            let high = high.unwrap_or_else(|error| panic!("{error}"));
-            let (low_run, low_record) = emission(low).selected_optimization_evidence().unwrap();
-            let (_, high_record) = emission(high).selected_optimization_evidence().unwrap();
+            let (_, high_archive) = high.unwrap_or_else(|error| panic!("{error}"));
+            let (low_run, low_record) = low_archive
+                .root()
+                .expect("validators keep the evidence")
+                .selected_optimization_evidence();
+            let (_, high_record) = high_archive
+                .root()
+                .expect("validators keep the evidence")
+                .selected_optimization_evidence();
+            let mismatch = published_object_verification::verify_retained_selected_optimization(
+                low,
+                high_archive,
+            )
+            .unwrap_err();
+            assert!(
+                mismatch.to_string().contains("another object"),
+                "{mismatch}"
+            );
             let low_run = low_run.expect("the low-pressure run is kept");
             low_run
                 .validate(low_record)
@@ -274,7 +297,7 @@ fn each_recovery_entry_runs_its_own_procedure() {
     // The fixed-view entry splits fixed-register conflicts with copies; this
     // program has none, so the copy step applies none and assignment follows.
     compile(LOW_PRESSURE, &[FIXED_VIEW_RECOVERY], true, |object| {
-        let object = object.unwrap_or_else(|error| panic!("{error}"));
+        let (object, _) = object.unwrap_or_else(|error| panic!("{error}"));
         let manifest = manifest(object);
         assert!(matches!(
             manifest.selected_transformations.as_slice(),

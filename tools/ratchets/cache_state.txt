@@ -3,7 +3,7 @@
 # may only fall: derived data is computed once by its owner, not cached
 # (AGENTS.md conventions).
 # Written by `cargo xtask check-rules --update-cache-state`.
-2 omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/allocation/home_assignment.rs
+2 omega-rust/omega/compilation/pipeline/08_selected-instructions-to-register-homes/src/allocation/home_assignment.rs
 1 omega-rust/omega/compilation/representations/native-effects/src/provider_evidence/providers/provider_plan.rs
 1 omega-rust/omega/packages/package-compilation/src/bindings.rs
 5 omega-rust/omega/packages/package-compilation/src/reuse/checked_source_cache.rs
@@ -26,10 +26,10 @@
 3 omega-rust/omega/packages/source-acquisition/src/snapshot/publication.rs
 3 omega-rust/omega/packages/source-acquisition/src/storage.rs
 1 omega-rust/omega/packages/source-acquisition/src/test_support.rs
-3 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_resolved/src/declarations_and_machines.rs
-3 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_resolved/src/lookup_indexes.rs
-21 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/declaration_tables_and_index.rs
-8 omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_symbols/table.rs
+3 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/declarations_and_machines.rs
+3 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lookup_indexes.rs
+21 omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs
+8 omega-rust/psi/compilation/representations/source-declarations/src/source_symbols/table.rs
 3 omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs
 3 omega-rust/psi/compilation/representations/terminal-psi/src/identity.rs
 10 omega-rust/psi/foundation/arena/src/owned_index.rs

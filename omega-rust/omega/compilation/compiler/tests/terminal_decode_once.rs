@@ -159,7 +159,8 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     )
     .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
     let realization_decodes = terminal_codec::module_decode_count() - before;
-    let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
+    let (image, runtime) = product.image.into_parts();
+    let native_artifact::RequestedNativeArtifact::Direct(artifact) = image else {
         panic!("{FIXTURE} emits a direct native artifact")
     };
     let physical = artifact.physical_evidence().unwrap_or_else(|| {
@@ -205,10 +206,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
-        provisions: product
-            .runtime_provisions
-            .as_ref()
-            .map(|runtime| runtime.execution()),
+        provisions: runtime.as_ref().map(|runtime| runtime.execution()),
         work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::default(),
         standard_input: None,
@@ -234,10 +232,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
-        provisions: product
-            .runtime_provisions
-            .as_ref()
-            .map(|runtime| runtime.execution()),
+        provisions: runtime.as_ref().map(|runtime| runtime.execution()),
         work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,

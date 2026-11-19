@@ -214,7 +214,7 @@ pub struct HostedTerminalProgram<'program> {
     program: TerminalProgram<'program>,
     providers:
         Option<std::borrow::Cow<'program, terminal_installation::AdmittedProviderSelections>>,
-    host_imports: Vec<semantic_vocabulary::BoundaryMachineId>,
+    host_boundaries: host_imports::HostBoundarySelections,
     target_machines: Option<terminal_interpreter::TerminalTargetContext>,
     target_layouts: Option<terminal_interpreter::AdmittedTargetLayouts>,
 }
@@ -307,7 +307,7 @@ impl<'program> HostedTerminalProgram<'program> {
                     error,
                 ))
             })?;
-        let mut host_imports = Vec::new();
+        let mut host_boundaries = host_imports::HostBoundarySelections::default();
         if let Some(provisions) = request.provisions {
             for provision in provisions.host() {
                 if matches!(&provision.realization,
@@ -316,15 +316,7 @@ impl<'program> HostedTerminalProgram<'program> {
                 {
                     continue;
                 }
-                if host_imports::executes_internally(&program, provision) {
-                    continue;
-                }
-                if program
-                    .external_completion_requirement(provision.boundary)
-                    .is_none()
-                {
-                    host_imports.push(provision.boundary);
-                }
+                host_boundaries.add(&program, provision);
             }
         }
 
@@ -335,7 +327,7 @@ impl<'program> HostedTerminalProgram<'program> {
             request,
             program,
             providers,
-            host_imports,
+            host_boundaries,
             target_machines,
             target_layouts,
         })
@@ -365,7 +357,8 @@ impl<'program> HostedTerminalProgram<'program> {
                 .or_else(|| request.provisions.map(|provisions| provisions.entry()))
                 .map(terminal_psi::TargetMachineCallable::Machine),
             installation: self.providers.as_deref(),
-            host_imports: &self.host_imports,
+            host_imports: &self.host_boundaries.imports,
+            external_completions: &self.host_boundaries.external_completions,
             target_machines: self.target_machines.as_ref(),
             target_layouts: self.target_layouts.as_ref(),
         }

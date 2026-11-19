@@ -74,6 +74,20 @@ pub(super) fn write(
             }
         }
     }
+    if !value.native_bindings.is_empty() {
+        let bytes = compiler_storage::encode(
+            &value.native_bindings,
+            compiler_storage::RecordLimits {
+                bytes: MAXIMUM_POLICY_TEXT_BYTES / 2,
+                ..Default::default()
+            },
+        )
+        .map_err(|error| Error::NativeBindings(error.to_string()))?;
+        use std::fmt::Write as _;
+        let mut hex = String::with_capacity(bytes.len() * 2);
+        write!(hex, "{}", crate::Hex(&bytes)).expect("writing to a String");
+        writer.row("native_bindings_v1", hex)?;
+    }
     writer.append("end_compilation\n")?;
     writer.finish()
 }
@@ -173,9 +187,36 @@ pub(super) fn read(
                 .map_err(|_| Error::InvalidFraming)?,
         );
     }
-    reader.expect("end_compilation")?;
+    let mut compilation = AcceptedPackageCompilation::new(compiler, bindings)?;
+    let ending = reader.line()?;
+    if let Some(hex) = ending.strip_prefix("native_bindings_v1 ") {
+        if hex.is_empty()
+            || !hex.len().is_multiple_of(2)
+            || !hex
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(Error::InvalidFraming);
+        }
+        budget.owned(hex.len() / 2)?;
+        let mut bytes = Vec::new();
+        crate::reserve!(bytes, hex.len() / 2, Error);
+        for index in (0..hex.len()).step_by(2) {
+            bytes.push(
+                u8::from_str_radix(&hex[index..index + 2], 16)
+                    .map_err(|_| Error::InvalidFraming)?,
+            );
+        }
+        compilation.native_bindings = budget.native_bindings(&bytes)?;
+        if compilation.native_bindings.is_empty() {
+            return Err(Error::InvalidFraming);
+        }
+        reader.expect("end_compilation")?;
+    } else if ending != "end_compilation" {
+        return Err(Error::InvalidFraming);
+    }
     reader.finish()?;
-    AcceptedPackageCompilation::new(compiler, bindings)
+    Ok(compilation)
 }
 
 fn hexadecimal(digest: [u8; 32]) -> String {
@@ -270,6 +311,25 @@ mod tests {
             recover(&text.replace(&"05".repeat(32), &"06".repeat(32))).unwrap(),
             original
         );
+    }
+
+    #[test]
+    fn only_an_absent_native_record_means_no_offered_bindings() {
+        let historical = write(&sample(), package(), context()).unwrap();
+        let recovered = recover(&historical).unwrap();
+        assert!(recovered.native_bindings().is_empty());
+        assert_eq!(write(&recovered, package(), context()).unwrap(), historical);
+
+        // The first eight bytes of a native record give its number of entries.
+        // An explicit empty vector and a count larger than our whole budget
+        // must both refuse, along with malformed rows.
+        for record in ["", "0", "GG", "01", "0000000000000000", "ffffffffffffffff"] {
+            let changed = historical.replace(
+                "end_compilation",
+                &format!("native_bindings_v1 {record}\nend_compilation"),
+            );
+            assert!(recover(&changed).is_err(), "{record}");
+        }
     }
 
     #[test]

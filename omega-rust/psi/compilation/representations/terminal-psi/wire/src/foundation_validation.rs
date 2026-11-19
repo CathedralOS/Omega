@@ -4991,17 +4991,7 @@ pub(crate) mod scalar_applications {
             }
             if !module.scalar_applications.declarations().is_empty() {
                 let types = terminal_semantics::SortedValueTypes::new(
-                    machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| {
-                            block.parameters.iter().chain(&block.erased_scalar_formals)
-                        })
-                        .chain(
-                            machine
-                                .operations()
-                                .filter_map(|operation| operation.result.scalar_ref()),
-                        )
+                    super::proof_values(machine)
                         .map(|value| (value.id, value.scalar_type))
                         .collect(),
                 )
@@ -11416,6 +11406,19 @@ pub(crate) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDe
         )
 }
 
+/// Proof conditions may name the machine's ordinary scalar values and the
+/// erased formals introduced by its contract or by a block.
+fn proof_values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
+    values(machine)
+        .chain(&machine.contract.erased_scalar_formals)
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.erased_scalar_formals),
+        )
+}
+
 fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecError> {
     use terminal_psi::{BoundaryMachineResult, StructuralTypeShape};
     let check = |scalar| {
@@ -11479,16 +11482,7 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
         }
     }
     for machine in &module.machines {
-        for value in values(machine)
-            .chain(machine.result.scalar_ref())
-            .chain(&machine.contract.erased_scalar_formals)
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.erased_scalar_formals),
-            )
-        {
+        for value in proof_values(machine).chain(machine.result.scalar_ref()) {
             check(value.scalar_type)?;
         }
     }

@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,593 lines / 838,494 bytes with SHA-256
-`5047ce234bcf690ca4bbaee1163940d7ad394e1a1d1adac7d739896ddaf16d01`.
+manifest materializes 22,612 lines / 839,299 bytes with SHA-256
+`49316cde32e52b6277b29fa11434eb96ed8c0e3bbfddc7bf5e2d8a126e44beb2`.
 The manifest itself is 1,674 bytes, SHA-256
-`af5adc6e0999e82d52b82592b4de5c9078b02be0ce3bd93ca6d23a8c7b5fbaa2`;
+`8d587950e39ea9c2b0caab5b3e336c244d0bf419c6ee485f24b9e5b076a39cfc`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -173,9 +173,12 @@ than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
 `as -Trapping` express the supported domain changes. Core comparisons admit a
 plain peer of the same carrier, as specified by the policy-domain operator
-family; that does not qualify the peer. Carrier casts currently cover plain
-identity/anonymous landing and exact `u8` to `u32` widening. Other casts and
-context-dependent domain inference inside compound expressions refuse explicitly.
+family; that does not qualify the peer. Carrier casts accept plain `u8`, `u32` and `u64` identity,
+anonymous landing within the supported literal range, and exact widening
+between these carriers. On `u32` or `u64`, `value as T +Trapping` checks
+the carrier conversion and then the destination domain, evaluating the
+operand once. A value already qualified by Trapping must first remove it.
+Narrowing and unsupported domain establishment remain coverage refusals.
 
 This closed slice projects the primitive operators and the fixed core policy
 comparison and arithmetic families specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
@@ -513,12 +516,13 @@ initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
 reuse the same reducer.
-Path-valued casts reuse the same expression and type engines in assignments,
-locals and both kinds of call argument. They retain the value and target-type
-handles, exact cast span, and an optional single-name `in Domain` suffix.
-These casts may also wrap a completed grouped primary and then continue
-through the shared binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
-expressions, and other richer initializers remain implementation-incomplete.
+Casts reuse the expression and type engines for assignments, locals and
+both kinds of call argument. A carrier target retains its type handle.
+An explicit domain addition or removal retains its domain span. In
+`value as T +D` the added-domain row owns the completed carrier expression.
+The carrier span ends at `T` and the outer span ends at `D`. A bare sign
+following a cast starts a domain entry. Parentheses permit arithmetic on its
+result. Multiple domain entries and the retired `as T in D` refuse.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,
@@ -800,3 +804,100 @@ was `0002000000df460000`.
 The frozen `b95769558667` input reached the same source unit and local
 coordinate, packed byte 18,029, observation `00020000006d460000`.
 Neither run reached semantic checking of the entire source graph.
+
+With carrier conversion followed by an explicit domain addition, the same
+production entry passed `mark as u64 +Trapping` and the intervening emitter
+machines. On the published 284-unit input it reached
+`ScalarOperationKind::Copy -> copy(emitter, body, operation)` on line 577,
+column 38 of `compilation/00_scalar_operations_to_alpha.omg`. The model
+returned `Incomplete` at the called name, packed byte 37,331 / unit byte
+23,577, observation `0002000000d3910000`. The frozen input reached the
+same unit and coordinate at packed byte 37,217, observation
+`000200000061910000`. Each nine-byte output contains the refusal coordinate.
+
+
+The target token is lowercase `copy`, which the Omega lexer classifies as
+a keyword. Line 612 declares `machine copy(...)` inside the same enclosing
+machine. D's terminal target parser accepts an identifier or a boolean
+result, and its nested machine name parser accepts an identifier. The
+[terminal-call rule](../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
+resolves a called target as a machine and applies ordinary argument and
+completion rules.
+
+### Restored V1 borrow spelling
+
+The V1 product at `d8a8825e3c23` uses `@mut` for Omega borrows. Its
+284-unit request contains 3,823,380 source bytes, wire SHA-256
+`636c924b64ae1d2a1c827466dfdcf868a89e935847e0c0f4a15b7235ba2f6405`.
+The Epsilon code that implements the Omega compiler still uses Epsilon
+receivers and byte views spelled `&mut self` and `&[u8]`.
+
+At that revision, `tests/epsilon/refinement/model.py` expects `@` in an
+Epsilon receiver. It rejected both the unmodified and integrated Epsilon
+compiler sources at packed byte 39,463, the receiver in
+`request_and_utf8.epsilon` line 27. Both observations were
+`0207279a0000`. The full-product comparison below uses the independent
+model from `8092cfd9c0a5`, SHA-256
+`036633fe351bd0da5e4bf8426b2ccdb87287fe423868fe686750d5135fa24490`,
+on the supplied source bytes.
+
+On that product, the unmodified compiler returned `0002000000df460000`
+at the `+Trapping` in `alpha_new_mark`, packed byte 18,143. The integrated
+compiler returned `0002000000d3910000` at the ordinary nested `copy`
+call, packed byte 37,331 / unit byte 23,577, line 577, column 38. The
+compiler and production entry together were 845,417 Epsilon bytes, SHA-256
+`95ea6b8b9cd7d2e1d186c70bcda1ba1cf9821b0451f751779ea3978df196ffdd`.
+Both full-product observations end with the refusal coordinate.
+
+### Same-carrier cast comparison
+
+The carrier-cast rule says, “The operand of a carrier cast must carry no
+domain.” It defines `plain as T +D` as `(plain as T) as +D`. The bootstrap
+producer below follows this rule for arithmetic policy domains as well.
+[Carrier casts](../../../wiki/spec/language/domains.md#carrier-casts)
+
+The input below selects `main`. For each row in the table, replace the body
+of `mark` with the listed expression and use the listed type for both its
+return and `x`.
+
+```omega
+machine mark(n:u32 in Trapping)->u32 in Trapping {(n as u32) as +Trapping}
+machine main()->u8 {
+    let x:u32 in Trapping=mark(3 as +Trapping);
+    transition x==3 {true->pass() _->miss()}
+    machine pass()->u8 {42}
+    machine miss()->u8 {1}
+}
+```
+
+| Body of `mark` | Return type and `x` | Bootstrap | Rust |
+| --- | --- | --- | --- |
+| `(n as u32) as +Trapping` | `u32 in Trapping` | Reject | 42 |
+| `n as u32 +Trapping` | `u32 in Trapping` | Reject | Reject |
+| `n as u32` | `u32` | Reject | 42 |
+| `(n as u32) as -Trapping` | `u32` | Reject | Reject, absent domain |
+| `n as -Trapping` | `u32` | 42 | 42 |
+| `(n as -Trapping) as u32 +Trapping` | `u32 in Trapping` | 42 | 42 |
+| `n as +Trapping` | `u32 in Trapping` | Reject | Reject, repeated domain |
+
+The bootstrap producer was 839,302 Epsilon bytes, SHA-256
+`e30d71de073d6933f0e4a9ac3b6b530284443e50f06098ad7f4e4d29d4cfb601`.
+The independent Epsilon model ran its source. Its two 306-byte Alpha tapes
+ran on Linux and exited 42. All five rejected inputs emitted zero tape bytes.
+The Rust-built compiler ELF from published commit
+`1f4fe6db8a27f3e28f446ec277522394980f1908` was SHA-256
+`9b91b6827fea60db11f69feedbbddf149a399d261b75b9e7d77cae2e7c4aa31b`.
+Its native comparison entry checked that `main()` equaled 42. A second
+Linux entry forwarded `main()` as the process status for the parenthesized
+expansion. In the two-step Rust form, the inner cast drops `Trapping`.
+Removing it again gives the diagnostic that the operand's type `u32` does
+not carry `Trapping`. The combined form diagnoses the original qualified
+operand and asks for explicit removal first.
+The Rust lowerer in that revision accepts an arithmetic policy on an
+identical scalar carrier and produces the plain target qualification.
+Its `operations/lowering/src/read/casts.rs` Git blob
+`dc22719ef09bb175c5e1fa7c8745984c65e926d5` also appears in
+`87e11d9cecd7`. The native observations above used the earlier binary.
+The same Rust ELF also compiled the retired `n as u32 in Trapping` spelling
+for a plain `u32` operand and produced exit 42. The bootstrap parser returns
+`Incomplete` at that spelling.

@@ -12,9 +12,9 @@ test-support = []
 bounded-process = { path = "../bounded-process" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
 native-provider-runtime = { path = "../../interpreter/native-provider-runtime" }
-product-publication = { path = "../../compilation/pipeline/10_product-publication" }
+product-publication = { path = "../../compilation/pipeline/18_finished-products-to-installed-files" }
 
 [dev-dependencies]
 target = { path = "../../compilation/target-description/target" }
-image-emission = { path = "../../compilation/pipeline/09_image-construction/image-emission" }
+image-emission = { path = "../../compilation/pipeline/17_objects-to-image/image-emission" }
 image-fixtures = { path = "../../../test-support/image-fixtures" }

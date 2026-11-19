@@ -128,7 +128,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 boundary.id, boundary.completion, completion,
             ))]);
         }
-        request
+        let disposition = request
             .terminal_authority_policy
             .classify(mechanism)
             .map_err(|unclassified| {
@@ -138,6 +138,47 @@ pub(super) fn settle_compiler_builtins<'request>(
                     unclassified.mechanism(),
                 ))]
             })?;
+        if execution == CompilerBuiltinExecution::HostedExitProcessI32
+            && request.profile == target::TargetProfile::WindowsX64
+        {
+            let import = target_operations::CompilerImport::WindowsProcessExit;
+            if terminal_semantics::closed_conformances::hosted_primitive_requirement(
+                input.module(),
+                boundary,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .is_none()
+            {
+                return Err(vec![Diagnostic::error(
+                    "Windows process exit requires the exact checked core primitive",
+                )]);
+            }
+            let physical = crate::provider_admission::normalized_foreign_terminal_mechanism(
+                import.locator(),
+                import.entry_plan(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            if super::terminal_authority_policy::reviewed_windows_import(physical)
+                != Some(disposition)
+            {
+                return Err(vec![Diagnostic::error(
+                    "Windows process exit import and primitive require different authority",
+                )]);
+            }
+            admitted.push(AdmittedBoundarySettlement {
+                boundary: boundary.id,
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
+                realization: BoundarySettlementRealization::NormalizedForeignCall(import.binding(
+                    requirement.to_owned(),
+                    *proposal.provider_plan.identity_digest().as_bytes(),
+                )),
+            });
+            mechanisms.push(AdmittedTerminalMechanism {
+                boundary: boundary.id,
+                mechanism: mechanism.into(),
+            });
+            continue;
+        }
         let realization = match execution {
             CompilerBuiltinExecution::StaticInterrupt { .. } => {
                 return Err(vec![Diagnostic::error(

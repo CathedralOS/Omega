@@ -4,10 +4,10 @@
 // application, and emits a shared component image keyed by the component
 // version and calling application commitment (`component_export_slot`).
 
+use artifact_lowering::ComponentNativeInputs;
+use artifact_lowering::admit_prepared_native_realization;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
-use native_program_planning::ComponentNativeInputs;
-use native_program_planning::admit_prepared_native_realization;
 use provider_admission::provider_admission::{
     AdmittedNativeCallableAuthority, SourceEvaluatedImportSettlement,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, realization_error,
@@ -22,6 +22,7 @@ pub struct ComponentExportRequest<'input> {
 }
 
 pub struct ComponentNativeExport<'input> {
+    stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     component: &'input component_description::VerifiedComponent,
     selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
@@ -35,6 +36,7 @@ pub struct ComponentNativeExport<'input> {
 }
 
 pub struct ComponentExportImage<'input> {
+    pub(crate) stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     component: &'input component_description::VerifiedComponent,
     selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
@@ -47,7 +49,7 @@ pub struct ComponentExportImage<'input> {
 impl<'input> ComponentExportImage<'input> {
     pub fn into_product(
         self,
-        call: &native_program_planning::AdmittedNativeComponentCall<'_>,
+        call: &artifact_lowering::AdmittedNativeComponentCall<'_>,
     ) -> Result<native_artifact::NativeComponentProduct, String> {
         if self.component.artifact() != call.component().artifact()
             || self.candidate.candidate != call.selection().candidate()
@@ -88,6 +90,7 @@ impl<'input> ComponentExportImage<'input> {
 impl<'input> ComponentNativeExport<'input> {
     pub fn emit_shared_image(self) -> Result<ComponentExportImage<'input>, Vec<Diagnostic>> {
         let Self {
+            stage_originals,
             component,
             selected_provider_plans,
             candidate,
@@ -106,12 +109,13 @@ impl<'input> ComponentNativeExport<'input> {
         let image = image_emission::emit_component_shared_image(function)
             .map_err(|error| vec![error.diagnostic.clone()])?;
         Ok(ComponentExportImage {
+            stage_originals,
             component,
             selected_provider_plans,
             candidate,
             calling_application,
             image,
-            runtime: runtime.map_adapters(super::auxiliary_native::emit),
+            runtime: runtime.map_adapters(native_artifact::emit_runtime_adapter),
             authority,
         })
     }
@@ -130,8 +134,8 @@ pub fn component_export_slot(
 
 pub fn emit_component_exports<'input>(
     inputs: &ComponentNativeInputs<'input>,
-    executions: Vec<native_program_planning::PreparedNativeExecution>,
-    scalars: Option<native_program_planning::NativeScalarApplications<'_>>,
+    executions: Vec<artifact_lowering::PreparedNativeExecution>,
+    scalars: Option<artifact_lowering::NativeScalarApplications<'_>>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
     let artifact = inputs.component().artifact();
@@ -146,21 +150,21 @@ pub fn emit_component_exports<'input>(
     let mut targets = Vec::with_capacity(executions.len());
     for (export, execution) in inputs.exports().iter().zip(executions) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (input, execution) = native_program_planning::lower_native_execution(
+        let (input, execution) = artifact_lowering::lower_native_execution(
             proposal,
             execution,
             &[],
-            scalars.as_ref().map(
-                |scalars| native_program_planning::NativeScalarApplications {
+            scalars
+                .as_ref()
+                .map(|scalars| artifact_lowering::NativeScalarApplications {
                     completed: scalars.completed,
-                },
-            ),
+                }),
         )?;
         let selections = proposal.post_terminal_optimizations().selections();
-        let prepared = native_program_planning::prepare_native_providers(
+        let prepared = artifact_lowering::prepare_native_providers(
             proposal,
             artifact,
-            native_program_planning::RetainedNativeProviderInputs {
+            artifact_lowering::RetainedNativeProviderInputs {
                 execution: &execution,
                 optimization_selections: selections,
                 accepted_package_permissions: request.accepted_package_permissions,
@@ -176,7 +180,7 @@ pub fn emit_component_exports<'input>(
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;
-        let target = native_program_planning::callable_planning::plan_callable(
+        let target = crate::callable_planning::plan_callable(
             admitted,
             admission,
             selections,
@@ -260,15 +264,15 @@ pub fn emit_component_exports<'input>(
     for (export, target, ordinals) in targets {
         let physical =
             super::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
-        if !physical.body.private_references.is_empty() {
+        if !physical.body.stage.program().private_references.is_empty() {
             return Err(realization_error(
                 "component export closure",
                 "component export retains private callback bodies requiring their own publication custody",
             ));
         }
-        let entry_plan = physical_planning::callable_entry::plan_callable_entry_transport(
-            &physical.body.frame,
-            &physical.body.installations,
+        let entry_plan = entry_planning::callable_entry::plan_callable_entry_transport(
+            &physical.body.stage.program().frame,
+            physical.body.stage.installations().for_entry_planning(),
             export.calling_application.plan.plan(),
             &ordinals,
         )
@@ -280,41 +284,41 @@ pub fn emit_component_exports<'input>(
     let handlers = installation_binding::RetainedHandlerMeasurements::default();
     let mut bound = Vec::with_capacity(planned.len());
     for (export, physical, entry_plan) in planned {
-        bound.push((export, physical.bind(&handlers)?, entry_plan));
+        bound.push((
+            export,
+            physical.bind(&handlers)?,
+            installation_binding::entries::bind_callable_entry(entry_plan),
+        ));
     }
     let mut encoded = Vec::with_capacity(bound.len());
-    for (export, physical, entry_plan) in bound {
+    for (export, physical, bound_entry) in bound {
         let body = physical.encode()?;
-        let entry = native_encoding::callable_entry::encode_callable_entry_transport(entry_plan)
+        let entry = native_encoding::callable_entry::encode_callable_entry_transport(bound_entry)
             .map_err(|error| {
-                realization_error(
-                    "component entry ABI",
-                    format!("native entry transport: {error}"),
-                )
-            })?;
+            realization_error(
+                "component entry ABI",
+                format!("native entry transport: {error}"),
+            )
+        })?;
         encoded.push((export, body, entry));
     }
     let mut layouts = Vec::with_capacity(encoded.len());
     for (export, body, entry) in encoded {
-        let entry = function_layout::entry_placement::place_callable_entry(entry)
+        let entry = placement::entry_layout::resolve_callable_entry(entry)
+            .map(relaxation::retain_fixed_entry)
+            .map(function_layout::place_fixed_entry)
             .map_err(|error| realization_error("component entry layout", error))?;
         layouts.push((export, body.layout()?, entry));
     }
-    let mut objects = Vec::with_capacity(layouts.len());
+    let mut exports = Vec::with_capacity(layouts.len());
     for (export, layout, entry) in layouts {
-        objects.push((
-            export,
-            layout.construct_object()?,
-            object_file::CallableEntryTransport::from_placement(entry),
-        ));
-    }
-    let mut exports = Vec::with_capacity(objects.len());
-    for (export, object, entry_bridge) in objects {
-        let emitted = object.emit_fragment()?;
+        let emitted = layout.construct_object()?;
+        let entry_bridge = object_file::CallableEntryTransport::from_placement(entry);
         let body = emitted.projection.into_object();
         let runtime = emitted.runtime;
         let authority = emitted.authority;
         exports.push(ComponentNativeExport {
+            stage_originals: emitted.stage_originals,
             component: inputs.component(),
             selected_provider_plans: &proposal.providers().selection,
             candidate: export.candidate,

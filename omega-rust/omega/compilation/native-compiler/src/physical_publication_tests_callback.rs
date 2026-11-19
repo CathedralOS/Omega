@@ -391,7 +391,8 @@ fn physical_publication_retains_linked_callback_children() {
 }
 
 fn check_callback_publication(retain_body_source: bool) {
-    use native_program_planning::{
+    use crate::callable_planning::inspect_private_body_demand;
+    use artifact_lowering::{
         NativeAdmissionRequest, NativeExecutionSelection, VerifiedNativeArtifactInput,
         admit_prepared_native_realization,
     };
@@ -459,19 +460,69 @@ fn check_callback_publication(retain_body_source: bool) {
         callbacks: &fixture.occurrences,
         entry_call: None,
     };
-    let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-        &super::authorize_fixture(artifact),
-        target::TargetProfile::WindowsX64,
-        request.entry,
-        &[],
-        &selection,
-    )
-    .expect("prepare real callback occurrence closure");
-    let admitted = admit_prepared_native_realization(input, artifact, &request)
-        .expect("admit callback registrar with exact selected foreign contract");
-    let (root, providers) = super::emit_body(admitted, false, |target| {
+    let admit = || {
+        let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
+            &super::authorize_fixture(artifact),
+            target::TargetProfile::WindowsX64,
+            request.entry,
+            &[],
+            &selection,
+        )
+        .expect("prepare real callback occurrence closure");
+        admit_prepared_native_realization(input, artifact, &request)
+            .expect("admit callback registrar with exact selected foreign contract")
+    };
+    if !retain_body_source {
+        let substituted = effects::SelectedProviderPlanFacts::default();
+        let Err(errors) =
+            native_artifact::NativeImageProviders::from_admission(admit().providers, &substituted)
+        else {
+            panic!("accepted unrelated provider selections for the callback program")
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("another selected-plan closure")),
+            "{errors:?}"
+        );
+    }
+    let admitted = admit();
+    let (root, providers) = super::emit_body(admitted, retain_body_source, |target| {
+        assert!(
+            inspect_private_body_demand(&fixture.occurrences, &[])
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(
-            target.private_references.as_slice(),
+            inspect_private_body_demand(&fixture.occurrences, &[target, target]).unwrap(),
+            [0],
+            "repeated demand schedules the original placement once"
+        );
+        let missing = inspect_private_body_demand(&[], &[target]).unwrap_err();
+        assert!(missing.iter().any(|error| {
+            error
+                .message
+                .contains("referenced private function has no original placement")
+        }));
+        let occurrence = &fixture.occurrences[0];
+        let substituted = backend_plan::TerminalCallbackOccurrenceProposal::new(
+            occurrence.placement_index(),
+            occurrence.application_index(),
+            OperationId::new(99).unwrap(),
+            occurrence.callback_thunk_identity(),
+            occurrence.callback_thunk_artifact().clone(),
+            occurrence.boundary_entry_plan().clone(),
+            occurrence.entry_parameters().to_vec(),
+        );
+        let wrong = inspect_private_body_demand(&[substituted], &[target]).unwrap_err();
+        assert!(wrong.iter().any(|error| {
+            error
+                .message
+                .contains("differs from its admitted occurrence")
+        }));
+
+        assert_eq!(
+            target.private_references(),
             &[fixture.occurrences[0].callback_thunk_identity()]
         );
         let callback = MachineId::new(2).unwrap();
@@ -485,7 +536,50 @@ fn check_callback_publication(retain_body_source: bool) {
                 .contains(&callback)
         );
     });
+    let root_originals = root.originals;
+    let root = root.projection;
     let object = root.object();
+    let bindings = object.publication().bindings();
+    let mut missing_import = bindings.clone();
+    let import = Arc::make_mut(&mut missing_import.imports)
+        .imports
+        .pop()
+        .expect("the registrar calls a Windows import");
+    assert_eq!(
+        object.object().check_bindings(&missing_import),
+        Err("encoded import bodies differ from the object's import symbols")
+    );
+    let mut changed_import = bindings.clone();
+    let mut exchanged = import;
+    exchanged.identity = machine_code::import_code::ImportCodeIdentity::Normalized(
+        target::normalize_foreign_locator(
+            target::ForeignLocatorCandidate::PeByName {
+                library: b"other.dll".to_vec(),
+                export: b"same_registrar".to_vec(),
+            },
+            target::TargetProfile::WindowsX64,
+        )
+        .unwrap()
+        .into(),
+    );
+    *Arc::make_mut(&mut changed_import.imports)
+        .imports
+        .last_mut()
+        .unwrap() = exchanged;
+    assert_eq!(
+        object.object().check_bindings(&changed_import),
+        Err("encoded import bodies differ from the object's import symbols")
+    );
+    let mut missing_private = bindings.clone();
+    assert_eq!(
+        bindings.private_references.as_ref(),
+        &[fixture.occurrences[0].callback_thunk_identity()]
+    );
+    missing_private.private_references = Arc::from([]);
+    assert_eq!(
+        object.object().check_bindings(&missing_private),
+        Err("object publication changed the closed physical program's private references")
+    );
     let calls = &object.foreign_call_plans().calls;
     assert!(
         !calls.is_empty(),
@@ -535,14 +629,34 @@ fn check_callback_publication(retain_body_source: bool) {
     let mut planned_entry = None;
     let (body, _) = super::emit_body_inspecting_physical(
         admitted,
-        false,
-        |_| {},
+        retain_body_source,
+        |target| {
+            assert!(
+                target
+                    .execution_plan()
+                    .plan()
+                    .scalar_functions
+                    .iter()
+                    .any(|function| function.machine == MachineId::new(1).unwrap())
+            );
+            assert_eq!(
+                inspect_private_body_demand(&fixture.occurrences, &[target, target]).unwrap(),
+                [0],
+                "this full-module fixture retains the registrar even when the callback is the entry"
+            );
+        },
         |physical| {
+            let callback = fixture.occurrences[0].callback_thunk_identity();
+            assert_eq!(
+                physical.stage.program().private_references.as_slice(),
+                &[callback]
+            );
+            super::check_missing_framed_reference(physical, callback);
             planned_entry = Some(
-                physical_planning::callable_entry::plan_private_function_entry(
+                entry_planning::callable_entry::plan_private_function_entry(
                     fixture.occurrences[0].callback_thunk_identity(),
-                    &physical.frame,
-                    &physical.installations,
+                    &physical.stage.program().frame,
+                    physical.stage.installations().for_entry_planning(),
                     fixture.occurrences[0].boundary_entry_plan(),
                     &[],
                     None,
@@ -551,6 +665,8 @@ fn check_callback_publication(retain_body_source: bool) {
             );
         },
     );
+    let callback_originals = body.originals;
+    let body = body.projection;
     let originals = if retain_body_source {
         vec![(
             fixture.occurrences[0].callback_thunk_identity(),
@@ -566,17 +682,22 @@ fn check_callback_publication(retain_body_source: bool) {
     };
     let physical_originals = native_artifact::NativePhysicalOriginals::new(originals).unwrap();
     let entry = native_encoding::callable_entry::encode_private_function_entry(
-        planned_entry.expect("complete callback entry plan"),
+        installation_binding::entries::bind_private_entry(
+            planned_entry.expect("complete callback entry plan"),
+        ),
     )
     .expect("encode the closed callback entry plan");
     let entry = object_file::PrivateEntryObject::from_placement(
-        function_layout::entry_placement::place_private_entry(entry).unwrap(),
+        function_layout::place_fixed_entry(relaxation::retain_fixed_entry(
+            placement::entry_layout::resolve_private_entry(entry).unwrap(),
+        )),
     );
     let private = image_emission::bind_private_function_entry(entry, Arc::new(body.into_object()))
         .expect("bind the encoded entry to its body");
     let published = native_artifact::publish_fragment_object(
         root,
         native_artifact::FragmentObjectPublicationRequest {
+            runtime: None,
             physical_entry: None,
             hosted_entry: None,
             program_entry: None,
@@ -584,17 +705,49 @@ fn check_callback_publication(retain_body_source: bool) {
         },
     )
     .expect("link demanded callback object, not an injected unused body");
-    let requested = native_artifact::RequestedNativeArtifact::emit_admitted(
-        target::TargetProfile::WindowsX64.native_target(),
-        Arc::clone(artifact),
+    if retain_body_source {
+        let callback_originals = callback_originals.expect("requested callback audit");
+        let mismatch = published_object_verification::verify_body_selected_optimization(
+            published.object(),
+            &callback_originals,
+        )
+        .unwrap_err();
+        assert!(
+            mismatch.to_string().contains("another object"),
+            "{mismatch}"
+        );
+        let archive = crate::NativeStageReplay::from_bodies(
+            root_originals,
+            vec![(
+                fixture.occurrences[0].callback_thunk_identity(),
+                callback_originals,
+            )],
+        )
+        .unwrap();
+        published_object_verification::verify_retained_selected_optimization(
+            published.object(),
+            &archive,
+        )
+        .unwrap();
+    }
+    let image_providers =
+        native_artifact::NativeImageProviders::from_admission(providers, &fixture.selected)
+            .expect("retain provider evidence for the admitted root");
+    let requested = native_artifact::ProgramImageInput {
+        terminal: Arc::clone(artifact),
         published,
-        image_emission::ExecutableImageEmissionRequest::direct(3),
-        &fixture.selected,
-        providers,
-        Some(coverage),
+        image: image_emission::ExecutableImageEmissionRequest::direct(3),
+        providers: image_providers,
+        coverage: Some(coverage),
         physical_originals,
-    )
+    }
+    .emit(Vec::new())
     .expect("publish physical evidence over root and relocated private body");
+    let (requested, runtime) = requested.into_parts();
+    assert!(
+        runtime.is_none(),
+        "this fixture issued an object without a runtime entry"
+    );
     let native_artifact::RequestedNativeArtifact::Direct(native) = requested else {
         panic!("PE image")
     };

@@ -24,6 +24,32 @@ pub enum ForeignStackExtent {
     None,
     Admitted(task_plans::AdmittedSameStackContribution),
     Hosted { receipt: Option<[u8; 32]> },
+    CompilerImport(target_vocabulary::CompilerImport),
+}
+
+impl ForeignStackExtent {
+    pub fn from_binding(binding: &target_vocabulary::NormalizedForeignCallBinding) -> Self {
+        use target_vocabulary::NormalizedForeignCallMechanism as Mechanism;
+        match &binding.mechanism {
+            Mechanism::Import {
+                same_stack_contribution,
+                ..
+            }
+            | Mechanism::Component {
+                same_stack_contribution,
+                ..
+            }
+            | Mechanism::Table {
+                same_stack_contribution,
+                ..
+            } => Self::Admitted(same_stack_contribution.clone()),
+            Mechanism::CompilerImport { import, .. } => Self::CompilerImport(*import),
+            Mechanism::HostedImport { receipt, .. } => Self::Hosted {
+                receipt: Some(*receipt),
+            },
+            Mechanism::SystemCall(_) => Self::None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

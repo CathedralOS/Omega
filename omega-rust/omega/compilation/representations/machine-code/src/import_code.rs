@@ -1,6 +1,7 @@
 //! Import bodies have already been encoded. Container placement may fill only
 //! their declared operands; it cannot request another body from the encoder.
 
+use std::sync::Arc;
 use target::{NativeTarget, NormalizedImportLocator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,4 +116,13 @@ impl EncodedImportProgram {
         }
         Ok(())
     }
+}
+
+/// Encoded imports and private function references carried with one machine
+/// program through block placement, relaxation and object construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedBodyBindings {
+    pub private_references: Arc<[function_identity::MachineFunctionIdentity]>,
+    pub imports: Arc<EncodedImportProgram>,
+    pub windows_internet: Option<Arc<crate::WindowsInternetProviderCode>>,
 }

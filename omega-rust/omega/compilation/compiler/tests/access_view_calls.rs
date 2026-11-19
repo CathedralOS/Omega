@@ -170,12 +170,12 @@ fn qualify_helper(machine: &str, writes: bool) {
         referent: backing,
     };
     if machine == "delegate" {
-        native_program_planning::VerifiedNativeArtifactInput::prepare(
+        artifact_lowering::VerifiedNativeArtifactInput::prepare(
             &artifact_trust::authorize(&artifact),
             target::TargetProfile::host(),
             module.entry.expect("fixture default entry"),
             std::slice::from_ref(&establishment),
-            &native_program_planning::NativeExecutionSelection {
+            &artifact_lowering::NativeExecutionSelection {
                 scope: None,
                 scalar_applications: None,
                 providers: &[],

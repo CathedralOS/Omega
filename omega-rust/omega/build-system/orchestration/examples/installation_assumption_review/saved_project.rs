@@ -284,7 +284,8 @@ fn finish_saved_project(
         },
     )
     .map_err(|(_, rows)| diagnostics(rows))?;
-    let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
+    let (image, _) = product.image.into_parts();
+    let native_artifact::RequestedNativeArtifact::Direct(artifact) = image else {
         return Err("this review tool publishes direct executable images only".into());
     };
     artifact.validate()?;

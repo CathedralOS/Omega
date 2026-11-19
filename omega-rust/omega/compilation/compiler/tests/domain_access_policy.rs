@@ -425,7 +425,7 @@ machine main() {
                     supplies: &frontier.supplies,
                 },
                 terminal_codec::TerminalPublication::Portable,
-            );
+            ).expect("fixture must lower to checker input");
             source_compiler::checking::judge_compilation(prepared.program)
                 .into_iter()
                 .map(|row| {

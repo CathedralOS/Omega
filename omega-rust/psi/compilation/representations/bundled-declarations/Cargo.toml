@@ -1,0 +1,11 @@
+[package]
+name = "bundled-declarations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+language-core = { path = "../source-vocabulary" }
+
+[dev-dependencies]
+declaration-contracts = { path = "../declaration-contracts" }

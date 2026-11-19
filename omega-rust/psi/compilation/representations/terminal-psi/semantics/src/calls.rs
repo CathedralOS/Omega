@@ -794,51 +794,18 @@ pub mod closed_conformances {
         use application_identity::type_identity::vocabulary::NameForm;
         use application_identity::type_identity::vocabulary::OwnerForm;
         use application_identity::type_identity::vocabulary::TypeForm;
-        use language_core::sealed_intrinsics::{
-            HostedOperation, SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
-        };
+        use language_core::bundled_files::core_revision;
         static IDENTITIES: std::sync::OnceLock<HostedProcessExitIdentities> =
             std::sync::OnceLock::new();
         IDENTITIES.get_or_init(|| {
-            let [primitive, requirement, result] =
-                language_core::sealed_intrinsics::hosted_process_exit_sources();
-            // The complete member path below must be the exact retained catalog
-            // row under these bundled bytes. A suffix or lookalike declaration
-            // cannot nominate this operation.
+            let primitive = "ProcessExitPrimitive";
+            let requirement = "ProcessExit";
             let requirement_member = "ProcessExit::exit_process";
-            assert_eq!(
-                SealedIntrinsicCatalog::classify(SealedDeclarationSite {
-                    file: std::path::Path::new(requirement.0),
-                    declaration: requirement_member,
-                    source: requirement.2,
-                }),
-                Some(SealedIntrinsic::HostedRequirement(
-                    HostedOperation::ProcessExit
-                ))
-            );
-            assert_eq!(
-                SealedIntrinsicCatalog::classify(SealedDeclarationSite {
-                    file: std::path::Path::new(primitive.0),
-                    declaration: primitive.1,
-                    source: primitive.2,
-                }),
-                Some(SealedIntrinsic::HostedPrimitive(
-                    HostedOperation::ProcessExit
-                ))
-            );
-            let exact_nominal = |(file, _, bytes): (&str, &str, &[u8]), declaration: &str| {
-                std::str::from_utf8(bytes).expect("bundled core source is UTF-8");
-                let digest =
-                    declaration_contracts::source_identity::toolchain_owned_identity_digest(
-                        "core",
-                        file.split('/').map(str::to_owned).collect(),
-                        bytes,
-                    )
-                    .expect("bundled core source has canonical custody");
+            let exact_nominal = |digest: &[u8; 32], declaration: &str| {
                 compound(
                     NameForm::Nominal,
                     [
-                        byte_atom(OwnerForm::ToolchainSource, &digest),
+                        byte_atom(OwnerForm::ToolchainSource, digest),
                         atom(Label::Path, declaration),
                     ],
                 )
@@ -863,7 +830,7 @@ pub mod closed_conformances {
             );
             let result_type = compound(
                 TypeForm::Named,
-                [atom(Label::Name, &signature_nominal(result.1))],
+                [atom(Label::Name, &signature_nominal("Never"))],
             );
             let parameters = compound(
                 CoordinateTag::Parameter,
@@ -883,18 +850,21 @@ pub mod closed_conformances {
                     ],
                 )
             };
-            let primitive_callable = callable(primitive.1);
+            let primitive_callable = callable(primitive);
             let requirement_callable = callable(requirement_member);
             HostedProcessExitIdentities {
-                primitive: exact_nominal(primitive, primitive.1),
-                primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
+                primitive: exact_nominal(&core_revision::PROCESS_EXIT_NATIVE, primitive),
+                primitive_entry: exact_nominal(
+                    &core_revision::PROCESS_EXIT_NATIVE,
+                    &format!("{}::entry", primitive),
+                ),
                 primitive_semantic: format!(
                     "toolchain::{}",
-                    callable_declaration_path(primitive.1, &primitive_callable)
+                    callable_declaration_path(primitive, &primitive_callable)
                 ),
                 primitive_callable,
-                requirement_owner: exact_nominal(requirement, requirement.1),
-                requirement_member: exact_nominal(requirement, requirement_member),
+                requirement_owner: exact_nominal(&core_revision::PROCESS_EXIT, requirement),
+                requirement_member: exact_nominal(&core_revision::PROCESS_EXIT, requirement_member),
                 requirement_semantic: format!(
                     "toolchain::{}",
                     callable_declaration_path(requirement_member, &requirement_callable)
