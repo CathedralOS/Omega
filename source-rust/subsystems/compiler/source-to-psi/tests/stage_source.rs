@@ -71,6 +71,30 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
 }
 
 #[test]
+fn omega_compiler_storage_and_outcomes_publish_psi() {
+    // Compile the product declarations directly so a broken hosted Build
+    // cannot hide a regression in their field types or accessors.
+    let request = include_str!("../../../../../source/omega/application/ocreq/request.omg");
+    let sources = include_str!("../../../../../source/psi/foundation/source.omg");
+    let outcome = include_str!("../../../../../source/omega/application/ocreq/outcome.omg");
+    let (staging, _) = request.split_once("machine u32_at(").unwrap();
+    let (storage, _) = sources
+        .split_once("public machine source_set_add(")
+        .unwrap();
+
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    for (name, text) in [
+        ("request staging", staging),
+        ("source storage", storage),
+        ("outcomes", outcome),
+    ] {
+        let (files, root) = captured(package, text);
+        compile(product(files, root, package, &[]))
+            .unwrap_or_else(|errors| panic!("{name} could not publish Psi: {errors:?}"));
+    }
+}
+
+#[test]
 fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
     let text = "machine main() {}";
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();

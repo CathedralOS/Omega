@@ -169,9 +169,9 @@ requires
     token_count <= 65536,
     decoded_length <= 131072,
 {
-    tokens: [Token; 65536] in Trapping;
+    tokens: [Token; 65536];
     token_count: u64;
-    decoded: [u8; 131072] in Trapping;
+    decoded: [u8; 131072];
     decoded_length: u64;
     diagnostic: LexDiagnostic;
     accepted: bool;
@@ -185,8 +185,8 @@ machine token_stream_clear(token_stream: @mut TokenStream, source: SourceId) {
     token_stream.last_retained = true;
     token_stream.diagnostic.code = LexDiagnosticCode::None;
     token_stream.diagnostic.source_span.source = source;
-    token_stream.diagnostic.source_span.span.start = 0;
-    token_stream.diagnostic.source_span.span.end = 0;
+    token_stream.diagnostic.source_span.span.start = 0 as +Trapping;
+    token_stream.diagnostic.source_span.span.end = 0 as +Trapping;
 }
 
 machine token_stream_reject(
@@ -213,7 +213,9 @@ machine token_stream_push(
         _ -> full(token_stream)
     }
 
-    machine retain(token_stream: @mut TokenStream, token: Token) {
+    machine retain(token_stream: @mut TokenStream, token: Token)
+    requires token_stream.token_count < 65536
+    {
         token_stream.tokens[token_stream.token_count] = token;
         token_stream.token_count = token_stream.token_count + 1;
         token_stream.last_retained = true;
@@ -231,8 +233,10 @@ machine token_stream_push_decoded(token_stream: @mut TokenStream, byte: u8) {
         _ -> full(token_stream)
     }
 
-    machine retain(token_stream: @mut TokenStream, byte: u8) {
-        token_stream.decoded[token_stream.decoded_length] = byte as u8 in Trapping;
+    machine retain(token_stream: @mut TokenStream, byte: u8)
+    requires token_stream.decoded_length < 131072
+    {
+        token_stream.decoded[token_stream.decoded_length] = byte;
         token_stream.decoded_length = token_stream.decoded_length + 1;
         token_stream.last_retained = true;
     }

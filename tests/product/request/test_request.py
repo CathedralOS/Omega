@@ -150,6 +150,17 @@ def structure(program: str) -> None:
     def subject_case(name: str, fields: Fields, anchor: str) -> None:
         check(program, name, request(fields, invocation()), malformed(HEADER + fields.marks[anchor]))
 
+    # A file body can fill the last available staging byte exactly. Carrying
+    # the request one byte further reports the observed length before decoding.
+    def file_request(content: bytes) -> bytes:
+        return request(subject(((2, b"main.omg", 0, content),)), invocation())
+
+    filled = file_request(b"\xff" * (65536 - len(file_request(b""))))
+    assert len(filled) == 65536
+    check(program, "snapshot-at-staging-limit", filled, SEMANTICS)
+    check(program, "snapshot-past-staging-limit", filled + b"\xff",
+          frame(INCOMPLETE, SPACE_REQUEST, REQUEST_STAGING_BYTES, 65536, 65536, 65537))
+
     # A snapshot table holding every row kind is well formed.
     rows = ((1, b"src"), (2, b"src/main.omg", 1, b"machine"), (3, b"link", b"src"))
     check(program, "snapshot-kinds", request(subject(rows), invocation()), SEMANTICS)
