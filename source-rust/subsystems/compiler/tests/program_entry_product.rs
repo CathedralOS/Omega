@@ -565,7 +565,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
     std::fs::remove_dir_all(workspace).unwrap();
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
 
 // The unchanged fixture imports GNU libc's versioned abs through the GNU loader.

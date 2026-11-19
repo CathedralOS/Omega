@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
+use std::path::PathBuf;
 
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_interpreter::{
@@ -7,11 +10,7 @@ use terminal_interpreter::{
 use terminal_work::WorkMeter;
 
 fn fixture(kind: &str, name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap()
-        .join("tests/fixtures")
+    fixture_repository::root().join("tests/fixtures")
         .join(kind)
         .join("contracts")
         .join(name)

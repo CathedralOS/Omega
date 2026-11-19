@@ -2,12 +2,11 @@
 //! Receiving authenticates each numeric declaration and its complete IEEE
 //! contract, before target planning gives it an executable realization.
 
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
 fn repository() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap()
-        .to_owned()
+    fixture_repository::root().to_owned()
 }
 
 fn receiving_error(module: terminal_psi::TerminalModule) -> String {

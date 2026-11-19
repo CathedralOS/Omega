@@ -1,6 +1,9 @@
 //! A 16-byte interrupt gate stores three pieces of a private address beside four public fields.
 //! The native layout must retain the exact three fragments the policy placed.
 
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
 use diagnostics::Diagnostic;
 use layout_plans::LayoutPlacementReport;
 use std::path::Path;
@@ -46,10 +49,7 @@ fn gate_placements(main: &Path) -> Result<Vec<LayoutPlacementReport>, Vec<Diagno
 
 #[test]
 fn interrupt_gate_retains_the_executed_fragments_of_its_own_callback() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap();
+    let root = fixture_repository::root();
     let fixture = root.join("tests/fixtures/pass/layouts/private_callback_gate");
     let placements = gate_placements(&fixture.join("main.omg")).unwrap();
     let bits = |container, width, source_lsb| LayoutPlacementReport::Bits {

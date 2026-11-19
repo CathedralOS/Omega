@@ -14,6 +14,9 @@
 //! a refusal control. The existing toolchain policy still supplies physical
 //! classification independently, so an unsupported leaf must refuse.
 
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
 use ::provider_admission::provider_admission;
 use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,
@@ -377,11 +380,7 @@ fn receiver_grant(
 }
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate belongs to the repository")
-        .to_path_buf()
+    fixture_repository::root().to_path_buf()
 }
 
 // Preserve the customer's relative Build dependency and every source byte.

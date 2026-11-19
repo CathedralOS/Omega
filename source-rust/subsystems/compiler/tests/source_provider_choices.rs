@@ -430,5 +430,5 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
     );
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

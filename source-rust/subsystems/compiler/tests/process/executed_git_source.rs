@@ -4,7 +4,7 @@ mod fixture_package_inputs;
 #[path = "../support/joined_product_native.rs"]
 mod joined_product_native;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--worker")) {
@@ -107,7 +107,7 @@ fn fixture_process(workspace: bool) {
     let tools = directory.join("operator-tools");
     std::fs::create_dir(&tools).unwrap();
     std::fs::copy(
-        repository.join("omega-rust/omega/compilation/compiler/tests/support/git_source_proxy.py"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/support/git_source_proxy.py"),
         tools.join("git"),
     )
     .unwrap();
