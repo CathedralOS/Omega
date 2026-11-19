@@ -80,7 +80,7 @@ source=root/'tests/fixtures/pending/filesystem_portable_rules/main.omg'
 inputs.update({str(p.relative_to(root)):sha(p) for p in [source,source.with_name('build.omg')]})
 check=root/'omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src'
 proof={str(p.relative_to(root)):sha(p) for p in [check/'known.rs',check/'prove.rs',check/'prove/tests.rs']}
-record={'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'production_revision':'a1a53d46674c8058496977c6b7b67e256a4d514f','status':subprocess.check_output(['git','status','--porcelain'],text=True),'binary_sha256':producer_digest,'executables':receipts,'inputs':inputs,'proof_source':proof,'host':'linux_x86_64'}
+record={'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'production_revision':'a89695997d67291c436a20a362710adae22c0083','status':subprocess.check_output(['git','status','--porcelain'],text=True),'binary_sha256':producer_digest,'executables':receipts,'inputs':inputs,'proof_source':proof,'host':'linux_x86_64'}
 (out/'producer.json').write_text(json.dumps(record,indent=2)+'\n');(out/'source-digests.json').write_text(json.dumps(dict(inputs,**proof),indent=2)+'\n')
 retained=out/'retained-omega'
 if not retained.exists():os.link(producer,retained)
