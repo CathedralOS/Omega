@@ -1,3 +1,4 @@
+use super::destination::Destination;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::{Origin, PatternSource};
 use crate::{Access, TypeError, ValueType};
@@ -22,10 +23,11 @@ impl BodyTyper<'_, '_> {
     pub(super) fn dispatch(
         &mut self,
         node_index: usize,
-        expected: Option<&ValueType>,
+        destination: Destination<'_>,
         machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
+        let expected = destination.exact();
         let mut parts = source.nodes[node_index].children.iter().copied().peekable();
         let subject_place = parts.peek().and_then(|&i| self.fact_subject(i));
         let mut subject_source = PatternSource::default();
@@ -73,7 +75,7 @@ impl BodyTyper<'_, '_> {
                 PatternCoverage::Product(parts) => products.push(parts),
                 PatternCoverage::Partial => {}
             }
-            let value = self.type_at_destination(expr, expected, machine_result)?;
+            let value = self.type_at_destination(expr, destination, machine_result)?;
             // A terminal transition returns the selected arm directly. Attach
             // its return obligation to that expression while its facts are in scope.
             if source.nodes[node_index].kind == NodeKind::Transition
