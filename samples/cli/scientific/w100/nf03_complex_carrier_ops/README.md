@@ -1,5 +1,7 @@
 # NF03 complex carrier operations
 
+See [scientific validation](../../README.md) for the current status of this sample’s Rust execution driver.
+
 Two complete hosted applications exercise one reusable borrowed-input API:
 `phasor_power` computes F64 electrical complex power and `quadrature_rotation`
 computes an F32 four-step rotation and sum. Each exits 0 only when every numeric

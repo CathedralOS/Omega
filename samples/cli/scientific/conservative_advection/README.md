@@ -1,5 +1,7 @@
 # Periodic conservative advection
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Bounded stdin contains whitespace-separated `cells steps velocity spacing timestep`
 followed by exactly `cells` concentrations. Cells must be integers from 4 through
 64, steps integers from 0 through 256, velocity signed and finite, spacing and

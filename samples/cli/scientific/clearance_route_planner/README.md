@@ -1,5 +1,7 @@
 # Clearance route planner (ADD11)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This Omega application plans a swept-disk path through a fixed six-node
 two-dimensional roadmap. Two synthetic scenes contain rectangular walls and
 one or two circular obstacles. The input selects radius 0..5 and scene 0..1.

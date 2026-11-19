@@ -1,5 +1,7 @@
 # D-optimal calibration design
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This stdin application chooses a subset of candidate observations for a linear
 or quadratic polynomial calibration. It maximizes `det(sum precision*f*f^T)`,
 where `f=[1,x]` or `[1,x,x*x]`. Precision is inverse observation variance.

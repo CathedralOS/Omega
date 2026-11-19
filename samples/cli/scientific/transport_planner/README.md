@@ -1,5 +1,7 @@
 # Independent transportation planner (IND01)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This complete Omega console application minimizes integer shipping cost for
 three sources and three destinations. It owns its parser, storage, exact solver
 and formatting. It depends only on the stable bundled std Console provider.

@@ -1,5 +1,7 @@
 # Haar transient denoising
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 An orthonormal Haar transform preserves the coarsest approximation, applies
 soft thresholding to the requested number of finest detail levels, then
 reconstructs the supplied signal. The implementation uses pairwise butterflies;

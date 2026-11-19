@@ -1,5 +1,7 @@
 # Pareto experiment selection (IND11)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A complete stdin-to-report Omega application with private bounded storage, integer
 input admission, constraint filtering, strict Pareto dominance, stable identities,
 and certificate generation. It has no dependencies on active workers or a

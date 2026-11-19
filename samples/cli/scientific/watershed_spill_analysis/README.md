@@ -1,5 +1,7 @@
 # Watershed spill analysis (ADD10)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A complete offline synthetic research application in Omega. Feed a 5×5 raster
 of single decimal elevation digits on stdin and close input. Spaces, tabs, LF
 and CR are allowed. Exactly 25 digits are required; all other bytes, truncated

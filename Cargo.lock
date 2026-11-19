@@ -92,13 +92,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "advection-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1223,13 +1216,6 @@ name = "graphs"
 version = "0.1.0"
 
 [[package]]
-name = "hmm-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "iced-x86"
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1365,38 +1351,6 @@ dependencies = [
  "object-file",
  "runtime-abi",
  "target",
-]
-
-[[package]]
-name = "ind11-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "provider-plans",
- "sample-runner",
-]
-
-[[package]]
-name = "ind19-spectrum-validation"
-version = "0.1.0"
-dependencies = [
- "build-declarations",
- "compiler",
- "diagnostics",
- "mimalloc",
- "orchestration",
- "package-compilation",
- "package-manager",
- "products",
- "published-object-verification",
- "review-evidence",
- "semantic-vocabulary",
- "source-acquisition",
- "symbols",
- "syntax-trees",
- "target",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-runtime",
 ]
 
 [[package]]
@@ -1555,24 +1509,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "laminate-stiffness-response-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "language-core"
 version = "0.1.0"
 dependencies = [
  "record-storage",
-]
-
-[[package]]
-name = "layered-seismic-refraction-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
 ]
 
 [[package]]
@@ -1750,13 +1690,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d4139bb28d14ad1facf21d5eb8825051b326e172d216b39f6d31df53cc97862"
 dependencies = [
  "libmimalloc-sys",
-]
-
-[[package]]
-name = "molecular-pair-distribution-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
 ]
 
 [[package]]
@@ -1990,23 +1923,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-psi",
-]
-
-[[package]]
-name = "new031-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
-name = "new087-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "orchestration",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
 ]
 
 [[package]]
@@ -3022,19 +2938,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
-name = "sample-runner"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
- "orchestration",
- "package-manager",
- "serde_json",
- "sha2",
- "target",
- "terminal-runtime",
-]
-
-[[package]]
 name = "schema-reflection"
 version = "0.1.0"
 dependencies = [
@@ -3046,10 +2949,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "sci04-terminal-validation"
+name = "scientific-capture-check"
 version = "0.1.0"
 dependencies = [
- "sample-runner",
+ "serde_json",
 ]
 
 [[package]]
@@ -3487,13 +3390,6 @@ name = "source-text"
 version = "0.1.0"
 dependencies = [
  "record-storage",
-]
-
-[[package]]
-name = "spectral-power-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
 ]
 
 [[package]]
@@ -4029,13 +3925,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "thin-film-reflectometry-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "tokens"
 version = "0.1.0"
 dependencies = [
@@ -4228,13 +4117,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "wavelet-transient-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
 
 [[package]]
 name = "winapi"

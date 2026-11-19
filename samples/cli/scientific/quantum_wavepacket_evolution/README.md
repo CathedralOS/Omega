@@ -1,5 +1,7 @@
 # Periodic quantum wavepacket evolution
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This complete Omega CLI evolves a one-dimensional wavefunction in units
 `hbar = m = 1`. The input consists of `cells spacing timestep steps`, followed
 by exactly `cells` triples `potential real_amplitude imaginary_amplitude`.

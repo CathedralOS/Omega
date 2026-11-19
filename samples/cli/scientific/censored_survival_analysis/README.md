@@ -1,5 +1,7 @@
 # Censored survival analysis
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Synthetic records only. Supply a record count (1–32), followed by `time event group`
 triples separated by ASCII whitespace, then EOF. Time is a finite nonnegative
 decimal up to 1000000 with at most seven whole digits and six fractional digits.
