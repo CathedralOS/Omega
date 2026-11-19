@@ -20,7 +20,7 @@ typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program"
 source-declarations = { path = "../../language/source-declarations" }
 typed-trees = { path = "../representations/typed-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
-evaluation-receipts = { path = "../../../evaluation/evaluation-receipts" }
+evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 source-admission = { path = "../../inputs/source-admission" }
 source-text = { path = "../../../../../foundation/source-text" }
 provider-choices = { path = "../../language/provider-choices" }

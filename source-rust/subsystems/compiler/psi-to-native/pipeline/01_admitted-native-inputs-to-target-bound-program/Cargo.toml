@@ -20,8 +20,8 @@ declaration-contracts = { path = "../../../source-to-psi/language/declaration-co
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }
 evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounting" }
-evaluation-contracts = { path = "../../../../psi/evaluation/evaluation-contracts" }
-evaluation-receipts = { path = "../../../../psi/evaluation/evaluation-receipts" }
+evaluation-contracts = { path = "../../../build/evaluation/usage" }
+evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
 optimization = { path = "../../../psi/optimization-selections" }
