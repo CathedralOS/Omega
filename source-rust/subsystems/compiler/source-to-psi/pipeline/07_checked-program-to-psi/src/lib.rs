@@ -11,6 +11,7 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
+mod application;
 pub use crate::lowering::Compilation as TerminalSourceCompilation;
 pub use crate::lowering::RequirementReviewMetadata;
 pub use crate::lowering::SuppliedRequirement as TerminalSuppliedRequirement;
@@ -201,6 +202,7 @@ pub(crate) mod terminal_production {
 pub use self::terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError,
 };
+pub use application::ProducedTerminalApplication;
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
     TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
@@ -218,26 +220,10 @@ pub use build_requests::{
 pub use custody::{PortableTerminalProgram, ProducedTerminalProgram, TerminalProductionCustody};
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
-pub use terminal_installation::application::{
-    ProducedTerminalApplication, TerminalAdmissionRoot, TerminalApplicationCustody,
-    TerminalCompositionRoots,
+pub use terminal_codec::entry_receipt::application::{
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,
 };
 pub use terminal_psi::PreparedTerminalRoots;
-
-// Source publication records the same entry-receipt span while the independent
-// application checker remains callable with current artifact data alone.
-pub(crate) struct ApplicationReceiptObserver<'a, O>(pub &'a mut O);
-impl<O: PsiCompilationObserver> terminal_installation::application::EntryReceiptObserver
-    for ApplicationReceiptObserver<'_, O>
-{
-    fn record_result<Value, Error>(
-        &mut self,
-        operation: impl FnOnce() -> Result<Value, Error>,
-    ) -> Result<Value, Error> {
-        self.0
-            .record_result(PsiCompilationStage::EntryReceipt, operation)
-    }
-}
 
 #[cfg(test)]
 use crate::frontend_fixture;

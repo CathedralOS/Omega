@@ -1759,7 +1759,6 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "target-provider-admission",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "verified-optimization-input",
@@ -3597,6 +3596,7 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "diagnostics",
  "record-storage",
  "optimization",
  "semantic-vocabulary",
