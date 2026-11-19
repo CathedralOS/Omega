@@ -235,7 +235,7 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
 fn run_cases(
     arguments: RunArguments,
     outputs: PathBuf,
-    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
 ) -> ! {
     let cases = match &arguments.inputs {
         Some(inputs) => {

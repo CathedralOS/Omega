@@ -67,7 +67,8 @@ do not create releases or tags for it.
 
 During the source-rust move, `admission` checks the merge commit for changes
 to V2 or its CI toolchain. When either changes it runs the V2 workspace tests.
-Other changes complete admission without building the root workspace.
+Admission also checks live Rust file and Cargo paths for references into
+`_recycling/` without loading the root workspace.
 
 Inspect the checks and submitted head:
 

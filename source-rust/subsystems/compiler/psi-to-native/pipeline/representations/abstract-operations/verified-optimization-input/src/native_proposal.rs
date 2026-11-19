@@ -583,7 +583,7 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetainedTerminalArtifact {
-    artifact: terminal_installation::AuthorizedTerminalArtifact,
+    artifact: psi_authorization::AuthorizedTerminalArtifact,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
     /// The evidence seals produced beside this exact in-memory artifact by
     /// the checker on the lowered form. Psi bytes carry no seals; an optional
@@ -594,7 +594,7 @@ pub struct RetainedTerminalArtifact {
 
 impl RetainedTerminalArtifact {
     pub fn new_with_native_realization_proposal(
-        artifact: terminal_installation::AuthorizedTerminalArtifact,
+        artifact: psi_authorization::AuthorizedTerminalArtifact,
         native_realization_proposal: TerminalNativeRealizationProposal,
     ) -> Self {
         let evidence = artifact.artifact().published_evidence().cloned();
@@ -638,7 +638,7 @@ impl RetainedTerminalArtifact {
         self.artifact.shared_artifact()
     }
 
-    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
         &self.artifact
     }
 
@@ -649,7 +649,7 @@ impl RetainedTerminalArtifact {
     pub fn into_parts(
         self,
     ) -> (
-        terminal_installation::AuthorizedTerminalArtifact,
+        psi_authorization::AuthorizedTerminalArtifact,
         Option<TerminalNativeRealizationProposal>,
     ) {
         (self.artifact, self.native_realization_proposal)

@@ -445,9 +445,6 @@ mod data_regions {
             validate_placed_data_region_inventory,
         };
         use diagnostics::Diagnostic;
-        use mutation_matrix::{
-            MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
-        };
         use target::NativeTarget;
 
         fn region(
@@ -610,22 +607,21 @@ mod data_regions {
             assert_eq!(authentic.regions.len(), 3);
             assert_eq!(authentic.unclassified_gaps.len(), 2);
 
-            run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
-                family: "placed data region inventory",
-                fields: PlacedDataInventoryFieldForTest::INVENTORY,
-                honest: &|| placed_data_inventory().1,
-                donor: foreign_placed_data_inventory(),
-                custody: &Clone::clone,
-                substitute: &|inventory, field, donor| {
-                    substitute_placed_data_inventory(inventory, field, donor, &final_data_bytes);
-                },
-                check: &|inventory| {
-                    validate_placed_data_region_inventory(inventory, &final_data_bytes)
-                        .map(|()| inventory.clone())
-                },
-                outcome: &placed_data_inventory_outcome,
-                joined_replay: None,
-            });
+            let donor = foreign_placed_data_inventory();
+            assert_ne!(donor, authentic);
+            for &field in PlacedDataInventoryFieldForTest::INVENTORY {
+                let mut changed = authentic.clone();
+                substitute_placed_data_inventory(&mut changed, field, &donor, &final_data_bytes);
+                assert_ne!(
+                    changed, authentic,
+                    "substituting {field:?} must change the record"
+                );
+                assert_eq!(
+                    validate_placed_data_region_inventory(&changed, &final_data_bytes),
+                    Err(placed_data_inventory_error(field)),
+                    "replay must report the exact error for {field:?}",
+                );
+            }
 
             let rejects_at_replay = |name: &'static str, mutated: &PlacedDataRegionInventory| {
                 assert_ne!(mutated, &authentic, "{name} must change the record");
@@ -667,45 +663,37 @@ mod data_regions {
             let final_data_bytes = image.memory.data.clone();
             validate_placed_data_region_inventory(&authentic, &final_data_bytes)
                 .expect("the authentic inventory replays");
-            let authentic_identity = (
-                authentic.inventory_digest,
-                authentic.inventory_report_fingerprint,
-            );
-
-            run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
-                family: "placed data region classification",
-                fields: PlacedDataIdentityBoundFieldForTest::INVENTORY,
-                honest: &|| placed_data_inventory().1,
-                donor: foreign_placed_data_inventory(),
-                custody: &|inventory: &PlacedDataRegionInventory| {
-                    (
-                        inventory.inventory_digest,
-                        inventory.inventory_report_fingerprint,
-                    )
-                },
-                substitute: &|inventory, field, _donor| {
-                    substitute_placed_data_identity_bound(inventory, field);
-                },
-                check: &|inventory| {
-                    validate_placed_data_region_inventory(inventory, &final_data_bytes)
-                        .map(|()| authentic_identity)
-                },
-                outcome: &|_| MutationOutcome::RebuiltCustodyDiffers,
-                joined_replay: Some(&|inventory: &PlacedDataRegionInventory, field| {
-                    assert_ne!(
-                        inventory.inventory_digest, authentic_identity.0,
-                        "substituting {field:?} must change the published inventory identity"
-                    );
-                    assert_ne!(
-                        inventory.inventory_report_fingerprint, authentic_identity.1,
-                        "substituting {field:?} must change the published report fingerprint"
-                    );
-                }),
-            });
+            for &field in PlacedDataIdentityBoundFieldForTest::INVENTORY {
+                let mut changed = authentic.clone();
+                substitute_placed_data_identity_bound(&mut changed, field);
+                validate_placed_data_region_inventory(&changed, &final_data_bytes).unwrap_or_else(
+                    |error| panic!("replaying {field:?} should succeed: {error:?}"),
+                );
+                assert_ne!(
+                    changed.inventory_digest, authentic.inventory_digest,
+                    "substituting {field:?} must change the published inventory identity",
+                );
+                assert_ne!(
+                    changed.inventory_report_fingerprint, authentic.inventory_report_fingerprint,
+                    "substituting {field:?} must change the published report fingerprint",
+                );
+            }
         }
 
-        mutation_matrix::custody_field_inventory! {
-            pub(crate) enum PlacedDataInventoryFieldForTest {
+        // Each new field automatically joins the exhaustive substitution test.
+        macro_rules! custody_fields {
+            ($inventory:ident { $($field:ident),+ $(,)? }) => {
+                #[derive(Debug, Clone, Copy)]
+                enum $inventory { $($field),+ }
+
+                impl $inventory {
+                    const INVENTORY: &[Self] = &[$(Self::$field),+];
+                }
+            };
+        }
+
+        custody_fields! {
+            PlacedDataInventoryFieldForTest {
                 SubstitutedDataBaseAddress,
                 OverflowingDataBaseAddress,
                 ExtendedDataByteCount,
@@ -834,14 +822,12 @@ mod data_regions {
             reidentify(inventory);
         }
 
-        fn placed_data_inventory_outcome(
-            field: PlacedDataInventoryFieldForTest,
-        ) -> MutationOutcome<Diagnostic> {
+        fn placed_data_inventory_error(field: PlacedDataInventoryFieldForTest) -> Diagnostic {
             use PlacedDataInventoryFieldForTest as Field;
             let region = |symbol: &str, claim: &str| {
                 Diagnostic::error(format!("placed initialized-data region `{symbol}` {claim}"))
             };
-            MutationOutcome::ExactError(match field {
+            match field {
                 Field::SubstitutedDataBaseAddress
                 | Field::OverflowingDataBaseAddress
                 | Field::ShiftedRegionSectionOffset
@@ -892,11 +878,11 @@ mod data_regions {
                 Field::ReorderedRegionRoster => {
                     region("table", "is out of order or overlaps a preceding region")
                 }
-            })
+            }
         }
 
-        mutation_matrix::custody_field_inventory! {
-            pub(crate) enum PlacedDataIdentityBoundFieldForTest {
+        custody_fields! {
+            PlacedDataIdentityBoundFieldForTest {
                 CompilerDataRemarkedAsBindingSlot,
                 CompilerDataRemarkedAsPadding,
                 BindingSlotRemarkedAsCompilerData,

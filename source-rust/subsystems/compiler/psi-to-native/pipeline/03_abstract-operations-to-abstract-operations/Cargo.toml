@@ -16,7 +16,6 @@ optimization-unit = { path = "../representations/abstract-operations/optimizatio
 optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/codec" }
-terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 terminal-work = { path = "../../../psi/work" }
@@ -24,5 +23,6 @@ verified-optimization-input = { path = "../representations/abstract-operations/v
 wire = { path = "../../../../../foundation/wire" }
 
 [dev-dependencies]
+psi-authorization = { path = "../../../psi/authorization" }
 source-compiler = { path = "../../../source-to-psi", features = ["test-support"] }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../02_target-bound-program-to-abstract-operations" }

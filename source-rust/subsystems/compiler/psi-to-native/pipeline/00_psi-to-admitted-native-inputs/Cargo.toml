@@ -9,7 +9,7 @@ path = "admit.rs"
 
 [dependencies]
 backend-plan = { path = "../../installation/provider-plans" }
-terminal-installation = { path = "../../../psi-admission" }
+psi-authorization = { path = "../../../psi/authorization" }
 
 [dev-dependencies]
 terminal-codec = { path = "../../../psi/codec" }

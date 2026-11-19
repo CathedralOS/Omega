@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+operation-operands = { path = "../operation-operands" }
 access-vocabulary = { path = "../../../../source-to-psi/language/access-vocabulary" }
 wire = { path = "../../../../../../foundation/wire" }
 target-vocabulary = { path = "../target-operations/target-vocabulary" }

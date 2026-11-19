@@ -9,11 +9,11 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+operation-operands = { path = "../../operation-operands" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 legalized-operations = { path = "../../target-operations/legalized-operations" }
 optimization-unit = { path = "../optimization-unit" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }
-native-vocabulary = { path = "../../../../native-vocabulary" }
 declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../../foundation/numeric-literals" }
@@ -30,6 +30,7 @@ language-core = { path = "../../../../../foundation/language-core" }
 layout-plans = { path = "../../../../../psi/layout" }
 symbols = { path = "../../../../../source-to-psi/language/declaration-identity" }
 terminal-codec = { path = "../../../../../psi/codec" }
+psi-authorization = { path = "../../../../../psi/authorization" }
 terminal-installation = { path = "../../../../../psi-admission" }
 terminal-psi = { path = "../../../../../psi" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }

@@ -19,6 +19,9 @@ tokens or replay evidence a stage keeps beside it.
 
 Other packages separate shared records and preparation from program roots:
 
+- [Operation operands](operation-operands/src/lib.rs) hold the call targets,
+  value bindings and integer operation policies first produced during abstract lowering.
+  Target and machine representations carry the same operands through later stages.
 - [`abstract-operations/verified-optimization-input/`](abstract-operations/verified-optimization-input/src/lib.rs)
   owns `VerifiedPsiOptimizationInput`, what stage 02 passes to stage 03: the
   lowered `AbstractOperationPlan`, its Terminal module, and the target,
@@ -51,16 +54,10 @@ Other packages separate shared records and preparation from program roots:
   every later form name them from here, and `check-boundary` refuses any path
   from those forms to `target-operations` itself. Selected and later forms
   also cannot reach `legalized-operations`, even through a helper crate.
-- [`native-vocabulary/`](../../native-vocabulary/src/lib.rs) owns the leaf types
-  every native form carries unchanged: provenance and work records,
-  structural store destinations, access-reference backings, and the pure
-  predicates over structural declarations, integer arithmetic policies, call
-  targets and formals, completion claim sources, ownership-frontier facts,
-  and the canonical scalar and integer type encoders. It holds no program, so
-  a later stage can name these without being able to read an earlier one.
-  `check-boundary` proves that `target-operations`, `legalized-operations`,
-  `selected-instructions` and its analyses cannot reach `abstract-operations`
-  through any production dependency.
+- [Native publication facts](target-operations/target-vocabulary/src/publication/emission.rs)
+  retain each lowered function's parameters, result, source occurrences, value
+  producers and memory obligations. Stage 04 records these facts while lowering
+  the function. Frame planning and installation admission read the issued records.
 
 Nesting keeps each package separate. It shows an intermediate form's family;
 it does not make the package a module of its parent or producing stage.

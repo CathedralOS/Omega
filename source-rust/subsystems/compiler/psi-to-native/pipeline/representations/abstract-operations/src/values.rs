@@ -2,7 +2,7 @@
 // refine runtime index selectors whose current SSA producer is an exact integer
 // constant.
 
-pub use native_vocabulary::values::{
+pub use operation_operands::values::{
     AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
 };
 

@@ -14,6 +14,7 @@ name = "selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+operation-operands = { path = "../operation-operands" }
 wire = { path = "../../../../../../foundation/wire" }
 target-vocabulary = { path = "../target-operations/target-vocabulary" }
 native-vocabulary = { path = "../../../native-vocabulary" }

@@ -13,7 +13,8 @@ use diagnostics::Diagnostic;
 use pipeline::prepare::published_application::prepare_saved_program;
 use pipeline::request::NativeCompileRequest;
 use provider_admission::provider_admission::current_terminal_authority_policy;
-use terminal_installation::{AuthorizedTerminalArtifact, PrivateEntryRamInitialization};
+use psi_authorization::AuthorizedTerminalArtifact;
+use terminal_installation::PrivateEntryRamInitialization;
 
 /// Integration tests can supply an already retained input to isolate admission or
 /// observe how often ordinary compilation enters a stage.

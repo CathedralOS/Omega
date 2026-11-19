@@ -582,7 +582,7 @@ fn canonical_fixture(
 #[cfg(test)]
 fn authorize_fixture(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-) -> terminal_installation::AuthorizedTerminalArtifact {
+) -> psi_authorization::AuthorizedTerminalArtifact {
     artifact_trust::authorize(&artifact)
 }
 
@@ -762,11 +762,11 @@ mod evidence_seal_tests {
             decoded.manifest().identity()
         );
         let result =
-            terminal_installation::authorize_terminal_artifact(std::sync::Arc::new(decoded), None)
+            psi_authorization::authorize_terminal_artifact(std::sync::Arc::new(decoded), None)
                 .map(|authorized| lower_artifact(&authorized, None));
         assert!(matches!(
             result,
-            Err(terminal_installation::ArtifactTrustError::ProducerTrustRequired)
+            Err(psi_authorization::ArtifactTrustError::ProducerTrustRequired)
         ));
     }
 

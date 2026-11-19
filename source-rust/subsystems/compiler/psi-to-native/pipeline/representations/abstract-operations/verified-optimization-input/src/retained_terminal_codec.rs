@@ -2023,7 +2023,7 @@ impl DerivationInputs {
 }
 
 pub fn recover_native_derivation_inputs(
-    authorization: terminal_installation::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
     bytes: &[u8],
 ) -> Result<
     (

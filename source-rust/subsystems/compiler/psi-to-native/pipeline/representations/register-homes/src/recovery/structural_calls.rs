@@ -460,7 +460,7 @@ pub(super) fn decode_runtime_indices(
 ) -> Result<Vec<target_vocabulary::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
     decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(target_vocabulary::LegalizedRuntimeIndexOperand {
-            operand: native_vocabulary::values::AbstractResult {
+            operand: operation_operands::values::AbstractResult {
                 value: decode_id(cursor, ValueId::new)?,
                 scalar_type: decode_scalar(cursor)?,
             },
@@ -2228,7 +2228,7 @@ mod tests {
             .into_iter()
             .map(|(value, width, stride, extent, obligation)| {
                 target_vocabulary::LegalizedRuntimeIndexOperand {
-                    operand: native_vocabulary::values::AbstractResult {
+                    operand: operation_operands::values::AbstractResult {
                         value: ValueId::new(value).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, width).unwrap(),

@@ -20,7 +20,7 @@ use crate::{
     UnitScalarParameterLocationRecord,
 };
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
-use native_vocabulary::values::AbstractResult;
+use operation_operands::values::AbstractResult;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,

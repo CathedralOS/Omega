@@ -187,7 +187,7 @@ impl std::fmt::Display for RunError {
 impl std::error::Error for RunError {}
 
 pub fn run_project(
-    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     request: RunRequest,
 ) -> Result<RunOutcome, RunError> {
     let psi_work_budget = request
@@ -309,7 +309,7 @@ pub fn run_project(
 
 fn run_terminal(
     request: RunRequest,
-    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     build_dir: PathBuf,
     psi_work_budget: u64,
 ) -> Result<RunOutcome, RunError> {
@@ -424,7 +424,7 @@ pub struct CaseRunOutcome {
 }
 
 pub fn run_project_cases(
-    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     request: CaseRunRequest,
 ) -> Result<CaseRunOutcome, RunError> {
     let psi_work_budget = request

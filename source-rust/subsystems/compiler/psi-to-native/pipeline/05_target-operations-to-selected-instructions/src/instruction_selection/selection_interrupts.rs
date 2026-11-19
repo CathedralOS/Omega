@@ -534,7 +534,7 @@ pub(crate) mod interrupt_installation_calls {
             InstallationCallRole::Work => {
                 crate::instruction_selection::selection::scalar_call_abi::no_normal_key(
                     call,
-                    &native_vocabulary::values::AbstractFunctionResult::Unit,
+                    &operation_operands::values::AbstractFunctionResult::Unit,
                     environment,
                 )
             }

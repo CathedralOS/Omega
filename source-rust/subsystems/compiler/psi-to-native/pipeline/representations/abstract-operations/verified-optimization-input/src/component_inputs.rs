@@ -11,7 +11,7 @@ pub struct ComponentExportInput<'input> {
 }
 
 pub struct ComponentNativeInputs<'input> {
-    authorization: &'input terminal_installation::AuthorizedTerminalArtifact,
+    authorization: &'input psi_authorization::AuthorizedTerminalArtifact,
     component: &'input VerifiedComponent,
     evidence: Option<&'input Arc<terminal_codec::EvidenceSeals>>,
     proposal: &'input TerminalNativeRealizationProposal,
@@ -62,7 +62,7 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 }
 
 impl<'input> ComponentNativeInputs<'input> {
-    pub const fn authorization(&self) -> &'input terminal_installation::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &'input psi_authorization::AuthorizedTerminalArtifact {
         self.authorization
     }
 

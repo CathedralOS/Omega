@@ -3030,7 +3030,7 @@ pub(crate) mod record {
                                 destination,
                                 address,
                                 codec,
-                                native_vocabulary::values::AbstractResult {
+                                operation_operands::values::AbstractResult {
                                     value: *value,
                                     scalar_type: scalar.as_checking(),
                                 },
@@ -3954,7 +3954,7 @@ pub(crate) mod encoded_scalar {
         place: PlaceId,
         address: VirtualRegisterId,
         codec: VirtualRegisterId,
-        value: native_vocabulary::values::AbstractResult,
+        value: operation_operands::values::AbstractResult,
     ) -> Result<(), SelectedInstructionError> {
         let (_, value_register, _, scalar) = builder.resolve(value.value).ok_or(invalid())?;
         if scalar.as_checking() != value.scalar_type

@@ -205,8 +205,8 @@ fn prepare_published_application<Publisher>(
             ));
         }
         let producer =
-            terminal_installation::HostProducerTrust::accept("in-process target folding");
-        terminal_installation::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
+            psi_authorization::HostProducerTrust::accept("in-process target folding");
+        psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
     };
     let terminal = TerminalApplication {
@@ -268,7 +268,7 @@ pub struct SavedProgramTarget<'a> {
 
 /// Use the same provider, entry and native application stages as a source build.
 pub(crate) fn prepare_saved_program(
-    authorization: terminal_installation::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
     mut target: SavedProgramTarget<'_>,
 ) -> Result<
     (

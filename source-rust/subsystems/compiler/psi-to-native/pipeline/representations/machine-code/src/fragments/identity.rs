@@ -379,7 +379,7 @@ mod width_tests {
             psi_edge: None,
             block: selected_instructions::SelectedBlockId(2),
             source_target: BlockId::new(3).unwrap(),
-            bindings: vec![native_vocabulary::values::ValueBinding {
+            bindings: vec![operation_operands::values::ValueBinding {
                 parameter: ValueId::new(4).unwrap(),
                 argument: ValueId::new(5).unwrap(),
                 scalar_type: ScalarType::Integer(integer),

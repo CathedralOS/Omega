@@ -25,12 +25,11 @@ pub mod declaration_selection;
 mod evaluation_and_synchronous_calls;
 mod evaluation_requirements;
 pub mod logical_reach;
-mod producer_trust;
 mod provider_and_target_installation;
 mod scalar_applications;
 pub mod selection_questions;
 
-pub use producer_trust::{
+pub use psi_authorization::{
     ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 

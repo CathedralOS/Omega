@@ -6,6 +6,7 @@ version = 4
 name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
+ "operation-operands",
  "record-storage",
  "language-core",
  "native-vocabulary",
@@ -23,10 +24,10 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
+ "psi-authorization",
  "semantic-vocabulary",
  "source-compiler",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "target-bound-program-to-abstract-operations",
  "terminal-semantics",
@@ -453,12 +454,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-authorization"
+version = "0.1.0"
+dependencies = [
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "psi-to-admitted-native-inputs"
 version = "0.1.0"
 dependencies = [
  "backend-plan",
+ "psi-authorization",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
 ]
 
@@ -526,6 +535,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
+ "psi-authorization",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "record-storage",
@@ -741,7 +751,7 @@ dependencies = [
  "installation-admission",
  "installation-evidence",
  "machine-code",
- "native-vocabulary",
+ "operation-operands",
  "physical-program",
  "physical-recipes",
  "post-allocation-machine",
@@ -753,6 +763,7 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-aarch64",
+ "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
 ]
@@ -953,7 +964,6 @@ dependencies = [
  "function-identity",
  "image-fixtures",
  "machine-code",
- "mutation-matrix",
  "object-file",
  "semantic-vocabulary",
  "target",
@@ -1131,7 +1141,6 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "machine-code",
- "native-vocabulary",
  "post-allocation-machine",
  "provider-admission",
  "register-model",
@@ -1333,6 +1342,7 @@ dependencies = [
  "function-identity",
  "language-core",
  "native-vocabulary",
+ "operation-operands",
  "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1371,6 +1381,7 @@ name = "machine-code"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "operation-operands",
  "record-storage",
  "function-identity",
  "installation-evidence",
@@ -1417,10 +1428,6 @@ version = "0.1.0"
 dependencies = [
  "sample-runner",
 ]
-
-[[package]]
-name = "mutation-matrix"
-version = "0.1.0"
 
 [[package]]
 name = "native-artifact"
@@ -1509,6 +1516,7 @@ dependencies = [
  "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
+ "psi-authorization",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "register-environment",
@@ -1728,6 +1736,7 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "products",
+ "psi-authorization",
  "resolver-execution",
  "semantic-vocabulary",
  "sha2",
@@ -1761,6 +1770,15 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "operation-operands"
+version = "0.1.0"
+dependencies = [
+ "record-storage",
+ "semantic-vocabulary",
+ "terminal-psi",
+]
 
 [[package]]
 name = "optimization"
@@ -2029,6 +2047,7 @@ dependencies = [
  "legalized-operations",
  "machine-code",
  "native-vocabulary",
+ "operation-operands",
  "optimization-core",
  "physical-program",
  "physical-recipes",
@@ -2241,6 +2260,7 @@ dependencies = [
  "program-entry-plan",
  "provider-admission",
  "provider-correspondence",
+ "psi-authorization",
  "psi-to-admitted-native-inputs",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2374,6 +2394,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "native-vocabulary",
+ "operation-operands",
  "optimization-core",
  "register-environment",
  "register-model",
@@ -2597,6 +2618,7 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "native-vocabulary",
+ "operation-operands",
  "optimization-core",
  "register-model",
  "runtime-abi",
@@ -3116,6 +3138,7 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "native-vocabulary",
+ "operation-operands",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -3141,6 +3164,7 @@ dependencies = [
  "layout-plans",
  "legalized-operations",
  "native-vocabulary",
+ "operation-operands",
  "optimization-core",
  "physical-program",
  "provider-admission",
@@ -3165,6 +3189,7 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "native-vocabulary",
+ "operation-operands",
  "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3321,6 +3346,7 @@ dependencies = [
  "installation-evidence",
  "optimization-selections",
  "provider-admission",
+ "psi-authorization",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -3615,6 +3641,8 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "operation-operands",
+ "psi-authorization",
  "record-storage",
  "component-description",
  "declaration-contracts",
@@ -3625,7 +3653,6 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
- "native-vocabulary",
  "numeric-literals",
  "numerics",
  "optimization-selections",

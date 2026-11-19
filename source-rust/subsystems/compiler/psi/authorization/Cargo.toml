@@ -1,0 +1,14 @@
+[package]
+name = "psi-authorization"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "authorization.rs"
+
+[dependencies]
+terminal-codec = { path = "../codec" }
+
+[dev-dependencies]
+terminal-psi = { path = ".." }

@@ -1,8 +1,8 @@
 //! Check that each installed memory obligation has exactly one admitted source.
 
-use native_vocabulary::emission::{EmissionProgramFacts, RamSource};
 use provider_admission::{AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort};
 use semantic_vocabulary::MachineId;
+use target_vocabulary::publication::{EmissionProgramFacts, RamSource};
 use target_vocabulary::{CallSiteOwner, NativeCallTarget};
 
 pub fn validate(

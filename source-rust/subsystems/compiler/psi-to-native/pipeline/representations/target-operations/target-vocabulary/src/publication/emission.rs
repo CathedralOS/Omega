@@ -13,9 +13,9 @@ pub struct EmissionProgramFacts {
 pub struct EmissionFunctionFacts {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub parameters: Vec<crate::values::AbstractParameter>,
+    pub parameters: Vec<operation_operands::values::AbstractParameter>,
     pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
-    pub result: crate::values::AbstractFunctionResult,
+    pub result: operation_operands::values::AbstractFunctionResult,
     pub entry_claims: Vec<terminal_psi::EntryClaim>,
     pub source_occurrences: Vec<EmissionOperationProvenance>,
     pub requires_graph_storage_replay: bool,
@@ -56,7 +56,7 @@ pub enum DescriptorProducer {
 pub struct PrimitiveLocalFact {
     pub operation: OperationId,
     pub result: terminal_psi::StructuralOperationResult,
-    pub initializer: crate::values::AbstractResult,
+    pub initializer: operation_operands::values::AbstractResult,
 }
 
 impl EmissionFunctionFacts {
@@ -74,12 +74,12 @@ impl EmissionFunctionFacts {
 pub struct ScalarCallResultFact {
     pub operation: OperationId,
     pub target: ScalarCallOrigin,
-    pub result: crate::values::AbstractResult,
+    pub result: operation_operands::values::AbstractResult,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarCallOrigin {
-    Authored(crate::calls::AbstractCallTarget),
+    Authored(operation_operands::calls::AbstractCallTarget),
     Boundary(semantic_vocabulary::BoundaryMachineId),
 }
 

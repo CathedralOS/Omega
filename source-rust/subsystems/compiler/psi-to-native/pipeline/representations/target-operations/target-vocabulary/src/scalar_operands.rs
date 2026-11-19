@@ -17,7 +17,7 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalizedRuntimeIndexOperand {
-    pub operand: native_vocabulary::values::AbstractResult,
+    pub operand: operation_operands::values::AbstractResult,
     pub stride: u32,
     pub extent: Option<u64>,
     pub obligation: semantic_vocabulary::ObligationId,

@@ -7,7 +7,6 @@ version.workspace = true
 [dependencies]
 function-identity = { path = "../../pipeline/representations/function-identity" }
 target-x86_64 = { path = "../../targets/target-x86_64" }
-native-vocabulary = { path = "../../native-vocabulary" }
 language-core = { path = "../../../foundation/language-core" }
 target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }

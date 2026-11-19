@@ -9,6 +9,7 @@ name = "machine_code"
 path = "src/lib.rs"
 
 [dependencies]
+operation-operands = { path = "../operation-operands" }
 installation-evidence = { path = "../../../installation/installation-evidence" }
 register-environment = { path = "../../../targets/register-environment" }
 record-storage = { path = "../../../../../../foundation/record-storage" }

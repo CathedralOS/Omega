@@ -12,7 +12,7 @@ use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;
 
 pub struct TerminalApplication {
-    pub artifact: terminal_installation::AuthorizedTerminalArtifact,
+    pub artifact: psi_authorization::AuthorizedTerminalArtifact,
     pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
     pub provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
     pub physical_entry_adapter: bool,
