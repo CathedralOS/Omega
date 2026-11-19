@@ -50,7 +50,7 @@ pub struct NativeCompileRequest<'request> {
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub image_request: ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
-    pub components: &'request [crate::ComponentCompilation<'request>],
+    pub components: &'request [super::components::ComponentCompilation<'request>],
     /// The scalar values the program entry reads, completed before compiling
     /// (`build_settings::scalar_completion::complete_native`).
     pub scalars: Option<&'request terminal_installation::AdmittedScalarApplications>,

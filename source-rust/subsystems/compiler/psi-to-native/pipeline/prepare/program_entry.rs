@@ -1,13 +1,16 @@
 //! Rejoin the nominal entry selected by native planning with this exact executable publication.
-use crate::{PublishedEntryNomination, SelectedCompilerProgramEntry};
-use crate::{PublishedSelection, SelectedProviderResult};
 use diagnostics::Diagnostic;
 use effects::semantic_bindings::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use provider_realization::program_entry::{
+    PublishedEntryNomination, SelectedCompilerProgramEntry,
+    plan_published_entry_calling_conventions,
+};
+use provider_realization::{PublishedSelection, SelectedProviderResult};
 use semantic_vocabulary::compiler_evaluation::{DeclarationCustody, ProductDeclarationScope};
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 
-pub struct PublishedNativeEntry<'a> {
+pub(super) struct PublishedNativeEntry<'a> {
     artifact: &'a Arc<CanonicalTerminalArtifact>,
     nomination: &'a PublishedEntryNomination,
     providers: &'a [effects::provider_plan::ProviderPlan],
@@ -45,9 +48,6 @@ impl<'a> PublishedNativeEntry<'a> {
     pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
         self.nomination.source_signature()
     }
-    pub fn nominal_root(&self) -> Result<terminal_psi::PreparedNominalRoot, Vec<Diagnostic>> {
-        self.nomination.nominal_root()
-    }
     pub fn schema_declaration(&self) -> terminal_psi::TerminalIdentityIndex {
         self.nomination.schema_declaration()
     }
@@ -64,7 +64,7 @@ impl<'a> PublishedNativeEntry<'a> {
         binding: Option<&AcceptedSemanticBinding>,
         permissions: Option<&ProductDeclarationScope>,
     ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
-        crate::plan_published_entry_calling_conventions(
+        plan_published_entry_calling_conventions(
             self.nomination,
             self.artifact,
             self.providers,

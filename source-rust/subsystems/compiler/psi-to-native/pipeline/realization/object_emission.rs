@@ -11,9 +11,10 @@ use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
 use provider_admission::provider_admission::realization_error;
+use published_object_verification::NativeStageReplay;
 
 pub(crate) struct EmittedRealizationObject {
-    pub stage_replay: crate::NativeStageReplay,
+    pub stage_replay: NativeStageReplay,
     pub physical_originals: native_artifact::NativePhysicalOriginals,
     pub object: PublishedFragmentObject,
 }
@@ -270,9 +271,8 @@ pub(crate) fn emit_realization_object(
             private_functions: &private_functions,
         },
     )?;
-    let stage_replay =
-        crate::NativeStageReplay::from_bodies(objects.root.originals, private_replays)
-            .map_err(|error| vec![error])?;
+    let stage_replay = NativeStageReplay::from_bodies(objects.root.originals, private_replays)
+        .map_err(|error| vec![error])?;
     Ok(EmittedRealizationObject {
         stage_replay,
         physical_originals,

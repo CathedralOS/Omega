@@ -716,7 +716,7 @@ fn check_callback_publication(retain_body_source: bool) {
             mismatch.to_string().contains("another object"),
             "{mismatch}"
         );
-        let archive = crate::NativeStageReplay::from_bodies(
+        let archive = published_object_verification::NativeStageReplay::from_bodies(
             root_originals,
             vec![(
                 fixture.occurrences[0].callback_thunk_identity(),

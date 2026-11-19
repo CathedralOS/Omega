@@ -103,7 +103,8 @@ fn main() {
             std::process::id()
         ))
     });
-    let native_invocations_before = native_compiler::native_pipeline_invocations().len();
+    let native_invocations_before =
+        native_compiler::test_support::native_pipeline_invocations().len();
     let sources_before = counters::product_source_completion_count();
     let builds_before = counters::build_execution_count();
     let checks_before = counters::settled_check_totals().0;
@@ -200,7 +201,7 @@ fn main() {
         reports.len()
     );
     if assert_native_stage_counts {
-        let invocations: Vec<_> = native_compiler::native_pipeline_invocations()
+        let invocations: Vec<_> = native_compiler::test_support::native_pipeline_invocations()
             .into_iter()
             .skip(native_invocations_before)
             .collect();
@@ -213,7 +214,7 @@ fn main() {
             );
             assert_eq!(
                 invocation.unit,
-                native_compiler::NativePipelineUnit::Application,
+                native_compiler::test_support::NativePipelineUnit::Application,
                 "additional callable pipeline observed in once-per-target fixture"
             );
             assert!(invocation.stages.iter().all(|count| *count <= 1));

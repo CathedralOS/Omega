@@ -24,15 +24,11 @@ mod object_emission;
 
 use crate::pipeline::request::NativeRealizationRequest;
 use diagnostics::Diagnostic;
+use published_object_verification::NativeStageReplay;
 
 use self::object_emission::emit_realization_object;
 use artifact_lowering::{AdmittedNativeRealization, admit_prepared_native_realization};
 use provider_admission::provider_admission::realization_error;
-
-pub struct RealizedNativeProduct {
-    pub stage_replay: crate::NativeStageReplay,
-    pub image: native_artifact::FinishedNativeImage,
-}
 
 struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
@@ -105,7 +101,7 @@ pub(crate) fn prepare_program_image(
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     input: artifact_lowering::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
-) -> Result<(native_artifact::ProgramImageInput, crate::NativeStageReplay), Vec<Diagnostic>> {
+) -> Result<(native_artifact::ProgramImageInput, NativeStageReplay), Vec<Diagnostic>> {
     let AdmittedRealization {
         admitted,
         entry_settlement,

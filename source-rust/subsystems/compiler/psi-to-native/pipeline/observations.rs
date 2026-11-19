@@ -4,8 +4,9 @@
 // invocations retain their entered stages on Drop, and independent callable
 // bodies remain visible as separate `NativePipelineUnit::Callable` scopes.
 
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(feature = "test-support")]
+use std::sync::{Mutex, atomic::AtomicBool};
 use target::TargetProfile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,6 +15,7 @@ pub enum NativePipelineUnit {
     Callable,
 }
 
+#[cfg(feature = "test-support")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePipelineInvocation {
     pub profile: TargetProfile,
@@ -24,9 +26,12 @@ pub struct NativePipelineInvocation {
     pub completed: bool,
 }
 
+#[cfg(feature = "test-support")]
 static ENABLED: AtomicBool = AtomicBool::new(false);
+#[cfg(feature = "test-support")]
 static INVOCATIONS: Mutex<Vec<NativePipelineInvocation>> = Mutex::new(Vec::new());
 
+#[cfg(feature = "test-support")]
 pub fn native_pipeline_invocations() -> Vec<NativePipelineInvocation> {
     ENABLED.store(true, Ordering::Relaxed);
     INVOCATIONS
@@ -52,18 +57,26 @@ pub enum NativePipelineStage {
 }
 
 pub struct NativePipelineObservation {
+    #[cfg(feature = "test-support")]
     profile: TargetProfile,
+    #[cfg(feature = "test-support")]
     unit: NativePipelineUnit,
     counts: [AtomicU64; 12],
+    #[cfg(feature = "test-support")]
     completed: AtomicBool,
 }
 
 impl NativePipelineObservation {
     pub fn new(profile: TargetProfile, unit: NativePipelineUnit) -> Self {
+        #[cfg(not(feature = "test-support"))]
+        let _ = (profile, unit);
         Self {
+            #[cfg(feature = "test-support")]
             profile,
+            #[cfg(feature = "test-support")]
             unit,
             counts: std::array::from_fn(|_| AtomicU64::new(0)),
+            #[cfg(feature = "test-support")]
             completed: AtomicBool::new(false),
         }
     }
@@ -86,10 +99,12 @@ impl NativePipelineObservation {
     }
 
     pub fn complete(&self) {
+        #[cfg(feature = "test-support")]
         self.completed.store(true, Ordering::Relaxed);
     }
 }
 
+#[cfg(feature = "test-support")]
 impl Drop for NativePipelineObservation {
     fn drop(&mut self) {
         if !ENABLED.load(Ordering::Relaxed) {

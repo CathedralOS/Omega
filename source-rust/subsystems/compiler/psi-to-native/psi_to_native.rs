@@ -5,8 +5,26 @@
 pub mod bridge_replay;
 mod pipeline;
 
+pub use backend_plan::{InstalledPackageProviders, TargetProviderInstallation};
+pub use native_artifact::AdmittedRuntimeProgram;
+pub use pipeline::prepare::published_application::SavedProgramTarget;
+
 use diagnostics::Diagnostic;
+use pipeline::prepare::published_application::prepare_saved_program;
+use pipeline::request::NativeCompileRequest;
+use provider_admission::provider_admission::current_terminal_authority_policy;
 use terminal_installation::{AuthorizedTerminalArtifact, PrivateEntryRamInitialization};
+
+/// Integration tests can supply an already retained input to isolate admission or
+/// observe how often ordinary compilation enters a stage.
+#[cfg(feature = "test-support")]
+pub mod test_support {
+    pub use crate::pipeline::observations::{
+        NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
+    };
+    pub use crate::pipeline::request::NativeCompileRequest;
+    pub use crate::pipeline::{admit_runtime, compile};
+}
 
 /// Emit the requested native image from a published Psi program.
 pub fn emit(
@@ -19,7 +37,7 @@ pub fn emit(
         target,
         entry_memory,
         &mut Vec::new(),
-        |terminal, request| pipeline::compile(&terminal, request).map(|product| product.image),
+        |terminal, request| pipeline::compile(&terminal, request).map(|(image, _)| image),
     )
 }
 
@@ -75,52 +93,3 @@ fn with_published_request<T>(
     };
     finish(terminal, request).map_err(|(_, diagnostics)| diagnostics)
 }
-
-pub use backend_plan::{InstalledPackageProviders, TargetProviderInstallation};
-pub use native_artifact::AdmittedRuntimeProgram;
-pub use pipeline::prepare::program_entry::PublishedNativeEntry;
-pub use pipeline::prepare::published_application::{
-    PublishedApplicationInputs, SavedProgramTarget, prepare_published_application,
-    prepare_saved_program,
-};
-pub use published_object_verification::NativeStageReplay;
-
-pub use artifact_lowering::{
-    BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
-    NativeProgramEntrySettlement, TerminalNativeProposalRequest,
-};
-pub use installation_evidence::{
-    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
-    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
-};
-pub use pipeline::components::ComponentCompilation;
-pub use pipeline::observations::{
-    NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
-};
-pub use pipeline::prepare::application::{TerminalApplication, admit_package_permissions};
-pub use pipeline::realization::RealizedNativeProduct;
-pub use pipeline::request::NativeCompileRequest;
-pub use pipeline::{admit_runtime, compile};
-pub use provider_admission::provider_admission::{
-    CompilerIntrinsicPlanProvenance, NativeBindingInput, SourceEvaluatedImportSettlement,
-    TerminalAuthorityPermissionPolicy, current_terminal_authority_policy,
-};
-pub use verified_optimization_input::{
-    decode_installation_assumptions, encode_installation_assumptions,
-    retain_native_derivation_inputs,
-};
-
-pub use provider_realization::{
-    PublishedSelection, SelectedExecution, SelectedProviderRealization, SelectedProviderResult,
-    select_published_providers,
-};
-
-// Published native entry selection and explicitly requested provider-input inspection.
-pub use provider_realization::{
-    plan_provider_execution_inputs, target_supply::TargetSupplyExecutionInputs,
-};
-
-pub use provider_realization::program_entry::{
-    PublishedEntryNomination, SelectedCompilerProgramEntry,
-    plan_published_entry_calling_conventions,
-};

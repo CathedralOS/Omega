@@ -138,9 +138,9 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
         .expect("scalar completion");
-    let product = native_compiler::compile(
+    let (finished, _) = native_compiler::test_support::compile(
         &retained,
-        native_compiler::NativeCompileRequest {
+        native_compiler::test_support::NativeCompileRequest {
             retain_native_stage_inputs: false,
             installation_assumptions: &[],
             private_entry_ram: &[],
@@ -159,7 +159,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     )
     .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
     let realization_decodes = terminal_codec::module_decode_count() - before;
-    let (image, runtime) = product.image.into_parts();
+    let (image, runtime) = finished.into_parts();
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = image else {
         panic!("{FIXTURE} emits a direct native artifact")
     };
