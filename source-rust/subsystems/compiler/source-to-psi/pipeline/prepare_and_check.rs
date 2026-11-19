@@ -12,7 +12,8 @@ pub struct ProductSourceInputs<'a> {
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub root_bindings: &'a [crate::RootBinding],
+    /// Bindings returned by Build. The receiving source resolves their exact declarations.
+    pub root_binding_requests: &'a [crate::declaration_selection::ExecutedRootBinding],
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub default_provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
@@ -45,8 +46,14 @@ pub fn prepare_lower_and_check(
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
     let unprepared = has_defaults.then(|| typed.clone());
+    let root_bindings =
+        symbol_resolved_trees_to_typed_trees::product_declarations::collect_root_bindings(
+            &typed,
+            inputs.root_binding_requests,
+        )?;
     let mut pass = ProductSourcePass {
         inputs,
+        root_bindings,
         inspection,
         frontier,
         build_accounting,
@@ -75,6 +82,7 @@ pub fn prepare_lower_and_check(
 
 struct ProductSourcePass<'a, 'f, O> {
     inputs: ProductSourceInputs<'a>,
+    root_bindings: Vec<crate::RootBinding>,
     inspection: Option<&'f str>,
     frontier: Option<&'f mut Option<crate::TypedFrontier>>,
     build_accounting: &'f crate::evaluation::SourceCompletionAccounting,
@@ -107,6 +115,7 @@ fn prepare_and_judge(
     chosen_defaults: &[crate::source_supply::ChosenDefaultLayout],
 ) -> Result<JudgedSource, Vec<Diagnostic>> {
     let build = &pass.inputs;
+    let root_bindings = &pass.root_bindings;
     // A library is judged where it is demanded, not wholesale. Every native
     // supply this package's own Build declares needs its exact boundary and
     // signature for calling-policy validation and trust disclosure, even
@@ -127,16 +136,16 @@ fn prepare_and_judge(
         .collect::<Vec<_>>();
     let layout_scopes = layout_target_scopes(
         &typed,
-        build.root_bindings,
+        root_bindings,
         build.provider_selections,
         chosen_defaults,
         &claimed_selections,
         build.targets,
     )?;
-    let external_roots = program_roots(build.root_bindings);
+    let external_roots = program_roots(root_bindings);
     let bindings = crate::entry_shapes::bound_program_entry_shapes(
         &typed,
-        build.root_bindings,
+        root_bindings,
         build.targets,
     )?;
     // The normalized provider application below carries the selected trait arguments.
@@ -146,7 +155,7 @@ fn prepare_and_judge(
     }
     let mut layout_scopes = layout_scopes;
     let subject = pass.inputs.subject;
-    if build.root_bindings.is_empty() {
+    if root_bindings.is_empty() {
         // An entryless Check judges every machine its subject declares, so
         // each one demands the layouts its signature and body name
         // (wiki/spec/layouts/plans.md#layout-demand-and-validation). They
@@ -214,9 +223,7 @@ fn prepare_and_judge(
     let mut entry_catalog = None;
     for profile in build.targets {
         let slot_name = format!("{}::ProgramEntry", profile.entry.owner);
-        if !build
-            .root_bindings
-            .iter()
+        if !root_bindings.iter()
             .any(|binding| binding.slot == slot_name)
         {
             continue;
@@ -332,7 +339,7 @@ fn prepare_and_judge(
         {
             continue;
         }
-        let Some(selected) = selected_program_entry(build.root_bindings, profile, build.targets)?
+        let Some(selected) = selected_program_entry(root_bindings, profile, build.targets)?
         else {
             // Checking source permits a declaration-only product. Normalize
             // each actual selection here; executable consumers require its
