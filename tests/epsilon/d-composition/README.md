@@ -54,9 +54,11 @@ requirement to execute the canonical D customer twice.
 
 The six whole-member customers concatenate the whole, unchanged D members
 pinned by `omega_compiler.epsilon.sources` with the pinned customer entries
-under `interpreted-omega-experiment/customers/`; member and packed identities
-are re-pinned here as records of the same bound obligation. Their canonical
-observations are the same exact byte strings the diagnostic gate expects:
+under `interpreted-omega-experiment/customers/`. The canonical and diagnostic
+gates share the [current member and packed identities](customers.py) and
+literal observations. The table records the earlier packed sizes used at
+`eda310c95dba` for the six member customers and at `2e33b6bfe9ef` for
+the two complete-closure customers.
 
 | Customer | Packed bytes | Canonical observation |
 | --- | ---: | --- |
