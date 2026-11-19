@@ -75,30 +75,29 @@ impl Catalog<'_> {
             }
             let shorthand = node.kind == FieldInit && node.children.is_empty();
             let mut pattern_value = false;
+            // A bare word in an arm with a subject binds a new name unless it
+            // names a constant. That is decided below, with the lexical lookup
+            // that would bind the word.
+            let mut bare_arm_word = false;
             if node.kind == BindingPattern
                 && let Some(pattern) = file
                     .enclosing_contexts(n)
                     .find(|&p| matches!(file.nodes[p].kind, Arm | Let))
                 && file.nodes[pattern].kind == Arm
             {
-                let name = node.path();
                 let subjectless = file.nodes[pattern].parent.is_some_and(|d| {
                     file.nodes[d]
                         .children
                         .first()
                         .is_some_and(|&i| file.nodes[i].kind == Arm)
                 });
-                pattern_value = subjectless
-                    || matches!(name.as_str(), "true" | "false")
-                    || self
-                        .lookup(file, file_number, ctx, n, &name)?
-                        .iter()
-                        .any(|&i| self.entries[i].id.kind == Const);
+                pattern_value = subjectless || matches!(node.path().as_str(), "true" | "false");
+                bare_arm_word = !pattern_value;
                 if pattern_value {
                     value_patterns.insert(file.span(n).get_start_offset());
                 }
             }
-            if !shorthand && !pattern_value && !matches!(node.kind, Path | PathType | PathExpression | Lifetime) {
+            if !shorthand && !pattern_value && !bare_arm_word && !matches!(node.kind, Path | PathType | PathExpression | Lifetime) {
                 continue;
             }
             let mut path = node.path();
@@ -201,6 +200,21 @@ impl Catalog<'_> {
                         && n < l.end
                         && (l.static_binding || visible_owner(l.owner))
                 });
+            if bare_arm_word {
+                // A local, parameter or generic binder of this spelling hides a
+                // package constant, as it would in an expression, so the word
+                // then binds a new name. Only a constant that no local hides
+                // turns the word into a comparison.
+                let constant = visible_local.is_none()
+                    && self
+                        .lookup(file, file_number, ctx, n, &path)?
+                        .iter()
+                        .any(|&i| self.entries[i].id.kind == Const);
+                if !constant {
+                    continue;
+                }
+                value_patterns.insert(file.span(n).get_start_offset());
+            }
             let projection = path
                 .strip_suffix("::ensures")
                 .and_then(|root| ctx.locals.get(root))
