@@ -4,6 +4,7 @@ members = [
     "application",
     "layers/00-lexer",
     "layers/01-parser",
+    "layers/02-resolver",
     "tools/compare-builds",
     "tools/golden",
     "tools/measure",

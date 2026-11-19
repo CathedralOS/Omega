@@ -124,7 +124,7 @@ Psi to native code) are not planned yet.
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax tree | done, signed off 2026-11-18 | 1.12 s |
-| L2 Resolver | syntax tree → names resolved | contract and first multi-file fixtures in progress | — |
+| L2 Resolver | syntax tree → names resolved | directory lookup for ordinary machine calls implemented and tested | 0.43 s (current slice) |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
@@ -275,6 +275,8 @@ stage budget and lockfile details with the existing driver questions below.
 
 L2 begins with [directory namespaces and sibling declaration lookup](layers/02-resolver/CONTRACT.md).
 The first pair of fixtures changes only the declaring file's directory.
+`cargo test -p omega-resolver` runs both cases in both file orders through
+the lexer, parser and resolver.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.

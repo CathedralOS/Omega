@@ -45,5 +45,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-resolver"
+version = "0.0.0"
+dependencies = [
+ "omega-lexer",
+ "omega-parser",
+]
+
+[[package]]
 name = "spec-corpus"
 version = "0.0.0"
