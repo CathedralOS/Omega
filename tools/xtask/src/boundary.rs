@@ -5,6 +5,7 @@
 //! to enforce the Psi/Omega firewall and stage boundaries.
 
 mod linear_pipeline;
+mod native_stages;
 
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -103,6 +104,7 @@ pub struct Rule {
     pub forbidden: Vec<&'static str>,
     pub reason: &'static str,
     pub except_owners: Vec<&'static str>,
+    pub except_package: Option<&'static str>,
     pub allowed: Vec<Allowance>,
 }
 
@@ -162,6 +164,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         forbidden,
         reason,
         except_owners: vec![],
+        except_package: None,
         allowed: vec![],
     };
     let mut rules = vec![
@@ -232,23 +235,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             "package management does not execute compiler stages",
         )
     });
-    for (index, stage) in STAGES.iter().enumerate().skip(3) {
-        let mut external = rule(
-            vec![""],
-            vec![stage],
-            "only the native driver and the next stage consume a stage API in production",
-        );
-        external.except_owners.extend([
-            linear_pipeline::TEST_SUPPORT,
-            NATIVE_ROOT,
-            *stage,
-            "omega-rust/omega/compilation/verification",
-        ]);
-        external
-            .except_owners
-            .extend(STAGES.get(index + 1).copied());
-        rules.push(external);
-    }
+    rules.extend(native_stages::rules());
     rules.push(rule(
         STAGES[7..=11].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
@@ -304,6 +291,7 @@ pub fn forbidden_dependency_violations(
         for rule in rules {
             if under(&owner, &rule.owners)
                 && !under(&owner, &rule.except_owners)
+                && Some(owner.as_str()) != rule.except_package
                 && under(&relative, &rule.forbidden)
                 && !rule
                     .allowed
@@ -1237,24 +1225,34 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        const LIBRARY: &str =
-            "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions";
-        const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
+        let library = linear_pipeline::STAGES[16];
+        let stages = linear_pipeline::STAGES;
         for (owner, dependency, kind, permitted) in [
-            (NATIVE_ROOT, linear_pipeline::STAGES[9], None, true),
-            (LIBRARY, linear_pipeline::STAGES[4], None, false),
-            (LIBRARY, linear_pipeline::STAGES[4], Some("build"), false),
-            (LIBRARY, linear_pipeline::STAGES[4], Some("dev"), true),
-            (PACKAGES, linear_pipeline::STAGES[3], None, false),
-            (PACKAGES, linear_pipeline::STAGES[1], None, false),
-            (PACKAGES, linear_pipeline::TEXT_READER, None, true),
-            (LIBRARY, linear_pipeline::STAGES[3], None, false),
-            // Machine emission reads stage 09's output as a representation.
-            (LIBRARY, linear_pipeline::STAGES[9], None, false),
-            // Image writers must not reach back to select instructions.
+            (native_stages::DRIVER, stages[9], None, true),
+            (library, stages[4], None, false),
+            (library, stages[4], Some("build"), false),
+            (library, stages[4], Some("dev"), true),
+            (PACKAGE_MANAGER, stages[3], None, false),
+            (PACKAGE_MANAGER, stages[1], None, false),
+            (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
+            (library, stages[3], None, false),
+            (library, stages[9], None, false),
+            (native_stages::IMAGE_EMISSION, stages[4], None, false),
             (
-                "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission",
-                linear_pipeline::STAGES[4],
+                native_stages::PRODUCT_PUBLICATION,
+                native_stages::NATIVE_ARTIFACT,
+                None,
+                true,
+            ),
+            (
+                native_stages::PRODUCT_PUBLICATION,
+                native_stages::IMAGE_EMISSION,
+                None,
+                false,
+            ),
+            (
+                "source-rust/subsystems/compiler/psi-to-native/other-driver",
+                stages[0],
                 None,
                 false,
             ),
