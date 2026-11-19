@@ -9,6 +9,7 @@ name = "legalized_operations"
 path = "src/lib.rs"
 
 [dependencies]
+operation-evidence = { path = "../../operation-evidence" }
 operation-operands = { path = "../../operation-operands" }
 arena = { path = "../../../../../../../foundation/arena" }
 wire = { path = "../../../../../../../foundation/wire" }

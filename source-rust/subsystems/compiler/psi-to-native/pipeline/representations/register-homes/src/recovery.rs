@@ -30,7 +30,7 @@ use ::selected_instructions::{
     SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegisterId,
     VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
-use native_vocabulary::provenance::{
+use operation_evidence::provenance::{
     PsiProvenance, ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
@@ -1178,7 +1178,7 @@ mod tests {
         SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegisterId,
         VirtualRegisterOrigin,
     };
-    use native_vocabulary::provenance::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
+    use operation_evidence::provenance::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };

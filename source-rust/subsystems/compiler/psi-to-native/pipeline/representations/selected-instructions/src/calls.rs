@@ -283,8 +283,8 @@ pub mod constraints {
 }
 pub mod normalized_foreign {
     use crate::SelectedInstructionId;
-    use native_vocabulary::provenance::EffectLink;
-    use native_vocabulary::provenance::OwnershipEvent;
+    use operation_evidence::provenance::EffectLink;
+    use operation_evidence::provenance::OwnershipEvent;
     use semantic_vocabulary::InvocationSite;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -904,7 +904,7 @@ pub mod normalized_foreign {
                         result: TargetBoundaryResult::Unit,
                         callbacks: Vec::new(),
                     },
-                    effect: native_vocabulary::provenance::EffectLink {
+                    effect: operation_evidence::provenance::EffectLink {
                         input: 1,
                         output: 2,
                     },
@@ -1185,8 +1185,8 @@ pub mod normalized_foreign {
 }
 pub mod ordinary {
     use crate::{SelectedBlockId, SelectedInstructionId};
-    use native_vocabulary::provenance::EffectLink;
-    use native_vocabulary::provenance::OwnershipEvent;
+    use operation_evidence::provenance::EffectLink;
+    use operation_evidence::provenance::OwnershipEvent;
     use semantic_vocabulary::InvocationSite::ExternalCompletion;
     use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId, PlaceId};
     use target_vocabulary::encode_hosted_read_byte_identity;

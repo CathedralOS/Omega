@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+operation-evidence = { path = "../representations/operation-evidence" }
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions" }
 target-operations = { path = "../representations/target-operations" }
@@ -16,5 +17,4 @@ selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
-native-vocabulary = { path = "../../native-vocabulary" }
 selected-instruction-analyses = { path = "analyses" }

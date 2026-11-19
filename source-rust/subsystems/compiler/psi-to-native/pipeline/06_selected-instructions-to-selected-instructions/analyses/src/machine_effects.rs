@@ -1194,7 +1194,7 @@ mod indirect_call_tests {
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
                     },
-                    effect: native_vocabulary::provenance::EffectLink {
+                    effect: operation_evidence::provenance::EffectLink {
                         input: 0,
                         output: 1,
                     },

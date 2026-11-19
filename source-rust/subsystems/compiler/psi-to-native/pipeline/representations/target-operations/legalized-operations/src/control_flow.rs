@@ -12,7 +12,7 @@ pub use scalar_graph::{
     LegalizedValueDefinition,
 };
 
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::provenance::WorkSettlement;
 use semantic_vocabulary::{BlockId, EdgeId, StructuralCaseId};
 
 pub use target_vocabulary::{

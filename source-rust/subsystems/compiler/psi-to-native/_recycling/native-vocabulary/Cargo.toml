@@ -9,6 +9,7 @@ name = "native_vocabulary"
 path = "src/lib.rs"
 
 [dependencies]
+operation-operands = { path = "../../pipeline/representations/operation-operands" }
 arena = { path = "../../../../foundation/arena" }
 record-storage = { path = "../../../../foundation/record-storage" }
 wire = { path = "../../../../foundation/wire" }

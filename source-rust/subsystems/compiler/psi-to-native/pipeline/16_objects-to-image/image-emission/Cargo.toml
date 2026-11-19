@@ -18,7 +18,6 @@ physical-program = { path = "../../representations/post-allocation-machine/body-
 installation-admission = { path = "../../../verification/installation-admission" }
 register-homes = { path = "../../representations/register-homes" }
 wire = { path = "../../../../../../foundation/wire" }
-native-vocabulary = { path = "../../../native-vocabulary" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../foundation/language-core" }

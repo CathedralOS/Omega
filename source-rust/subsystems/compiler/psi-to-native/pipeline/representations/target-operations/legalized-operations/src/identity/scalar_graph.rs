@@ -28,7 +28,7 @@ use crate::{
     LegalizedScalarTerminator,
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
-use native_vocabulary::provenance::encode_value_definition_site_identity;
+use operation_evidence::provenance::encode_value_definition_site_identity;
 use semantic_vocabulary::{ObligationId, ValueId};
 
 macro_rules! push_bytes {
@@ -438,7 +438,7 @@ pub(super) fn encode(
                     super::structural::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
                     match correspondence {
-                        native_vocabulary::access_references::AccessReferenceBacking::OrdinaryRam(
+                        operation_operands::access_references::AccessReferenceBacking::OrdinaryRam(
                             correspondence,
                         ) => {
                             bytes.push(0);
@@ -463,7 +463,7 @@ pub(super) fn encode(
                                 encode_scalar_type(bytes, field.stored_scalar);
                             }
                         }
-                        native_vocabulary::access_references::AccessReferenceBacking::Resident(resident) => {
+                        operation_operands::access_references::AccessReferenceBacking::Resident(resident) => {
                             bytes.push(1);
                             for identity in [
                                 resident.owner.get(),
@@ -478,7 +478,7 @@ pub(super) fn encode(
                             }
                             bytes.extend_from_slice(&resident.placement_commitment);
                         }
-                        native_vocabulary::access_references::AccessReferenceBacking::BorrowedExtent(backing) => {
+                        operation_operands::access_references::AccessReferenceBacking::BorrowedExtent(backing) => {
                             bytes.push(2);
                             for identity in [
                                 backing.owner.get(),
@@ -570,18 +570,20 @@ pub(super) fn encode(
                     indices,
                 } => {
                     bytes.push(match path {
-                        native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(_) => 86,
-                        native_vocabulary::structural_stores::StructuralCopyPath::Case(_) => 92,
+                        operation_operands::structural_stores::StructuralCopyPath::Ordinary(_) => {
+                            86
+                        }
+                        operation_operands::structural_stores::StructuralCopyPath::Case(_) => 92,
                     });
                     super::structural::encode_operation_result(bytes, result);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                     match path {
-                        native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(
+                        operation_operands::structural_stores::StructuralCopyPath::Ordinary(
                             path,
                         ) => {
                             super::structural_types::encode_structural_path(bytes, path);
                         }
-                        native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
+                        operation_operands::structural_stores::StructuralCopyPath::Case(path) => {
                             encode_len(bytes, path.len());
                             for segment in path {
                                 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -1772,9 +1774,9 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
 
 fn encode_store_destination(
     bytes: &mut Vec<u8>,
-    destination: &native_vocabulary::structural_stores::StructuralScalarStoreDestination,
+    destination: &operation_operands::structural_stores::StructuralScalarStoreDestination,
 ) {
-    use native_vocabulary::structural_stores::StructuralScalarStoreDestination as Destination;
+    use operation_operands::structural_stores::StructuralScalarStoreDestination as Destination;
     match destination {
         Destination::Parameter(parameter) => {
             bytes.push(0);

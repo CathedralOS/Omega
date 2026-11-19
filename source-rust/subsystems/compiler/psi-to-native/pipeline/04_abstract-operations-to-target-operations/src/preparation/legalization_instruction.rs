@@ -1072,7 +1072,7 @@ mod tests {
                 result: None,
                 metadata: TargetOperationMetadata {
                     work: Vec::new(),
-                    effect: native_vocabulary::provenance::EffectLink {
+                    effect: operation_evidence::provenance::EffectLink {
                         input: 1,
                         output: 2,
                     },

@@ -973,7 +973,7 @@ pub(crate) mod leaf_copy {
             .find(|(place, _)| *place == *source)
             .map(|(_, pointer)| *pointer);
         let geometry = match path {
-            native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(path)
+            operation_operands::structural_stores::StructuralCopyPath::Ordinary(path)
                 if !path.is_empty() =>
             {
                 function.structural.as_ref().ok_or(invalid())?;
@@ -987,7 +987,7 @@ pub(crate) mod leaf_copy {
                         .ok_or(invalid())?,
                 )
             }
-            native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
+            operation_operands::structural_stores::StructuralCopyPath::Case(path) => {
                 function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::instruction_selection::selection::reference_input::root_type(
                     function, *source,
@@ -1068,7 +1068,7 @@ pub(crate) mod leaf_copy {
             return Err(invalid());
         };
         let destination_admits = match destination {
-            native_vocabulary::structural_stores::StructuralWindowRoot::Parameter(destination) => {
+            operation_operands::structural_stores::StructuralWindowRoot::Parameter(destination) => {
                 matches!(
                     destination.access,
                     terminal_psi::StructuralAccess::Owned
@@ -1084,8 +1084,8 @@ pub(crate) mod leaf_copy {
                     .iter()
                     .any(|block| block.structural_parameters.contains(destination)))
             }
-            native_vocabulary::structural_stores::StructuralWindowRoot::OwnedResult { .. } => true,
-            native_vocabulary::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
+            operation_operands::structural_stores::StructuralWindowRoot::OwnedResult { .. } => true,
+            operation_operands::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
                 block,
                 parameter,
             } => block_home(source, parameter.place) == Some((*block, parameter)),
@@ -4975,10 +4975,10 @@ pub(crate) mod scalar_store {
             _ => return Err(invalid()),
         };
         let declared = match &destination {
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
                 crate::instruction_selection::selection::arrival_parameter_input::store_destination(source, parameter)
             }
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                 producer,
                 result,
             } => {
@@ -4987,7 +4987,7 @@ pub(crate) mod scalar_store {
                         source, *producer, result,
                     )
             }
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
                 block,
                 parameter,
             } => crate::instruction_selection::selection::owned_block_home_input::store_destination(
@@ -5056,7 +5056,7 @@ pub(crate) mod scalar_store {
                 scalar_field_fragments(destination.structural_type(), path, *field, declarations)
         {
             if matches!(&destination,
-                    native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter)
+                    operation_operands::structural_stores::StructuralScalarStoreDestination::Parameter(parameter)
                         if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow)
                 || reference_destination
                     && crate::instruction_selection::selection::reference_input::referent_projection(

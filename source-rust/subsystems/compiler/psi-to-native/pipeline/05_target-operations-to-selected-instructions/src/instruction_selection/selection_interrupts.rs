@@ -487,10 +487,10 @@ pub(crate) mod interrupt_installation_calls {
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[operation_evidence::provenance::OwnershipEvent] {
             &[]
         }
-        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
+        fn invocation_work(&self) -> &[operation_evidence::provenance::WorkSettlement] {
             &[]
         }
         fn invocation_argument_place(

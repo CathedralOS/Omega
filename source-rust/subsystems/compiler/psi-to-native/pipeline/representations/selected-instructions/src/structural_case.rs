@@ -11,7 +11,7 @@
 
 use super::{LocalStorageSlotId, VirtualRegisterId};
 use crate::codec_bytes::push_encoded;
-use native_vocabulary::provenance::encode_value_definition_site_identity;
+use operation_evidence::provenance::encode_value_definition_site_identity;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 use target_vocabulary::{LegalizedStructuralCasePayload, encode_scalar_type};
 

@@ -405,7 +405,7 @@ pub mod ownership {
 pub mod provenance {
     use super::*;
 
-    pub type SemanticCodeSite = native_vocabulary::provenance::PsiProvenance;
+    pub type SemanticCodeSite = operation_evidence::provenance::PsiProvenance;
 
     pub fn semantic_code_site(site: InvocationSite) -> SemanticCodeSite {
         match site {

@@ -12,7 +12,7 @@ impl LegalizedScalarInstruction {
         };
         self.result.is_none()
             && self.ownership
-                == [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(Vec::new())]
+                == [operation_evidence::provenance::OwnershipEvent::ClaimCompletion(Vec::new())]
             && result.multiplicity == StructuralMultiplicity::Affine
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()

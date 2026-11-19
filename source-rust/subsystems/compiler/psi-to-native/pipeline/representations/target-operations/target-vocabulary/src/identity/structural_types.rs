@@ -20,14 +20,14 @@ use terminal_psi::{
 
 pub fn encode_window_root(
     bytes: &mut Vec<u8>,
-    root: &native_vocabulary::structural_stores::StructuralWindowRoot,
+    root: &operation_operands::structural_stores::StructuralWindowRoot,
 ) {
     match root {
-        native_vocabulary::structural_stores::StructuralWindowRoot::Parameter(parameter) => {
+        operation_operands::structural_stores::StructuralWindowRoot::Parameter(parameter) => {
             bytes.push(0);
             encode_structural_parameter(bytes, parameter);
         }
-        native_vocabulary::structural_stores::StructuralWindowRoot::OwnedResult {
+        operation_operands::structural_stores::StructuralWindowRoot::OwnedResult {
             producer,
             result,
         } => {
@@ -35,7 +35,7 @@ pub fn encode_window_root(
             crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
             super::structural::encode_operation_result(bytes, result);
         }
-        native_vocabulary::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
+        operation_operands::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
             block,
             parameter,
         } => {

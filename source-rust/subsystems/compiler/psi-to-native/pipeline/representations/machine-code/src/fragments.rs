@@ -13,7 +13,7 @@ and image-address fixups.
 pub mod identity;
 pub mod publication;
 
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::provenance::WorkSettlement;
 use operation_operands::values::ValueBinding;
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::{

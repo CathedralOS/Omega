@@ -6,6 +6,7 @@ version = 4
 name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
+ "operation-evidence",
  "operation-operands",
  "record-storage",
  "language-core",
@@ -51,6 +52,7 @@ dependencies = [
  "language-core",
  "legalized-operations",
  "native-vocabulary",
+ "operation-evidence",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
@@ -1016,7 +1018,6 @@ dependencies = [
  "legalized-operations",
  "machine-code",
  "native-encoding",
- "native-vocabulary",
  "object-file",
  "optimization-core",
  "optimization-unit",
@@ -1345,6 +1346,7 @@ dependencies = [
  "function-identity",
  "language-core",
  "native-vocabulary",
+ "operation-evidence",
  "operation-operands",
  "optimization-core",
  "runtime-abi",
@@ -1384,6 +1386,7 @@ name = "machine-code"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "operation-evidence",
  "operation-operands",
  "record-storage",
  "function-identity",
@@ -1450,7 +1453,6 @@ dependencies = [
  "installation-evidence",
  "legalized-operations",
  "machine-code",
- "native-vocabulary",
  "object-file",
  "optimization-core",
  "platform-custody",
@@ -1672,7 +1674,7 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "layout-plans",
- "native-vocabulary",
+ "operation-evidence",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -1776,6 +1778,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "operation-evidence"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
 name = "operation-operands"
 version = "0.1.0"
 dependencies = [
@@ -1821,8 +1833,8 @@ dependencies = [
  "abstract-operations",
  "arena",
  "language-core",
- "native-vocabulary",
  "numerics",
+ "operation-evidence",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-codec",
@@ -2406,6 +2418,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "native-vocabulary",
+ "operation-evidence",
  "operation-operands",
  "optimization-core",
  "register-environment",
@@ -2606,7 +2619,7 @@ dependencies = [
  "arena",
  "calling-conventions",
  "legalized-operations",
- "native-vocabulary",
+ "operation-evidence",
  "optimization-core",
  "register-environment",
  "register-homes",
@@ -2628,7 +2641,7 @@ dependencies = [
  "arena",
  "calling-conventions",
  "function-identity",
- "native-vocabulary",
+ "operation-evidence",
  "operation-operands",
  "optimization-core",
  "register-model",
@@ -2646,7 +2659,7 @@ dependencies = [
 name = "selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
- "native-vocabulary",
+ "operation-evidence",
  "optimization-core",
  "physical-program",
  "register-environment",
@@ -2664,7 +2677,7 @@ dependencies = [
 name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
- "native-vocabulary",
+ "operation-evidence",
  "optimization-core",
  "physical-program",
  "register-environment",
@@ -3150,6 +3163,7 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "native-vocabulary",
+ "operation-evidence",
  "operation-operands",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3176,6 +3190,7 @@ dependencies = [
  "layout-plans",
  "legalized-operations",
  "native-vocabulary",
+ "operation-evidence",
  "operation-operands",
  "optimization-core",
  "physical-program",
@@ -3201,6 +3216,7 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "native-vocabulary",
+ "operation-evidence",
  "operation-operands",
  "optimization-core",
  "runtime-abi",

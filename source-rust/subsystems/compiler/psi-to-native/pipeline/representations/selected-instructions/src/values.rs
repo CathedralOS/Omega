@@ -5,7 +5,7 @@
 */
 
 use super::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
-use native_vocabulary::provenance::ValueDefinitionSite;
+use operation_evidence::provenance::ValueDefinitionSite;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
 use semantic_vocabulary::{PlaceId, ScalarType, ValueId};
 

@@ -16,7 +16,7 @@ use crate::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall, TargetStructuralRuntimeIndex,
 };
 use calling_conventions::{CallPlan, ValueShape};
-use native_vocabulary::completion_claims::CompletionClaimSource;
+use operation_evidence::completion_claims::CompletionClaimSource;
 use operation_operands::values::AbstractResult;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClosedIntegerType, EdgeId, IeeeFloatFormat, IeeeFloatValue,
@@ -33,7 +33,7 @@ use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetInstructionSource {
     pub operation: OperationId,
-    pub result: Option<native_vocabulary::provenance::ValueDefinition>,
+    pub result: Option<operation_evidence::provenance::ValueDefinition>,
     pub metadata: crate::TargetOperationMetadata,
 }
 
@@ -67,7 +67,7 @@ pub enum TargetUnitOperation {
     AccessLifecycle {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        operands: native_vocabulary::access_lifecycles::AccessLifecycleOperands,
+        operands: operation_operands::access_lifecycles::AccessLifecycleOperands,
         indices: Vec<TargetStructuralRuntimeIndex>,
         result_home: TargetStructuralHomeRequirement,
     },
@@ -230,13 +230,13 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result_home: TargetStructuralHomeRequirement,
         source: PlaceId,
-        path: native_vocabulary::structural_stores::StructuralCopyPath,
+        path: operation_operands::structural_stores::StructuralCopyPath,
         byte_offset: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     StoreStructuralField {
         psi_operation: OperationId,
-        destination: native_vocabulary::structural_stores::StructuralWindowRoot,
+        destination: operation_operands::structural_stores::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,
         value: PlaceId,
@@ -356,7 +356,7 @@ pub enum TargetUnitOperation {
     },
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
-        destination: native_vocabulary::structural_stores::StructuralScalarStoreDestination,
+        destination: operation_operands::structural_stores::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         destination_type: StructuralTypeDeclaration,
         destination_storage: crate::TargetStructuralArgumentSource,
@@ -368,7 +368,7 @@ pub enum TargetUnitOperation {
     },
     StructuralScalarFieldStore {
         psi_operation: OperationId,
-        destination: native_vocabulary::structural_stores::StructuralScalarStoreDestination,
+        destination: operation_operands::structural_stores::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
         destination_storage: crate::TargetStructuralArgumentSource,
@@ -410,7 +410,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
-        correspondence: native_vocabulary::access_references::AccessReferenceBacking,
+        correspondence: operation_operands::access_references::AccessReferenceBacking,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     EstablishReference {

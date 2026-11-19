@@ -203,7 +203,7 @@ pub mod compute {
                 || defining.provenance.work.is_empty()
                 || !defining.provenance.work.iter().all(|work| {
                     work.site
-                        == native_vocabulary::provenance::PsiProvenance::Operation(
+                        == operation_evidence::provenance::PsiProvenance::Operation(
                             defining.provenance.operations[0],
                         )
                 })

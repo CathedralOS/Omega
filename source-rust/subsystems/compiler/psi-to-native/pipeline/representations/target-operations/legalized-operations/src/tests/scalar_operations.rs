@@ -11,7 +11,7 @@ use super::{
     EffectLink, IntegerSign, IntegerValue, LegalizedOperationPlan, OwnershipEvent, PsiProvenance,
     WorkSettlement, id, scalar_call_unit_plan,
 };
-use native_vocabulary::provenance::ValueDefinitionSite;
+use operation_evidence::provenance::ValueDefinitionSite;
 use operation_operands::values::ValueBinding;
 use optimization_core::AcceptedObligationFactIdentity;
 
@@ -375,7 +375,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
         result: None,
         kind: LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: id(401),
-            operands: native_vocabulary::access_lifecycles::AccessLifecycleOperands::MoveOut {
+            operands: operation_operands::access_lifecycles::AccessLifecycleOperands::MoveOut {
                 storage: terminal_psi::StructuralArgument {
                     place: id(402),
                     path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
@@ -437,7 +437,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
         match mutation {
             0 => *boundary = id(407),
             1 => {
-                let native_vocabulary::access_lifecycles::AccessLifecycleOperands::MoveOut {
+                let operation_operands::access_lifecycles::AccessLifecycleOperands::MoveOut {
                     storage,
                     ..
                 } = operands
