@@ -413,7 +413,7 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
 
 #[test]
 fn semantic_nan_declaration_survives_copy_without_encoding() {
-    use language_core::constant_value::EvaluatedConstant;
+    use numeric_literals::EvaluatedConstant;
     use numeric_literals::FloatFormat;
     for format in [FloatFormat::F32, FloatFormat::F64] {
         let mut source = SyntaxTrees::new(Default::default());

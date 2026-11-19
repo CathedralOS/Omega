@@ -83,7 +83,7 @@ pub struct ConstArgumentOrigin {
     pub reference: source_text::SourceSpan,
     pub declaration: source_text::SourceSpan,
     pub initializer: source_text::SourceSpan,
-    pub evaluated_value: language_core::constant_value::EvaluatedConstant,
+    pub evaluated_value: numeric_literals::EvaluatedConstant,
 }
 
 #[derive(

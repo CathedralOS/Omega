@@ -2224,13 +2224,13 @@ pub mod inspection {
                 UndeterminedNaN { format: String },
             }
 
-            impl From<&language_core::constant_value::EvaluatedConstant> for EvaluatedConstantSnapshot {
-                fn from(value: &language_core::constant_value::EvaluatedConstant) -> Self {
+            impl From<&numeric_literals::EvaluatedConstant> for EvaluatedConstantSnapshot {
+                fn from(value: &numeric_literals::EvaluatedConstant) -> Self {
                     match value {
-                        language_core::constant_value::EvaluatedConstant::Encoded(encoding) => {
+                        numeric_literals::EvaluatedConstant::Encoded(encoding) => {
                             Self::Encoded(encoding.clone())
                         }
-                        language_core::constant_value::EvaluatedConstant::UndeterminedNaN(
+                        numeric_literals::EvaluatedConstant::UndeterminedNaN(
                             format,
                         ) => Self::UndeterminedNaN {
                             format: format.name().to_owned(),

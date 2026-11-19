@@ -45,13 +45,13 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/psi/compilation/representations/declaration-contracts",
     "omega-rust/psi/compilation/representations/declaration-identity",
     "omega-rust/psi/compilation/representations/extent-contracts",
-    "omega-rust/psi/compilation/representations/numeric-literals",
+    "source-rust/subsystems/compiler/foundation/numeric-literals",
     "omega-rust/psi/compilation/representations/optimization-policy",
-    "omega-rust/psi/compilation/representations/scalar-values",
+    "source-rust/subsystems/compiler/psi/semantics/numeric",
     "omega-rust/psi/compilation/representations/schema-reflection",
     "omega-rust/psi/compilation/representations/semantic-vocabulary",
     "omega-rust/psi/compilation/representations/source-effects",
-    "omega-rust/psi/compilation/representations/source-vocabulary",
+    "source-rust/subsystems/compiler/foundation/language-core",
     "source-rust/subsystems/compiler/psi/layout",
 ];
 

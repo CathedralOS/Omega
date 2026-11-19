@@ -13,7 +13,7 @@ use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_resolved::expression::ExpressionHandle;
 use crate::source_symbols::JoinedPath;
 use diagnostics::Diagnostic;
-use language_core::constant_value::EvaluatedConstant;
+use numeric_literals::EvaluatedConstant;
 use numeric_literals::FloatFormat;
 use source_text::{SourceSpan, Span};
 use symbols::SymbolKind;
@@ -122,7 +122,7 @@ pub(crate) fn evaluated_declaration_value(
     definition: &ConstDefinition,
     selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>,
 ) -> Result<EvaluatedConstant, String> {
-    use language_core::constant_value::EvaluatedConstant;
+    use numeric_literals::EvaluatedConstant;
     // A literal payload does not establish the selected declaration's
     // predicates. Keep it pending until its ordinary initializer is
     // checked and admitted for evaluation.

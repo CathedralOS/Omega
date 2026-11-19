@@ -1,6 +1,6 @@
 # Numeric semantics implementation
 
-[Numeric values](../../../../wiki/spec/language/numeric_values.md) defines the
+[Numeric values](../../../../../../wiki/spec/language/numeric_values.md) defines the
 language contract. This crate provides shared executable arithmetic, not
 target instruction selection or permission to approximate an operation.
 
@@ -8,7 +8,7 @@ target instruction selection or permission to approximate an operation.
 operands into exact rational or special-value meanings and implements rounding,
 arithmetic, comparisons, classification, square root, conversion, directed
 operations, fused/unfused arithmetic, and policy adapters. Its format records
-match the [core records](../../../../source/library/core/float_format.omg).
+match the [core records](../../../../../../source/library/core/float_format.omg).
 [bignum](../../../../../foundation/bignum/src/lib.rs) supplies exact arithmetic and rounding; host `f64`
 does not define the meaning of a landed `f32` operation.
 
@@ -23,7 +23,7 @@ descriptors; semantic `FloatMeaning` comparison does not expose NaN
 payloads.
 
 Target providers use these meanings through selected plans. Their
-[realization note](../../../../wiki/drafts/reference/float_realization.md)
+[realization note](../../../../../../wiki/drafts/reference/float_realization.md)
 separates instruction custody, image replay, and native execution evidence.
 A future format needs complete executable support, not just another record
 that a binary32/binary64-specific adapter accepts.

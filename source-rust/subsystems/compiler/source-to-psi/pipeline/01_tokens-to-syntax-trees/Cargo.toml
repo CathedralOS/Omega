@@ -14,9 +14,9 @@ path = "parser.rs"
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 worker-budget = { path = "../../../foundation/worker-budget" }
-language-core = { path = "../../language/source-vocabulary" }
-numeric-literals = { path = "../../language/numeric-literals" }
-numerics = { path = "../../language/scalar-values" }
+language-core = { path = "../../../foundation/language-core" }
+numeric-literals = { path = "../../../foundation/numeric-literals" }
+numerics = { path = "../../../psi/semantics/numeric" }
 rayon = "1.11"
 source-text = { path = "../../../../../foundation/source-text" }
 syntax-trees = { path = "../representations/syntax-trees" }

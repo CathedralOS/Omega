@@ -16,7 +16,7 @@ runtime-abi = { path = "../../../../targets/runtime-abi" }
 native-vocabulary = { path = "../../../../native-vocabulary" }
 declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../../../source-to-psi/language/application-identity" }
-numeric-literals = { path = "../../../../../source-to-psi/language/numeric-literals" }
+numeric-literals = { path = "../../../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../../../foundation/source-text" }
 abstract-operations = { path = ".." }
 target-operations = { path = "../../target-operations" }
@@ -26,7 +26,7 @@ provider-admission = { path = "../../../../verification/provider-admission" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
 arena = { path = "../../../../../../../foundation/arena" }
 record-storage = { path = "../../../../../../../foundation/record-storage" }
-language-core = { path = "../../../../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../../../foundation/language-core" }
 layout-plans = { path = "../../../../../psi/layout" }
 symbols = { path = "../../../../../source-to-psi/language/declaration-identity" }
 terminal-codec = { path = "../../../../../representations/psi/codec" }
@@ -44,4 +44,4 @@ function-identity = { path = "../../../../native-vocabulary/function-identity" }
 optimization-core = { path = "../../../../optimization-contracts" }
 component-description = { path = "../../../../components/description" }
 task-plans = { path = "../../../../installation/task-plans" }
-numerics = { path = "../../../../../source-to-psi/language/scalar-values" }
+numerics = { path = "../../../../../psi/semantics/numeric" }

@@ -15,7 +15,7 @@ storage-materialization = { path = "memory/materialization" }
 resource-bounds = { path = "../compiler/representations/psi/storage-bounds" }
 extent-contracts = { path = "../compiler/source-to-psi/language/extent-contracts" }
 evaluation-contracts = { path = "../evaluation/evaluation-contracts" }
-language-core = { path = "../compiler/source-to-psi/language/source-vocabulary" }
+language-core = { path = "../compiler/foundation/language-core" }
 record-storage = { path = "../../foundation/record-storage" }
 access-admission = { path = "../compilation/access-admission" }
 arena = { path = "../../foundation/arena" }
@@ -23,7 +23,7 @@ extents = { path = "../runtime/extents" }
 evaluation-accounting = { path = "../evaluation/evaluation-accounting" }
 layout-plans = { path = "../compiler/psi/layout" }
 semantic-vocabulary = { path = "../compiler/source-to-psi/language/semantic-vocabulary" }
-numerics = { path = "../compiler/source-to-psi/language/scalar-values" }
+numerics = { path = "../compiler/psi/semantics/numeric" }
 terminal-psi = { path = "../compiler/representations/psi" }
 terminal-codec = { path = "../compiler/representations/psi/codec" }
 terminal-work = { path = "../compiler/representations/psi/work" }

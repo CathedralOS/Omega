@@ -18,7 +18,7 @@ access-admission = { path = "../../../../psi/compilation/access-admission" }
 layout-plans = { path = "../../../psi/layout" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 runtime-abi = { path = "../../target-description/runtime-abi" }
-language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../foundation/language-core" }
 bound-installations = { path = "../../installation/bound-installations" }
 installation-evidence = { path = "../../installation/installation-evidence" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }

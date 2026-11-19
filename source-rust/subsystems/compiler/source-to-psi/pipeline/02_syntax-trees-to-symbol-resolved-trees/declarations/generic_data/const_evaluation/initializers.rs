@@ -41,7 +41,7 @@ use crate::resolution::declarations::declaration_selection::ConstantSelection;
 use application_identity::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
 use bignum::BigInt;
 use diagnostics::Diagnostic;
-use language_core::constant_value::EvaluatedConstant;
+use numeric_literals::EvaluatedConstant;
 use numeric_literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use numerics::arithmetic::ArithmeticDomain;
 use source_text::{SourceSpan, Span};
@@ -726,7 +726,7 @@ mod tests {
     use crate::resolution::{ResolutionRequest, resolve};
     use crate::source_resolved::SymbolResolvedTrees;
     use application_identity::const_value::CanonicalConstIdentity;
-    use language_core::constant_value::EvaluatedConstant;
+    use numeric_literals::EvaluatedConstant;
     use std::sync::Arc;
 
     /* Resolve files that each belong to the package their directory names. */
