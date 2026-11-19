@@ -307,3 +307,53 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn authored_queries_describe_the_deferred_product_before_build_returns() {
+    use build_execution::host::bindings::BuildProductQuery;
+    use build_execution::{CompileFailure, TerminalBuildActivation};
+    use package_compilation::source_imports::ProductQueryDependency;
+    use project_build::planning::PlanningServices;
+    use source_compiler::TerminalBuildQueryOperation;
+
+    #[derive(Default)]
+    struct QueryServices(Vec<TerminalBuildQueryOperation>);
+
+    impl PlanningServices for QueryServices {
+        fn query_dependencies(
+            &mut self,
+            _activation: &TerminalBuildActivation,
+            query: &BuildProductQuery,
+        ) -> Result<Vec<ProductQueryDependency>, CompileFailure> {
+            self.0.push(query.operation);
+            Ok(Vec::new())
+        }
+    }
+
+    configure_library();
+    let fixture = fixture_repository::root()
+        .join("tests/fixtures/pass/build/product_description_paths_exit/main.omg");
+    let project = begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true)
+        .unwrap()
+        .unwrap();
+    let root = project.acquire_root().unwrap();
+    let stage = prepare(
+        PlanningRequest {
+            root: &root.entry_path(),
+            sources: PlanningSources::Captured(root.source_capture()),
+            execution: Default::default(),
+            artifact_only: false,
+        },
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    let mut services = QueryServices::default();
+    let returned = interpret(stage, &mut services).unwrap();
+    assert!(matches!(returned.returned().declaration(), Some(BuildDeclaration::Application(_))));
+    // The authored Build asks a third, invalid entry query if either path is wrong.
+    assert_eq!(
+        services.0,
+        [TerminalBuildQueryOperation::Schema, TerminalBuildQueryOperation::Provider]
+    );
+}
