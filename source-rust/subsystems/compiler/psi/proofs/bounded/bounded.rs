@@ -333,7 +333,6 @@ pub(crate) mod admission {
     }
 }
 mod classicality;
-mod closed_proposition;
 mod float_integer;
 pub use float_integer::{
     FloatIntegerError, check_float_integer_conversion, check_integer_float_exact,
@@ -396,7 +395,7 @@ pub use admission::evidence::{
     ProofSystemMarker, verify_obligation, verify_obligation_with_machine_parameters,
 };
 pub use classicality::ProofRuleFoundation;
-pub use closed_proposition::{closed_guard, closed_guard_with};
+pub use closed_predicates::{closed_guard, closed_guard_with};
 pub use float_meaning::{FloatMeaningNormalizationError, check_float_meaning_normalization};
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, big_integer_literal,
