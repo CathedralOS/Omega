@@ -1581,7 +1581,7 @@ mod tests {
             machine kit::work() -> i32 { 1 }
             machine caller() -> i32 { kit.work() }
         "#;
-        let call = resolved_call(text, "work");
+        let call = resolved_call_in("kit", text, "work");
         assert!(
             call.target_symbol.is_valid(),
             "the module receiver dropped the state named the call target"
@@ -1601,7 +1601,7 @@ mod tests {
             machine work() -> i32 { 1 }
             machine caller() -> i32 { kit.work() }
         "#;
-        let call = resolved_call(text, "work");
+        let call = resolved_call_in("kit", text, "work");
         assert_eq!(call.symbols_kind, SymbolKind::State);
         assert_eq!(call.state_name, "entry");
         assert_eq!(call.machine_name, "work");
@@ -1610,7 +1610,7 @@ mod tests {
             machine work() -> i32 { 1 }
             machine caller() -> i32 { kit::work() }
         "#;
-        let call = resolved_call(text, "kit::work");
+        let call = resolved_call_in("kit", text, "kit::work");
         assert_eq!(call.symbols_kind, SymbolKind::State);
         assert_eq!(call.state_name, "entry");
         assert_eq!(call.machine_name, "work");
@@ -1816,7 +1816,8 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_qualified_operator() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
             operator kit::combine(left: i32, right: i32) -> i32;
             machine caller() -> i32 { kit.combine() }
@@ -1834,7 +1835,8 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_leaf_operator() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
             operator combine(left: i32, right: i32) -> i32;
             machine caller() -> i32 { kit.combine() }
@@ -1853,7 +1855,8 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_leaf_proposition() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
             proposition holds(a: i32, b: i32) = a == b;
             machine caller() -> i32 { kit.holds() }
@@ -1884,7 +1887,8 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_leaf_mathematical_definition() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
             let holds(value: i32): i32 = value;
             machine caller() -> i32 { kit.holds() }
@@ -1970,15 +1974,7 @@ mod tests {
     /* Each call's target and the kind its first static argument selected. */
     fn static_argument_kinds(text: &str) -> Vec<(&'static str, Option<SymbolKind>)> {
         let mut sources = crate::source_inputs::SourceMap::default();
-        let source_id = sources
-            .add_with_metadata(
-                "root/kit/main.omg".into(),
-                text.to_owned(),
-                "root".into(),
-                None,
-                source_admission::SourceOrigin::User,
-            )
-            .source_id;
+        let source_id = sources.add("main.omg".into(), text.to_owned()).source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
             crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
@@ -2041,7 +2037,7 @@ mod tests {
     }
 
     fn resolved_call(text: &str, target: &str) -> ResolvedCall {
-        resolved_call_in("kit", text, target)
+        resolved_call_in("", text, target)
     }
 
     fn resolved_call_in(directory: &str, text: &str, target: &str) -> ResolvedCall {
