@@ -2053,7 +2053,6 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "platform-custody",
- "products",
  "project-build",
  "psi-authorization",
  "resolver-execution",
