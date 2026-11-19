@@ -233,6 +233,8 @@ fn compile_target(
         .map_err(output_error)?
         .flatten();
     let mut publications = String::new();
+    let mut advisories = Vec::new();
+    let mut test_roster = Vec::new();
     let mut wrote_output = false;
     let mut show_summary = true;
     let artifact_only = stage.artifact_only();
@@ -271,7 +273,11 @@ fn compile_target(
                     "a portable Psi publication produces no native target operations"
                 }
             })?;
-        let Artifact::Psi(artifact) = compiler::compile(CompileRequest::Psi(stage.source()))?
+        let (Artifact::Psi(artifact), _) = compiler::compile_with_observations(
+            CompileRequest::Psi(stage.source()),
+            &Default::default(),
+            Some(&mut advisories),
+        )?
         else {
             return Err(output_error(
                 "source compilation returned an unexpected product",
@@ -296,12 +302,13 @@ fn compile_target(
                 .cloned()
                 .collect(),
         )?;
-        let (artifact, validations) = compiler::compile_with_validators(
+        let (artifact, validations) = compiler::compile_with_observations(
             CompileRequest::Native {
                 program,
                 entry_memory: &[],
             },
             &arguments.stage_validators,
+            Some(&mut advisories),
         )?;
         rows = validations;
         let Artifact::Native(product) = artifact else {
@@ -309,6 +316,8 @@ fn compile_target(
                 "native compilation returned an unexpected product",
             ));
         };
+        test_roster =
+            stage.execute_registered_tests(profile, &arguments.installation_assumptions)?;
         let lease = project_build::output_directory::acquire(directory, &arguments.root_path)
             .map_err(output_error)?;
         let published = product
@@ -357,6 +366,14 @@ fn compile_target(
     }
     if arguments.timings && !rows.is_empty() {
         eprintln!("{} validator rows", rows.len());
+    }
+    for test in test_roster {
+        eprintln!("{test}");
+    }
+    if !advisories.is_empty() {
+        let mut text = String::new();
+        diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
+        eprintln!("{text}");
     }
     let sources = &planned.source().sources;
     let file_count = sources

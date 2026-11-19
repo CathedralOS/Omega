@@ -55,14 +55,21 @@ pub enum Artifact {
 }
 
 pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>> {
+    compile_reporting(request, None)
+}
+
+fn compile_reporting(
+    request: CompileRequest<'_>,
+    advisories: Option<&mut Vec<Diagnostic>>,
+) -> Result<Artifact, Vec<Diagnostic>> {
     match request {
-        CompileRequest::Psi(source) => source_to_psi::compile(source).map(Artifact::Psi),
+        CompileRequest::Psi(source) => source_to_psi::compile_reporting(source, advisories).map(Artifact::Psi),
         CompileRequest::Runtime {
             program,
             entry_memory,
         } => {
             let admitted = program
-                .prepare()?
+                .prepare(advisories)?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(Artifact::Runtime(
                 product_publication::CompletedProduct::from_runtime(admitted, None),
@@ -73,7 +80,7 @@ pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>>
             entry_memory,
         } => {
             let application = program.application().clone();
-            let image = program.prepare()?.emit(entry_memory)?;
+            let image = program.prepare(advisories)?.emit(entry_memory)?;
             Ok(Artifact::Native(
                 product_publication::CompletedProduct::from_native(image, None, application),
             ))
@@ -90,6 +97,15 @@ pub fn compile_with_validators(
     (Artifact, Vec<stage_validators::StageValidationRow>),
     stage_validators::NativeValidationError,
 > {
+    compile_with_observations(request, validators, None)
+}
+
+/// Collect the accepted source judgment's advisories during this compilation.
+pub fn compile_with_observations(
+    request: CompileRequest<'_>,
+    validators: &stage_validators::StageValidatorRequest,
+    advisories: Option<&mut Vec<Diagnostic>>,
+) -> Result<(Artifact, Vec<stage_validators::StageValidationRow>), stage_validators::NativeValidationError> {
     use stage_validators::NativeValidationError;
 
     let rows = match request {
@@ -99,7 +115,7 @@ pub fn compile_with_validators(
         } => {
             let application = program.application().clone();
             let (image, rows) = program
-                .prepare()?
+                .prepare(advisories)?
                 .emit_with_validators(entry_memory, validators)?;
             let product =
                 product_publication::CompletedProduct::from_native(image, None, application);
@@ -114,7 +130,7 @@ pub fn compile_with_validators(
             |_| "runtime admission stops before target lowering",
         )?,
     };
-    let product = compile(request).map_err(NativeValidationError::Compilation)?;
+    let product = compile_reporting(request, advisories).map_err(NativeValidationError::Compilation)?;
     Ok((product, rows))
 }
 
@@ -133,14 +149,14 @@ impl Program<'_> {
         }
     }
 
-    fn prepare(self) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
+    fn prepare(self, advisories: Option<&mut Vec<Diagnostic>>) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
         match self {
             Self::Psi { program, target } => {
                 native_compiler::prepare_saved_program(program, target)
             }
             Self::Source { source, target } => {
                 let publication =
-                    source_to_psi::compile_for_target(source, target.profile.target_name())?;
+                    source_to_psi::compile_for_target_reporting(source, target.profile.target_name(), advisories)?;
                 let (artifact, providers, exclusions) = publication.into_parts();
                 let producer = HostProducerTrust::accept("current compiler invocation");
                 let authorized = authorize_terminal_artifact(artifact, Some(&producer))
