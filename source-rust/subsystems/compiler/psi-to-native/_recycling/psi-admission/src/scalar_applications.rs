@@ -1063,7 +1063,7 @@ pub(crate) mod prerequisites {
             let root = scope
                 .callable_declaration(TargetMachineCallable::Machine(self.entry))
                 .ok_or("scalar prerequisite entry has no checked declaration")?;
-            crate::compiler_evaluation::require_root_failure_admission(
+            terminal_semantics::evaluation_crashes::require_crash_free_evaluation(
                 observations.artifact().module(),
                 root,
             )?;
