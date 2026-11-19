@@ -370,9 +370,9 @@
     <h2><span>6</span>The Build: what changes from V1</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 380" role="img" aria-label="Left: in V1 and the spec, one Build program is checked a prefix at a time, run, suspended when a dependency or provider arrives, checked further and resumed, in a loop. The product's hand-written source is checked and frozen first so the Build can query it, and generated source is added afterwards as a later stratum that hand-written code cannot call. Right: in V2 a chain of whole programs each runs to completion and hands a plan to the next: a core first stage, the project's build.omg, then the product, which is compiled once.">
+      <svg viewBox="0 0 960 380" role="img" aria-label="Under the shared specification, the Build can suspend and resume when a dependency or provider becomes ready. Authored code cannot select generated declarations. The planned V2 driver instead runs a core stage, build.omg and the product in sequence. Each stage hands its plan to the next.">
         <rect class="panel" x="15" y="15" width="455" height="350" rx="10"/>
-        <text x="32" y="42" class="tp">V1 and the spec: one Build that suspends</text>
+        <text x="32" y="42" class="tp">Shared spec: one Build that suspends</text>
 
         <rect class="b" x="35" y="65" width="205" height="50" rx="7"/>
         <text x="137" y="87" text-anchor="middle" class="th">check a prefix</text>
@@ -586,7 +586,7 @@
     <h2><span>10</span>What is in the repository</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 310" role="img" aria-label="The repository holds the spec under wiki/spec, two test tools, the lexer layer and PLAN.md. The lexer's contract cites the spec. Its tests call the lexer, use the golden tool to compare output with expected files, and use the spec-corpus tool, which reads the spec's examples at test time. PLAN.md lists six departures from the spec.">
+      <svg viewBox="0 0 960 310" role="img" aria-label="The repository holds the spec under wiki/spec, two test tools, the lexer layer and PLAN.md. The lexer's contract cites the spec. Its tests call the lexer, use the golden tool to compare output with expected files, and use the spec-corpus tool, which reads the spec's examples at test time. PLAN.md tracks implementation against the shared specification.">
         <path class="a" d="M610,88 H545 V35 H120 V60"/><text x="332" y="28" text-anchor="middle" class="tl">cites</text>
 
         <rect class="b" x="30" y="60" width="180" height="60" rx="7"/>
@@ -605,7 +605,7 @@
         <rect class="b" x="30" y="220" width="180" height="60" rx="7"/>
         <text x="120" y="245" text-anchor="middle" class="mono">PLAN.md</text>
         <text x="120" y="264" text-anchor="middle" class="ts">decisions, gaps, status</text>
-        <path class="a" d="M120,220 V120"/><text x="130" y="175" class="tl">lists 9 departures</text>
+        <path class="a" d="M120,220 V120"/><text x="130" y="175" class="tl">cites the shared spec</text>
 
         <rect class="panel" x="590" y="40" width="350" height="250" rx="10"/>
         <text x="606" y="64" class="tp">layers/00_bytes-to-tokens</text>

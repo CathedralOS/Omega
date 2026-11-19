@@ -37,18 +37,10 @@ normalized parameter bounds to select type or value equality.
 
 ## What is authoritative
 
-- **The spec is the reference.** `wiki/spec/` (104 files, copied from V1 `main`
-  at `0b90bdba`) is the only source of rules, except for the departures listed
-  under [Where V2 departs from the spec](#where-v2-departs-from-the-spec).
-  **Decided.**
-- **V2's copy of the spec is now V2's own.** Its code examples were rewritten
-  on 2026-11-18 to V2's syntax: commas between arms, `::<` for generic
-  arguments in expressions, the one `if` statement turned into a
-  `transition`, and the stray `;` and `,` after `requires` removed. That
-  first revision touched 23 files and about 60 lines, all inside code examples.
-  Decision 12 later migrated reference and borrow spellings in examples and
-  prose across 40 spec files. Some prose still describes earlier generic-call
-  and arm syntax. **Decided** (Jarod: "v2 has to change").
+- **V1 and V2 share the Omega specification.** Both implement the rules in
+  [`wiki/spec/`](wiki/spec/). Changes to language or build semantics belong
+  in the shared spec. This plan records compiler responsibilities, implementation
+  status and open questions. **Decided.**
 - **The language guide is for humans**, not a source for V2. **Decided.**
 - **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
 - **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context
@@ -407,6 +399,14 @@ exist yet.
 
 #### V2's Build model: a chain of stages
 
+The following records the driver design agreed on 2026-11-18. The driver
+must follow the shared spec where the design calls for different semantics.
+For example, the plan lets hand-written code call generated code and passes provider
+selections to a later stage. The current spec puts generated code in a later
+resolution stratum and resumes the Build at a provider request.
+[Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary) ·
+[Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+
 **Decided** by Jarod, 2026-11-18, in two steps: first as two insulated stages
 that talk through reflection, then generalized to any number of stages on
 Zac's proposal, with refinements from Astra's review. Cracks that show up
@@ -494,7 +494,6 @@ deterministic reflection encodings, typed product operands in `build.omg`
 such as `Build::select_provider<windows_x86_64::Console, TestConsole>(builder)`,
 and the rule that selection "does not construct provider rows or grant runtime
 permission" ([Provider selection](wiki/spec/build/provider_selection.md#provider-selection)).
-What differs is listed under [Where V2 departs from the spec](#where-v2-departs-from-the-spec).
 
 ##### How the chain starts
 
@@ -629,8 +628,8 @@ what the invocation grants. It changes no mechanism, and selection still does
 not grant anything by itself. Two things to decide deliberately if this
 becomes the ruling:
 
-- It departs from the spec, whose default is a confined snapshot with host
-  effects by explicit opt-in.
+- Whether to change the shared spec’s default of a confined snapshot with
+  explicit opt-in for host effects.
 - Whether a *dependency's* `build.omg` gets the same permissive grant as the
   root project's. The spec says a root's grant is not automatically available
   to dependency builds.
@@ -658,7 +657,7 @@ decisions belong in the [repository owner-question queue](../OWNER_QUESTIONS.md)
 | --- | --- | --- | --- | --- |
 | 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01_tokens-to-syntax-trees/GRAMMAR.md`, all twelve decisions made and signed off. |
 | 11 | No limit on nesting is stated. | A parser that follows nesting without limit can be run out of stack by a small hostile file. | L1 | The parser follows 128 levels and refuses more; accepted with L1 sign-off |
-| 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; V2's copy of the spec's examples is rewritten to match, its prose is not yet |
+| 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; the affected examples were updated in the shared spec |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
 | 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Accepted with L0 sign-off (G1): the lexer has none; L1 decides |
 | 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Accepted with L0 sign-off (G3): digits on both sides of the dot |
@@ -676,25 +675,6 @@ Settled 2026-11-18, recorded in the decision log: Rust on the stable
 toolchain (1.100.0; V1 pins `nightly-2026-09-04`), a `layers/NN-name/` folder
 per layer with its fixtures plus `tools/` for shared test tools, and a git
 repository. Nothing has been committed yet.
-
-## Where V2 departs from the spec
-
-The spec is the reference except for the departures listed here. Each one was
-decided by Jarod. V2’s spec incorporates the reference spelling in row 11.
-
-| # | Spec rule | V2 instead | Decided |
-| --- | --- | --- | --- |
-| 1 | Generated source is a "later resolution stratum"; hand-written code cannot call it. ([Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary)) | Generated files are ordinary inputs to the single product compile; hand-written code may call them. | 2026-11-18 |
-| 2 | Product operands in `build.omg` are resolved against the frozen, already-checked product while the Build runs. (`build/scoped_execution.md`, "Toolchain operations have designated product operands") | They are resolved in the Build's own universe, carried in the plan as reflection identities, and bound when the product compiles. | 2026-11-18 |
-| 3 | The running Build may query checked product facts such as target layout. | Not available during the Build; such a need becomes a later stage. | 2026-11-18 |
-| 4 | A Build suspends itself. `suspend Build::await_provider<Requirement, Implementation>(builder)` installs a provider from a build dependency and resumes the same program, and Build code is checked in stages as dependencies arrive. ([Build provider readiness](wiki/spec/build/provider_selection.md#build-provider-readiness), [Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)) | No suspension. A stage's inputs and backings are settled before it starts; anything it discovers or selects is used by a later stage. | 2026-11-18 |
-| 5 | A package has one Build, then its product. | A chain of any number of stages, each an ordinary Omega program. It always starts with a core-supplied stage and then the project's `build.omg`. | 2026-11-18 |
-| 6 | The Build has special standing: a toolchain-supplied default environment and a `Build` context only it receives. | `build.omg` is an ordinary program. What it can do is exactly what the previous stage selected and the invocation granted. | 2026-11-18 |
-| 7 | Generic arguments in expressions are written with a bare `<`, as in `apply<set_time>(x)`, in every spec example. | They are written `apply::<set_time>(x)`. A bare `<` after a name in an expression is always less-than, so the parser never has to look ahead. Declarations and types keep plain `<`. Decided by Zac and relayed by Jarod. | 2026-11-18 |
-| 8 | `match` and `transition` arms are written one per line with no separator, in every spec example. | Arms are separated by commas, with an optional comma after the last. Newlines never matter. An arm has nothing to mark where the next begins, which a clause gets from the next clause word. | 2026-11-18 |
-| 9 | `match` and `transition` are described separately, and V1 gives only `transition` tuple subjects. | One grammar for boTesth. `transition` is the form in tail position. | 2026-11-18 |
-| 10 | Every binary operator groups to the left, comparisons included (V1's operator table, adopted as grammar decision 6). | The six comparison operators do not take a comparison as an operand without parentheses: `a < b < c`, `a == b == c` and `a < b == c` are refused. Every other operator still groups to the left. | 2026-11-18 |
-| 11 | V1 uses `&` for references, borrows and bitwise AND. | V2 uses `@` for references and borrows. `&` remains bitwise AND or domain intersection and `&&` remains Boolean AND. | 2026-11-18 |
 
 ## Historical V2 owner rulings
 
@@ -755,7 +735,7 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
 | 2026-11-18 | L0 Lexer signed off, with its six gap rules accepted as consistent with the spec. L1 Parser starts with its grammar. | Jarod |
 | 2026-11-18 | Eight parser grammar decisions made, recorded in `layers/01_tokens-to-syntax-trees/GRAMMAR.md`: no `if` statement; `match` and `transition` are one grammar; nothing after `requires` before a body; no reserved words; V1's precedence; assembly parsed; `satisfies` expressions and `some` binders in. | Jarod |
-| 2026-11-18 | Last two grammar decisions: arms are separated by commas; generic arguments in expressions are written `::<`. V2 may break compatibility with V1's source and the spec's examples freely. | Jarod, with Zac |
+| 2026-11-18 | Last two grammar decisions: arms are separated by commas; generic arguments in expressions are written `::<`. The spec examples were updated to use those spellings. | Jarod, with Zac |
 | 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |
 | 2026-11-18 | Comparisons do not chain: a comparison needs parentheses to be the operand of another, for `==` and `!=` as well as the relational four. V1 is not an audience; a rule is not justified by what a V1 user might write. | Jarod, with Zac |
 | 2026-11-18 | `&&` stays one token (owner question 6); the initial nested spelling was `& &T`. | Jarod |
@@ -765,3 +745,4 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Reopen the L1 conformance body rule to accept the documented `Logger::write = write_log;` form. L2 binds its requirement and implementation machine. | Jarod |
 | 2026-11-18 | L2 resolver signed off. L3 begins with typed operands and named machine calls. | Jarod |
 | 2026-11-18 | A binding shows its numeric type in its declaration: `let count: u8 = 5;` or `let count = 5u8;`. `let count = 5; send(count)` is refused; a later use never chooses the type. | Jarod |
+| 2026-11-19 | V1 and V2 share one specification. Changes to language and build rules go in `wiki/spec/`. | Jarod |
