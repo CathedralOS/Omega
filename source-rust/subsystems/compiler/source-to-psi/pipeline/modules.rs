@@ -106,9 +106,9 @@ pub use checked_program_to_psi::provider_supply;
 #[path = "../language/provider-choices/source_provider_choices.rs"]
 pub mod source_provider_choices;
 
-#[path = "../language/declaration-contracts/entry_contracts.rs"]
+#[path = "prepare_and_check/entry_contracts.rs"]
 pub mod entry_contracts;
-#[path = "../language/declaration-contracts/entry_shapes.rs"]
+#[path = "prepare_and_check/entry_shapes.rs"]
 pub mod entry_shapes;
 #[path = "prepare_and_check.rs"]
 pub mod product_source;
