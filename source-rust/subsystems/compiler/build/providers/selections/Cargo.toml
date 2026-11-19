@@ -14,4 +14,4 @@ terminal-psi = { path = "../../../psi" }
 wire = { path = "../../../../../foundation/wire" }
 
 [dev-dependencies]
-component-description = { path = "../../../psi/component-description" }
+component-description = { path = "../../../psi-to-native/verification/component-description" }

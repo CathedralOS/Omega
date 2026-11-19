@@ -19,7 +19,7 @@ replay.
 
 [Component publication](src/component_description.rs) writes the selected provider
 receipts, emitted stack demand and image identity into the component description.
-The [component reader](../../../../psi/component-description/description.rs) reconstructs
+The [component reader](../../../verification/component-description/description.rs) reconstructs
 the verified export and authority rosters from the embedded Psi artifact.
 
 The rest of the lifecycle is in `native_artifact.rs`.
@@ -58,9 +58,6 @@ changed content or file mode but grants no receiving or execution authority.
 flat-file receipt in a separate digest domain, so dynamic bytes never pass as
 a direct image.
 
-[callable_entry.rs](src/callable_entry.rs) is the separate entry point for
-staging and replaying optimized ordinary callable entries; its model,
-reconstruction and codec are under `callable_entry/`.
 [fragment_object_publication.rs](src/fragment_object_publication.rs) (`publish_fragment_object`) binds a
 selected physical-entry adapter to its emitted callable and checked entry plan.
 The image backend's `physical_entry` module implements the ABI bridge: it

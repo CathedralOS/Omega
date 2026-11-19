@@ -11,8 +11,8 @@ path = "description.rs"
 test-support = []
 
 [dependencies]
-wire = { path = "../../../../foundation/wire" }
-service-surface = { path = "../service-surface" }
-semantic-vocabulary = { path = "../../foundation/semantic-records" }
-terminal-codec = { path = "../codec" }
-terminal-psi = { path = ".." }
+wire = { path = "../../../../../foundation/wire" }
+service-surface = { path = "../../../psi/service-surface" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-codec = { path = "../../../psi/codec" }
+terminal-psi = { path = "../../../psi" }

@@ -18,4 +18,4 @@ wire = { path = "../../../../../foundation/wire" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
-component-description = { path = "../../../psi/component-description" }
+component-description = { path = "../../../psi-to-native/verification/component-description" }
