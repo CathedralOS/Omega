@@ -65,7 +65,11 @@ impl<'source> SyntaxParser<'source> {
         source_bytes: &'source [u8],
         tokens: &'source [Token],
     ) -> Result<Self, ParseError> {
-        let mut meaningful_token_indices = Vec::with_capacity(tokens.len() / 2 + 1);
+        // Small files often have more than half meaningful tokens. Reserving room for each
+        // token avoids copying the index as it grows and caps the initial request at 4 KiB
+        // on this path. See experiment 9 in EXPERIMENTS.md.
+        let index_capacity = if tokens.len() <= 1024 { tokens.len() } else { tokens.len() / 2 + 1 };
+        let mut meaningful_token_indices = Vec::with_capacity(index_capacity);
 
         for (token_index, token) in tokens.iter().enumerate() {
             if token.get_kind().is_trivia() {
@@ -443,5 +447,26 @@ impl<'source> SyntaxParser<'source> {
 
     pub(crate) fn leave_nesting(&mut self) {
         self.nesting_depth = self.nesting_depth.saturating_sub(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SyntaxParser;
+    use omega_lexer::lex;
+
+    #[test]
+    fn index_capacity_is_bounded_on_small_and_trivia_heavy_inputs() {
+        let dense = b"@".repeat(1024);
+        let dense_tokens = lex(&dense).unwrap();
+        let parser = SyntaxParser::new(&dense, &dense_tokens).unwrap();
+        assert!(parser.meaningful_token_indices.iter().copied().eq(0..1024));
+        assert_eq!(parser.meaningful_token_indices.capacity(), 1024);
+
+        let sparse = b"/*x*/".repeat(1025);
+        let sparse_tokens = lex(&sparse).unwrap();
+        let parser = SyntaxParser::new(&sparse, &sparse_tokens).unwrap();
+        assert!(parser.meaningful_token_indices.is_empty());
+        assert_eq!(parser.meaningful_token_indices.capacity(), 513);
     }
 }

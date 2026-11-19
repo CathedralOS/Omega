@@ -199,7 +199,7 @@ Psi to native code) are not planned yet.
   | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,515 one-token deletions pass the robustness checks. |
   | Mutation | All 37 deliberate parser changes were caught. Two remove recognition of a nested `@` after an access word, one in a type and one in an expression. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
   | Suite time | 1.12 s median wall clock across three warm runs of `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
-  | Speed | 571 MB/s on one thread, 6.5 ns per token, after three kept experiments (8.4% faster than first built, same tree); 8.1 GB/s parsing on 32 threads. The lexer is now the slower layer on the same bytes. Ledger, including four rejected attempts, in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
+  | Speed | The first three optimizations brought parsing to 571 MB/s on one thread (6.5 ns per token, 8.4% faster than the first build) and 8.1 GB/s on 32 threads. Experiment 9 cut parsing time on individual V2 fixtures by 8.5–11.2% and combined lexer and parser time by 2.6–4.0% across three build layouts. [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md) |
 
 - **Design:** recursive descent, one function per grammar rule, with
   precedence climbing for binary operators. The tree is a flat list of

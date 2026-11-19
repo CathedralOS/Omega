@@ -19,6 +19,7 @@ spec-corpus = { path = "../../tools/spec-corpus" }
 [[example]]
 name = "parse_throughput"
 path = "measurements/parse_throughput.rs"
+test = true
 
 [[example]]
 name = "parse_spec"

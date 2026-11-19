@@ -187,6 +187,87 @@ API would need to preserve the existing token-index overflow behavior and
 keep each index paired with its own tokens. These timings cover in-memory
 L0 and L1 only.
 
+## 9. Size the index and token buffers from observed work (2026-11-18)
+
+The prototype in experiment 8 reserved 10.7 MiB of index capacity for an
+8 MiB block comment containing zero meaningful tokens. The production lexer
+also reserved 85.3 MiB of token capacity for that comment's single token.
+These numbers measure vector capacity on the 64-bit test host. They exclude
+the input buffer and do not measure resident memory.
+
+Growing both vectors from empty on large inputs fixed the comment case but
+cost about 15% on a dense 64 MiB file. Fixed initial caps of 4 KiB for the
+index and 256 KiB for token storage still incurred that large-file cost.
+Growing token capacity eightfold after observing 1,024 tokens also lost
+13% in the large-file comparison.
+
+The prototype used the existing token density estimate on sources
+through 16 KiB and initially reserved at most 1,024
+`u32` positions. It appended each meaningful token's position as it lexed
+and transferred the vector into the parser. Above 16 KiB the scanner finished
+the token crossing the first sixteenth of the file and estimated the remaining
+token count from the density seen so far, allowing one eighth of headroom.
+It continued from the next token. A single comment could exhaust the entire
+input during the sample. The parser built its checked index over the emitted
+tokens on this path, preserving its existing token-position overflow check.
+
+Each row below processes the same 64 MiB of sorted V2 accept fixtures using
+separately built release executables. Each invocation averages two measured
+passes after two warmups. The table gives the median times over six paired
+rounds including tree destruction, on the same Windows host as experiment 8.
+
+| Workload | Previous | Sampled prototype | Median paired change |
+| --- | ---: | ---: | ---: |
+| 23 individual files repeated | 282.74 ms | 268.52 ms | −4.88% |
+| 13,445-byte bundles repeated | 251.30 ms | 249.05 ms | −0.87% |
+| One dense 64 MiB file | 447.98 ms | 394.15 ms | −12.15% |
+
+All six rounds moved in the same direction on each workload. The bundle
+result is inside the project's 2% noise threshold. On individual files the
+lexer stage rose from 140.46 to 163.00 ms and the parser stage fell from
+138.55 to 102.15 ms. On the dense file lexing fell from 302.67 to 249.92 ms.
+On an 8 MiB block comment, a fresh token vector reserved 128 bytes and the
+lexer allocated no index. Appending a space and `machine f() {}` took 512
+bytes of token capacity for ten tokens, six meaningful.
+
+The standalone V2 lexer on V1's source, samples and fixtures exposed the
+tradeoff. Across plain, reshuffled and aligned builds, file-by-file throughput
+fell 10.4–15.4%. Restoring the original full-file reservation and specializing
+the shared scan loop narrowed this to 2.1–7.3% slower. Separating the scanner
+entry points and explicitly inlining number scanning also regressed across
+all three layouts. All variants produced the same V1 token fingerprint,
+`389ed15fa61d1f87`. The project keeps the existing scanner and parser handoff.
+
+**Parser-only change.** The parser's index used to start with room for half
+the emitted tokens plus one. Many small files immediately outgrew it. In five
+paired rounds on individual fixtures, reserving for two thirds of the tokens
+reduced median combined time by 3.38%. Reserving for every token reduced it
+by 5.85%. On one dense 64 MiB file, the latter estimate was 2.96% slower in
+the median and increased the initial request on trivia-heavy sources.
+
+We kept the full-token estimate only for inputs of up to 1,024 emitted tokens.
+That asks for at most 4 KiB and avoids a second allocation on those files.
+Above that limit the parser uses its original estimate. The lexer needs no
+change. With the same 64 MiB of fixtures, three rounds of the repository's
+`compare-builds` tool gave these best combined times for individual files:
+
+| Build | Previous | Kept | Reduction |
+| --- | ---: | ---: | ---: |
+| Plain | 286.4 ms | 275.3 ms | 4.0% |
+| Reshuffled | 285.8 ms | 278.5 ms | 2.6% |
+| Aligned | 286.0 ms | 275.2 ms | 3.9% |
+
+Parsing alone improved 8.5–11.2% on the individual fixtures. Combined times
+on 13,445-byte bundles varied by at most 1.3% and times on the single 64 MiB
+file varied by at most 0.5%. Both controls fall inside the project's 2%
+noise threshold. The production lexer still makes the 85.3 MiB token
+reservation for an 8 MiB block comment.
+
+The in-tree benchmark now preserves original file boundaries with
+`--individual` and pairs the lexer and parser times from each pass before
+reporting the fastest combined time. Run the same corpus on another host with
+`cargo run --release -p omega-parser --example parse_throughput -- --individual --passes 9`.
+
 ## Remaining candidates
 
 A (fewer spelling tests) and B (a small error) became experiments 3 and 5.
