@@ -1,0 +1,5 @@
+(def $application () Int 1)
+
+(def grow ((n Int) (xs Int)) Int (if n (grow (- n 1) (pair n xs)) (pair 0 1)))
+
+(def main () Int (let prior Int (write 65) (grow 33 0)))

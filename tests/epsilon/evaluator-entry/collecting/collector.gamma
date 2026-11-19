@@ -1,0 +1,137 @@
+; A private bounded-live-heap experiment. Values use the existing 16-byte
+; value/tag slots. The frame link and unestablished locals carry scalar tag 0.
+; Only the two popped operands and established stack slots can own pairs at
+; allocation. All other registers hold scratch, sizes or untagged addresses.
+; No collector operation is visible to a Gamma program.
+
+(def gc_heap_start () Int 805306368)
+(def gc_space_size () Int 268435456)
+
+; 239 is the unused space start, 240..241 bounds the current space, and
+; 248 points at the first free 32-byte pair. These registers survive calls.
+(def gc_setup ((s Int)) Int
+  (let ((start Int (gc_heap_start)) (limit Int (+ start (gc_space_size)))
+        (a Int (e2 s 1 248 start)) (b Int (e2 a 1 240 start))
+        (c Int (e2 b 1 239 limit)))
+    (e2 c 1 241 limit)))
+
+; A fresh frame must not offer stale pair tags to the collector. The actual
+; arguments already have their tags and e_push gave the saved frame link tag 0.
+; Clearing only new local tags leaves existing argument and temporary slots alone.
+(def gc_reserve_locals ((s Int) (count Int)) Int
+  (if count
+    (let ((loop Int (+ (c_a s) 1))
+          (old Int (e2 (s_new s) 2 200 246))
+          (end Int (e_bound (e_add old 246 (* 16 count)) 246 134217728 2))
+          (firstTag Int (e_add end 200 8))
+          (zero Int (e2 firstTag 1 202 0))
+          (at Int (s_mark zero loop))
+          (stored Int (e2 at 11 200 202))
+          (next Int (e_add stored 200 16)))
+      (e3 next 15 200 246 loop)) s))
+
+; Emit four original words at 217, from 216. These regions are in disjoint
+; spaces and both whole cells have already been admitted.
+(def gc_copy_words ((s Int) (remaining Int)) Int
+  (if remaining
+    (let ((word Int (e2 s 10 218 216)) (stored Int (e2 word 11 217 218))
+          (source Int (e_add stored 216 8)) (dest Int (e_add source 217 8)))
+      (gc_copy_words dest (- remaining 1))) s))
+
+; Forward a single value/tag slot at address 201. Zero is a scalar. A
+; forwarding header uses the old cell's first tag, which is otherwise 0 or 1.
+; A repeated reference follows that header, retaining the same immutable pair.
+; The stack holds no raw frame address bearing tag 1.
+(def gc_forward_body ((s Int)) Int
+  (let (
+    (entry Int (s_mark s 21))
+    (tagAddress Int (e_add (e2 entry 2 212 201) 212 8))
+    (tag Int (e2 tagAddress 10 213 212))
+    (scalar Int (e2 tag 13 213 22))
+    (one Int (e2 scalar 1 215 1))
+    (pairTag Int (e3 one 16 213 215 23))
+    (invalidTag Int (e1 pairTag 12 1))
+    (pairSlot Int (s_mark invalidTag 23))
+    (address Int (e2 pairSlot 10 211 201))
+    (lower Int (e3 address 15 211 205 1))
+    (upper Int (e3 lower 15 211 206 24))
+    (invalidAddress Int (e1 upper 12 1))
+    (oldCell Int (s_mark invalidAddress 24))
+    (relative Int (e2 (e2 oldCell 2 218 211) 4 218 205))
+    (cellSize Int (e2 relative 1 219 32))
+    (remainder Int (e2 cellSize 7 218 219))
+    (aligned Int (e2 remainder 14 218 1))
+    (headerAddress Int (e_add (e2 aligned 2 214 211) 214 8))
+    (header Int (e2 headerAddress 10 213 214))
+    (negativeOne Int (e2 header 1 215 -1))
+    (forwarded Int (e3 negativeOne 16 213 215 25))
+    (fits Int (e3 forwarded 15 248 241 26))
+    (exhausted Int (e1 fits 12 3))
+    (copy Int (s_mark exhausted 26))
+    (src Int (e2 copy 2 216 211))
+    (dst Int (e2 src 2 217 248))
+    (copied Int (gc_copy_words dst 4))
+    (marker Int (e2 copied 11 214 215))
+    (forwarding Int (e2 marker 11 211 248))
+    (updated Int (e2 forwarding 11 201 248))
+    (free Int (e_add updated 248 32))
+    (done Int (e0 free 20))
+    (reuse Int (s_mark done 25))
+    (newAddress Int (e2 reuse 10 213 211))
+    (rewritten Int (e2 newAddress 11 201 213))
+    (back Int (s_mark rewritten 22)))
+    (e0 back 20)))
+
+; Save the two live operands in the two slots just popped by the pair
+; primitive. Scan established roots and then each copied child slot until
+; no new pair is copied. The two spaces alternate between collections.
+(def gc_collect_body ((s Int)) Int
+  (let (
+    (entry Int (s_mark s 27))
+    (firstOperand Int (e_push entry))
+    (value Int (e2 firstOperand 2 0 2))
+    (tag Int (e2 value 2 1 3))
+    (secondOperand Int (e_push tag))
+    (fromBase Int (e2 secondOperand 2 205 240))
+    (fromEnd Int (e2 fromBase 2 206 248))
+    (toBase Int (e2 fromEnd 2 240 239))
+    (inactive Int (e2 toBase 2 239 205))
+    (newFree Int (e2 inactive 2 248 240))
+    (newLimit Int (e_add (e2 newFree 2 241 240) 241 (gc_space_size)))
+    (rootStart Int (e2 newLimit 1 201 33554432))
+    (rootLoop Int (s_mark rootStart 28))
+    (rootEnd Int (e3 rootLoop 16 201 246 29))
+    (root Int (e1 rootEnd 19 21))
+    (nextRoot Int (e_add root 201 16))
+    (moreRoots Int (e1 nextRoot 12 28))
+    (beginScan Int (s_mark moreRoots 29))
+    (scanStart Int (e2 beginScan 2 201 240))
+    (scanLoop Int (s_mark scanStart 30))
+    (scanEnd Int (e3 scanLoop 16 201 248 31))
+    (child Int (e1 scanEnd 19 21))
+    (nextChild Int (e_add child 201 16))
+    (moreChildren Int (e1 nextChild 12 30))
+    (resume Int (s_mark moreChildren 31))
+    (right Int (e_pop resume 2 3))
+    (left Int (e_pop right 0 1)))
+    (e0 left 20)))
+
+; The pair primitive checks space, collects once if full, and reports the
+; existing heap-exhaustion status if every cell survived. A cell contains
+; both tagged children, in their original order.
+(def gc_allocator ((s Int)) Int
+  (let (
+    (entry Int (s_mark s 32))
+    (fits Int (e3 entry 15 248 241 33))
+    (collected Int (e1 fits 19 27))
+    (nowFits Int (e3 collected 15 248 241 33))
+    (full Int (e1 nowFits 12 3))
+    (allocate Int (s_mark full 33))
+    (handle Int (e2 allocate 2 4 248))
+    (fields Int (e_pair_fields handle 0))
+    (value Int (e2 fields 2 0 4))
+    (tag Int (e2 value 1 1 1)))
+    (e0 tag 20)))
+
+(def gc_runtime ((s Int)) Int
+  (gc_allocator (gc_collect_body (gc_forward_body s))))

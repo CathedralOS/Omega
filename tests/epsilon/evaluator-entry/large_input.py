@@ -63,9 +63,11 @@ def measure(executable, request, output):
                     break
                 time.sleep(0.12)
             child.returncode = os.waitstatus_to_exitcode(status)
-    print(json.dumps(dict(executable=executable.name, raw_status=child.returncode, guard=guard,
-                          seconds=round(time.monotonic() - start, 3), peak_kib=usage.ru_maxrss,
-                          stdout_bytes=output.stat().st_size, stderr_bytes=error.stat().st_size)), flush=True)
+    result = dict(executable=executable.name, raw_status=child.returncode, guard=guard,
+                  seconds=round(time.monotonic() - start, 3), peak_kib=usage.ru_maxrss,
+                  stdout_bytes=output.stat().st_size, stderr_bytes=error.stat().st_size)
+    print(json.dumps(result), flush=True)
+    return result
 
 
 def main():
