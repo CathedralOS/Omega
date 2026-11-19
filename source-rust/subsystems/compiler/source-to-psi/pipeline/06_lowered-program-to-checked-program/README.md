@@ -1538,7 +1538,7 @@ kernel decides the result against the specialization's own goal and
 hypotheses; a literal that did not fit would yield a certificate it refuses.
 
 **A requirement with value parameters.** A call through an implementation
-parameter with a static argument, `Implementation::value<7>(7)`, is held in
+parameter with a static argument, `Implementation::value::<7>(7)`, is held in
 the generic form to the requirement's contract at 7, and in the generated
 machine it calls the machine generated from the selected member for 7. The
 refinement proof is the conformance witness at the same literals. So the
@@ -1560,7 +1560,7 @@ use, not once for every value.
 `compiler`'s test `lowered_route_generics` runs the three steps from source
 on `tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit`, where
 `Selected::value<const Units: u64>` is a trait member called as
-`Implementation::value<7>(7)`, and on its fail twin, which differs only in
+`Implementation::value::<7>(7)`, and on its fail twin, which differs only in
 the requirement's contract (`requires true`): the member then asks `input <=
 Units`, which the requirement does not give. A search over the generated
 caller proves the call's requirement, because the one call passes 7; the
@@ -1598,7 +1598,7 @@ requires limit <= 10 ensures result <= 10
 { limit }
 machine relay<T>(item: T, limit: u32) -> u32
 requires limit <= 10 ensures result <= 11
-{ forward<T>(item, limit) + 1 }
+{ forward::<T>(item, limit) + 1 }
 ```
 
 **A value of a rigid type.** In the generic check form `item` is a value:
@@ -1646,7 +1646,7 @@ whose values must be used exactly once. An unused value is discarded, which
 is legal for an affine type; its cleanup is the specialization's.
 
 **A call of another generic machine at the body's own type.**
-`forward<T>(item, limit)` is held, in `relay`'s generic form, to `forward`'s
+`forward::<T>(item, limit)` is held, in `relay`'s generic form, to `forward`'s
 contract at `T`: a machine with that signature and contract and no body
 (`Elaboration::applications`). `forward`'s own body is checked once as the
 entry of its own generic form. In `relay<u8>` the call names the machine
@@ -1688,7 +1688,7 @@ Limits:
   nothing of the cleanup an unused affine value owes; the route states no
   cleanup for any value yet.
 - **Contracts cannot mention a `T` value.** A requirement such as
-  `premise<T>(kept)` is a proposition over a call term, which this subset
+  `premise::<T>(kept)` is a proposition over a call term, which this subset
   does not read.
 
 ### Finite families
