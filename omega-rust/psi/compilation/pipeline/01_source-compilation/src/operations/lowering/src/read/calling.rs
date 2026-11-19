@@ -1,4 +1,4 @@
-//! Prepare only explicitly selected calling-policy applications from their source owner.
+//! Check inherited boundary contracts and prepare the selected calling policies.
 //! Policy bodies follow the ordinary machine and conformance readers. ABI storage
 //! is prepared by the common metadata-storage owner, independently of value use.
 
@@ -329,6 +329,7 @@ impl Program<'_> {
             .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
         let catalog = bound_catalog.signatures();
         let calling = catalog.calling();
+        let mut calling_vocabulary = None;
         for environment in &environments {
             let scope = environment.scope(typed).ok_or_else(|| {
                 services::unavailable(
@@ -382,7 +383,14 @@ impl Program<'_> {
                 .requests()
                 .filter(|request| request.boundary == scope.declaration.symbol);
             let request = match (requests.next(), requests.next()) {
-                (Some(request), None) => request,
+                (Some(request), None) => Some(request),
+                (None, None)
+                    if self.boundary_parent_contracts.contains(environment)
+                        && !applications.contains(environment)
+                        && !entries.iter().any(|entry| entry.application == environment) =>
+                {
+                    None
+                }
                 _ => {
                     return Err(services::unavailable(
                         context,
@@ -390,23 +398,19 @@ impl Program<'_> {
                     ));
                 }
             };
-            // The Calling owner consumes only the relationship it actually
-            // prepared. Every other ordinary parent remains an obligation.
-            scope
-                .try_visit(typed, &mut |parent| {
-                    if !parent.declaration.is_boundary
-                        && (parent.declaration.symbol != request.relationship
-                            || !typed
-                                .trait_machine_signatures(parent.declaration)
-                                .is_empty())
-                    {
-                        return Err(
-                            "boundary parent contract is not covered by its admitted relationship",
-                        );
-                    }
-                    Ok(())
-                })
-                .map_err(|reason| services::unavailable(context, reason))?;
+            let vocabulary = calling_vocabulary.get_or_insert_with(|| {
+                crate::source_state::calling_vocabulary::standard_calling_vocabularies(typed)
+            });
+            self.prepare_inherited_boundary_contracts(
+                context,
+                &scope,
+                request.map(|request| request.relationship),
+                vocabulary,
+            )?;
+            let Some(request) = request else {
+                prepared.completed_applications.push(coordinate);
+                continue;
+            };
             let instances = calling.instances(request).map_err(|diagnostics| {
                 services::unavailable(
                     context,
