@@ -1,6 +1,6 @@
 # Psi interpreter
 
-This crate runs Terminal Psi. Start at [lib.rs](src/lib.rs). Execution follows the verified
+This crate runs Terminal Psi. Start at [interpreter.rs](interpreter.rs). Execution follows the verified
 [calls and outcomes](../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
 and [structural ownership](../../../wiki/spec/terminal-psi/ownership.md) rules.
 
@@ -8,7 +8,7 @@ The product compiles a program before running it. The engine depends on its
 input representation and semantic checks, not on the compiler coordinator, so
 compile-time evaluation creates no dependency cycle.
 
-[Compile-time admission and elaboration](../compilation/build-time-evaluation/README.md)
+[Compile-time admission and elaboration](../compiler/build/README.md)
 belong to compilation. That service calls the Terminal engine and installs the
 results into compiler representations; the engine does not own those
 transformations. A build-time machine that would have to run before the program
@@ -16,7 +16,7 @@ is checked has no engine, and the compiler refuses it.
 
 Native code generation stays in Omega. The interpreter is not a fallback when
 native lowering does not support a construct. See the
-[pipeline contract](../../pipeline.md).
+[pipeline contract](../compiler/README.md).
 
 The interpreter installs the bindings it is given and dispatches calls. Host
 adapters that know the target live outside Psi, in Omega's host integration.
@@ -30,18 +30,18 @@ bytes are decoded once; in-process callers borrow a sealed Terminal artifact
 view. Both build instances of the same execution engine. Loading does not
 verify proofs.
 
-- [engine_execution.rs](src/engine_execution.rs) is the engine: the live state
+- [execution.rs](instructions/execution.rs) is the engine: the live state
   and the resumable dispatch loop.
-- [Call frames](src/engine_calls.rs) bind calls and save the caller's live
+- [Call frames](instructions/calls.rs) bind calls and save the caller's live
   state.
-- [Custody](src/engine_custody.rs) checks and transfers structural ownership
+- [Custody](memory/custody.rs) checks and transfers structural ownership
   and claims.
-- [storage_primitives.rs](src/storage_primitives.rs) allocates local
+- [primitives.rs](memory/primitives.rs) allocates local
   identities for the whole execution and holds host reservations. Record copies
   and block transitions stage its allocation cursor until their payloads
   commit.
 - Reference, record, array, primitive and byte storage each have their own
-  files ([storage_bytes_and_views.rs](src/storage_bytes_and_views.rs) and those
+  files ([bytes_and_views.rs](memory/bytes_and_views.rs) and those
   it uses).
 
 The program keeps one immutable canonical module, owned or borrowed. Machine,
@@ -103,7 +103,7 @@ execution. Fixed byte arrays, including initialized empty ones, use ordinary
 compact storage; borrowed descriptors and opaque contents are never invented.
 Erased fields have no runtime cell but still must be established explicitly.
 Contents give no claims, qualifications or reference authority. The shared
-[storage contents](src/storage_records_and_arrays.rs) walker and constructor
+[storage contents](memory/records_and_arrays.rs) walker and constructor
 transaction own this operation, including sponsored reservations and cleanup
 on failure. Complete initializers cannot overlap each other or a partial
 input. Cases with and without payloads use this same route.
@@ -139,7 +139,7 @@ Owned inputs follow their normal transfer rules. An opaque identity cannot
 supply materialized storage, reference companions, write-only access or a
 borrowed result; those need their own carriers and are refused. A bare
 borrowed entry annotation supplies no host storage either. See
-[component arguments](src/engine_calls.rs).
+[component arguments](instructions/calls.rs).
 
 Lending an opaque object gives the guest no field cells. Local scalar and
 atomic stores and subtree replacement under those borrowed homes are refused
@@ -181,14 +181,14 @@ accounting.
   copying. Boundary byte buffers use the same storage type: capture and growth
   reserve before copying, and whole-owner writeback moves the reservation with
   the bytes. Retirement releases live bytes, not consumed work.
-- [Runtime rows](src/storage_primitives.rs) own one cell per live
+- [Runtime rows](memory/primitives.rs) own one cell per live
   scalar or structural table entry, including staged call/edge bindings and
   cleanup copies. New entries and overlapping copies reserve first;
   replacements keep their cell, frame moves carry the lease, and table joins
   transfer reservations without charging again.
 - Root activations and suspended call headers each reserve one
   cell before creation. The shared frame capture in
-  [engine_calls.rs](src/engine_calls.rs) handles scalar, structural and
+  [calls.rs](instructions/calls.rs) handles scalar, structural and
   cleanup calls; return restores the caller and releases its saved header. The
   root activation stays reserved through result readback until close. A
   refused capture keeps its outgoing cleanup continuation, including byte
@@ -276,7 +276,7 @@ it rewrites `0 < remaining` as the unsigned premise `1 <= remaining` and checks
 exact subtraction before creating resumable state. Running here grants no
 native, fixed-work, provider-installation or mixed-work authority.
 
-[engine_terminators.rs](src/engine_terminators.rs) captures every selected
+[terminators.rs](instructions/terminators.rs) captures every selected
 operand before cleanup and before installing all successor bindings at once.
 Affine inputs move once; Unrestricted descriptors stay reusable. Rebinding changes the descriptor place,
 not its referent or field backing. Missing or duplicate owners and overlapping transfer
@@ -326,7 +326,7 @@ an adapter directly keeps its declared result contract.
 
 ## Primitive array results
 
-[storage_records_and_arrays.rs](src/storage_records_and_arrays.rs) builds and
+[records_and_arrays.rs](memory/records_and_arrays.rs) builds and
 returns complete primitive arrays. Ordinary and installed checked-provider
 structural calls return the exact unrestricted payload into a fresh result
 place in the saved caller, beside the caller's earlier arrays. Return preflight
@@ -346,7 +346,7 @@ and target transport code owns native realization.
 
 ## Primitive local storage
 
-[storage_primitives.rs](src/storage_primitives.rs) creates fresh referents on
+[primitives.rs](memory/primitives.rs) creates fresh referents on
 each activation or loop reentry. Borrowed calls share the storage; reads copy
 the current scalar, so earlier snapshots survive later writes. Suspension keeps
 the storage, and leaving the block reclaims it without affine cleanup. Local identities
@@ -356,9 +356,9 @@ does not provide native allocation or permit owned local escape; see
 
 ## References stored in records
 
-[storage_records_and_arrays.rs](src/storage_records_and_arrays.rs) stages descriptor relocation together with ordinary
+[records_and_arrays.rs](memory/records_and_arrays.rs) stages descriptor relocation together with ordinary
 record payload construction. Nested packing changes the carrier's owner and
-field path, never the original primitive backing. [storage_references.rs](src/storage_references.rs)
+field path, never the original primitive backing. [references.rs](memory/references.rs)
 resolves typed field paths ending in `Referent`; whole-owner cleanup removes
 descriptor subtrees without disposing the borrowed storage. The verifier checks
 loan ancestry and cleanup order on its own. Return preflight compares every
@@ -497,7 +497,7 @@ route does not itself implement source-owned construction or native storage.
 
 ## Boundary responses
 
-[boundary_effects.rs](src/boundary_effects.rs) tells Unit, scalar and opaque
+[boundary_effects.rs](embedding/boundary_effects.rs) tells Unit, scalar and opaque
 structural values apart from an explicit `Crash(Trap | Abort)` response. A
 host crash is accepted only if the program published a crash route with the
 same cause, judged against the invocation's already evaluated scalar inputs; a
@@ -591,7 +591,7 @@ live. The exact producer/result root and claim map survive suspension; no
 partly moved ancestor becomes whole again.
 
 Structural storage copies and constructor staging use
-[`storage_records_and_arrays`](src/storage_records_and_arrays.rs) ranges bounded
+[`records_and_arrays`](memory/records_and_arrays.rs) ranges bounded
 by carrier identity. Keys sort by carrier identity before path and field, so a
 copy does not scan unrelated old carriers; subtree selection still checks the
 full path. Each transaction stages its shared storage families before pruning
