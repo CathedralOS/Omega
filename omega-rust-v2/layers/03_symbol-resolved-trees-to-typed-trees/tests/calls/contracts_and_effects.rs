@@ -241,6 +241,26 @@ fn v1_crash_route_guards_type_as_total_facts_about_the_entry_value() {
 }
 
 #[test]
+fn a_parenthesized_crash_guard_stays_the_guard_of_its_cause() {
+    // The parser once read `Trap (...)` as a family application, so the cause failed to resolve and the guard vanished.
+    for guard in ["(value == 0)", "(value == 0) || done"] {
+        let source = format!("machine forward(value:i64, done:bool)->i64 crashes Trap {guard} {{value}}");
+        let stage = check(&[("route.omg", &source)]).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        let route = &stage.crash_routes[0];
+        assert_eq!(route.cause, omega_typer::CrashCause::Trap, "{source}");
+        let site = route.guard.as_ref().unwrap();
+        assert_eq!(site.span.slice(source.as_bytes()).unwrap(), guard.as_bytes(), "{source}");
+        assert!(
+            stage
+                .obligations
+                .iter()
+                .any(|o| &o.site == site && matches!(o.kind, omega_typer::ObligationKind::TotalCrashGuard)),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn synchronous_invocation_distinguishes_two_callbacks_with_the_same_type() {
     let ty = "machine() reaches none crashes none";
     let head = format!("machine run(f:{ty}) invokes f {{f()}}");
