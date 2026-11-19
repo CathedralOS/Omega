@@ -117,7 +117,19 @@ fn declaration<'a>(
                 "source provider choice needs its exact standalone-requirement record projection",
             ));
         }
-        ProviderSelectionSubject::BoundaryOperatorFamily(_) => {
+        ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+            let provider = typed.implementation_value_head(source.provider_type.symbol);
+            for coordinate in family.coordinates() {
+                let supply = crate::source_state::trait_definition::Supply {
+                    slot: coordinate.symbol,
+                    provider,
+                };
+                supply.realization(typed, coordinate.symbol).map_err(|reason| diagnostic(format!(
+                    "provider `{}` cannot cover boundary-operator family `{}` at coordinate `{}`: {reason}",
+                    source.provider_type.authored_path, family.authored_path,
+                    coordinate.requirement_identity,
+                )))?;
+            }
             return Err(diagnostic(
                 "source provider choice needs its exact boundary-operator record projection",
             ));

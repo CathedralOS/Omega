@@ -2115,6 +2115,39 @@ pub mod trait_definition {
         ) -> Result<&'a crate::source_state::machine::Machine, &'static str> {
             const NO_UNIQUE_REALIZATION: &str =
                 "provider does not give the supplied requirement exactly one machine";
+            // A referenced operation in a named record can explicitly satisfy
+            // a standalone requirement, including one overload of an operator.
+            if typed.trait_machine_signature(requirement).is_none()
+                && let Some(record) = typed.conformance_by_symbol(self.provider)
+            {
+                let mut selected = None;
+                for row in &record.rows {
+                    let machine = typed
+                        .machine_by_symbol(row.realization_machine)
+                        .ok_or(NO_UNIQUE_REALIZATION)?;
+                    let supplies = typed.machine_trait_conformances(machine).iter().any(|edge| {
+                        crate::source_state::machine::resolve_satisfied_declaration(
+                            typed, machine, edge,
+                        ).is_some_and(|declaration| declaration.symbol() == requirement)
+                    });
+                    if !supplies {
+                        continue;
+                    }
+                    let (_, member, _) = typed
+                        .named_conformance_member(self.provider, row.requirement)
+                        .map_err(|_| NO_UNIQUE_REALIZATION)?
+                        .ok_or(NO_UNIQUE_REALIZATION)?;
+                    if member.realization_machine != machine.symbol
+                        || selected.is_some_and(|symbol| symbol != machine.symbol)
+                    {
+                        return Err(NO_UNIQUE_REALIZATION);
+                    }
+                    selected = Some(machine.symbol);
+                }
+                return selected
+                    .and_then(|symbol| typed.machine_by_symbol(symbol))
+                    .ok_or(NO_UNIQUE_REALIZATION);
+            }
             // A named implementation's row identifies the realization even
             // when it selects a machine declared outside the implementation.
             if let Some((_, row, _)) = typed
