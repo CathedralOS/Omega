@@ -7,13 +7,15 @@ pub(crate) mod compiler_evaluation {
     use crate::declaration_selection::require_declaration_selection as require_selection;
     use semantic_vocabulary::compiler_evaluation::{
         CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
-        DeclarationSelectionAuthority, require_compiler_evaluation_floor,
+
     };
+    use declaration_scope::DeclarationSelectionAuthority;
+    use crate::evaluation_requirements::require_compiler_evaluation_floor;
     use terminal_psi::{ProofApplicationScope, ProofDeclarationId, TargetMachineCallable};
 
     pub(crate) mod failures {
         use proof_admission::{ClosedIntegerEvaluator, check_predicate_evaluation_size};
-        use semantic_vocabulary::compiler_evaluation::require_compiler_evaluation_failures;
+        use crate::evaluation_requirements::require_compiler_evaluation_failures;
         use semantic_vocabulary::{
             IntegerMathTerm, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
         };

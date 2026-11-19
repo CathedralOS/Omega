@@ -9,9 +9,7 @@ construction coordinates (`structural_places`), reference origin extents
 pub(crate) mod atomic_cell {
     use crate::{BoundedIntegerType, IntegerType, ScalarType};
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum AtomicCellType {
         Boolean,
         Integer(IntegerType),
@@ -134,9 +132,7 @@ pub(crate) mod authored_storage {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub struct AuthoredRecordStorage {
         pub byte_size: u64,
         pub byte_alignment: u64,
@@ -195,17 +191,13 @@ pub(crate) mod content {
         pub parameter: String,
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum ContentAlgebraKind {
         IntervalSet,
         CountedQuantity,
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub struct ContentProjectionIdentity {
         pub domain: ContentDomainId,
         pub projection_report_fingerprint: u64,
@@ -228,9 +220,7 @@ pub(crate) mod content {
         CountedQuantity(ContentProjectionScalar),
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum ContentPlaceVersion {
         Entry,
         Current,
@@ -661,9 +651,7 @@ pub(crate) mod content {
 }
 
 pub(crate) mod reference_origins {
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum ReferenceOriginExtent {
         Projected,
         WithinRegion,
@@ -673,9 +661,7 @@ pub(crate) mod reference_origins {
 pub(crate) mod structural_places {
     use crate::{BoundaryMachineId, StructuralFieldId, StructuralTypeId};
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum StructuralPlaceKind {
         Parameter {
             position: u32,
@@ -732,9 +718,7 @@ pub(crate) mod structural_places {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub struct AffineConstructionElement {
         pub root_structural_type: StructuralTypeId,
         pub index: u64,

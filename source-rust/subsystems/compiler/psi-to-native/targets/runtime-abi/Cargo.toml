@@ -11,5 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 arena = { path = "../../../../../foundation/arena" }
 target = { path = "../target" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 sha2 = "0.10.9"

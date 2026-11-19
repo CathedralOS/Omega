@@ -6,7 +6,7 @@ use crate::target_supply::TargetSupplyExecutionInputs;
 use backend_plan::ProviderExecutionOrigins;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
-use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+use declaration_scope::DeclarationSelectionAuthority;
 use std::sync::Arc;
 
 // A request with unavailable ownership is still a selected policy request.

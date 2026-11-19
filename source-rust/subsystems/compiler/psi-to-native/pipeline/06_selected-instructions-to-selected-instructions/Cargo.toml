@@ -14,7 +14,7 @@ register-homes = { path = "../representations/register-homes" }
 register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../targets/target" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 native-vocabulary = { path = "../../native-vocabulary" }
 selected-instruction-analyses = { path = "analyses" }

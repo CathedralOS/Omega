@@ -14,6 +14,7 @@ test-support = []
 path = "lib.rs"
 
 [dependencies]
+proof-applications = { path = "../../../psi/proof-applications" }
 source-declarations = { path = "../../language/source-declarations" }
 typed-trees = { path = "../representations/typed-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
@@ -28,7 +29,7 @@ arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
-semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../language/declaration-identity" }
 terminal-check-tables = { path = "../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/codec" }

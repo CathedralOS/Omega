@@ -226,9 +226,7 @@ mod integer_types {
     use numerics::integer_carrier::FixedInteger;
     pub use numerics::integer_carrier::IntegerSign;
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum IntegerCarrier {
         Fixed,
         Address,
@@ -244,9 +242,7 @@ mod integer_types {
     // A value identity is local to its machine. Imported signatures must
     // substitute/rebase this coordinate; matching a numeric ValueId alone
     // cannot identify another declaration's static width binder.
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub struct WidthParameter {
         pub owner: MachineId,
         pub value: ValueId,
@@ -276,9 +272,7 @@ mod integer_types {
         the number of bits exists for it, and every such accessor answers
         only for a closed width.
     */
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum IntegerWidth {
         Bits(u16),
         /// The value of the generic form's rigid width parameter.
@@ -1123,9 +1117,7 @@ mod integer_types {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum IntegerValue {
         Signed(i128),
         Unsigned(u128),
@@ -1140,9 +1132,7 @@ mod integer_types {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub struct IntegerMathLiteral {
         negative: bool,
         magnitude: u128,
@@ -1455,9 +1445,7 @@ mod integer_types {
 mod proof_terms {
     use crate::proposition::{PropositionError, ScalarTerm};
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum ProofFormalScope {
         Invocation,
         Block,

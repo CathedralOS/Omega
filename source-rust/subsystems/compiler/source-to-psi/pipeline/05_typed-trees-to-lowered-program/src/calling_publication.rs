@@ -659,7 +659,7 @@ mod policy_scope_tests {
         });
         scope
             .calls
-            .insert_machine(semantic_vocabulary::proof_applications::ProofCallMachine {
+            .insert_machine(proof_applications::ProofCallMachine {
                 machine: ProofDeclarationId(1),
                 calls: Default::default(),
                 cleanup: Default::default(),

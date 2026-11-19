@@ -16,7 +16,7 @@ machine-code = { path = "../../machine-code" }
 post-allocation-machine = { path = "../../post-allocation-machine" }
 register-model = { path = "../../../../targets/register-model" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }
-semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 target = { path = "../../../../targets/target" }
 target-aarch64 = { path = "../../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../../targets/target-x86_64" }

@@ -16,7 +16,7 @@ numerics = { path = "../../../../../psi/semantics/numeric" }
 optimization-core = { path = "../../optimization-records" }
 abstract-operations = { path = ".." }
 language-core = { path = "../../../../../foundation/language-core" }
-semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../../psi" }
 terminal-semantics = { path = "../../../../../psi/semantics" }
 

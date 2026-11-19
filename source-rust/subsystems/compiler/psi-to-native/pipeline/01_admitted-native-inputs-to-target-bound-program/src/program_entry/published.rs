@@ -4,9 +4,8 @@ use super::{
 };
 use diagnostics::Diagnostic;
 use effects::semantic_bindings::AcceptedSemanticBinding;
-use semantic_vocabulary::compiler_evaluation::{
-    DeclarationCustody, DeclarationSelectionAuthority, ProductDeclarationScope,
-};
+use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 

@@ -14,6 +14,7 @@ path = "lib.rs"
 test-support = ["typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
 
 [dependencies]
+declaration-scope = { path = "../../../foundation/declaration-scope" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
 source-declarations = { path = "../../language/source-declarations" }
@@ -30,7 +31,7 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
 optimization = { path = "../../../psi/optimization-selections" }
-semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../language/declaration-identity" }
 terminal-check-tables = { path = "../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/codec" }

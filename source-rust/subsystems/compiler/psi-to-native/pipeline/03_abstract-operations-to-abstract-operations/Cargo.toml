@@ -14,7 +14,7 @@ optimization = { path = "../../../psi/optimization-selections" }
 optimization-core = { path = "../representations/optimization-records" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }

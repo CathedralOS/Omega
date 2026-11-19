@@ -270,6 +270,7 @@ dependencies = [
  "build-output",
  "calling-conventions",
  "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -436,6 +437,21 @@ checksum = "a68fa787550392a9d58f44c21a3022cfb3ea3e2458b7f85d3b399d0ceeccf409"
 dependencies = [
  "nix",
  "winapi",
+]
+
+[[package]]
+name = "declaration-scope"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+]
+
+[[package]]
+name = "proof-applications"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "record-storage",
 ]
 
 [[package]]
@@ -1470,12 +1486,14 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "admitted-native-inputs-to-target-bound-program",
  "arena",
  "backend-plan",
  "bound-installations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
+ "declaration-scope",
  "diagnostics",
  "effects",
  "encoding-admission",
@@ -1502,7 +1520,6 @@ dependencies = [
  "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
- "admitted-native-inputs-to-target-bound-program",
  "published-object-verification",
  "register-environment",
  "register-homes",
@@ -1516,13 +1533,13 @@ dependencies = [
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-bound-program-to-abstract-operations",
  "target-operations",
  "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "target-bound-program-to-abstract-operations",
  "verified-optimization-input",
  "wire",
 ]
@@ -1841,8 +1858,8 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "record-storage",
  "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -1853,6 +1870,7 @@ dependencies = [
  "optimization-requests",
  "optimization-selections",
  "platform-custody",
+ "record-storage",
  "semantic-vocabulary",
  "sha2",
  "source-acquisition",
@@ -1880,8 +1898,8 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "compiler",
- "record-storage",
  "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -1893,6 +1911,7 @@ dependencies = [
  "products",
  "proof-admission",
  "provider-admission",
+ "record-storage",
  "review-evidence",
  "semantic-vocabulary",
  "sha2",
@@ -1957,6 +1976,7 @@ version = "0.1.0"
 dependencies = [
  "backend-plan",
  "checked-terminal-psi-to-published-psi",
+ "declaration-scope",
  "diagnostics",
  "effects",
  "optimization",
@@ -2209,6 +2229,7 @@ dependencies = [
  "build-time-values",
  "calling-conventions",
  "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -2631,10 +2652,9 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bignum",
- "record-storage",
  "language-core",
  "numerics",
- "optimization",
+ "record-storage",
  "wire",
 ]
 
@@ -2784,6 +2804,7 @@ dependencies = [
  "build-time-values",
  "checked-terminal-psi-to-published-psi",
  "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
  "evaluation-accounting",
  "evaluation-contracts",
@@ -3275,13 +3296,14 @@ dependencies = [
  "arena",
  "bignum",
  "bundled-declarations",
- "record-storage",
  "declaration-contracts",
  "flow-effects",
  "language-core",
  "layout-plans",
  "numerics",
  "optimization",
+ "proof-applications",
+ "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
  "source-text",
@@ -3426,6 +3448,7 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-admission",
+ "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",
  "terminal-psi",
@@ -3503,6 +3526,7 @@ dependencies = [
  "bignum",
  "bundled-declarations",
  "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
  "flow-effects",
  "language-core",

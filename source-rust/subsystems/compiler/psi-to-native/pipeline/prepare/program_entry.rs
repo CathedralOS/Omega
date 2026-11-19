@@ -6,7 +6,8 @@ use provider_realization::program_entry::{
     plan_published_entry_calling_conventions,
 };
 use provider_realization::{PublishedSelection, SelectedProviderResult};
-use semantic_vocabulary::compiler_evaluation::{DeclarationCustody, ProductDeclarationScope};
+use declaration_scope::ProductDeclarationScope;
+use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 

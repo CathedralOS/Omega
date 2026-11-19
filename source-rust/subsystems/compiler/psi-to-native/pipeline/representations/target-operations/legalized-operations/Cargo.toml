@@ -18,7 +18,7 @@ calling-conventions = { path = "../../../../targets/calling-conventions" }
 function-identity = { path = "../../function-identity" }
 optimization-core = { path = "../../optimization-records" }
 target = { path = "../../../../targets/target" }
-semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../../psi" }
 terminal-semantics = { path = "../../../../../psi/semantics" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }

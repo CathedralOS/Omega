@@ -21,7 +21,7 @@ installation-evidence = { path = "../../installation/installation-evidence" }
 machine-code = { path = "../../pipeline/representations/machine-code" }
 post-allocation-machine = { path = "../../pipeline/representations/post-allocation-machine" }
 provider-admission = { path = "../provider-admission" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 [dev-dependencies]
 runtime-abi = { path = "../../targets/runtime-abi" }

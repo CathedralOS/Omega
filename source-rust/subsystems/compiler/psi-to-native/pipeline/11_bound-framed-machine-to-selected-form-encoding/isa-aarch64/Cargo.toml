@@ -18,7 +18,7 @@ optimization-core = { path = "../../representations/optimization-records" }
 register-model = { path = "../../../targets/register-model" }
 target = { path = "../../../targets/target" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/layout" }
 post-handoff-writer-plan = { path = "../../../installation/post-handoff-writer" }

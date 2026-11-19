@@ -13,7 +13,7 @@ path = "src/lib.rs"
 record-storage = { path = "../../../../foundation/record-storage" }
 wire = { path = "../../../../foundation/wire" }
 optimization = { path = "../optimization-selections" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = ".." }
 terminal-wire = { path = "../wire" }
 

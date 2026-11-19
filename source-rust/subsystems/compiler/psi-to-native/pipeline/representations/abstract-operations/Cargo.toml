@@ -12,5 +12,5 @@ path = "src/lib.rs"
 record-storage = { path = "../../../../../../foundation/record-storage" }
 native-vocabulary = { path = "../../../native-vocabulary" }
 language-core = { path = "../../../../foundation/language-core" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }

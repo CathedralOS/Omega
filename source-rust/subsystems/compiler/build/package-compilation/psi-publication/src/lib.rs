@@ -8,7 +8,7 @@ pub use terminal_psi::PublishedEntryMetadata;
 #[derive(Debug, Clone)]
 pub struct ExecutablePackageInputs {
     declaration_permissions:
-        Option<semantic_vocabulary::compiler_evaluation::ProductDeclarationScope>,
+        Option<declaration_scope::ProductDeclarationScope>,
     accepted_semantic_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
 }
 
@@ -23,7 +23,7 @@ impl ExecutablePackageInputs {
     }
     pub fn declaration_permissions(
         &self,
-    ) -> Option<&semantic_vocabulary::compiler_evaluation::ProductDeclarationScope> {
+    ) -> Option<&declaration_scope::ProductDeclarationScope> {
         self.declaration_permissions.as_ref()
     }
     pub fn accepted_semantic_bindings(&self) -> &[package_compilation::AcceptedSemanticBinding] {
@@ -64,7 +64,7 @@ impl<'a> ProductCodeSource<'a> {
             .require_owner(self.publication.accepted()?.source())
             .map_err(|error| vec![error])?;
         let authority = self.sources.dependency_closure().map(|graph| {
-            graph as &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+            graph as &dyn declaration_scope::DeclarationSelectionAuthority
         });
         self.publication.publish(selections, authority, observer)
     }

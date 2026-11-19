@@ -2,7 +2,7 @@
 //! Comparing its actual requester scopes authorizes no source proof or body.
 
 use semantic_vocabulary::PackageKeyIdentity;
-use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+use declaration_scope::DeclarationSelectionAuthority;
 
 #[derive(Clone, PartialEq, Eq, record_storage::Record)]
 pub enum RecordedDeclarationAuthority {

@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+declaration-scope = { path = "../../../foundation/declaration-scope" }
 application-identity = { path = "../../../source-to-psi/language/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
 artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
@@ -28,7 +29,7 @@ program-entry-plan = { path = "../../installation/program-entry" }
 provider-admission = { path = "../../verification/provider-admission" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 runtime-abi = { path = "../../targets/runtime-abi" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }

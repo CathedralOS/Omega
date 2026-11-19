@@ -23,6 +23,7 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 
 pub mod declaration_selection;
 mod evaluation_and_synchronous_calls;
+mod evaluation_requirements;
 pub mod logical_reach;
 mod producer_trust;
 mod provider_and_target_installation;

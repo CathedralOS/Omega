@@ -12,5 +12,5 @@ path = "src/lib.rs"
 evaluation-contracts = { path = "../../../source-to-psi/evaluation/evaluation-contracts" }
 record-storage = { path = "../../../../foundation/record-storage" }
 evaluation-accounting = { path = "../../../source-to-psi/evaluation/evaluation-accounting" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = ".." }

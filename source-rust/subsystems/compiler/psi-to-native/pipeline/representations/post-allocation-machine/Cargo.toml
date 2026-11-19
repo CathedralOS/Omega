@@ -19,7 +19,7 @@ register-model = { path = "../../../targets/register-model" }
 register-environment = { path = "../../../targets/register-environment" }
 selected-instructions = { path = "../selected-instructions" }
 target = { path = "../../../targets/target" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

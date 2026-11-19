@@ -132,7 +132,7 @@ impl SourcePublication {
         &self,
         optimizations: &PsiOptimizationSelections,
         authority: Option<
-            &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
+            &dyn declaration_scope::DeclarationSelectionAuthority,
         >,
         observer: &mut impl crate::PsiCompilationObserver,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {

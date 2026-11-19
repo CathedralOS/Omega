@@ -122,7 +122,7 @@ pub mod proof_application_scope {
 
     use super::{CheckedMachineDeclaration, TerminalIdentityIndex};
     use arena::Arena;
-    use semantic_vocabulary::proof_applications::{
+    use proof_applications::{
         ProofApplicationPlan, ProofApplications, ProofCallGraph,
     };
 

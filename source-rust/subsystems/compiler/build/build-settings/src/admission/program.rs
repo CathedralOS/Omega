@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
-use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+use declaration_scope::DeclarationSelectionAuthority;
 use source_compiler::evaluation::BuildEvaluationSponsor;
 use symbols::SymbolHandle;
 use terminal_installation::selection_questions::SelectionAuthorities;

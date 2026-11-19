@@ -7,7 +7,8 @@ use super::construction::is_snake_case;
 use super::{PackageCompilationInputs, PackageCompilationSourceRecord, PackageDependencyBinding};
 use crate::BuildDeclarationKind;
 use build_declarations::DependencyPurpose;
-use semantic_vocabulary::{PackageKeyIdentity, compiler_evaluation::ProductDeclarationScope};
+use semantic_vocabulary::PackageKeyIdentity;
+use declaration_scope::ProductDeclarationScope;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A package's own Build reads its Build dependencies. Source supplied by a
@@ -37,7 +38,7 @@ impl PurposeDeclarationAuthority<'_> {
     }
 }
 
-impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+impl declaration_scope::DeclarationSelectionAuthority
     for PurposeDeclarationAuthority<'_>
 {
     fn allows_declaration_selection(
@@ -93,7 +94,7 @@ pub struct PackageDependencyClosure {
 // A sealed Product keeps the same direct dependency choices used during source
 // checking. Later policy evaluation reads those choices without reopening the
 // package graph or granting a dependency's dependencies to its caller.
-impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+impl declaration_scope::DeclarationSelectionAuthority
     for PackageDependencyClosure
 {
     fn allows_declaration_selection(
@@ -238,7 +239,7 @@ impl PackageCompilationInputs {
     pub fn declaration_selection_authority(
         &self,
         purpose: DependencyPurpose,
-    ) -> impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority + '_ {
+    ) -> impl declaration_scope::DeclarationSelectionAuthority + '_ {
         PurposeDeclarationAuthority {
             inputs: self,
             purpose,
@@ -476,7 +477,7 @@ fn dependency_cycle_in_set(
 mod selection_authority_tests {
     use super::*;
     use crate::PackageSourceBinding;
-    use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+    use declaration_scope::DeclarationSelectionAuthority;
 
     #[test]
     fn sealed_product_authority_retains_direct_edges_only() {

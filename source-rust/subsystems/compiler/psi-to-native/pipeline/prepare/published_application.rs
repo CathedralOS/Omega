@@ -19,7 +19,7 @@ struct PublishedApplicationInputs<'a, Publisher> {
     proposal: Option<backend_plan::TerminalTargetProviderProposal>,
     bindings: &'a [effects::semantic_bindings::AcceptedSemanticBinding],
     package_permissions:
-        Option<&'a semantic_vocabulary::compiler_evaluation::ProductDeclarationScope>,
+        Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
     optimizations: &'a optimization_core::OptimizationSelections,
     behavior_exclusions: &'a [effects::AuthoredBehaviorExclusion],

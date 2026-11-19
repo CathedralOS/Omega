@@ -28,7 +28,7 @@ register-environment = { path = "../../targets/register-environment" }
 register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../targets/target" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }

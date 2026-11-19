@@ -20,7 +20,7 @@ post-allocation-machine = { path = "../../representations/post-allocation-machin
 register-model = { path = "../../../targets/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../../targets/target" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 calling-conventions = { path = "../../../targets/calling-conventions" }

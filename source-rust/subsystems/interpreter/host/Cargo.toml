@@ -16,7 +16,7 @@ native-provider-runtime = { path = "native-worker" }
 terminal-installation = { path = "../../compiler/psi-admission" }
 runtime-abi = { path = "../../compiler/psi-to-native/targets/runtime-abi" }
 numerics = { path = "../../compiler/psi/semantics/numeric" }
-semantic-vocabulary = { path = "../../compiler/source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
 backend-plan = { path = "../../compiler/psi-to-native/installation/provider-plans" }
 target = { path = "../../compiler/psi-to-native/targets/target" }
 terminal-psi = { path = "../../compiler/psi" }

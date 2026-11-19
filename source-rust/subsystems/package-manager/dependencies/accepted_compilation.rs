@@ -104,9 +104,7 @@ impl ReviewedHostPackages {
         &self,
         profile: target::TargetProfile,
     ) -> Result<backend_plan::InstalledPackageProviders, String> {
-        use semantic_vocabulary::compiler_evaluation::{
-            DeclarationSelectionAuthority, ProductDeclarationScope,
-        };
+        use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
         let target = self.0.target(profile).ok_or_else(|| {
             format!(
                 "host package lock has no reviewed {} installation",

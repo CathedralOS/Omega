@@ -21,7 +21,7 @@ optimization-unit = { path = "../representations/abstract-operations/optimizatio
 optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
 provider-admission = { path = "../../verification/provider-admission" }
 runtime-abi = { path = "../../targets/runtime-abi" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 target-operations = { path = "../representations/target-operations" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }

@@ -14,7 +14,7 @@ physical-program = { path = "../representations/post-allocation-machine/body-fac
 selected-instructions = { path = "../representations/selected-instructions" }
 installation-admission = { path = "../../verification/installation-admission" }
 installation-evidence = { path = "../../installation/installation-evidence" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 [dev-dependencies]
 target = { path = "../../targets/target" }
