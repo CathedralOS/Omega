@@ -1,5 +1,5 @@
-//! Run the native stages for both application entries and private callable bodies.
-//! Prepare their frames before binding measured handlers and encoding instructions.
+//! Run stages 03 through 15 for application entries, component exports and private callables.
+//! Callers bind measured handlers between frame planning and instruction encoding.
 //! Validators can request the original stage inputs for independent replay.
 
 use crate::observations::{NativePipelineObservation, NativePipelineStage};
@@ -9,14 +9,7 @@ use instruction_selection::OptimizedSelectionPipelineError;
 use machine::OptimizedPostAllocationMachinePipelineError;
 use optimization_core::{OptimizationWorkBudget, PostTerminalOptimizationSelections};
 use selected_rewrites::SelectedInstructionOptimizationError;
-use std::sync::atomic::{AtomicU64, Ordering};
 use target_lowering::{NativeBodyPlan, OptimizedTargetLoweringRequest};
-
-#[derive(Clone, Copy)]
-pub struct NativeBodyObservation<'a> {
-    pub abstract_optimization: &'a AtomicU64,
-    pub target_lowering: &'a AtomicU64,
-}
 
 #[derive(Debug)]
 pub enum NativeBodyPlanningError {
@@ -28,9 +21,9 @@ fn optimize(
     input: VerifiedNativeArtifactInput,
     selections: &PostTerminalOptimizationSelections,
     budget: OptimizationWorkBudget,
-    entered: &AtomicU64,
+    observation: &NativePipelineObservation,
 ) -> Result<abstract_optimization::ValidatedOptimizedAbstractPlan, NativeBodyPlanningError> {
-    entered.fetch_add(1, Ordering::Relaxed);
+    observation.enter(NativePipelineStage::AbstractOptimization);
     let selections = selections.selections();
     abstract_optimization::optimize_abstract_operations(
         input.into_optimization_input(),
@@ -46,11 +39,11 @@ pub fn plan_native_body(
     target: OptimizedTargetLoweringRequest<'_>,
     selections: &PostTerminalOptimizationSelections,
     budget: OptimizationWorkBudget,
-    observation: NativeBodyObservation<'_>,
+    observation: &NativePipelineObservation,
     retain_original: bool,
 ) -> Result<NativeBodyPlan, NativeBodyPlanningError> {
-    let optimized = optimize(input, selections, budget, observation.abstract_optimization)?;
-    observation.target_lowering.fetch_add(1, Ordering::Relaxed);
+    let optimized = optimize(input, selections, budget, observation)?;
+    observation.enter(NativePipelineStage::AbstractToTarget);
     target_lowering::lower_native_body(optimized.into_lowering_input(), target, retain_original)
         .map_err(NativeBodyPlanningError::Target)
 }
@@ -61,9 +54,9 @@ pub fn plan_runtime_storage(
     target: target::NativeTarget,
     selections: &PostTerminalOptimizationSelections,
     budget: OptimizationWorkBudget,
-    entered: &AtomicU64,
+    observation: &NativePipelineObservation,
 ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, NativeBodyPlanningError> {
-    let optimized = optimize(input, selections, budget, entered)?;
+    let optimized = optimize(input, selections, budget, observation)?;
     target_lowering::runtime_storage(&optimized.into_lowering_input(), target)
         .map_err(NativeBodyPlanningError::Target)
 }

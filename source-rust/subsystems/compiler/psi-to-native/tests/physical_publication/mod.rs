@@ -80,7 +80,7 @@ fn emit_body_inspecting_physical<'execution>(
         },
         &optimization_core::PostTerminalOptimizationSelections::default(),
         optimization_core::OptimizationWorkBudget::new(10000, 10000, 10000, 10000, 10000).unwrap(),
-        observation.native_body(),
+        &observation,
         true, // This fixture independently inspects the optimized input.
     )
     .unwrap_or_else(|error| match error {

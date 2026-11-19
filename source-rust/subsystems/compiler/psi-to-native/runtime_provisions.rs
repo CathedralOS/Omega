@@ -1,4 +1,5 @@
-//! Plan each admitted foreign ABI adapter as a separate native root.
+//! Capture the admitted host and callable provisions for the Terminal interpreter.
+//! Foreign ABI adapters use the target calling contract recorded with each admission.
 #![forbid(unsafe_code)]
 
 use crate::driver::AdmittedRealization;
@@ -171,7 +172,7 @@ pub(crate) fn prepare_terminal_runtime(
         target,
         selections,
         native_optimization_budget(),
-        observation.counter(crate::observations::NativePipelineStage::AbstractOptimization),
+        observation,
     )
     .map_err(|error| match error {
         crate::compile_body::NativeBodyPlanningError::AbstractOptimization(error) => {

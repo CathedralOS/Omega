@@ -31,7 +31,7 @@ pub(super) fn prepare_program_image(
         bodies,
         providers,
         boundary_application_coverage,
-    } = self::plan_callables::plan_program(admitted, planning, observation.native_body())?;
+    } = self::plan_callables::plan_program(admitted, planning, observation)?;
     let image_providers = native_artifact::NativeImageProviders::from_admission(
         providers,
         planning.admission.providers.selected_provider_plans,

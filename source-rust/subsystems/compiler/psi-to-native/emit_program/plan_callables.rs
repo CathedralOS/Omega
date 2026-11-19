@@ -85,7 +85,7 @@ pub fn plan_callable(
         },
         selections,
         budget,
-        observation.native_body(),
+        &observation,
         retain_native_stage_inputs,
     )
     .map_err(|error| match error {
@@ -162,7 +162,7 @@ pub struct PlannedNativeProgram<'contract> {
 pub fn plan_program<'contract>(
     mut admitted: artifact_lowering::AdmittedNativeRealization<'contract>,
     request: &NativeProgramPlanningRequest<'_, 'contract>,
-    observation: crate::compile_body::NativeBodyObservation<'_>,
+    observation: &crate::observations::NativePipelineObservation,
 ) -> Result<PlannedNativeProgram<'contract>, Vec<Diagnostic>> {
     let root = crate::compile_body::plan_native_body(
         admitted.input,
