@@ -72,7 +72,7 @@ terminates by n
 ensures result == 0
 {
     transition n {
-        0 -> 0
+        0 -> 0,
         _ -> countdown(n - 1)
     }
 }
@@ -89,7 +89,7 @@ projects a machine integer to its mathematical value:
 
 ```omega
 requires
-    embed(left) + embed(right) <= embed(integer::max<i32>())
+    embed(left) + embed(right) <= embed(integer::max::<i32>())
 ```
 
 `Nat` and `Int` are mathematical integers. Subtraction on `Nat` still has to stay
@@ -134,13 +134,13 @@ erased field. `Valid<T>` here denotes the library's evidence type.
 
 ## Equality and identity
 
-`==` selects a comparison operation. `core::Identity<T>(a, b)` states that two
+`==` selects a comparison operation. `core::Identity::<T>(a, b)` states that two
 subjects are the same value, permitting substitution. For an in-scope carrier
 `T` and operation `add`, a law can state:
 
 ```omega
 machine add_comm(a: T, b: T)
-ensures core::Identity<T>(add(a, b), add(b, a));
+ensures core::Identity::<T>(add(a, b), add(b, a));
 ```
 
 Equality and identity differ for floats: `0.0 == -0.0` is true although the

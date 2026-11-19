@@ -208,7 +208,7 @@ machine main() reaches Console {
     state rd(sum: i32 in Wrapping, n: i32 in Wrapping) {
         let r: ByteRead = block Console::read_byte();
         transition r {
-            ByteRead::Byte { value } -> acc(sum, n, value)
+            ByteRead::Byte { value } -> acc(sum, n, value),
             _ -> fin(sum, n)
         }
     }

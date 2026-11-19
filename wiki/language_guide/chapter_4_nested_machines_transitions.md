@@ -12,7 +12,7 @@ machine countdown(remaining: u32) -> u32 {
 
     machine step(remaining: u32) -> u32 {
         transition remaining {
-            0 -> done()
+            0 -> done(),
             _ -> step(remaining - 1)
         }
 
@@ -92,7 +92,7 @@ matches:
 
 ```omega
 transition header {
-    Header { ok: 0, version } -> accept(version)
+    Header { ok: 0, version } -> accept(version),
     Header { ok as _, version as _ } -> reject()
 }
 ```
@@ -111,7 +111,7 @@ whatever happened to be true where it was called:
 
 ```omega
 transition remaining {
-    0 -> done()
+    0 -> done(),
     _ -> step(remaining - 1)     // here: remaining != 0
 }
 ```

@@ -49,8 +49,8 @@ machine comes_first<T, const Order: Ranked<T>>(left: @T, right: @T) -> bool {
     Order::before(left, right)
 }
 
-let by_power: bool = comes_first<Card, PowerOrder>(@left, @right);
-let by_cost: bool = comes_first<Card, CostOrder>(@left, @right);
+let by_power: bool = comes_first::<Card, PowerOrder>(@left, @right);
+let by_cost: bool = comes_first::<Card, CostOrder>(@left, @right);
 ```
 
 The caller names the implementation. The call is compiled as a direct call to
@@ -171,7 +171,7 @@ machine choose<Element, const Order: Ordered<Element>>(
     left < right
 }
 
-let selected: bool = choose<Card, Ascending>(first, second);
+let selected: bool = choose::<Card, Ascending>(first, second);
 ```
 
 Inside `choose`, `<` means `Order`'s. Outside generic code, an ordinary
@@ -200,9 +200,9 @@ machine zero(item: @mut u32) { item = 0; }                        // plain
 machine wipe(item: @mut u32) satisfies Tidy<u32>::clear { ... }   // bound where declared
 const zero_tidy = (zero satisfies Tidy<u32>::clear);              // bound by expression
 
-tidy<u32, wipe>(@mut x);          // accepted
-tidy<u32, zero_tidy>(@mut x);     // accepted
-tidy<u32, zero>(@mut x);          // Rejected: zero is not bound.
+tidy::<u32, wipe>(@mut x);          // accepted
+tidy::<u32, zero_tidy>(@mut x);     // accepted
+tidy::<u32, zero>(@mut x);          // Rejected: zero is not bound.
 ```
 
 Having the right signature is not enough. The three ways to bind are the

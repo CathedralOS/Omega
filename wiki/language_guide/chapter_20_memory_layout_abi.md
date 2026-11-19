@@ -78,8 +78,8 @@ fallible `TryFrom`, never a silent cast.
 ## Size, alignment and addresses
 
 ```omega
-const player_bytes: u64 = size_of<Player>();
-const player_alignment: u64 = align_of<Player>();
+const player_bytes: u64 = size_of::<Player>();
+const player_alignment: u64 = align_of::<Player>();
 
 machine header_is_aligned(packet: @[u8]) -> bool
 requires packet.len >= 16
@@ -87,7 +87,7 @@ requires packet.len >= 16
     align_of(packet) >= 16          // alignment of this actual location
 }
 
-let code_address: addr = address_of<identity<u32>>();
+let code_address: addr = address_of::<identity<u32>>();
 let storage_address: addr = address_of(@value);
 ```
 
@@ -114,7 +114,7 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
 
 ```omega
 // In std's build machine
-Build::bind<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
+Build::bind::<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
     ForeignBinding::Syscall { number: 0 });
 ```
 

@@ -79,7 +79,7 @@ machine start() reaches Console + ProcessExit {
           kind: "code",
           code: `machine choose(flag: bool) -> u64 {
     transition flag {
-        true  -> yes()
+        true  -> yes(),
         _     -> no()
     }
 
@@ -103,7 +103,7 @@ machine main() -> u64 { choose(true) }`,
           kind: "code",
           code: `machine countdown(n: u64) -> u64 {
     transition n > 0u64 {
-        true  -> tick(n)
+        true  -> tick(n),
         _     -> n
     }
     machine tick(n: u64) -> u64
@@ -111,7 +111,7 @@ machine main() -> u64 { choose(true) }`,
     {
         let next: u64 = n - 1;
         transition next > 0u64 {
-            true  -> tick(next)
+            true  -> tick(next),
             _     -> next
         }
     }
@@ -211,8 +211,8 @@ data Light [copy] {
 
 machine next(phase: Phase) -> Phase {
     transition {
-        phase == Phase::Red    -> Phase::Green
-        phase == Phase::Green  -> Phase::Yellow
+        phase == Phase::Red    -> Phase::Green,
+        phase == Phase::Green  -> Phase::Yellow,
         _                      -> Phase::Red
     }
 }
@@ -260,7 +260,7 @@ machine main() {
 
 machine read(reply: Reply) -> i32 {
     transition reply {
-        Reply::Hit { value } -> keep(value)
+        Reply::Hit { value } -> keep(value),
         Reply::Miss          -> miss()
     }
 
@@ -502,7 +502,7 @@ machine clear(line: &mut [u8; 28]) {
 
     machine scan(line: &mut [u8; 28], k: u64) {
         transition k < 28u64 {
-            true -> wipe(line, k)
+            true -> wipe(line, k),
             _    -> done()
         }
     }
@@ -643,7 +643,7 @@ machine start() reaches Console + ProcessExit {
 
     machine count(n: u64, digits: u8 in Wrapping) {
         transition n >= 10u64 {
-            true  -> count(n / 10u64, digits + 1u8)
+            true  -> count(n / 10u64, digits + 1u8),
             _     -> report(digits + 1u8)
         }
     }

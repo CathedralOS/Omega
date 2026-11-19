@@ -20,13 +20,13 @@ machine show_player_field<Value>(
 requires Value == u32 || Value == f32
 {
     transition {
-        Value == u32 -> show_u32(output, field.name, value)
+        Value == u32 -> show_u32(output, field.name, value),
         Value == f32 -> show_f32(output, field.name, value)
     }
 }
 
 machine inspect_player(player: @Player, output: @mut InspectorOutput) {
-    reflect::visit_runtime_fields<Player, show_player_field>(player, output);
+    reflect::visit_runtime_fields::<Player, show_player_field>(player, output);
 }
 ```
 
@@ -40,7 +40,7 @@ nested records yourself.
 ## Describe a type
 
 ```omega
-reflect::schema<Player>()            // fields, cases, names and types
+reflect::schema::<Player>()            // fields, cases, names and types
 reflect::field(Player::health)       // one field
 reflect::callable(inspect_player)    // one machine
 ```

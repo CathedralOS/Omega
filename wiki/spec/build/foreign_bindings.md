@@ -135,7 +135,7 @@ to one field of the table supplied at each call. The binding identifies where
 to read the function address; the requirement's calling plan independently
 describes which arguments the foreign function receives.
 
-`Build::bind<Requirement>(builder, target, binding)` accepts an ordinary
+`Build::bind::<Requirement>(builder, target, binding)` accepts an ordinary
 `FunctionFieldBinding` description with two operands:
 
 | Operand | Meaning |

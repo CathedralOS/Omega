@@ -160,7 +160,7 @@ machine countdown(n: u64)
 terminates by n -> Nat::Descending
 {
     transition n {
-        0 -> {}
+        0 -> {},
         _ -> countdown(n - 1)
     }
 }

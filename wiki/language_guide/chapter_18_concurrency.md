@@ -5,13 +5,13 @@ finish it to get the result.
 
 ```omega
 let task: Task<WorkResult> =
-    TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(move job);
+    TaskRuntime::start::<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(move job);
 
 do_other_work();
 
 transition suspend block TaskLifecycle::finish(move task) {
-    TaskOutcome::Returned { value } -> use_result(value)
-    TaskOutcome::Cancelled -> handle_cancellation()
+    TaskOutcome::Returned { value } -> use_result(value),
+    TaskOutcome::Cancelled -> handle_cancellation(),
     TaskOutcome::Failed { receipt } -> handle_provider_failure(receipt)
 }
 ```
@@ -38,8 +38,8 @@ When starting can be refused at run time, `try_start` hands the arguments
 back:
 
 ```omega
-transition TaskRuntime::try_start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(move job) {
-    StartOutcome::Started { task } -> keep(move task)
+transition TaskRuntime::try_start::<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(move job) {
+    StartOutcome::Started { task } -> keep(move task),
     StartOutcome::Rejected { arguments, reason } -> recover(move arguments, reason)
 }
 ```
@@ -85,7 +85,7 @@ data Take {
 
 machine run_worker(worker: @mut Worker, ring: @mut Ring) {
     transition suspend Ring::take(ring) {
-        Take::Got { frame } -> work(worker, frame)
+        Take::Got { frame } -> work(worker, frame),
         Take::Cancelled -> cleanup(worker)
     }
 }
@@ -109,9 +109,9 @@ data Event {
 
 machine run_server(server: @mut Server) {
     transition suspend Inbox::take(@mut server.inbox) {
-        Event::Packet { frame } -> Server::handle(server, frame)
-        Event::Tick -> Server::heartbeat(server)
-        Event::Shutdown -> Server::drain(server)
+        Event::Packet { frame } -> Server::handle(server, frame),
+        Event::Tick -> Server::heartbeat(server),
+        Event::Shutdown -> Server::drain(server),
         _ -> run_server(server)
     }
 }
@@ -132,8 +132,8 @@ task C: [ whole stack ........ ]       task C: [ kept frames ]--+    (borrowed w
 ```omega
 machine serve(request: Request) -> Reply suspends { ... }
 
-let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(move first);
-let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(move second);
+let a = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Fixed>(move first);
+let b = TaskRuntime::start::<Reply, Request, serve, ActivationStorage::Split>(move second);
 ```
 
 `Fixed` gives each task a whole stack, sized by the compiler from its call
@@ -146,7 +146,7 @@ A library that starts tasks for its caller passes the choice through:
 ```omega
 machine accept_loop<const Storage: ActivationStorage>(listener: @mut Listener) suspends {
     ...
-    TaskRuntime::start<Reply, Request, serve, Storage>(move request);
+    TaskRuntime::start::<Reply, Request, serve, Storage>(move request);
 }
 ```
 
@@ -192,7 +192,7 @@ machine announce(out: @mut Emitter<u32>, job: Announcement) suspends {
 
 machine drain(generator: Generator<u32>) suspends {
     transition suspend Generator::next(move generator) {
-        Next::Item { value, generator } -> suspend handle(value, move generator)
+        Next::Item { value, generator } -> suspend handle(value, move generator),
         Next::Finished -> done()
     }
     machine handle(value: u32, generator: Generator<u32>) suspends {

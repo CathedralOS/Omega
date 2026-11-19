@@ -49,7 +49,7 @@ machine take_damage(player: @mut Player, amount: i32)
 {
     let next: i32 = player.health - amount;
     transition next < 0 {
-        true -> floored(player)
+        true -> floored(player),
         false -> settle(player, next)
     }
 

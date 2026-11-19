@@ -15,7 +15,7 @@ machine addition_is_correct()
 satisfies Tests::arithmetic
 {
     transition 2u32 + 3u32 != 5u32 {
-        true -> failed()
+        true -> failed(),
         _ -> passed()
     }
 
@@ -30,7 +30,7 @@ machine subtraction_is_correct()
 satisfies Tests::arithmetic
 {
     transition 5u32 - 3u32 != 2u32 {
-        true -> failed()
+        true -> failed(),
         _ -> passed()
     }
 
@@ -45,7 +45,7 @@ satisfies Tests::arithmetic
 ```omega
 machine build(builder: @mut Build) {
     Build::package(builder, "arithmetic_example");
-    _ = builder.tests.group<Tests::arithmetic>();
+    _ = builder.tests.group::<Tests::arithmetic>();
 }
 ```
 
@@ -58,7 +58,7 @@ crashing.
 Register a filesystem test group the same way as an arithmetic group.
 
 ```omega
-let memory: TestGroup = builder.tests.group<Tests::memory>();
+let memory: TestGroup = builder.tests.group::<Tests::memory>();
 ```
 
 For the test product, select a provider for the same `FilesystemService`
@@ -67,7 +67,7 @@ provider named `PrivateFilesystem` would make this selection in the test
 product's configuration:
 
 ```omega
-Build::select_provider<FilesystemService, PrivateFilesystem>(builder, linux_x86_64);
+Build::select_provider::<FilesystemService, PrivateFilesystem>(builder, linux_x86_64);
 ```
 
 The harness supplies a fresh, empty backing for that provider each time a test

@@ -25,7 +25,7 @@ requires count <= limit
 
 machine bump(counter: @mut Counter) -> bool {
     transition counter.count < counter.limit {
-        true -> advance(counter)
+        true -> advance(counter),
         false -> false
     }
 
