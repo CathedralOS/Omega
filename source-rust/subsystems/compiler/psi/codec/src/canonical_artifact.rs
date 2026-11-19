@@ -657,6 +657,53 @@ mod tests {
     }
 
     #[test]
+    fn saved_linux_program_reencodes_from_its_decoded_module_and_publication() {
+        use ::wire::digest_encoder::{content_identity, hex};
+
+        let bytes = include_bytes!(
+            "../../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/linux_x86_64.psi"
+        );
+        let received = CanonicalTerminalArtifact::from_bytes(bytes).unwrap();
+        // A fresh seal encodes the decoded fields without retaining the received semantic bytes.
+        let closed = ClosedTerminalModule::new(received.semantic_module().clone()).unwrap();
+        assert!(closed.semantic_bytes() == received.semantic_bytes());
+        assert_eq!(
+            hex(&content_identity(closed.semantic_bytes())),
+            "273a842ad0f86f7fe5712afbd7146bd242e59e78262298622d90fc2081f3c851"
+        );
+        assert_eq!(
+            closed.identity().program_fingerprint.to_string(),
+            "8123ac5e147e6c749b10fee91b23e84f38f9a2a9f7a4d79cd4dbc0475a3a5108"
+        );
+        let debug = received
+            .debug_bytes()
+            .map(|bytes| decode_debug_map(closed.module(), bytes))
+            .transpose()
+            .unwrap();
+        let rebuilt = CanonicalTerminalArtifact::from_closed_parts(
+            closed,
+            received.optimization().clone(),
+            debug.as_ref(),
+        )
+        .unwrap()
+        .with_publication(
+            received.publication_metadata().unwrap().clone(),
+            received.published_evidence().cloned(),
+        )
+        .unwrap();
+        assert_eq!(
+            rebuilt.manifest().identity().to_string(),
+            "b0e903a139095a3e99ccaf9771df7036d403983b81191df1615731fc21d1d721"
+        );
+        let encoded = rebuilt.to_bytes();
+        assert_eq!(
+            hex(&content_identity(&encoded)),
+            "9c0b0799e91b0097e51173b6c58377a18b499c89eeda46a024172aa91e1ea4d7"
+        );
+        assert!(encoded.as_slice() == bytes);
+    }
+
+    #[test]
     fn host_identity_commits_to_the_exact_publication_section() {
         let closed = closed_module(false);
         let record = optimization_record(&closed);
