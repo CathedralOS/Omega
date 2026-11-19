@@ -1,0 +1,84 @@
+use targets::windows_x86_64::WindowsTimeRead;
+use omega::language::core::narrow_i64_to_u64_saturating;
+
+public WindowsTimeHost satisfies TimeHost {
+    // Failed reads return zero; Time owns degraded-clock handling.
+    machine monotonic_ticks() -> u64
+    reaches TimeHost
+    invokes WindowsTimeRead
+    {
+        let mut counter: i64 = 0;
+        let status: i32 = WindowsTimeRead::query_performance_counter(@mut counter);
+        transition status == 0 {
+            true -> degraded(),
+            _ -> measured(counter)
+        }
+
+        machine measured(counter: i64) -> u64 { narrow_i64_to_u64_saturating(counter) }
+
+        machine degraded() -> u64 { 0 }
+    }
+
+    machine monotonic_ticks_per_second() -> u64
+    reaches TimeHost
+    invokes WindowsTimeRead
+    {
+        let mut frequency: i64 = 0;
+        let status: i32 = WindowsTimeRead::query_performance_frequency(@mut frequency);
+        transition status == 0 {
+            true -> degraded(),
+            _ -> measured(frequency)
+        }
+
+        machine measured(frequency: i64) -> u64 { narrow_i64_to_u64_saturating(frequency) }
+
+        machine degraded() -> u64 { 0 }
+    }
+
+    machine wall_clock_raw() -> u64
+    reaches TimeHost
+    invokes WindowsTimeRead
+    {
+        let mut file_time: u64 = 0;
+        WindowsTimeRead::system_time_as_file_time(@mut file_time);
+        transition { _ -> measured(file_time) }
+
+        machine measured(file_time: u64) -> u64 { file_time }
+    }
+
+    // FILETIME ticks are 100-nanosecond intervals.
+    machine wall_clock_units_per_second() -> u64
+    {
+        10000000
+    }
+
+    // Shift the 1601 epoch to 1970 in the portable Time wrapper.
+    machine wall_clock_epoch_offset_seconds() -> u64
+    {
+        11644473600
+    }
+
+    // `Sleep` reads 0xFFFFFFFF as `INFINITE`, and `sleep_for` saturates long
+    // durations to exactly that count, so the maximum waits in two finite
+    // halves and returns like the POSIX providers' split waits.
+    machine sleep(milliseconds: u32)
+    reaches TimeHost
+    invokes WindowsTimeRead
+    blocks
+    {
+        transition milliseconds == 4294967295 {
+            true -> block in_halves(),
+            _ -> block at_once(milliseconds)
+        }
+
+        machine at_once(milliseconds: u32) {
+            block WindowsTimeRead::sleep(milliseconds);
+        }
+
+        // 2147483647 + 2147483648 == 4294967295.
+        machine in_halves() {
+            block WindowsTimeRead::sleep(2147483647);
+            block WindowsTimeRead::sleep(2147483648);
+        }
+    }
+}

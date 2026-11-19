@@ -1,3 +1,17 @@
+use DirEntryResult;
+use EmptyResult;
+use ErrorKind;
+use ExistsResult;
+use File;
+use FilesystemService;
+use IoResult;
+use MetadataResult;
+use OpenOptions;
+use OpenResult;
+use Permissions;
+use TryLockResult;
+use UnitResult;
+use omega_language_std;
 // One complete Windows implementation of the portable service. The operation
 // owners below perform real OS work; this map preserves each public capability
 // row and calls only the Windows raw family. Unsupported portable contracts

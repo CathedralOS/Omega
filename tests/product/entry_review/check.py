@@ -31,7 +31,7 @@ def check(omega, repository, workspace, mode):
     root = workspace / mode
     selected, alternative, application = (root / name for name in ("selected", "alternative", "app"))
     standard = repository / "source/library/std"
-    contract = (standard / "targets/uefi_x86_64/entry.omg").read_text(encoding="utf-8")
+    contract = (standard / "uefi_x86_64_entry.omg").read_text(encoding="utf-8")
     contract = contract.replace("use calling;", "use std::calling;")
     contract = contract.replace("public boundary data EfiSystemTable;", "public data EfiSystemTable { signature: u64; }")
     contract = contract.replace("\nUefiX86_64CallingPolicy satisfies", "\npublic UefiX86_64CallingPolicy satisfies")

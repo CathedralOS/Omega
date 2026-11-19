@@ -1,3 +1,10 @@
+use Calling;
+use DarwinArm64ByteViewCalling;
+use DarwinFileTimes;
+use PosixFilesystemHost;
+use omega_language_std;
+use posix_errno;
+use posix_terminated_path;
 use omega::language::core::FilesystemContentRead;
 use omega::language::core::FilesystemContentWrite;
 use omega::language::core::FilesystemMetadataQuery;
@@ -775,45 +782,4 @@ reaches FilesystemMetadataMutation
         true -> (darwin_failure_i32()),
         _ -> (outcome)
     }
-}
-
-// The macos_arm64 raw POSIX service. std's Build selects it for macos_arm64.
-public MacosArm64PosixFilesystem satisfies PosixFilesystemHost {
-    PosixFilesystemHost::open = macos_arm64_posix_open;
-    PosixFilesystemHost::open_create = macos_arm64_posix_open_create;
-    PosixFilesystemHost::create = macos_arm64_posix_create;
-    PosixFilesystemHost::read = macos_arm64_posix_read;
-    PosixFilesystemHost::write = macos_arm64_posix_write;
-    PosixFilesystemHost::read_at = macos_arm64_posix_read_at;
-    PosixFilesystemHost::write_at = macos_arm64_posix_write_at;
-    PosixFilesystemHost::close = macos_arm64_posix_close;
-    PosixFilesystemHost::remove = macos_arm64_posix_remove;
-    PosixFilesystemHost::seek = macos_arm64_posix_seek;
-    PosixFilesystemHost::create_dir = macos_arm64_posix_create_dir;
-    PosixFilesystemHost::remove_dir = macos_arm64_posix_remove_dir;
-    PosixFilesystemHost::create_dir_name = macos_arm64_posix_create_dir_name;
-    PosixFilesystemHost::open_at = macos_arm64_posix_open_at;
-    PosixFilesystemHost::unlink_at = macos_arm64_posix_unlink_at;
-    PosixFilesystemHost::set_permissions = macos_arm64_posix_set_permissions;
-    PosixFilesystemHost::set_file_permissions = macos_arm64_posix_set_file_permissions;
-    PosixFilesystemHost::rename = macos_arm64_posix_rename;
-    PosixFilesystemHost::hard_link = macos_arm64_posix_hard_link;
-    PosixFilesystemHost::symlink = macos_arm64_posix_symlink;
-    PosixFilesystemHost::read_link = macos_arm64_posix_read_link;
-    PosixFilesystemHost::read_dir = macos_arm64_posix_read_dir;
-    PosixFilesystemHost::remove_name = macos_arm64_posix_remove_name;
-    PosixFilesystemHost::remove_dir_name = macos_arm64_posix_remove_dir_name;
-    PosixFilesystemHost::read_metadata = macos_arm64_posix_read_metadata;
-    PosixFilesystemHost::read_file_metadata = macos_arm64_posix_read_file_metadata;
-    PosixFilesystemHost::read_symlink_metadata = macos_arm64_posix_read_symlink_metadata;
-    PosixFilesystemHost::read_metadata_at = macos_arm64_posix_read_metadata_at;
-    PosixFilesystemHost::set_len = macos_arm64_posix_set_len;
-    PosixFilesystemHost::set_file_times = macos_arm64_posix_set_file_times;
-    PosixFilesystemHost::sync = macos_arm64_posix_sync;
-    PosixFilesystemHost::sync_data = macos_arm64_posix_sync_data;
-    PosixFilesystemHost::duplicate = macos_arm64_posix_duplicate;
-    PosixFilesystemHost::lock_file = macos_arm64_posix_lock_file;
-    PosixFilesystemHost::change_owner = macos_arm64_posix_change_owner;
-    PosixFilesystemHost::change_owner_no_follow = macos_arm64_posix_change_owner_no_follow;
-    PosixFilesystemHost::change_file_owner = macos_arm64_posix_change_file_owner;
 }

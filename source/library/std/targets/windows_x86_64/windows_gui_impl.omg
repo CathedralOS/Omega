@@ -1,3 +1,7 @@
+use WindowsGuiHost;
+use WindowsMessage;
+use WindowsRectangle;
+use posix_terminated_path;
 // Stateless Win64 user32 adapters. CreateWindowExA receives the caller's
 // NUL-terminated class/title and ordinary geometry; optional owner, menu,
 // instance and creation-data pointers are NULL for these standalone windows.

@@ -1,0 +1,21 @@
+use targets::linux_arm64::LinuxArmClockWait;
+use omega::language::core::widen_u32_to_i64;
+
+public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
+// Splitting before widening preserves every u32 duration and keeps the
+// fractional field below one billion. A null remainder asks the kernel not
+// to write back interrupted time; signals may interrupt this wait, as on
+// the other POSIX Clock providers.
+public LinuxArm64Clock satisfies Clock {
+    machine sleep(milliseconds: u32)
+    reaches Clock
+    invokes LinuxArmClockWait
+    blocks
+    {
+        let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
+            seconds: widen_u32_to_i64(milliseconds / 1000),
+            nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
+        };
+        block LinuxArmClockWait::nanosleep(@request, 0);
+    }
+}

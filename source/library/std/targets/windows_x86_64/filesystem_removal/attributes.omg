@@ -1,3 +1,8 @@
+use targets::windows_x86_64::WindowsFilesystemIo;
+use targets::windows_x86_64::WindowsFilesystemMetadataIo;
+use targets::windows_x86_64::WindowsNativeFileAttributeTagInfo;
+use targets::windows_x86_64::windows_classify_metadata_disk_file;
+use targets::windows_x86_64;
 // Inspect the exact private object, not a second pathname lookup or a copied
 // enumeration hint. No duplicate is needed: the traversal owns this handle
 // exclusively until the query and its call-scoped output loan have completed.

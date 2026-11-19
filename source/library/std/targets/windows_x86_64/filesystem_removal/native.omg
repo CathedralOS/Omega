@@ -1,3 +1,5 @@
+use targets::windows_x86_64::WindowsFilesystemIoStatus;
+use targets::windows_x86_64;
 // Handle-relative, no-follow opens and object-bound removal. The synchronous
 // nonalert NtOpenFile request completes before these nested input loans and
 // output slots return. Do not replace the references with numerical pointers.

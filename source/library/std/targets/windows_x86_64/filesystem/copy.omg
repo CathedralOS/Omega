@@ -1,3 +1,12 @@
+use ErrorKind;
+use File;
+use IoResult;
+use MetadataResult;
+use OpenResult;
+use Permissions;
+use UnitResult;
+use WindowsFilesystemHost;
+use omega_language_std;
 // Copy the caller-bounded initialized prefix, not an unbounded CopyFileW.
 // Read and close the source before opening the destination; every acquired
 // object is closed on every returning path and an earlier failure wins.
