@@ -1,9 +1,6 @@
-/*
-We pair produced Terminal callback thunk bodies with their checked placements,
-portable registrar applications, and target-owned ABI recipes. We validate
-that every occurrence selects the declared callback in its caller's canonical
-Terminal program before native admission borrows executable and ABI evidence.
-*/
+//! Match a native callback placement to its registrar and body in the published
+//! Psi artifact. A matching placement identifies the private function and its
+//! inbound ABI for later admission and lowering.
 
 use calling_conventions::{
     BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
@@ -130,7 +127,7 @@ pub struct TerminalCallbackOccurrenceProposal {
     callback_thunk_identity: function_identity::MachineFunctionIdentity,
     callback_thunk_artifact: TerminalCallbackThunkArtifact,
     boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
-    entry_parameters: Vec<crate::NativeCallbackEntryParameter>,
+    entry_parameters: Vec<NativeCallbackEntryParameter>,
 }
 
 impl TerminalCallbackOccurrenceProposal {
@@ -141,7 +138,7 @@ impl TerminalCallbackOccurrenceProposal {
         callback_thunk_identity: function_identity::MachineFunctionIdentity,
         callback_thunk_artifact: TerminalCallbackThunkArtifact,
         boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
-        entry_parameters: Vec<crate::NativeCallbackEntryParameter>,
+        entry_parameters: Vec<NativeCallbackEntryParameter>,
     ) -> Self {
         Self {
             placement_index,
@@ -162,7 +159,7 @@ impl TerminalCallbackOccurrenceProposal {
         &self.boundary_entry_plan
     }
 
-    pub fn entry_parameters(&self) -> &[crate::NativeCallbackEntryParameter] {
+    pub fn entry_parameters(&self) -> &[NativeCallbackEntryParameter] {
         &self.entry_parameters
     }
 

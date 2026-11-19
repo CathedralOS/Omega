@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+provider-correspondence = { path = "verification/provider-correspondence" }
 psi-provider-selections = { path = "../psi/providers" }
 psi-entry-memory = { path = "../psi/access/entry-memory" }
 psi-target-layouts = { path = "../psi/layout/admission" }

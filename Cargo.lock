@@ -1529,6 +1529,7 @@ dependencies = [
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
+ "provider-correspondence",
  "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
@@ -2321,9 +2322,11 @@ dependencies = [
  "application-identity",
  "backend-plan",
  "boundary-applications",
+ "calling-conventions",
  "declaration-contracts",
  "diagnostics",
  "effects",
+ "function-identity",
  "graphs",
  "semantic-vocabulary",
  "symbols",
@@ -3506,6 +3509,7 @@ dependencies = [
  "operation-evidence",
  "optimization-selections",
  "provider-admission",
+ "provider-correspondence",
  "psi-authorization",
  "psi-entry-memory",
  "psi-target-layouts",

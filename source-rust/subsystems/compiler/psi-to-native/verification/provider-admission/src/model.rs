@@ -85,7 +85,8 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub native_bindings: &'request crate::RetainedNativeBindings,
     pub native_callbacks: &'request [crate::NativeCallbackArgumentProposal],
     pub installed_interrupts: &'request [crate::InstalledInterruptNativeEntryProposal],
-    pub callback_occurrences: &'request [backend_plan::TerminalCallbackOccurrenceProposal],
+    pub callback_occurrences:
+        &'request [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
     pub installed_calling: &'request [calling_conventions::BoundaryCallingApplication],
     pub terminal_authority_policy: &'request TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: &'request Option<TerminalAuthorityPermissionPolicy>,
@@ -121,7 +122,7 @@ pub struct InstalledInterruptNativeEntryProposal {
     pub operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
-    pub placement: backend_plan::NativeCallbackPlacement,
+    pub placement: provider_correspondence::callbacks::NativeCallbackPlacement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
