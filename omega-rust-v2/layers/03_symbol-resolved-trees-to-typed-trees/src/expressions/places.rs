@@ -1,4 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::storage_origin::Origin;
 use crate::type_system::domains;
 use crate::{Access, ObligationKind, Site, TypeError, TypedExpression, ValueType};
 use omega_parser::NodeKind;
@@ -241,12 +242,24 @@ impl BodyTyper<'_, '_> {
         self.version = Some(Site::at(source, node_index));
         self.cases.clear();
         self.check_destination(right_type, &value, &ty)?;
-        if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(place) {
-            if self.local_view(right_type) {
-                self.local_views.insert(*span);
+        // Assigning a binding replaces its value. Assigning one of its fields
+        // or elements adds the stored value's loans to the binding's.
+        let mut root = place;
+        while matches!(source.nodes[root].kind, NodeKind::FieldAccess | NodeKind::Index | NodeKind::Paren) {
+            root = source.nodes[root]
+                .children
+                .first()
+                .copied()
+                .ok_or_else(|| TypeError::unsupported(source, root))?;
+        }
+        if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(root) {
+            let stored = self.origin(right_type);
+            let origin = if root == place {
+                stored
             } else {
-                self.local_views.remove(span);
-            }
+                self.binding_origin(span).join(&stored.whole())
+            };
+            self.set_binding_origin(*span, origin);
         }
         Ok(())
     }
@@ -309,6 +322,8 @@ impl BodyTyper<'_, '_> {
         let mut seen = HashSet::new();
         let mut witnesses = vec![None; self.catalog.types.witnesses.get(owner).copied().unwrap_or(0)];
         let mut omission = false;
+        let order = &self.catalog.field_order[id];
+        let mut origins = vec![Origin::Caller; order.len()];
         for &init in inits {
             if source.nodes[init].kind == NodeKind::Omission {
                 omission = true;
@@ -343,7 +358,15 @@ impl BodyTyper<'_, '_> {
             let target = super::existential_records::select(&target, &value, owner, &mut witnesses)
                 .ok_or_else(|| TypeError::at(source, site, "inconsistent package witness"))?;
             self.check_destination(site, &value, &target)?;
+            let origin = match self.unit.symbol(init) {
+                Some(Symbol::Binding { span, .. }) if site == init => self.binding_origin(span),
+                _ => self.origin(site),
+            };
+            if let Some(position) = order.iter().position(|field| field == name) {
+                origins[position] = origin;
+            }
         }
+        self.set_origin(node_index, Origin::parts(origins));
         if !witnesses.is_empty() {
             let witnesses = witnesses
                 .into_iter()
@@ -388,6 +411,8 @@ impl BodyTyper<'_, '_> {
             node_index = self.unit.single_child(node_index)?;
         }
         let mut ty = self.type_expression(node_index)?;
+        let mut origin = self.origin(node_index);
+        let mut backing = self.backing(node_index);
         let mut opening = self.opening(node_index);
         let mut case = self
             .fact_subject(node_index)
@@ -402,7 +427,12 @@ impl BodyTyper<'_, '_> {
                 ValueType::Reference(Access::Write, _) if *access != Access::Write || node_index != destination => {
                     return Err(TypeError::at(source, node_index, "cannot read through a write-only reference"));
                 }
-                ValueType::Reference(_, inner) => inner.as_ref(),
+                ValueType::Reference(_, inner) => {
+                    // The field lives wherever the reference points.
+                    origin = origin.whole();
+                    backing = origin.clone();
+                    inner.as_ref()
+                }
                 other => other,
             };
             let field = self.unit.member_name(node_index)?;
@@ -412,6 +442,9 @@ impl BodyTyper<'_, '_> {
                 }
                 let address = field == "address";
                 ty = if address { ValueType::Address } else { ValueType::integer("u64").unwrap() };
+                origin = Origin::Caller;
+                self.set_origin(node_index, Origin::Caller);
+                self.set_backing(node_index, backing.clone());
                 self.output.expressions.push(TypedExpression {
                     node: source.node_id(node_index),
                     site: Site::at(source, node_index),
@@ -422,13 +455,23 @@ impl BodyTyper<'_, '_> {
             let Some((id, args)) = receiver.nominal_parts() else {
                 return Err(TypeError::at(source, node_index, format!("cannot select a field of {ty}")));
             };
+            let shape = case.take();
+            let shape = shape.as_ref().unwrap_or(id);
+            if let Some(position) = self.catalog.field_order[shape]
+                .iter()
+                .position(|name| name == field)
+            {
+                origin = origin.component(position);
+            }
             ty = self
                 .catalog
                 .fields
-                .get(case.take().as_ref().unwrap_or(id))
+                .get(shape)
                 .and_then(|fields| fields.get(field))
                 .map(|t| super::existential_records::open(&self.catalog.types.field_type(t, id, args), id, &opening))
                 .ok_or_else(|| TypeError::at(source, node_index, format!("{} has no field {}", id.path, field)))?;
+            self.set_origin(node_index, origin.clone());
+            self.set_backing(node_index, backing.clone());
             opening.fields.push(field.into());
             self.output.expressions.push(TypedExpression {
                 node: source.node_id(node_index),

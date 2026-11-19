@@ -1,8 +1,9 @@
 use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::storage_origin::{Origin, PatternSource};
 use crate::{Access, TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub(super) enum PatternCoverage {
     All,
@@ -26,12 +27,11 @@ impl BodyTyper<'_, '_> {
         let source = self.unit.file;
         let mut parts = source.nodes[node_index].children.iter().copied().peekable();
         let subject_place = parts.peek().and_then(|&i| self.fact_subject(i));
-        let subject = if parts
-            .peek()
-            .is_some_and(|&i| source.nodes[i].kind != NodeKind::Arm)
-        {
-            let expr = parts.next().unwrap();
-            Some((expr, self.type_expression(expr)?))
+        let mut subject_source = PatternSource::default();
+        let subject = if let Some(expr) = parts.next_if(|&i| source.nodes[i].kind != NodeKind::Arm) {
+            let ty = self.type_expression(expr)?;
+            subject_source = PatternSource::of(self.origin(expr));
+            Some((expr, ty))
         } else {
             None
         };
@@ -41,19 +41,22 @@ impl BodyTyper<'_, '_> {
         let mut values = Vec::new();
         let mut products = Vec::new();
         let entry_cases = self.cases.clone();
-        let entry_views = self.local_views.clone();
+        // An arm can reassign a binding declared before the dispatch. After
+        // the dispatch the binding may hold what any arm left in it.
+        let entry_origins = self.binding_origins.clone();
         let entry_version = self.version.clone();
         let mut changed = false;
-        let mut merged_views = HashSet::new();
+        let mut merged_origins: Option<HashMap<_, Origin>> = None;
+        let mut result_origin = Origin::Caller;
         for arm in parts {
             self.cases.clone_from(&entry_cases);
-            self.local_views.clone_from(&entry_views);
+            self.binding_origins.clone_from(&entry_origins);
             self.version.clone_from(&entry_version);
             let [pattern, expr] = *source.nodes[arm].children.as_slice() else {
                 return Err(TypeError::unsupported(source, arm));
             };
             let cover = if let Some((initializer, ty)) = &subject {
-                self.bind_pattern(pattern, ty, *initializer)?
+                self.bind_pattern(pattern, ty, *initializer, &subject_source)?
             } else {
                 self.guard(pattern)?
             };
@@ -78,11 +81,17 @@ impl BodyTyper<'_, '_> {
             {
                 self.check_return_borrow(body, expr, result)?;
             }
+            result_origin = result_origin.join(&self.origin(expr));
             values.push((expr, value));
             changed |= self.version != entry_version;
-            merged_views.extend(&self.local_views);
+            let merged = merged_origins.get_or_insert_default();
+            for (span, origin) in &self.binding_origins {
+                let merged = merged.entry(*span).or_insert(Origin::Caller);
+                *merged = origin.join(merged);
+            }
         }
-        self.local_views = merged_views;
+        self.binding_origins = merged_origins.unwrap_or(entry_origins);
+        self.set_origin(node_index, result_origin);
         self.version = if changed { Some(crate::Site::at(source, node_index)) } else { entry_version };
         self.cases = if changed { Default::default() } else { entry_cases };
         let subject = subject.as_ref().map(|(_, ty)| pattern_subject(ty));
@@ -202,6 +211,7 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
         subject: &ValueType,
         initializer: usize,
+        from: &PatternSource,
     ) -> Result<PatternCoverage, TypeError> {
         use NodeKind::*;
         let source = self.unit.file;
@@ -211,6 +221,7 @@ impl BodyTyper<'_, '_> {
             BindingPattern if self.unit.symbol(node_index).is_none() => {
                 self.require_declared_number(initializer, subject)?;
                 self.locals.insert(source.span(node_index), subject.clone());
+                self.bind_source(source.span(node_index), from);
                 Ok(PatternCoverage::All)
             }
             BindingPattern => {
@@ -221,7 +232,7 @@ impl BodyTyper<'_, '_> {
                     _ => PatternCoverage::Partial,
                 })
             }
-            ParenPattern => self.bind_pattern(self.unit.single_child(node_index)?, subject, initializer),
+            ParenPattern => self.bind_pattern(self.unit.single_child(node_index)?, subject, initializer, from),
             ValuePattern => {
                 let expr = self.unit.single_child(node_index)?;
                 if let Some(Symbol::Declaration(id)) = self.unit.symbol(expr)
@@ -252,7 +263,7 @@ impl BodyTyper<'_, '_> {
                     .iter()
                     .zip(types)
                     .enumerate()
-                    .map(|(i, (&p, t))| self.bind_pattern(p, t, self.component(initializer, i, types.len())))
+                    .map(|(i, (&p, t))| self.bind_pattern(p, t, self.component(initializer, i, types.len()), &from.component(subject, i)))
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 Ok(if parts.iter().all(PatternCoverage::is_total) {
                     PatternCoverage::All
@@ -299,7 +310,9 @@ impl BodyTyper<'_, '_> {
                             .get(i)
                             .ok_or_else(|| TypeError::at(source, part, "too many pattern components"))?;
                         let ty = self.catalog.types.field_type(&fields[name], owner, args);
-                        total &= self.bind_pattern(part, &ty, part)?.is_total();
+                        total &= self
+                            .bind_pattern(part, &ty, part, &from.component(subject, i))?
+                            .is_total();
                         seen.insert(name.as_str());
                         continue;
                     }
@@ -317,6 +330,11 @@ impl BodyTyper<'_, '_> {
                         total = false;
                     } else if let Some(binding) = p.words().next_back().filter(|w| w.text != "_") {
                         self.locals.insert(binding.span, ty);
+                        let position = order
+                            .iter()
+                            .position(|field| field == name)
+                            .unwrap_or(usize::MAX);
+                        self.bind_source(binding.span, &from.component(subject, position));
                     }
                 }
                 if !rest && seen.len() != fields.len() {

@@ -1,5 +1,6 @@
 use crate::evaluation::numeric_literals;
 use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::storage_origin::Origin;
 use crate::{ObligationKind, Site, TypeError, TypedExpression, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
@@ -220,6 +221,28 @@ impl BodyTyper<'_, '_> {
             Index => self.index(node_index, None)?,
             _ => return Err(TypeError::unsupported(source_file, node_index)),
         };
+        // Carry the value's storage origin from the operands it is made of.
+        // Dispatch, blocks, records, field selection and indexing record their
+        // own; every other result is a fresh value.
+        let origin = match node.kind {
+            PathExpression => match self.unit.symbol(node_index) {
+                Some(Symbol::Binding { span, .. }) => Some(self.binding_origin(span)),
+                _ => Some(Origin::Caller),
+            },
+            Paren | CallMarker | Cast | Move => Some(self.origin(node.children[0])),
+            Tuple => Some(Origin::parts(node.children.iter().map(|&c| self.origin(c)).collect())),
+            ArrayLiteral => Some(
+                node.children
+                    .iter()
+                    .fold(Origin::Caller, |all, &c| all.join(&self.origin(c).whole())),
+            ),
+            Borrow => Some(self.backing(node.children[0])),
+            Match | Body | RecordLiteral | Index => None,
+            _ => Some(Origin::Caller),
+        };
+        if let Some(origin) = origin {
+            self.set_origin(node_index, origin);
+        }
         value
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source_file, node_index, reason))?;

@@ -1,7 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
 use crate::{Access, ObligationKind, Site, TypeError, TypedExpression, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_destination(
@@ -11,55 +9,6 @@ impl BodyTyper<'_, '_> {
         expected: &ValueType,
     ) -> Result<(), TypeError> {
         self.land_value(node_index, value, expected, false)
-    }
-    pub(super) fn local_view(
-        &self,
-        node_index: usize,
-    ) -> bool {
-        let source = self.unit.file;
-        match source.nodes[node_index].kind {
-            NodeKind::Paren => self
-                .unit
-                .single_child(node_index)
-                .is_ok_and(|i| self.local_view(i)),
-            NodeKind::PathExpression => matches!(self.unit.symbol(node_index),Some(Symbol::Binding{span,..}) if self.local_views.contains(span)),
-            NodeKind::Match | NodeKind::Transition => source.nodes[node_index]
-                .children
-                .iter()
-                .filter(|&&i| source.nodes[i].kind == NodeKind::Arm)
-                .any(|&arm| {
-                    source.nodes[arm]
-                        .children
-                        .last()
-                        .is_some_and(|&result| self.local_view(result))
-                }),
-            NodeKind::Body | NodeKind::Tail => source.nodes[node_index]
-                .children
-                .last()
-                .is_some_and(|&last| self.local_view(last)),
-            NodeKind::Borrow => {
-                let Some(&place) = source.nodes[node_index].children.first() else {
-                    return false;
-                };
-                // Borrowing the carrier itself borrows invocation-local storage,
-                // even when a by-value parameter carries a reference.
-                let mut root = place;
-                while matches!(source.nodes[root].kind, NodeKind::FieldAccess | NodeKind::Index | NodeKind::Paren) {
-                    let Some(&inner) = source.nodes[root].children.first() else {
-                        return true;
-                    };
-                    root = inner;
-                    if matches!(source.nodes[root].kind, NodeKind::PathExpression)
-                        && let Some(Symbol::Binding { span, .. }) = self.unit.symbol(root)
-                        && matches!(self.locals.get(span), Some(ValueType::Reference(..) | ValueType::AtLifetime(..)))
-                    {
-                        return self.local_views.contains(span);
-                    }
-                }
-                matches!(self.unit.symbol(root), Some(Symbol::Binding { .. })) || source.nodes[root].kind == NodeKind::RecordLiteral
-            }
-            _ => false,
-        }
     }
     pub(super) fn land_value(
         &mut self,

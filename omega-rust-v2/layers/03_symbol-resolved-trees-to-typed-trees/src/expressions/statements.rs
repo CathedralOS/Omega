@@ -1,4 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::storage_origin::PatternSource;
 use crate::{ObligationKind, Site, TypeError, TypedExpression, ValueType};
 use omega_parser::NodeKind;
 
@@ -28,12 +29,16 @@ impl BodyTyper<'_, '_> {
                     });
                 }
                 Use | Data | Const | Trait | Domain | Conformance | MathLet if source.nodes[node_index].kind == Fragment => {}
-                Transition => result = Some(self.dispatch(statement, expected)?),
+                Transition => {
+                    result = Some(self.dispatch(statement, expected)?);
+                    self.set_origin(node_index, self.origin(statement));
+                }
                 Tail | ExpressionStatement | Discard => {
                     let expr = self.unit.single_child(statement)?;
                     let tail = source.nodes[statement].kind == Tail;
                     let value = self.type_expression_with_expected_type(expr, if tail { expected } else { None })?;
                     if tail {
+                        self.set_origin(node_index, self.origin(expr));
                         if let Some(ty) = expected {
                             self.check_destination(expr, &value, ty)?;
                         }
@@ -69,7 +74,7 @@ impl BodyTyper<'_, '_> {
                 .parent
                 .filter(|&p| source.nodes[p].kind == NodeKind::Machine)
         {
-            if self.local_view(expr) {
+            if self.origin(expr).is_local() {
                 return Err(TypeError::at(source, expr, "returned reference borrows invocation-local storage"));
             }
             self.record_obligation(
@@ -111,7 +116,10 @@ impl BodyTyper<'_, '_> {
             if source.nodes[node_index].words().any(|w| w.text == "mut") {
                 self.writable.insert(source.span(pattern));
             }
-            if !self.bind_pattern(pattern, &ty, annotation)?.is_total() {
+            if !self
+                .bind_pattern(pattern, &ty, annotation, &PatternSource::default())?
+                .is_total()
+            {
                 return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
             }
             return Ok(());
@@ -141,10 +149,10 @@ impl BodyTyper<'_, '_> {
         if source.nodes[node_index].words().any(|w| w.text == "mut") {
             self.writable.insert(source.span(pattern));
         }
-        if self.local_view(expr) {
-            self.local_views.insert(source.span(pattern));
-        }
-        if !self.bind_pattern(pattern, &local_type, expr)?.is_total() {
+        if !self
+            .bind_pattern(pattern, &local_type, expr, &PatternSource::of(self.origin(expr)))?
+            .is_total()
+        {
             return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
         }
         Ok(())
