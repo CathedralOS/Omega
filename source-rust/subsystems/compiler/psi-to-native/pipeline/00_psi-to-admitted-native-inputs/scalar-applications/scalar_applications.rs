@@ -212,7 +212,7 @@ impl build_scalar_evaluation::AdmittedImportRealizations for AdmittedIntrinsics 
             .operations_for(instance.program().execution_identity())
             .map_err(|reason| format!("constant evaluation intrinsic binding: {reason}"))?;
         for &(slot, operation) in operations {
-            terminal_runtime::embedding::bind_numeric_import_slot(instance, slot, operation)
+            interpreter_numeric_imports::bind_numeric_import_slot(instance, slot, operation)
                 .map_err(|reason| format!("constant evaluation intrinsic binding: {reason:?}"))?;
         }
         Ok(())

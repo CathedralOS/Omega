@@ -33,7 +33,7 @@ products = { path = "../../compilation/products" }
 build-output = { path = "../build-output" }
 package-compilation = { path = "../package-compilation" }
 provider-admission = { path = "../../psi-to-native/verification/provider-admission" }
-terminal-runtime = { path = "../../../interpreter/host" }
+interpreter-numeric-imports = { path = "../../../interpreter/numeric-imports" }
 target = { path = "../../psi-to-native/targets/target" }
 runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }

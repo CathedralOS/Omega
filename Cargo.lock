@@ -277,6 +277,7 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
+ "interpreter-numeric-imports",
  "numeric-intrinsic-admission",
  "optimization-requests",
  "package-compilation",
@@ -298,7 +299,6 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-runtime",
  "terminal-work",
  "tokens",
 ]
@@ -1377,6 +1377,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "interpreter-numeric-imports"
+version = "0.1.0"
+dependencies = [
+ "bignum",
+ "numerics",
+ "semantic-vocabulary",
+ "target-vocabulary",
+ "terminal-interpreter",
+ "terminal-psi",
+]
+
+[[package]]
 name = "io-extras"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1874,6 +1886,7 @@ name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
  "build-scalar-evaluation",
+ "interpreter-numeric-imports",
  "numeric-intrinsic-admission",
  "psi-provider-selections",
  "psi-scalar-applications",
@@ -1886,7 +1899,6 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-runtime",
 ]
 
 [[package]]
@@ -3811,14 +3823,13 @@ version = "0.1.0"
 dependencies = [
  "access-vocabulary",
  "application-identity",
- "bignum",
  "calling-conventions",
  "extent-contracts",
  "extents",
+ "interpreter-numeric-imports",
  "language-core",
  "native-provider-runtime",
  "native-provider-sponsor",
- "numerics",
  "orchestration",
  "platform-custody",
  "project-build",

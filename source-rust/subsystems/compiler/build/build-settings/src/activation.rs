@@ -432,7 +432,7 @@ impl TerminalBuildHost {
             })
             .map_err(describe)?;
         for &(slot, operation) in operations {
-            terminal_runtime::embedding::bind_numeric_import_slot(&mut instance, slot, operation)
+            interpreter_numeric_imports::bind_numeric_import_slot(&mut instance, slot, operation)
                 .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
         }
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
