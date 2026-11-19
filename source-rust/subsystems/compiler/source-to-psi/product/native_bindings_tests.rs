@@ -99,7 +99,11 @@ fn typed_requirement_at(
             DependencyScope::Build,
         ),
         (
-            "core/raw.omg",
+            match stratum {
+                SourceResolutionStratum::Base => "core/raw.omg",
+                SourceResolutionStratum::CurrentActivationExtension
+                | SourceResolutionStratum::DependencyActivationExtension => "core/.omega/generated/raw.omg",
+            },
             requirement,
             "core",
             owner,
