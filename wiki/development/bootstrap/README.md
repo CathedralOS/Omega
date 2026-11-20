@@ -217,7 +217,7 @@ returns `rejected 18 58004`. A dash means this comparison has no result.
 | Gamma | Delta | Epsilon interpreter | Epsilon to Alpha | Epsilon to Linux |
 | --- | --- | --- | --- | --- |
 | Interpreter | Alpha | Both | — | — |
-| Interpreter | Linux | Both | — | — |
+| Interpreter | Linux | Both | Refusal | Refusal |
 | Alpha | Alpha | Both | Refusal | Refusal |
 | Alpha | Linux | Both | Refusal | Refusal |
 | Linux | Alpha | Both | Refusal | Refusal |
@@ -314,6 +314,7 @@ sizes. [Five stores, controls and product manifest](https://github.com/Cathedral
 | Run on the seed-built toolchain | Observed result |
 | --- | --- |
 | Same compiler library with the public OCREQ entry, Alpha and Linux Epsilon evaluators | Both compiled `machine main() -> u8 { 42 }` to the same 22-byte tape. It exited 42 on Alpha. Linux also reported a corrupted OCREQ identity at byte 3. |
+| Compile the complete 899,660-byte Epsilon constructor to Delta | The construction-profile Linux compiler emitted 18,248,100 bytes in 107.71 CPU seconds. Module SHA-256 `cebf0bfe41ec3c29f1a40cb3fcf9ae126086e46ecd20cca593f5a2222e4e9901`. Attaching the storage runtime produced 18,344,798 bytes of Delta. |
 | Construction entry with a source view passed as its entry-unit number | The Linux Epsilon compiler returned `rejected 18 898277`. Its evaluator independently reported error 18 at the same call. |
 | Entire 305-unit product through the Linux Epsilon evaluator | The 4,894,583-byte sealed request exceeded the conformance input limit and returned host status 253. The construction profile accepted its extent. A same-size damaged header returned a 40-byte `EEOUT` refusal. The valid request reached the 1.5 GiB process guard with empty output. |
 
@@ -331,6 +332,14 @@ source-model run returned `00030000007c700600` after 494.61 CPU seconds.
 Status 3 is the constructor’s `ResourceFailure`, at source byte 422,012
 in the call to `payload_field`, `expressions.omg:546:72`. The nine-byte
 receipt includes the source coordinate and carries no tape.
+
+The separate full run on landed `950caad840a` returned the **same nine
+bytes**, including the same coordinate, in 443.99 CPU seconds with peak
+RSS of 1,018,824 KiB. The later five-store correction changes unit 19.
+The measured stop on unit 17 precedes it in the input. With the earlier
+units omitted, an eight-unit slice reached the second `as` in a
+sequential cast at `operators.omg:195:90`. That reduced-input result
+identifies a later language limitation. [Whole-input stopping point](https://github.com/CathedralOS/Omega/blob/950caad840a/source/subsystems/compiler/source_to_psi/pipeline/symbol_resolved_trees_to_typed_trees/expressions.omg#L546)
 
 <details>
 <summary>Reproduce the source-model inputs</summary>
