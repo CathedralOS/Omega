@@ -72,12 +72,12 @@ it does not make the package a module of its parent or producing stage.
 
 ### Encoding, resolved layout, and emitted code
 
-`machine-code/` holds several distinct program forms. Follow each one's root
-type; the folder is not one IR:
+Follow the root type for each program form.
 
 | Program form | Root and operation |
 | --- | --- |
-| Framed machine program | [`FramedMachineProgram`](machine-code/src/layout.rs): current physical instructions and function contracts with concrete frame coordinates and protocol. [Frame planning](../pipeline/09_post-allocation-machine-to-framed-machine/src/lib.rs) selects the frame and [installation binding](../pipeline/10_framed-machine-to-bound-framed-machine/) binds the installed functions before encoding. |
+| Planned framed machine | [Stage 09](../pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs) prepares the [function body](selected-instructions/physical-recipes/src/frame_protocol.rs) with its checked frame layout, private references and selected import recipes. |
+| Bound framed machine | [Stage 10](../pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs) checks the installation resources and issues the [bound function body](bound-framed-machine/bound_framed_machine.rs) and [bound entry recipes](bound-framed-machine/entries.rs). [Stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs) consumes them. The body keeps its publication opaque during encoding. |
 | Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
 | Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [stage 13](../pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
 | Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Stage 14](../pipeline/14_resolved-layout-to-placed-functions/src/function_realization.rs) produces the placed functions. [Stage 15](../pipeline/15_placed-functions-to-objects/) constructs their objects, which stage 16 consumes for image emission. The [body driver](../driver/compile_body.rs) carries stage 04’s [emission facts](../pipeline/04_abstract-operations-to-target-operations/src/emission_facts.rs) with the lowered program. Callable reach and the pre-physical root come from the current form's execution contracts. |

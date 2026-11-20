@@ -1,0 +1,14 @@
+[package]
+name = "bound-framed-machine"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "bound_framed_machine.rs"
+
+[dependencies]
+installation-binding-issuer = { path = "issuer" }
+physical-recipes = { path = "../selected-instructions/physical-recipes" }
+function-identity = { path = "../function-identity" }
+machine-code = { path = "../machine-code" }

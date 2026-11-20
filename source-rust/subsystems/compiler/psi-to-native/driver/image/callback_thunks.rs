@@ -55,7 +55,7 @@ pub(super) struct PrivateBody<Callable, Entry> {
 
 pub(super) struct BoundPrivateBody {
     callable: super::callable_objects::BoundCallable,
-    entry: installation_binding::entries::BoundPrivateEntry,
+    entry: bound_framed_machine::entries::BoundPrivateEntry<entry_planning::PhysicalRecipeOrigin>,
 }
 impl PlannedPrivateBody {
     fn measured_handler(

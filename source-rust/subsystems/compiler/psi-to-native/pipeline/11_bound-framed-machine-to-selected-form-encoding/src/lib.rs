@@ -27,10 +27,23 @@ use std::sync::Arc;
 ///     let _ = native_encoding::encode_bound_function_body(body);
 /// }
 /// ```
+/// Only the binding stage imports the issuer.
+/// ```compile_fail,E0432
+/// use installation_binding_issuer::BINDER;
+/// ```
+/// The encoder cannot issue a body from its own recipes and a set of requirements.
+/// ```compile_fail,E0308
+/// fn forge<F, I, A, P>(
+///     plan: physical_recipes::frame_protocol::PlannedFunctionBody<F, I>,
+///     installations: std::sync::Arc<A>, requirements: machine_code::layout::BoundEncodingRequirements<P>,
+/// ) {
+///     let _ = bound_framed_machine::BoundFunctionBody::from_binding((), plan, installations, requirements);
+/// }
+/// ```
 /// An independent flag cannot change which originals this body retains.
 ///
 /// ```compile_fail,E0061
-/// fn change_request(body: installation_binding::BoundFunctionBody) {
+/// fn change_request<F, I, A, P>(body: bound_framed_machine::BoundFunctionBody<F, I, A, P>) {
 ///     let _ = native_encoding::encode_bound_function_body(body, true);
 /// }
 /// ```
@@ -38,13 +51,18 @@ use std::sync::Arc;
 /// The encoder can carry any publication issued by binding. Its implementation
 /// cannot ask for an earlier target plan.
 /// ```compile_fail,E0616
-/// fn target_graph(body: installation_binding::BoundFunctionBody) {
+/// fn target_graph<F, I, A, P>(body: bound_framed_machine::BoundFunctionBody<F, I, A, P>) {
 ///     let (_, binding) = body.into_encoding_parts();
 ///     let _ = binding.publication.original_for_audit();
 /// }
 /// ```
-pub fn encode_bound_function_body<Publication>(
-    body: installation_binding::BoundFunctionBody<Publication>,
+pub fn encode_bound_function_body<FrameOrigin, ImportOrigin, Installations, Publication>(
+    body: bound_framed_machine::BoundFunctionBody<
+        FrameOrigin,
+        ImportOrigin,
+        Installations,
+        Publication,
+    >,
 ) -> Result<
     StagedOptimizedSelectedFormEncoding<machine_code::layout::EncodedBodyPublication<Publication>>,
     FunctionBodyEncodingError,

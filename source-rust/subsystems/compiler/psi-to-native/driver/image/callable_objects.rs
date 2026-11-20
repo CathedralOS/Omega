@@ -38,7 +38,7 @@ pub(super) type CallablePhysicalProduct = CallableProduct<
 >;
 pub(super) type BoundCallable = CallableProduct<
     compile_body::BoundPhysicalBody,
-    installation_binding::entries::BoundForeignAdapter,
+    bound_framed_machine::entries::BoundForeignAdapter<entry_planning::PhysicalRecipeOrigin>,
 >;
 pub(super) type EncodedCallable =
     CallableProduct<compile_body::EncodedBody, crate::driver::runtime::foreign_adapters::EncodedForeignAdapter>;

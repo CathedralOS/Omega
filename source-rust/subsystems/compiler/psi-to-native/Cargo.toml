@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = ["artifact-lowering/test-support"]
 
 [dependencies]
+bound-framed-machine = { path = "representations/bound-framed-machine" }
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }

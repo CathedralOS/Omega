@@ -26,7 +26,7 @@ pub(crate) fn compile(
 }
 
 pub(crate) fn encode(
-    entry: installation_binding::entries::BoundForeignAdapter,
+    entry: bound_framed_machine::entries::BoundForeignAdapter<entry_planning::PhysicalRecipeOrigin>,
 ) -> Result<EncodedForeignAdapter, String> {
     native_encoding::native_foreign_bridge::encode_foreign_adapter(entry)
         .map_err(|reason| format!("foreign runtime adapter physical transport: {reason:?}"))

@@ -23,8 +23,8 @@ impl CallableEntryTransport {
     }
 }
 
-pub fn encode_callable_entry_transport(
-    plan: installation_binding::entries::BoundCallableEntry,
+pub fn encode_callable_entry_transport<Origin>(
+    plan: bound_framed_machine::entries::BoundCallableEntry<Origin>,
 ) -> Result<CallableEntryTransport, NativeEntryBridgeError> {
     let (context, bridge) = plan.into_parts();
     let bridge = bridge
@@ -42,8 +42,8 @@ impl EncodedPrivateEntry {
         (self.identity, self.transport)
     }
 }
-pub fn encode_private_function_entry(
-    plan: installation_binding::entries::BoundPrivateEntry,
+pub fn encode_private_function_entry<Origin>(
+    plan: bound_framed_machine::entries::BoundPrivateEntry<Origin>,
 ) -> Result<EncodedPrivateEntry, NativeEntryBridgeError> {
     let (identity, transport) = plan.into_parts();
     Ok(EncodedPrivateEntry {

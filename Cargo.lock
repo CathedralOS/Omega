@@ -215,6 +215,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bound-framed-machine"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "installation-binding-issuer",
+ "machine-code",
+ "physical-recipes",
+]
+
+[[package]]
 name = "bound-installations"
 version = "0.1.0"
 dependencies = [
@@ -1120,9 +1130,11 @@ dependencies = [
 name = "installation-binding"
 version = "0.1.0"
 dependencies = [
+ "bound-framed-machine",
  "entry-planning",
  "function-identity",
  "installation-admission",
+ "installation-binding-issuer",
  "installation-conditions",
  "machine-code",
  "physical-program",
@@ -1134,6 +1146,10 @@ dependencies = [
  "target",
  "terminal-psi",
 ]
+
+[[package]]
+name = "installation-binding-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "installation-conditions"
@@ -1517,6 +1533,7 @@ dependencies = [
  "admitted-native-inputs-to-target-bound-program",
  "arena",
  "behavior-exclusion-requests",
+ "bound-framed-machine",
  "bound-installations",
  "boundary-applications",
  "bounded-process",
@@ -1590,13 +1607,13 @@ name = "native-encoding"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "bound-framed-machine",
  "calling-conventions",
  "diagnostics",
  "encoding-admission",
  "entry-planning",
  "frame-admission",
  "function-identity",
- "installation-binding",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
