@@ -61,6 +61,9 @@ impl DeferredProductSources {
                 source_provenance::DependencyScope::Product,
             );
         }
+        if let Some(packages) = package_inputs {
+            seed_described_entries(&mut imports, packages, bindings);
+        }
         for root in roots.iter() {
             imports.seed(root.clone(), source_provenance::DependencyScope::Product);
         }
@@ -77,6 +80,43 @@ impl DeferredProductSources {
         checkpoint.source_storage = Arc::new(storage);
         checkpoint.package_imports = package_imports.into();
         checkpoint.assemble(package_inputs, timings, catalogue)
+    }
+}
+
+/// Reopen a described entry from its own captured Product package. The final
+/// binding rejoins the retained declaration by occurrence after normal admission.
+fn seed_described_entries(
+    imports: &mut ImportQueue,
+    packages: &PackageCompilationInputs,
+    bindings: &[source_compiler::declaration_selection::ProductEntryBinding],
+) {
+    use source_compiler::declaration_selection::RootBindingSelection;
+    let mut closure = None;
+    for binding in bindings {
+        let RootBindingSelection::Described(entry) = &binding.implementation else {
+            continue;
+        };
+        let source = entry.declaration.source();
+        let Some(owner) = source.package_identity else {
+            continue;
+        };
+        let capture = packages.source_filesystem();
+        if source.origin == source_admission::SourceOrigin::User
+            && source.resolution_stratum == source_admission::SourceResolutionStratum::Base
+            && source.dependency_scope == source_provenance::DependencyScope::Product
+            && packages.package_root(owner) == Some(source.package_root.as_path())
+            && packages.package_for_source(&source.path) == Some(owner)
+            && closure
+                .get_or_insert_with(|| packages.dependency_closure())
+                .packages()
+                .contains(&owner)
+            && capture.has_captured_namespace(&source.package_root)
+            && capture
+                .read_to_string(&source.path)
+                .is_ok_and(|bytes| bytes == source.source)
+        {
+            imports.seed(source.path.clone(), source.dependency_scope);
+        }
     }
 }
 

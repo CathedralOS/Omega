@@ -82,7 +82,7 @@ fn a_resumed_build_calls_its_kit_and_queries_the_products_kit() {
         )
         .unwrap();
     }
-    std::fs::write(root.join("main.omg"), "use kit;\nmachine main() {}").unwrap();
+    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     let build = r#"use kit;
 machine build(builder: @mut Build) suspends {
     Build::application(builder, "dual_alias");
@@ -124,4 +124,15 @@ machine entry(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
             && report.contains("interp exit: 0"),
         "{report}"
     );
+
+    std::fs::write(root.join("runtime/main.omg"), "machine launch() {}").unwrap();
+    let refused = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["--check", "build.omg"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    let diagnostic = String::from_utf8_lossy(&refused.stderr);
+    assert!(!refused.status.success() && diagnostic.contains(
+        "product entry `kit::launch` is not a product declaration visible from"
+    ), "{diagnostic}");
 }
