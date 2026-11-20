@@ -122,6 +122,37 @@ The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.
 
+## Staging the 304-unit construction input
+
+The constructor now copies eight bytes from the console in one machine
+state. The previous loop visited three states for every source byte.
+The declared four-mebibyte array bounds every write. Console EOF is stable,
+so a missing byte anywhere in a group makes its last read return `-1`.
+The constructor discards that group and exits 3 with no payload. It checks
+the remaining zero to seven bytes individually and still requires EOF
+after the declared arena. [Epsilon Console](../../../bootstrap/epsilon/LANGUAGE.md)
+
+For a matched comparison, freeze `product.bin` from `36cb9c98760` before
+rebuilding the constructor. It contains 3,950,880 bytes for seven packages,
+seven dependencies and 304 units. Its SHA-256 is
+`c570004e5315aa9a838b9d3070fff5cd32ddd513391a3d7cf11481e6dcec1ec0`.
+Taking its first 589,824 bytes keeps all 3,872 bytes of header and rows.
+The next 585,952 bytes end inside the declared 3,947,008-byte arena, so
+guest exit 3 on this input measures staging without invoking the Omega parser.
+
+On the first 16,384 bytes of the frozen product, both native executables
+returned `0003000000` with process status 0. Peak RSS dropped from
+320,912 KiB to 231,324 KiB, and CPU time from 9.13 to 4.39 seconds. The
+original executable reached the 10 GiB RSS guard on the 589,824-byte
+prefix after 259.44 CPU seconds, with empty stdout and stderr. These runs
+use the same seed-built Linux Epsilon, Delta and Gamma compilers. Only the
+constructor source differs between the two executables.
+
+| Linux constructor | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Original | 58,603,133 | `ccc6eb867203f3250e9025e8f616d07e8b2253582b34499201ffe9e4ce4cb21b` |
+| Eight-byte groups | 58,746,073 | `13dcd00473a0e54aefdaeb0bce4c1fb40d97090cd3393e7c5ce3c7a1e51d45a1` |
+
 ## Named payload bindings
 
 The source-built Linux Epsilon compiler compiled the updated Omega compiler
