@@ -1189,9 +1189,7 @@ ensures
 }
 
 public machine narrow_i32_to_u8_wrapping(value: i32) -> u8 {
-    let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 0xFF) as u8;
-    narrowed
+    (value & 0xFF) as u8
 }
 
 public machine narrow_i32_to_u8_saturating(value: i32) -> u8 {
