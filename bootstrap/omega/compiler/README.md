@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current thirteen-member
-manifest materializes 25,838 lines / 987,393 bytes with SHA-256
-`c13f0a5e478b67c50518ea53e61422482921d3f947cb5830d3b4d3c6dd96ad59`.
-The manifest itself is 2,211 bytes, SHA-256
-`1ecb1c50a4fc2d03c48272c2c4f6eb75d89c0b55af263a0cd750cdf5f48db49d`;
+manifest materializes 26,190 lines / 1,002,709 bytes with SHA-256
+`3c1203fbe401537eec6c7155ed05bb04b19bdbaa97541b744c3c52077bb30a28`.
+The manifest itself is 2,380 bytes, SHA-256
+`fc804afa656a99342708422589c1c120ea876b05d4f45b23295b19df7ffd793c`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -353,9 +353,19 @@ shell's `Trapping` domain preserves element types
 and closes its empty restoration debt. Reads use shared views and writes use
 mutable views; other reference attenuation remains unsupported. A bare `u64`
 array local without an initializer uses zero-initialized storage and the same
-checked selectors and element stride as a record field. Other domains,
-range views and structural
-equivalence of separately spelled array value types remain unsupported.
+checked selectors and element stride as a record field.
+
+A machine taking `@[u8]` can read the live length of a shared byte slice.
+A literal index needs a proved lower bound on that length. Callers can borrow
+a whole packed byte array or a half-open subrange with literal endpoints,
+including an empty range. The descriptor carries the original address and
+the live length in two words. The caller retains the shared loan through
+argument evaluation. The storage test forwards the final two bytes of the
+construction input and reads the last byte through a nested call.
+[Shared byte slices](shared_byte_slices.epsilon)
+
+Mutable slices, dynamic range endpoints, other domains and structural
+equivalence of separately spelled array value types remain outside this profile.
 
 The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements in a reduced `SourceSet`. It checks a copy taken before a write,
@@ -363,8 +373,9 @@ a keyword-spelled field and the field beside the last element. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
-machine has that name. Its next coverage refusal points to the borrowed byte
-slice parameter `spelling` at file byte 17,105. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
+Its entry checker next encounters the parameter-to-parameter requirement
+`index < spelling.len` in the nested reader. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement

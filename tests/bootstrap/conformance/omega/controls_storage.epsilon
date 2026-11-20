@@ -155,6 +155,17 @@ machine Main::main(&mut self) {
         self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{label();42} machine label(){}}", 1, 105);
         self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{let value:u8=label();value} machine label()->u8{7}}", 1, 106);
         self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{let label:u8=7;label} machine label()->u8{7}}", 1, 107);
+        // A borrowed slice retains its live extent and its original backing.
+        self.refusal("data B{bytes:[u8;3];} machine size(b:@[u8])->u64{b.len} machine main()->u8{let a:B;let n:u64=size(@a.bytes);42}", 1, 108);
+        self.refusal("data B{bytes:[u8;3];} machine size(b:@[u8])->u64{b.len} machine main()->u8{let a:B;let n:u64=size(@a.bytes[1..4]);42}", 1, 109);
+        self.refusal("data B{bytes:[u8;3];} machine size(b:@[u8])->u64{b.len} machine main()->u8{let a:B;let n:u64=size(@a.bytes[2..1]);42}", 1, 110);
+        self.refusal("data B{bytes:[u8;3];} machine first(b:@[u8])->u8 requires b.len>0 {b[0]} machine main()->u8{let a:B;first(@a.bytes[1..1])}", 2, 111);
+        self.refusal("data B{bytes:[u8;3];} machine read(b:@[u8])->u8 {b[0]} machine main()->u8{let a:B;read(@a.bytes[..])}", 2, 112);
+        self.refusal("machine write(b:@[u8]){b.len=0;} machine main()->u8{42}", 1, 113);
+        self.refusal("machine write(b:@[u8]){b[0]=9;} machine main()->u8{42}", 1, 114);
+        self.refusal("data B {a:[u8;3];} machine use_both(s:@[u8],b:@mut B){} machine main()->u8{let mut b:B;use_both(@b.a[..],@mut b);42}", 2, 115);
+        self.refusal("data B {a:[u8;3];} machine use_both(b:@mut B,s:@[u8]){} machine main()->u8{let mut b:B;use_both(@mut b,@b.a[..]);42}", 1, 116);
+        self.refusal("data B{bytes:[u8;3];} machine size(b:@[u8])->u64{b.len} machine main()->u8{let a:B;let n:u64=size(@a.bytes[4294967296u64..]);42}", 2, 117);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }
