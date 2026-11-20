@@ -323,16 +323,6 @@ impl TerminalBuildRequestAdapter {
                     "Build::prepare_dependency requires a registration this activation issued; an authored `DependencyRegistration {}` names none",
                 )
             })?;
-        // scoped_execution.md, "Dependency declarations and binding":
-        // "`Build::build_dependency` registers a dependency for interpreted
-        // Build code", and preparation "admits and prepares that dependency
-        // for the requested execution profile". What preparing a Product
-        // registration would make ready for a Build is not built.
-        if registrations.issued[position].purpose != DependencyPurpose::Build {
-            return Err(refuse(
-                "not supported yet: Build::prepare_dependency on a registration made with Build::dependency; only a Build::build_dependency registration is prepared for Build code",
-            ));
-        }
         Ok(position)
     }
 }
