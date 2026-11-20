@@ -25,7 +25,7 @@ checks the original inputs retained for that emission before releasing the image
 
 ## Where code belongs
 
-Each compiler keeps its driver files at its root and its numbered transformations in `pipeline/`. Put the data passed between its stages in the corresponding [source representations](subsystems/compiler/source-to-psi/representations) or [native representations](subsystems/compiler/psi-to-native/representations). Shared consumers can use the representation or a verifier for its evidence directly. For example, Build can request [admitted scalar values](subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications) without taking on image production.
+The [source driver](subsystems/compiler/source-to-psi/driver.rs) and [native driver](subsystems/compiler/psi-to-native/driver/mod.rs) coordinate their numbered transformations in `pipeline/`. Put the data passed between its stages in the corresponding [source representations](subsystems/compiler/source-to-psi/representations) or [native representations](subsystems/compiler/psi-to-native/representations). Shared consumers can use the representation or a verifier for its evidence directly. For example, Build can request [admitted scalar values](subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications) without taking on image production.
 
 [Compiler foundations](subsystems/compiler/foundation) hold compiler identities and vocabulary used across these boundaries. The [Rust foundation](foundation) provides cross-subsystem facilities, including arenas, exact arithmetic, record storage, byte encoding and [host filesystem operations](foundation/filesystem/src/lib.rs).
 

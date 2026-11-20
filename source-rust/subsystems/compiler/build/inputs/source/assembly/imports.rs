@@ -18,7 +18,7 @@ pub(super) fn load_imports(
     package_inputs: Option<&PackageCompilationInputs>,
     phase: PackageImportPhase,
     timings: &mut CompileTimings,
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     load_source_frontiers(
         source_storage,
@@ -47,7 +47,7 @@ pub(super) fn load_source_frontiers(
     imports: &mut ImportQueue,
     routing: SourceRouting<'_>,
     timings: &mut CompileTimings,
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
     while imports.has_pending() {

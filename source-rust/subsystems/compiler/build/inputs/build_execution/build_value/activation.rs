@@ -21,10 +21,10 @@
 //! this shape is checked here; the checker judges the program against it.
 
 use diagnostics::Diagnostic;
-use source_compiler::source_state::TypedTrees;
-use source_compiler::source_state::data::DataMember;
-use source_compiler::source_state::domain::DomainIssuance;
-use source_compiler::source_state::types::{
+use source_compiler::representations::source_state::TypedTrees;
+use source_compiler::representations::source_state::data::DataMember;
+use source_compiler::representations::source_state::domain::DomainIssuance;
+use source_compiler::representations::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use symbols::SymbolHandle;
@@ -154,7 +154,7 @@ public data Build<'storage> {
     /// `build` typed beside `prelude`, which is registered the way the
     /// toolchain registers its Build prelude.
     fn typed(build: &str, prelude: Option<&str>) -> TypedTrees {
-        let mut sources = source_compiler::source_inputs::SourceMap::default();
+        let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
         let mut loaded = Vec::new();
         let files = [
             Some((
@@ -193,8 +193,8 @@ public data Build<'storage> {
                 scope: file.dependency_scope,
             });
         }
-        let lexed = source_compiler::lexing::lex(loaded.into_iter().collect()).unwrap();
-        let (pages, _) = source_compiler::parsing::parse(&lexed, Default::default())
+        let lexed = source_compiler::test_support::lexing::lex(loaded.into_iter().collect()).unwrap();
+        let (pages, _) = source_compiler::test_support::parsing::parse(&lexed, Default::default())
             .unwrap()
             .into_parts();
         let mut pages = pages.into_iter();
@@ -202,10 +202,10 @@ public data Build<'storage> {
         for page in pages {
             syntax.adopt_page(page);
         }
-        let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
+        let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
-        let resolved = source_compiler::resolution::resolve(request).unwrap();
-        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
+        let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+        source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap()
     }
 
     fn refusal(typed: &TypedTrees) -> String {

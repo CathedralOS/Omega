@@ -1005,7 +1005,7 @@ machine entry() -> u32 crashes none { 3 }
             source_span: program.symbols.symbol_source_span(requirement).unwrap(),
             application: Some(Arc::new(graph)),
         };
-        let application = crate::preparation::prepare_retained_product_application(
+        let application = typed_trees::product_operand::formation::prepare_retained_product_application(
             &mut program,
             &operand,
             ProductOperandRole::Requirement,

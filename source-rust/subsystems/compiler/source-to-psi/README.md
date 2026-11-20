@@ -1,19 +1,19 @@
 # Source to Psi
 
-Start with [source_to_psi.rs](source_to_psi.rs). It takes the selected source files for one stage and returns a published Psi program.
+Start at [source_to_psi.rs](source_to_psi.rs) for the supported requests. A check stops at the lowered-form verdict. Compiling, inspecting a machine and selecting a deployment continue to publication. [driver.rs](driver.rs) runs those steps and assembles the result for a deployment.
 
-| Steps | What happens |
-| --- | --- |
-| 00-01 | [Lex and parse](parse_files.rs) each file while its tokens are available. |
-| 02-03 | [Resolve names and type the program](source_continuation.rs). |
-| 04 | [Prepare the typed trees](pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) after the driver [settles the source inputs](source_preparation.rs). |
-| 05-06 | [Lower the prepared trees](pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) and [check the lowered program](source_judgment.rs). |
-| 07 | [Publish the checked program as Psi](pipeline/07_checked-program-to-psi/src/source_publication.rs). |
+| Steps | Driver responsibility | Numbered transformation |
+| --- | --- | --- |
+| 00–01 | [Parse a source batch](driver/parse_source_batch.rs) in file order, reusing an identical retained parse when available. | [Lex](pipeline/00_source-files-to-tokens) and [parse](pipeline/01_tokens-to-syntax-trees) one file. |
+| 02–03 | [Resolve and type](driver/resolve_and_type.rs) the selected declarations and bodies. A Build can query declarations and generated files can extend the same source identities. | [Name resolution](pipeline/02_syntax-trees-to-symbol-resolved-trees) and [typing](pipeline/03_symbol-resolved-trees-to-typed-trees). |
+| 04 | [Settle demanded source inputs](driver/prepare_typed_source.rs), including constant values and target layouts. | [Prepare typed trees](pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) issues the snapshot accepted by lowering. |
+| 05–06 | [Judge the lowered source](driver/judge_lowered_source.rs) with its exact declarations and supplies. | [Lower](pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs), then [check that lowering](pipeline/06_lowered-program-to-checked-program/src/publication.rs). |
+| 07 | Publish the accepted Product or Build invocation. | [Publication](pipeline/07_checked-program-to-psi/src/source_publication.rs) uses the checked program. |
 
-The [Product driver](product.rs) gathers target declarations and settles providers before publication. The [Build invocation driver](build_invocation.rs) retains its source consent through judgment and publication. [Compile-time calls](compile_time/calls.rs) materialize their arguments and request judgment on the selected call. Each reaches the same [source judgment](source_judgment.rs).
+Three operations can require more source work during one request.
 
-During source preparation, a constant initializer or a compile-time call can require a smaller checked invocation. Source selects the exact declaration and arguments, passes the checked invocation to the Build interpreter and returns its value and accounting to the Product or Build stage waiting for it. [Constant initializers and arguments](compile_time/constants.rs) · [Call preparation](compile_time/calls.rs) · [Invocation and accounting](compile_time/calls/execution.rs)
+- A [Build](driver/compile_build.rs) can pause at an authored [dependency wait](driver/compile_build/waits/mod.rs). The next interval receives the live values at that source occurrence and the declarations the Build has since acquired.
+- A [Product](driver/compile_product.rs) can discover a provider that needs another body judgment or a layout on a particular target. Its worklist closes when every chosen provider is present in the checked program.
+- A [compile-time invocation](driver/compile_time_invocations.rs) can supply a value required for preparation. Materialized calls, constant arguments and array extents use one [typed caller](driver/compile_time_invocations/typed_invocation.rs). The interpreter receives a checked invocation and returns its value and [evaluation record](representations/evaluation-receipts/accounting.rs).
 
-For a native request, the resulting Psi program stays in memory. Stage 07 supplies the completed Build bindings and checked provider demand for that manifest and deployment. A portable publication exposes the same checked artifact to the `.psi` writer. [Source publication](source_to_psi.rs) · [Target provider handoff](representations/published-target-providers/publication.rs) · [Shared logical provider selection](../psi-execution-inputs/providers/logical_reach.rs) · [Psi encoding](../psi-artifact/codec/)
-
-The [numbered pipeline](pipeline/) owns the transformations. The [representations](representations/) describe the data passed between them. Stage 03 substitutes type and constant arguments into generic data members. Stage 04 specialization and compile-time evaluation call the same operation when they learn an argument’s value. The typed trees retain the resulting member types. [Generic data member substitution](pipeline/03_symbol-resolved-trees-to-typed-trees/data_applications.rs)
+The [representations](representations/) own source data shared across stages, including [substitution into generic data members](representations/typed-trees/type_records/data_applications.rs). Published Psi goes to the [artifact writer](../psi-artifact/codec/) or stays in memory for native compilation with the [provider choices for its deployment](representations/published-target-providers/publication.rs).

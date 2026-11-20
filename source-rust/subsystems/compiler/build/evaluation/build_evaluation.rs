@@ -39,17 +39,16 @@ use package_compilation::build_execution::{RestrictedBuildRequest, select_build_
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
-use source_compiler::source_state::TypedTrees;
+use source_compiler::TypedBuildInterval;
 use std::path::Path;
 use std::sync::Arc;
 
 pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
     pub root_path: &'request Path,
-    pub typed: &'request TypedTrees,
-    pub stage: &'request source_compiler::BuildStage,
+    pub interval: &'request TypedBuildInterval,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
-    pub sources: &'request source_compiler::source_inputs::SourceMap,
+    pub sources: &'request source_compiler::representations::source_inputs::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
     pub generated_source_custody:
@@ -65,8 +64,7 @@ pub struct BuildStageRequest<'request> {
     /// Capture and source map rejoined by the preceding staged Build.
     pub source_acquisition:
         Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
-    pub typed: &'request source_compiler::source_state::TypedTrees,
-    pub stage: &'request source_compiler::BuildStage,
+    pub interval: &'request TypedBuildInterval,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
@@ -80,7 +78,7 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     constants: build_evaluation_result::BuildConstants,
-    source_completion_accounting: source_compiler::compile_time::SourceCompletionAccounting,
+    source_completion_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,
 }
@@ -109,12 +107,13 @@ impl PreparedBuildEvaluation {
     ) -> Result<(), CompileFailure> {
         let BuildStageRequest {
             source_acquisition,
-            typed,
-            stage,
+            interval,
             build_source,
             package_inputs,
             anonymous_source,
         } = request;
+        let typed = interval.program.as_ref();
+        let stage = &interval.plan;
         let acquisition = self
             .execution
             .unbound_acquisition
@@ -182,7 +181,7 @@ impl PreparedBuildEvaluation {
 
     pub fn source_completion_accounting(
         &self,
-    ) -> &source_compiler::compile_time::SourceCompletionAccounting {
+    ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 
@@ -305,8 +304,7 @@ pub fn prepare_build_evaluation(
     let BuildEvaluationRequest {
         execution_purpose,
         root_path,
-        typed,
-        stage,
+        interval,
         build_source,
         sources,
         package_inputs,
@@ -315,6 +313,8 @@ pub fn prepare_build_evaluation(
         execution,
         artifact_only,
     } = request;
+    let typed = interval.program.as_ref();
+    let stage = &interval.plan;
     let BuildExecutionInputs {
         profile: execution_profile,
         directory: build_directory,

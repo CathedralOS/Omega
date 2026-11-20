@@ -7,7 +7,7 @@
 
 use super::super::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
-use source_compiler::source_state::TypedTrees;
+use source_compiler::representations::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OptimizationBuildVocabulary {
@@ -43,7 +43,7 @@ pub(super) fn classify(typed: &TypedTrees) -> Result<OptimizationBuildVocabulary
         .data_members(build)
         .iter()
         .filter_map(|member| match member {
-            source_compiler::source_state::data::DataMember::Field(field)
+            source_compiler::representations::source_state::data::DataMember::Field(field)
                 if field.name.as_str() == "optimizations" =>
             {
                 Some(field)

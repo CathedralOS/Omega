@@ -1,11 +1,7 @@
-// Realize one exact callable while retaining its original Terminal namespace.
-// Callback and component export entries use the same source-free admission and
-// native pipeline (`compile_body::lower_to_target`, physical planning and encoding)
-// while leaving their identity, installation, and publication contracts with
-// the caller.
+//! Lower a reachable private callable and retain its original Psi identity and evidence.
 
-use crate::driver::compile_body::{self, BodyEmissionError};
 use super::plan_callables::CallableTargetProduct;
+use crate::driver::compile_body::{self, BodyEmissionError};
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
 
@@ -13,37 +9,23 @@ pub(super) struct CallableObjectProduct {
     pub stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     pub physical_original: native_artifact::PrivatePhysicalOriginal,
     pub projection: native_artifact::FragmentObjectProjection,
-    pub runtime: native_artifact::TerminalCallableRuntimeProvisions<
-        crate::driver::runtime::foreign_adapters::ObjectForeignAdapter,
-    >,
-    pub authority: provider_admission::AdmittedNativeCallableAuthority,
 }
 
-pub(super) struct CallableProduct<Body, Adapter> {
+pub(super) struct CallableProduct<Body> {
     pub body: Body,
     custody: CallableCustody,
-    runtime: native_artifact::TerminalCallableRuntimeProvisions<Adapter>,
 }
 
 struct CallableCustody {
     code: terminal_codec::RetainedTerminalCode,
     coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
-    authority: provider_admission::AdmittedNativeCallableAuthority,
     observation: crate::driver::observations::NativePipelineObservation,
 }
 
-pub(super) type CallablePhysicalProduct = CallableProduct<
-    compile_body::PreparedPhysicalBody,
-    crate::driver::runtime::foreign_adapters::PlannedForeignAdapter,
->;
-pub(super) type BoundCallable = CallableProduct<
-    compile_body::BoundPhysicalBody,
-    bound_framed_machine::entries::BoundForeignAdapter<entry_planning::PhysicalRecipeOrigin>,
->;
-pub(super) type EncodedCallable =
-    CallableProduct<compile_body::EncodedBody, crate::driver::runtime::foreign_adapters::EncodedForeignAdapter>;
-pub(super) type LaidOutCallable =
-    CallableProduct<compile_body::LaidOutBody, crate::driver::runtime::foreign_adapters::PlacedForeignAdapter>;
+pub(super) type CallablePhysicalProduct = CallableProduct<compile_body::PreparedPhysicalBody>;
+pub(super) type BoundCallable = CallableProduct<compile_body::BoundPhysicalBody>;
+pub(super) type EncodedCallable = CallableProduct<compile_body::EncodedBody>;
+pub(super) type LaidOutCallable = CallableProduct<compile_body::LaidOutBody>;
 
 fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
     match error {
@@ -66,8 +48,6 @@ pub(super) fn prepare_callable_physical(
         code,
         coverage,
         target: optimized_target,
-        runtime,
-        authority,
         observation,
     } = prepared;
     let body = compile_body::prepare_physical_body(
@@ -77,14 +57,11 @@ pub(super) fn prepare_callable_physical(
         &observation,
     )
     .map_err(callable_error)?;
-    let runtime = runtime.map_adapters(crate::driver::runtime::foreign_adapters::plan);
     Ok(CallableProduct {
         body,
-        runtime,
         custody: CallableCustody {
             code,
             coverage,
-            authority,
             observation,
         },
     })
@@ -98,9 +75,6 @@ impl CallablePhysicalProduct {
         Ok(CallableProduct {
             body: self.body.bind(handlers, None)?,
             custody: self.custody,
-            runtime: self
-                .runtime
-                .map_adapters(|plan| Ok(installation_binding::entries::bind_foreign_adapter(plan))),
         })
     }
 }
@@ -110,7 +84,6 @@ impl BoundCallable {
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
-            runtime: self.runtime.map_adapters(crate::driver::runtime::foreign_adapters::encode),
             custody: self.custody,
         })
     }
@@ -122,7 +95,6 @@ impl EncodedCallable {
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
-            runtime: self.runtime.map_adapters(crate::driver::runtime::foreign_adapters::place),
             custody: self.custody,
         })
     }
@@ -134,7 +106,6 @@ impl LaidOutCallable {
             code,
             coverage,
             observation,
-            authority,
         } = self.custody;
         let compile_body::BodyObject {
             projection,
@@ -151,10 +122,6 @@ impl LaidOutCallable {
             stage_originals: originals,
             physical_original,
             projection,
-            runtime: self
-                .runtime
-                .map_adapters(crate::driver::runtime::foreign_adapters::construct),
-            authority,
         })
     }
 }

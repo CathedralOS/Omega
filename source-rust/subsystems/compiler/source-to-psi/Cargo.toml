@@ -14,7 +14,6 @@ test-support = [
     "symbol-resolved-trees/test-support",
     "syntax-trees-to-symbol-resolved-trees/test-support",
     "symbol-resolved-trees-to-typed-trees/test-support",
-    "typed-trees-to-prepared-typed-trees/test-support",
     "prepared-typed-trees-to-lowered-program/test-support",
 ]
 
@@ -30,7 +29,7 @@ psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
 access-admission = { path = "../psi/access/validated-placements" }
 access-vocabulary = { path = "../psi/access/policies" }
 schema-reflection = { path = "../psi/types/reflection" }
-source-completion-accounting = { path = "product/accounting" }
+source-completion-accounting = { path = "representations/evaluation-receipts" }
 build-scalar-evaluation = { path = "../build/evaluation/scalars" }
 build-time-values = { path = "../build/evaluation/values" }
 build-value-projection = { path = "../build/evaluation/values/projection" }
@@ -48,7 +47,6 @@ source-declarations = { path = "representations/symbol-resolved-trees/declaratio
 source-symbol-table = { path = "representations/symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "representations/symbol-resolved-trees" }
 typed-trees = { path = "representations/typed-trees" }
-source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
@@ -90,7 +88,6 @@ psi-authorization = { path = "../psi-artifact/authorization" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
-typed-trees-to-prepared-typed-trees = { path = "pipeline/04_typed-trees-to-prepared-typed-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 mimalloc = { version = "0.1", default-features = false }

@@ -52,15 +52,6 @@ impl<'input> AdmittedNativeComponentCall<'input> {
         &self.plan_digest
     }
 
-    pub(crate) fn replaces_local_adapter(&self, adapter: &crate::SelectedProviderAdapter) -> bool {
-        adapter.provider_plan_digest == self.plan_digest
-            && self
-                .component
-                .module()
-                .boundary_machine(self.selected.provider_boundary())
-                .and_then(|boundary| self.component.module().identities.text(boundary.identity))
-                == Some(adapter.requirement_identity.as_str())
-    }
 }
 
 impl<'input> ComponentNativeInputs<'input> {

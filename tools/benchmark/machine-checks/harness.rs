@@ -6,7 +6,7 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, Sca
 use arena::{IdTable};
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, Instant};
-use source_compiler::lowering::{
+use source_compiler::test_support::lowering::{
     Body, Ceiling, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement,
     Strict, Target, Termination, Unpositioned, ValueType,
 };
@@ -84,7 +84,7 @@ fn generated(
             ranking: None,
         });
     }
-    source_compiler::lowering::lower_bodies(
+    source_compiler::test_support::lowering::lower_bodies(
         MachineId::new(1).unwrap(),
         &bodies,
         &signatures,
@@ -111,10 +111,10 @@ fn main() {
         let mut obligations = 0;
         for _ in 0..repeats {
             let mut elaboration = input.clone();
-            let mut activity = source_compiler::checking::ProofSearchActivity::default();
+            let mut activity = source_compiler::test_support::checking::ProofSearchActivity::default();
             let start = Instant::now();
             let result =
-                source_compiler::checking::discharge(&mut elaboration, &mut activity).unwrap();
+                source_compiler::test_support::checking::discharge(&mut elaboration, &mut activity).unwrap();
             elapsed += start.elapsed();
             obligations = 0;
             for (_, machine) in result.machines.iter() {

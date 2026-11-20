@@ -1,9 +1,8 @@
-//! Assemble the root, private callable and component products into the requested image.
+//! Assemble the root and its private callables into the requested image.
 
 mod body_resources;
 mod callable_objects;
 mod callback_thunks;
-pub(crate) mod components;
 mod object_emission;
 pub(crate) mod plan_callables;
 

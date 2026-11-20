@@ -17,4 +17,4 @@ A capture driver can use the same project-planning route as the CLI. The applica
 
 The spectrometer's `--selection-identity` assertion additionally needs a checked product exposing the finalized equality selection occurrences. The Pareto driver's source-free schema identity regressions run with their owning `provider-plans` crate.
 
-[Build execution and package review](../../../wiki/spec/build/execution.md) · [Project Build interface](../../../source-rust/subsystems/compiler/build/planning/mod.rs) · [Compiler requests and products](../../../source-rust/subsystems/compiler/compiler.rs)
+[Build execution and package review](../../../wiki/spec/build/execution.md) · [Project Build interface](../../../source-rust/subsystems/compiler/build/project_build.rs) · [Compiler requests and products](../../../source-rust/subsystems/compiler/compiler.rs)

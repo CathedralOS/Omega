@@ -19,7 +19,7 @@ pub(crate) fn actual_library_source(
     package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<TypedTrees, String> {
     let resolved = resolved_library_source(library, query_text, package)?;
-    crate::typing::lower_symbol_resolved_trees(&resolved)
+    crate::test_support::typing::lower_symbol_resolved_trees(&resolved)
         .map_err(|errors| format!("type actual alloc/core: {errors:?}"))
 }
 
@@ -27,7 +27,7 @@ fn resolved_library_source(
     library: &Path,
     query_text: &str,
     package: semantic_vocabulary::PackageKeyIdentity,
-) -> Result<crate::source_resolved::SymbolResolvedTrees, String> {
+) -> Result<symbol_resolved_trees::source_resolved::SymbolResolvedTrees, String> {
     let core_root = library
         .join("core")
         .canonicalize()
@@ -81,10 +81,10 @@ fn resolved_library_source(
     let mut bindings = Vec::new();
     for (id, text) in units {
         let previous = syntax.root_item_handles().len();
-        let tokens = crate::stages::frontend_fixture::Lexer::new(&text)
+        let tokens = crate::test_support::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .map_err(|errors| format!("lex source {id:?}: {errors:?}"))?;
-        crate::stages::frontend_fixture::parse(&mut syntax, id, &tokens)
+        crate::test_support::frontend_fixture::parse(&mut syntax, id, &tokens)
             .map_err(|errors| format!("parse source {id:?}: {errors:?}"))?;
         for root in &syntax.root_item_handles()[previous..] {
             let syntax_trees::item::Item::Use(import) = syntax.root_item(*root) else {
@@ -112,10 +112,10 @@ fn resolved_library_source(
             }
         }
     }
-    let mut request = crate::resolution::ResolutionRequest::new(syntax);
+    let mut request = crate::test_support::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = bindings;
-    let resolved = crate::resolution::resolve(request)
+    let resolved = crate::test_support::resolution::resolve(request)
         .map_err(|errors| format!("resolve actual alloc/core: {errors:?}"))?;
     Ok(resolved)
 }

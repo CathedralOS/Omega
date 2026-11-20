@@ -1257,31 +1257,23 @@ fn an_application_the_pass_does_not_serve_is_refused_on_its_holder_only() {
 fn scalar_specialization_keeps_the_carrier_refusal_and_open_parameter() {
     let Source {
         mut program,
-        byte,
         sized_state,
         ..
     } = source();
     let sized = program.symbols.get(sized_state).parent;
     let parameters = program.machine_callable_parameters(program.machine_by_symbol(sized).unwrap());
-    let parameter = &parameters[0];
-    let TypeParameterKind::Const {
-        type_reference: parameter_carrier,
-    } = &parameter.kind
-    else {
-        panic!("one const value binder");
-    };
-    let carrier = named(&mut program, byte, "u8");
+    let parameter = parameters[0].clone();
     let negative = StaticMachineArgument {
         const_literal: Some(numeric_literals::IntegerLiteral::from_value(-1)),
         ..StaticMachineArgument::default()
     };
     assert!(matches!(
-        super::closed_scalar(&program, carrier, &negative),
+        super::Operand::read(&mut program, &parameter, &negative, sized),
         Err(super::Stop::Unserved(reason)) if reason == "a static integer is outside its declared carrier"
     ));
     assert!(matches!(
-        super::closed_scalar(&program, *parameter_carrier, &argument(parameter.symbol, "N")),
-        Ok(super::Scalar::Parameter(symbol)) if symbol == parameter.symbol
+        super::Operand::read(&mut program, &parameter, &argument(parameter.symbol, "N"), sized),
+        Ok(operand) if operand.declaration() == Some(parameter.symbol)
     ));
 }
 

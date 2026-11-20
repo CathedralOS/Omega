@@ -684,6 +684,24 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
 }
 
 #[test]
+fn a_local_resolution_error_after_a_wait_is_reported_before_the_dependency_runs() {
+    let (compiled, report) = check_with_dependency_build(
+        "duplicate-after-wait",
+        "    let amount: i32 = 7;",
+        "    let seven: i32 = 7;
+    let seven: i32 = 9;
+    needs_seven(amount);",
+        7,
+        "    unknown_in_dependency();",
+        &["--check", "main.omg"],
+    );
+    assert!(!compiled, "{report}");
+    assert!(report.contains("duplicate local data `seven`"), "{report}");
+    assert!(!report.contains("while resuming"), "{report}");
+    assert!(!report.contains("while preparing the dependency"), "{report}");
+}
+
+#[test]
 fn a_call_written_before_the_wait_names_nothing() {
     let (compiled, stderr) = check(
         "used-before",

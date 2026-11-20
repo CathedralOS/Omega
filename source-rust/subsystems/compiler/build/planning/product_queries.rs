@@ -5,7 +5,8 @@ use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::{BuildProductDescription, BuildProductQuery};
 use build_execution::{BuildDependencySelection, CompileFailure, TerminalBuildActivation};
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
-use source_compiler::{SourceContinuation, TerminalBuildQueryOperation};
+use source_compiler::{ProductDeclarations, representations::source_inputs::SourceMap};
+use source_compiler::publication::TerminalBuildQueryOperation;
 use std::sync::Arc;
 
 impl PlanningSource {
@@ -68,11 +69,8 @@ impl PlanningSource {
             TerminalBuildQueryOperation::Entry
             | TerminalBuildQueryOperation::Schema
             | TerminalBuildQueryOperation::Provider => {
-                let author = self
-                    .initial
-                    .typed()
-                    .symbols
-                    .source_file(query.occurrence)
+                let author = self.query_authors.as_ref()
+                    .and_then(|sources| sources.file_at(query.occurrence))
                     .ok_or_else(|| {
                         refusal("Product query lost its authored source occurrence".into())
                     })?;
@@ -81,7 +79,7 @@ impl PlanningSource {
             _ => inputs,
         };
         if self
-            .query_frontier
+            .query_declarations
             .as_ref()
             .is_none_or(|(previous, _)| previous != &inputs)
         {
@@ -97,20 +95,23 @@ impl PlanningSource {
                     .as_ref()
                     .map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
             )?;
-            self.query_frontier = Some((inputs, source));
+            self.query_declarations = Some((inputs, source));
         }
         let (_, source) = self
-            .query_frontier
+            .query_declarations
             .as_ref()
-            .expect("the query frontier was prepared");
-        let description = describe(source, &self.initial, query).map_err(refusal)?;
+            .expect("the Product declarations were prepared");
+        let authors = self.query_authors.as_deref().ok_or_else(|| {
+            refusal("Product query lost its authored source occurrence".into())
+        })?;
+        let description = describe(source, authors, query).map_err(refusal)?;
         Ok((description, selections))
     }
 }
 
 fn describe(
-    source: &SourceContinuation,
-    author: &SourceContinuation,
+    source: &ProductDeclarations,
+    author: &SourceMap,
     query: &BuildProductQuery,
 ) -> Result<BuildProductDescription, String> {
     let (occurrence, selecting) =

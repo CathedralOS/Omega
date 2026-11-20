@@ -1,7 +1,7 @@
 #[test]
 fn an_entryless_product_does_not_demand_every_library_layout() {
-    let scopes = source_compiler::product::layout_target_scopes(
-        &source_compiler::source_state::TypedTrees::default(),
+    let scopes = source_compiler::test_support::layout_target_scopes(
+        &source_compiler::representations::source_state::TypedTrees::default(),
         &[],
         &[],
         &[],
@@ -28,7 +28,7 @@ fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap();
     let subject = symbols::SymbolHandle::from_parts(1, 0);
     let requirement = symbols::SymbolHandle::from_parts(2, 0);
-    let selection = source_compiler::product::native_binding_declarations::NativeBindingSelection {
+    let selection = source_compiler::compile_product::native_binding_declarations::NativeBindingSelection {
         application: None,
         subject,
         requirement,
@@ -45,8 +45,8 @@ fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
         supplier_package: package,
         source_span: Default::default(),
     };
-    let scopes = source_compiler::product::layout_target_scopes(
-        &source_compiler::source_state::TypedTrees::default(),
+    let scopes = source_compiler::test_support::layout_target_scopes(
+        &source_compiler::representations::source_state::TypedTrees::default(),
         &[],
         &[],
         &[],

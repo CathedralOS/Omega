@@ -29,14 +29,14 @@ pub(crate) fn descending_host_marker_identity(position: u64) -> Option<u64> {
 /// Build script make their calls at the same operation numbers.
 pub(crate) fn is_call_at(
     effect: &terminal_interpreter::TerminalEffect,
-    site: source_compiler::BuildCallSite,
+    site: source_compiler::publication::BuildCallSite,
 ) -> bool {
     matches!(
         effect,
         terminal_interpreter::TerminalEffect::BoundaryCall {
             site: actual,
             ..
-        } if site == source_compiler::BuildCallSite {
+        } if site == source_compiler::publication::BuildCallSite {
             machine: actual.machine,
             operation: actual.operation,
             boundary: actual.boundary,
@@ -68,7 +68,7 @@ pub(crate) fn require_effect_owner(
 mod tests {
     use super::is_call_at;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-    use source_compiler::BuildCallSite;
+    use source_compiler::publication::BuildCallSite;
     use terminal_interpreter::TerminalEffect;
 
     fn site(machine: u64, operation: u64, boundary: u64) -> BuildCallSite {

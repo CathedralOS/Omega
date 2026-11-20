@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,405 lines / 1,111,653 bytes with SHA-256
-`aee1d083b0cc9d2f6f61b5319a5a6c0372251709880c25c3a5bfc094588e6bd7`.
+The manifest materializes 28,472 lines / 1,114,937 bytes with SHA-256
+`7d3fd8c04f927e19ce509c82051c17e81df011ea6ef8ab58e5127ae2e11ad846`.
 The manifest itself is 2,905 bytes, SHA-256
-`6e555f03e40fb7f58e2c97d0fa276ef6b3d334a3ecdcc7b39fcac55c139e674f`;
+`873d8d7a5cf70ed2494b268071e94118f7e03e0a78087cbae2c76d8b0aa9b8ad`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -279,6 +279,9 @@ For plain `u64` subtraction, the compiler checks both operands as `u64`
 and proves the result is nonnegative. In `capacity - used`, a declared
 ceiling on `used` can establish the proof. In `value - count`, a floor on
 `value` can establish it. Subtracting zero preserves every bit of a `u64`.
+An unsigned difference that returns is at least zero and at most its left
+operand. Calls and state transfers can use a checked ceiling on that operand.
+A Trapping subtraction still checks for underflow on Alpha.
 The interval checker accepts nonnegative literal endpoints through
 2,147,483,647. A wider literal cannot supply an endpoint from its low word.
 A direct out-of-range `u8` literal and division by zero reject. Full rational

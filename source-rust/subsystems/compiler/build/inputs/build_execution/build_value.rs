@@ -29,7 +29,7 @@ pub(super) use vocabulary::is_exact_toolchain_build_prelude_data;
 use super::BuildMachineFilesystemScope;
 use diagnostics::Diagnostic;
 use build_time_values::BuildTimeValue;
-use source_compiler::source_state::TypedTrees;
+use source_compiler::representations::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildValueAdmission {
@@ -51,7 +51,7 @@ impl BuildValueAdmission {
     pub fn initial_value(
         &self,
         typed: &TypedTrees,
-        machine: &source_compiler::source_state::machine::Machine,
+        machine: &source_compiler::representations::source_state::machine::Machine,
         filesystem_scope: &BuildMachineFilesystemScope,
     ) -> BuildTimeValue {
         initial::initial_value(self, typed, machine, filesystem_scope)

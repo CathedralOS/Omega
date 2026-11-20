@@ -11,9 +11,9 @@ use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
-use source_compiler::declaration_selection::BuildSelectionOrigin;
-use source_compiler::declaration_selection::product_operands::ProductStaticOperandGraph;
-use source_compiler::product::provider_declarations::{
+use source_compiler::representations::declaration_selection::BuildSelectionOrigin;
+use source_compiler::representations::declaration_selection::product_operands::ProductStaticOperandGraph;
+use source_compiler::compile_product::provider_declarations::{
     RetainedOperatorCoordinate, RetainedOperatorFamily, RetainedProductApplication,
     RetainedProviderSelection, RetainedProviderSubject,
 };
@@ -305,7 +305,7 @@ pub fn decode_package_provider_selections(
         _ => return None,
     };
     let sources = decode_sources(&mut cursor)?;
-    let application_sources = Arc::new(source_compiler::source_inputs::SourceMap::from_files(
+    let application_sources = Arc::new(source_compiler::representations::source_inputs::SourceMap::from_files(
         sources
             .iter()
             .cloned()
@@ -428,7 +428,7 @@ pub(super) fn decode_product_applications(
     bytes: &[u8],
 ) -> Option<Vec<Option<RetainedProductApplication>>> {
     let mut cursor = ObservationCursor::new(bytes);
-    let sources = Arc::new(source_compiler::source_inputs::SourceMap::from_files(
+    let sources = Arc::new(source_compiler::representations::source_inputs::SourceMap::from_files(
         decode_sources(&mut cursor)?
             .into_iter()
             .enumerate()
@@ -493,7 +493,7 @@ fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>>
 
 fn decode_application(
     cursor: &mut ObservationCursor<'_>,
-    sources: &Arc<source_compiler::source_inputs::SourceMap>,
+    sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
 ) -> Option<Option<RetainedProductApplication>> {
     match cursor.u8()? {
         0 => Some(None),

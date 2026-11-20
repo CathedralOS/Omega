@@ -195,41 +195,84 @@ pub struct NativeExecutionScope {
     selected_candidate_positions: Vec<usize>,
 }
 
-/// Only the proposal can issue this request. The reachability stage returns it with its result.
-pub struct ProposalScopeRequest<'a> {
-    pub(super) artifact: terminal_codec::TerminalArtifactView<'a>,
-    pub(super) entry: MachineId,
-    pub(super) targets: psi_target_layouts::TerminalTargetContext,
-    pub(super) entry_call: Option<crate::SelectedProgramEntryCall>,
-    pub(super) local_adapters: Vec<SelectedProviderAdapter>,
-    pub(super) assumptions: Vec<(BoundaryMachineId, BoundaryMachineId)>,
-    pub(super) proposal: &'a crate::TerminalNativeRealizationProposal,
-    pub(super) completed_selection: Option<&'a selected_provider_plans::SelectedProviderPlanFacts>,
+/// Identity of the artifact, native entry and provider selection that a reach must retain.
+pub struct NativeScopeBinding<'a> {
+    artifact: terminal_codec::TerminalArtifactView<'a>,
+    entry: MachineId,
+    targets: psi_target_layouts::TerminalTargetContext,
+    entry_call: Option<crate::SelectedProgramEntryCall>,
+    proposal: &'a crate::TerminalNativeRealizationProposal,
+    parent: Option<&'a crate::ScopedProviderSelection>,
 }
 
-/// Sources of native calls for one checked proposal and entry.
-pub struct ScopeInputs<'a> {
-    pub artifact: terminal_codec::TerminalArtifactView<'a>,
-    pub entry: MachineId,
-    pub entry_call: Option<(BoundaryMachineId, MachineId)>,
-    pub adapters: &'a [SelectedProviderAdapter],
-    pub assumptions: &'a [(BoundaryMachineId, BoundaryMachineId)],
-    pub callbacks: &'a [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
-}
-
-impl ProposalScopeRequest<'_> {
-    pub fn inputs(&self) -> ScopeInputs<'_> {
-        ScopeInputs {
-            artifact: self.artifact,
-            entry: self.entry,
-            entry_call: self
-                .entry_call
-                .as_ref()
-                .map(|call| (call.boundary(), call.entry())),
-            adapters: &self.local_adapters,
-            assumptions: &self.assumptions,
-            callbacks: &self.proposal.occurrences().callbacks,
+impl<'a> NativeScopeBinding<'a> {
+    pub fn checked(
+        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
+        proposal: &'a crate::TerminalNativeRealizationProposal,
+        targets: psi_target_layouts::TerminalTargetContext,
+        root: terminal_psi::TargetMachineCallable,
+        parent: Option<&'a crate::ScopedProviderSelection>,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        use diagnostics::Diagnostic;
+        let program = proposal.program_entry();
+        let view = artifact.view();
+        if program.checked_entry().terminal_psi_identity() != view.identity() {
+            return Err(vec![Diagnostic::error(
+                "native proposal belongs to another canonical artifact",
+            )]);
         }
+        if targets.terminal_psi() != view.identity()
+            || targets.target() != proposal.target_profile().target_name()
+        {
+            return Err(vec![Diagnostic::error(
+                "native scope belongs to another canonical artifact or target",
+            )]);
+        }
+        let entry_call = if let Some(parent) = parent {
+            parent
+                .authorization()
+                .require_artifact(artifact)
+                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+            parent.scope().require_proposal_context(view, proposal)?;
+            None
+        } else {
+            if root != proposal.target_program_entry() {
+                return Err(vec![Diagnostic::error(
+                    "native root scope differs from the proposal's selected program entry",
+                )]);
+            }
+            crate::entry_settlement::bind_selected_program_entry_call(
+                artifact,
+                program,
+                &proposal.providers().selection,
+                &proposal.providers().intrinsic_executions,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        };
+        let entry = targets
+            .entry(view.identity(), artifact.semantic_module(), root)
+            .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+        Ok(Self {
+            artifact: view,
+            entry,
+            targets,
+            entry_call,
+            proposal,
+            parent,
+        })
+    }
+
+    pub const fn entry(&self) -> MachineId {
+        self.entry
+    }
+    pub fn entry_call(&self) -> Option<&crate::SelectedProgramEntryCall> {
+        self.entry_call.as_ref()
+    }
+    pub fn local_adapters(&self) -> &[SelectedProviderAdapter] {
+        self.parent
+            .map_or(&self.proposal.providers().checked_adapters, |parent| {
+                parent.scope().local_adapters()
+            })
     }
 
     /// Seal one stage-01 traversal against the program and deployment that requested it.
@@ -238,32 +281,33 @@ impl ProposalScopeRequest<'_> {
         emitted: EmittedExecutionScope,
         selected_candidate_positions: Vec<usize>,
     ) -> Result<NativeExecutionScope, &'static str> {
-        let request = self;
-        let module = request.artifact.module();
-        if !emitted.contains_machine(request.entry) {
+        let local_adapters = self.local_adapters().to_vec();
+        let module = self.artifact.module();
+        if !emitted.contains_machine(self.entry) {
             return Err("native execution scope omitted its selected entry");
         }
         let owned_sequence_bounds =
             closed_owned_sequence_bounds(module, |machine| emitted.contains_machine(machine))?;
         let demands = terminal_psi::TerminalBoundaryApplicationDemands::new(
-            request.artifact.identity(),
+            self.artifact.identity(),
             module.boundary_application_demands_for_machines(emitted.machines())?,
         )?;
-        let proposal = request.proposal;
+        let proposal = self.proposal;
         let selection = &proposal.providers().selection;
         Ok(NativeExecutionScope {
-            target_context: request.targets,
-            entry: request.entry,
+            target_context: self.targets,
+            entry: self.entry,
             source_provider_selection: selection.clone(),
-            selected_provider_closure: *request
-                .completed_selection
+            selected_provider_closure: *self
+                .parent
+                .map(crate::ScopedProviderSelection::selection)
                 .unwrap_or(selection)
                 .identity_digest()
                 .as_bytes(),
             source_checked_entry: Some(proposal.program_entry().checked_entry().clone()),
             source_native_bindings: Some(proposal.providers().native_bindings.identity_digest()),
-            entry_call: request.entry_call,
-            local_adapters: request.local_adapters,
+            entry_call: self.entry_call,
+            local_adapters,
             callbacks: proposal.occurrences().callbacks.clone(),
             emitted: std::sync::Arc::new(emitted),
             owned_sequence_bounds,

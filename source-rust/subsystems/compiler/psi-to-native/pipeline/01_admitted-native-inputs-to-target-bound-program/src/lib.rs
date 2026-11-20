@@ -11,13 +11,13 @@ pub mod native_bindings;
 pub(crate) use ::wire::digest_encoder;
 pub mod program_entry;
 pub mod published_application;
-mod provider_planning;
+mod provider_rows;
 pub mod target_supply;
 
-pub use provider_planning::provider_rows::{
+pub use provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, direct_compiler_primitive_leaves,
 };
-pub use provider_planning::{
+pub use native_intrinsics::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };

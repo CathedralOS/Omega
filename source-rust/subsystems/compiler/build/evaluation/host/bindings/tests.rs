@@ -29,9 +29,9 @@ machine second(builder: @mut Build) {
 }
 "#;
 
-fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
+fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
-    let mut sources = source_compiler::source_inputs::SourceMap::default();
+    let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
     for (path, text, origin) in [
@@ -71,23 +71,23 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
             }
         }
     }
-    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax.unwrap());
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = vec![
-        source_compiler::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+        source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
     ];
-    let resolved = source_compiler::resolution::resolve(request).unwrap();
-    let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+    let typed = source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let prepared = source_compiler::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    let accepted = source_compiler::judge_terminal_source(
+    let prepared = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let accepted = source_compiler::test_support::judge_terminal_source(
         prepared,
-        source_compiler::TerminalSourceCompilation {
+        source_compiler::test_support::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
@@ -110,7 +110,7 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
 }
 
 fn effect(
-    program: &source_compiler::ProducedTerminalProgram,
+    program: &source_compiler::publication::ProducedTerminalProgram,
     call: &TerminalBuildBindingCall,
     arguments: Vec<TerminalScalarValue>,
     structural_arguments: Vec<TerminalStructuralValue>,
@@ -216,7 +216,7 @@ fn source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket() {
     );
     drop(adapter);
 
-    let mut previous: Option<source_compiler::BuildCallSite> = None;
+    let mut previous: Option<source_compiler::publication::BuildCallSite> = None;
     let (pairs, remainder) = calls.as_chunks::<2>();
     assert!(remainder.is_empty());
     for [prepare, commit] in pairs {

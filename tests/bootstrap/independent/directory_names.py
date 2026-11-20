@@ -134,6 +134,7 @@ def cases():
 
     yield from nominal_record_cases(encode)
     yield from record_bound_cases(encode)
+    yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
@@ -282,6 +283,43 @@ machine main()->u8{
             yield label, wire, 42
         else:
             yield label, wire, struct.pack("<BII", 0, 2, rows[0][1] + reader.index(b"machine main"))
+
+
+def record_reference_cases(encode):
+    # The supplier mutates the caller's actual SourceUnit and later borrows
+    # it shared. Both signatures precede the imported record's declaration.
+    text = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
+    unit = declaration(text, b"public data SourceUnit\n")
+    identifier = declaration(text, b"public data SourceId ")
+    clear = declaration(text, b"machine source_unit_clear(")
+    wrapper = b"""public machine clear_unit(unit:@mut SourceUnit,id:SourceId){source_unit_clear(unit,id);}
+public machine retained(unit:@SourceUnit)->bool{unit.last_retained}
+"""
+    caller = b"""use store\\SourceUnit;use store\\SourceId;use store\\clear_unit;use store\\retained;
+machine main()->u8{
+ let mut unit:SourceUnit;
+ unit.bytes[7]=42;
+ unit.length=11;
+ let id:SourceId=SourceId{value:17 as +Trapping};
+ clear_unit(@mut unit,id);
+ transition retained(@unit) && unit.length==0 && unit.id.value==17 {true->unit.bytes[7],_->0}
+}"""
+
+    def packet(main=caller, api=wrapper, record=unit):
+        return encode([("app", 0), ("store", 0)], [(0, 1, "store")], [
+            (0, main), (1, api + b"\n" + clear), (1, record), (1, identifier)
+        ], 0, b"main", paths=["main.omg", "api.omg", "unit.omg", "id.omg"])
+
+    wire, _, _, _ = packet()
+    yield "product-source-unit-forward-reference", wire, 42
+    shared = caller.replace(b"@mut unit,id", b"@unit,id")
+    wire, _, _, rows = packet(main=shared)
+    yield "source-unit-readonly-actual", wire, struct.pack("<BII", 0, 2, rows[0][1] + shared.index(b"@unit,id"))
+    missing = wrapper.replace(b"unit:@SourceUnit", b"unit:@Missing")
+    wire, _, _, rows = packet(api=missing)
+    yield "source-unit-missing-referent", wire, struct.pack("<BII", 0, 2, rows[1][1] + missing.index(b"unit:@Missing"))
+    wire, _, _, rows = packet(record=unit.replace(b"public data", b"data", 1))
+    yield "source-unit-hidden-referent", wire, struct.pack("<BII", 0, 1, rows[0][1])
 
 
 def nominal_sum_cases(encode):
