@@ -352,6 +352,7 @@ def omega_storage_customer(work, timeout):
         start = unit.index(marker)
         end = unit.index(b"\n}", start) + 2
         declarations.append(unit[start:end])
+    declarations.append((gate / "qualified_array_elements.omg").read_bytes())
     program = b"\n\n".join(declarations) + b"\n" + (gate / "storage_controls.omg").read_bytes()
     source = closure + (gate / "controls_storage.epsilon").read_bytes()
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, program)
@@ -378,7 +379,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: thirteen executables, actual SourceUnit append/read and ModulePath boundaries, 36 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: thirteen executables, actual SourceUnit append/read and ModulePath boundaries, 38 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_utf8_customer(work, timeout, batch=None):
