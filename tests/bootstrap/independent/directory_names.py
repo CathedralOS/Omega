@@ -412,11 +412,11 @@ def nominal_array_cases(encode):
 
 
 def nested_parameter_cases(encode):
-    # The caller keeps 42 while the callee's nested machine receives 7.
-    # Another 16,384 parameters in other files force reuse of nested slots.
-    caller = (b'machine main()->u8{transition{_->relay(42)}'
-              b'\n    machine relay(kept:u8)->u8 {let observed:u8=other(7);'
-              b'transition observed==7{true->kept,_->observed}}}')
+    # The caller's signed -1 must satisfy its one-sided bound and survive
+    # the callee's 7. Other files reuse the same slot for unsigned parameters.
+    caller = (b'machine main()->u8{transition{_->relay(-1)}'
+              b'\n    machine relay(kept:i32)->u8 requires kept<=0 {let observed:u8=other(7);'
+              b'transition kept==-1{true->42,_->observed}}}')
     callee = b'machine other(input:u8)->u8{transition{_->local(input)}machine local(value:u8)->u8{value}}'
     sources = [caller, callee]
     parameters = ','.join(f'p{i}:u8' for i in range(16))
