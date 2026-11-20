@@ -607,3 +607,237 @@ machine quit<const E:core\ProcessExit>(code:i32) -> core\Never reaches core\Proc
         "Evidence and effects",
     );
 }
+
+#[test]
+fn a_block_acknowledgement_requires_a_call() {
+    let source = "machine wait() blocks {}
+machine check() {
+    block wait();
+}
+";
+    check_source_change(
+        source,
+        "block wait()",
+        "block wait",
+        "block wait",
+        "acknowledgement requires a call",
+        "Evidence and effects",
+    );
+}
+
+#[test]
+fn a_fixed_array_extent_must_fit_u64() {
+    let source = "machine check(a:[u8;3]) {}\n";
+    let oversized = "18446744073709551616";
+    check_source_change(
+        source,
+        "3",
+        oversized,
+        oversized,
+        "array length exceeds u64",
+        "Applications",
+    );
+}
+
+#[test]
+fn a_callback_call_must_match_its_declared_arity() {
+    check_source_change(
+        "data Step = machine(x:u8)->u8;\nmachine apply<const F:Step>(x:u8)->u8 { F(x) }\n",
+        "F(x)",
+        "F()",
+        "F()",
+        "incorrect callback arity",
+        "Calls",
+    );
+}
+
+#[test]
+fn a_crash_clause_requires_a_builtin_cause() {
+    check_source_change(
+        "data Other {}\nmachine check() crashes Trap {}\n",
+        "crashes Trap",
+        "crashes Other",
+        "Other",
+        "crash clause requires Trap, Abort or none",
+        "Evidence and effects",
+    );
+}
+
+#[test]
+fn cleanup_cannot_publish_a_crash_route() {
+    let source = "data Lease dropped by finish { slot: u8; }
+machine finish(value: Lease) crashes none { let Lease { slot as _ } = value; }
+";
+    check_source_change(
+        source,
+        "crashes none",
+        "crashes Trap",
+        "dropped by finish",
+        "cleanup cannot publish a crash route",
+        "Cleanup",
+    );
+}
+
+#[test]
+fn cleanup_cannot_block_or_suspend() {
+    let source = "data Lease dropped by finish { slot: u8; }
+machine finish(value: Lease) { let Lease { slot as _ } = value; }
+";
+    check_source_change(
+        source,
+        "finish(value: Lease)",
+        "finish(value: Lease) suspends",
+        "dropped by finish",
+        "cleanup cannot block or suspend",
+        "Cleanup",
+    );
+}
+
+#[test]
+fn a_domain_head_index_must_name_a_distinct_binder() {
+    check_source_change(
+        "domain<const A:u8,const B:u8> u16::Tag<A,B>;\n",
+        "<A,B>",
+        "<A,A>",
+        "A",
+        "domain head index must name a distinct binder",
+        "Domains",
+    );
+}
+
+#[test]
+fn an_empty_array_literal_needs_an_element_type() {
+    check_source_change(
+        "machine check() { let xs: [u8; 0] = []; }\n",
+        ": [u8; 0]",
+        "",
+        "[]",
+        "array literal needs an element type",
+        "Data and bindings",
+    );
+}
+
+// Positional record patterns cannot name more components than declared fields.
+#[test]
+fn a_positional_record_pattern_rejects_an_extra_component() {
+    let source = "data Pair {
+    left: u32;
+    right: u32;
+}
+
+machine first(pair: Pair) -> u32 {
+    let (left, _) = pair;
+    left
+}
+";
+    check_source_change(
+        source,
+        "(left, _)",
+        "(left, _, extra)",
+        "extra",
+        "too many pattern components",
+        "Patterns and places",
+    );
+}
+
+#[test]
+fn a_logical_hypothesis_cannot_supply_mutable_authority() {
+    let source = "machine theorem<machine Step>()\nrequires machine Step(value: @u8);\n{}\n";
+    check_source_change(
+        source,
+        "@u8",
+        "@mut u8",
+        "value: @mut u8",
+        "logical hypothesis cannot supply mutable authority",
+        "Mathematical terms and assembly",
+    );
+}
+
+#[test]
+fn a_type_parameter_rejects_a_lifetime_argument() {
+    check_source_change(
+        "data Box<T> { value: T; }\nmachine check<'a>(loan: @'a u8, boxed: Box<u8>) {}\n",
+        "Box<u8>",
+        "Box<'a>",
+        "'a",
+        "unexpected lifetime argument",
+        "Applications",
+    );
+}
+
+#[test]
+fn a_record_pattern_requires_rest_to_omit_fields() {
+    let source = "data Pair { x: u8; y: u8; }
+machine pick(p: Pair) -> u8 {
+    let Pair { x, .. } = p;
+    x
+}
+";
+    check_source_change(
+        source,
+        " ..",
+        "",
+        "Pair { x, }",
+        "pattern omits fields without ..",
+        "Patterns and places",
+    );
+}
+
+#[test]
+fn an_access_plan_computation_must_be_effect_free() {
+    let source = r"use omega\language\core;
+use omega\language\core\reflect;
+use omega\language\core\access;
+Rule satisfies AccessPolicy {
+    machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+        new_plan::<'t>(@schema, Issuance::Unrestricted{})
+    }
+}
+data C{}
+domain C::Locked access Rule;
+";
+    check_source_change(
+        source,
+        "crashes none",
+        "crashes Abort",
+        "Rule",
+        "access plan computation must be effect-free",
+        "Access plans and progress",
+    );
+}
+
+#[test]
+fn a_shared_reborrow_requires_readable_storage() {
+    check_source_change(
+        "machine inspect(r: @mut u8) { _ = @$r; }\n",
+        "@mut u8",
+        "@write u8",
+        "$r",
+        "cannot read through a write-only reference",
+        "Patterns and places",
+    );
+}
+
+#[test]
+fn a_sum_construction_requires_a_case() {
+    check_source_change(
+        "data Choice { case Pick(value: u32); }\nmachine check() { _ = Choice::Pick { value: 7 }; }\n",
+        "::Pick",
+        "",
+        "Choice",
+        "sum construction requires a case",
+        "Data and bindings",
+    );
+}
+
+#[test]
+fn a_universe_requires_one_level() {
+    check_source_change(
+        "data Sort = core\\Type<0>;\n",
+        "<0>",
+        "",
+        r"core\Type",
+        "universe requires one level",
+        "Applications",
+    );
+}
