@@ -15,7 +15,8 @@ identity, graph, snapshot, admission and commitment implementations.
 [construct.py](construct.py) collects every source file the construction
 application needs: its own units, the driver, frontend, Alpha backend, wire foundation,
 standard library and core library. It copies each file byte for byte, keeps package
-and unit identities, and writes an exact manifest. The entry is
+and unit identities, and writes an exact manifest. Package Build declarations
+and core’s default Build are recorded separately as build inputs. The entry is
 `source/application/construction/main.omg::entry_start`.
 
 ```sh
@@ -42,24 +43,27 @@ refusals it reports decide the next implementation work.
 
 ## Closed source-set input
 
-All words are little-endian unsigned 32-bit integers. Seven header words give,
-in order: package count, dependency count, unit count, entry unit, entry-name
-start, entry-name end, and byte-buffer length. The header is followed by:
+The current producer writes the little-endian u32 words `0, 1` followed by
+package count, dependency count, unit count, entry unit, entry-name start,
+entry-name end and byte-buffer length. The following rows also use u32 words.
 
 - Package rows: name start, name end, role (`0` ordinary, `1` core, `2` std).
 - Direct dependency rows: requester package, target package, alias start, alias end.
-- Source-unit rows: owning package, source start, source end.
+- Source-unit rows: owning package, source start, source end, path start, path end.
 - Exactly the declared byte buffer, then EOF.
 
 All intervals are half-open within that one buffer. Unit bytes are exact
 source, not concatenated text with rewritten imports. The given unit and entry
 name select a parsed declaration; ordinary semantic and safety checks still
-apply. The current source-unit row omits the path, so this framing cannot
-distinguish two package directories. Implementing
-[directory namespaces](../../../wiki/spec/language/modules.md#directory-namespaces)
-requires carrying each unit's logical package-relative path from the producer
-to the resolver. The current limits are 64 packages, 256 direct dependencies, 512
-units, 4 MiB of source and 128 KiB per unit, and 256 bytes per name or alias.
+apply. Each path spans its complete package-relative filename, with `/` between
+components. Both constructors derive the namespace from the parent directory.
+Renaming a file in the same directory preserves its declarations' names. A packet
+beginning with a nonzero package count uses the original three-word unit rows
+and places each unit in the package root. [Directory namespaces](../../../wiki/spec/language/modules.md#directory-namespaces)
+
+The current limits are 64 packages, 256 direct dependencies, 512
+units, a 4 MiB shared buffer for sources, paths and names, 128 KiB per unit,
+and 256 bytes per directory namespace, package name or alias.
 These are resource limits, not language rules.
 
 Alpha tape is written only when checking, lowering and emission all

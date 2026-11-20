@@ -96,10 +96,13 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
     }
     state parse_unit(index: i32) {
         self.unit_index = index;
-        self.unit_first_root = self.root_count;
-        self.sources.units[index].first_module_member = 0;
-        self.sources.units[index].module_member_count = 0;
-        self.sources.units[index].has_module = 0;
+        self.retain_unit_namespace(source, index, self.sources.units[index].path);
+        transition self.status {
+            OmegaParserStatus::Complete -> declarations(index)
+            _ -> return
+        }
+    }
+    state declarations(index: i32) {
         self.append_unit(source[0..self.sources.units[index].end],
             self.sources.units[index].start);
         transition self.status {
@@ -112,6 +115,118 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
         self.status = OmegaParserStatus::Incomplete;
         self.incomplete_start = 0;
         self.incomplete_end = 0;
+    }
+}
+
+// The caller supplies one canonical package-relative POSIX path. Its parent
+// components enter the ordinary name resolver. The basename contributes none.
+machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
+    path: OmegaRelativeSpan) {
+    self.sources.units[index].first_module_member = self.member_count;
+    self.sources.units[index].module_member_count = 0;
+    self.status = OmegaParserStatus::Complete;
+    transition path.start == path.end {
+        true -> return
+        _ -> scan(path.start, path.start)
+    }
+    state scan(start: i32, cursor: i32) {
+        transition cursor < path.end {
+            true -> byte(start, cursor, source[cursor])
+            _ -> basename(start)
+        }
+    }
+    state byte(start: i32, cursor: i32, value: i32) {
+        transition value == '/' {
+            true -> directory(start, cursor)
+            _ -> ordinary(start, cursor, value)
+        }
+    }
+    state ordinary(start: i32, cursor: i32, value: i32) {
+        transition (value == 0) || (value == '\\') {
+            true -> invalid(cursor, cursor + 1)
+            _ -> scan(start, cursor + 1)
+        }
+    }
+    state directory(start: i32, end: i32) {
+        transition (self.sources.identifier_range(source, start, end) == 1) &&
+            (self.reserved_namespace(source, start, end) == 0) {
+            true -> capacity(start, end)
+            _ -> invalid(start, end)
+        }
+    }
+    state capacity(start: i32, end: i32) {
+        transition self.member_count < 16384 {
+            true -> retain(start, end)
+            _ -> full(start, end)
+        }
+    }
+    state retain(start: i32, end: i32) {
+        self.members[self.member_count].start = start;
+        self.members[self.member_count].end = end;
+        self.member_count = self.member_count + 1;
+        self.sources.units[index].module_member_count =
+            self.sources.units[index].module_member_count + 1;
+        transition true { true -> scan(end + 1, end + 1) }
+    }
+    state basename(start: i32) {
+        transition (start == path.end) || (self.scan.span_equals(source, start, path.end, ".") == 1) ||
+            (self.scan.span_equals(source, start, path.end, "..") == 1) {
+            true -> invalid(start, path.end)
+            _ -> return
+        }
+    }
+    state invalid(start: i32, end: i32) {
+        self.status = OmegaParserStatus::SyntaxFailure;
+        self.diagnostic_code = OmegaParseDiagnosticCode::InvalidSourcePath;
+        self.diagnostic_start = start;
+        self.diagnostic_end = end;
+    }
+    state full(start: i32, end: i32) {
+        self.status = OmegaParserStatus::ResourceFailure;
+        self.resource = OmegaParserResource::PathMembers;
+        self.resource_limit = 16384;
+        self.resource_requested = self.member_count + 1;
+        self.diagnostic_start = start;
+        self.diagnostic_end = end;
+    }
+}
+
+// Directory names share the namespace of builtin types. The integer family
+// includes bare i/u and every decimal width, even an unsupported width.
+machine OmegaParser::reserved_namespace(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    transition (source[start] == 'i') || (source[start] == 'u') {
+        true -> digits(start + 1)
+        _ -> fixed()
+    }
+    state digits(cursor: i32) {
+        transition cursor < end {
+            true -> digit(cursor, source[cursor])
+            _ -> return 1
+        }
+    }
+    state digit(cursor: i32, byte: i32) {
+        transition (byte >= '0') && (byte <= '9') {
+            true -> digits(cursor + 1)
+            _ -> return 0
+        }
+    }
+    state fixed() {
+        transition (self.scan.span_equals(source, start, end, "self") == 1) ||
+            (self.scan.span_equals(source, start, end, "bool") == 1) ||
+            (self.scan.span_equals(source, start, end, "addr") == 1) ||
+            (self.scan.span_equals(source, start, end, "f32") == 1) ||
+            (self.scan.span_equals(source, start, end, "f64") == 1) ||
+            (self.scan.span_equals(source, start, end, "Slice") == 1) ||
+            (self.scan.span_equals(source, start, end, "SyscallResult") == 1) ||
+            (self.scan.span_equals(source, start, end, "Terminal") == 1) ||
+            (self.scan.span_equals(source, start, end, "UInt") == 1) ||
+            (self.scan.span_equals(source, start, end, "Int") == 1) ||
+            (self.scan.span_equals(source, start, end, "AtomicBool") == 1) ||
+            (self.scan.span_equals(source, start, end, "AtomicU32") == 1) ||
+            (self.scan.span_equals(source, start, end, "AtomicU64") == 1) {
+            true -> return 1
+            _ -> return 0
+        }
     }
 }
 
@@ -1150,50 +1265,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state root_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Keyword -> root_keyword()
-            OmegaTokenKind::Identifier -> root_identifier()
+            OmegaTokenKind::Identifier -> begin_target_machine_root()
             _ -> incomplete_root()
         }
-    }
-
-    state root_identifier() {
-        transition self.scan.span_equals(source, self.scan.token_start,
-            self.scan.token_end, "module") {
-            1 -> begin_module()
-            _ -> begin_target_machine_root()
-        }
-    }
-
-    state begin_module() {
-        transition (self.root_count == self.unit_first_root) &&
-            (self.sources.units[self.unit_index].has_module == 0) {
-            true -> begin_module_path()
-            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathMember,
-                self.scan.token_start, self.scan.token_end)
-        }
-    }
-
-    state begin_module_path() {
-        self.item_start = self.scan.token_start;
-        self.first_member = self.member_count;
-        self.path_destination = OmegaPathDestination::Module;
-        self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(1) }
-    }
-
-    state module_path_end() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Semicolon -> retain_module()
-            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
-                self.scan.token_start, self.scan.token_end)
-        }
-    }
-
-    state retain_module() {
-        self.sources.units[self.unit_index].first_module_member = self.first_member;
-        self.sources.units[self.unit_index].module_member_count = self.member_count - self.first_member;
-        self.sources.units[self.unit_index].has_module = 1;
-        self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(0) }
     }
 
     state root_keyword() {
@@ -1261,6 +1335,16 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state target_machine_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Keyword -> target_machine_keyword()
+            OmegaTokenKind::Identifier -> target_identifier()
+            _ -> incomplete_root()
+        }
+    }
+
+    state target_identifier() {
+        transition self.scan.span_equals(source, self.machine_target_start,
+            self.machine_target_end, "module") {
+            1 -> syntax_failure(OmegaParseDiagnosticCode::RetiredModuleHeader,
+                self.machine_target_start, self.machine_target_end)
             _ -> incomplete_root()
         }
     }
@@ -1367,7 +1451,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state finish_path_punctuation() {
         transition self.path_destination {
-            OmegaPathDestination::Module -> module_path_end()
             OmegaPathDestination::Use -> use_path_end()
             OmegaPathDestination::Machine -> machine_path_end()
         }
