@@ -1,11 +1,6 @@
-/*
-    Compare actual selected declarations, not just expression counts. Preparation
-    must retain lexical and final routing while keeping implementation bodies out
-    of its product. Full resolution is the independent reference operation.
-*/
+//! Compare selected call declarations when bodies are completed together or individually.
 
 use crate::resolution::frontend_fixture::Lexer;
-use crate::resolution::pre_resolution::resolve_call_result_selection;
 use crate::resolution::tables::body_expressions;
 use crate::resolution::{ResolutionRequest, resolve};
 use crate::source_resolved::{
@@ -47,26 +42,20 @@ fn call_identities(program: &SymbolResolvedTrees) -> Vec<String> {
 }
 
 fn compare(source_text: &str) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
-    let tokens = Lexer::new(source_text).tokenize().unwrap();
-    let mut sources = crate::source_inputs::SourceMap::default();
-    let source_id = sources
-        .add("call-results/main.omg".into(), source_text.to_owned())
-        .source_id;
-    let sources = std::sync::Arc::new(sources);
-    let syntax =
-        crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
-            .unwrap();
-    let request = |syntax| ResolutionRequest {
-        syntax,
-        sources: Some(sources.clone()),
-        top_level_bindings: Vec::new(),
-        retained_base: None,
-    };
-    let full = resolve(request(syntax.clone())).unwrap();
-    let selected = resolve_call_result_selection(request(syntax)).unwrap();
-    let expected = call_identities(&full);
+    let full = resolve(super::source_request(source_text)).unwrap();
+    let mut frontier = crate::resolution::resolve_deferred(super::source_request(source_text)).unwrap();
+    let selected = frontier.shared_trees();
+    loop {
+        let next = frontier.pending_machines().next();
+        let Some(machine) = next else { break };
+        frontier = frontier.complete_machine_bodies(&[machine]).unwrap().into_resolved_frontier();
+    }
+    let mut expected = call_identities(&full);
+    let mut completed = call_identities(frontier.trees());
+    expected.sort();
+    completed.sort();
     assert!(!expected.is_empty());
-    assert_eq!(call_identities(&selected), expected);
+    assert_eq!(completed, expected);
     assert!(
         selected
             .machines
@@ -74,7 +63,7 @@ fn compare(source_text: &str) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
             .filter(|machine| machine.body_is_present)
             .all(|machine| machine.body_status == MachineBodyStatus::Deferred)
     );
-    (full, selected)
+    (full, std::sync::Arc::unwrap_or_clone(selected))
 }
 
 #[test]

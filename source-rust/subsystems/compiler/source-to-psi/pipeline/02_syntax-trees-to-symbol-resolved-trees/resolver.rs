@@ -1,7 +1,5 @@
-//! Resolve parsed Omega names to declaration identities. Start with `resolve` for
-//! a whole forest or `resolve_deferred` for a build that will request bodies.
-//! Generated source extends a retained base. Build-time queries live in `pre_resolution`.
-//! The full pass order is in `resolve_forest` and `settle_resolution` below.
+//! Resolve parsed declarations and retain their pending machine bodies. Generated
+//! and authored extensions use the same declaration index and body completion.
 #![forbid(unsafe_code)]
 
 mod constants;
@@ -15,12 +13,10 @@ pub mod pre_resolution;
 mod selections;
 mod tables;
 
-use crate::resolution::declarations::declaration_selection::ConstantSelection;
 use crate::resolution::names::target_siblings::bind_sibling_calls;
 use crate::resolution::names::type_predicates::retain_operands;
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
-use declarations::machine_equations::SourceLinks;
 use declarations::machine_equations::complete;
 use declarations::machine_equations::required;
 use declarations::machine_equations::validate_declarations;
@@ -28,10 +24,11 @@ pub use deferred_bodies::{DeferredBodyScope, DeferredResolvedFrontier, ResolvedB
 use diagnostics::Diagnostic;
 #[cfg(any(test, feature = "test-support"))]
 pub use generated_source::DeferredResolvedExtension;
-pub use generated_source::{ExtensionRequest, resolve_deferred_extension, resolve_extension};
+pub use generated_source::{ExtensionRequest, resolve_deferred_extension};
+#[cfg(any(test, feature = "test-support"))]
+pub use generated_source::resolve_extension;
 use lowering::lowerer::{ConstResolutionMode, Lowerer};
 use lowering::mathematical::lower_mathematical_definitions;
-use selections::body_calls::CallSelectionInput;
 use selections::conformance_blocks::route_conformance_requirement_calls;
 use selections::conformance_blocks::route_named_implementation_calls;
 use selections::machine_token_bindings::{
@@ -45,8 +42,7 @@ use syntax_trees::SyntaxTrees;
 /* Resolve every name in the forest to its exact declaration. */
 #[cfg(any(test, feature = "test-support"))]
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin_complete(request, None)?;
-    resolve_forest(lowerer, &syntax).map(|(trees, _, _)| trees)
+    resolve_deferred(request)?.into_complete_trees()
 }
 
 /*
@@ -57,35 +53,6 @@ pub fn resolve_deferred(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     resolve_deferred_with_declarations(request, None)
-}
-
-/*
-    The route. Each phase is one call into its owner, in the one order their
-    preconditions allow: operator homes need no symbols; constants need the
-    table; the authored-selection ledger needs substituted constants; operator
-    obligations need the ledger; every remaining selection needs all of it;
-    domain homes of token-bearing machines need assigned attached symbols;
-    duplicate machine token bindings compare settled operand identities.
-*/
-fn resolve_forest(
-    mut lowerer: Lowerer,
-    syntax: &SyntaxTrees,
-) -> Result<
-    (
-        SymbolResolvedTrees,
-        ConstantSelection<'static>,
-        Option<SourceLinks>,
-    ),
-    Vec<Diagnostic>,
-> {
-    lowering::lower_items(&mut lowerer, syntax)?;
-    lower_mathematical_definitions(&mut lowerer, syntax)?;
-    selections::select_operator_homes(&mut lowerer)?;
-    let constant_selection = lowerer.take_constant_selection()?;
-    crate::resolution::names::assign(&mut lowerer, syntax)?;
-    finish_resolution(&mut lowerer, syntax, &[], &[])?;
-    let links = lowerer.equation_sources.take();
-    Ok((lowerer.into_trees(), constant_selection, links))
 }
 
 /*
@@ -145,7 +112,7 @@ fn resolve_deferred_with_declarations(
                 provisional.seed_resolved_base(Arc::clone(base))?;
             }
             index_declarations(&mut provisional, &syntax)?;
-            finish_resolution(&mut provisional, &syntax, &[], &[])?;
+            finish_resolution(&mut provisional, &syntax, &[])?;
             let selection = provisional.take_constant_selection()?;
             let links = provisional.equation_sources.take().unwrap_or_default();
             let before = syntax.root_item_handles().len();
@@ -172,7 +139,7 @@ fn index_deferred(
     bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     index_declarations(&mut lowerer, &syntax)?;
-    finish_resolution(&mut lowerer, &syntax, &[], &[])?;
+    finish_resolution(&mut lowerer, &syntax, &[])?;
     let pending = take(&mut lowerer.pending_machine_bodies);
     let pending_type_inputs =
         lowering::type_inputs::bind(&lowerer.symbol_resolved_trees, &lowerer.pending_type_inputs)?;
@@ -210,35 +177,6 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
     lower_mathematical_definitions(lowerer, syntax)?;
     selections::select_operator_homes(lowerer)?;
     crate::resolution::names::assign_declarations(lowerer, syntax)
-}
-
-/*
-    Equation completion uses ordinary selection with identical source and base
-    custody. Its private links are discarded before the final lowering pass.
-*/
-fn begin_complete(
-    request: ResolutionRequest,
-    base_declarations: Option<&SyntaxTrees>,
-) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
-    let base = request.retained_base.clone();
-    let sources = request.sources.clone();
-    let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) =
-        begin_with_declarations(request, ConstResolutionMode::Complete, base_declarations)?;
-    if required(&syntax, base.as_deref()) {
-        let mut provisional = Lowerer::new(sources, bindings);
-        provisional.constant_selection = lowerer.constant_selection.take();
-        provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
-        provisional.equation_sources = Some(Default::default());
-        if let Some(base) = &base {
-            provisional.seed_resolved_base(Arc::clone(base))?;
-        }
-        let (trees, selection, links) = resolve_forest(provisional, &syntax)?;
-        complete(&mut syntax, &trees, &links.unwrap_or_default(), &selection)?;
-        lowerer.constant_selection = Some(selection);
-    }
-    lowerer.structural_type_equations_pending = false;
-    Ok((syntax, lowerer))
 }
 
 /*
@@ -296,7 +234,6 @@ fn begin_with_declarations(
 fn finish_resolution(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
-    inputs: &[CallSelectionInput],
     completed_machines: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let predecessor = lowerer.seed.as_ref().map(|seed| Arc::clone(&seed.source));
@@ -329,7 +266,7 @@ fn finish_resolution(
             .append_completed_body_tables(&predecessor, &completed_machines),
         None => lowerer.symbol_resolved_trees.rebuild_tables(),
     }
-    finish_resolved_tables(lowerer, inputs, &machines)?;
+    finish_resolved_tables(lowerer, &machines)?;
     selections::callable_inference::infer(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_callable_types,
@@ -369,13 +306,12 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
 
 fn finish_resolved_tables(
     lowerer: &mut Lowerer,
-    inputs: &[CallSelectionInput],
     machines: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
-    route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, inputs, machines)?;
-    route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);
+    route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, machines)?;
+    route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, machines);
     crate::resolution::names::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
-    bind_sibling_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);
+    bind_sibling_calls(&mut lowerer.symbol_resolved_trees, machines);
     crate::resolution::names::recursive_tail_calls::normalize(
         &mut lowerer.symbol_resolved_trees,
         machines,

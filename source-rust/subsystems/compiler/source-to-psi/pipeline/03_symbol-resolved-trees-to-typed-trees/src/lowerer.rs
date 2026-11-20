@@ -785,30 +785,6 @@ pub(crate) mod seeded_continuation {
             lower_body_completion(source, self).map_err(|error| vec![error])
         }
 
-        pub fn lower_extension(
-            self,
-            source: crate::source_resolved::continuations::SeededSymbolResolvedTrees,
-        ) -> Result<Self, Vec<Diagnostic>> {
-            let rebased = source
-            .rebase_authored_selections_for_typed_continuation(
-                self.typed.authored_declaration_selections(),
-            )
-            .map_err(|(_, error)| {
-                vec![Diagnostic::error(format!(
-                    "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
-                ))]
-            })?;
-            lower_seeded_extension(rebased, self).map_err(|error| match error {
-                SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
-                SeededContinuationError::RetainedResolvedRootsChanged => vec![Diagnostic::error(
-                    "source continuation changed a retained declaration root",
-                )],
-                error => vec![Diagnostic::error(format!(
-                    "generated-source continuation violated its retained-base invariant: {error:?}"
-                ))],
-            })
-        }
-
         pub fn prepare_allocations(
             &mut self,
         ) -> Result<

@@ -532,8 +532,7 @@ fn service_for_name(
 
 #[cfg(test)]
 mod tests {
-    use crate::frontend_fixture::{Lexer, parse_syntax_trees};
-    use crate::resolution::{ResolutionRequest, resolve};
+    use crate::resolution::resolve;
     use crate::source_resolved::trait_definition::ConformanceRowSource;
 
     #[test]
@@ -551,8 +550,7 @@ mod tests {
                 machine read() -> u64 reaches Input { 3u64 }
             }
         "#;
-        let tokens = Lexer::new(text).tokenize().unwrap();
-        let trees = resolve(ResolutionRequest::new(parse_syntax_trees(&tokens).unwrap())).unwrap();
+        let trees = resolve(crate::resolution::tests::source_request(text)).unwrap();
         let driver = trees.conformances.iter().next().unwrap();
         assert_eq!(driver.rows.len(), 2);
         for (requirement, source, service) in [

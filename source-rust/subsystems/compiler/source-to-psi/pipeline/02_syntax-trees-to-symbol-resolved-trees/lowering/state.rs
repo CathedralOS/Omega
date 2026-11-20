@@ -10,7 +10,7 @@
 
 mod lexical_inputs {
     /*
-        One-shot lexical preparation for type operands and selected call results.
+        One-shot lexical preparation for type operands.
 
         These are declaration construction records, not executable statements. They
         are never installed into a state's body, and the machine stays Deferred.
@@ -19,11 +19,7 @@ mod lexical_inputs {
     */
 
     #[cfg(any(test, feature = "test-support"))]
-    use crate::resolution::declarations::generic_data::statement_call_inputs;
-    #[cfg(any(test, feature = "test-support"))]
     use crate::resolution::declarations::generic_data::statement_type_inputs;
-    #[cfg(any(test, feature = "test-support"))]
-    use crate::resolution::lowering::expression::lower_private_expression_into_table;
     use crate::resolution::lowering::lowerer::Lowerer;
     use crate::resolution::lowering::type_reference::lower_type_reference_handle;
     use crate::source_resolved::{
@@ -38,20 +34,12 @@ mod lexical_inputs {
     use symbols::SymbolHandle;
     use syntax_trees::{self as syntax, SyntaxTrees};
 
-    #[derive(Clone, Copy)]
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) enum LexicalInputDemand {
-        TypeOperands,
-        CallResults,
-    }
-
     pub(crate) struct StateLexicalInputs {
         pub(crate) machine: SymbolHandle,
         pub(crate) state: Handle<State>,
         pub(crate) locals: Vec<Statement>,
         /* Each input sees only the authored locals preceding its statement. */
         pub(crate) types: Vec<(usize, TypeReference)>,
-        pub(crate) calls: Vec<(usize, crate::source_resolved::expression::ExpressionHandle)>,
     }
 
     pub(crate) fn lower_local_declaration(
@@ -120,7 +108,6 @@ mod lexical_inputs {
         machine: SymbolHandle,
         state: Handle<State>,
         statements: HandleSpan<syntax::statement::StatementHandle>,
-        demand: LexicalInputDemand,
     ) -> Result<StateLexicalInputs, Diagnostic> {
         let declaration = lowerer.symbol_resolved_trees.machine_state(state).clone();
         super::with_state_scope(lowerer, &declaration, |lowerer| {
@@ -129,7 +116,6 @@ mod lexical_inputs {
                 state,
                 locals: Vec::new(),
                 types: Vec::new(),
-                calls: Vec::new(),
             };
             for &statement in syntax.items.statements(statements) {
                 let local = match syntax.statements.statement(statement) {
@@ -142,12 +128,7 @@ mod lexical_inputs {
                         !local.is_some_and(|local| local.type_reference == *reference)
                     })
                     .collect::<Vec<_>>();
-                let calls = if matches!(demand, LexicalInputDemand::CallResults) {
-                    statement_call_inputs(syntax, statement)
-                } else {
-                    Vec::new()
-                };
-                if !types.is_empty() || !calls.is_empty() {
+                if !types.is_empty() {
                     crate::resolution::lowering::expression::match_dispatch::with_transition_pattern_captures(
                         lowerer,
                         syntax,
@@ -157,14 +138,6 @@ mod lexical_inputs {
                                 inputs.types.push((
                                     inputs.locals.len(),
                                     lower_type_reference_handle(lowerer, syntax, reference)?,
-                                ));
-                            }
-                            for expression in calls {
-                                inputs.calls.push((
-                                    inputs.locals.len(),
-                                    lower_private_expression_into_table(
-                                        lowerer, syntax, expression,
-                                    )?,
                                 ));
                             }
                             Ok(())
@@ -184,7 +157,7 @@ mod lexical_inputs {
     }
 }
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use lexical_inputs::{LexicalInputDemand, lower_state_lexical_inputs};
+pub(crate) use lexical_inputs::lower_state_lexical_inputs;
 pub(crate) use lexical_inputs::{StateLexicalInputs, lower_local_declaration};
 
 use crate::resolution::lowering::domain::lower_proof_facts;

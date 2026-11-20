@@ -229,6 +229,19 @@ pub enum DeferredBodyScope {
 }
 
 impl DeferredResolvedFrontier {
+    #[cfg(any(test, feature = "test-support"))]
+    pub(super) fn into_complete_trees(mut self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+        loop {
+            let selected = self.pending_machines_in(DeferredBodyScope::All)?;
+            if selected.is_empty() {
+                return Ok(Arc::unwrap_or_clone(self.trees));
+            }
+            self = self
+                .complete_machine_bodies(&selected)?
+                .into_resolved_frontier();
+        }
+    }
+
     pub fn trees(&self) -> &SymbolResolvedTrees {
         &self.trees
     }
@@ -403,7 +416,7 @@ impl DeferredResolvedFrontier {
                 provisional.structural_type_equations_pending = true;
                 append_generated_declarations(&mut provisional, &self.syntax, syntax_frontier)?;
                 lower_selected_bodies(&mut provisional, &self.syntax, &pending, selected)?;
-                super::finish_resolution(&mut provisional, &self.syntax, &[], selected)?;
+                super::finish_resolution(&mut provisional, &self.syntax, selected)?;
                 let selection = provisional.take_constant_selection()?;
                 let links = provisional.equation_sources.take().unwrap_or_default();
                 let before = self.syntax.root_item_handles().len();
@@ -421,7 +434,7 @@ impl DeferredResolvedFrontier {
         let mut lowerer = self.seed_body_lowerer()?;
         append_generated_declarations(&mut lowerer, &self.syntax, syntax_frontier)?;
         lower_selected_bodies(&mut lowerer, &self.syntax, &pending, selected)?;
-        super::finish_resolution(&mut lowerer, &self.syntax, &[], selected)?;
+        super::finish_resolution(&mut lowerer, &self.syntax, selected)?;
         let hoist_counter = lowerer.hoist_counter;
         self.supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
         self.declaration_inputs = take(&mut lowerer.declaration_inputs);

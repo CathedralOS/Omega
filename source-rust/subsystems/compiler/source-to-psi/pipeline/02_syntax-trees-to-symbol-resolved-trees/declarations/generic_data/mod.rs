@@ -39,8 +39,6 @@ mod synthesis;
 mod uses;
 
 mod work_domain;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use uses::statement_call_inputs;
 pub(crate) use uses::statement_type_inputs;
 pub(super) use uses::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,

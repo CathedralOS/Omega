@@ -450,29 +450,7 @@ pub(crate) use lookup::{
     membership_selection, qualified_payload_free_case_type,
 };
 
-/*
-    Build the symbol table and give every reference its identity, then settle
-    the static module calls and outcome-specific contracts that need it. A
-    seeded lowerer extends its base's table in place.
-*/
-pub(crate) fn assign(
-    lowerer: &mut Lowerer,
-    syntax: &syntax_trees::SyntaxTrees,
-) -> Result<(), Vec<Diagnostic>> {
-    assign_declarations(lowerer, syntax)?;
-    let machines = lowerer
-        .symbol_resolved_trees
-        .machines
-        .iter()
-        .map(|machine| machine.symbol)
-        .collect::<Vec<_>>();
-    assign_body_symbols(lowerer, &machines)
-}
-
-/*
-    Allocate and resolve declaration identities before any body-local symbol
-    batch. Both eager resolution and retained-body completion use this boundary.
-*/
+/// Assign declaration identities before resolving a batch of body locals.
 pub(crate) fn assign_declarations(
     lowerer: &mut Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
@@ -578,10 +556,9 @@ pub(crate) fn assign_body_symbols(
 pub(crate) fn assign_lexical_inputs(
     lowerer: &mut Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
-    demand: crate::resolution::lowering::state::LexicalInputDemand,
-) -> Result<Vec<crate::resolution::selections::body_calls::CallSelectionInput>, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     let mut inputs =
-        crate::resolution::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax, demand)
+        crate::resolution::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax)
             .map_err(|diagnostic| vec![diagnostic])?;
     for input in &mut inputs {
         let state = lowerer
@@ -611,19 +588,8 @@ pub(crate) fn assign_lexical_inputs(
         &symbols,
         &mut inputs,
     )?;
-    let mut calls = Vec::new();
-    for input in &mut inputs {
-        for (_, expression) in input.calls.drain(..) {
-            calls.push(
-                crate::resolution::selections::body_calls::CallSelectionInput {
-                    machine: input.machine,
-                    expression,
-                },
-            );
-        }
-    }
     lowerer.resolved_lexical_inputs.extend(inputs);
-    Ok(calls)
+    Ok(())
 }
 
 use crate::resolution::lowering::lowerer::Lowerer;
