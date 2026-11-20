@@ -3473,6 +3473,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
                 self.parser.owned_machines[self.parser.boundary_machines[self.parser.roots[index].item_index]].start)
             OmegaRootKind::Data -> non_machine_root(index + 1)
             OmegaRootKind::Domain -> incomplete(4, self.parser.domains[self.parser.roots[index].item_index].keyword_start)
+            OmegaRootKind::Trait -> incomplete(4, self.parser.ordinary_traits[self.parser.roots[index].item_index].keyword.start)
             OmegaRootKind::BoundaryTrait -> incomplete(4, self.parser.boundary_traits[self.parser.roots[index].item_index].boundary_keyword.start)
             OmegaRootKind::Use -> incomplete(4, self.parser.uses[
                 self.parser.roots[index].item_index].start)

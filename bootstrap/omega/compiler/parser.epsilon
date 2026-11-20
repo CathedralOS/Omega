@@ -52,8 +52,9 @@ machine OmegaParser::reset_syntax(&mut self) {
     self.owned_machine_count = 0;
     self.in_implementation = 0;
     self.boundary_trait_count = 0;
+    self.ordinary_trait_count = 0;
     self.boundary_requirement_count = 0;
-    self.in_boundary_trait = 0;
+    self.in_trait = 0;
     self.member_count = 0;
     self.use_count = 0;
     self.data_count = 0;
@@ -588,9 +589,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             121 -> struct_literal_omission_end(0)
             122 -> projection_field_name()
             123 -> boundary_trait_keyword()
-            124 -> boundary_trait_name()
-            125 -> boundary_trait_body()
-            126 -> boundary_trait_member()
+            124 -> trait_name()
+            125 -> trait_body()
+            126 -> trait_member()
             127 -> boundary_requirement_name()
             128 -> boundary_requirement_parameters()
             140 -> public_implementation_satisfies()
@@ -1394,6 +1395,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state identifier_root(is_public: i32) {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "domain") {
             1 -> begin_domain(is_public)
+            _ -> ordinary_trait_root(is_public)
+        }
+    }
+    state ordinary_trait_root(is_public: i32) {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "trait") {
+            1 -> begin_trait(is_public, self.scan.token_start, self.scan.token_end, 0)
             _ -> other_identifier_root(is_public)
         }
     }
@@ -1431,7 +1438,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
     state start_private_boundary_trait() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "trait") {
-            1 -> begin_boundary_trait(0, self.machine_target_start, self.machine_target_end)
+            1 -> begin_trait(0, self.machine_target_start, self.machine_target_end, 1)
             _ -> incomplete_root()
         }
     }
@@ -1506,7 +1513,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.state_return_type = 0;
         self.path_destination = OmegaPathDestination::Machine;
         self.cursor = self.scan.next_cursor;
-        transition self.in_boundary_trait {
+        transition self.in_trait {
             1 -> scan_semantic(127)
             _ -> scan_semantic(1)
         }
@@ -2152,7 +2159,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state requirement_crash_end(kind: OmegaMachineClauseKind) {
-        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) {
+        transition (self.in_trait == 1) || (self.machine_is_boundary == 1) {
             true -> retain_effect_clause(kind)
             _ -> incomplete_root()
         }
@@ -2208,7 +2215,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state begin_initial_satisfies_clause() {
         self.machine_clause_start = self.scan.token_start;
-        transition self.in_boundary_trait {
+        transition self.in_trait {
             1 -> incomplete_root()
             _ -> begin_satisfies_clause()
         }
@@ -2564,7 +2571,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state begin_termination_clause() {
-        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) || (self.in_implementation == 1) {
+        transition (self.in_trait == 1) || (self.machine_is_boundary == 1) || (self.in_implementation == 1) {
             true -> requirement_termination_clause()
             _ -> begin_private_termination_clause()
         }
@@ -2911,13 +2918,13 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state machine_body_or_requirement() {
-        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) {
+        transition (self.in_trait == 1) || (self.machine_is_boundary == 1) {
             true -> incomplete_root()
             _ -> enter_current_state_body()
         }
     }
     state requirement_end_or_incomplete() {
-        transition self.in_boundary_trait {
+        transition self.in_trait {
             1 -> retain_boundary_requirement()
             _ -> boundary_machine_end()
         }
@@ -2941,7 +2948,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.boundary_requirements[self.boundary_requirement_count].start = self.item_start;
         self.boundary_requirements[self.boundary_requirement_count].end = self.scan.token_end;
         self.boundary_requirement_count = self.boundary_requirement_count + 1;
-        transition true { true -> next_boundary_trait_member() }
+        transition true { true -> next_trait_member() }
     }
     state begin_machine_return_type() {
         self.type_consumer = OmegaTypeConsumer::MachineReturn;
@@ -8549,84 +8556,107 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
     state public_boundary_trait() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "trait") {
-            1 -> begin_boundary_trait(1, self.pending_boundary_keyword.start, self.pending_boundary_keyword.end)
+            1 -> begin_trait(1, self.pending_boundary_keyword.start, self.pending_boundary_keyword.end, 1)
             _ -> incomplete_root()
         }
     }
-    state begin_boundary_trait(is_public: i32, start: i32, end: i32) {
+    state begin_trait(is_public: i32, start: i32, end: i32, is_boundary: i32) {
         transition self.root_count < 4096 {
-            true -> open_boundary_trait(is_public, start, end)
+            true -> open_trait(is_public, start, end, is_boundary)
             _ -> resource_failure(OmegaParserResource::Roots, 4096, self.root_count + 1)
         }
     }
-    state open_boundary_trait(is_public: i32, start: i32, end: i32) {
-        self.boundary_traits[self.boundary_trait_count].start = self.item_start;
-        self.boundary_traits[self.boundary_trait_count].boundary_keyword.start = start;
-        self.boundary_traits[self.boundary_trait_count].boundary_keyword.end = end;
-        self.boundary_traits[self.boundary_trait_count].is_public = is_public;
-        self.boundary_traits[self.boundary_trait_count].first_requirement = self.boundary_requirement_count;
-        self.in_boundary_trait = 1;
+    state open_trait(is_public: i32, start: i32, end: i32, is_boundary: i32) {
+        self.pending_trait_is_boundary = is_boundary;
+        self.pending_trait.start = self.item_start;
+        self.pending_trait.keyword.start = start;
+        self.pending_trait.keyword.end = end;
+        self.pending_trait.is_public = is_public;
+        self.pending_trait.first_requirement = self.boundary_requirement_count;
+        self.in_trait = 1;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(124) }
     }
-    state boundary_trait_name() {
+    state trait_name() {
         transition self.ordinary_name_token() {
-            1 -> retain_boundary_trait_name()
+            1 -> retain_trait_name()
             _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitName, self.scan.token_start, self.scan.token_end)
         }
     }
-    state retain_boundary_trait_name() {
-        self.boundary_traits[self.boundary_trait_count].name.start = self.scan.token_start;
-        self.boundary_traits[self.boundary_trait_count].name.end = self.scan.token_end;
+    state retain_trait_name() {
+        self.pending_trait.name.start = self.scan.token_start;
+        self.pending_trait.name.end = self.scan.token_end;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(125) }
     }
-    state boundary_trait_body() {
+    state trait_body() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Punctuation -> boundary_trait_body_punctuation()
+            OmegaTokenKind::Punctuation -> trait_body_punctuation()
             _ -> incomplete_root()
         }
     }
-    state boundary_trait_body_punctuation() {
+    state trait_body_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftBrace -> next_boundary_trait_member()
+            OmegaPunctuationKind::LeftBrace -> next_trait_member()
             OmegaPunctuationKind::Less -> incomplete_root()
             OmegaPunctuationKind::Colon -> incomplete_root()
             _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitBody, self.scan.token_start, self.scan.token_end)
         }
     }
-    state next_boundary_trait_member() {
+    state next_trait_member() {
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(126) }
     }
-    state boundary_trait_member() {
+    state trait_member() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Keyword -> boundary_member_keyword()
-            OmegaTokenKind::Punctuation -> boundary_member_punctuation()
+            OmegaTokenKind::Keyword -> trait_member_keyword()
+            OmegaTokenKind::Punctuation -> trait_member_punctuation()
             _ -> incomplete_root()
         }
     }
-    state boundary_member_keyword() {
+    state trait_member_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::Machine -> begin_machine_root()
             _ -> incomplete_root()
         }
     }
-    state boundary_member_punctuation() {
+    state trait_member_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::RightBrace -> retain_boundary_trait()
+            OmegaPunctuationKind::RightBrace -> retain_trait()
             _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitMemberOrEnd, self.scan.token_start, self.scan.token_end)
         }
     }
-    state retain_boundary_trait() {
-        self.boundary_traits[self.boundary_trait_count].requirement_count =
-            self.boundary_requirement_count - self.boundary_traits[self.boundary_trait_count].first_requirement;
-        self.boundary_traits[self.boundary_trait_count].end = self.scan.token_end;
+    state retain_trait() {
+        self.pending_trait.requirement_count = self.boundary_requirement_count - self.pending_trait.first_requirement;
+        self.pending_trait.end = self.scan.token_end;
+        transition self.pending_trait_is_boundary {
+            1 -> boundary_root(self.pending_trait)
+            _ -> ordinary_root()
+        }
+    }
+    state ordinary_root() {
+        self.ordinary_traits[self.ordinary_trait_count] = self.pending_trait;
+        self.roots[self.root_count].kind = OmegaRootKind::Trait;
+        self.roots[self.root_count].item_index = self.ordinary_trait_count;
+        self.ordinary_trait_count = self.ordinary_trait_count + 1;
+        transition true { true -> close_trait() }
+    }
+    state boundary_root(row: OmegaTraitSyntax) {
+        self.boundary_traits[self.boundary_trait_count].name = row.name;
+        self.boundary_traits[self.boundary_trait_count].boundary_keyword = row.keyword;
+        self.boundary_traits[self.boundary_trait_count].start = row.start;
+        self.boundary_traits[self.boundary_trait_count].end = row.end;
+        self.boundary_traits[self.boundary_trait_count].is_public = row.is_public;
+        self.boundary_traits[self.boundary_trait_count].first_requirement = row.first_requirement;
+        self.boundary_traits[self.boundary_trait_count].requirement_count = row.requirement_count;
         self.roots[self.root_count].kind = OmegaRootKind::BoundaryTrait;
         self.roots[self.root_count].item_index = self.boundary_trait_count;
-        self.root_count = self.root_count + 1;
         self.boundary_trait_count = self.boundary_trait_count + 1;
-        self.in_boundary_trait = 0;
+        transition true { true -> close_trait() }
+    }
+    state close_trait() {
+        self.root_count = self.root_count + 1;
+        self.in_trait = 0;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(0) }
     }
@@ -10481,7 +10511,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state check_machine_return_position() {
-        transition ((self.in_boundary_trait == 0) || (self.machine_clause_count == self.machine_first_clause)) &&
+        transition ((self.in_trait == 0) || (self.machine_clause_count == self.machine_first_clause)) &&
             (self.state_has_return_type == 0) && (self.state_block_bound < 0) &&
             (self.state_crash_bound == 0) &&
             (self.requirement_count == self.state_first_requirement) {
@@ -10491,7 +10521,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state requirement_return_end() {
-        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) {
+        transition (self.in_trait == 1) || (self.machine_is_boundary == 1) {
             true -> retain_type_for_consumer(self.type_end, self.scan.token_start)
             _ -> incomplete_root()
         }

@@ -47,6 +47,11 @@ machine Main::main(&mut self) {
     self.check_boundary_traits(
         "public boundary trait Service { machine stop(code:i32)->Never reaches Service crashes none terminates; machine stop()->u8; } boundary trait Other {} machine entry()->u8{42}"
     );
+    self.check_trait_owners("public trait Plain {machine f(x:u8)->i32;} boundary trait External {machine f()->u8;} trait Empty {}");
+    self.parser.parse_view("trait Plain { machine f() { 42 } }");
+    self.check_incomplete(26, 27);
+    self.parser.parse_view("trait Plain {machine f();");
+    self.check_syntax_refused(25, 25);
     self.parser.parse_view("boundary trait A { machine f(x i32); }");
     self.check_refused();
     self.parser.parse_view("boundary trait A { machine f();");
@@ -1587,5 +1592,36 @@ machine Main::check_type_name(&mut self, source: &[u8], node: i32, expected: &[u
     }
     state check_name(type_row: OmegaTypeReferenceSyntax) {
         assert self.parser.scan.span_equals(source, type_row.payload0, type_row.payload1, expected) == 1;
+    }
+}
+
+// Ordinary requirements and boundary requirements share signature storage.
+// Each body owns a disjoint range; only the boundary enters service lookup.
+machine Main::check_trait_owners(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    assert self.parser.ordinary_trait_count == 2;
+    assert self.parser.boundary_trait_count == 1;
+    assert self.parser.boundary_requirement_count == 2;
+    let ordinary: OmegaTraitSyntax = self.parser.ordinary_traits[0];
+    let external: OmegaBoundaryTraitSyntax = self.parser.boundary_traits[0];
+    let empty: OmegaTraitSyntax = self.parser.ordinary_traits[1];
+    self.check_span(source, ordinary.keyword, "trait");
+    self.check_span(source, ordinary.name, "Plain");
+    self.check_span(source, external.boundary_keyword, "boundary");
+    self.check_span(source, external.name, "External");
+    assert ordinary.is_public == 1;
+    assert ordinary.first_requirement == 0;
+    assert ordinary.requirement_count == 1;
+    assert external.first_requirement == 1;
+    assert external.requirement_count == 1;
+    assert empty.is_public == 0;
+    assert empty.first_requirement == 2;
+    assert empty.requirement_count == 0;
+    assert self.parser.boundary_requirements[ordinary.first_requirement].parameter_count == 1;
+    assert self.parser.boundary_requirements[external.first_requirement].parameter_count == 0;
+    transition self.parser.roots[0].kind {
+        OmegaRootKind::Trait -> return
+        _ -> self.console.exit_process(1)
     }
 }
