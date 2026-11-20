@@ -155,6 +155,25 @@ reject the same import when its dependency edge is removed. The next pass
 could reparse a body with local syntax indexes and emit against global
 declaration labels. The two controls above measure only their own units.
 
+## Compare the complete Omega compiler across routes
+
+The named `omega-constructor` case packs the complete Epsilon-written Omega
+compiler with its construction entry. Its 111-byte input contains `main.omg`
+in an `app` package. The source is `machine main() -> u8 { 42 }`. The route
+requires the compiler to exit successfully, stamps the emitted tape on the
+Alpha seed and executes it. A match requires exit 42 and empty stdout and
+stderr. The row records the tape's size and SHA-256 in `result.json`.
+
+```sh
+python3 tests/bootstrap/route.py /tmp/whole-compiler \
+  --gamma native --delta native --epsilon native --case omega-constructor
+```
+
+Select another host on any rung, or use `all` on an axis for a matrix. This
+case selects the construction profile by default so the Delta source of the
+compiled constructor fits. Pass `--profile conformance` to measure that
+profile's byte limits. [Route runner](../route.py)
+
 ## Running the compiled Omega constructor as Gamma on the seed
 
 The Alpha VM built the complete Epsilon-written bootstrap compiler and ran
