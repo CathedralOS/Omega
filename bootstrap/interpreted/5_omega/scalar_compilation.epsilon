@@ -14,6 +14,7 @@ data OmegaCheckedValueKind {
     case IndexedRead;
     case ForwardedReference;
     case ExactAddition;
+    case ExactWordArithmetic;
     case TrappingArithmetic;
     case NullaryCase;
 }
@@ -1369,7 +1370,28 @@ machine OmegaScalarCompiler::check_value(
     state arithmetic_right_policy(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
         transition (right == 288) || (right == 320) {
             true -> policy_result(row, left, right, right)
+            _ -> plain_operator(row, left, right)
+        }
+    }
+    state plain_operator(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
+        transition (expected == 32) && ((left == 32) || (right == 32)) &&
+            ((left == 0) || (left == 32)) && ((right == 0) || (right == 32)) {
+            true -> word_operator(row)
             _ -> exact_operator(row)
+        }
+    }
+    state word_operator(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Add -> word_operands(row)
+            OmegaBinaryOperatorKind::Multiply -> word_operands(row)
+            _ -> exact_operator(row)
+        }
+    }
+    state word_operands(row: OmegaBinaryExpressionSyntax) {
+        transition (self.check_value(source, owner, state_index, before, row.left, 32) == 1) &&
+            (self.check_value(source, owner, state_index, before, row.right, 32) == 1) {
+            true -> return self.check_exact_word(expression, row)
+            _ -> return 0
         }
     }
     state exact_operator(row: OmegaBinaryExpressionSyntax) {
@@ -1690,6 +1712,99 @@ machine OmegaScalarCompiler::check_value(
     state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
 }
 
+// Each set bit may occur in a checked unsigned value. Unknown words use all
+// bits; only immutable scalar locals retain facts about their initializers.
+machine OmegaScalarCompiler::possible_word_bits(&mut self, expression: i32) -> i32 {
+    transition self.value_kinds[expression] {
+        OmegaCheckedValueKind::Literal -> return self.value_payloads[expression]
+        OmegaCheckedValueKind::ExactWordArithmetic -> return self.value_payloads[expression]
+        OmegaCheckedValueKind::RepresentationCast -> return self.possible_word_bits(self.value_payloads[expression])
+        OmegaCheckedValueKind::Place -> place(self.place_roots[expression])
+        _ -> carrier()
+    }
+    state place(root: i32) {
+        transition (root >= 16384) && (root < 32768) &&
+            (self.place_offsets[expression] == 0) && (self.place_fields[expression] < 0) {
+            true -> local(self.parser.local_data_statements[root - 16384])
+            _ -> carrier()
+        }
+    }
+    state local(row: OmegaLocalDataStatementSyntax) {
+        transition (row.is_mutable == 0) && (row.has_initial_value == 1) {
+            true -> return self.possible_word_bits(row.initial_value)
+            _ -> carrier()
+        }
+    }
+    state carrier() {
+        transition self.cell_types[49152 + expression] == 8 {
+            true -> return 255
+            _ -> return -1
+        }
+    }
+}
+
+// Disjoint possible bits prove that an exact sum cannot carry. A factor
+// with just one possible bit is zero or a power of two; its product fits
+// only if every possible source bit survives the corresponding left shift.
+machine OmegaScalarCompiler::check_exact_word(
+    &mut self, expression: i32, row: OmegaBinaryExpressionSyntax
+) -> i32 {
+    let left: i32 = self.possible_word_bits(row.left);
+    let right: i32 = self.possible_word_bits(row.right);
+    transition row.operator {
+        OmegaBinaryOperatorKind::Add -> sum(left, right)
+        _ -> product(left, right)
+    }
+    state sum(left: i32, right: i32) {
+        transition (left & right) == 0 {
+            true -> retain(left | right)
+            _ -> unsupported()
+        }
+    }
+    state product(left: i32, right: i32) {
+        transition (left == 0) || (right == 0) {
+            true -> retain(0)
+            _ -> scale(left, right, 1, 0)
+        }
+    }
+    state scale(left: i32, right: i32, bit: i32, amount: i32) {
+        transition left == bit {
+            true -> shift(right, amount)
+            _ -> other(left, right, bit, amount)
+        }
+    }
+    state other(left: i32, right: i32, bit: i32, amount: i32) {
+        transition right == bit {
+            true -> shift(left, amount)
+            _ -> advance(left, right, bit, amount)
+        }
+    }
+    state advance(left: i32, right: i32, bit: i32, amount: i32) {
+        transition amount < 31 {
+            true -> scale(left, right, bit << 1, amount + 1)
+            _ -> unsupported()
+        }
+    }
+    state shift(bits: i32, amount: i32) {
+        transition amount == 0 {
+            true -> retain(bits)
+            _ -> shift_one(bits, amount)
+        }
+    }
+    state shift_one(bits: i32, amount: i32) {
+        transition bits >= 0 {
+            true -> shift(bits << 1, amount - 1)
+            _ -> unsupported()
+        }
+    }
+    state retain(bits: i32) {
+        self.value_kinds[expression] = OmegaCheckedValueKind::ExactWordArithmetic;
+        self.value_payloads[expression] = bits;
+        return 1;
+    }
+    state unsupported() { self.record_incomplete(4, row.operator_start); return 0; }
+}
+
 // Three-color DFS over every state-owned ordinary call. All admitted state
 // transfers remain inside that same owner machine, so they cannot evade this
 // reentrancy check. The explicit walk is bounded by the machine arena.
@@ -1910,6 +2025,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::RecordLiteral -> return self.emit_record_literal(expression)
         OmegaCheckedValueKind::IndexedRead -> indexed()
         OmegaCheckedValueKind::ForwardedReference -> return self.emit_value_load(self.value_payloads[expression])
+        OmegaCheckedValueKind::ExactWordArithmetic -> exact_word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
         OmegaCheckedValueKind::TrappingArithmetic -> return self.emit_trapping_arithmetic(expression,
             self.parser.binary_expressions[self.value_payloads[expression]])
@@ -1924,6 +2040,19 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     state call(call: OmegaCallExpressionSyntax) {
         return self.emit_value_call(self.value_payloads[expression],
             call.first_argument, call.argument_count);
+    }
+    state exact_word(row: OmegaBinaryExpressionSyntax) {
+        transition self.emit_word_operands(expression, row) {
+            1 -> word_operation(row.operator)
+            _ -> return 0
+        }
+    }
+    state word_operation(operator: OmegaBinaryOperatorKind) {
+        transition operator {
+            OmegaBinaryOperatorKind::Add -> return self.tape.emit_rr(3, 0, 2)
+            OmegaBinaryOperatorKind::Multiply -> return self.tape.emit_rr(5, 0, 2)
+            _ -> return self.tape.fail_internal(expression)
+        }
     }
     state addition(row: OmegaBinaryExpressionSyntax) {
         transition (self.emit_value(row.left) == 1) &&
@@ -1945,6 +2074,18 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     }
 }
 
+// Evaluation order is shared by exact arithmetic, policy arithmetic and
+// comparisons. A nested call on the right cannot overwrite the left value.
+machine OmegaScalarCompiler::emit_word_operands(
+    &mut self, expression: i32, row: OmegaBinaryExpressionSyntax
+) -> i32 {
+    return (self.emit_value(row.left) == 1) &&
+            (self.emit_value_store(49152 + expression) == 1) &&
+            (self.emit_value(row.right) == 1) &&
+            (self.tape.emit_rr(2, 2, 0) == 1) &&
+            (self.emit_value_load(49152 + expression) == 1);
+}
+
 machine OmegaScalarCompiler::emit_boolean_binary(
     &mut self, expression: i32, row: OmegaBinaryExpressionSyntax
 ) -> i32 {
@@ -1957,11 +2098,7 @@ machine OmegaScalarCompiler::emit_boolean_binary(
         // An expression owns one scratch word, disjoint from parameters,
         // locals and staged arguments. No ordinary call cycle is admitted,
         // so a nested right operand cannot re-enter this expression's owner.
-        transition (self.emit_value(row.left) == 1) &&
-            (self.emit_value_store(49152 + expression) == 1) &&
-            (self.emit_value(row.right) == 1) &&
-            (self.tape.emit_rr(2, 2, 0) == 1) &&
-            (self.emit_value_load(49152 + expression) == 1) &&
+        transition (self.emit_word_operands(expression, row) == 1) &&
             (self.tape.emit_imm(3, 0, -2147483648) == 1) &&
             (self.tape.emit_rr(3, 0, 3) == 1) &&
             (self.tape.emit_rr(3, 2, 3) == 1) {
@@ -5784,11 +5921,7 @@ machine OmegaScalarCompiler::emit_trapping_arithmetic(
     }
     state operands(trap: i32, complete: i32) {
         self.emission_resource = 12;
-        transition (self.emit_value(row.left) == 1) &&
-            (self.emit_value_store(49152 + expression) == 1) &&
-            (self.emit_value(row.right) == 1) &&
-            (self.tape.emit_rr(2, 2, 0) == 1) &&
-            (self.emit_value_load(49152 + expression) == 1) {
+        transition (self.emit_word_operands(expression, row) == 1) {
             true -> operation(trap, complete)
             _ -> return 0
         }
