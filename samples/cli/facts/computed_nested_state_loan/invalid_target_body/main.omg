@@ -23,7 +23,7 @@ machine replacement(cursor: @mut Cursor) -> i32 in Wrapping {
     cursor.trace = cursor.trace * 10 + 3;
     42
 }
-machine store(value: @mut i32 in Wrapping, incoming: i32 in Wrapping) { value = incoming; }
+machine store(value: @mut i32 in Wrapping, incoming: i32 in Wrapping) { $value = incoming; }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }

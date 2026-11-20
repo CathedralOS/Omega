@@ -1,7 +1,7 @@
-use actors::state::Position;
-use configuration::ROOM_WIDTH;
-use configuration::ROOM_HEIGHT;
-use configuration::MAX_MOVEMENT_STEP;
+use actors\state\Position;
+use configuration\ROOM_WIDTH;
+use configuration\ROOM_HEIGHT;
+use configuration\MAX_MOVEMENT_STEP;
 
 public machine step_x(position: Position, direction: i32, speed: i32) -> i32
 terminates

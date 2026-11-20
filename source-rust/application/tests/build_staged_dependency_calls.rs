@@ -73,14 +73,14 @@ suspends
 {{
     Build::application(builder, \"staged\");
     builder.tests.disabled = true;
-    let mut kit_request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
-    dependency::with_alias(@mut kit_request, \"kit\");
+    let mut kit_request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
+    dependency\\with_alias(@mut kit_request, \"kit\");
     let kit_registered: DependencyRegistration = Build::build_dependency(builder, kit_request);
 {before}
     suspend Build::prepare_dependency(builder, kit_registered);
 {after}
     machine carried(builder: @mut Build) {{
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64\\ProgramEntry, main);
     }}
     machine wrong(builder: @mut Build) {{
         Build::application(builder, \"second_role\");

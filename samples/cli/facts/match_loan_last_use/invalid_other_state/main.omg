@@ -5,24 +5,24 @@
 data Slot { case Absent; case Present(value: [i64; 4]); }
 
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
 machine apply(chosen: @mut Slot, other: @mut Slot, visits: @mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
+requires chosen in Slot::Present, other in Slot::Present, $visits == 0
 {
     transition { _ -> write(chosen, other, visits) }
     machine write(chosen: @mut Slot, other: @mut Slot, visits: @mut u64) -> i64
-    requires chosen in Slot::Present, other in Slot::Present, visits == 0
+    requires chosen in Slot::Present, other in Slot::Present, $visits == 0
     {
         let selected: @mut [i64] = match choose(visits) {
             true -> @mut chosen.value[0..2],
             false -> @mut other.value[2..4]
         };
-        chosen = Slot::Present { value: [7, 0, 7, 0] };
+        $chosen = Slot::Present { value: [7, 0, 7, 0] };
         selected[0] = 41;
         let written: i64 = selected[0];
         written

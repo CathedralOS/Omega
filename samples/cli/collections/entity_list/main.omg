@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // The entity/particle-list pattern: an array of structs `[Monster; N]` updated by a
 // runtime-indexed loop -- the shape every simulation and game needs. Each pass reads
 // a field of `monsters[i]`, transforms it, and writes it back.
@@ -14,7 +14,7 @@ use omega::language::core::ProcessExit;
 // then their HP is summed: 20 + 2 + 15 + (-2) = 35. Exit: 35.
 // Expected exit: 35.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Monster {
     hp: i32 in Wrapping;

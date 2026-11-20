@@ -5,7 +5,7 @@
 // `Optional::Some { value }` payload destructure all work
 // through the ordinary sum machinery.
 //
-//   * `use omega::language::core::option` — depend-free
+//   * `use omega\language\core\option` — depend-free
 //     core import.
 //   * `Optional::Some { value: First { value: 1 } }`
 //     nested record payload construction.
@@ -15,7 +15,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::Optional;
+use omega\language\core\Optional;
 
 data First { value: i32; }
 data Second { padding: u64; value: i32; }

@@ -392,7 +392,20 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn at_path_member(&self) -> bool {
-        self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments()
+        self.at_punctuation(PunctuationKind::Backslash)
+            || (self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments())
+    }
+
+    pub(crate) fn take_path_separator(self) -> Result<Self, ParseError> {
+        if self.at_punctuation(PunctuationKind::Backslash) {
+            self.take_punctuation(PunctuationKind::Backslash, "\\")
+        } else if self.peek_semantic(2).and_then(Token::punctuation)
+            == Some(PunctuationKind::Backslash)
+        {
+            Err(self.error_here("module selection must precede static member selection"))
+        } else {
+            self.take_punctuation(PunctuationKind::ColonColon, "::")
+        }
     }
 
     pub(crate) fn at_contextual(&self, name: &str) -> bool {
@@ -589,7 +602,7 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     path.push_contiguous(append_member(first));
 
     while rest.at_path_member() {
-        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        rest = rest.take_path_separator()?;
         let (member, next) = rest.take_identifier()?;
         path.push_contiguous(append_member(member));
         rest = next;

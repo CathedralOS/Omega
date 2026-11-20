@@ -11,9 +11,9 @@ machine choose_entry(options: @mut Build, enabled: bool) {
         _ -> ignored(options)
     }
     machine selected(options: @mut Build) {
-        Build::bind(options, linux_x86_64::ProgramEntry, launch);
+        Build::bind(options, linux_x86_64\ProgramEntry, launch);
     }
     machine ignored(options: @mut Build) {
-        Build::bind(options, linux_x86_64::ProgramEntry, missing);
+        Build::bind(options, linux_x86_64\ProgramEntry, missing);
     }
 }

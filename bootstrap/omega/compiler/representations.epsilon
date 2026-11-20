@@ -162,6 +162,8 @@ data OmegaPunctuationKind {
     case Slash;
     case Tilde;
     case At;
+    case Backslash;
+    case Dollar;
 }
 
 data OmegaTokenKind {
@@ -692,6 +694,7 @@ data OmegaUnaryOperatorKind {
     case SharedBorrow;
     case MutableBorrow;
     case WriteOnlyBorrow;
+    case Dereference;
 }
 
 data OmegaUnaryExpressionSyntax {

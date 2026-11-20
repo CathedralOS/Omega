@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // rotor_byte_rows: a wiring lookup's `ensures result < 26` survives widening
 // into the shift that sets one live wire.
 //
@@ -10,7 +10,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Expected output contains: 16
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     wiring: [[u8; 26]; 3];

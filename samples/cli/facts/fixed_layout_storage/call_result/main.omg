@@ -2,13 +2,13 @@
 // Named casts establish the constraint and expose plain arithmetic without
 // losing its numerical fact; byte checks observe the authored field offsets.
 // Expected exit: 0
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::FixedLayout;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::Schema;
+use omega\language\core\FieldEntry;
+use omega\language\core\FieldPlan;
+use omega\language\core\FixedLayout;
+use omega\language\core\LayoutPlan;
+use omega\language\core\LayoutStorage;
+use omega\language\core\LayoutTarget;
+use omega\language\core\Schema;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 PairLayout satisfies FixedLayout<Pair> {

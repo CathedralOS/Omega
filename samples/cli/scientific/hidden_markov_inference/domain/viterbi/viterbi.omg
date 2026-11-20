@@ -1,6 +1,6 @@
-use domain::inference;
-use domain::inference::Model;
-use domain::inference::Inference;
+use domain\inference;
+use domain\inference\Model;
+use domain\inference\Inference;
 // Inputs are integer millionths. Every length-n path has the same denominator
 // 10^(12n), so 33 base-million limbs compare its numerator exactly (n <= 16).
 // This avoids both underflow and floating-point false ties. Carry never exceeds

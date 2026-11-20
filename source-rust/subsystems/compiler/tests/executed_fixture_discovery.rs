@@ -56,8 +56,8 @@ fn fixture_accepts_the_entry_schema_from_its_checked_supplier() {
         format!(
             r#"machine build(builder: @mut Build) {{
     Build::application(builder, "fixture_entry_schema");
-    let supplier: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {{ location: {standard_library:?} }}));
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    let supplier: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: {standard_library:?} }}));
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
 }}"#
         ),
     )

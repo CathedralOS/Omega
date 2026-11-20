@@ -4,14 +4,14 @@
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
 machine choose(counter: @mut u64, flag: bool) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     flag
 }
 
 machine apply(chosen: @mut [i64; 4], other: @mut [i64; 6], visits: @mut u64, flag: bool)
-requires visits == 0
+requires $visits == 0
 {
     let selected: @mut [i64] = match choose(visits, flag) {
         true -> @mut chosen,

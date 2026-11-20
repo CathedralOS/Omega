@@ -1,7 +1,7 @@
-use foundation::ExactInteger;
-use foundation::ExactResult;
-use foundation::exact_integer_add;
-use foundation::exact_integer_at_most;
+use foundation\ExactInteger;
+use foundation\ExactResult;
+use foundation\exact_integer_add;
+use foundation\exact_integer_at_most;
 
 // Difference bounds over a body's integer subjects: the one relational
 // engine checking uses for live integer facts

@@ -8,8 +8,8 @@ requires values.len == 2, first_index < values.len, second_index < values.len,
 {
     let first: @mut Cell = @mut values[first_index];
     let second: @mut Cell = @mut values[second_index];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+    $first = Cell { value: 17 };
+    $second = Cell { value: 53 };
 }
 machine forward(values: @mut [Cell], selected: u64)
 requires values.len == 2, selected == 0

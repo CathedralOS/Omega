@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Nested dispatch: outer case-payload dispatch feeds a sub-machine
 // that performs a second (integer-keyed) dispatch from within a sub-state.
 //
@@ -34,7 +34,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Command {
     case Run(op: i32 in Saturating, n: i32 in Saturating);

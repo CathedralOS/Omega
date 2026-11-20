@@ -1,12 +1,12 @@
-use representations::syntax_trees::ClauseOwner;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::ContractKind;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::syntax_trees_clause;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenStream;
+use representations\syntax_trees\ClauseOwner;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\ContractKind;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\syntax_trees_clause;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenStream;
 
 // Each frame owns its clauses and direct requirements. A child's semicolon
 // closes exactly that frame; the next token is parsed in the parent scope.

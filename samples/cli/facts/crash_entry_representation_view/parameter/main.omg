@@ -10,7 +10,7 @@ public machine read_bits(value: u64) -> i64
 requires value == 7
 {
     let view: @i64 = @value as @i64;
-    maybe_zero(view)
+    maybe_zero($view)
 }
 machine main() crashes Trap {
     let observed: i64 = read_bits(7);

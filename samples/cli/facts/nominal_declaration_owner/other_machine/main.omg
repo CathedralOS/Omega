@@ -1,7 +1,7 @@
-// A library Token retains its declaring owner when it reaches library::read.
+// A library Token retains its declaring owner when it reaches library\read.
 // Expected exit: 0
-use shared::library::Token;
-use shared::library::read;
+use shared\library\Token;
+use shared\library\read;
 data Relay {}
 machine Relay::forward(token: Token) -> u8 { read(token) }
 machine transported() -> u8 { Relay::forward(Token { value: 7 }) }

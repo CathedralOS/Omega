@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Single-source shortest paths over a fixed weighted digraph held in CSR
 // form (offsets + targets + weights), using a generic fixed-capacity binary
 // min-heap parameterized by an ordering machine binder.
@@ -14,14 +14,14 @@ use omega::language::core::ProcessExit;
 // Expected exit: 154 = shortest-distance sum (150) + path hops (4).
 // Distances from 0: [0, 4, 2, 9, 11, 14, 15, 17, 20, 21, 22, 15];
 // path 11 <- 4 <- 3 <- 1 <- 0.
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Heap<T> { items: [T; 16]; len: u64; }
 
 data Popped<T [copy]> [copy] { value: T; }
 
 machine ent_less(left: @u64, right: @u64) -> bool {
-    left < right
+    $left < $right
 }
 
 machine push_heap<T [copy], machine Less>(h: @mut Heap<T>, value: @T)
@@ -31,7 +31,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     machine place(h: @mut Heap<T>, value: @T, at: u64)
         requires at < 16
     {
-        let tmp: T = value;
+        let tmp: T = $value;
         h.items[at] = tmp;
         h.len = at + 1;
         transition { _ -> up(h, at) }

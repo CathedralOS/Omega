@@ -411,7 +411,7 @@ mod tests {
             [LoadedSource {
                 source_id: SourceId(0),
                 path: PathBuf::from("unit.omg"),
-                source: Arc::from("use integer::X;"),
+                source: Arc::from("use integer\\X;"),
                 origin: None,
                 scope: DependencyScope::Product,
             }]

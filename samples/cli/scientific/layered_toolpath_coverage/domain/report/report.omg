@@ -1,6 +1,6 @@
-use domain::model;
-use domain::model::Job;
-use omega_language_std::Console;
+use domain\model;
+use domain\model\Job;
+use omega_language_std\Console;
 // All values in this bounded model fit four decimal digits.
 machine number(value: i32 in Wrapping) reaches Console {
     Console::write_byte(((value / 1000) % 10 + 48) as i32);

@@ -1,18 +1,18 @@
-use actors::state::Actor;
-use actors::state::Position;
-use actors::state::Traversal;
-use actors::coordinates::step_x;
-use actors::coordinates::step_y;
-use world::rooms::Dungeon;
-use world::rooms::Exit;
-use world::rooms::exit_for;
-use world::rooms::tile_at;
-use configuration::ROOM_WIDTH;
-use configuration::ROOM_HEIGHT;
-use configuration::TILE_SIZE;
-use configuration::COLLIDER_RADIUS;
-use configuration::MAX_MOVEMENT_STEP;
-use configuration::ARRIVAL_INSET;
+use actors\state\Actor;
+use actors\state\Position;
+use actors\state\Traversal;
+use actors\coordinates\step_x;
+use actors\coordinates\step_y;
+use world\rooms\Dungeon;
+use world\rooms\Exit;
+use world\rooms\exit_for;
+use world\rooms\tile_at;
+use configuration\ROOM_WIDTH;
+use configuration\ROOM_HEIGHT;
+use configuration\TILE_SIZE;
+use configuration\COLLIDER_RADIUS;
+use configuration\MAX_MOVEMENT_STEP;
+use configuration\ARRIVAL_INSET;
 
 public machine move_actor<const Rooms: u64>(actor: Actor<Rooms>, dungeon: @Dungeon<Rooms>, direction: i32, key: bool) -> Actor<Rooms>
 terminates

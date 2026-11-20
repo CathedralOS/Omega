@@ -1,14 +1,14 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Offline stdin interpreter. At most 64 commands; each line is exactly an
 // uppercase opcode and one digit. Overlong lines are drained and rejected
 // atomically. EOF commits a final unterminated line. No equipment is accessed.
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use protocol::model;
-use protocol::report;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use protocol\model;
+use protocol\report;
 
 data Main {
-    laboratory: protocol::model::Laboratory;
+    laboratory: protocol\model\Laboratory;
     first: i32;
     second: i32;
     length: i32 in Saturating;
@@ -75,11 +75,11 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine interpret(main: @mut Main, final: bool) {
         let argument: i32 in Saturating = (main.second - 48) as i32 in Saturating;
-        main.decision = protocol::model::apply(@mut main.laboratory, main.first, argument);
+        main.decision = protocol\model\apply(@mut main.laboratory, main.first, argument);
         transition { _ -> block report(main, final) }
     }
     machine report(main: @mut Main, final: bool) {
-        protocol::report::row(@main.laboratory, main.decision);
+        protocol\report\row(@main.laboratory, main.decision);
         main.length = 0;
         transition final {
             true -> done(main),

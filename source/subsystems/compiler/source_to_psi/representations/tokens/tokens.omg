@@ -1,5 +1,5 @@
-use representations::source_files::SourceId;
-use representations::source_files::SourceSpan;
+use representations\source_files\SourceId;
+use representations\source_files\SourceSpan;
 
 // Product token vocabulary for the source-to-token phase. Token spans index
 // the source unit; word tokens (identifiers and keywords) and cooked string
@@ -86,6 +86,8 @@ public data PunctuationKind [copy] {
     case Slash;
     case Tilde;
     case At;
+    case Backslash;
+    case Dollar;
 }
 
 // A token keeps its source/decoded ranges independently of its vocabulary

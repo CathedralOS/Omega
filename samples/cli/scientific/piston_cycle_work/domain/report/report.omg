@@ -1,5 +1,5 @@
-use omega_language_std::Console;
-use omega::language::core::I32::from_f64;
+use omega_language_std\Console;
+use omega\language\core\I32::from_f64;
 
 // Fixed six-place decimal output is independently checked to 2e-6.
 // The declared fixture inventory keeps scaled magnitudes below i32::MAX.

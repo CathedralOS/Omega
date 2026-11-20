@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Leap-year test -- the classic compound-boolean algorithm: a year is a leap year
 // if it is divisible by 4 AND not by 100, OR it is divisible by 400. This exercises
 // `&&`, `||`, `==`, `!=`, and `%` together in a single guard. Omega uses standard
@@ -9,7 +9,7 @@ use omega::language::core::ProcessExit;
 // not. This sample checks 2024 -> exit 1 (leap).
 // Expected exit: 1.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     year: i32;

@@ -1,8 +1,8 @@
-use configuration::ROOM_WIDTH;
-use configuration::ROOM_HEIGHT;
-use configuration::MAX_MOVEMENT_STEP;
-use configuration::ATTACK_FRAMES;
-use configuration::INVULNERABILITY_FRAMES;
+use configuration\ROOM_WIDTH;
+use configuration\ROOM_HEIGHT;
+use configuration\MAX_MOVEMENT_STEP;
+use configuration\ATTACK_FRAMES;
+use configuration\INVULNERABILITY_FRAMES;
 
 public data Position [copy]
 requires x >= 0 && x < ROOM_WIDTH, y >= 0 && y < ROOM_HEIGHT {

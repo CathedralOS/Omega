@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Overflow-safe reduction: sum a [i32; N] array into an i64 accumulator so a
 // total that would overflow i32 is still correct. 2_000_000_000 + 200_000_000 =
 // 2_200_000_000 exceeds i32's max (2_147_483_647); widening each element to i64
@@ -12,8 +12,8 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
-use omega::language::core::widen_i32_to_i64;
+use omega_language_std\Console;
+use omega\language\core\widen_i32_to_i64;
 
 data Main
 requires

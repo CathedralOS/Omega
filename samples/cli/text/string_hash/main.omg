@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // FNV-1a string hash -- a real byte-string algorithm over a `[u8;N] in Utf8`
 // carrier. It walks the string's bytes by runtime index, bounded by the carrier's
 // runtime `.len`, and folds each byte into a 32-bit hash:
@@ -17,9 +17,9 @@ requires
 domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std::Console;
-use omega::language::core::narrow_u32_to_i32_trapping;
-use omega::language::core::widen_u8_to_u32;
+use omega_language_std\Console;
+use omega\language\core\narrow_u32_to_i32_trapping;
+use omega\language\core\widen_u8_to_u32;
 
 data Main {
 }

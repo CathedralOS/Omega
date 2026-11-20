@@ -1,10 +1,10 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 83
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
-machine int_hash(key: @u64) -> u64 { key }
-machine int_same(left: @u64, right: @u64) -> bool { left == right }
+machine int_hash(key: @u64) -> u64 { $key }
+machine int_same(left: @u64, right: @u64) -> bool { $left == $right }
 
 machine byte_hash(key: @[u8; 8]) -> u64 {
     let h: u64 = (key[0] as u64) + key[7] as u64;
@@ -24,8 +24,8 @@ machine blank<K [copy], V [copy]>(table: @mut Table<K, V>, key: @K, value: @V) {
     machine wipe(table: @mut Table<K, V>, key: @K, value: @V, slot: u64)
     requires slot < 16
     {
-        table.slots[slot].key = key;
-        table.slots[slot].value = value;
+        table.slots[slot].key = $key;
+        table.slots[slot].value = $value;
         table.slots[slot].tag = 0;
         transition slot + 1 < 16 { true -> wipe(table, key, value, slot + 1), _ -> {} }
     }
@@ -123,15 +123,15 @@ machine insert<K [copy], V [copy], const H: machine(key: @K) -> u64, const E: ma
     machine update(table: @mut Table<K, V>, value: @V, slot: u64)
     requires slot < 16
     {
-        table.slots[slot].value = value;
+        table.slots[slot].value = $value;
     }
 
     machine fill(table: @mut Table<K, V>, key: @K, value: @V, slot: u64)
     requires slot < 16
     {
         table.live = table.live + 1;
-        table.slots[slot].key = key;
-        table.slots[slot].value = value;
+        table.slots[slot].key = $key;
+        table.slots[slot].value = $value;
         table.slots[slot].tag = 1;
     }
 
@@ -162,7 +162,7 @@ machine remove<K, V, const H: machine(key: @K) -> u64, const E: machine(left: @K
 machine lookup<K, V [copy], const H: machine(key: @K) -> u64, const E: machine(left: @K, right: @K) -> bool>(table: @Table<K, V>, key: @K, miss: @V) -> V
 {
     let slot: u64 = probe::<H, E>(table, key);
-    transition slot < 16 { true -> read(table, miss, slot), _ -> miss }
+    transition slot < 16 { true -> read(table, miss, slot), _ -> $miss }
 
     machine read(table: @Table<K, V>, miss: @V, slot: u64) -> V
     requires slot < 16
@@ -170,7 +170,7 @@ machine lookup<K, V [copy], const H: machine(key: @K) -> u64, const E: machine(l
         let hit: V = table.slots[slot].value;
         transition table.slots[slot].tag == 1 {
             true -> hit,
-            _ -> miss
+            _ -> $miss
         }
     }
 }

@@ -4,7 +4,7 @@
 // through bounded scanner stages. State purposes select parser-local grammar
 // positions; no purpose or preflight fact escapes this invocation.
 //
-// The retained syntax currently owns ordinary `use path::member;`, basic
+// The retained syntax currently owns ordinary `use path\member;`, basic
 // `[public] data` roots, and `[public]`/target-scoped machine roots with source-ordered
 // states, state parameters, optional immediate return types, and bodies
 // containing neutral path calls, simple assignments, or restricted transition
@@ -1435,6 +1435,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state path_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_member()
             OmegaPunctuationKind::ColonColon -> next_member()
             _ -> finish_path_punctuation()
         }
@@ -2452,6 +2453,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state termination_subject_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_termination_subject_member()
             OmegaPunctuationKind::ColonColon -> next_termination_subject_member()
             OmegaPunctuationKind::Arrow -> begin_termination_view()
             _ -> incomplete_root()
@@ -2524,6 +2526,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state termination_view_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_termination_view_member()
             OmegaPunctuationKind::ColonColon -> next_termination_view_member()
             OmegaPunctuationKind::LeftBrace -> retain_termination_clause()
             OmegaPunctuationKind::Arrow -> retain_termination_clause()
@@ -2822,6 +2825,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::LeftParen -> begin_punctuated_expression_statement()
             OmegaPunctuationKind::Exclamation -> begin_punctuated_expression_statement()
             OmegaPunctuationKind::Tilde -> begin_punctuated_expression_statement()
+            OmegaPunctuationKind::Dollar -> begin_punctuated_expression_statement()
             OmegaPunctuationKind::Minus -> begin_punctuated_expression_statement()
             OmegaPunctuationKind::At -> begin_punctuated_expression_statement()
             _ -> incomplete_root()
@@ -3166,6 +3170,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Dollar ->
+                begin_unary_expression(OmegaUnaryOperatorKind::Dereference)
             OmegaPunctuationKind::Minus ->
                 begin_unary_expression(OmegaUnaryOperatorKind::Negate)
             _ -> incomplete_root()
@@ -4141,6 +4147,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state membership_domain_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_membership_domain_member()
             OmegaPunctuationKind::ColonColon -> next_membership_domain_member()
             OmegaPunctuationKind::Ampersand -> incomplete_root()
             OmegaPunctuationKind::Pipe -> incomplete_root()
@@ -4424,6 +4431,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state transition_guard_path_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_transition_guard_path_member()
             OmegaPunctuationKind::ColonColon -> next_transition_guard_path_member()
             OmegaPunctuationKind::LeftBrace -> begin_transition_destructure()
             OmegaPunctuationKind::Arrow -> retain_path_transition_guard()
@@ -5132,6 +5140,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state acknowledged_path_punctuation(path_kind: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftParen -> accepted_path_tail(path_kind)
+            OmegaPunctuationKind::Backslash -> accepted_path_tail(path_kind)
             OmegaPunctuationKind::ColonColon -> accepted_path_tail(path_kind)
             OmegaPunctuationKind::Dot -> accepted_path_tail(path_kind)
             OmegaPunctuationKind::Less -> incomplete_root()
@@ -5163,6 +5172,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state statement_path_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> next_statement_path_member()
+            OmegaPunctuationKind::Backslash -> qualify_statement_path()
             OmegaPunctuationKind::ColonColon -> qualify_statement_path()
             OmegaPunctuationKind::Less -> begin_statement_call_static_arguments()
             OmegaPunctuationKind::LeftParen -> begin_statement_call()
@@ -5674,6 +5684,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state call_static_argument_tail_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_call_static_argument_member()
             OmegaPunctuationKind::ColonColon -> next_call_static_argument_member()
             OmegaPunctuationKind::Comma -> retain_call_static_argument()
             OmegaPunctuationKind::Greater -> retain_call_static_argument()
@@ -5945,6 +5956,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 begin_first_unary_call_argument(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_first_unary_call_argument(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Dollar ->
+                begin_first_unary_call_argument(OmegaUnaryOperatorKind::Dereference)
             OmegaPunctuationKind::Minus ->
                 begin_first_unary_call_argument(OmegaUnaryOperatorKind::Negate)
             _ -> incomplete_root()
@@ -6137,6 +6150,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state path_expression_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> path_expression_member_access()
+            OmegaPunctuationKind::Backslash -> path_expression_name_qualification()
             OmegaPunctuationKind::ColonColon -> path_expression_name_qualification()
             OmegaPunctuationKind::LeftBrace -> path_expression_left_brace()
             OmegaPunctuationKind::Comma -> retain_comma_terminated_path()
@@ -7417,6 +7431,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Dollar ->
+                begin_unary_expression(OmegaUnaryOperatorKind::Dereference)
             OmegaPunctuationKind::Minus ->
                 begin_unary_expression(OmegaUnaryOperatorKind::Negate)
             _ -> incomplete_root()
@@ -8141,6 +8157,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
                 begin_unary_expression(OmegaUnaryOperatorKind::BitwiseNot)
+            OmegaPunctuationKind::Dollar ->
+                begin_unary_expression(OmegaUnaryOperatorKind::Dereference)
             OmegaPunctuationKind::Minus ->
                 begin_unary_expression(OmegaUnaryOperatorKind::Negate)
             _ -> missing_requirement()
@@ -9079,6 +9097,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state array_semicolon_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Semicolon -> after_array_semicolon()
+            OmegaPunctuationKind::Backslash -> begin_qualified_type_member()
             OmegaPunctuationKind::ColonColon -> begin_qualified_type_member()
             OmegaPunctuationKind::Less -> incomplete_root()
             OmegaPunctuationKind::LeftBracket -> incomplete_root()
@@ -9355,6 +9374,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state type_base_end_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> begin_qualified_type_member()
             OmegaPunctuationKind::ColonColon -> begin_qualified_type_member()
             OmegaPunctuationKind::LeftBracket -> unexpected_type_suffix()
             _ -> type_consumer_punctuation()
@@ -9539,6 +9559,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
     state cast_domain_tail() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> next_cast_domain_member()
             OmegaPunctuationKind::ColonColon -> next_cast_domain_member()
             _ -> validate_cast_end_punctuation(1)
         }
@@ -10353,6 +10374,7 @@ machine OmegaParser::scan_static_call_suffix(&mut self, source: &[u8], cursor: i
     }
     state separator_kind() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> scan(self.scan.next_cursor, 0)
             OmegaPunctuationKind::ColonColon -> scan(self.scan.next_cursor, 0)
             OmegaPunctuationKind::Comma -> scan(self.scan.next_cursor, 0)
             OmegaPunctuationKind::Greater -> scan(self.scan.next_cursor, 2)

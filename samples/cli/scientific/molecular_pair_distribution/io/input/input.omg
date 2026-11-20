@@ -1,6 +1,6 @@
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use domain::model;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use domain\model;
 
 public data InputReader {
     remaining: i32 in Wrapping;

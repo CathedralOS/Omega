@@ -1137,6 +1137,9 @@ pub(crate) mod capture_product_operands {
                         source_expression::UnaryOperator::BitwiseNot => {
                             ProductUnaryOperator::BitwiseNot
                         }
+                        source_expression::UnaryOperator::Dereference => {
+                            ProductUnaryOperator::Dereference
+                        }
                         source_expression::UnaryOperator::LogicalNot => {
                             ProductUnaryOperator::LogicalNot
                         }
@@ -3142,7 +3145,7 @@ pub(crate) mod construction_destinations {
             use crate::source_state::deferred_refusals::DeferredRequest;
             let mut program = crate::typing::qualified_operator_home_tests::checked(&[
                 ("kit/only.omg", "public machine only() -> u32 in Saturating { 0u32 }"),
-                ("client.omg", "use kit::only; machine pending() { let selected: u32 in Saturating = kit::only(); }"),
+                ("client.omg", "use kit\\only; machine pending() { let selected: u32 in Saturating = kit\\only(); }"),
             ]).unwrap();
             let (value, target) = program
                 .expression_table

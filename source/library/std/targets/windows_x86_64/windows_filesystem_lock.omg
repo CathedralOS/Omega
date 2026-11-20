@@ -5,7 +5,7 @@
 // Classification rejects asynchronous objects before borrowing a request.
 // Native overlap/repeated-acquisition semantics are preserved, not made
 // recursive or idempotent. These locks do not protect memory-mapped access.
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 
 machine windows_filesystem_native_lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32
 {

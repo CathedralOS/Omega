@@ -1,5 +1,5 @@
 use product_kit;
 
 machine entry() -> i32 {
-    product_kit::value()
+    product_kit\value()
 }

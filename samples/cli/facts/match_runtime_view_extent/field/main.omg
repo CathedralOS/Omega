@@ -5,9 +5,9 @@ data Pair { chosen: [i64; 4]; other: [i64; 6]; }
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
 machine choose(counter: @mut u64, flag: bool) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     flag
 }
 

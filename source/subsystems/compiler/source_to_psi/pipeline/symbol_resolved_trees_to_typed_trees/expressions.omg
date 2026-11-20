@@ -1,80 +1,80 @@
-use foundation::ExactInteger;
-use foundation::Rational;
-use foundation::RationalResult;
-use foundation::exact_integer_fits;
-use foundation::exact_integer_negate;
-use foundation::exact_integer_of;
-use foundation::rational_add;
-use foundation::rational_divide;
-use foundation::rational_multiply;
-use foundation::rational_subtract;
-use pipeline::syntax_trees_to_symbol_resolved_trees::known_domain;
-use representations::source_files::SourceSet;
-use representations::source_files::SourceSpan;
-use representations::source_files::span_spells;
-use representations::source_files::spans_equal;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::DomainBinding;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::ValueBinding;
-use representations::symbol_resolved_trees::value_binding;
-use representations::syntax_trees::ConstantItem;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::DataCase;
-use representations::syntax_trees::DataField;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::DomainItem;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::GenericParameter;
-use representations::syntax_trees::IdentifierSpan;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::NamePath;
-use representations::syntax_trees::OperatorKind;
-use representations::syntax_trees::OperatorToken;
-use representations::syntax_trees::Parameter;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::Statement;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::constant_item;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_contract;
-use representations::syntax_trees::syntax_trees_data_case;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::syntax_trees::syntax_trees_domain_item;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::syntax_trees::syntax_trees_field;
-use representations::syntax_trees::syntax_trees_generic_parameter;
-use representations::syntax_trees::syntax_trees_member;
-use representations::syntax_trees::syntax_trees_name_path;
-use representations::syntax_trees::syntax_trees_parameter;
-use representations::syntax_trees::syntax_trees_payload_field;
-use representations::syntax_trees::syntax_trees_statement;
-use representations::typed_trees::Adaptation;
-use representations::typed_trees::Selection;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::binder_type;
-use representations::typed_trees::carrier_width;
-use representations::typed_trees::qualified_row;
-use representations::typed_trees::rational;
-use representations::typed_trees::reference_type;
-use representations::typed_trees::same_carrier;
-use representations::typed_trees::set_adaptation;
-use representations::typed_trees::set_expression_type;
-use representations::typed_trees::set_rational;
-use representations::typed_trees::set_roster;
-use representations::typed_trees::set_selection;
-use representations::typed_trees::type_row_of;
-use representations::typed_trees::type_table_push_argument;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_denominator;
-use representations::typed_trees::typing_expression_type;
-use representations::typed_trees::typing_fractional_origin;
-use representations::typed_trees::typing_reject;
-use representations::typed_trees::typing_set_value;
-use representations::typed_trees::typing_value;
+use foundation\ExactInteger;
+use foundation\Rational;
+use foundation\RationalResult;
+use foundation\exact_integer_fits;
+use foundation\exact_integer_negate;
+use foundation\exact_integer_of;
+use foundation\rational_add;
+use foundation\rational_divide;
+use foundation\rational_multiply;
+use foundation\rational_subtract;
+use pipeline\syntax_trees_to_symbol_resolved_trees\known_domain;
+use representations\source_files\SourceSet;
+use representations\source_files\SourceSpan;
+use representations\source_files\span_spells;
+use representations\source_files\spans_equal;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\DomainBinding;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\ValueBinding;
+use representations\symbol_resolved_trees\value_binding;
+use representations\syntax_trees\ConstantItem;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\DataCase;
+use representations\syntax_trees\DataField;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\DomainItem;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ExpressionKind;
+use representations\syntax_trees\GenericParameter;
+use representations\syntax_trees\IdentifierSpan;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\NamePath;
+use representations\syntax_trees\OperatorKind;
+use representations\syntax_trees\OperatorToken;
+use representations\syntax_trees\Parameter;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\Statement;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\constant_item;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_contract;
+use representations\syntax_trees\syntax_trees_data_case;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\syntax_trees\syntax_trees_domain_item;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\syntax_trees\syntax_trees_field;
+use representations\syntax_trees\syntax_trees_generic_parameter;
+use representations\syntax_trees\syntax_trees_member;
+use representations\syntax_trees\syntax_trees_name_path;
+use representations\syntax_trees\syntax_trees_parameter;
+use representations\syntax_trees\syntax_trees_payload_field;
+use representations\syntax_trees\syntax_trees_statement;
+use representations\typed_trees\Adaptation;
+use representations\typed_trees\Selection;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\binder_type;
+use representations\typed_trees\carrier_width;
+use representations\typed_trees\qualified_row;
+use representations\typed_trees\rational;
+use representations\typed_trees\reference_type;
+use representations\typed_trees\same_carrier;
+use representations\typed_trees\set_adaptation;
+use representations\typed_trees\set_expression_type;
+use representations\typed_trees\set_rational;
+use representations\typed_trees\set_roster;
+use representations\typed_trees\set_selection;
+use representations\typed_trees\type_row_of;
+use representations\typed_trees\type_table_push_argument;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_denominator;
+use representations\typed_trees\typing_expression_type;
+use representations\typed_trees\typing_fractional_origin;
+use representations\typed_trees\typing_reject;
+use representations\typed_trees\typing_set_value;
+use representations\typed_trees\typing_value;
 
 // Expression typing. A tree types in table order, children before parents,
 // so each node meets typed children. A name takes its binding's declared
@@ -846,10 +846,19 @@ crashes Trap
             OperatorKind::Not -> scalar_operator(typer, index, expression, read),
             OperatorKind::Negate -> scalar_operator(typer, index, expression, read),
             OperatorKind::BitNot -> scalar_operator(typer, index, expression, read),
+            OperatorKind::Dereference -> dereference(typer, index, expression, operand),
             OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared),
             OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand),
             OperatorKind::BorrowWrite -> borrow_write(typer, syntax, resolution, index, expression, operand),
             _ -> acknowledged(typer, syntax, index, expression, operand)
+        }
+    }
+
+    machine dereference(typer: @mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let row: TypeRow = type_table_row(@typer.output.types, operand);
+        transition row.kind == TypeKind::Reference {
+            true -> set_expression_type(@mut typer.output, index, row.inner),
+            _ -> unsupported(typer, expression)
         }
     }
 

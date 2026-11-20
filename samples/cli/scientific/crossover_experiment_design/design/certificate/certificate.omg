@@ -1,7 +1,7 @@
-use design::model;
-use design::model::Request;
-use design::model::Allocation;
-use design::model::edge_code;
+use design\model;
+use design\model\Request;
+use design\model\Allocation;
+use design\model\edge_code;
 
 // Recount cells, not sequence identifiers. Enforce each subject's permutation,
 // period balance, the directed edge cap, and the declared forbidden edge.

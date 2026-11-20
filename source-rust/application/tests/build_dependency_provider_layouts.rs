@@ -90,7 +90,7 @@ fn a_chosen_dependency_default_is_laid_out_for_its_target_and_runs() {
 fn an_unchosen_dependency_default_is_never_laid_out() {
     let root = default_only(
         "unreached",
-        "use layout_default_kit::main::Measure;\n\nmachine main() {\n}\n",
+        "use layout_default_kit\\main\\Measure;\n\nmachine main() {\n}\n",
     );
     let report = omega(&["run", "--both", "main.omg"], &root);
     let _ = std::fs::remove_dir_all(&root);

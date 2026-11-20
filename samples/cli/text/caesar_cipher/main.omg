@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Caesar cipher: shift each byte of a string by a fixed key and print the result.
 // A real string TRANSFORMATION -- read a carrier, compute a new byte per position,
 // write a new carrier, output it. The shift reads cleanly now that a carrier
@@ -15,7 +15,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: KHOOR
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 domain [u8]::Utf8
 requires

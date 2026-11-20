@@ -1,7 +1,7 @@
-use omega_language_std::Console;
-use omega::language::core::I64::from_f64;
-use domain::filter;
-use domain::filter::Filter;
+use omega_language_std\Console;
+use omega\language\core\I64::from_f64;
+use domain\filter;
+use domain\filter\Filter;
 // Decimal integer fields represent millionths, truncated toward zero. The
 // external oracle allows 2e-6 output quantization, independently of f64 checks.
 // Scan at most nineteen decimal places with state transfers. Only the final

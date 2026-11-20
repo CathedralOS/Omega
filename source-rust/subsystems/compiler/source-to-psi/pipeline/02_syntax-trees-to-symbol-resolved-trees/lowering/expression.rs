@@ -925,6 +925,7 @@ pub(super) fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {
 fn lower_unary_operator(operator: syntax::expression::UnaryOperator) -> UnaryOperator {
     match operator {
         syntax::expression::UnaryOperator::BitwiseNot => UnaryOperator::BitwiseNot,
+        syntax::expression::UnaryOperator::Dereference => UnaryOperator::Dereference,
         syntax::expression::UnaryOperator::LogicalNot => UnaryOperator::LogicalNot,
     }
 }

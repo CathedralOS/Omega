@@ -7,8 +7,8 @@ use omega_language_std;
 // does not freeze concurrent writes to that object or grant new access rights.
 // Capture each query error before releasing the pin. Cleanup cannot replace
 // that primary failure, but a failed close cannot become a successful query.
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\narrow_u64_to_i64_wrapping;
 
 machine windows_metadata_error() -> WindowsMetadataResult {
     let code: u32 = windows_filesystem_native_last_error();

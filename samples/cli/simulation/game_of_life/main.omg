@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Conway's Game of Life on a 4x4 flat grid ([i32; 16], row-major).
 //
 // Seed pattern: 2x2 Block (still-life) at rows 1-2, cols 1-2:
@@ -36,7 +36,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 // Whether every cell is dead (0) or alive (1), one state per cell.
 machine cells_valid(cells: @[i32; 16]) -> bool {

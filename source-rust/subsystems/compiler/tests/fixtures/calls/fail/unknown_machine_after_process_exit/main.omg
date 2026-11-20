@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 
 // Rejected. Twin of `run/calls/statement_after_process_exit`: the
 // statement after the call that never returns names a machine nothing

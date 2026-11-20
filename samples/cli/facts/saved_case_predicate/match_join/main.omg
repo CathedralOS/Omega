@@ -2,7 +2,7 @@
 // Expected exit: 0
 domain u64::Divisor requires self > 0;
 data Choice [copy] { case Empty; case Full(amount: u64 in Divisor); }
-machine clear(destination: @mut Choice) { destination = Choice::Empty; }
+machine clear(destination: @mut Choice) { $destination = Choice::Empty; }
 machine capture<'storage, Value>(choice: Value, other: @mut Choice) -> Value requires Value == @'storage mut Choice { clear(other); choice }
 machine probe(select: bool) -> u64 {
     let mut choice: Choice = match select { true -> Choice::Full { amount: 7 }, false -> Choice::Empty };

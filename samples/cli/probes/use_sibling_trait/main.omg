@@ -1,6 +1,6 @@
-// `use contracts::drawable` brings a sibling file's trait into scope;
+// `use contracts\drawable` brings a sibling file's trait into scope;
 // `Sprite::draw` satisfies it with the unqualified trait name.
-use contracts::drawable;
+use contracts\drawable;
 
 data Canvas {
     width: i32;

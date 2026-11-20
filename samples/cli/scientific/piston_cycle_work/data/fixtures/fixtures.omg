@@ -1,4 +1,4 @@
-use domain::model::Stage;
+use domain\model\Stage;
 
 // A bounded declared-stage inventory selected by one runtime ASCII digit.
 public machine count(selection: i32) -> u32 {

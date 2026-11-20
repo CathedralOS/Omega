@@ -1,15 +1,15 @@
-use omega::language::core::ElementStep;
-use omega::language::core::for_each;
+use omega\language\core\ElementStep;
+use omega\language\core\for_each;
 
-use control::state::Command;
-use control::state::ControlSource;
-use control::state::ControllerSet;
-use control::state::IntentSet;
+use control\state\Command;
+use control\state\ControlSource;
+use control\state\ControllerSet;
+use control\state\IntentSet;
 
-use control::state::ControllerBinding;
-use actors::state::ActorSet;
-use control::pursuit::pursue;
-use simulation::clock::FrameClock;
+use control\state\ControllerBinding;
+use actors\state\ActorSet;
+use control\pursuit\pursue;
+use simulation\clock\FrameClock;
 
 public machine clear_intents<const Actors: u64>(intents: @mut IntentSet<Actors>)
 terminates

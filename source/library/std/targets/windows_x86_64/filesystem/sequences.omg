@@ -8,11 +8,11 @@ use omega_language_std;
 // Portable sequencing stays above the raw family. Successful acquisition owns
 // one close on every returning path; an earlier error wins over close failure.
 // Writes advance the original view and reject zero or oversized progress.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::FilesystemNamespaceMutation;
-use omega::language::core::narrow_i64_to_u64_exact;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\FilesystemNamespaceMutation;
+use omega\language\core\narrow_i64_to_u64_exact;
 
 machine windows_filesystem_finish_unit(outcome: UnitResult, released: UnitResult) -> UnitResult {
     transition outcome {

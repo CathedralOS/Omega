@@ -1,17 +1,17 @@
-use foundation::is_carrier;
-use representations::checks::open_machine;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::typed_trees::Selection;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::reference_type;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
+use foundation\is_carrier;
+use representations\checks\open_machine;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\typed_trees\Selection;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\reference_type;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
 
 // A numeric normal-completion interval belongs to an exact declaration under
 // its own entry contracts, never a caller's private arrival. The graph is

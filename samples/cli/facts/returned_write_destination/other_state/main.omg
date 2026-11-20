@@ -3,7 +3,7 @@
 machine lend_write(destination: @write i32) -> @write i32 { @write destination }
 machine replace(destination: @write i32) {
  transition { _ -> later(lend_write(@write destination)) }
- machine later(destination: @write i32) { destination = 42; }
+ machine later(destination: @write i32) { $destination = 42; }
 }
 machine main() crashes Trap {
  let mut value: i32 = 7;

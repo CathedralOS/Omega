@@ -345,7 +345,7 @@ fn an_enclosing_case_remains_selected_after_a_guard_updates_its_payload() {
     let source = r#"
         data Outer { case Hold(value:u32); case Empty; }
         data Token { case Keyword(keyword:u8); case Other; }
-        machine touch(state:@mut u32)->u8 { state=9; 0 }
+        machine touch(state:@mut u32)->u8 { $state=9; 0 }
         machine pick(outer:@mut Outer, token:@Token)->u32 { match outer {
             Outer::Hold {value}->match token {
                 Token::Keyword {keyword:touch(@mut outer.value)}->99, _->value

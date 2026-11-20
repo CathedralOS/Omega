@@ -39,7 +39,7 @@ machine relay<'call>(context: Holder<'call>, item: @'call u64) -> @'call u64 {
 machine done() {}
 machine wrong() crashes Trap { crash Trap; }
 machine check(value: @u64) crashes Trap {
-    transition value == 42 { true -> done(), false -> wrong() }
+    transition $value == 42 { true -> done(), false -> wrong() }
 }
 machine main() crashes Trap {
     let left: u64 = 17;

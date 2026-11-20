@@ -2,9 +2,9 @@
 // Place: target_body (invalid twin). The left operand is the result of a Build-selected implementation. The left operand is true, so bump runs and the counter is no longer known to be 0.
 
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

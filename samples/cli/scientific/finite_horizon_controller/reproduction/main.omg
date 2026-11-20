@@ -1,8 +1,8 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete positive control: a local fixed byte buffer crosses a case edge
 // after the standard input provider filled it. With input 0 LF, exit 70.
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];

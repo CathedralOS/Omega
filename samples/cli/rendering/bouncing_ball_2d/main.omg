@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A 2D ball bouncing in a box under GRAVITY, animated in place -- the first physics
 // SIMULATION (a continuous state integrated over time), as opposed to the
 // static-per-frame fractals. Each frame homes the cursor (\x1b[H), redraws a 24x12
@@ -10,9 +10,9 @@ use omega::language::core::ProcessExit;
 // guards, runtime-indexed carrier writes, and nested state-machine loops.
 // Expected exit: 0.
 // Expected output contains: O
-use omega::language::core::I32::from_f64;
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega\language\core\I32::from_f64;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 
 data Main

@@ -997,6 +997,7 @@ pub mod expression {
                 match self {
                     Self::BitwiseNot => "~",
                     Self::LogicalNot => "!",
+                    Self::Dereference => "$",
                 }
             }
         }
@@ -5143,9 +5144,7 @@ pub mod expression {
         Define,
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum QuotientTheoremRole {
         Congruence,
         ForwardPreconditionTransport,
@@ -5539,9 +5538,7 @@ pub mod expression {
             self.scalar_operation()?.selected_policy(left, right)
         }
 
-        pub fn scalar_operation(
-            self,
-        ) -> Option<numerics::intrinsics::ScalarBinaryOperation> {
+        pub fn scalar_operation(self) -> Option<numerics::intrinsics::ScalarBinaryOperation> {
             use numerics::intrinsics::ScalarBinaryOperation as Operation;
             Some(match self {
                 Self::Add => Operation::Add,
@@ -5615,6 +5612,7 @@ pub mod expression {
     pub enum UnaryOperator {
         BitwiseNot,
         LogicalNot,
+        Dereference,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

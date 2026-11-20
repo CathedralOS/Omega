@@ -250,7 +250,7 @@ mod tests {
         let importer = catalogue
             .admit_source_occurrence(
                 &mut selected,
-                &file("/app/main.omg", "/app", "use dep::Thing;"),
+                &file("/app/main.omg", "/app", "use dep\\Thing;"),
             )
             .unwrap()
             .source_id;
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn logical_anchor_refuses_ambiguous_selected_instances() {
         let mut files = vec![
-            file("/app/main.omg", "/app", "use dep::Thing;"),
+            file("/app/main.omg", "/app", "use dep\\Thing;"),
             file("/dep/a.omg", "/dep", "first"),
             file("/dep/a.omg", "/dep", "second"),
         ];
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn logical_anchor_refuses_mixed_package_custody() {
         let mut files = vec![
-            file("/app/main.omg", "/app", "use dep::Thing;"),
+            file("/app/main.omg", "/app", "use dep\\Thing;"),
             file("/dep/a.omg", "/dep", "first"),
             file("/other/b.omg", "/other", "second"),
         ];

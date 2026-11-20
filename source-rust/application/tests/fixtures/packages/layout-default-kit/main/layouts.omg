@@ -2,13 +2,13 @@
 // `hi` at byte 0, and returns byte 8, so the result is 42 only when the policy
 // ran for the target that chose it. `OverlappingMeasure` uses a policy that
 // places both fields at offset 0, which layout validation refuses.
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::FixedLayout;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::Schema;
+use omega\language\core\FieldEntry;
+use omega\language\core\FieldPlan;
+use omega\language\core\FixedLayout;
+use omega\language\core\LayoutPlan;
+use omega\language\core\LayoutStorage;
+use omega\language\core\LayoutTarget;
+use omega\language\core\Schema;
 
 public boundary trait Measure {
     machine measure() -> u8 reaches none crashes none;

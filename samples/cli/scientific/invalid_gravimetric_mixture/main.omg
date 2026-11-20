@@ -1,7 +1,7 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete intended-invalid control: a correction declared nonnegative
 // receives a negative exact integer mass. Rejection must name the obligation.
-use omega_language_std::Console;
+use omega_language_std\Console;
 domain i32::Nonnegative requires self >= 0;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

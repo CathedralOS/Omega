@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A fixed-capacity table of records: `players: [Player; 3]`, each a struct with an
 // `id` and a `score`. Demonstrates array-of-structs storage -- the building block
 // for records/tables in serious apps -- via constant-index field writes
@@ -10,7 +10,7 @@ use omega::language::core::ProcessExit;
 // exercised elsewhere; this sample uses constant indices.)
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Player requires 0 <= score, score <= 100 {
     id: i32;

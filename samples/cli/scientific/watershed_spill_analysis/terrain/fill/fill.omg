@@ -1,5 +1,5 @@
-use terrain::raster;
-use terrain::raster::Raster;
+use terrain\raster;
+use terrain\raster\Raster;
 
 // Dijkstra over max(path height), using a bounded linear priority scan.
 // Strict improvement and ascending cell scan fix ties reproducibly. Each

@@ -1,15 +1,15 @@
 // Read one sealed OCREQ V1 request and publish its OCOUT frame and exit tag.
-use omega::language::core::ProcessExit;
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use compiler_request::Outcome;
-use compiler_request::Request;
-use compiler_request::clear;
-use compiler_request::compile_request;
-use compiler_request::frame_byte;
-use compiler_request::frame_length;
-use compiler_request::outcome_tag_value;
-use compiler_request::request_stage;
+use omega\language\core\ProcessExit;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use compiler_request\Outcome;
+use compiler_request\Request;
+use compiler_request\clear;
+use compiler_request\compile_request;
+use compiler_request\frame_byte;
+use compiler_request\frame_length;
+use compiler_request\outcome_tag_value;
+use compiler_request\request_stage;
 
 machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
     let mut request: Request;

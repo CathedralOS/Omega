@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Two invocation-local instances of Counter<T>: Counter<i32> records a score
 // and Counter<bool> latches a flag. Static machines take explicit borrowed
 // counters; each instance retains its own value and write count. Only the
@@ -9,7 +9,7 @@ use omega::language::core::ProcessExit;
 //   exit = 12 + 2 + (1 if flag) + times_flag(1) = 16
 //
 // Expected exit: 16
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Counter<T> {
     value: T;
     times: i32 in Wrapping;

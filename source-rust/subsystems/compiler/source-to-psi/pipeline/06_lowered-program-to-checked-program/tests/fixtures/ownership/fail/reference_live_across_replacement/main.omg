@@ -2,7 +2,7 @@ data Item { value: u32; }
 machine replace(owner: @mut Item) {
     let replacement: Item = Item { value: 7 };
     let held: @u32 = @owner.value;
-    owner = replacement;
+    $owner = replacement;
     observe(held);
 }
 machine consume(item: Item) { }

@@ -11,7 +11,7 @@ public machine read_flag(byte: @Byte) -> bool
 requires byte.value == 1
 {
     let view: @bool = @byte.value as @bool;
-    maybe_clear(view)
+    maybe_clear($view)
 }
 machine main() crashes Trap {
     let byte: Byte = Byte { value: 1 };

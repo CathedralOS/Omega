@@ -13,11 +13,11 @@ machine apply(cell: @mut Cell) -> bool {
  filled && observed
 }
 machine first_choice<'storage>(cell: @'storage mut Cell, marker: @mut u64) -> @'storage mut Cell reaches Memory {
- marker = 11;
+ $marker = 11;
  Memory::fill(cell, 37, 8)
 }
 machine second_choice<'storage>(cell: @'storage mut Cell, marker: @mut u64) -> @'storage mut Cell reaches Memory {
- marker = 13;
+ $marker = 13;
  Memory::fill(cell, 37, 8)
 }
 machine select<'storage>(cell: @'storage mut Cell, marker: @mut u64, first: bool) -> @'storage mut Cell reaches Memory {

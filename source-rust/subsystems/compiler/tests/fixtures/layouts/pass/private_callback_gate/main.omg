@@ -1,12 +1,12 @@
-use omega::language::core::Schema;
-use omega::language::core::FieldPlan;
-use omega::language::core::FieldEntry;
-use omega::language::core::LayoutPlan;
-use omega::language::core::PrivateCallbackSlot;
-use omega::language::core::layout_plan_place_private_field;
-use omega::language::core::LayoutTarget;
-use omega::language::core::LayoutStorage;
-use omega::language::core::FixedLayout;
+use omega\language\core\Schema;
+use omega\language\core\FieldPlan;
+use omega\language\core\FieldEntry;
+use omega\language\core\LayoutPlan;
+use omega\language\core\PrivateCallbackSlot;
+use omega\language\core\layout_plan_place_private_field;
+use omega\language\core\LayoutTarget;
+use omega\language\core\LayoutStorage;
+use omega\language\core\FixedLayout;
 public boundary trait FatalVector00 { machine enter() reaches crashes Abort ensures false; }
 public data InterruptGate { selector: u16; ist: u8; attributes: u8; reserved: u32; }
 

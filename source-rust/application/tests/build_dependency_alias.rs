@@ -30,15 +30,15 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     std::fs::create_dir_all(root.join("dep")).expect("staging directory");
     std::fs::write(
         root.join("main.omg"),
-        "use kit;\n\nmachine entry() -> i32 {\n    kit::value()\n}\n",
+        "use kit;\n\nmachine entry() -> i32 {\n    kit\\value()\n}\n",
     )
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
         "machine build(builder: @mut Build) {
     Build::application(builder, \"consumer\");
-    let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
-    dependency::with_alias(@mut description, \"kit\");
+    let mut description: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
+    dependency\\with_alias(@mut description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",

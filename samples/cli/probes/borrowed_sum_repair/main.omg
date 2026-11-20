@@ -26,8 +26,8 @@ machine transform(choice: Choice, increment: bool) -> Choice {
 }
 
 machine repair(choice: @mut Choice, increment: bool) {
-    let detached: Choice = choice;
-    choice = transform(detached, increment);
+    let detached: Choice = $choice;
+    $choice = transform(detached, increment);
 }
 
 machine read_and_drop(token: Token) -> u64 {

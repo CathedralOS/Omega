@@ -1,5 +1,5 @@
-use targets::windows_x86_64::windows_filesystem_transfer_entry;
-use targets::windows_x86_64::windows_filesystem_transfer_signature;
+use targets\windows_x86_64\windows_filesystem_transfer_entry;
+use targets\windows_x86_64\windows_filesystem_transfer_signature;
 public WindowsFilesystemTransferCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let accepted: bool = windows_filesystem_transfer_signature(@signature);

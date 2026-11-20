@@ -1,5 +1,5 @@
-use targets::macos_arm64::DarwinClockWait;
-use omega::language::core::narrow_u32_to_i32_wrapping;
+use targets\macos_arm64\DarwinClockWait;
+use omega\language\core\narrow_u32_to_i32_wrapping;
 
 // Each wait is one poll with no descriptors, a bounded wait of its timeout.
 // poll reads its timeout as a signed `int`, where -1 waits without bound and

@@ -8,7 +8,7 @@ data Cell { value: i64; }
 data Held<'view> { target: @'view Cell; stamp: i64; }
 
 machine lend<'slot>(slot: @'slot write Held, marker: @write i64) -> @'slot write Held {
-    marker = 1;
+    $marker = 1;
     @write slot
 }
 machine exercise(choice: bool, expected_marker: i64) -> bool {

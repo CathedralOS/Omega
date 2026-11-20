@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Dual float: f32 and f64 fields in the same data type.
 //
 // Exercises: a data struct with BOTH f32 and f64 fields, arithmetic on each,
@@ -23,7 +23,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Floats [copy] {
     low: f32;

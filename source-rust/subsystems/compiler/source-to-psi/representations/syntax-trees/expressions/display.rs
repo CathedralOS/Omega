@@ -331,6 +331,7 @@ impl UnaryOperator {
         match self {
             Self::BitwiseNot => "~",
             Self::LogicalNot => "!",
+            Self::Dereference => "$",
         }
     }
 }

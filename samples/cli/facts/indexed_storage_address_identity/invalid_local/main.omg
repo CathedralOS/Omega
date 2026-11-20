@@ -5,7 +5,7 @@ machine probe(input: u64) -> bool requires input < 2 {
     let index: u64 = input;
     let held: @mut u64 = @mut items[index];
     let selected: addr = address_of(@items[index]);
-    held = 13;
+    $held = 13;
     let again: addr = address_of(@items[index]);
     let first: addr = address_of(@items[0]);
     let second: addr = address_of(@items[1]);

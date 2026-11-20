@@ -429,8 +429,8 @@ fn at_legacy_authored_route(mut input: Input<'_, '_>) -> bool {
     };
     input = rest;
     let mut members = 1usize;
-    while input.at_punctuation(PunctuationKind::ColonColon) {
-        let Ok(rest) = input.take_punctuation(PunctuationKind::ColonColon, "::") else {
+    while input.at_path_member() {
+        let Ok(rest) = input.take_path_separator() else {
             return false;
         };
         let Ok((_, rest)) = rest.take_identifier() else {
@@ -450,10 +450,10 @@ fn parse_authored_route<'tokens, 'source>(
         let (member, rest) = input.take_identifier()?;
         route.push(member);
         input = rest;
-        if !input.at_punctuation(PunctuationKind::ColonColon) {
+        if !input.at_path_member() {
             break;
         }
-        input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        input = input.take_path_separator()?;
     }
     Ok((route, input))
 }

@@ -2,9 +2,9 @@
 // Place: call_result. The left operand is the result of a call whose contract fixes it.
 // Expected exit: 0
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

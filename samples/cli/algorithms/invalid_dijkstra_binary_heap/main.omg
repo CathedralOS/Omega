@@ -1,14 +1,14 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Intended-invalid control for dijkstra_binary_heap: `pop_heap`'s
 // `requires h.len >= 1` must reject a caller that never established the
 // heap is non-empty — `main.heap.len` is 0 here, so the pop is unproven.
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Heap<T> { items: [T; 16]; len: u64; }
 data Popped<T [copy]> [copy] { value: T; }
 
 machine ent_less(left: @u64, right: @u64) -> bool {
-    left < right
+    $left < $right
 }
 
 data Main { heap: Heap<u64>; }

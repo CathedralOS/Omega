@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // indexed_account_post: a case payload's bounded account index updates that
 // slot of a fixed record array inside the selected value-returning arm.
 //
@@ -22,7 +22,7 @@ use omega::language::core::ProcessExit;
 //   75 withdraw result
 //   76 final balances
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Account [copy] {
     balance: i32 in Wrapping;

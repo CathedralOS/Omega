@@ -2,9 +2,9 @@
 // Place: const_name. The left operand is a named constant.
 // Expected exit: 0
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

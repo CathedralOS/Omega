@@ -1,17 +1,17 @@
-use representations::source_files::SourceSet;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::ArmRange;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::JoinedValues;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::TransitionArm;
-use representations::syntax_trees::joined_values;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::syntax_trees::syntax_trees_match_arm;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::set_expression_type;
-use representations::typed_trees::typing_expression_type;
-use representations::typed_trees::typing_reject;
+use representations\source_files\SourceSet;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\ArmRange;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\JoinedValues;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TransitionArm;
+use representations\syntax_trees\joined_values;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\syntax_trees\syntax_trees_match_arm;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\set_expression_type;
+use representations\typed_trees\typing_expression_type;
+use representations\typed_trees\typing_reject;
 
 // A value-position match (wiki/spec/language/patterns.md): `match subject {
 // pattern -> value, ... }` produces the value of its first arm whose pattern

@@ -31,7 +31,7 @@ X86Write satisfies SelectedWrite {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     child = 41; 
+     $child = 41;
     }
 }
 
@@ -40,7 +40,7 @@ ArmWrite satisfies SelectedWrite {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     child = 41; 
+     $child = 41;
     }
 }
 
@@ -50,7 +50,7 @@ machine main() crashes Trap {
     let original: @mut i64 = @mut backing;
     let held: @mut i64 = original;
     SelectedWrite::write(original);
-    held = 7;
+    $held = 7;
     let observed: i64 = backing;
     transition observed == 41 {
         true -> done(),

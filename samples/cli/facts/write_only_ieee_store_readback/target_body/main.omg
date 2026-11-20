@@ -2,7 +2,7 @@
 // Place: another target body. Per-target implementations supply the compared expectation.
 // Expected exit: 0
 
-machine store(r: @write f64) { r = 6.0 / 8.0; }
+machine store(r: @write f64) { $r = 6.0 / 8.0; }
 
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;

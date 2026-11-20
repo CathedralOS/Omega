@@ -2,7 +2,7 @@
 // Place: match join. The read-back value is unified across reconverging branches before the comparison.
 // Expected exit: 0
 
-machine store(r: @write f64) { r = 6.0 / 8.0; }
+machine store(r: @write f64) { $r = 6.0 / 8.0; }
 machine choose(flag: bool, first: f64, second: f64) -> f64 {
     transition flag { true -> first, false -> second }
 }

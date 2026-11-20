@@ -710,7 +710,7 @@ Direct satisfies Handoff {
 }
 machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
     let child: @mut i64 = Chosen::hand(source);
-    child = 41;
+    $child = 41;
 }
 machine entry() crashes none {
     let mut backing: i64 = 17;
@@ -1639,7 +1639,7 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
     // is live.
     const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
     let child: @mut i64 = Chosen::hand(source);
-    child = 41;
+    $child = 41;
 }";
     let (form, discharged) = rigid_relay(ASSIGN);
     assert_eq!(form.requirements, vec![id(2)]);
@@ -1675,8 +1675,8 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
     let (_, discharged) = rigid_relay(
         "machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
     let child: @mut i64 = Chosen::hand(source);
-    source = 5;
-    child = 41;
+    $source = 5;
+    $child = 41;
 }",
     );
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
@@ -1761,7 +1761,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
         "machine entry() -> i64 crashes none {
     let mut backing: i64 = 17;
     let child: @mut i64 = relay::<Direct>(@mut backing);
-    child = 41;
+    $child = 41;
     backing
 }",
     );
@@ -1793,7 +1793,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     let mut backing: i64 = 17;
     let child: @mut i64 = relay::<Direct>(@mut backing);
     backing = 5;
-    child = 41;
+    $child = 41;
 }",
     );
     assert!(

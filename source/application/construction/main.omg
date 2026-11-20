@@ -1,18 +1,18 @@
-use omega::language::core::ProcessExit;
-use omega_compiler::Compilation;
-use omega_compiler::CompilationStatus;
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use psi::pipeline::source_files_to_tokens::Lexer;
-use psi::pipeline::source_files_to_tokens::append_source_byte;
-use psi::pipeline::source_files_to_tokens::lexer_initialize;
-use psi::representations::source_files::DependencyScope;
-use psi::representations::source_files::ModulePath;
-use psi::representations::source_files::add_dependency;
-use psi::representations::source_files::add_package;
-use psi::representations::source_files::module_path_append;
-use psi::representations::source_files::module_path_clear;
-use wire::u32_from_le_bytes;
+use omega\language\core\ProcessExit;
+use omega_compiler\Compilation;
+use omega_compiler\CompilationStatus;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use psi\pipeline\source_files_to_tokens\Lexer;
+use psi\pipeline\source_files_to_tokens\append_source_byte;
+use psi\pipeline\source_files_to_tokens\lexer_initialize;
+use psi\representations\source_files\DependencyScope;
+use psi\representations\source_files\ModulePath;
+use psi\representations\source_files\add_dependency;
+use psi\representations\source_files\add_package;
+use psi\representations\source_files\module_path_append;
+use psi\representations\source_files\module_path_clear;
+use wire\u32_from_le_bytes;
 
 // The construction stream supplies package, dependency and source rows.
 // All spans address its byte arena. Unit rows carry no logical path, so this
@@ -297,7 +297,7 @@ reaches ProcessExit + Console crashes Trap
     {
         let mut module_path: ModulePath;
         module_path_clear(@mut module_path);
-        omega_compiler::compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
+        omega_compiler\compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
         transition { _ -> next(input, compilation, lexer, index + 1) }
     }
     machine full() { ProcessExit::exit_process(252); crash Trap; }
@@ -350,14 +350,14 @@ machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
     let mut input: ConstructionInput;
     block read_input(@mut input);
     let mut compilation: Compilation;
-    omega_compiler::compilation_clear(@mut compilation);
+    omega_compiler\compilation_clear(@mut compilation);
     add_packages(@input, @mut compilation);
     add_edges(@input, @mut compilation);
     let mut lexer: Lexer;
     add_units(@input, @mut compilation, @mut lexer);
     let mut entry_name: ModulePath;
     copy_name(@input, @mut entry_name, input.entry_name_start, input.entry_name_end);
-    omega_compiler::compilation_finish(@mut compilation, input.entry_unit,
+    omega_compiler\compilation_finish(@mut compilation, input.entry_unit,
         @entry_name.bytes[0..entry_name.length]);
     publish(@compilation);
 }

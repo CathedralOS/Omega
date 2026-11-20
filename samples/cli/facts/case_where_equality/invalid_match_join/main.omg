@@ -9,7 +9,7 @@ data Interval [copy]
 data Main { interval: Interval; other: Interval; left_guard: u64; width: u64; right_guard: u64; flag: bool; route: u64; }
 
 machine mark_interval(interval: Interval, route: @mut u64, tag: u64) -> Interval {
-    route = tag;
+    $route = tag;
     interval
 }
 

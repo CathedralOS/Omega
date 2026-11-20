@@ -4,16 +4,16 @@ use omega_language_std;
 // Ordinal selection owns one private directory object and skips only dot rows.
 // Metadata comes from that enumeration record, not a second pathname lookup
 // which could select a replacement child. No ordering or snapshot is promised.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
-use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_u64_to_i32_exact;
-use omega::language::core::narrow_i32_to_u64_exact;
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
+use omega\language\core\widen_u32_to_u64;
+use omega\language\core\narrow_u64_to_i32_exact;
+use omega\language\core\narrow_i32_to_u64_exact;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 
 machine windows_filesystem_native_directory_nth(path: @[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {

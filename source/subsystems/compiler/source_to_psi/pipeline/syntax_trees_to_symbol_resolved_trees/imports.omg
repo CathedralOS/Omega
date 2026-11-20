@@ -1,38 +1,38 @@
-use representations::source_files::DependencyRow;
-use representations::source_files::DependencyScope;
-use representations::source_files::PackageRow;
-use representations::source_files::SourceId;
-use representations::source_files::SourceSet;
-use representations::source_files::SourceSpan;
-use representations::source_files::dependency_row;
-use representations::source_files::package_row;
-use representations::source_files::path_byte_or_nul;
-use representations::source_files::path_length;
-use representations::source_files::source_set_byte_or_nul;
-use representations::source_files::span_names;
-use representations::source_files::span_spells;
-use representations::source_files::spans_equal;
-use representations::source_files::unit_package;
-use representations::symbol_resolved_trees::ResolveDiagnosticCode;
-use representations::symbol_resolved_trees::name_resolution_reject;
-use representations::syntax_trees::ConformanceItem;
-use representations::syntax_trees::ConstantItem;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::IdentifierSpan;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::PropositionItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::TraitItem;
-use representations::syntax_trees::UseItem;
-use representations::syntax_trees::conformance_item;
-use representations::syntax_trees::constant_item;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::proposition_item;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::syntax_trees::syntax_trees_member;
-use representations::syntax_trees::syntax_trees_use_item;
-use representations::syntax_trees::trait_item;
+use representations\source_files\DependencyRow;
+use representations\source_files\DependencyScope;
+use representations\source_files\PackageRow;
+use representations\source_files\SourceId;
+use representations\source_files\SourceSet;
+use representations\source_files\SourceSpan;
+use representations\source_files\dependency_row;
+use representations\source_files\package_row;
+use representations\source_files\path_byte_or_nul;
+use representations\source_files\path_length;
+use representations\source_files\source_set_byte_or_nul;
+use representations\source_files\span_names;
+use representations\source_files\span_spells;
+use representations\source_files\spans_equal;
+use representations\source_files\unit_package;
+use representations\symbol_resolved_trees\ResolveDiagnosticCode;
+use representations\symbol_resolved_trees\name_resolution_reject;
+use representations\syntax_trees\ConformanceItem;
+use representations\syntax_trees\ConstantItem;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\IdentifierSpan;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\PropositionItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TraitItem;
+use representations\syntax_trees\UseItem;
+use representations\syntax_trees\conformance_item;
+use representations\syntax_trees\constant_item;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\proposition_item;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\syntax_trees\syntax_trees_member;
+use representations\syntax_trees\syntax_trees_use_item;
+use representations\syntax_trees\trait_item;
 
 // Which declarations a source unit can name (wiki/spec/language/modules.md,
 // wiki/spec/packages/boundaries.md). Every unit belongs to a package and to
@@ -45,7 +45,7 @@ use representations::syntax_trees::trait_item;
 // is, a trait's or conformance's member taking its container's visibility.
 //
 // A `use` path's leading members select the package of the module it names
-// (`import_target`). The language's toolchain mount `omega::language::core`
+// (`import_target`). The language's toolchain mount `omega\language\core`
 // selects the toolchain's core package from every package
 // (wiki/spec/packages/toolchain.md). Otherwise a first member spelling one
 // of the requester's product dependency aliases selects that dependency,
@@ -174,7 +174,7 @@ crashes Trap
     }
 }
 
-// Whether `use_item` begins with the toolchain mount `omega::language::core`,
+// Whether `use_item` begins with the toolchain mount `omega\language\core`,
 // which claims every path below it.
 machine names_toolchain_mount(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem) -> bool
 crashes Trap

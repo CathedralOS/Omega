@@ -1,15 +1,15 @@
-use representations::source_files::SourceSet;
-use representations::symbol_resolved_trees::ResolveDiagnosticCode;
-use representations::symbol_resolved_trees::TypeBinding;
-use representations::symbol_resolved_trees::TypeScope;
-use representations::symbol_resolved_trees::name_resolution_reject;
-use representations::symbol_resolved_trees::operator_home;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::OperatorToken;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_data_item;
+use representations\source_files\SourceSet;
+use representations\symbol_resolved_trees\ResolveDiagnosticCode;
+use representations\symbol_resolved_trees\TypeBinding;
+use representations\symbol_resolved_trees\TypeScope;
+use representations\symbol_resolved_trees\name_resolution_reject;
+use representations\symbol_resolved_trees\operator_home;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\OperatorToken;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_data_item;
 
 // Operator homes (wiki/spec/language/expressions.md#operator-families). A
 // qualified token-bound machine `machine <= Nat::less_or_equal(...)`

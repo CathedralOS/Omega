@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Mandelbrot set, software-rendered to the console as ASCII. A real per-pixel
 // renderer: for each cell map (x,y) to a complex c, run the escape-time iteration
 // z = z*z + c until |z|^2 > 4 or a cap, and pick a palette glyph by escape speed.
@@ -8,8 +8,8 @@ use omega::language::core::ProcessExit;
 //   set body -> '#', exterior fades to ' '.
 // Expected exit: 0.
 // Expected output contains: #
-use omega::language::core::F64::from_i32;
-use omega_language_std::Console;
+use omega\language\core\F64::from_i32;
+use omega_language_std\Console;
 
 data Main
 requires self.x >= 0 && self.x <= 64,

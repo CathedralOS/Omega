@@ -8,7 +8,7 @@ boundary trait Mark {
 }
 
 Counting satisfies Mark {
-    machine record<T>(value: @T, label: u64, hits: @mut u64) { hits = label; }
+    machine record<T>(value: @T, label: u64, hits: @mut u64) { $hits = label; }
 }
 
 data Holder<T> { item: T; }

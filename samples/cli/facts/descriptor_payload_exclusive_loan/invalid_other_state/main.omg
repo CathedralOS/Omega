@@ -4,9 +4,9 @@
 data Slot { case Absent; case Present(value: [i64; 2]); }
 
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
@@ -21,9 +21,9 @@ machine main() crashes Trap {
             false -> @mut other.value[..]
         };
         selected[0] = 41;
-        chosen = Slot::Present { value: [7, 0] };
+        $chosen = Slot::Present { value: [7, 0] };
         let observed: i64 = selected[0];
-        transition observed == 41 && visits == 1 {
+        transition observed == 41 && $visits == 1 {
             true -> done(),
             false -> wrong()
         }

@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Exact Bareiss update after a mutable array store cites its ensures.
 //
 // metabolic_flux_analysis writes minors through `&mut [i64 in Wrapping; N]`
@@ -12,7 +12,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Expected output contains: exact=6
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     cells: [i64; 5];

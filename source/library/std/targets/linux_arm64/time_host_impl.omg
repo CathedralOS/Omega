@@ -19,8 +19,8 @@ use TimeHost;
 // x86-64 sibling waits with `poll` and a signed millisecond count — exactly
 // the split the two `clock_impl.omg` files already make.
 //
-use omega::language::core::widen_u32_to_i64;
-use omega::language::core::narrow_i64_to_u64_saturating;
+use omega\language\core\widen_u32_to_i64;
+use omega\language\core\narrow_i64_to_u64_saturating;
 
 // Per-target raw seam. The read and the wait share one boundary trait so
 // selection names the trait, not a carrier-owned requirement.

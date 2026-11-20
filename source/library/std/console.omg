@@ -1,6 +1,6 @@
-use targets::windows_x86_64::WindowsConsoleBytes;
-use omega::language::core::narrow_i32_to_u8_wrapping;
-use omega::language::core::widen_u8_to_i32;
+use targets\windows_x86_64\WindowsConsoleBytes;
+use omega\language\core\narrow_i32_to_u8_wrapping;
+use omega\language\core\widen_u8_to_i32;
 
 // Portable console operations. Build selects a complete ordinary implementation;
 // shared checked adapters perform text I/O through its explicit byte operations.

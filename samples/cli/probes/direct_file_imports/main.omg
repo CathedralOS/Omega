@@ -1,7 +1,7 @@
 // Each source imports the exact files supplying its names: `main` sees
 // `A` and `B`, while `b` saw `a` for its own field.
-use m::b;
-use m::a;
+use m\b;
+use m\a;
 
 machine result() -> i32 {
     let item: B = B { value: A { value: 7 } };

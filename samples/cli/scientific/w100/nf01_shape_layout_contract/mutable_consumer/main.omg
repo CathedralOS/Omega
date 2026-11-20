@@ -1,10 +1,10 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 73
-use omega::language::core::Layout2;
-use omega::language::core::try_write;
-use omega::language::core::valid_mutable;
-use omega::language::core::valid_readonly;
-use omega_language_std::Console;
+use omega\language\core\Layout2;
+use omega\language\core\try_write;
+use omega\language\core\valid_mutable;
+use omega\language\core\valid_readonly;
+use omega_language_std\Console;
 data Main { }
 machine main(context: @mut Main) reaches ProcessExit + Console {
     let mut backing: [i32; 9] = [1, 4, 99, 2, 5, 99, 3, 6, 99];

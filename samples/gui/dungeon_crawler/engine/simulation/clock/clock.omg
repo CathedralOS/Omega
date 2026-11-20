@@ -1,4 +1,4 @@
-use configuration::ANIMATION_PERIOD;
+use configuration\ANIMATION_PERIOD;
 
 public data FrameClock [copy]
 requires ticks >= 0 && ticks < ANIMATION_PERIOD {

@@ -4,9 +4,9 @@
 const DECIDE: bool = true;
 
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     DECIDE
 }
 
@@ -18,8 +18,8 @@ machine main() crashes Trap {
         true -> @mut chosen,
         false -> @mut other
     };
-    selected = 41;
-    let observed: i64 = selected;
+    $selected = 41;
+    let observed: i64 = $selected;
     transition observed == 41 && chosen == 41 && other == 0 && visits == 1 {
         true -> done(),
         false -> wrong()

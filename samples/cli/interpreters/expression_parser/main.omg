@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 9.
 // An infix expression evaluator: "2*(3+4)-5" is parsed with operator
 // precedence and parentheses and evaluated to 9, the exit code.
@@ -14,7 +14,7 @@ use omega::language::core::ProcessExit;
 //
 // Bytes: '(' 40, ')' 41, '*' 42, '+' 43, '-' 45, '0'..'9' 48..57.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 // Where `apply` returns once it has reduced one operator.
 data Resume {

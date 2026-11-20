@@ -1,20 +1,20 @@
-use representations::syntax_trees::ArmPatternKind;
-use representations::syntax_trees::ArmTargetKind;
-use representations::syntax_trees::ConstructField;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::OperatorKind;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::TransitionArm;
-use representations::syntax_trees::TypeReference;
-use representations::syntax_trees::syntax_trees_argument;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::syntax_trees::syntax_trees_type_reference;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenKind;
-use representations::tokens::TokenStream;
+use representations\syntax_trees\ArmPatternKind;
+use representations\syntax_trees\ArmTargetKind;
+use representations\syntax_trees\ConstructField;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ExpressionKind;
+use representations\syntax_trees\OperatorKind;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\TransitionArm;
+use representations\syntax_trees\TypeReference;
+use representations\syntax_trees\syntax_trees_argument;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\syntax_trees\syntax_trees_type_reference;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenKind;
+use representations\tokens\TokenStream;
 
 // Expression grammar: one shift-reduce pass over explicit stacks, so nested
 // groups, calls, indexes, constructions and matches need no recursion.
@@ -117,6 +117,7 @@ crashes Trap
         transition token.kind {
             TokenKind::Punctuation { punctuation: PunctuationKind::Exclamation, .. } -> prefix(parser, input, OperatorKind::Not),
             TokenKind::Punctuation { punctuation: PunctuationKind::Minus, .. } -> prefix(parser, input, OperatorKind::Negate),
+            TokenKind::Punctuation { punctuation: PunctuationKind::Dollar, .. } -> prefix(parser, input, OperatorKind::Dereference),
             TokenKind::Punctuation { punctuation: PunctuationKind::Tilde, .. } -> prefix(parser, input, OperatorKind::BitNot),
             TokenKind::Punctuation { punctuation: PunctuationKind::At, .. } -> borrow(parser, input),
             TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_group(parser, input),
@@ -364,7 +365,7 @@ crashes Trap
         parser.path_start = token.start;
         parser.path_first_member = parser.output.member_count as u64 in Trapping;
         take_current(parser, input);
-        let qualified: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let qualified: bool = at_path_separator(parser, input);
         transition qualified {
             true -> path_member(parser, input),
             _ -> name_node(parser, input)
@@ -382,7 +383,7 @@ crashes Trap
         parser.output.members[parser.output.member_count] =
             identifier_span(parser, parser.token_start, parser.token_end);
         parser.output.member_count = parser.output.member_count + 1;
-        let qualified: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let qualified: bool = at_path_separator(parser, input);
         transition qualified {
             true -> path_separator(parser, input),
             _ -> path_node(parser, input)
@@ -802,7 +803,7 @@ crashes Trap
     }
 
     // After a name or path, `<` opens static arguments when its matching
-    // `>` is followed by `(`, as in `Build::select_provider<Slot, Provider>(builder)`;
+    // `>` is followed by `(`, as in `Build::select_provider::<Slot, Provider>(builder)`;
     // otherwise it compares.
     machine less(parser: @mut Parser, input: @TokenStream) {
         let top: u64 in Trapping = top_operand(parser);
@@ -2472,6 +2473,7 @@ crashes Trap
         transition token.kind {
             TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1),
             TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth),
+            TokenKind::Punctuation { punctuation: PunctuationKind::Backslash, .. } -> scan(input, index + 1, depth),
             TokenKind::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth),
             TokenKind::Punctuation { punctuation: PunctuationKind::Comma, .. } -> scan(input, index + 1, depth),
             TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth),

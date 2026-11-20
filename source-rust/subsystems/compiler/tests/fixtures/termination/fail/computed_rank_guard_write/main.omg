@@ -8,8 +8,8 @@ requires value > 0
 ensures result == value - 1
 { value - 1 }
 machine ready(value: @mut u64) -> bool
-ensures result == true && value == 2
-{ value = 2; true }
+ensures result == true && $value == 2
+{ $value = 2; true }
 machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, mut remaining: u64) -> Counted<'storage, Count>
 requires remaining <= 2
 terminates by remaining -> Nat::Descending in 0..=2

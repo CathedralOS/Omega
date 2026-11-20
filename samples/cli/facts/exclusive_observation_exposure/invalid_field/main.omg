@@ -8,8 +8,8 @@ requires observed == current && observed == 7
 }
 
 machine expose(slot: @mut u64) -> u64 {
-    slot = 8;
-    slot
+    $slot = 8;
+    $slot
 }
 
 machine main() crashes Trap {

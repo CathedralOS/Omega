@@ -93,7 +93,7 @@ fn a_result_promise_cannot_hide_read_restrictions() {
         "let mut plan: AccessPlan = {selected};\naccess::allow_readers(@mut plan, AccessRegion::Subject {{ schema: schema }}, [reflect::callable(stamp)]);\nplan"
     );
     let source = format!(
-        "use omega::language::core::AccessRegion;\n{}",
+        "use omega\\language\\core\\AccessRegion;\n{}",
         source.replace(selected, &restricted)
     );
     let (output, report) = invoke(&fixture.join("build.omg"), &source);

@@ -1,27 +1,27 @@
-use compiler_alpha::AlphaEmitter;
-use psi::pipeline::checked_trees_to_scalar_operations::ScalarLowerer;
-use psi::pipeline::checked_trees_to_scalar_operations::scalar_lower;
-use psi::pipeline::source_files_to_tokens::Lexer;
-use psi::pipeline::source_files_to_tokens::tokenize;
-use psi::pipeline::symbol_resolved_trees_to_typed_trees::Typer;
-use psi::pipeline::symbol_resolved_trees_to_typed_trees::type_check;
-use psi::pipeline::syntax_trees_to_symbol_resolved_trees::Resolver;
-use psi::pipeline::syntax_trees_to_symbol_resolved_trees::resolve;
-use psi::pipeline::syntax_trees_to_symbol_resolved_trees::resolver_initialize;
-use psi::pipeline::tokens_to_syntax_trees::Parser;
-use psi::pipeline::tokens_to_syntax_trees::parse;
-use psi::pipeline::tokens_to_syntax_trees::parser_initialize;
-use psi::pipeline::typed_trees_to_checked_trees::Checker;
-use psi::pipeline::typed_trees_to_checked_trees::checker_check;
-use psi::representations::lowered_program::ScalarStatus;
-use psi::representations::source_files::ModulePath;
-use psi::representations::source_files::SourceSet;
-use psi::representations::source_files::SourceSpan;
-use psi::representations::source_files::source_set_add;
-use psi::representations::source_files::source_set_clear;
-use psi::representations::source_files::span_spells;
-use psi::representations::syntax_trees::MachineItem;
-use psi::representations::syntax_trees::machine_item;
+use compiler_alpha\AlphaEmitter;
+use psi\pipeline\checked_trees_to_scalar_operations\ScalarLowerer;
+use psi\pipeline\checked_trees_to_scalar_operations\scalar_lower;
+use psi\pipeline\source_files_to_tokens\Lexer;
+use psi\pipeline\source_files_to_tokens\tokenize;
+use psi\pipeline\symbol_resolved_trees_to_typed_trees\Typer;
+use psi\pipeline\symbol_resolved_trees_to_typed_trees\type_check;
+use psi\pipeline\syntax_trees_to_symbol_resolved_trees\Resolver;
+use psi\pipeline\syntax_trees_to_symbol_resolved_trees\resolve;
+use psi\pipeline\syntax_trees_to_symbol_resolved_trees\resolver_initialize;
+use psi\pipeline\tokens_to_syntax_trees\Parser;
+use psi\pipeline\tokens_to_syntax_trees\parse;
+use psi\pipeline\tokens_to_syntax_trees\parser_initialize;
+use psi\pipeline\typed_trees_to_checked_trees\Checker;
+use psi\pipeline\typed_trees_to_checked_trees\checker_check;
+use psi\representations\lowered_program\ScalarStatus;
+use psi\representations\source_files\ModulePath;
+use psi\representations\source_files\SourceSet;
+use psi\representations\source_files\SourceSpan;
+use psi\representations\source_files\source_set_add;
+use psi\representations\source_files\source_set_clear;
+use psi\representations\source_files\span_spells;
+use psi\representations\syntax_trees\MachineItem;
+use psi\representations\syntax_trees\machine_item;
 
 // Compilation consumes an explicit closed source set. Package acquisition and
 // public OCREQ admission are separate owners; neither is inferred from a path
@@ -179,7 +179,7 @@ crashes Trap
         }
     }
     machine emit(compilation: @mut Compilation, lowerer: @ScalarLowerer) {
-        compiler_alpha::alpha_emit(@mut compilation.output, @lowerer.output);
+        compiler_alpha\alpha_emit(@mut compilation.output, @lowerer.output);
         transition compilation.output.complete {
             true -> complete(compilation),
             _ -> full(compilation)

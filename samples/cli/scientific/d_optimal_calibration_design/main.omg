@@ -1,12 +1,12 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: status identifiable
 // Finite stdin: linear|quadratic, n k, n (setting precision) pairs, 3 predictions.
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use design::model;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use design\model;
 data Main {
-    design: design::model::Design;
+    design: design\model\Design;
     tokens: [i64 in Wrapping; 29];
     used: i64 in Wrapping;
     bytes: i64 in Wrapping;
@@ -163,7 +163,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> prediction(main, index+1) }
     }
     machine analyze(main: @mut Main) {
-        design::model::solve(@mut main.design);
+        design\model\solve(@mut main.design);
         Console::write("selected");
         transition { _ -> selected(main, 0) }
     }

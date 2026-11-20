@@ -9,7 +9,7 @@ requires token.ready {
 
 machine make_token(count: @mut u64) -> Token
 ensures result.ready == true {
-    count = ((count as u64 in Wrapping) + 1) as u64;
+    $count = (($count as u64 in Wrapping) + 1) as u64;
     Token { ready: true, value: 7 }
 }
 

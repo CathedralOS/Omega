@@ -63,8 +63,8 @@ machine configure<const Tag: u64>(builder: @mut Build) {{
         program.join("build.omg"),
         "machine build(builder: @mut Build) {
     Build::application(builder, \"reader\");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: \"../reading\" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    let registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../reading\" }));
+    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 }
 ",
     )

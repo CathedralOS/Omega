@@ -16,9 +16,9 @@ use omega_language_std;
 // 100-ns ticks from 1601; portable timestamps use signed Unix seconds. A real
 // zero timestamp is distinct from unavailable POSIX metadata. Only the known
 // symlink/junction tags become Symlink; an unknown reparse tag stays Other.
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::widen_u32_to_u64;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\widen_u32_to_u64;
 
 machine windows_filesystem_seconds(ticks: u64) -> i64 {
     let since_windows_epoch: u64 = ticks / 10000000;

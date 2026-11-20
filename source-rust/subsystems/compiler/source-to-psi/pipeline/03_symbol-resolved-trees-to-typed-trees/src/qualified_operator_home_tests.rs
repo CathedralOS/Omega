@@ -203,7 +203,7 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
         "machine unimported(value: f32) { classify_f32(value); }",
     ));
     let imported = units.len();
-    units.push((31, "imported.omg", "use omega::language::core::float_accuracy::classify_f32; machine imported(value: f32) { classify_f32(value); }"));
+    units.push((31, "imported.omg", "use omega\\language\\core\\float_accuracy\\classify_f32; machine imported(value: f32) { classify_f32(value); }"));
     let program = packages(
         &units,
         &[],
@@ -257,7 +257,7 @@ fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature()
         31,
         "difference.omg",
         r#"
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 data Time [copy] { seconds: i64; }
 machine difference(time: @Time, earlier: Time) -> u64 in Wrapping {
     let seconds: u64 in Wrapping =
@@ -1096,7 +1096,7 @@ fn unknown_and_ambiguous_homes_reject_without_any_operator_use() {
 
 #[test]
 fn foreign_package_cannot_declare_the_imported_domains_operator() {
-    let declaration = format!("use dep::units; {OPERATOR}");
+    let declaration = format!("use dep\\units; {OPERATOR}");
     let error = packages(
         &[(31, "units/domains.omg", DOMAIN), (32, "main.omg", &declaration)],
         &[(32, "dep", 31)],
@@ -1164,9 +1164,9 @@ fn anonymous_arithmetic_does_not_choose_between_unrelated_domain_families() {
 fn body_imports_belong_to_the_declaring_file() {
     use crate::source_state::expression::ExpressionNode;
     let body = "machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { helper((left as -Distance) +% (right as -Distance)) as +Distance }";
-    let own_import = format!("use units; use helpers::helper; {body}");
+    let own_import = format!("use units; use helpers\\helper; {body}");
     let borrowed_import = format!("use units; {body}");
-    let domain = "use helpers::helper; public domain u32::Distance;";
+    let domain = "use helpers\\helper; public domain u32::Distance;";
     let helpers = "public machine helper(value: u32) -> u32 { value }";
     let own = typed(&[
         ("units/domains.omg", domain),
@@ -1220,7 +1220,7 @@ fn domain_family_discovery_preserves_visibility_without_importing_its_module() {
         let program = packages(&[
             (31, "units/domains.omg", "public domain u32::Distance; public domain u32::Span;"),
             (31, "operations/operators.omg", &declaration),
-            (32, "client.omg", "use dep::units; machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }"),
+            (32, "client.omg", "use dep\\units; machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }"),
         ], &[(32, "dep", 31)], &[(2, 0, "dep::units", 1)]).unwrap();
         let binding = &program.machine_token_bindings()[0];
         let caller = program

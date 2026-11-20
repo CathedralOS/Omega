@@ -45,7 +45,7 @@ reaches SelectedForward invokes SelectedForward
 requires value == 1065353216
 {
     let view: @f32 = @value as @f32;
-    let observed: f32 = view;
+    let observed: f32 = $view;
     SelectedForward::forward(observed)
 }
 machine main() crashes Trap {

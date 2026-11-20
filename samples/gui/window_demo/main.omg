@@ -1,20 +1,20 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Render 60 frames of a 64x64 diagonal color wash in a native 256x256
 // window, paced at 25 ms with an event pump between frames.
 // Persistent handles are explicit application-owned state; provider selection
 // chooses stateless code. Per-frame images and the final window are released.
 // Expected exit: 0. No stdin is required.
 // Expected output contains: PASS: 60 frames blitted (exit 0)
-use omega_language_std::Console;
-use omega_language_std::AppKit;
-use omega_language_std::CoreGraphics;
-use omega_language_std::ObjectiveC;
-use omega_language_std::Window;
-use omega_language_std::MacosImageData;
-use omega_language_std::MacosImageObjects;
-use omega_language_std::Clock;
-use omega_language_std::WindowsGuiHost;
-use omega_language_std::WindowsMessage;
+use omega_language_std\Console;
+use omega_language_std\AppKit;
+use omega_language_std\CoreGraphics;
+use omega_language_std\ObjectiveC;
+use omega_language_std\Window;
+use omega_language_std\MacosImageData;
+use omega_language_std\MacosImageObjects;
+use omega_language_std\Clock;
+use omega_language_std\WindowsGuiHost;
+use omega_language_std\WindowsMessage;
 use providers;
 // Both targets select stateless implementations; the application owns every
 // native handle and the Windows message buffer throughout the render loop.

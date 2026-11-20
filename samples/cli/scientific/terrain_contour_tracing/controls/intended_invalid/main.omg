@@ -1,5 +1,5 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
 data InvalidMain { values: [i32; 2]; }
 machine main(context: @mut InvalidMain) reaches ProcessExit + Console {
     context.values = [3, 4];

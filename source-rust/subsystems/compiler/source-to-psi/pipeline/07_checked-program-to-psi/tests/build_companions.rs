@@ -266,7 +266,7 @@ fn published_boundary_calls(program: &ProducedTerminalProgram) -> Vec<BuildCallS
 const ONE_BINDING: &str = r#"
 machine build(builder: @mut Build) {
     BuildRequestOperations::artifact_only(builder);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }
 "#;
 
@@ -325,8 +325,8 @@ fn each_binding_of_one_machine_keeps_its_own_entry() {
     let program = produced(
         r#"
 machine build(builder: @mut Build) {
-    Build::bind(builder, linux_x86_64::ProgramEntry, first);
-    Build::bind(builder, windows_x86_64::ProgramEntry, second);
+    Build::bind(builder, linux_x86_64\ProgramEntry, first);
+    Build::bind(builder, windows_x86_64\ProgramEntry, second);
 }
 "#,
     )
@@ -385,10 +385,10 @@ machine build(builder: @mut Build) {
     second(builder);
 }
 machine first(builder: @mut Build) {
-    Build::bind(builder, linux_x86_64::ProgramEntry, one);
+    Build::bind(builder, linux_x86_64\ProgramEntry, one);
 }
 machine second(builder: @mut Build) {
-    Build::bind(builder, windows_x86_64::ProgramEntry, two);
+    Build::bind(builder, windows_x86_64\ProgramEntry, two);
 }
 "#;
 
@@ -1375,7 +1375,7 @@ machine build(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
 #[test]
 fn boundary_declaration_facts_do_not_admit_pure_execution() {
     use semantic_vocabulary::{TargetMachineCallable, compiler_evaluation::DeclarationCustody};
-    let external = "use omega::language::core::Never; use omega::language::core::ProcessExit; machine build() -> Never reaches ProcessExit crashes none terminates { ProcessExit::exit_process(0); }";
+    let external = "use omega\\language\\core\\Never; use omega\\language\\core\\ProcessExit; machine build() -> Never reaches ProcessExit crashes none terminates { ProcessExit::exit_process(0); }";
     let core = [
         (
             "never.omg",

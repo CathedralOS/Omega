@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // stack_vm: tiny stack-based bytecode evaluator.
 //
 // Opcodes (case type):
@@ -33,7 +33,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Opcode {
     case Push(value: i32 in Wrapping);

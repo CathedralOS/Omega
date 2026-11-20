@@ -1,19 +1,19 @@
-use targets::windows_x86_64::WindowsDirectoryStep;
-use targets::windows_x86_64::WindowsFilesystemIo;
-use targets::windows_x86_64::WindowsNativeDirectoryEntryInfo;
-use targets::windows_x86_64::windows_directory_entry_dot;
-use targets::windows_x86_64::windows_directory_next_entry;
-use targets::windows_x86_64;
+use targets\windows_x86_64\WindowsDirectoryStep;
+use targets\windows_x86_64\WindowsFilesystemIo;
+use targets\windows_x86_64\WindowsNativeDirectoryEntryInfo;
+use targets\windows_x86_64\windows_directory_entry_dot;
+use targets\windows_x86_64\windows_directory_next_entry;
+use targets\windows_x86_64;
 // Depth-first deletion retains opened directory objects in invocation-owned
 // storage. A native name opens relative to its retained parent; only actual
 // opened-object attributes authorize descent. Reparse objects remain leaves.
 // Clear a slot before disposing or unwinding it, so even a failed close is
 // attempted exactly once. No work budget silently cuts off wide directories.
 // The finite handle stack fails explicitly with ERROR_NOT_ENOUGH_MEMORY.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 data WindowsRemovalFrame [copy] {
     case Empty;

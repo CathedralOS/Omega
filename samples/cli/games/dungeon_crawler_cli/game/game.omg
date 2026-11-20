@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
 
 data Game {
     dungeon: Dungeon;

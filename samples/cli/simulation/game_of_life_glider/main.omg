@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Conway's Game of Life, animated in place: a single GLIDER seeded near the top-left
 // glides diagonally down-right across a 24x12 field as the generations tick. Each cell
 // lives or dies by its eight neighbours -- a live cell with 2-3 survives, a dead cell with
@@ -11,8 +11,8 @@ use omega::language::core::ProcessExit;
 // arguments. The next generation is double-buffered. Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 domain [u8]::Utf8
 requires

@@ -1,10 +1,10 @@
-use targets::uefi_x86_64::uefi_os_handoff_cycle_acquire;
-use targets::uefi_x86_64::uefi_os_handoff_cycle_attempt_exit;
-use targets::uefi_x86_64::uefi_os_handoff_cycle_firmware_return;
-use targets::uefi_x86_64::uefi_os_handoff_cycle_free_map;
-use targets::uefi_x86_64::uefi_os_handoff_cycle_grow;
-use targets::uefi_x86_64::uefi_os_handoff_cycle_transfer;
-use targets::uefi_x86_64::valid_map_geometry;
+use targets\uefi_x86_64\uefi_os_handoff_cycle_acquire;
+use targets\uefi_x86_64\uefi_os_handoff_cycle_attempt_exit;
+use targets\uefi_x86_64\uefi_os_handoff_cycle_firmware_return;
+use targets\uefi_x86_64\uefi_os_handoff_cycle_free_map;
+use targets\uefi_x86_64\uefi_os_handoff_cycle_grow;
+use targets\uefi_x86_64\uefi_os_handoff_cycle_transfer;
+use targets\uefi_x86_64\valid_map_geometry;
 // EFI_STATUS codes the authored cycle dispatches on (the UEFI error bit is
 // bit 63, so these exceed i64 range by construction).
 public const EFI_SUCCESS: u64 = 0;

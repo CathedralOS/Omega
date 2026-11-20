@@ -1,9 +1,9 @@
 // A match on one evaluation of a copyable flag returns the exclusive loan of the selected primitive, writes 41 through that loan, and leaves the unselected primitive unchanged.
 // Place: target_body. Reject twin: the source is used while that loan is live.
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
@@ -41,8 +41,8 @@ X86Apply satisfies SelectedApply {
             true -> chosen,
             false -> other
         };
-        chosen = 7;
-        selected = 41;
+        $chosen = 7;
+        $selected = 41;
         selected
     }
 }
@@ -56,8 +56,8 @@ ArmApply satisfies SelectedApply {
             true -> chosen,
             false -> other
         };
-        chosen = 7;
-        selected = 41;
+        $chosen = 7;
+        $selected = 41;
         selected
     }
 }

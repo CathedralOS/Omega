@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Verified sorted insertion into a fixed-capacity table.
 //
 // `sorted` is a pure predicate machine over a sixteen-cell array; `seed`
@@ -12,7 +12,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 58 = found positions (3 + 1 + 4 + 1) + grown counts
 // (5 + 6) + live cells sum (1 + 2 + 3 + 5 + 7 + 20).
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 machine sorted(values: @[i32; 16]) -> bool {
     check_sorted(values, 15)

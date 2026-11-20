@@ -210,7 +210,7 @@ fn evaluate_const_fact_expression_at(
                         _ => None,
                     },
                 )),
-                UnaryOperator::BitwiseNot => Ok(None),
+                UnaryOperator::BitwiseNot | UnaryOperator::Dereference => Ok(None),
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -832,7 +832,11 @@ fn evaluate_named_const_domain(
     declared name. This label alone is not declaration identity: distinct
     packages can publish identical logical paths.
 */
-fn module_domain_key(syntax: &SyntaxTrees, domain: &DomainDefinition, selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>) -> String {
+fn module_domain_key(
+    syntax: &SyntaxTrees,
+    domain: &DomainDefinition,
+    selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>,
+) -> String {
     match module_path(selection, domain.name.source_span().source_id) {
         Some(module) => format!("{module}::{}", domain.name.as_str(syntax)),
         None => domain.name.as_str(syntax).to_owned(),

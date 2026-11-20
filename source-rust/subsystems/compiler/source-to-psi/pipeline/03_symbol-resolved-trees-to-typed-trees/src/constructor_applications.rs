@@ -1804,7 +1804,7 @@ mod tests {
             ),
             (
                 "client.omg",
-                "machine ordinary(bytes: @mut [u8; 3]) { kit::pick(bytes[..]); } \
+                "machine ordinary(bytes: @mut [u8; 3]) { kit\\pick(bytes[..]); } \
                  machine exclusive(bytes: @mut [u8; 3]) { sink(@mut bytes[..]); } \
                  machine sink(value: @mut [u8]) {}",
             ),
@@ -1883,20 +1883,20 @@ mod tests {
             public machine view(values: @[u64]) {}
         "#;
         let client = r#"
-            use kit::pick;
-            use kit::borrow;
-            use kit::array;
-            use kit::view;
-            machine expression(value: u32) -> u32 { kit::pick(value) }
-            machine statement(value: u64) { kit::pick(value); }
-            machine terminal(value: u32) -> u32 { transition { _ -> kit::pick(value) } }
-            machine shared(value: @u32) { kit::borrow(value); }
-            machine exclusive(value: @mut u32) { kit::borrow(value); }
-            machine array_value(value: u64) { kit::array([value]); }
-            machine slice_view(value: @[u32]) { kit::view(value); }
-            machine before_local(value: u32) { kit::pick(value); let kit: u32 = 0; }
+            use kit\pick;
+            use kit\borrow;
+            use kit\array;
+            use kit\view;
+            machine expression(value: u32) -> u32 { kit\pick(value) }
+            machine statement(value: u64) { kit\pick(value); }
+            machine terminal(value: u32) -> u32 { transition { _ -> kit\pick(value) } }
+            machine shared(value: @u32) { kit\borrow(value); }
+            machine exclusive(value: @mut u32) { kit\borrow(value); }
+            machine array_value(value: u64) { kit\array([value]); }
+            machine slice_view(value: @[u32]) { kit\view(value); }
+            machine before_local(value: u32) { kit\pick(value); let kit: u32 = 0; }
             machine expression_before_local(value: u32) -> u32 {
-                let result_value: u32 = kit::pick(value);
+                let result_value: u32 = kit\pick(value);
                 let kit: u32 = 0;
                 result_value
             }
@@ -2089,8 +2089,8 @@ mod tests {
             (
                 "operations.omg",
                 r#"
-                public machine converted::pick(value: u32) -> u32 { value }
-                public machine converted::pick(value: u32) -> u32 in Saturating { value }
+                public machine converted\pick(value: u32) -> u32 { value }
+                public machine converted\pick(value: u32) -> u32 in Saturating { value }
                 public data Owned {}
                 public machine Owned::pick(value: u32) -> u32 { value }
                 public machine Owned::pick(value: u32) -> u32 in Saturating { value }
@@ -2100,9 +2100,9 @@ mod tests {
                 "client.omg",
                 r#"
                 use converted;
-                use converted::pick;
+                use converted\pick;
                 machine namespace_call(value: u32) {
-                    let selected: u32 in Saturating = converted::pick(value);
+                    let selected: u32 in Saturating = converted\pick(value);
                 }
                 machine data_call(value: u32) {
                     let selected: u32 in Saturating = Owned::pick(value);
@@ -2194,10 +2194,10 @@ mod tests {
         "#;
         let client = r#"
             use kit;
-            machine stored<'text>(value: kit::Payload<'text>) -> u32 { kit::choose(value) }
-            machine shared(value: @u32) -> u32 { kit::choose(value) }
-            machine incompatible(value: bool) -> u32 { kit::choose(value) }
-            machine access_mismatch(value: @mut u32) -> u32 { kit::choose(value) }
+            machine stored<'text>(value: kit\Payload<'text>) -> u32 { kit\choose(value) }
+            machine shared(value: @u32) -> u32 { kit\choose(value) }
+            machine incompatible(value: bool) -> u32 { kit\choose(value) }
+            machine access_mismatch(value: @mut u32) -> u32 { kit\choose(value) }
         "#;
         let program = checked(&[("kit/overloads.omg", library), ("client.omg", client)])
             .expect("select actual lifetime-bound headers from their argument carriers");
@@ -2280,14 +2280,14 @@ mod tests {
         "#;
         let client = r#"
             use kit;
-            machine incompatible(value: bool) -> u32 { kit::pick(value) }
-            machine access_mismatch(value: u32) { kit::borrow(value); }
-            machine domain_mismatch(value: u32) { kit::domain_value(value); }
-            machine domain_match(value: u32 in Tagged) { kit::domain_value(value); }
-            machine array_reference(value: @[u32; 1]) { kit::view(value); }
-            machine parameter_shadow(kit: u32) { kit::pick(7u32); }
-            machine local_shadow() { let kit: u32 = 0; kit::pick(7u32); }
-            machine missing(value: u32) -> u32 { kit::absent(value) }
+            machine incompatible(value: bool) -> u32 { kit\pick(value) }
+            machine access_mismatch(value: u32) { kit\borrow(value); }
+            machine domain_mismatch(value: u32) { kit\domain_value(value); }
+            machine domain_match(value: u32 in Tagged) { kit\domain_value(value); }
+            machine array_reference(value: @[u32; 1]) { kit\view(value); }
+            machine parameter_shadow(kit: u32) { kit\pick(7u32); }
+            machine local_shadow() { let kit: u32 = 0; kit\pick(7u32); }
+            machine missing(value: u32) -> u32 { kit\absent(value) }
             machine pick(value: bool) -> bool { value }
             machine nested_mismatch(value: bool) -> bool {
                 pick(value)
@@ -2412,7 +2412,7 @@ mod tests {
             ),
             (
                 "client.omg",
-                "use left::pick; use right::pick; machine ambiguous(value: u32) -> u32 { pick(value) }",
+                "use left\\pick; use right\\pick; machine ambiguous(value: u32) -> u32 { pick(value) }",
             ),
         ]) else {
             panic!("equal participating signatures cannot select a representative")

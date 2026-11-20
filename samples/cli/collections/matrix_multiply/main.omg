@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // 3x3 MATRIX MULTIPLY over invocation-local 2D arrays -- the double-indexed
 // access family end to end: both-runtime reads (`a[i][k]`, `b[k][j]`), a
 // both-runtime write (`c[i][j] = acc`), and state-transition loops
@@ -15,7 +15,7 @@ use omega::language::core::ProcessExit;
 // exit = (C[0][0] + C[1][1] + C[2][2]) % 256 = (30 + 69 + 90) % 256 = 189
 //
 // Expected exit: 189
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main {
 }
 data Matrices {

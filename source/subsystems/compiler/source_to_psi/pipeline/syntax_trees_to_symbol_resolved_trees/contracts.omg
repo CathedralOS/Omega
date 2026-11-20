@@ -1,19 +1,19 @@
-use representations::source_files::SourceSet;
-use representations::source_files::SourceSpan;
-use representations::source_files::spans_equal;
-use representations::symbol_resolved_trees::BinderContract;
-use representations::symbol_resolved_trees::ResolveDiagnosticCode;
-use representations::symbol_resolved_trees::binder_contract;
-use representations::symbol_resolved_trees::name_resolution_reject;
-use representations::symbol_resolved_trees::set_binder_contract;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::GenericParameter;
-use representations::syntax_trees::GenericParameterKind;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_contract;
-use representations::syntax_trees::syntax_trees_generic_parameter;
+use representations\source_files\SourceSet;
+use representations\source_files\SourceSpan;
+use representations\source_files\spans_equal;
+use representations\symbol_resolved_trees\BinderContract;
+use representations\symbol_resolved_trees\ResolveDiagnosticCode;
+use representations\symbol_resolved_trees\binder_contract;
+use representations\symbol_resolved_trees\name_resolution_reject;
+use representations\symbol_resolved_trees\set_binder_contract;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\GenericParameter;
+use representations\syntax_trees\GenericParameterKind;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_contract;
+use representations\syntax_trees\syntax_trees_generic_parameter;
 
 // Machine binder contracts (wiki/spec/language/generics.md, Static machine
 // binder categories). Each `requires machine Name(...)` contract of a machine

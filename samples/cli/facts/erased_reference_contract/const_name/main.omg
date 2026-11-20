@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Witness [copy] { value: i32; }
 machine keep(runtime: i32, witness [erased]: @i32, record [erased]: @Witness) -> i32
-requires witness == 7
+requires $witness == 7
 requires record.value == 7 { runtime }
 const SEVEN: i32 = 7;
 const RECORD: Witness = Witness { value: 7 };

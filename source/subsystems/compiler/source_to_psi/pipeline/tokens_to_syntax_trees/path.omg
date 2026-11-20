@@ -1,7 +1,7 @@
-use representations::syntax_trees::NamePath;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::tokens::PunctuationKind;
-use representations::tokens::TokenStream;
+use representations\syntax_trees\NamePath;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\tokens\PunctuationKind;
+use representations\tokens\TokenStream;
 
 // `name {:: name}`, a name path, entered at its first name. Its members
 // append to `SyntaxTrees::members` and its row to `SyntaxTrees::name_paths`;
@@ -29,7 +29,7 @@ crashes Trap
     }
 
     machine separator(parser: @mut Parser, input: @TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
-        let more: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let more: bool = at_path_separator(parser, input);
         transition more {
             true -> next_member(parser, input, first_member, start),
             _ -> retain_capacity(parser, input, first_member, start)

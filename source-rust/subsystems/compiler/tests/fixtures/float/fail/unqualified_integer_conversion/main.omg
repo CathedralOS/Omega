@@ -1,11 +1,11 @@
 // Expected rejection: signed32 does not establish the conversion's upper bound.
 // Unqualified conversions require finite input and a representable truncated result.
-use omega::language::core::I32;
-use omega::language::core::U32;
-use omega::language::core::I32::from_f32;
-use omega::language::core::I32::from_f64;
-use omega::language::core::U32::from_f32;
-use omega::language::core::U32::from_f64;
+use omega\language\core\I32;
+use omega\language\core\U32;
+use omega\language\core\I32::from_f32;
+use omega\language\core\I32::from_f64;
+use omega\language\core\U32::from_f32;
+use omega\language\core\U32::from_f64;
 machine signed32(value: f32) -> i32
 requires value == value && value >= -2147483648.0f32
 crashes none {

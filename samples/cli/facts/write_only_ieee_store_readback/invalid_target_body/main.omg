@@ -2,7 +2,7 @@
 // Invalid: the store observes the write-only referent. Place: another target body.
 // Expected diagnostic: reads write-only parameter
 
-machine store(r: @write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
+machine store(r: @write f64) { $r = 6.0 / 8.0; let _x: f64 = $r; }
 
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;

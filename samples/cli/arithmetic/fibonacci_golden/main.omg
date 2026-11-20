@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 161.
 // Fibonacci numbers and the golden ratio. Compute consecutive Fibonacci terms (a, b) by the
 // classic iterative loop -- tmp = a + b; a = b; b = tmp -- then the ratio b / a as a float, which
@@ -10,9 +10,9 @@ use omega::language::core::ProcessExit;
 // truncated back. Each iteration computes its next term locally and passes the
 // next pair to the loop head. Float intermediates exist only in the final state.
 
-use omega::language::core::F64::from_i32;
-use omega::language::core::I32::from_f64;
-use omega_language_std::Console;
+use omega\language\core\F64::from_i32;
+use omega\language\core\I32::from_f64;
+use omega_language_std\Console;
 
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

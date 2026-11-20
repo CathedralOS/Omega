@@ -1,6 +1,6 @@
 data Main { value: i32; neighbor: i32; }
 machine replace(destination: @write i32, value: i32) {
-    destination = value;
+    $destination = value;
 }
 machine forward(destination: @write i32, value: i32) {
     transition { _ -> write_value(@write destination, value) }

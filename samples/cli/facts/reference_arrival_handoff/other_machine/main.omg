@@ -1,7 +1,7 @@
 // An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
 // Place: another machine.
 // Expected exit: 0.
-machine write(child: @mut i64) { child = 41; }
+machine write(child: @mut i64) { $child = 41; }
 machine forward(source: @mut i64) { write(source) }
 machine main() crashes Trap {
     let mut backing: i64 = 17;

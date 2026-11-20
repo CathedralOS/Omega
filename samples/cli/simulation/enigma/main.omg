@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // enigma: a table-driven Enigma I. The published wirings sit in `[i32; 26]`
 // fields as decoded letter values (A = 0 .. Z = 25), an inversion loop
 // derives the inverse tables at runtime, and every rotor pass is a
@@ -45,7 +45,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: BDZGO
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     fwd_left: [i32; 26];   // rotor I    "EKMFLGDQVZNTOWYHXUSPAIBRCJ"

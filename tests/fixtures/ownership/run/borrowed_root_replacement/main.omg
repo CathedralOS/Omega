@@ -1,7 +1,7 @@
 data Item { value: u32; }
 machine replace(owner: @mut Item) {
     let replacement: Item = Item { value: 7 };
-    owner = replacement;
+    $owner = replacement;
 }
 machine consume(item: Item) { }
 machine main() crashes Trap {

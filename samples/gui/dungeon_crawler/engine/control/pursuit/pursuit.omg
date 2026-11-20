@@ -1,7 +1,7 @@
-use actors::state::Actor;
-use control::state::Command;
-use configuration::ANIMATION_PERIOD;
-use configuration::PURSUIT_INTERVAL;
+use actors\state\Actor;
+use control\state\Command;
+use configuration\ANIMATION_PERIOD;
+use configuration\PURSUIT_INTERVAL;
 
 public machine pursue<const Rooms: u64>(actor: Actor<Rooms>, target: Actor<Rooms>, phase: i32) -> Command
 terminates

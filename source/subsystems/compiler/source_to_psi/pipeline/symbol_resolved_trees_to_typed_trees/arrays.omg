@@ -1,15 +1,15 @@
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::JoinedValues;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::joined_values;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::set_expression_type;
-use representations::typed_trees::type_row_of;
-use representations::typed_trees::type_table_intern;
-use representations::typed_trees::typing_reject;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\JoinedValues;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\joined_values;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\set_expression_type;
+use representations\typed_trees\type_row_of;
+use representations\typed_trees\type_table_intern;
+use representations\typed_trees\typing_reject;
 
 // A fixed-array literal `[a, b, ...]` (wiki/spec/language/expressions.md:
 // elements evaluate in increasing index order) is an array of its elements'

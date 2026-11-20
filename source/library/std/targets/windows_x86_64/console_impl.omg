@@ -4,8 +4,8 @@ use Console;
 use ConsoleByteOperations;
 // Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
 // authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
-use omega::language::core::narrow_i32_to_u8_wrapping;
-use omega::language::core::widen_u8_to_i32;
+use omega\language\core\narrow_i32_to_u8_wrapping;
+use omega\language\core\widen_u8_to_i32;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `std/build.omg`

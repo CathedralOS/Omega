@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Luhn checksum validation -- the algorithm behind credit-card and many ID-number check digits.
 // Walking the digits from the RIGHT: every second digit (positions 1, 3, 5, ... counting the
@@ -10,7 +10,7 @@ use omega::language::core::ProcessExit;
 // (here n = 11, so right-position parity matches r parity). The sum comes to 70, and 70 % 10 == 0,
 // so the number is valid. Exits 70 on valid, 71 on invalid.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main
 requires self.r >= -1 && self.r <= 10

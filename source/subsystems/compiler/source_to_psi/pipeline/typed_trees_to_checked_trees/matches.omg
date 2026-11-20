@@ -1,16 +1,16 @@
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::ArmPatternKind;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::TransitionArm;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::syntax_trees::syntax_trees_match_arm;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\ArmPatternKind;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TransitionArm;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\syntax_trees\syntax_trees_match_arm;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
 
 // Value-position matches inside an evaluated tree
 // (wiki/spec/language/patterns.md). A match evaluates its subject once; each

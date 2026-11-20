@@ -1,5 +1,5 @@
-use targets::uefi_x86_64::read_u32;
-use targets::uefi_x86_64::table_crc;
+use targets\uefi_x86_64\read_u32;
+use targets\uefi_x86_64\table_crc;
 public machine validate_table(
     bytes: @[u8],
     signature: u64,

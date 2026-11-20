@@ -404,18 +404,18 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
     let copied_owner = checked_owner(&copied);
     assert_ne!(owner, copied_owner);
     let temporary = fixture_package_inputs::sealed_fixture_staging::temporary_session_root();
-    let source = "use shared::library;\nuse foreign_copy::library;\nmachine main() { let result: u8 = shared::library::read(foreign_copy::library::Token { value: 7 }); }\n";
+    let source = "use shared\\library;\nuse foreign_copy\\library;\nmachine main() { let result: u8 = shared\\library\\read(foreign_copy\\library\\Token { value: 7 }); }\n";
     let build = r#"machine build(builder: @mut Build) {
     Build::application(builder, "copied_owner_consumer");
     let mut shared_dependency: DependencyDescription =
-        dependency::from_source(Source::Path { location: "../anonymous-owner-control-original" });
-    dependency::with_alias(@mut shared_dependency, "shared");
+        dependency\from_source(Source::Path { location: "../anonymous-owner-control-original" });
+    dependency\with_alias(@mut shared_dependency, "shared");
     let shared_registration: DependencyRegistration = Build::dependency(builder, shared_dependency);
     let mut copied_dependency: DependencyDescription =
-        dependency::from_source(Source::Path { location: "../anonymous-owner-control-copy" });
-    dependency::with_alias(@mut copied_dependency, "foreign_copy");
+        dependency\from_source(Source::Path { location: "../anonymous-owner-control-copy" });
+    dependency\with_alias(@mut copied_dependency, "foreign_copy");
     let copied_registration: DependencyRegistration = Build::dependency(builder, copied_dependency);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }
 "#;
     let dependencies = [
@@ -437,7 +437,7 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
     for (name, source, rejects) in [
         (
             "owner-positive",
-            source.replace("foreign_copy::library::Token", "shared::library::Token"),
+            source.replace(r"foreign_copy\library\Token", r"shared\library\Token"),
             false,
         ),
         ("owner-rejected", source.to_owned(), true),

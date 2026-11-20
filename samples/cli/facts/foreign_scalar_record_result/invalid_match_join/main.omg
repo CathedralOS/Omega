@@ -13,7 +13,7 @@ machine consume(first: Division, copied: Division) -> bool reaches IntegerDivisi
 }
 machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
 machine marked_result(marker: @mut u64, selected: u64) -> Division reaches IntegerDivision {
- marker = selected;
+ $marker = selected;
  IntegerDivision::divide(-70000000000, 3)
 }
 machine select(choice: bool, marker: @mut u64) -> Division reaches IntegerDivision {

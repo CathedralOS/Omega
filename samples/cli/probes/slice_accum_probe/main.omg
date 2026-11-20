@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Slice accumulator probe: tests two slice types with acc+s[0] in tail-call.
 //
 // Probe A: i32 slice, acc + s[0] in tail-call.
@@ -18,7 +18,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 70.
 // Exit 71 = probe A wrong; 72 = probe B wrong.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Entry {
     value: i32 in Wrapping;

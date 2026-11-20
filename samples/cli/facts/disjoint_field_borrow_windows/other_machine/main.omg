@@ -9,7 +9,7 @@ data Pair {
 data Relay {}
 
 machine touch_left(left: @mut u64) {
-    left = 999u64;
+    $left = 999u64;
 }
 
 machine Relay::forward(pair: @mut Pair) -> u64

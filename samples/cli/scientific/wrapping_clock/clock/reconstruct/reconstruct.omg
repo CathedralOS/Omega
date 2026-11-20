@@ -1,5 +1,5 @@
-use clock::model;
-use clock::model::Acquisition;
+use clock\model;
+use clock\model\Acquisition;
 
 // Each edge admits deltas congruent to the raw difference modulo M. The least
 // admissible delta plus M tests uniqueness, including identical residues and

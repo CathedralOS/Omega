@@ -2,9 +2,9 @@
 // original into an independent synchronous object, after checking its existing
 // data and SYNCHRONIZE rights. In particular an append-only handle cannot gain
 // FILE_WRITE_DATA merely because the current ACL would allow ReOpenFile to do so.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\narrow_u64_to_i64_wrapping;
 
 machine windows_filesystem_native_read_at(handle: u64, buffer: @mut [u8], count: u64, offset: i64) -> i64
 reaches FilesystemContentRead {

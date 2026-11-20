@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A tile-map / dungeon renderer -- the tile-based rendering shape a real game or map viewer uses.
 // A flat array of `Cell` enums (Wall / Floor / Door / Water) is scanned row by row and each cell is
 // classified by matching it DIRECTLY at a runtime index -- `transition main.grid[main.k] { Cell::Wall
@@ -17,7 +17,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 0.
 // Expected output contains: ~
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Cell {
     case Wall;
     case Floor;

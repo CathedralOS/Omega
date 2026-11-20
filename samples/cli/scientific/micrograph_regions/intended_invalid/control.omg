@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete independent negative control: unchecked access at capacity.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut labels: [i32; 64];

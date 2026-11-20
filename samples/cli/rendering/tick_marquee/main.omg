@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A tick-PACED marquee -- the first render loop verified against REAL elapsed time. A '#'
 // sweeps across a carrier line for 24 frames at ~15ms each (write_line + Clock.sleep), and
 // the loop's wall-clock cost is then ASSERTED through std `elapsed_since`: elapsed >=
@@ -8,13 +8,13 @@ use omega::language::core::ProcessExit;
 // runtime index, and per-frame host output.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std::Console;
-use omega_language_std::Clock;
-use omega_language_std::Duration;
-use omega_language_std::Instant;
-use omega_language_std::TimeHost;
-use omega_language_std::elapsed_since;
-use omega_language_std::instant_now;
+use omega_language_std\Console;
+use omega_language_std\Clock;
+use omega_language_std\Duration;
+use omega_language_std\Instant;
+use omega_language_std\TimeHost;
+use omega_language_std\elapsed_since;
+use omega_language_std\instant_now;
 data Main {
     line: [u8; 12];
     frame: u32 in Wrapping;

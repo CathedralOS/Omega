@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 
 // Expected exit: 0, with one warning. `ProcessExit::exit_process` never
 // returns, so the `let` after it is unreachable: the program is accepted, the

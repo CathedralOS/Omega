@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // HEAT GRID -- dependent-typed row-major indexing (chapter 12, rungs
 // R0+R1a): a flat `cells: [u8; 12]` viewed as a 3x4 grid, walked with the
 // DIRECT `cells[y * 4 + x]` spelling. The walkers' coordinates are
@@ -16,10 +16,10 @@ use omega::language::core::ProcessExit;
 // seed 40 at (2,3) + (2+3) = 45.
 //
 // Expected exit: 45
-use omega_language_std::Console;
-use omega::language::core::narrow_u32_to_i32_trapping;
-use omega::language::core::narrow_u32_to_u8_trapping;
-use omega::language::core::widen_u8_to_u32;
+use omega_language_std\Console;
+use omega\language\core\narrow_u32_to_i32_trapping;
+use omega\language\core\narrow_u32_to_u8_trapping;
+use omega\language\core\widen_u8_to_u32;
 data Grid requires 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     cells: [u8; 12];
     max_y: u32;

@@ -1,4 +1,4 @@
-use planner::input::TransportInput;
+use planner\input\TransportInput;
 // A 3x3 table with fixed margins has four free cells. Enumerate their entire
 // bounded integer cube and derive the five others from conservation. This is
 // complete, including degeneracy, zero margins and negative costs. The first

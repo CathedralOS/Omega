@@ -215,7 +215,7 @@ fn a_direct_indexed_store_supplies_its_post_store_domain_goal() {
 data Cell requires count <= 16u64 { count: u64; location: u64; }
 data Plan { cells: [Cell; 2]; convention: u64; }
 machine reg(word: u64, convention: @u64) -> u64 {
-    let observed: u64 = convention;
+    let observed: u64 = $convention;
     transition observed == 9u64 {
         true -> (word),
         false -> (0u64)

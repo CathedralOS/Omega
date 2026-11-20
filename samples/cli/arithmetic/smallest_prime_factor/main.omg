@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Smallest prime factor by trial division. Walk d = 2, 3, 4, ... and return the
 // first d that divides n; if d * d ever exceeds n with no divisor found, n is
 // prime and is its own smallest factor. For n = 169 (= 13 * 13) the answer is 13:
@@ -10,7 +10,7 @@ use omega::language::core::ProcessExit;
 // algorithm rather than a canary.
 // Expected exit: 13.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 // The complete owner predicate bounds the square to 40000. Divisor-nonzero
 // requirements belong to the invoked trial steps; zero remains a valid owner.

@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Profile-likelihood endpoint slots are position * 2 + side.
 // Side is the case 0 or 1, not a closed numeric range written by hand.
 // Exact i32 accepts the product when that disjunction is the convex hull
@@ -8,8 +8,8 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Expected output contains: slots=2,7
 
-use omega_language_std::Console;
-use omega::language::core::I64::from_f64;
+use omega_language_std\Console;
+use omega\language\core\I64::from_f64;
 
 data Endpoints { values: [f64; 8]; }
 

@@ -1,17 +1,17 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 64
 // Expected output contains: INVALID input
 // Empty stdin smoke control; finite-input scientific oracles are data/*.stdout.
-use omega_language_std::Console;
-use input::parser;
-use input::parser::Input;
-use input::parser::read;
-use linkage::model;
-use linkage::model::Record;
-use linkage::model::Linkage;
-use linkage::model::solve;
-use report::output;
-use report::output::report;
+use omega_language_std\Console;
+use input\parser;
+use input\parser\Input;
+use input\parser\read;
+use linkage\model;
+use linkage\model\Record;
+use linkage\model\Linkage;
+use linkage\model\solve;
+use report\output;
+use report\output\report;
 
 data Main {
     input: Input;

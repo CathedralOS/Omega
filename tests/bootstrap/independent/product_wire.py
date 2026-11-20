@@ -26,7 +26,7 @@ def main():
 
     codec = (ROOT / "source/foundation/wire/codec.omg").read_bytes()
     word_cases = ROOT / "tests/bootstrap/conformance/omega/wire_word.omg"
-    caller = b"use wire::u32_from_le_bytes;\n" + word_cases.read_bytes()
+    caller = b"use wire\\u32_from_le_bytes;\n" + word_cases.read_bytes()
     encode = runpy.run_path(str(ROOT / "source/application/construction/construct.py"))["encode"]
     packages = [("app", 0), ("wire", 0)]
     units = [(0, caller), (1, codec)]

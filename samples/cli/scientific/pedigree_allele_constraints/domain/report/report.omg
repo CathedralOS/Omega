@@ -1,8 +1,8 @@
-use omega_language_std::Console;
-use domain::model;
-use domain::model::Pedigree;
-use domain::solver;
-use domain::solver::Inference;
+use omega_language_std\Console;
+use domain\model;
+use domain\model\Pedigree;
+use domain\solver;
+use domain\solver\Inference;
 
 public machine number(value: i32 in Wrapping) reaches Console
 invokes Console

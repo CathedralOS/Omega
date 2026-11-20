@@ -1,11 +1,11 @@
 // Expected rejection: signed32 does not exclude the conversion's Trap guard.
 // These crashes-none helpers must exclude their conversion's Trap guard.
-use omega::language::core::I32;
-use omega::language::core::U32;
-use omega::language::core::I32::from_f32;
-use omega::language::core::I32::from_f64;
-use omega::language::core::U32::from_f32;
-use omega::language::core::U32::from_f64;
+use omega\language\core\I32;
+use omega\language\core\U32;
+use omega\language\core\I32::from_f32;
+use omega\language\core\I32::from_f64;
+use omega\language\core\U32::from_f32;
+use omega\language\core\U32::from_f64;
 machine signed32(value: f32) -> i32
 requires true
 crashes none {

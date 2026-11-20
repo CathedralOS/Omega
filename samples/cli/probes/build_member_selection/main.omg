@@ -1,5 +1,5 @@
-use one::main;
-use two::main;
+use one\main;
+use two\main;
 
 machine entry() -> i32 {
     let a: i32 = value();

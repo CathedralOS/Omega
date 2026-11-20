@@ -1,4 +1,4 @@
-// std::time — Duration pure-value core (rung 3) + Instant and clock reads over the
+// std\time — Duration pure-value core (rung 3) + Instant and clock reads over the
 // TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,
@@ -28,12 +28,12 @@
 
 // The raw per-OS boundary (`TimeHost`) is declared once in the sibling std
 // module; the clock-read machines below wrap it (the filesystem.omg layering).
-use omega::language::core::narrow_u64_to_u32_exact;
-use omega::language::core::narrow_u64_to_u32_saturating;
-use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_u64_to_i64_exact;
-use omega::language::core::narrow_u64_to_i64_wrapping;
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\narrow_u64_to_u32_exact;
+use omega\language\core\narrow_u64_to_u32_saturating;
+use omega\language\core\widen_u32_to_u64;
+use omega\language\core\narrow_u64_to_i64_exact;
+use omega\language\core\narrow_u64_to_i64_wrapping;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 
 public data Ordering [copy] {
     case Less;

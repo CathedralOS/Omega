@@ -1,11 +1,11 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::IdentifierSpan;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::TypeReference;
-use representations::syntax_trees::TypeReferenceKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\IdentifierSpan;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\TypeReference;
+use representations\syntax_trees\TypeReferenceKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\TokenStream;
 
 // One open type constructor. `start` is where its type begins; a
 // `Reference` keeps its `access`; an `Arguments` frame keeps its applied
@@ -231,10 +231,10 @@ crashes Trap
         }
     }
 
-    // `a::b::Name` names one declaration through its path; the row's name
+    // `a\b\Name` names one declaration through its path; the row's name
     // spans the whole path.
     machine path(parser: @mut Parser, input: @TokenStream, start: u64 in Trapping) {
-        let qualified: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let qualified: bool = at_path_separator(parser, input);
         transition qualified {
             true -> path_member(parser, input, start),
             _ -> named(parser, input, start)
@@ -294,7 +294,7 @@ crashes Trap
     // The path so far runs from `start`; its members before the latest end
     // at `owner_end`, which is `start` while it has one member.
     machine domain_path(parser: @mut Parser, input: @TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
-        let separated: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let separated: bool = at_path_separator(parser, input);
         transition separated {
             true -> domain_member(parser, input, row, start, parser.name_end),
             _ -> qualified(parser, input, row, start, owner_end)

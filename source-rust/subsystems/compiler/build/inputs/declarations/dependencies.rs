@@ -452,13 +452,13 @@ mod tests {
         let (trees, rows) = rows(
             r#"machine build(builder: @mut Build) {
     Build::application(builder, "probe");
-    _ = Build::dependency(builder, dependency::from_source(Source::Path { location: "math" }));
-    let mut other: DependencyDescription = dependency::from_source(Source::Path { location: "other" });
-    dependency::with_alias(@mut other, "other");
+    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "math" }));
+    let mut other: DependencyDescription = dependency\from_source(Source::Path { location: "other" });
+    dependency\with_alias(@mut other, "other");
     let other_registration: DependencyRegistration = Build::dependency(builder, other);
-    let git: DependencyRegistration = Build::build_dependency(builder, dependency::from_source(Source::Git { repository: "r", revision: "v" }));
-    let mut host: DependencyDescription = dependency::from_source(Source::Path { location: "host" });
-    dependency::with_alias(@mut host, "host");
+    let git: DependencyRegistration = Build::build_dependency(builder, dependency\from_source(Source::Git { repository: "r", revision: "v" }));
+    let mut host: DependencyDescription = dependency\from_source(Source::Path { location: "host" });
+    dependency\with_alias(@mut host, "host");
     _ = Build::build_dependency(builder, host);
 }
 "#,
@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn a_wrong_receiver_or_argument_shape_rejects_the_row() {
         let wrong_receiver = [
-            "_ = Build::dependency(helper, dependency::from_source(Source::Path { location: \"x\" }));",
+            "_ = Build::dependency(helper, dependency\\from_source(Source::Path { location: \"x\" }));",
             "let r: DependencyRegistration = Build::dependency(helper, dependency::from_source(Source::Path { location: \"x\" }));",
         ];
         for statements in wrong_receiver {
@@ -511,14 +511,14 @@ mod tests {
         }
         let wrong_arguments = [
             // The registration result is neither discarded nor bound.
-            "Build::dependency(builder, dependency::from_source(Source::Path { location: \"x\" }))",
+            "Build::dependency(builder, dependency\\from_source(Source::Path { location: \"x\" }))",
             "_ = Build::dependency(builder)",
-            "_ = Build::build_dependency(builder, dependency::from_source(Source::Path { location: \"x\" }), 1)",
+            "_ = Build::build_dependency(builder, dependency\\from_source(Source::Path { location: \"x\" }), 1)",
             "_ = Build::dependency(builder, Source::Path { location: \"x\" })",
             // An alias configuration must follow its description directly.
-            "let mut x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
-            "let x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    dependency::with_alias(@mut x, \"x\");\n    _ = Build::dependency(builder, x)",
-            "let mut x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    dependency::with_alias(@mut x, \"x\");\n    _ = Build::dependency(builder, y)",
+            "let mut x: DependencyDescription = dependency\\from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
+            "let x: DependencyDescription = dependency\\from_source(Source::Path { location: \"x\" });\n    dependency\\with_alias(@mut x, \"x\");\n    _ = Build::dependency(builder, x)",
+            "let mut x: DependencyDescription = dependency\\from_source(Source::Path { location: \"x\" });\n    dependency\\with_alias(@mut x, \"x\");\n    _ = Build::dependency(builder, y)",
         ];
         for statement in wrong_arguments {
             let source = format!(
@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn rows_require_the_canonical_build_entry() {
         let syntax_trees = source_syntax::parse_text(
-            "machine helper() {\n    _ = Build::dependency(builder, dependency::from_source(Source::Path { location: \"x\" }));\n}\n",
+            "machine helper() {\n    _ = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"x\" }));\n}\n",
         )
         .expect("parse")
         .syntax;

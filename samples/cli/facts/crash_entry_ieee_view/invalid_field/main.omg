@@ -9,7 +9,7 @@ public data Packet { bits: i32; marker: i32; }
 public machine read_bits(packet: @Packet) -> f32
 {
     let view: @f32 = @packet.bits as @f32;
-    let observed: f32 = view;
+    let observed: f32 = $view;
     maybe_zero(observed)
 }
 machine main() crashes Trap {

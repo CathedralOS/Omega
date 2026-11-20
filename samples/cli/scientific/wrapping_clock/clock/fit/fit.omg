@@ -1,5 +1,5 @@
-use clock::model;
-use clock::model::Acquisition;
+use clock\model;
+use clock\model\Acquisition;
 
 // Anchor-constrained least squares: host = host[0] + elapsed * numerator / denominator.
 // At most 16 rows, elapsed and host <=100000: sums <=1.6e11, scaled drift

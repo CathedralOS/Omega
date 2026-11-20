@@ -1,6 +1,6 @@
 // The consumer imports the sibling package by declared name and
 // checks its value contract from main.
-use query_dependency::value;
+use query_dependency\value;
 data Main {}
 machine Main::main(main: @mut Main) {
     _ = check();

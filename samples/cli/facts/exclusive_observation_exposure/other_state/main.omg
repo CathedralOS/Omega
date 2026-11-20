@@ -15,5 +15,5 @@ machine main() crashes Trap {
 }
 
 machine expose(slot: @mut u64) -> u64 {
-    slot
+    $slot
 }

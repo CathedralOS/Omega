@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Digital root: repeatedly sum a number's decimal digits until a single digit
 // remains. For 12345 -> 1+2+3+4+5 = 15 -> 1+5 = 6. (It equals 1 + (n-1) mod 9, the
 // basis of casting out nines.) Showcases nested state-transition loops -- an outer
@@ -7,7 +7,7 @@ use omega::language::core::ProcessExit;
 // receives only the values it needs; the intermediate digits are local values.
 // Expected exit: 6.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

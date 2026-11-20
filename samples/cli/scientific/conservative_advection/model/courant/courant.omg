@@ -2,10 +2,10 @@
 // at most36 product digits. Compare normalized decimal digit streams, with
 // powers affecting length, so neither integer overflow nor f64 rounding can
 // admit an unstable request or reject an exact CFL-one boundary.
-use io::input;
-use omega::language::core::narrow_i32_to_u32_saturating;
-use omega::language::core::narrow_u32_to_i32_saturating;
-use omega::language::core::F64::from_u64;
+use io\input;
+use omega\language\core\narrow_i32_to_u32_saturating;
+use omega\language\core\narrow_u32_to_i32_saturating;
+use omega\language\core\F64::from_u64;
 public data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
 machine digits(coefficient:u64 in Wrapping,result:@mut Digits) {
  result.length=0;
@@ -52,7 +52,7 @@ machine significant(number:@Digits,offset:u32 in Saturating) -> u64 in Wrapping 
  machine zero() -> u64 in Wrapping { 0 }
 }
 // -1 means stable below one,0 exactly one,+1 unstable above one.
-public machine classify(input:@io::input::Input) -> i32 in Wrapping {
+public machine classify(input:@io\input\Input) -> i32 in Wrapping {
  let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
  digits(input.coefficients[2],@mut speed);
  digits(input.coefficients[4],@mut duration);
@@ -65,7 +65,7 @@ public machine classify(input:@io::input::Input) -> i32 in Wrapping {
 // or adjacent decimal-length cohorts, align the exact integers and subtract
 // their digits first. A36-digit product can need a37th spacing digit here.
 // Only the positive difference and denominator are converted to f64.
-public machine complement(input:@io::input::Input,rounded_fraction:f64) -> f64 {
+public machine complement(input:@io\input\Input,rounded_fraction:f64) -> f64 {
  let mut speed:Digits; let mut duration:Digits; let mut spacing:Digits; let mut product:Digits;
  digits(input.coefficients[2],@mut speed);
  digits(input.coefficients[4],@mut duration);

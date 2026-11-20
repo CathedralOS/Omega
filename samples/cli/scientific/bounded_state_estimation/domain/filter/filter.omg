@@ -1,13 +1,13 @@
 // Constant-velocity prediction followed by a scalar observation. Joseph form
 // keeps roundoff from subtracting nearly equal covariance matrices. No library
 // numerics or external worker implementation participates in these operations.
-use domain::matrix;
-use domain::matrix::Matrix;
-use domain::matrix::Vector;
-use domain::matrix::multiply;
-use domain::matrix::transpose;
-use domain::matrix::add;
-use domain::matrix::apply;
+use domain\matrix;
+use domain\matrix\Matrix;
+use domain\matrix\Vector;
+use domain\matrix\multiply;
+use domain\matrix\transpose;
+use domain\matrix\add;
+use domain\matrix\apply;
 public data Filter {
     estimate: Vector;
     covariance: Matrix;

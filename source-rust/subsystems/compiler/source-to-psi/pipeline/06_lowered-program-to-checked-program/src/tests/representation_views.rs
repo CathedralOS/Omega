@@ -46,14 +46,14 @@ machine unsigned(bits: i64) -> u64 {
     let value: @u64 = @bits as @u64;
     value
 }
-machine overwrite(bits: @mut u64) { bits = 0u64; }
+machine overwrite(bits: @mut u64) { $bits = 0u64; }
 machine entry() crashes Trap {
     let bits: u64 = 18446744073709551615u64;
     let envelope: Envelope = Envelope { before: 11u64, bits: bits, after: 37u64 };
     let scalar: @i64 = @envelope.bits as @i64;
     let word: @SignedWord = @envelope.bits as @SignedWord;
     transition signed(bits) == -1i64 && unsigned(-1i64) == bits
-        && scalar == -1i64 && word.value == -1i64
+        && $scalar == -1i64 && word.value == -1i64
         && envelope.before == 11u64 && envelope.after == 37u64 {
         true -> done(),
         false -> bad()

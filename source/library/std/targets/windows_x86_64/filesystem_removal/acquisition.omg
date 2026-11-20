@@ -1,20 +1,20 @@
 use omega_language_std;
-use targets::windows_x86_64::WindowsFilesystemIo;
-use targets::windows_x86_64::WindowsFilesystemIoStatus;
-use targets::windows_x86_64::WindowsNativeDirectoryEntryInfo;
-use targets::windows_x86_64::windows_wide_path;
-use targets::windows_x86_64;
+use targets\windows_x86_64\WindowsFilesystemIo;
+use targets\windows_x86_64\WindowsFilesystemIoStatus;
+use targets\windows_x86_64\WindowsNativeDirectoryEntryInfo;
+use targets\windows_x86_64\windows_wide_path;
+use targets\windows_x86_64;
 // Root acquisition uses one fresh synchronous no-follow file object. Children
 // open one validated native component relative to its retained parent handle;
 // no pathname is reconstructed, case-folded, or reopened after classification.
 // Enumeration attributes select requested rights only. The opened object's
 // actual attributes, not that hint, decide whether traversal can descend.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 machine windows_removal_open_root(path: @[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {

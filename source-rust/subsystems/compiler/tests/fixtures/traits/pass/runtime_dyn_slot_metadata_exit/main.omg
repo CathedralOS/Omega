@@ -2,9 +2,9 @@
 // Owning requirement: RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.
 // Package review keeps the argument's Utf8 requirement and records that
 // the returned view borrows from that argument.
-use omega::language::core::byte_observation;
+use omega\language\core\byte_observation;
 
-public domain [u8]::Utf8 requires byte_observation::valid_utf8(@self[..]);
+public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 
 public trait Window {
     machine view<'input>(packet: @'input [u8] in Utf8) -> @'input [u8] in Utf8;

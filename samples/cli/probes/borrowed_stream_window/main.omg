@@ -10,7 +10,7 @@ machine borrow_stream<'owner>(stream: @'owner Stream) -> StreamView<'owner> in B
 }
 
 machine receive<'owner>(stream: StreamView<'owner> in Borrowed, buffer: @mut [u8], count: u64) -> u64 {
-    let identity: u64 = stream.identity;
+    let identity: u64 = $stream.identity;
     let capacity: u64 = buffer.len;
     transition count <= capacity {
         true -> bounded(identity, buffer, count),

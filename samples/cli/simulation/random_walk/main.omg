@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A procedurally-generated random walk: a walker (shown '@') wanders a 24x12 grid, each
 // step picking a random direction from the xorshift32 PRNG (state % 4) and leaving a trail
 // ('*'), re-rendered in place. The first PROCEDURAL sample -- every other animation is a
@@ -9,8 +9,8 @@ use omega::language::core::ProcessExit;
 // walker simply stays put that step. Pure compute + stdout + Clock.sleep; no new features.
 // Expected exit: 0.
 // Expected output contains: @
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 domain [u8]::Utf8
 requires

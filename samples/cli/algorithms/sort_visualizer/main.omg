@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A bubble-sort VISUALIZER: eight values drawn as horizontal bars (a row of '#' whose
 // length is the value), re-rendered in place after every pass so you watch the array
 // settle from jumbled into an ascending staircase. The first ALGORITHM-in-motion sample
@@ -10,8 +10,8 @@ use omega::language::core::ProcessExit;
 // stdout + Clock.sleep; no new compiler features.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 domain [u8]::Utf8
 requires

@@ -5,9 +5,9 @@ data Cell [copy] { before: i64; value: i64; after: i64; }
 data Outcome [copy] { chosen: i64; other: i64; }
 
 machine choose(counter: @mut u64, flag: bool) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     flag
 }
 
@@ -39,7 +39,7 @@ boundary trait SelectedApply {
 
 X86Apply satisfies SelectedApply {
     machine apply(chosen: @mut Cell, other: @mut Cell, visits: @mut u64, flag: bool)
-        requires visits == 0
+        requires $visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -47,13 +47,13 @@ X86Apply satisfies SelectedApply {
             true -> @write chosen.value,
             false -> @write other.value
         };
-        selected = 41;
+        $selected = 41;
     }
 }
 
 ArmApply satisfies SelectedApply {
     machine apply(chosen: @mut Cell, other: @mut Cell, visits: @mut u64, flag: bool)
-        requires visits == 0
+        requires $visits == 0
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -61,7 +61,7 @@ ArmApply satisfies SelectedApply {
             true -> @write chosen.value,
             false -> @write other.value
         };
-        selected = 41;
+        $selected = 41;
     }
 }
 

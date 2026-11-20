@@ -1,13 +1,13 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 0
-use omega_language_std::Console;
-use omega::language::core::F64::is_finite;
-use omega::language::core::complex::Complex;
-use omega::language::core::complex::ComplexF64;
-use omega::language::core::complex::ComplexMagnitude;
-use omega::language::core::float_accuracy::AccuracyComparison;
-use omega::language::core::float_accuracy::ReferenceAdditiveTolerance64;
-use omega::language::core::float_accuracy::compare_reference_additive_f64;
+use omega_language_std\Console;
+use omega\language\core\F64::is_finite;
+use omega\language\core\complex\Complex;
+use omega\language\core\complex\ComplexF64;
+use omega\language\core\complex\ComplexMagnitude;
+use omega\language\core\float_accuracy\AccuracyComparison;
+use omega\language\core\float_accuracy\ReferenceAdditiveTolerance64;
+use omega\language\core\float_accuracy\compare_reference_additive_f64;
 // Complex power S = V * conjugate(I), with borrowed immutable V and I.
 data Main {
     voltage: Complex<f64>;

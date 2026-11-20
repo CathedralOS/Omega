@@ -30,7 +30,7 @@ machine Main::main(main: @mut Main) {
     main.bytes[3] = 254;
     main.bytes[4] = 255;
     let bits: @u32 = @main.value as @u32;
-    transition bits == 4294967294 && (@main.small as @u8) == 200
+    transition $bits == 4294967294 && (@main.small as @u8) == 200
         && (@main.bytes[3] as @i16) == -2 {
         true -> tail_view(main),
         _ -> fail(main)

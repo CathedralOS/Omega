@@ -35,8 +35,8 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
         root.join("build.omg"),
         "machine build(builder: @mut Build) {
     Build::application(builder, \"consumer\");
-    let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
-    dependency::with_alias(@mut description, \"dep\");
+    let mut description: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
+    dependency\\with_alias(@mut description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",

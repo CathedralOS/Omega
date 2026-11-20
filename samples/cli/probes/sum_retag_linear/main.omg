@@ -39,7 +39,7 @@ machine transform(choice: Choice, increment: bool) -> Choice {
 }
 
 machine repair(choice: @mut Choice, increment: bool) {
-    choice = transform(choice, increment);
+    $choice = transform($choice, increment);
 }
 
 machine consume(choice: Choice) -> u64 {

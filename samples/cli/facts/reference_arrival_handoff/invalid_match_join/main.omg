@@ -12,8 +12,8 @@ machine main() crashes Trap {
         false -> alternate
     };
     backing = 7;
-    child = 41;
-    let observed: i64 = child;
+    $child = 41;
+    let observed: i64 = $child;
     transition observed == 41 {
         true -> done(),
         false -> wrong()

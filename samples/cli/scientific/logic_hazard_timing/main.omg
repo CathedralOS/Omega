@@ -1,16 +1,16 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 2. (closed stdin; valid mode oracles are in data/.)
 // Expected output contains: REJECT input: expected one byte 0,1,2,d
 // ADD08: event-driven propagation, pulse cancellation, exhaustive steady truth.
 // Calendar slots hold zero=absent, one=false, two=true. One gate can schedule
 // at most one value per timestamp. Equal-time deliveries use ascending node ID.
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use model::netlist;
-use model::netlist::Gate;
-use model::netlist::Network;
-use model::netlist::configure;
-use model::netlist::evaluate;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use model\netlist;
+use model\netlist\Gate;
+use model\netlist\Network;
+use model\netlist\configure;
+use model\netlist\evaluate;
 
 data Main {
     network: Network;

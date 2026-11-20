@@ -21,12 +21,12 @@
 //   or cannot be negated in i32; last_error retains the original u32 code.
 // - `last_error` reads the thread's `GetLastError` for callers that need the
 //   code behind a failed `create_file` or `duplicate_handle`.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 // An untouched result is an error. Timestamp zero remains a valid FILETIME.
 public data WindowsFileTimeResult {

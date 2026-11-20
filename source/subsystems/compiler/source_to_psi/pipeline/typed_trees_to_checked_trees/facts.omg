@@ -1,13 +1,13 @@
-use foundation::ExactInteger;
-use foundation::ExactResult;
-use foundation::exact_integer_add;
-use foundation::exact_integer_negate;
-use foundation::exact_integer_subtract;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::OperatorKind;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_expression;
+use foundation\ExactInteger;
+use foundation\ExactResult;
+use foundation\exact_integer_add;
+use foundation\exact_integer_negate;
+use foundation\exact_integer_subtract;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ExpressionKind;
+use representations\syntax_trees\OperatorKind;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_expression;
 
 // Facts a Boolean expression establishes when it is known to hold, or known
 // to fail: a selected guard arm, the left operand on the right of `&&`, a

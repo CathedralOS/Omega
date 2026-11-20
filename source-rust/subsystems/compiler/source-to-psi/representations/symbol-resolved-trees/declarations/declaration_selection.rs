@@ -340,10 +340,13 @@ mod product {
                 if self.operation.product_operand_role(position)
                     == Some(ProductOperandRole::WireCompatibilityFact)
                 {
-                    let fact = semantic_vocabulary::source_selections::WireCompatibilityFact::from_name(
-                        &operand.path,
-                    )
-                    .ok_or_else(|| format!("unknown wire compatibility fact `{}`", operand.path))?;
+                    let fact =
+                        semantic_vocabulary::source_selections::WireCompatibilityFact::from_name(
+                            &operand.path,
+                        )
+                        .ok_or_else(|| {
+                            format!("unknown wire compatibility fact `{}`", operand.path)
+                        })?;
                     if self.operands[..position]
                         .iter()
                         .enumerate()
@@ -747,6 +750,7 @@ pub mod product_operands {
     pub enum ProductUnaryOperator {
         BitwiseNot,
         LogicalNot,
+        Dereference,
     }
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum ProductBinaryOperator {

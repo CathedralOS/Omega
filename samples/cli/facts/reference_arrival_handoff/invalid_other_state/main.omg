@@ -7,12 +7,12 @@ machine main() crashes Trap {
     let held: @mut i64 = original;
     transition { _ -> write(original, held) }
     machine write(child: @mut i64, kept: @mut i64) {
-        child = 41;
-        kept = 7;
+        $child = 41;
+        $kept = 7;
         transition { _ -> check(child) }
     }
     machine check(received: @mut i64) {
-        let observed: i64 = received;
+        let observed: i64 = $received;
         transition observed == 41 {
             true -> done(),
             false -> wrong()

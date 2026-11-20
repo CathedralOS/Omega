@@ -44,5 +44,5 @@ machine main() crashes Trap {
     let right: u64 = RIGHT;
     let context: Holder = Holder { reference: @left };
     let result: @u64 = relay(context, @right);
-    transition result == 42 { true -> done(), false -> wrong() }
+    transition $result == 42 { true -> done(), false -> wrong() }
 }

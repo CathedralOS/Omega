@@ -30,7 +30,7 @@ machine Inner::read_value(inner: @Inner) -> @u64 {
 machine probe(outer: @Outer) -> u64 {
     let via_machine: u64 in Wrapping = Inner::inspect(@outer.inner);
     let via_ref: @u64 = Inner::read_value(@outer.inner);
-    transition (via_machine + (via_ref as u64 in Wrapping)) as u64 == 14 {
+    transition (via_machine + ($via_ref as u64 in Wrapping)) as u64 == 14 {
         true -> finish(outer),
         _ -> finish(outer)
     }

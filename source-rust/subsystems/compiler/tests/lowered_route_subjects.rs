@@ -1312,8 +1312,8 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     // The checker must follow library calls even from an unused machine.
     let frontier = staged_unused(
         "dependency_call",
-        "use omega::language::core::CompactBinary;\n\
-         machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
+        "use omega\\language\\core\\CompactBinary;\n\
+         machine spare(word: u64) -> i64 { CompactBinary\\signed_from_word(word) }",
     );
     let (_, verdict) = route_verdict(&frontier);
     let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
@@ -1455,7 +1455,7 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
     // Lent exclusively, the formal holds whatever the callee stored.
     (
         "mut_scalar_lent",
-        "machine clear(value: @mut u32) { value = 0; }\n\
+        "machine clear(value: @mut u32) { $value = 0; }\n\
          machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
          clear(@mut value);\n    value + 4294967285\n}",
     ),
@@ -1686,8 +1686,8 @@ fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() 
     );
     // Unlike a by-value name, the supplied reference observes its referent
     // at completion. Explicit old keeps the entry observation instead.
-    let borrowed = "machine spare(position: @mut u32) -> u32 ensures result == position { \
-                    position = 0; position }";
+    let borrowed = "machine spare(position: @mut u32) -> u32 ensures result == $position { \
+                    $position = 0; position }";
     assert_eq!(
         verdict_on_unused("borrowed_completion_not_input_snapshot", borrowed),
         Verdict::Accepted(2)

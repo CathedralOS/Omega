@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Alarm scheduler: 5-arm case dispatch stress test.
 //
@@ -31,7 +31,7 @@ use omega::language::core::ProcessExit;
 // Payload-free variants intentionally follow payload-bearing ones, also covered
 // by the no_payload_case_variant_after_payload_dispatch_exit corpus fixture.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);

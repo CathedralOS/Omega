@@ -1,5 +1,5 @@
-use clearance::model;
-use clearance::model::Plan;
+use clearance\model;
+use clearance\model\Plan;
 
 // Ten ASCII digits: H0 HE F1 C1 F2 C2 F3 C3 F4 C4.
 // Only complete ten-digit records are admitted by the entrypoint.

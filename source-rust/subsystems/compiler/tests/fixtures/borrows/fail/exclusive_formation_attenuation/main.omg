@@ -4,7 +4,7 @@ data Cell { value: u64; }
 data Pair { first: Cell; second: Cell; }
 
 machine observe(cell: @Cell) -> u64 { cell.value }
-machine update(value: @mut u64) { value = 11; }
+machine update(value: @mut u64) { $value = 11; }
 
 machine middle(bytes: @[u8]) -> u8 requires bytes.len == 3 { bytes[1] }
 

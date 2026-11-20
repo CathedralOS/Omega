@@ -1,8 +1,8 @@
-use spectrometer::model::Spectrometer;
-use spectrometer::model::IntegerRead;
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use omega::language::core::F64::from_i32;
+use spectrometer\model\Spectrometer;
+use spectrometer\model\IntegerRead;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use omega\language\core\F64::from_i32;
 
 // Decimal magnitude is guarded before every multiplication. The signed bound
 // is one million, so Wrapping never wraps on accepted input. Delimiters are

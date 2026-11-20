@@ -1,9 +1,9 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete intended-invalid control: emitting a symbol ('Z' == 90) absent
 // from the Huffman table (`u8::HuffmanSymbol` requires 'A'..'D' or 'R')
 // must be rejected at compile time.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 domain u8::HuffmanSymbol
 requires

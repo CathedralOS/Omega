@@ -4,5 +4,5 @@
 use custody_kernel;
 
 machine entry() -> i32 {
-    custody_kernel::value()
+    custody_kernel\value()
 }

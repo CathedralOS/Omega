@@ -2,7 +2,7 @@
 // copying the elements or fixing the input extent.
 // Expected exit: 0.
 
-use omega::language::core::Optional;
+use omega\language\core\Optional;
 
 machine find<'input, T, Context, machine Predicate>(values: @'input [T], context: @Context) -> Optional<@'input T>
 requires machine Predicate(value: @T, context: @Context) -> bool;
@@ -48,8 +48,8 @@ requires machine Predicate(value: @T) -> bool;
     }
 }
 
-machine positive(value: @i32) -> bool { value > 0 }
-machine nonzero(value: @u8) -> bool { value != 0 }
+machine positive(value: @i32) -> bool { $value > 0 }
+machine nonzero(value: @u8) -> bool { $value != 0 }
 
 data Record { key: u64; selected: bool; }
 machine selected(value: @Record) -> bool { value.selected }
@@ -86,7 +86,7 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
 
 data Selection<T> { minimum: T; maximum: T; }
 machine within(value: @i32, context: @Selection<i32>) -> bool {
-    value >= context.minimum && value <= context.maximum
+    $value >= context.minimum && $value <= context.maximum
 }
 
 machine value_or_missing(found: Optional<@i32>) -> i32 {

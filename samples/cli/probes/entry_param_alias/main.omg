@@ -2,7 +2,7 @@
 // &mut i32)` writes `health = 1` through the alias — the caller's local
 // receives it.
 machine alias_write(health: @mut i32) {
-    health = 1;
+    $health = 1;
 }
 data Main { hits: i32; }
 machine Main::main(main: @mut Main) {

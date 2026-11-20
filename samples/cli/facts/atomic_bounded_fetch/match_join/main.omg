@@ -9,7 +9,7 @@ machine marked(value: u32, path: @write u64) -> u32
 requires value <= 100
 ensures result <= 100
 {
-    path = 1u64;
+    $path = 1u64;
     value
 }
 machine join(value: u32, branch: bool, path: @write u64) -> u32

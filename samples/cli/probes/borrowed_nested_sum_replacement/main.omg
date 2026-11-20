@@ -6,7 +6,7 @@ data OuterChoice { case Absent; case Present(inner: InnerChoice); }
 data Holder { marker: u64; choice: OuterChoice; }
 
 machine clear(choice: @mut OuterChoice) {
-    choice = OuterChoice::Absent {};
+    $choice = OuterChoice::Absent {};
 }
 
 machine consume_inner(choice: InnerChoice) -> u64 {

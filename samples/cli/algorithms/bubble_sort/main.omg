@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Bubble sort -- the first IN-PLACE mutation algorithm Omega can express, and a
 // milestone: it needs every piece of runtime array indexing working together.
 //
@@ -16,7 +16,7 @@ use omega::language::core::ProcessExit;
 // Sorting [29, 10, 14, 37, 13] ascending puts the minimum, 10, at index 0.
 // Expected exit: 10.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main
 requires

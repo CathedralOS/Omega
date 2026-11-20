@@ -1,20 +1,20 @@
-use representations::source_files::SourceId;
-use representations::source_files::SourceUnit;
-use representations::source_files::source_unit_append;
-use representations::source_files::source_unit_byte_or_nul;
-use representations::source_files::source_unit_clear;
-use representations::tokens::IntegerSuffix;
-use representations::tokens::KeywordKind;
-use representations::tokens::LexDiagnosticCode;
-use representations::tokens::NumericBase;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenKind;
-use representations::tokens::TokenStream;
-use representations::tokens::token_stream_clear;
-use representations::tokens::token_stream_push;
-use representations::tokens::token_stream_push_decoded;
-use representations::tokens::token_stream_reject;
+use representations\source_files\SourceId;
+use representations\source_files\SourceUnit;
+use representations\source_files\source_unit_append;
+use representations\source_files\source_unit_byte_or_nul;
+use representations\source_files\source_unit_clear;
+use representations\tokens\IntegerSuffix;
+use representations\tokens\KeywordKind;
+use representations\tokens\LexDiagnosticCode;
+use representations\tokens\NumericBase;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenKind;
+use representations\tokens\TokenStream;
+use representations\tokens\token_stream_clear;
+use representations\tokens\token_stream_push;
+use representations\tokens\token_stream_push_decoded;
+use representations\tokens\token_stream_reject;
 
 // Source-to-token spelling phase for the first product-source live slice.
 // Chapter 1's LEXICAL-PROFILE-V1 is authoritative: ASCII identifiers,
@@ -1162,6 +1162,8 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
     ) {
         transition byte0 {
             38 -> ampersand(lexer, byte1),
+            36 -> emit_punctuation(lexer, PunctuationKind::Dollar, 1),
+            92 -> emit_punctuation(lexer, PunctuationKind::Backslash, 1),
             64 -> emit_punctuation(lexer, PunctuationKind::At, 1),
             39 -> single_apostrophe(lexer),
             42 -> asterisk(lexer, byte1),

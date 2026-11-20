@@ -2,5 +2,5 @@ use a;
 use c;
 
 machine entry() -> i64 {
-    a::a_value() + c::c_value()
+    a\a_value() + c\c_value()
 }

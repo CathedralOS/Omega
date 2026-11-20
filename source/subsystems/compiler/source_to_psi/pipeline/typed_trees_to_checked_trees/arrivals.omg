@@ -1,8 +1,8 @@
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_argument;
-use representations::typed_trees::Typing;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_argument;
+use representations\typed_trees\Typing;
 
 // Field paths an arrival carries. Besides a state's integer and Boolean
 // parameters, a jump projects the subject places it knows below an argument

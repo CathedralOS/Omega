@@ -155,11 +155,11 @@ machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
     }
 }
 
-// Two exact source units exercise a namespace import across one supplied edge.
+// Two exact source units exercise a declaration import across one supplied edge.
 // Removing that edge must refuse, even after the successful lookup; restoring
 // it must rebuild rather than inheriting a partial failed invocation.
 machine Main::source_sets(&mut self) {
-    let source: &[u8] = "appdepuse dep::tools; machine main()->u8 {tools::answer()}module tools; public machine answer()->u8 {42}";
+    let source: &[u8] = "appdepuse dep\\answer; machine main()->u8 {answer()}public machine answer()->u8 {42}";
     self.compiler.parser.sources.package_count = 2;
     self.compiler.parser.sources.packages[0].name.start = 0;
     self.compiler.parser.sources.packages[0].name.end = 3;
@@ -175,9 +175,9 @@ machine Main::source_sets(&mut self) {
     self.compiler.parser.sources.unit_count = 2;
     self.compiler.parser.sources.units[0].package = 0;
     self.compiler.parser.sources.units[0].start = 6;
-    self.compiler.parser.sources.units[0].end = 58;
+    self.compiler.parser.sources.units[0].end = 51;
     self.compiler.parser.sources.units[1].package = 1;
-    self.compiler.parser.sources.units[1].start = 58;
+    self.compiler.parser.sources.units[1].start = 51;
     self.compiler.parser.sources.units[1].end = source.len;
     self.compiler.compile_set(source, 0, "main");
     self.publish(42, 141);

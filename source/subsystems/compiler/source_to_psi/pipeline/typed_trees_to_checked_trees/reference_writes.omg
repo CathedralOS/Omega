@@ -1,16 +1,16 @@
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::Statement;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\Statement;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
 
 // Executed calls preserve earlier operand reads before invalidating storage;
 // a universal refinement world has no executed operand history.

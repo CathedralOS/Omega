@@ -1,13 +1,13 @@
-use actors::state::Actor;
-use actors::state::ActorSet;
-use actors::combat::cooldowns;
-use actors::combat::attack_intent;
-use actors::combat::strike;
-use actors::combat::contact;
-use actors::travel::move_actor;
-use control::state::Command;
-use control::state::IntentSet;
-use world::rooms::Dungeon;
+use actors\state\Actor;
+use actors\state\ActorSet;
+use actors\combat\cooldowns;
+use actors\combat\attack_intent;
+use actors\combat\strike;
+use actors\combat\contact;
+use actors\travel\move_actor;
+use control\state\Command;
+use control\state\IntentSet;
+use world\rooms\Dungeon;
 
 public machine advance_actors<const Capacity: u64, const Rooms: u64>(actors: @mut ActorSet<Capacity, Rooms>, intents: @IntentSet<Capacity>, dungeon: @Dungeon<Rooms>, key: bool)
 terminates

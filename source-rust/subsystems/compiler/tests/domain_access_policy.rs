@@ -255,9 +255,9 @@ fn a_plan_that_describes_another_schema_is_left_unjudged() {
     std::fs::write(
         &main,
         "\
-use omega::language::core::AccessPolicy;
-use omega::language::core::AccessPlan;
-use omega::language::core::reflect::TypeSchema;
+use omega\\language\\core\\AccessPolicy;
+use omega\\language\\core\\AccessPlan;
+use omega\\language\\core\\reflect\\TypeSchema;
 
 data Seal { mark: i32; }
 SealAccess satisfies AccessPolicy {
@@ -365,17 +365,17 @@ fn scalar_access_rules_are_not_erased_during_publication() {
     std::fs::create_dir_all(&root).unwrap();
     let main = root.join("main.omg");
     std::fs::write(&main, r#"
-use omega::language::core::AccessPolicy;
-use omega::language::core::AccessPlan;
-use omega::language::core::AccessRegion;
-use omega::language::core::Issuance;
-use omega::language::core::access;
-use omega::language::core::reflect;
-use omega::language::core::reflect::TypeSchema;
+use omega\language\core\AccessPolicy;
+use omega\language\core\AccessPlan;
+use omega\language\core\AccessRegion;
+use omega\language\core\Issuance;
+use omega\language\core\access;
+use omega\language\core\reflect;
+use omega\language\core\reflect\TypeSchema;
 ScalarAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mut plan: AccessPlan = access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(issue)] });
-        access::allow_readers(@mut plan, AccessRegion::Subject { schema: schema }, [reflect::callable(issue)]);
+        let mut plan: AccessPlan = access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(issue)] });
+        access\allow_readers(@mut plan, AccessRegion::Subject { schema: schema }, [reflect\callable(issue)]);
         plan
     }
 }

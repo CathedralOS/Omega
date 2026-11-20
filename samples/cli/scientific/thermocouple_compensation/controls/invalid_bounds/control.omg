@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete intended-invalid control: index 2 is outside a two-element array.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data InvalidControl { }
 machine main(control: @mut InvalidControl) reaches ProcessExit + Console {
     let temperatures: [i32; 2] = [25, 100];

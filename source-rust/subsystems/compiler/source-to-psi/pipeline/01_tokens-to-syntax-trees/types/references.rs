@@ -20,7 +20,7 @@ pub(crate) fn parse_static_name<'tokens, 'source>(
     let mut name = first.as_str(&input).to_owned();
     let mut source_span = first.source_span();
     while input.at_path_member() {
-        input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        input = input.take_path_separator()?;
         let (member, rest) = input.take_identifier()?;
         name.push_str("::");
         name.push_str(member.as_str(&input));

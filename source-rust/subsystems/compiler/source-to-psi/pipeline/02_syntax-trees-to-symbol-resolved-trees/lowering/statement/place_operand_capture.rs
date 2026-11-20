@@ -25,7 +25,7 @@ use crate::resolution::lowering::statement::hoist_temps::{
     hoist_into_temp, hoist_operand_into_temp,
 };
 use crate::resolution::lowering::statement::statement_nodes::set_expression;
-use crate::source_resolved::expression::{ExpressionHandle, ExpressionNode};
+use crate::source_resolved::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 use crate::source_resolved::statement::Statement;
 
 /* Which evaluated operands of a reference formation receive their own local. */
@@ -121,6 +121,11 @@ fn capture_operands(
     let node = expression_table(lowerer).expression(address).clone();
     match node {
         ExpressionNode::Name(_) => address,
+        ExpressionNode::Unary(mut unary) if unary.operator == UnaryOperator::Dereference => {
+            unary.operand = capture_operands(lowerer, unary.operand, capture, hoisted);
+            set_expression(lowerer, address, ExpressionNode::Unary(unary));
+            address
+        }
         ExpressionNode::Member(mut member) => {
             member.receiver = capture_operands(lowerer, member.receiver, capture, hoisted);
             set_expression(lowerer, address, ExpressionNode::Member(member));

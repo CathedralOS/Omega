@@ -52,5 +52,5 @@ machine main() crashes Trap {
     let result: @u64 = choose(true, context, @right, @alternate);
     let other_context: Holder = Holder { reference: @left };
     let other: @u64 = choose(false, other_context, @right, @alternate);
-    transition result == 42 && other == 73 { true -> done(), false -> wrong() }
+    transition $result == 42 && $other == 73 { true -> done(), false -> wrong() }
 }

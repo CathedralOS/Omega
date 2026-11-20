@@ -2966,7 +2966,7 @@ machine entry() reaches Input {}
         use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let source = accepted_source_with_core(
-            "use omega::language::core::ProcessExit; use omega::language::core::ProcessExitPrimitive; machine entry() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
+            "use omega\\language\\core\\ProcessExit; use omega\\language\\core\\ProcessExitPrimitive; machine entry() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
             &[],
             &bundled_declarations::sealed_intrinsics::hosted_process_exit_sources(),
         );

@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Multiple sequential value-returning calls: exercises slot isolation for
 // three sequential value-position calls with varying arities, then uses
 // all three results in arithmetic to produce a final value.
@@ -24,7 +24,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     offset: i32 in Saturating;

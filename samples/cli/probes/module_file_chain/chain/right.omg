@@ -1,4 +1,4 @@
-use chain::left;
+use chain\left;
 
 public data Right {
     value: Left;

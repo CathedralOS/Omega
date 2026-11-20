@@ -1,19 +1,19 @@
-use foundation::ExactInteger;
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::RankingView;
-use representations::symbol_resolved_trees::ranking_measure;
-use representations::syntax_trees::Clause;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_argument;
-use representations::syntax_trees::syntax_trees_clause;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::Selection;
-use representations::typed_trees::Typing;
+use foundation\ExactInteger;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\RankingView;
+use representations\symbol_resolved_trees\ranking_measure;
+use representations\syntax_trees\Clause;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_argument;
+use representations\syntax_trees\syntax_trees_clause;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\Selection;
+use representations\typed_trees\Typing;
 
 // A normalized witness retains every component and its relation identity.
 // Distance views keep their two endpoint values because the zone can prove

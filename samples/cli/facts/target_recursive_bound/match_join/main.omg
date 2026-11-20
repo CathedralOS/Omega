@@ -32,7 +32,7 @@ CountdownCode satisfies Countdown {
 machine record_result(observed: @mut u64, marker: u64) -> u64
 ensures result <= 60
 {
-    observed = marker;
+    $observed = marker;
     block Countdown::countdown(4, 60)
 }
 machine choose(flag: bool, observed: @mut u64) -> u64 ensures result <= 60 {

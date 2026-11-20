@@ -1,16 +1,16 @@
-use psi::representations::lowered_program::ScalarLayout;
-use psi::representations::lowered_program::ScalarLayoutKind;
-use psi::representations::lowered_program::ScalarMachine;
-use psi::representations::lowered_program::ScalarOperation;
-use psi::representations::lowered_program::ScalarOperationKind;
-use psi::representations::lowered_program::ScalarParameter;
-use psi::representations::lowered_program::ScalarProgram;
-use psi::representations::lowered_program::ScalarStatus;
-use psi::representations::lowered_program::scalar_argument_at;
-use psi::representations::lowered_program::scalar_layout_at;
-use psi::representations::lowered_program::scalar_machine_at;
-use psi::representations::lowered_program::scalar_operation;
-use psi::representations::lowered_program::scalar_parameter_at;
+use psi\representations\lowered_program\ScalarLayout;
+use psi\representations\lowered_program\ScalarLayoutKind;
+use psi\representations\lowered_program\ScalarMachine;
+use psi\representations\lowered_program\ScalarOperation;
+use psi\representations\lowered_program\ScalarOperationKind;
+use psi\representations\lowered_program\ScalarParameter;
+use psi\representations\lowered_program\ScalarProgram;
+use psi\representations\lowered_program\ScalarStatus;
+use psi\representations\lowered_program\scalar_argument_at;
+use psi\representations\lowered_program\scalar_layout_at;
+use psi\representations\lowered_program\scalar_machine_at;
+use psi\representations\lowered_program\scalar_operation;
+use psi\representations\lowered_program\scalar_parameter_at;
 
 // Realize the checked scalar lowering slice on Alpha. Each call owns a frame
 // of value slots; physical registers never carry values across a call. Layout

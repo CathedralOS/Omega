@@ -7,7 +7,7 @@ requires observed == current && observed == 7
 }
 
 machine expose(slot: @mut u64) -> u64 {
-    slot
+    $slot
 }
 
 machine hold(items: @mut [u64; 2], observed: u64) -> u64

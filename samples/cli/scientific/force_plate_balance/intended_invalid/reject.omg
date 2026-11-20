@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete negative control: unconstrained denominator cannot prove nonzero.
-use omega_language_std::Console;
+use omega_language_std\Console;
 machine unsafe_center(moment: i64, force: i64) -> i64 { moment / force }
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

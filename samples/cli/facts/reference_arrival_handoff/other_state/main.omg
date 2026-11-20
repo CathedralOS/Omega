@@ -6,11 +6,11 @@ machine main() crashes Trap {
     let original: @mut i64 = @mut backing;
     transition { _ -> write(original) }
     machine write(child: @mut i64) {
-        child = 41;
+        $child = 41;
         transition { _ -> check(child) }
     }
     machine check(received: @mut i64) {
-        let observed: i64 = received;
+        let observed: i64 = $received;
         transition observed == 41 {
             true -> done(),
             false -> wrong()

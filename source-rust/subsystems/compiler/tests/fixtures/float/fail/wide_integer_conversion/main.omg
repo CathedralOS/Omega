@@ -1,11 +1,11 @@
 // Expected reject: signed32_plain lacks the conversion upper bound.
 // Named 64-bit conversions retain toward-zero results, policy and guarded failures.
-use omega::language::core::I64;
-use omega::language::core::U64;
-use omega::language::core::I64::from_f32;
-use omega::language::core::I64::from_f64;
-use omega::language::core::U64::from_f32;
-use omega::language::core::U64::from_f64;
+use omega\language\core\I64;
+use omega\language\core\U64;
+use omega\language\core\I64::from_f32;
+use omega\language\core\I64::from_f64;
+use omega\language\core\U64::from_f32;
+use omega\language\core\U64::from_f64;
 machine signed32_plain(value: f32) -> i64
 requires value == value && value >= -9223372036854775808.0f32
 crashes none {

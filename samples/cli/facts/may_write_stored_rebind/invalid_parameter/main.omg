@@ -10,7 +10,7 @@ machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pi
 }
 
 machine overwrite(slot: @mut u64) -> u64 in Wrapping {
-    slot = 9;
+    $slot = 9;
     (1 as u64 in Wrapping)
 }
 
@@ -18,15 +18,15 @@ machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping 
     first + second
 }
 machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-requires chosen < 4 && other < 4
+requires $chosen < 4 && $other < 4
 {
     let zero: u64 in Wrapping = 0;
     let mut scratch: u64 = 3;
     let mut referent: @mut u64 = @mut scratch;
-    referent = choose(chosen, other, false);
+    $referent = choose(chosen, other, false);
     let loaded: @mut u64 = referent;
     let marker: u64 in Wrapping = add(overwrite(loaded), zero);
-    let index: u64 = other;
+    let index: u64 = $other;
     transition (marker as u64) == 1 && items[index] == 7 {
         true -> (items[index]),
         _ -> 0

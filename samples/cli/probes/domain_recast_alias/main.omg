@@ -25,7 +25,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.value = 0;
     let view: @mut u32 in Small = @mut main.value as @mut u32;
-    transition view == 0 && main.value == 0 {
+    transition $view == 0 && main.value == 0 {
         true -> pass(main),
         _ -> fail(main)
     }

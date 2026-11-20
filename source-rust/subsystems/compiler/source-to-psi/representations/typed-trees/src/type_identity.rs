@@ -1075,14 +1075,10 @@ pub(crate) mod constraint_identity {
                     atom(
                         Label::Permission,
                         match permission {
-                            language_core::CarryPermission::AcrossSuspend => {
-                                "across-suspend"
-                            }
+                            language_core::CarryPermission::AcrossSuspend => "across-suspend",
                             language_core::CarryPermission::AnyCpu => "any-cpu",
                             language_core::CarryPermission::AnyThread => "any-thread",
-                            language_core::CarryPermission::MovableAddress => {
-                                "movable-address"
-                            }
+                            language_core::CarryPermission::MovableAddress => "movable-address",
                         },
                     ),
                 ],
@@ -3402,6 +3398,9 @@ pub(crate) mod identity_context {
             ExpressionNode::Integer(value) => substitution::index_integer(value, context),
             ExpressionNode::Unary(unary) => compound(
                 match unary.operator {
+                    crate::source_state::expression::UnaryOperator::Dereference => {
+                        return substitution::rejected(context);
+                    }
                     crate::source_state::expression::UnaryOperator::BitwiseNot => {
                         IndexForm::BitwiseNot
                     }
@@ -5323,13 +5322,13 @@ pub(crate) mod package_policy_reading_tests {
         };
         use crate::source_state::name::Identifier;
         use crate::source_state::statement::OutcomeProofSelector;
+        use crate::source_state::types::ValueDomain;
         use crate::source_state::types::{
             DomainConstraint, DomainConstraintSubject, FixedArrayLength, OmegaLayoutGrammar,
             TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
         use application_identity::const_value::CanonicalConstValue;
         use language_core::CarryPermission;
-        use crate::source_state::types::ValueDomain;
         use language_core::atomic::{
             AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
         };

@@ -1,6 +1,6 @@
-use routing::model;
-use routing::model::Plan;
-use routing::model::Tour;
+use routing\model;
+use routing\model\Plan;
+use routing\model\Tour;
 
 machine travel(tour: @mut Tour, destination: i32 in Saturating) {
     // Snapshot before transferring the mutable tour to the successor.

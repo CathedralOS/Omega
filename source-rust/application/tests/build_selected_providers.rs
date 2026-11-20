@@ -40,10 +40,10 @@ machine build(builder: @mut Build) {
     Build::select_provider::<Service, Native>(builder, linux_arm64);
     Build::select_provider::<Service, Native>(builder, macos_arm64);
     Build::select_provider::<Service, Native>(builder, windows_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
+    Build::bind(builder, linux_x86_64\\ProgramEntry, entry);
+    Build::bind(builder, linux_arm64\\ProgramEntry, entry);
+    Build::bind(builder, macos_arm64\\ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64\\ProgramEntry, entry);
 }
 ";
 

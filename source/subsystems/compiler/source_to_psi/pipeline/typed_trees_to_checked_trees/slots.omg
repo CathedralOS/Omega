@@ -1,18 +1,18 @@
-use representations::checks::SlotOriginKind;
-use representations::checks::push_slot_origin;
-use representations::checks::push_slot_qualification;
-use representations::symbol_resolved_trees::DomainBinding;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::Parameter;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_parameter;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::reference_type;
-use representations::typed_trees::type_table_row;
+use representations\checks\SlotOriginKind;
+use representations\checks\push_slot_origin;
+use representations\checks\push_slot_qualification;
+use representations\symbol_resolved_trees\DomainBinding;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\Parameter;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_parameter;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\reference_type;
+use representations\typed_trees\type_table_row;
 
 // Public slot records for a trait requirement. The requirement's signature is
 // the slot: each reference parameter's declared domain is a qualification

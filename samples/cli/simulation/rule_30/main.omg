@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Rule 30 elementary cellular automaton -- evolves a 31-cell row packed into
 // one 64-bit word for 16 generations from a single centre seed and streams
 // each generation as a '#'/space line through Console::write_byte. The whole
@@ -9,7 +9,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: #
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main
 requires self.g >= 0 && self.g <= 16,

@@ -1,5 +1,5 @@
-use omega::language::core::max_u32;
-use omega::language::core::max_u64;
+use omega\language\core\max_u32;
+use omega\language\core\max_u64;
 
 
 data MazeBuilder {

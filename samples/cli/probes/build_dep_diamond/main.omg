@@ -1,5 +1,5 @@
-use kit_a::main;
-use kit_b::main;
+use kit_a\main;
+use kit_b\main;
 machine entry() -> i32 {
     let a: i32 = left();
     let b: i32 = right();

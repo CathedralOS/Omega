@@ -1,10 +1,10 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use domain::process;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use domain\process;
 
 data Main {
-    process: domain::process::Process;
+    process: domain\process\Process;
     input: [u8; 4];
     variant: u64 in Wrapping;
     horizon: u64 in Wrapping;
@@ -33,7 +33,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine setup(main: @mut Main) {
         main.variant = (main.input[0] as u64 in Wrapping) - 48;
         main.horizon = (main.input[1] as u64 in Wrapping) - 48;
-        domain::process::initialize(@mut main.process, main.variant);
+        domain\process\initialize(@mut main.process, main.variant);
         main.step = 0;
         Console::write_line("step healthy degraded failed survival denominator");
         transition { _ -> row(main) }
@@ -67,7 +67,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition main.step < main.horizon { true -> next(main), _ -> finish(main) }
     }
     machine next(main: @mut Main) {
-        domain::process::advance(@mut main.process);
+        domain\process\advance(@mut main.process);
         main.step = main.step + 1;
         transition { _ -> row(main) }
     }

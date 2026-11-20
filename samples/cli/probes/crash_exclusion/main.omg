@@ -1,6 +1,6 @@
 // The entry keeps the requirement's public Trap allowance; the build
 // decides whether the composed product may actually trap.
-use assert_kit::main::Assert;
+use assert_kit\main\Assert;
 data Main {
 }
 machine Main::main(main: @mut Main)

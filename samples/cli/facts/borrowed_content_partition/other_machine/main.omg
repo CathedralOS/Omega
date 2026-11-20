@@ -1,7 +1,7 @@
 // Expected exit: 0
 // A brief exclusive borrow returns detached owned content and restores its source.
 // Numeric custody only; this does not supply physical backing.
-use borrowed_partition_support::main;
+use borrowed_partition_support\main;
 
 data Allocator {}
 machine Allocator::take(strategy: @mut Strategy, remaining: u64, requested: u64) -> Region in Owned

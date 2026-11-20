@@ -1,11 +1,11 @@
-use representations::symbol_resolved_trees::BinderContract;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::binder_contract;
-use representations::syntax_trees::Clause;
-use representations::syntax_trees::ClauseKind;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_clause;
-use representations::typed_trees::Selection;
+use representations\symbol_resolved_trees\BinderContract;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\binder_contract;
+use representations\syntax_trees\Clause;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_clause;
+use representations\typed_trees\Selection;
 
 // Operational possibilities compose over the authenticated invocation graph.
 // This post-settlement query borrows only its existing visited/work scratch;

@@ -1,14 +1,14 @@
-use foundation::ExactInteger;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::Adaptation;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_adaptation;
-use representations::typed_trees::typing_expression_type;
+use foundation\ExactInteger;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\Adaptation;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_adaptation;
+use representations\typed_trees\typing_expression_type;
 
 // Operands captured before a later operand writes what they read
 // (wiki/spec/language/state_contracts.md#mutation-and-subject-identity:

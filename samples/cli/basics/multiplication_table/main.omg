@@ -1,5 +1,5 @@
-use omega::language::core::byte_observation;
-use omega::language::core::ProcessExit;
+use omega\language\core\byte_observation;
+use omega\language\core\ProcessExit;
 // A 9x9 multiplication table -- the first sample that produces FORMATTED NUMERIC OUTPUT.
 // Every other sample renders glyphs or animation frames; this one converts computed
 // numbers to text (itoa: a two-digit field, space-padded) and lays them out in an aligned
@@ -9,15 +9,15 @@ use omega::language::core::ProcessExit;
 // two digit chars written per cell, then printed. Pure compute + stdout, no new features.
 // Expected exit: 0.
 // Expected output contains: 81
-use omega_language_std::Console;
-use omega::language::core::narrow_i32_to_u8_trapping;
+use omega_language_std\Console;
+use omega\language\core\narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires
-    byte_observation::valid_utf8(@self[..]);
+    byte_observation\valid_utf8(@self[..]);
 domain [u8; 28]::Utf8
 requires
-    byte_observation::valid_utf8(@self[..]);
+    byte_observation\valid_utf8(@self[..]);
 data Main {
     line: [u8; 28] in Utf8;
     i: i32 in Wrapping;   // row factor 1..9

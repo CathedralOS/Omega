@@ -65,6 +65,22 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
 }
 
 #[test]
+fn each_dereference_follows_one_reference_after_field_selection() {
+    let (syntax, mut expression) = parse_expression("$$record.view");
+    for _ in 0..2 {
+        let ExpressionNode::Unary(unary) = syntax.expressions.expression(expression) else {
+            panic!("expected a dereference");
+        };
+        assert_eq!(unary.operator, UnaryOperator::Dereference);
+        expression = unary.operand;
+    }
+    assert!(matches!(
+        syntax.expressions.expression(expression),
+        ExpressionNode::Member(_)
+    ));
+}
+
+#[test]
 fn operator_stack_retains_precedence_associativity_and_operator_spans() {
     let source = "a || b && c == (d < e | f ^ g & h << i + j * k - l / m % n >> o)";
     let (parsed, _) = parse_expression(source);

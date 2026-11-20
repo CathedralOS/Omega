@@ -1,25 +1,25 @@
 // The existing Window owner carries the platform resource set. Windows uses
 // only window (HWND); its unused Cocoa handles are zero, never invoked there.
-use omega::language::core::integer;
-use omega_language_std::AppKit;
-use omega_language_std::CoreGraphics;
-use omega_language_std::ObjectiveC;
-use omega_language_std::Window;
-use omega_language_std::macos_window_blit;
-use omega_language_std::macos_window_create;
-use omega_language_std::macos_window_destroy;
-use omega_language_std::macos_window_get_dc;
-use omega_language_std::macos_window_is_window;
-use omega_language_std::macos_window_msg_dispatch;
-use omega_language_std::macos_window_msg_peek;
-use omega_language_std::macos_window_msg_translate;
-use omega_language_std::MacosImageData;
-use omega_language_std::MacosImageObjects;
-use omega_language_std::WindowsGuiHost;
-use omega_language_std::WindowsMessage;
-use omega_language_std::windows_message_kind;
-use omega_language_std::windows_message_window;
-use omega_language_std::windows_message_word_parameter;
+use omega\language\core\integer;
+use omega_language_std\AppKit;
+use omega_language_std\CoreGraphics;
+use omega_language_std\ObjectiveC;
+use omega_language_std\Window;
+use omega_language_std\macos_window_blit;
+use omega_language_std\macos_window_create;
+use omega_language_std\macos_window_destroy;
+use omega_language_std\macos_window_get_dc;
+use omega_language_std\macos_window_is_window;
+use omega_language_std\macos_window_msg_dispatch;
+use omega_language_std\macos_window_msg_peek;
+use omega_language_std\macos_window_msg_translate;
+use omega_language_std\MacosImageData;
+use omega_language_std\MacosImageObjects;
+use omega_language_std\WindowsGuiHost;
+use omega_language_std\WindowsMessage;
+use omega_language_std\windows_message_kind;
+use omega_language_std\windows_message_window;
+use omega_language_std\windows_message_word_parameter;
 
 public WindowsGuiProvider satisfies Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
@@ -86,7 +86,7 @@ public WindowsGuiProvider satisfies Gui {
             }
         }
         machine cancel(close_requested: @mut bool) -> u32 {
-            close_requested = true;
+            $close_requested = true;
             1
         }
     }
@@ -111,13 +111,13 @@ public WindowsGuiProvider satisfies Gui {
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes WindowsGuiHost {
-        transition dest_width <= (integer::max::<i32>() as u32) && dest_height <= (integer::max::<i32>() as u32)
-            && source_width <= (integer::max::<i32>() as u32) && source_height <= (integer::max::<i32>() as u32) {
+        transition dest_width <= (integer\max::<i32>() as u32) && dest_height <= (integer\max::<i32>() as u32)
+            && source_width <= (integer\max::<i32>() as u32) && source_height <= (integer\max::<i32>() as u32) {
             true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info),
             _ -> (0)
         }
         machine copy(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
-        requires dest_width <= (integer::max::<i32>() as u32) && dest_height <= (integer::max::<i32>() as u32) && source_width <= (integer::max::<i32>() as u32) && source_height <= (integer::max::<i32>() as u32) {
+        requires dest_width <= (integer\max::<i32>() as u32) && dest_height <= (integer\max::<i32>() as u32) && source_width <= (integer\max::<i32>() as u32) && source_height <= (integer\max::<i32>() as u32) {
             let copied: i32 = WindowsGuiHost::stretch_dibits(device, 0, 0, dest_width as i32, dest_height as i32,
                 0, 0, source_width as i32, source_height as i32, @pixels[0], @info[0], 0, 0x00CC0020);
             transition copied > 0 { true -> result(copied), _ -> (0) }
@@ -140,12 +140,12 @@ public MacosGuiProvider satisfies Gui {
         // imposing fixed dimensions on the shared target facade.
         let outer_width: i64 = (width as i64) + 16;
         let outer_height: i64 = (height as i64) + 39;
-        transition width > 0 && height > 0 && outer_width <= (integer::max::<i32>() as i64) && outer_height <= (integer::max::<i32>() as i64) {
+        transition width > 0 && height > 0 && outer_width <= (integer\max::<i32>() as i64) && outer_height <= (integer\max::<i32>() as i64) {
             true -> create(class_name, title, style, x, y, outer_width, outer_height),
             _ -> empty_window()
         }
         machine create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i64, height: i64) -> Window
-        requires width > 0 && width <= (integer::max::<i32>() as i64) && height > 0 && height <= (integer::max::<i32>() as i64)
+        requires width > 0 && width <= (integer\max::<i32>() as i64) && height > 0 && height <= (integer\max::<i32>() as i64)
         requires title[10] == 0 {
             macos_window_create::<11>(class_name, @title, style, x, y, width as i32, height as i32)
         }

@@ -2,9 +2,9 @@
 // Place: target_body.
 // Expected exit: 0
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
@@ -42,7 +42,7 @@ X86Apply satisfies SelectedApply {
             true -> chosen,
             false -> other
         };
-        selected = 41;
+        $selected = 41;
         selected
     }
 }
@@ -56,7 +56,7 @@ ArmApply satisfies SelectedApply {
             true -> chosen,
             false -> other
         };
-        selected = 41;
+        $selected = 41;
         selected
     }
 }

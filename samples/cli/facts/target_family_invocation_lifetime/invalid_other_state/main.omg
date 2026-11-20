@@ -45,6 +45,6 @@ machine main() crashes Trap {
     let result: @u64 = relay(context, @right);
     verify(result);
     machine verify(value: @u64) crashes Trap {
-        transition value == 42 { true -> done(), false -> wrong() }
+        transition $value == 42 { true -> done(), false -> wrong() }
     }
 }

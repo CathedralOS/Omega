@@ -1,5 +1,5 @@
-use terrain::model;
-use terrain::model::Contours;
+use terrain\model;
+use terrain\model\Contours;
 // Consume segments exactly once. Degree-one starts precede cycles; all scans
 // use increasing canonical edge identity. A closed path repeats its first
 // vertex. Eight segments require at most sixteen stored vertices.

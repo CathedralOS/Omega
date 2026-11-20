@@ -1,7 +1,7 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70
 // The retained runtime argument determines this oracle; erased evidence cannot.
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Proof {
     tag: i32;

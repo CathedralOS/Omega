@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected: reject source coordinate access without an index bound.
-use omega_language_std::Console;
+use omega_language_std\Console;
 machine coordinate(source: @[f64; 48], index: u64) -> f64 {
     source[index]
 }

@@ -1,4 +1,4 @@
-use representations::symbol_resolved_trees::BuiltinType;
+use representations\symbol_resolved_trees\BuiltinType;
 
 // Exact mathematical integers, shared by literal folding (typing) and bounds
 // reasoning (checking). A value is a sign and a magnitude below 2^64, so

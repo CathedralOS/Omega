@@ -60,7 +60,7 @@ machine consume(value: u32) requires value == 37 crashes Trap {
     transition value == 37 { true -> finished(), false -> failed() }
 }
 machine marked_ordered(path: @write u32) -> u32 ensures result == 37 {
-    path = 1;
+    $path = 1;
     SelectedOrdered::ordered(37)
 }
 machine joined(branch: bool, path: @write u32) -> u32 ensures result == 37 {

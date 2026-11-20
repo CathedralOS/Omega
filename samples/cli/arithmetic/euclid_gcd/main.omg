@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Greatest common divisor by Euclid's algorithm: repeatedly replace (a, b) with
 // (b, a mod b) until b is 0; a is then the GCD. gcd(48, 36) = 12. Two-and-a-half
 // millennia old and still the standard way to reduce a fraction. Showcases the
@@ -8,7 +8,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 12.
 // Expected output contains: result: the GCD, 12 for (48, 36) (the exit code)
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
 }

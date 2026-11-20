@@ -1,8 +1,8 @@
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::ClauseKind;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::SyntaxTrees;
-use representations::typed_trees::Typing;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\SyntaxTrees;
+use representations\typed_trees\Typing;
 
 // A complete positional roster. Missing capacity is not an unbound formal:
 // no fact is admitted from an incomplete substitution.

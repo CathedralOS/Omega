@@ -808,7 +808,7 @@ mod tests {
         let importer = sources
             .add_with_metadata(
                 PathBuf::from("app/main.omg"),
-                String::from("use kit::main; machine entry() -> i32 { generated_value() }"),
+                String::from("use kit\\main; machine entry() -> i32 { generated_value() }"),
                 PathBuf::from("app"),
                 Some(consumer),
                 SourceOrigin::User,

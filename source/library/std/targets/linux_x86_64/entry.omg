@@ -16,7 +16,7 @@ use hosted_entry_integer_shape;
 use hosted_entry_named_word;
 use hosted_entry_register_extent_value;
 use omega_language_std;
-use omega::language::core::ProgramStorageEntry;
+use omega\language\core\ProgramStorageEntry;
 
 // The Linux kernel enters a static ELF executable with rsp pointing at the
 // initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])

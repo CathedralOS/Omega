@@ -1,24 +1,24 @@
-use representations::source_files::SourceId;
-use representations::source_files::SourceSet;
-use representations::source_files::SourceSpan;
-use representations::source_files::spans_equal;
-use representations::symbol_resolved_trees::MachineOwner;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::OverloadLinks;
-use representations::symbol_resolved_trees::ValueBinding;
-use representations::symbol_resolved_trees::VisibleOverloads;
-use representations::symbol_resolved_trees::machine_owner;
-use representations::symbol_resolved_trees::prepend_overload;
-use representations::syntax_trees::ConformanceItem;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::TraitItem;
-use representations::syntax_trees::conformance_item;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::syntax_trees::trait_item;
+use representations\source_files\SourceId;
+use representations\source_files\SourceSet;
+use representations\source_files\SourceSpan;
+use representations\source_files\spans_equal;
+use representations\symbol_resolved_trees\MachineOwner;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\OverloadLinks;
+use representations\symbol_resolved_trees\ValueBinding;
+use representations\symbol_resolved_trees\VisibleOverloads;
+use representations\symbol_resolved_trees\machine_owner;
+use representations\symbol_resolved_trees\prepend_overload;
+use representations\syntax_trees\ConformanceItem;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TraitItem;
+use representations\syntax_trees\conformance_item;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\syntax_trees\trait_item;
 
 // A machine name binds at one lexical tier in one module. Every declaration
 // in that family shares the same import route. Across packages only its public

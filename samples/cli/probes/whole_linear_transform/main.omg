@@ -29,8 +29,8 @@ machine transform(inventory: Inventory) -> Inventory {
 }
 
 machine repair(inventory: @mut Inventory) -> i32 {
-    let removed: Inventory = inventory;
-    inventory = transform(removed);
+    let removed: Inventory = $inventory;
+    $inventory = transform(removed);
     inventory.slots
 }
 

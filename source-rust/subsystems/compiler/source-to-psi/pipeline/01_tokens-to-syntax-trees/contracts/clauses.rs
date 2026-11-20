@@ -398,7 +398,7 @@ fn outcome_case_path_followed_by_arrow(input: Input<'_, '_>) -> Result<bool, Par
     let (_, mut rest) = input.take_identifier()?;
     let mut member_count = 1usize;
     while rest.at_path_member() {
-        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        rest = rest.take_path_separator()?;
         let (_, next) = rest.take_identifier()?;
         rest = next;
         member_count += 1;

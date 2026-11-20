@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Task runner: nested case-payload dispatch through a sub-machine
 // that mutates its subject across multiple calls.
 //
@@ -26,7 +26,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Task {
     case Compute(value: i32 in Saturating);

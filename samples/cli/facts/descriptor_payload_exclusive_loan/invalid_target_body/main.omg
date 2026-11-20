@@ -4,9 +4,9 @@
 data Slot { case Absent; case Present(value: [i64; 2]); }
 
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
@@ -33,7 +33,7 @@ boundary trait SelectedApply {
 }
 X86Apply satisfies SelectedApply {
     machine apply(chosen: @mut Slot, other: @mut Slot, visits: @mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    requires chosen in Slot::Present, other in Slot::Present, visits == 0
+    requires chosen in Slot::Present, other in Slot::Present, $visits == 0
     {
         SelectedBodyCheck::require_tag(17u64);
         let selected: @mut [i64] = match choose(visits) {
@@ -41,13 +41,13 @@ X86Apply satisfies SelectedApply {
             false -> @mut other.value[..]
         };
         selected[0] = 41;
-        chosen = Slot::Present { value: [7, 0] };
+        $chosen = Slot::Present { value: [7, 0] };
         selected[0]
     }
 }
 ArmApply satisfies SelectedApply {
     machine apply(chosen: @mut Slot, other: @mut Slot, visits: @mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
-    requires chosen in Slot::Present, other in Slot::Present, visits == 0
+    requires chosen in Slot::Present, other in Slot::Present, $visits == 0
     {
         SelectedBodyCheck::require_tag(29u64);
         let selected: @mut [i64] = match choose(visits) {
@@ -55,7 +55,7 @@ ArmApply satisfies SelectedApply {
             false -> @mut other.value[..]
         };
         selected[0] = 41;
-        chosen = Slot::Present { value: [7, 0] };
+        $chosen = Slot::Present { value: [7, 0] };
         selected[0]
     }
 }

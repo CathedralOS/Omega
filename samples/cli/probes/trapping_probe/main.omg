@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // THE EXPLICIT TRAPPING SAMPLE -- the one place in samples/ where `in Trapping`
 // is the feature under test, not a convenience. Everywhere else the corpus
 // posture is: PROVE bounds (Exact, no annotation) or DECLARE wrap semantics
@@ -13,7 +13,7 @@ use omega::language::core::ProcessExit;
 // not merely a nonzero exit or another crash. See README.md for running this
 // sample; it deliberately has no ordinary exit-code oracle.
 // Warnings that this computation always overflows are expected.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { x: i32 in Trapping; }
 machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.x = 2147483647;

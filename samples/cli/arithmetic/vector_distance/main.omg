@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Euclidean magnitude with ordinary standard-library math: for a classic
 // 3-4-5 right triangle, |(3, 4)| = sqrt(3*3 + 4*4) = sqrt(25) = 5. The legs
 // come from `abs` (distance is direction-agnostic, so a negative delta gives
@@ -8,11 +8,11 @@ use omega::language::core::ProcessExit;
 // Exits with the magnitude as its code.
 // Expected exit: 5.
 
-use omega::language::core::I32::from_f64;
-use omega_language_std::Console;
-use omega::language::core::abs_f64;
-use omega::language::core::clamp_i32;
-use omega::language::core::sqrt_f64;
+use omega\language\core\I32::from_f64;
+use omega_language_std\Console;
+use omega\language\core\abs_f64;
+use omega\language\core\clamp_i32;
+use omega\language\core\sqrt_f64;
 
 data Main {
     dx: f64;

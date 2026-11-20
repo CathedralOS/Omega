@@ -4,10 +4,10 @@ use omega_language_std;
 // Attribute updates resolve a path once, retain unrelated observed attributes,
 // and leave all timestamps unchanged; this is not atomic against another
 // writer changing those same attributes. Capture failure before releasing.
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\narrow_u64_to_i64_wrapping;
 
 machine windows_file_control_completion(status: i32, released: i32) -> i32 {
     transition status != 0 { true -> (status), false -> (released) }
