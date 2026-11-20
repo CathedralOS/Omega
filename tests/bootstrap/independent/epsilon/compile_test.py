@@ -24,14 +24,8 @@ FIXTURES = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location('epsilon_composition', FIXTURES / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(composition)
-CONSOLE = b'''boundary trait Console {
- machine exit_process(return_code: i32) -> never;
- machine write_byte(value: i32);
- machine read_byte() -> i32;
- machine write_line(text: &[u8]);
-}
-data Main { console: Console; }
-'''
+CONSOLE_BOUNDARY = (FIXTURES / 'console.epsilon').read_bytes()
+CONSOLE = CONSOLE_BOUNDARY + b'data Main { console: Console; }\n'
 EMPTY_MAIN = b'machine Main::main(&mut self) {}\n'
 CONTROLS = [
     ('count', '5', 5), ('call', '5', 6),
@@ -170,7 +164,7 @@ def signature_source(base):
 
 
 def stored_customers(work, observe, compile_delta, reference, compiler):
-    boundary = CONSOLE[:CONSOLE.index(b'data Main')]
+    boundary = CONSOLE_BOUNDARY
 
     def program(source, name, entry=None):
         (work / f'{name}.epsilon').write_bytes(source)
@@ -527,7 +521,7 @@ def run(work, vm, producer, realize, seconds):
         signature_output = (work / 'compiler-signature-reference.observation').read_bytes()
         report['stored_customers']['compiler_signature'].update(check_alpha('compiler-signature', b'', signature_output))
         report['lexer_scan'] = scan_controls.run(
-            work, composition, CONSOLE[:CONSOLE.index(b'data Main')], compiler,
+            work, composition, CONSOLE_BOUNDARY, compiler,
             observe, compile_delta, reference, identity, alpha_program, check_alpha)
         report.update(state='passed', stage='complete', refusal_controls=3, finished=time.time())
         checkpoint()

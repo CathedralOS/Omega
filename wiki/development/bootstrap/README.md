@@ -161,6 +161,20 @@ for program in omega-byte-classes omega-wrong-base; do
 done
 ```
 
+### Public Omega lexer
+
+The same route selector can run the production scanner on whole source
+fragments. Select a case with `--case` and keep each case’s output directory.
+
+| Case | What the route must observe |
+| --- | --- |
+| `omega-lexer` | One scan at a chosen cursor and whole-source validation on 23 inputs, including nested comments, UTF-8, escapes and malformed strings. Exit 42 and 460 result bytes. |
+| `omega-wrong-offset` | Change the caller from `scan_at(source, offset)` to `scan_at(source, source)`. The frontend must report type error 18 at the call head. |
+| `omega-punctuation` | Scan each of 45 spellings at end of input and between letters. Emit the token’s extent and the spelling of the punctuation kind the scanner actually selected. |
+
+[Public lexer cases](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py) ·
+[Punctuation observations](../../../tests/bootstrap/independent/epsilon/lexer_punctuation_main.epsilon)
+
 ## Tested threads through the matrix
 
 Read each row from left to right after the common Alpha and Beta steps.

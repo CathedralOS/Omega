@@ -18,9 +18,19 @@ from compiled import (ROOT, delta_request, executable, gamma_backend_source, gam
 from conformance.vectors import epsilon_program_cases, epsilon_request
 from independent.epsilon.composition import CompileRefusal, compiler_source, linked_program
 from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
+from independent.epsilon.lexer_scan_test import public_scan_case, public_scan_wrong_offset_case, punctuation_case
 from interpreted.delta.interpreter import materialize
 
 MODES = ("interpret", "alpha", "native")
+COMPILER_PROGRAMS = {
+    "omega-byte-classes": byte_class_case,
+    "omega-lexer": public_scan_case,
+    "omega-punctuation": punctuation_case,
+}
+COMPILER_REFUSALS = {
+    "omega-wrong-base": byte_class_wrong_base_case,
+    "omega-wrong-offset": public_scan_wrong_offset_case,
+}
 
 
 @dataclass(frozen=True)
@@ -287,7 +297,7 @@ def main():
         parser.add_argument("--" + rung, choices=(*MODES, "all"), required=True)
     program = parser.add_mutually_exclusive_group()
     program.add_argument("--source", type=Path, help="complete Epsilon program with its entry")
-    program.add_argument("--case", choices=("stdin", "exit", "trap", "omega-byte-classes", "omega-wrong-base"),
+    program.add_argument("--case", choices=("stdin", "exit", "trap", *COMPILER_PROGRAMS, *COMPILER_REFUSALS),
                          help="program with a known observation (default: stdin)")
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
     parser.add_argument("--expect-observation", type=Path, metavar="FILE",
@@ -317,7 +327,7 @@ def main():
     if args.reuse_stages and not matrix:
         parser.error("--reuse-stages requires at least one selector set to all")
     expected = None
-    expect_rejection = args.case == "omega-wrong-base"
+    expect_rejection = args.case in COMPILER_REFUSALS
     if args.expect_observation:
         if not args.source:
             parser.error("--expect-observation requires --source")
@@ -334,9 +344,9 @@ def main():
                 guest = args.source.read_bytes()
                 stdin = args.stdin.read_bytes() if args.stdin else b""
             elif expect_rejection:
-                guest, stdin, expected = byte_class_wrong_base_case(ROOT)
-            elif args.case == "omega-byte-classes":
-                guest, stdin, expected = byte_class_case(ROOT)
+                guest, stdin, expected = COMPILER_REFUSALS[args.case](ROOT)
+            elif args.case in COMPILER_PROGRAMS:
+                guest, stdin, expected = COMPILER_PROGRAMS[args.case](ROOT)
             else:
                 cases = {name: (source, stdin, result) for name, source, stdin, result in epsilon_program_cases()}
                 guest, stdin, expected = cases[args.case or "stdin"]
