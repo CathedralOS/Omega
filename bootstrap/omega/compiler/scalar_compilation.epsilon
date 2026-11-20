@@ -3437,7 +3437,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state reset_state_graph(index: i32) {
-        transition index < self.parser.machine_state_count {
+        transition index < self.program_state_count() {
             true -> reset_state_node(index)
             _ -> check_declarations(0)
         }
@@ -3522,7 +3522,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state check_entry_bounds(state_index: i32) {
-        transition state_index < self.parser.machine_state_count {
+        transition state_index < self.program_state_count() {
             true -> decode_entry_bounds(state_index)
             _ -> signatures_ready()
         }
@@ -4457,7 +4457,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     // Each effect follows the same incoming calls and transitions. A state
     // enters the bounded worklist once per effect, including cycles.
     state seed_effect(effect: i32, index: i32, count: i32) {
-        transition index < self.parser.machine_state_count {
+        transition index < self.program_state_count() {
             true -> check_seed(effect, index, count)
             _ -> propagate_effect(effect, 0, count)
         }
@@ -4502,7 +4502,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition true { true -> predecessors(effect, cursor, count + 1, edge.next) }
     }
     state check_state_bounds(index: i32) {
-        transition index < self.parser.machine_state_count {
+        transition index < self.program_state_count() {
             true -> check_state_bound(index)
             _ -> check_crash_bounds(0)
         }
@@ -4572,7 +4572,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     // label is its entry state's label, so calls and adapter entry reach the
     // top-level body exactly as the state contract specifies.
     state labels(index: i32) {
-        transition index < self.parser.machine_state_count {
+        transition index < self.program_state_count() {
             true -> label(index)
             _ -> machine_entry_labels(0)
         }
