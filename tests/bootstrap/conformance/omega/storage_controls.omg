@@ -52,6 +52,18 @@ machine construction_byte_arena() -> u8 {
     machine miss() -> u8 { 7 }
 }
 
+// In value position each name selects its local or parameter, even when
+// another machine in the enclosing scope has the same name.
+machine read_helper_names() -> u8 {
+    transition { _ -> read(42) }
+    machine read(marker: u8) -> u8 {
+        let sibling: u8 = marker;
+        sibling
+    }
+    machine marker() -> u8 { 7 }
+    machine sibling() -> u8 { 9 }
+}
+
 machine main() -> u8 {
     let mut unit: SourceUnit;
     let id: SourceId = SourceId { value: 77 as +Trapping };
@@ -73,7 +85,7 @@ machine main() -> u8 {
     path.length = 255;
     let path_last: bool = module_path_append(@mut path, 73);
     let path_full: bool = module_path_append(@mut path, 99);
-    transition disjoint_reference_parameters() && unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 && qualified_array_element_copy() == 42 && indexed_record_fields() == 42 && construction_byte_arena() == 42 {
+    transition read_helper_names() == 42 && disjoint_reference_parameters() && unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 && qualified_array_element_copy() == 42 && indexed_record_fields() == 42 && construction_byte_arena() == 42 {
         true -> yes(),
         _ -> no()
     }

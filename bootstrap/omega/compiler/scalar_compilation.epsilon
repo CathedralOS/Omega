@@ -1400,7 +1400,13 @@ machine OmegaScalarCompiler::check_value(
         transition (call.has_receiver != 0) ||
             (self.resolve_state(source, state_index, call.target.start, call.target.end) < 0) {
             true -> global_target(call)
-            _ -> unsupported(call.target.start)
+            _ -> nested(call)
+        }
+    }
+    state nested(call: OmegaCallExpressionSyntax) {
+        transition self.check_helper_name(source, state_index, before, call.target) {
+            1 -> unsupported(call.target.start)
+            _ -> return 0
         }
     }
     state global_target(call: OmegaCallExpressionSyntax) {
@@ -2081,6 +2087,32 @@ machine OmegaScalarCompiler::is_constant_expression(&mut self, expression: i32) 
     }
 }
 
+// A visible value binding takes precedence over a nested machine of the
+// same name. A scalar cannot be called. Other indirect calls need a checked
+// callable representation before this compiler can emit them.
+machine OmegaScalarCompiler::check_helper_name(
+    &mut self, source: &[u8], state_index: i32, before: i32, name: OmegaRelativeSpan
+) -> i32 {
+    transition self.pattern_binding(source, name) >= 0 {
+        true -> unsupported()
+        _ -> binding(self.value_cell(source, state_index, before, name.start, name.end))
+    }
+    state binding(cell: i32) {
+        transition cell >= 0 {
+            true -> type(self.cell_types[cell])
+            _ -> return 1
+        }
+    }
+    state type(kind: i32) {
+        transition (kind > 0) && (kind < 100000) {
+            true -> noncallable()
+            _ -> unsupported()
+        }
+    }
+    state noncallable() { self.record_reject(-1, 4, name.start); return 0; }
+    state unsupported() { self.record_incomplete(4, name.start); return 0; }
+}
+
 machine OmegaScalarCompiler::check_transition_target(
     &mut self, source: &[u8], owner: i32, state_index: i32, before: i32, row_index: i32
 ) -> i32 {
@@ -2094,8 +2126,14 @@ machine OmegaScalarCompiler::check_transition_target(
     state target(row: OmegaTransitionStatementSyntax) {
         let target: i32 = self.resolve_state(source, state_index, row.target.start, row.target.end);
         transition target >= 0 {
-            true -> signature(row, target)
+            true -> helper(row, target)
             _ -> outside_owner(row)
+        }
+    }
+    state helper(row: OmegaTransitionStatementSyntax, target: i32) {
+        transition self.check_helper_name(source, state_index, before, row.target) {
+            1 -> signature(row, target)
+            _ -> return 0
         }
     }
     // Ordinary terminal calls may name globals, but this static-cell slice
@@ -2742,8 +2780,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
         }
     }
     state parameter_scope(index: i32, offset: i32, name: OmegaRelativeSpan) {
-        transition (self.resolve_machine(source, name.start, name.end) < 0) &&
-            (self.resolve_state(source, index, name.start, name.end) < 0) {
+        transition self.resolve_machine(source, name.start, name.end) < 0 {
             true -> parameter_names(index, offset, name, 0)
             _ -> unsupported(name.start)
         }
@@ -3385,8 +3422,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state local_scope(index: i32, state_index: i32, statement_offset: i32,
         local: OmegaLocalDataStatementSyntax) {
-        transition (self.resolve_machine(source, local.name.start, local.name.end) < 0) &&
-            (self.resolve_state(source, state_index, local.name.start, local.name.end) < 0) {
+        transition self.resolve_machine(source, local.name.start, local.name.end) < 0 {
             true -> local_value(index, state_index, statement_offset, local)
             _ -> incomplete(4, local.name.start)
         }
@@ -3523,7 +3559,15 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition (call.receiver_member_count > 0) ||
             (self.resolve_state(source, state_index, name.start, name.end) < 0) {
             true -> global_call_target(index, state_index, statement, call, name)
-            _ -> incomplete(4, name.start)
+            _ -> nested_call(state_index, statement, name)
+        }
+    }
+
+    state nested_call(state_index: i32, statement: i32, name: OmegaRelativeSpan) {
+        let before: i32 = statement - self.parser.machine_states[state_index].first_statement;
+        transition self.check_helper_name(source, state_index, before, name) {
+            1 -> incomplete(4, name.start)
+            _ -> return
         }
     }
 

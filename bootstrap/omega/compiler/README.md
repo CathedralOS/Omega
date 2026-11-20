@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 25,116 lines / 954,399 bytes with SHA-256
-`b4638563fa3cf6c27fc05e77fcf35a55ddb0adccbd4ae87f35b259cbc543651d`.
+manifest materializes 25,160 lines / 956,031 bytes with SHA-256
+`f1936fcc521f8bc78a567c08136743d23edbf6eef6e24e32ff44e698c8cb6d3b`.
 The manifest itself is 2,039 bytes, SHA-256
-`4f11dd3db660d589a72a00f7a040529aef6b779e7e2a2b0ec51d1e2a3436bce1`;
+`07c7612b5c9fc27775436f22f2345fe4e4e3e1e728fbe70fc3dc0cb5c8150137`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -355,8 +355,9 @@ elements in a reduced `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
-It returns `Incomplete` at file byte 6,843, where a nested parameter shares
-the name of a sibling helper. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+It reads `path` as a parameter in the nested helper even though a sibling
+machine has that name. Its next coverage refusal points to the borrowed byte
+slice parameter `spelling` at file byte 17,105. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
