@@ -503,6 +503,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             115 -> unmarked_path()
             116 -> combined_acknowledgement_target()
             117 -> nested_block_value()
+            118 -> transition_pattern_alias()
+            119 -> transition_pattern_alias_end()
+            120 -> struct_literal_omission_end(1)
+            121 -> struct_literal_omission_end(0)
             _ -> internal_failure()
         }
     }
@@ -950,6 +954,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 source.len, source.len)
             106 -> requirement_failure(source.len, source.len)
             107 -> type_end_failure(source.len, source.len)
+            118 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm, source.len, source.len)
+            119 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm, source.len, source.len)
+            120 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, source.len, source.len)
+            121 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, source.len, source.len)
             _ -> internal_failure()
         }
     }
@@ -4523,6 +4531,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.transition_pattern_member_start = self.scan.token_start;
         self.transition_pattern_member_end = self.scan.token_end;
         self.transition_pattern_member = self.member_count;
+        self.transition_pattern_fields[self.transition_pattern_field_count].kind = OmegaTransitionPatternFieldKind::Bind;
+        self.transition_pattern_fields[self.transition_pattern_field_count].binding.start = self.scan.token_start;
+        self.transition_pattern_fields[self.transition_pattern_field_count].binding.end = self.scan.token_end;
         self.members[self.member_count].start = self.scan.token_start;
         self.members[self.member_count].end = self.scan.token_end;
         self.member_count = self.member_count + 1;
@@ -4533,8 +4544,77 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state transition_destructure_field_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> transition_destructure_field_end_punctuation()
-            OmegaTokenKind::Keyword -> incomplete_root()
+            OmegaTokenKind::Keyword -> transition_pattern_as()
             _ -> incomplete_root()
+        }
+    }
+
+    state transition_pattern_as() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::As -> begin_transition_pattern_alias()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_transition_pattern_alias() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(118) }
+    }
+
+    state transition_pattern_alias() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> transition_pattern_alias_identifier()
+            OmegaTokenKind::Keyword -> transition_pattern_alias_keyword()
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm, self.scan.token_start, self.scan.token_end)
+        }
+    }
+
+    state transition_pattern_alias_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> incomplete_root()
+            _ -> retain_transition_pattern_alias()
+        }
+    }
+
+    state transition_pattern_alias_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "_") {
+            1 -> waive_transition_pattern_field()
+            _ -> retain_transition_pattern_alias()
+        }
+    }
+
+    state waive_transition_pattern_field() {
+        self.transition_pattern_fields[self.transition_pattern_field_count].kind = OmegaTransitionPatternFieldKind::Waive;
+        self.transition_pattern_fields[self.transition_pattern_field_count].binding.start = 0;
+        self.transition_pattern_fields[self.transition_pattern_field_count].binding.end = 0;
+        transition true { true -> after_transition_pattern_alias() }
+    }
+
+    state retain_transition_pattern_alias() {
+        self.transition_pattern_fields[self.transition_pattern_field_count].binding.start = self.scan.token_start;
+        self.transition_pattern_fields[self.transition_pattern_field_count].binding.end = self.scan.token_end;
+        transition true { true -> after_transition_pattern_alias() }
+    }
+
+    state after_transition_pattern_alias() {
+        self.transition_pattern_member_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(119) }
+    }
+
+    state transition_pattern_alias_end() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_pattern_alias_delimiter()
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm, self.scan.token_start, self.scan.token_end)
+        }
+    }
+
+    state transition_pattern_alias_delimiter() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> retain_bound_transition_pattern_field()
+            OmegaPunctuationKind::RightBrace -> retain_bound_transition_pattern_field()
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm, self.scan.token_start, self.scan.token_end)
         }
     }
 
@@ -4585,21 +4665,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_bound_transition_pattern_field() {
-        transition true { true -> retain_bound_transition_pattern_field_bounded() }
-    }
-
-    state retain_bound_transition_pattern_field_bounded() {
         self.transition_pattern_fields[
             self.transition_pattern_field_count
         ].member = self.transition_pattern_member;
-        self.transition_pattern_fields[self.transition_pattern_field_count].kind =
-            OmegaTransitionPatternFieldKind::Bind;
-        self.transition_pattern_fields[
-            self.transition_pattern_field_count
-        ].binding.start = self.transition_pattern_member_start;
-        self.transition_pattern_fields[
-            self.transition_pattern_field_count
-        ].binding.end = self.transition_pattern_member_end;
         self.transition_pattern_fields[self.transition_pattern_field_count].value = 0;
         self.transition_pattern_fields[self.transition_pattern_field_count].start =
             self.transition_pattern_member_start;
@@ -6578,12 +6646,40 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state struct_literal_field_or_end_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::RightBrace -> retain_struct_literal()
+            OmegaPunctuationKind::RightBrace -> retain_struct_literal(0)
+            OmegaPunctuationKind::DotDot -> scan_after_omission(120)
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd,
                 self.scan.token_start,
                 self.scan.token_end
             )
+        }
+    }
+
+    state scan_after_omission(purpose: i32) {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(purpose) }
+    }
+
+    state struct_literal_omission_end(allow_comma: i32) {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> struct_literal_omission_punctuation(allow_comma)
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, self.scan.token_start, self.scan.token_end)
+        }
+    }
+
+    state struct_literal_omission_punctuation(allow_comma: i32) {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> retain_struct_literal(1)
+            OmegaPunctuationKind::Comma -> struct_literal_omission_comma(allow_comma)
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, self.scan.token_start, self.scan.token_end)
+        }
+    }
+
+    state struct_literal_omission_comma(allow_comma: i32) {
+        transition allow_comma {
+            1 -> scan_after_omission(121)
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, self.scan.token_start, self.scan.token_end)
         }
     }
 
@@ -6664,7 +6760,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.pending_struct_field_count = pending + 1;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Comma -> next_struct_literal_field()
-            OmegaPunctuationKind::RightBrace -> retain_struct_literal()
+            OmegaPunctuationKind::RightBrace -> retain_struct_literal(0)
             _ -> internal_failure()
         }
     }
@@ -6674,10 +6770,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> scan_semantic(55) }
     }
 
-    state retain_struct_literal() {
+    state retain_struct_literal(has_omission: i32) {
         transition (self.expression_count < 16384) &&
             (self.struct_literal_count < 16384) {
-            true -> retain_struct_literal_bounded()
+            true -> retain_struct_literal_bounded(has_omission)
             _ -> resource_failure(
                 OmegaParserResource::Expressions,
                 16384,
@@ -6686,7 +6782,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
-    state retain_struct_literal_bounded() {
+    state retain_struct_literal_bounded(has_omission: i32) {
+        self.struct_literals[self.struct_literal_count].has_omission = has_omission;
         self.struct_literal_first_field = self.struct_literal_field_count;
         transition true { true -> publish_struct_literal_fields(self.struct_literal_pending_head) }
     }

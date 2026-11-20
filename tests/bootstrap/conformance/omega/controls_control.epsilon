@@ -98,10 +98,12 @@ machine Main::main(&mut self) {
         self.refusal("data Mode [copy] {case First;case Second;}machine main()->u8{let x:Mode=0;42}",1,127);
         // noncopy
         self.refusal("data Mode {case First;} machine main()->u8{42}",2,128);
-        // payload
-        self.refusal("data Mode [copy]{case First(value:u8);} machine main()->u8{42}",2,129);
+        // A case with a payload requires an explicit value.
+        self.refusal("data Mode [copy]{case First(value:u8);} machine main()->u8{let v:Mode=Mode::First;42}",1,129);
         assert self.compiler.parser.data_cases[0].payload_field_count == 1;
-        assert self.compiler.outcome_coordinate == 0;
+        assert self.compiler.outcome_coordinate == 40;
+        self.payload_bindings();
+        self.payload_omissions();
         // Rebuild the first-case default after failed partial case censuses.
         self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,140);
         self.source_sets();
@@ -192,4 +194,46 @@ machine Main::source_sets(&mut self) {
         self.compiler.compile_set(source, 0, "main");
         self.publish(42, 143);
     }
+}
+
+// Each selection tests the original field name. Only the binding to its
+// right is visible in that arm's target.
+machine Main::payload_bindings(&mut self) {
+    self.positive("data M [copy]{case P(a:u8,b:u8);}machine pick(s:M)->u8{transition s{M::P{b as answer,a as _}->done(answer)}machine done(x:u8)->u8{x}}machine main()->u8{let p:M=M::P{b:42,a:7};pick(p)}",42,151);
+    // Missing original field.
+    self.rejected_at("data M [copy]{case P(a:u8);}machine pick(s:M)->u8{transition s{M::P{bad as x}->done(x)}machine done(x:u8)->u8{x}}machine main()->u8{42}", 68, 152);
+    // One field cannot supply two bindings, even with distinct aliases.
+    self.rejected_at("data M [copy]{case P(a:u8);}machine pick(s:M)->u8{transition s{M::P{a as x,a as y}->done(x)}machine done(x:u8)->u8{x}}machine main()->u8{42}", 75, 153);
+    // Two fields cannot establish the same local.
+    self.rejected_at("data M [copy]{case P(a:u8,b:u8);}machine pick(s:M)->u8{transition s{M::P{a as x,b as x}->done(x)}machine done(x:u8)->u8{x}}machine main()->u8{42}", 85, 154);
+    // Renaming removes the shorthand binding. Another arm cannot see the alias.
+    self.rejected_at("data M [copy]{case P(a:u8);}machine pick(s:M)->u8{transition s{M::P{a as x}->done(a)}machine done(x:u8)->u8{x}}machine main()->u8{42}", 82, 155);
+    self.rejected_at("data M [copy]{case P(a:u8);case None;}machine pick(s:M)->u8{transition s{M::P{a as x}->done(x),M::None->done(x)}machine done(x:u8)->u8{x}}machine main()->u8{42}", 109, 156);
+    // Omitted fields require an explicit '..'.
+    self.rejected_at("data M [copy]{case P(a:u8,b:u8);}machine pick(s:M)->u8{transition s{M::P{a as x}->done(x)}machine done(x:u8)->u8{x}}machine main()->u8{42}", 68, 157);
+    // Construction names are case-local, complete, and unique.
+    self.rejected_at("data M [copy]{case P(a:u8,b:u8);case Q(c:u8);}machine main()->u8{let v:M=M::P{a:1,c:2};42}", 82, 158);
+    self.rejected_at("data M [copy]{case P(a:u8,b:u8);}machine main()->u8{let v:M=M::P{a:1,a:2};42}", 69, 159);
+    self.rejected_at("data M [copy]{case P(a:u8,b:u8);}machine main()->u8{let v:M=M::P{a:1};42}", 60, 160);
+    // Zero storage establishes the first case with a zero-valued payload.
+    self.positive("data M [copy]{case P(a:u8);}machine main()->u8{let p:M;transition p{M::P{a as result}->done(result)}machine done(x:u8)->u8{x}}",0,161);
+    // The selected sum owns its copy of the record.
+    self.positive("data Box [copy]{value:u8;} data M [copy]{case P(box:Box);} machine read(s:M)->u8 {transition s{M::P{box as saved}->done(saved.value)}machine done(x:u8)->u8{x}} machine main()->u8{let mut b:Box;b.value=42;let p:M=M::P{box:b};b.value=0;read(p)}",42,162);
+    // A mutation in a terminal sibling cannot invalidate this arm's entry bound.
+    self.positive("data C { bytes:[u8;2]; length:u64; } data S [copy] {case First(v:u8);case Last;} machine change(c:@mut C)->u8 {c.length=2;0} machine choose(c:@mut C,s:S)->u8 { transition c.length<2 {true->pick(c,s),_->miss()} machine pick(c:@mut C,s:S)->u8 requires c.length<2 { transition s {S::First {v as _}->done(change(c)),S::Last->done(c.bytes[c.length])} } machine done(x:u8)->u8 {x} machine miss()->u8 {1} } machine main()->u8 {let mut c:C;c.bytes[0]=42;choose(@mut c,S::Last)}",42,163);
+}
+
+machine Main::rejected_at(&mut self, source: &[u8], coordinate: i32, failure: i32) {
+    self.refusal(source, 1, failure);
+    assert self.compiler.outcome_coordinate == coordinate;
+}
+
+// A literal's final marker authorizes zero for fields of that literal.
+machine Main::payload_omissions(&mut self) {
+    self.positive("data Box [copy]{value:u8;zero:u8;}data M [copy]{case Empty;case P(box:Box,unused:u8);}machine read(s:M)->u8{transition s{M::P{box as b,unused as n}->check(b.value,b.zero,n),_->no()}machine check(x:u8,y:u8,z:u8)->u8{transition y==0&&z==0{true->done(x),_->no()}}machine done(x:u8)->u8{x}machine no()->u8{1}}machine main()->u8{let p:M=M::P{box:Box{value:42,..},..};read(p)}", 42, 164);
+    self.positive("data M [copy]{case Empty;case P(a:u8,b:u8);}machine main()->u8{let p:M=M::P{..};transition p{M::P{a as x,b as _}->done(x),_->bad()}machine done(x:u8)->u8{x}machine bad()->u8{1}}", 0, 165);
+    self.rejected_at("data M [copy]{case Empty;case P(a:u8,b:u8);}machine main()->u8{let p:M=M::P{..,a:42};42}", 79, 166);
+    self.rejected_at("data M [copy]{case Empty;case P(a:u8,b:u8);}machine main()->u8{let p:M=M::P{..,..};42}", 79, 167);
+    self.rejected_at("data M [copy]{case Empty;case P(a:u8,b:u8);}machine main()->u8{let p:M=M::P{..p};42}", 78, 168);
+    self.rejected_at("data B [copy]{x:u8;y:u8;}data M [copy]{case P(b:B,z:u8);}machine main()->u8{let p:M=M::P{b:B{x:42},..};42}", 91, 169);
 }

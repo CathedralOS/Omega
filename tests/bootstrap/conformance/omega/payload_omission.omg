@@ -1,0 +1,28 @@
+data Mode [copy] {
+    case Empty;
+    case Pair(value: u8, unused: u8);
+}
+
+machine pair(value: u8) -> Mode {
+    let built: Mode = Mode::Pair { value: value, .., };
+    built
+}
+
+machine matches(subject: Mode, expected: u8) -> bool {
+    transition subject {
+        Mode::Pair { value as actual, unused } -> fields(actual, unused, expected),
+        Mode::Empty -> empty()
+    }
+    machine fields(value: u8, zero: u8, expected: u8) -> bool {
+        value == expected && zero == 0
+    }
+    machine empty() -> bool { false }
+}
+
+machine main() -> u8 {
+    transition matches(pair(7), 7) && matches(pair(42), 42) {
+        true -> yes(), _ -> no()
+    }
+    machine yes() -> u8 { 42 }
+    machine no() -> u8 { 1 }
+}

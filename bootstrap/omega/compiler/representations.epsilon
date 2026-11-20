@@ -592,6 +592,7 @@ data OmegaTransitionGuardKind {
 data OmegaTransitionPatternFieldKind {
     case Bind;
     case Match;
+    case Waive;
 }
 
 data OmegaTransitionPatternFieldSyntax {
@@ -611,8 +612,8 @@ data OmegaTransitionTargetKind {
 // The first transition slice retains zero or one subject and expands every arm
 // into one ordinary statement, matching the canonical syntax tree. Guard
 // spelling stays source-shaped. Qualified case paths and their optional braces
-// retain a contiguous field ledger; shorthand fields bind their own names and
-// fixed path values remain ordinary expressions. Richer subjects, patterns,
+// retain the source field and its arm-local binding separately. A waiver binds
+// no name. Fixed path values remain ordinary expressions. Richer subjects, patterns,
 // and targets remain parser-incomplete.
 data OmegaTransitionStatementSyntax {
     has_subject: i32;
@@ -773,6 +774,7 @@ data OmegaStructLiteralSyntax {
     type_member_count: i32;
     first_field: i32;
     field_count: i32;
+    has_omission: i32;
     start: i32;
     end: i32;
 }

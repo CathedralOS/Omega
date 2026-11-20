@@ -14,6 +14,7 @@ Read each row from left to right after the common Alpha and Beta steps.
 | Linux | Linux | Alpha tape | The full public lexer passed 23 cases on the unchanged seed with a 7,342,855-byte tape. [Run](compiled-alpha.md#run-the-public-omega-lexer-on-alpha) |
 | Linux | Linux | Alpha tape | The Omega state-signature checker accepted a unit signature and rejected a malformed return type. Its 15,398,168-byte tape matched the evaluator. [Checker](../../../bootstrap/omega/compiler/scalar_compilation.epsilon) |
 | Linux | Linux | Linux executable | The string scanner passed 17 cases and the full public lexer passed 23. [Run](native.md#public-omega-lexer-observations) |
+| Linux | Linux | Linux executable | The Epsilon-written Omega compiler built the two-package wire decoder. Its 1,607-byte Alpha tape matched the interpreter and exited 42 on the seed. [Whole compiler](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#whole-compiler-result) |
 
 The compiled scanner runs reused source-built Linux tools to turn emitted Delta into
 Gamma. The Gamma backends then built the scanner programs. Sharing the Alpha stack operations and the Epsilon compiler's outcome handling both reduced the tape size.
@@ -48,21 +49,15 @@ The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.m
 
 ## Whole Omega compiler
 
-On Alpha and Linux the Epsilon compiler produced the same Delta module from
-the complete 852,096-byte Omega bootstrap compiler and construction entry.
-With its storage runtime, the Delta program occupies 18,365,364 bytes. Delta checked
-the entire program and published 26,398,215 bytes of Gamma. The compact
-Linux backend built the 56,933,914-byte executable. It compiled the portable
-Omega program and the two-package wire decoder into 50-byte and 1,607-byte
-Alpha tapes. Both tapes matched the Epsilon evaluator and exited 42 on the seed. [Compiled route and byte identities](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#whole-compiler-result)
+On the 852,096-byte compiler and construction entry, the Alpha-hosted and
+Linux-hosted Epsilon compilers emitted identical Delta. The compact Gamma
+backend then built a Linux executable that compiled the portable Omega program
+and the two-package wire decoder. [Compared artifacts](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#whole-compiler-result)
 
-The product input contains 304 Omega source units in seven packages. Its
-3,955,617 bytes become a 4,807,765-byte request when sent with the Epsilon
-compiler source to the evaluator. Both original conformance targets refused
-that packet at their 4 MiB input limit. The construction-profile Linux
-evaluator reached the guest on a same-length malformed request. The earlier
-480-second run on the full valid input produced no compiler outcome. The
-compiled Linux constructor reached a 10 GiB memory guard while staging the
-product. A 512 KiB prefix reached its expected EOF refusal. A 576 KiB prefix
-reached the same guard before the parser could run.
-[Constructor input](../../../source/application/construction/construct.py) · [Interpreted measurements](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
+With named payload bindings and zero omissions, the chain built a
+58,490,251-byte Linux executable. It matched the independent source model
+on 24 payload cases, including nine programs that ran on Alpha. On all 304
+units, the native executable reached the 10 GiB memory guard while reading
+its input. The source model advanced from the renamed binding in
+`expressions.omg` at byte 87,497 to the qualified array element in
+`scalar.omg` at byte 116,239. [Payload results](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#named-payload-bindings)

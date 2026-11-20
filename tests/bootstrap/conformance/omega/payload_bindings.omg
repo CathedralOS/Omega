@@ -1,0 +1,21 @@
+data Selection [copy] {
+    case Missing;
+    case Machine(slot: u8, handle: u8);
+}
+
+machine selected(value: Selection, callee: u8) -> u8 {
+    transition value {
+        Selection::Machine { handle as callee, slot as _ } -> finish(callee),
+        Selection::Missing -> finish(callee)
+    }
+    machine finish(id: u8) -> u8 { id }
+}
+
+machine main() -> u8 {
+    let value: Selection = Selection::Machine { handle: 42, slot: 7 };
+    transition selected(value, 1) == 42 && selected(Selection::Missing, 9) == 9 {
+        true -> yes(), _ -> no()
+    }
+    machine yes() -> u8 { 42 }
+    machine no() -> u8 { 1 }
+}
