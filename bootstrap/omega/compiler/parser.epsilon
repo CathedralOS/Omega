@@ -6417,6 +6417,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state retain_comma_terminated_path() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument -> retain_call_argument_path()
+            OmegaExpressionConsumer::Requirement -> retain_path_expression()
             OmegaExpressionConsumer::StructFieldValue ->
                 retain_struct_field_value_path()
             OmegaExpressionConsumer::TransitionPatternFieldValue ->
