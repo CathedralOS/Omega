@@ -13,7 +13,7 @@ It also ships the language libraries that Omega programs import.
 | [subsystems/compiler/source_to_psi](subsystems/compiler/source_to_psi) | Own the source representations and the stages that parse, resolve, check and lower a program. |
 | [subsystems/compiler/alpha](subsystems/compiler/alpha) | Encode the supported scalar operations as Alpha tape. |
 | [foundation/wire](foundation/wire) | Decode little-endian words for both compiler inputs. |
-| [library](library) | Supply the core, allocation and standard-library packages used by Omega programs. |
+| [library](library) | Expose core, allocation, standard-library and blocking-executor code to Omega programs. |
 
 A well-framed public request currently reaches the unimplemented request
 semantics phase and produces an Incomplete outcome. The construction application

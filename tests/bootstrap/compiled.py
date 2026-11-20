@@ -183,13 +183,17 @@ def omega_control_customer(work, timeout):
     """Compile the repository lexer predicates and execute scalar controls."""
     closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
-    lexer = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/lexer.omg").read_bytes()
+    frontend = ROOT / "source/subsystems/compiler/source_to_psi"
+    stage = frontend / "pipeline/source_files_to_tokens"
+    lexer = (stage / "lexer.omg").read_bytes()
+    digits = (stage / "digits.omg").read_bytes()
     declarations = []
-    for name in (b"is_identifier_start", b"is_identifier_continue", b"lexer_digit_in_base"):
-        start = lexer.index(b"machine " + name + b"(")
-        end = lexer.index(b"\nmachine ", start + 1)
-        declarations.append(lexer[start:end])
-    tokens = (ROOT / "source/subsystems/compiler/source_to_psi/representations/tokens/tokens.omg").read_bytes()
+    for unit, name in ((lexer, b"is_identifier_start"), (lexer, b"is_identifier_continue"),
+                       (digits, b"lexer_digit_in_base")):
+        start = unit.index(b"machine " + name + b"(")
+        end = unit.index(b"\n}", start) + 2
+        declarations.append(unit[start:end])
+    tokens = (frontend / "representations/tokens/numeric.omg").read_bytes()
     start = tokens.index(b"public data NumericBase ")
     end = tokens.index(b"\n}", start) + 2
     declarations.insert(0, tokens[start:end])
