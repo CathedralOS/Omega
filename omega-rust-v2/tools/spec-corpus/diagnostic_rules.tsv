@@ -43,6 +43,7 @@ L4	discarded_operand_still_refuses_its_failed_precondition	An explicit discard e
 L4	exact_intermediate_overflow_refuses_the_call	L4 evaluates integers, Booleans, floating-point values
 L4	linear_constant_type_cannot_freeze	L4 evaluates integers, Booleans, floating-point values
 L4	cleanup_in_an_inactive_payload_prevents_freezing	L4 evaluates integers, Booleans, floating-point values
+L4	a_nested_omission_reports_the_constructor_that_requires_the_proof	L4 evaluates integers, Booleans, floating-point values
 L4	cyclic_named_constant_reads_are_refused	Named reads connect each prepared constant
 L4	a_cycle_points_to_the_closing_read_in_the_second_file	Named reads connect each prepared constant
 L4	an_abort_disproof_is_required_at_the_call_inside_the_sum	L4 specializes the selected body's published effects

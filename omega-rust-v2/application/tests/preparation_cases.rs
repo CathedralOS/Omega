@@ -376,3 +376,22 @@ const N:u64=1u64 +% f(12u64,3u64);";
         rule: ADMISSION,
     });
 }
+
+#[test]
+fn a_nested_omission_reports_the_constructor_that_requires_the_proof() {
+    let good = "data Part [copy] {value:u8;}\ndata Inner [copy] {part:Part;}\ndata Outer [copy] {inner:Inner;}\nconst VALUE:Outer=Outer{inner:Inner{..}};";
+    let bad = good.replace("Part [copy] {", "Part [copy] requires false {");
+    check(
+        PreparationReason::OmittedFieldZeroNeedsProof,
+        Case {
+            layer: "L4",
+            producer: "preparation",
+            good: &[("nested.omg", good)],
+            bad: &[("nested.omg", bad.as_str())],
+            file: "nested.omg",
+            occurrence: "Inner{..}",
+            reason: refusal!("the omitted field's zero value requires proof of the data predicate"),
+            rule: FROZEN_VALUES,
+        },
+    );
+}

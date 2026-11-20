@@ -30,6 +30,15 @@ pub(super) enum EvaluationError {
     OpenTarget(PreparationRefusal),
 }
 
+impl EvaluationError {
+    pub(crate) fn at_node(self, node: TreeNodeId) -> Self {
+        match self {
+            Self::Refused(cause, None) => Self::Refused(cause, Some(node)),
+            error => error,
+        }
+    }
+}
+
 // Only a typed reason can refuse evaluation, so every owned refusal is in
 // `PreparationReason::ALL`. Forwarded reasons name their owner explicitly.
 impl From<PreparationReason> for EvaluationError {
@@ -196,7 +205,7 @@ enum Step<'a> {
     Push(PreparedValue),
     FinishArray(usize),
     FinishTuple(usize),
-    FinishZeroArray(usize),
+    FinishZeroArray { site: TreeNodeId, count: usize },
     FinishConstruction {
         proof: Option<(TreeNodeId, ValueType)>,
         owner: DeclarationId,
@@ -293,6 +302,12 @@ impl ConstantEvaluation<'_, '_> {
         request: &StaticValueRequest,
         owner_arguments: Option<&[ValueType]>,
     ) -> Result<PreparedValue, EvaluationError> {
+        let tree = self.tree(request.node)?;
+        let source = tree.resolved().file;
+        let site = &request.expression;
+        if source.package != site.package || source.path != site.file || source.span(request.node.node) != site.span {
+            return Err(PreparationReason::RequestSiteMismatch.into());
+        }
         let (owner_arguments, owner_scopes) = match owner_arguments {
             Some(arguments) => {
                 let scopes = self
@@ -480,12 +495,12 @@ impl ConstantEvaluation<'_, '_> {
             Step::RestoreBindings { count, bindings } => bindings.values.borrow_mut().truncate(count),
             Step::Reject(error) => return Err(error),
             Step::Push(value) => execution.values.push(value),
-            Step::FinishZeroArray(count) => {
+            Step::FinishZeroArray { site, count } => {
                 let element = execution.values.pop().expect("visited zero array element");
                 let mut elements = Vec::new();
                 elements
                     .try_reserve_exact(count)
-                    .map_err(|_| PreparationReason::ZeroArrayNeedsStorage)?;
+                    .map_err(|_| EvaluationError::from(PreparationReason::ZeroArrayNeedsStorage).at_node(site))?;
                 elements.resize(count, element);
                 execution.values.push(PreparedValue::Array(elements.into()));
             }
@@ -563,7 +578,7 @@ impl ConstantEvaluation<'_, '_> {
                     .push(PreparedValue::Integer(elements.len().into()));
             }
             Step::ProjectFields(fields) => self.project_owned_fields(&fields, execution)?,
-            Step::ProduceZero { site, carrier } => self.produce_zero(site, &carrier, execution)?,
+            Step::ProduceZero { site, carrier } => self.produce_zero(site, &carrier, execution).map_err(|error| error.at_node(site))?,
             Step::Compare(token) => {
                 let right = execution.pop_integer();
                 let left = execution.pop_integer();
@@ -606,10 +621,11 @@ impl ConstantEvaluation<'_, '_> {
         &self,
         site: TreeNodeId,
     ) -> Result<TypedTree<'_>, EvaluationError> {
-        self.trees
-            .trees()
-            .nth(site.file)
-            .ok_or_else(|| PreparationReason::RequestWithoutTypedFile.into())
+        let tree = self.trees.trees().nth(site.file).ok_or(PreparationReason::RequestWithoutTypedFile)?;
+        if site.node >= tree.resolved().file.nodes.len() {
+            return Err(PreparationReason::RequestWithoutTypedNode.into());
+        }
+        Ok(tree)
     }
 
     pub(crate) fn visited_site(&self, node: TreeNodeId) -> omega_typed::Site {
@@ -740,17 +756,18 @@ fn landed_value(
     node: usize,
     carrier: &ValueType,
 ) -> Result<Option<BigInt>, EvaluationError> {
+    let at_literal = |reason: PreparationReason| EvaluationError::from(reason).at_node(tree.resolved().file.node_id(node));
     let mut value = None;
     for record in tree.semantics_at(node) {
         if let NodeSemantics::Landing(landing) = record
             && &landing.ty == carrier
         {
             if !landing.value.is_integer() {
-                return Err(PreparationReason::LandingNotIntegral.into());
+                return Err(at_literal(PreparationReason::LandingNotIntegral));
             }
-            let integer = fits(landing.value.to_integer(), carrier).ok_or(PreparationReason::LandingOutsideCarrier)?;
+            let integer = fits(landing.value.to_integer(), carrier).ok_or_else(|| at_literal(PreparationReason::LandingOutsideCarrier))?;
             if value.as_ref().is_some_and(|previous| previous != &integer) {
-                return Err(PreparationReason::ConflictingIntegerLandings.into());
+                return Err(at_literal(PreparationReason::ConflictingIntegerLandings));
             }
             value = Some(integer);
         }
