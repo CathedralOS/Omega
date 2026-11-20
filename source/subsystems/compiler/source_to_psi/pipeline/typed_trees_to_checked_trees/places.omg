@@ -9,7 +9,6 @@ use representations::symbol_resolved_trees::ValueBinding;
 use representations::symbol_resolved_trees::value_binding;
 use representations::syntax_trees::ConstantItem;
 use representations::syntax_trees::Expression;
-use representations::syntax_trees::Parameter;
 use representations::syntax_trees::SyntaxTrees;
 use representations::syntax_trees::constant_item;
 use representations::typed_trees::Adaptation;

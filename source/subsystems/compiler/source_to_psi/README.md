@@ -19,9 +19,8 @@ lengths. `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
 [the task board](../../../../TASKS.md#pipeline-route) track those changes.
 
 The compiler's own source still uses retired whole-type domain casts and
-implicit domain qualification, which the Rust comparator accepts. The frontend
-requires explicit domain accounting for its bounded policy features, but this
-source has not migrated to that rule. The scalar
+implicit domain qualification. Current Rust comparator diagnostics include
+missing explicit domain casts and overlapping call-argument borrows. The scalar
 execution gate accepts only unqualified `u8` machines, refusing other root
 kinds and erased bindings; it shows neither full frontend conformance nor
 self-compilation.
@@ -173,12 +172,18 @@ Name resolution runs after parsing, over the compilation's source set
 dependency edges per requester and 512 units. Each unit belongs to a package
 and to the module its path names there (`a::b`); it is parsed into the shared
 syntax tables, and its position is its source id. The tables cover the whole
-program and are sized above what the psi package fills: 4,096 roots, 1,024
+program and currently hold 4,096 roots, 1,024
 uses, 10,240 machines, 1,024 fields, 1,536 cases and 2,048 data members,
 2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
 statements and 8,192 transition arms, 65,536 type references and
 call arguments, and 131,072 expressions. Resolution and typing tables indexed
 by machine, type-reference and expression handles use the same bounds.
+
+Checking the frontend's entire source with the Omega implementation still
+requires exact declaration imports. Its resolver currently selects whole
+modules, and its 1,024 use rows cannot hold the frontend's 2,004 explicit
+imports. A self-compilation check must preserve each unit's directory namespace
+and exercise a member import together with a sibling that stays out of scope.
 
 A `use` path's first member selects a package
 ([`pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg`](pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg)):

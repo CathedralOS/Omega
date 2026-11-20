@@ -6,7 +6,6 @@ use representations::symbol_resolved_trees::BuiltinType;
 use representations::symbol_resolved_trees::DomainBinding;
 use representations::syntax_trees::Expression;
 use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::GenericParameter;
 use representations::syntax_trees::ReferenceAccess;
 use representations::syntax_trees::SyntaxTrees;
 use representations::syntax_trees::syntax_trees_expression;

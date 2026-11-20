@@ -1,11 +1,9 @@
 use representations::source_files::SourceId;
 use representations::source_files::SourceSpan;
-use representations::syntax_trees::DataCase;
 use representations::syntax_trees::GenericParameter;
 use representations::syntax_trees::GenericParameterKind;
 use representations::syntax_trees::IdentifierSpan;
 use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::Parameter;
 use representations::syntax_trees::SyntaxTrees;
 use representations::syntax_trees::syntax_trees_generic_parameter;
 

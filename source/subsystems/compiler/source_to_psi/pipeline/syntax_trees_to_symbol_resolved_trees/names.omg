@@ -1,4 +1,3 @@
-use pipeline::typed_trees_to_checked_trees::Value;
 use representations::source_files::SourceSet;
 use representations::source_files::SourceSpan;
 use representations::source_files::span_spells;

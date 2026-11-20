@@ -1,5 +1,4 @@
 use representations::source_files::SourceSpan;
-use representations::syntax_trees::Parameter;
 
 // What checking concludes about a typed source set: its rejections, the
 // number of definedness obligations it discharged, and each machine's crash
