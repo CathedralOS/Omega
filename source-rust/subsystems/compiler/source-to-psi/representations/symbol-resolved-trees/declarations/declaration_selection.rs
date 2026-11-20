@@ -95,6 +95,22 @@ mod product {
     }
 
     impl<Requirement> BuildSelectionRequest<Requirement> {
+        pub fn remap_source_spans(
+            &mut self,
+            mut remap: impl FnMut(source_text::SourceSpan) -> source_text::SourceSpan,
+        ) {
+            match self {
+                Self::ProviderReadiness(request) => {
+                    request.source_span = remap(request.source_span);
+                    request.backing.remap_source_spans(remap);
+                }
+                Self::Entry(request) => request.source_span = remap(request.source_span),
+                Self::Declaration(request) => {
+                    std::sync::Arc::make_mut(request).remap_source_spans(remap)
+                }
+                Self::Exclusion(request) => request.source_span = remap(request.source_span),
+            }
+        }
         pub fn requires_lexical_subject(&self) -> bool {
             match self {
                 Self::Exclusion(_) => true,
@@ -320,7 +336,27 @@ mod product {
         pub application: Option<std::sync::Arc<super::product_operands::ProductStaticOperandGraph>>,
     }
 
+    impl ProductDeclarationOperand {
+        fn remap_source_spans(
+            &mut self,
+            mut remap: impl FnMut(source_text::SourceSpan) -> source_text::SourceSpan,
+        ) {
+            self.source_span = remap(self.source_span);
+            if let Some(graph) = self.application.as_mut() {
+                std::sync::Arc::make_mut(graph).remap_source_spans(remap);
+            }
+        }
+    }
     impl ProductDeclarationRequest {
+        pub fn remap_source_spans(
+            &mut self,
+            mut remap: impl FnMut(source_text::SourceSpan) -> source_text::SourceSpan,
+        ) {
+            self.source_span = remap(self.source_span);
+            for operand in &mut self.operands {
+                operand.remap_source_spans(&mut remap);
+            }
+        }
         pub fn validate_shape(&self) -> Result<(), String> {
             if !self
                 .operation
@@ -844,6 +880,21 @@ pub mod product_operands {
         pub lexical_owner: SourceSpan,
     }
 
+    impl ProductStaticEnvironment {
+        pub fn remap_source_spans(&mut self, mut remap: impl FnMut(SourceSpan) -> SourceSpan) {
+            self.template = self.template.map(&mut remap);
+            self.lexical_owner = self.lexical_owner.map(&mut remap);
+            self.graph.remap_source_spans(&mut remap);
+            self.bindings.for_each_mut(|_, binding| {
+                binding.parameter = remap(binding.parameter);
+                binding.lexical_owner = remap(binding.lexical_owner);
+            });
+            self.lifetimes.for_each_mut(|_, binding| {
+                binding.parameter_owner = remap(binding.parameter_owner);
+                binding.lexical_owner = remap(binding.lexical_owner);
+            });
+        }
+    }
     impl ProductStaticOperandGraph {
         pub fn remap_source_spans(&mut self, mut remap: impl FnMut(SourceSpan) -> SourceSpan) {
             self.names.for_each_mut(|_, name| {

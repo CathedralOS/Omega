@@ -223,15 +223,8 @@ impl SourceMap {
             .ok_or("source rejoin lost its current file")?;
         if !self.source_is_selected(selected)
             || before.origin != SourceOrigin::User
-            || (before.package_identity.is_some()
-                && before.package_identity != after.package_identity)
             || before.resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
-            || before.source != after.source
-            || before.path != after.path
-            || before.package_root != after.package_root
-            || before.origin != after.origin
-            || before.resolution_stratum != after.resolution_stratum
-            || before.dependency_scope != after.dependency_scope
+            || !after.continues_capture_of(before)
         {
             return Err("source rejoin does not preserve its admitted captured instance".into());
         }

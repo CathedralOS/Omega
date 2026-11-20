@@ -28,11 +28,7 @@ pub fn normalize_native_binding(
     if *service_declaration == [0; 32] || supply.service_declaration != *service_declaration {
         return Err("completed Build binding belongs to a different service contract".into());
     }
-    supply
-        .evaluation
-        .usage
-        .validate()
-        .map_err(|reason| format!("native Build evaluation usage: {reason:?}"))?;
+    supply.evaluation.validate()?;
     let target = target::TargetProfile::from_canonical_target_name(&supply.target)
         .map_err(|error| error.to_string())?;
     evaluate(supply, target, identities)

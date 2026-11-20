@@ -9,6 +9,14 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Terminator {
+    /// A checked Build prefix ends just after this authored call. The original
+    /// machine result remains owed. Only an admitted continuation supplies
+    /// this block's suffix. This record has no executable edge or wire tag.
+    PendingNormalCompletion {
+        call: semantic_vocabulary::OperationId,
+        scalars: Vec<ValueId>,
+        storage: Vec<PlaceId>,
+    },
     /// Observe an actual empty value domain. This is neither a return nor
     /// a crash, and transfers no custody. Admission reconstructs emptiness
     /// at the exact live source path, including a final case namespace.
@@ -132,6 +140,13 @@ impl Terminator {
                     path: &[],
                 });
             }
+            Self::PendingNormalCompletion { storage, .. } => {
+                projections.extend(storage.iter().map(|&root| crate::OperationProjection {
+                    field: None,
+                    root,
+                    path: &[],
+                }));
+            }
             Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
         }
         for (_, actions) in self.cleanup_rosters() {
@@ -186,6 +201,11 @@ impl Terminator {
             Self::ReturnStructural { source, .. } | Self::EliminateEmpty { source, .. } => {
                 *source = map(*source);
             }
+            Self::PendingNormalCompletion { storage, .. } => {
+                for place in storage {
+                    *place = map(*place);
+                }
+            }
             Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
         }
     }
@@ -223,7 +243,8 @@ impl Terminator {
                 &[],
             ),
             Self::StructuralCase { cases, .. } => (None, None, cases),
-            Self::Crash { .. }
+            Self::PendingNormalCompletion { .. }
+            | Self::Crash { .. }
             | Self::EliminateEmpty { .. }
             | Self::ExternalCompletion { .. }
             | Self::InvokeNoNormal { .. } => (None, None, &[]),
@@ -268,7 +289,8 @@ impl Terminator {
                 &mut [],
             ),
             Self::StructuralCase { cases, .. } => (None, None, cases),
-            Self::Crash { .. }
+            Self::PendingNormalCompletion { .. }
+            | Self::Crash { .. }
             | Self::EliminateEmpty { .. }
             | Self::ExternalCompletion { .. }
             | Self::InvokeNoNormal { .. } => (None, None, &mut []),
@@ -290,6 +312,7 @@ impl Terminator {
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. }
             | Self::ExternalCompletion { edge, .. } => *edge,
+            Self::PendingNormalCompletion { .. } => panic!("an open block tail has no edge"),
             Self::Conditional { .. } | Self::StructuralCase { .. } => {
                 panic!("a branching terminator has multiple successor edges")
             }
@@ -311,6 +334,7 @@ impl Terminator {
                 when_false,
                 ..
             } => vec![when_true.edge, when_false.edge],
+            Self::PendingNormalCompletion { .. } => Vec::new(),
             Self::StructuralCase { cases, .. } => cases.iter().map(|case| case.edge).collect(),
         };
         edges.into_iter()
@@ -335,6 +359,11 @@ impl Terminator {
                     for argument in &mut edge.arguments {
                         *argument = map(*argument);
                     }
+                }
+            }
+            Self::PendingNormalCompletion { scalars, .. } => {
+                for value in scalars {
+                    *value = map(*value);
                 }
             }
             Self::Return { value, .. } => {
@@ -409,6 +438,7 @@ impl Terminator {
             | Self::ReturnStructural { .. }
             | Self::Crash { .. }
             | Self::ExternalCompletion { .. }
+            | Self::PendingNormalCompletion { .. }
             | Self::InvokeNoNormal { .. } => [None; 2],
         }
         .into_iter()
@@ -436,6 +466,7 @@ impl Terminator {
             | Self::ReturnStructural { .. }
             | Self::Crash { .. }
             | Self::ExternalCompletion { .. }
+            | Self::PendingNormalCompletion { .. }
             | Self::InvokeNoNormal { .. } => Vec::new(),
         }
     }

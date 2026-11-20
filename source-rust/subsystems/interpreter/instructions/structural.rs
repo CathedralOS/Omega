@@ -665,7 +665,9 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         if let Some(previous) = self.structural_values.get(&destination) {
-            if previous.opaque_identity != destination.get()
+            if !self
+                .local_structural_identities
+                .owns_allocated(previous.opaque_identity)
                 || previous.structural_type != *structural_type
                 || !previous.path.is_empty()
                 || !previous.qualifications.is_empty()
@@ -690,7 +692,11 @@ impl TerminalExecution<'_> {
             }
             self.structural_values.insert(
                 destination,
-                TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
+                TerminalStructuralValue::minted(
+                    self.local_structural_identities.allocate()?,
+                    *structural_type,
+                    Vec::new(),
+                ),
             )?;
         }
         Ok(OperationFlow::Advance)
@@ -985,7 +991,11 @@ impl TerminalExecution<'_> {
         };
         self.structural_values.insert(
             destination,
-            TerminalStructuralValue::minted(destination.get(), *structural_type, Vec::new()),
+            TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                *structural_type,
+                Vec::new(),
+            ),
         )?;
         self.live_affine_frontier
             .insert(whole_path_discard(destination, *structural_type));

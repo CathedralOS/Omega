@@ -47,13 +47,10 @@ enum MarkerKind {
 struct FilesystemActivation {
     runtime: BuildFilesystemRuntime,
     markers: Vec<Marker>,
-    output_issued: bool,
 }
 
-/// The filesystem runtime of a returned stage, handed to the host of the
-/// next stage of the same activation (`source-to-psi/driver/compile_build/waits`): what the
-/// Build has read, staged and completed so far. Its markers name types of
-/// the earlier stage's module, so no later value equals one.
+/// The filesystem runtime of a suspended stage, handed to the host of the
+/// next stage of the same activation with its issued markers, observations and staged output.
 pub(crate) struct CarriedFilesystem(FilesystemActivation);
 
 struct FilesystemFacets {
@@ -89,15 +86,11 @@ impl TerminalBuildFilesystemHost {
         // One runtime serves the whole activation. A later stage continues
         // the runtime an earlier one began and begins one only when none did.
         let activation = match carried {
-            Some(CarriedFilesystem(mut activation)) => {
-                activation.output_issued = false;
-                Some(activation)
-            }
+            Some(CarriedFilesystem(activation)) => Some(activation),
             None if calls.is_empty() => None,
             None => Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
-                output_issued: false,
             }),
         };
         Ok(Arc::new(Self {
@@ -118,16 +111,19 @@ impl TerminalBuildFilesystemHost {
         }))
     }
 
-    // A new stage begins unissued even when its filesystem state was carried.
-    // The caller enables Output only after binding verified carried presence.
-    pub(crate) fn set_output_issued(&self, issued: bool) -> Result<(), String> {
+    pub(crate) fn resume_markers(
+        &self,
+        prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
+    ) -> Result<(), String> {
         if let Some(activation) = self
             .activation
             .lock()
             .map_err(|_| "Build filesystem lock was poisoned")?
             .as_mut()
         {
-            activation.output_issued = issued;
+            for marker in &mut activation.markers {
+                super::rebind_issued_marker(prefix, &mut marker.value)?;
+            }
         }
         Ok(())
     }
@@ -276,7 +272,6 @@ impl FilesystemAdapter {
         let FilesystemActivation {
             runtime,
             markers,
-            output_issued,
         } = activation;
         let facets = self
             .host
@@ -285,7 +280,7 @@ impl FilesystemAdapter {
             .ok_or("Build filesystem facets were not admitted")?;
         let output = || -> Result<(), String> {
             let receiver = structural(0)?;
-            if *output_issued && receiver == &facets.output {
+            if receiver == &facets.output {
                 Ok(())
             } else {
                 Err(

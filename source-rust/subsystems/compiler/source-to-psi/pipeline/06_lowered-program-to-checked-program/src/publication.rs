@@ -49,6 +49,12 @@ fn accept_compilation(
     let mut diagnostics = Vec::new();
     for (position, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
+            Ok(RouteVerdict::AcceptedPrefix(accepted)) if position == 0 => {
+                first = Some(accepted);
+            }
+            Ok(RouteVerdict::AcceptedPrefix(_)) => diagnostics.push(route_defect(
+                "a generic form or conformance cannot depend on an unfinished Build",
+            )),
             Ok(RouteVerdict::Accepted(accepted)) => {
                 if position == 0 {
                     first = Some(accepted);
@@ -129,13 +135,29 @@ mod tests {
     fn elaboration(
         publication: terminal_codec::TerminalPublication,
     ) -> crate::lowering::Elaboration {
-        const TEXT: &str = "machine entry() crashes none {}";
+        elaboration_with(publication, "machine entry() crashes none {}", None)
+    }
+
+    fn elaboration_with(
+        publication: terminal_codec::TerminalPublication,
+        text: &str,
+        pending_call: Option<&str>,
+    ) -> crate::lowering::Elaboration {
+        elaboration_retaining(publication, text, pending_call, &[])
+    }
+
+    fn elaboration_retaining(
+        publication: terminal_codec::TerminalPublication,
+        text: &str,
+        pending_call: Option<&str>,
+        saved: &[&str],
+    ) -> crate::lowering::Elaboration {
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xa7; 32]).unwrap();
         let mut sources = crate::source_inputs::SourceMap::default();
         let source = sources
             .add_checked_instance(
                 "accepted/source.omg".into(),
-                TEXT,
+                text,
                 "accepted".into(),
                 Some(package),
                 source_admission::SourceOrigin::User,
@@ -143,7 +165,7 @@ mod tests {
                 source_provenance::DependencyScope::Product,
             )
             .source_id;
-        let tokens = crate::frontend_fixture::Lexer::new(TEXT)
+        let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
@@ -154,19 +176,34 @@ mod tests {
             retained_base: None,
         })
         .unwrap();
-        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
-        let machines = typed.machines();
-        assert_eq!(
-            machines.len(),
-            1,
-            "publication fixture must retain its one actual source machine"
-        );
-        let entry = machines.at(0);
+        let mut typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let entry = typed.machines().at(0).symbol;
+        if let Some(name) = pending_call {
+            let start = text.find(name).unwrap();
+            typed
+                .parked_build_locals
+                .push(typed_trees::ParkedBuildLocals {
+                    entry: typed.symbols.symbol_source_span(entry).unwrap(),
+                    state: None,
+                    pending_completion_at: source_text::SourceSpan::new(
+                        source,
+                        source_text::Span::new(start, start + name.len()),
+                    ),
+                    declarations: saved
+                        .iter()
+                        .map(|name| {
+                            let start = text.find(name).unwrap();
+                            source_text::Span::new(start, start + name.len())
+                        })
+                        .collect(),
+                    deferred_subjects: Vec::new(),
+                });
+        }
         crate::lowering::elaborate_for(
             &typed,
             Compilation {
                 declaration_metadata: &[],
-                entries: &[entry.symbol],
+                entries: &[entry],
                 subjects: &[],
                 purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
@@ -205,6 +242,187 @@ mod tests {
         assert!(closure.publish().is_err());
         let portable = accept_compilation(vec![Ok(accepted())]).unwrap().closure;
         assert!(portable.publish_invocation().is_err());
+    }
+
+    #[test]
+    fn a_projected_unit_entry_cannot_be_published_as_a_complete_program() {
+        // Passing an owned temporary gives the complete body a real
+        // post-call home-retirement edge. The parked body must leave before it.
+        let source = "data Ticket MARK { code: i32; } machine entry() suspends { suspend pause(Ticket { code: 3 }); } machine pause(ticket: Ticket) suspends {}";
+        for marker in ["", "[copy]"] {
+            let source = source.replace("MARK", marker);
+            let publication = terminal_codec::TerminalPublication::Invocation;
+            let complete = elaboration_with(publication, &source, None);
+            let stated = elaboration_with(publication, &source, Some("pause"));
+            let RouteVerdict::AcceptedPrefix(closure) = crate::checking::judge(Ok(stated)).unwrap()
+            else {
+                panic!("a projected unit entry still owes its suffix");
+            };
+            let invocation = closure.publish_invocation().unwrap();
+            let view = invocation.artifact.view();
+            let [(owner, call)] = view.pending_normal_completions() else {
+                panic!("the open entry must own exactly one mandatory wait");
+            };
+            let full = complete.module.machine(*owner).unwrap();
+            assert!(full.blocks.iter().any(|block| {
+                block.operations.last().is_some_and(|op| op.id == *call)
+                    && matches!(block.terminator, terminal_psi::Terminator::Jump { .. })
+            }));
+            let RouteVerdict::Accepted(closure_full) =
+                crate::checking::judge(Ok(complete)).unwrap()
+            else {
+                panic!("the ordinary call returns normally");
+            };
+            let published_full = closure_full.publish_invocation().unwrap();
+            terminal_semantics::continuation::CheckedPrefix::check(
+                view.module(),
+                (*owner, *call),
+                published_full.artifact.view().module(),
+                (*owner, *call),
+            )
+            .expect("the outgoing call parks everything its real normal successor retires");
+            assert_eq!(*owner, view.module().machines[0].id);
+            assert!(view.closed_module().is_none());
+            assert!(closure.publish().is_err());
+        }
+    }
+
+    #[test]
+    fn parking_an_owner_preserves_the_exclusive_borrow_of_its_field() {
+        let source = r"
+machine entry() suspends {
+    let mut gauge: Gauge = Gauge { amount: 3, neighbor: 19 };
+    let held: @mut i32 = @mut gauge.amount;
+    OBSERVE
+    suspend pause();
+}
+data Gauge { amount: i32; neighbor: i32; }
+machine pause() suspends {}
+";
+        for (observe, legal) in [("", true), ("let conflict: i32 = gauge.amount;", false)] {
+            let stated = elaboration_retaining(
+                terminal_codec::TerminalPublication::Invocation,
+                &source.replace("OBSERVE", observe),
+                Some("pause"),
+                &["gauge", "held"],
+            );
+            let verdict = crate::checking::judge(Ok(stated)).unwrap();
+            if legal {
+                assert!(
+                    matches!(verdict, RouteVerdict::AcceptedPrefix(_)),
+                    "{verdict:?}"
+                );
+            } else {
+                let diagnostics = accept_compilation(vec![Ok(verdict)]).unwrap_err();
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("exclusive reference")),
+                    "{diagnostics:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_value_body_can_publish_only_its_checked_invocation_prefix() {
+        let publication = terminal_codec::TerminalPublication::Invocation;
+        let mut stated = elaboration_with(
+            publication,
+            "machine entry() -> i32 suspends { suspend pause(); } machine pause() suspends {}",
+            Some("pause"),
+        );
+        let machine = &stated.module.machines[0];
+        let declaration = machine.declaration.as_ref().unwrap().clone();
+        let callable = declaration.callable;
+        let scope = &mut stated.module.scalars.scalar_applications.proof_scope;
+        let id =
+            terminal_psi::ProofDeclarationId(u32::try_from(scope.declarations.len() + 1).unwrap());
+        scope
+            .declarations
+            .insert(terminal_psi::ProofScopeDeclaration::Callable(declaration));
+        scope
+            .callables
+            .insert(terminal_psi::ProofCallableAssociation::Callable {
+                declaration: id,
+                callable: terminal_psi::TargetMachineCallable::Machine(machine.id),
+            });
+        let header = scope
+            .callable_headers
+            .insert(terminal_psi::ProofCallableHeader {
+                declaration: id,
+                callable: Ok(callable),
+                ..Default::default()
+            });
+        let mut forged = stated.clone();
+        let open = forged
+            .module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.blocks.iter().any(|block| {
+                    matches!(
+                        block.terminator,
+                        terminal_psi::Terminator::PendingNormalCompletion { .. }
+                    )
+                })
+            })
+            .unwrap();
+        let unreturned = open.result.scalar().unwrap().id;
+        let scalars = open
+            .blocks
+            .iter_mut()
+            .find_map(|block| match &mut block.terminator {
+                terminal_psi::Terminator::PendingNormalCompletion { scalars, .. } => Some(scalars),
+                _ => None,
+            })
+            .unwrap();
+        scalars.push(unreturned);
+        let diagnostics = accept_compilation(vec![
+            crate::checking::judge(Ok(forged)).map_err(CompilationRefusal::Elaboration),
+        ])
+        .unwrap_err();
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("a live scalar has no declaration in its machine")),
+            "{diagnostics:?}"
+        );
+        let RouteVerdict::AcceptedPrefix(closure) = crate::checking::judge(Ok(stated)).unwrap()
+        else {
+            panic!("the partial body must receive its own checked verdict");
+        };
+        let invocation = closure.publish_invocation().unwrap();
+        let view = invocation.artifact.view();
+        assert_eq!(view.pending_normal_completions().len(), 1);
+        assert!(
+            !view
+                .module()
+                .scalars
+                .scalar_applications
+                .proof_scope
+                .callable_headers
+                .get(header)
+                .supplies_checked_body
+        );
+        let (owner, call) = view.pending_normal_completions()[0];
+        let machine = view
+            .module()
+            .machines
+            .iter()
+            .find(|row| row.id == owner)
+            .unwrap();
+        assert!(matches!(
+            machine.result,
+            terminal_psi::TerminalMachineResult::Scalar(_)
+        ));
+        assert!(machine.blocks.iter().any(|block| matches!(
+            block.terminator,
+            terminal_psi::Terminator::PendingNormalCompletion { call: cut, .. } if cut == call
+        )));
+        assert!(view.closed_module().is_none());
+        assert!(closure.publish().is_err());
+        assert!(terminal_codec::ClosedTerminalModule::new(view.module().clone()).is_err());
     }
 
     #[test]

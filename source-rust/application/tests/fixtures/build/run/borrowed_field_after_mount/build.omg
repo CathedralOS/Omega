@@ -1,0 +1,27 @@
+use kit;
+
+data Gauge { amount: i32; neighbor: i32; }
+
+machine initial(builder: @mut Build) -> Gauge {
+    Build::application(builder, "field_borrow");
+    Gauge { amount: 3, neighbor: 19 }
+}
+
+machine build(builder: @mut Build) suspends {
+    builder.tests.disabled = true;
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registration: DependencyRegistration = Build::build_dependency(builder, request);
+    let mut gauge: Gauge = initial(builder);
+    let held: @mut i32 = @mut gauge.amount;
+    suspend Build::prepare_dependency(builder, registration);
+    let seven: i32 = kit\v();
+    $held = seven;
+    let observed: i32 = $held;
+    transition observed == 7 && gauge.amount == 7 && gauge.neighbor == 19 {
+        true -> done(builder),
+        _ -> wrong(builder)
+    }
+    machine done(builder: @mut Build) { Build::bind(builder, linux_x86_64\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "duplicate_role"); }
+}

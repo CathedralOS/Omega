@@ -50,10 +50,7 @@ impl NativeBuildOutputs {
             return Err("native output lost its source formation or completed evaluation".into());
         }
         if let Some(evaluation) = &evaluation {
-            evaluation
-                .usage
-                .validate()
-                .map_err(|reason| format!("native Build evaluation usage: {reason:?}"))?;
+            evaluation.validate()?;
         }
         Ok(Self {
             declarations,

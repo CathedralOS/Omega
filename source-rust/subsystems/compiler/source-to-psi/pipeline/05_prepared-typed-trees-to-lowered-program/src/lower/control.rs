@@ -355,6 +355,9 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = bound;
                 Ok(Reached::Value(()))
             }
+            Statement::ParkedBuildLocals(..) => {
+                Err(self.internal("a Build prefix lost its selected call"))
+            }
             Statement::Decompose { subject } => self.decompose(subject),
             Statement::Witness { slot, term } => {
                 let witness = self.witness(term)?;
@@ -651,7 +654,11 @@ impl Lowering<'_> {
         )? {
             arrivals.ended = Some(call);
         }
-        self.join(arrivals, result_type)
+        self.join(
+            arrivals,
+            result_type,
+            SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
+        )
     }
 
     /// Evaluate the selector once and enter each authored arm with its exact
@@ -954,14 +961,19 @@ impl Lowering<'_> {
     /// not arrive. The join is made once the arms are lowered, so a `match`
     /// none of whose arms arrives has no join: its every path ended, at the
     /// last arm's call.
-    fn join(&mut self, arrivals: Arrivals, result_type: ValueType) -> Evaluation<Value> {
+    fn join(
+        &mut self,
+        arrivals: Arrivals,
+        result_type: ValueType,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
         if arrivals.values.is_empty() {
             let call = arrivals
                 .ended
                 .ok_or_else(|| self.internal("a match with no arm"))?;
             return Ok(Reached::Ended(call));
         }
-        let join = self.block(SourceOrigin::Unpositioned(Unpositioned::MatchJoin));
+        let join = self.block(source);
         let result = match result_type {
             ValueType::Scalar(scalar_type, _) => {
                 let result = self.value(
@@ -1024,13 +1036,8 @@ impl Lowering<'_> {
                         return Err(self.internal("a record join without a record type"));
                     };
                     let multiplicity = self.records.multiplicity(record, self.id)?;
-                    let place = self.join_arrival(
-                        place,
-                        record,
-                        qualification,
-                        multiplicity,
-                        SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
-                    )?;
+                    let place =
+                        self.join_arrival(place, record, qualification, multiplicity, source)?;
                     (
                         Vec::new(),
                         vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
@@ -1038,12 +1045,7 @@ impl Lowering<'_> {
                 }
                 _ => return Err(self.internal("a match arm does not supply its join's value lane")),
             };
-            self.jump_with_structural(
-                join,
-                scalars,
-                structures,
-                SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
-            )?;
+            self.jump_with_structural(join, scalars, structures, source)?;
         }
         self.enter(join);
         Ok(Reached::Value(result))

@@ -150,7 +150,14 @@ pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
         root,
         requester,
         authority,
-        source_consent.map(|consent| (artifact, consent)),
+        |(requester, owner, _)| {
+            require_invocation_selection(
+                requester,
+                owner,
+                authority,
+                source_consent.map(|consent| (artifact, consent)),
+            )
+        },
     )
     .err();
     for &machine in &closure.machines {
@@ -226,9 +233,9 @@ pub fn admit_declaration_selections(
     target: Option<&str>,
     entry: TargetMachineCallable,
     providers: &AdmittedProviderSelections,
-    requester: DeclarationCustody,
-    authority: &dyn DeclarationSelectionAuthority,
-) -> Result<(), String> {
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    authority: Option<&dyn DeclarationSelectionAuthority>,
+) -> Result<CapturedBuildSelections, String> {
     if providers.execution_identity() != &artifact.custody_identity() {
         return Err(
             "declaration admission provider installation names a different artifact".into(),
@@ -253,15 +260,61 @@ pub fn admit_declaration_selections(
         ),
         root,
     )?;
+    let requester = match package {
+        Some(key) => DeclarationCustody::Package(key),
+        None => match declaration(scope, root)?.custody {
+            custody @ (DeclarationCustody::UnownedUser
+            | DeclarationCustody::Toolchain
+            | DeclarationCustody::ToolchainContract) => custody,
+            _ => return Err("Build entry has no admitted package or captured source".into()),
+        },
+    };
+    let mut captured = CapturedBuildSelections::default();
+    let mut requests = Vec::new();
     require_invocation_selections(
         artifact.module(),
         &invocation.closure,
         root,
         requester,
-        Some(authority),
-        None,
-    )
+        authority,
+        |(from, to, ordinal)| {
+            if package.is_none()
+                && from.0 == DeclarationCustody::UnownedUser
+                && matches!(
+                    to.0,
+                    DeclarationCustody::UnownedUser | DeclarationCustody::Toolchain
+                )
+            {
+                if let Some(caller) = from.1 {
+                    requests.push((caller, ordinal, to.1));
+                } else if to.1 == root && to.0 == DeclarationCustody::UnownedUser {
+                    captured.entry = Some(entry);
+                } else {
+                    return Err("captured Build root changed its declaration".into());
+                }
+                Ok(())
+            } else {
+                require_selection(from.0, to.0, authority)
+            }
+        },
+    )?;
+    captured.calls = build_calls(artifact.module(), requests)?;
+    Ok(captured)
 }
+
+/// The source companion must discharge each selection before execution.
+#[must_use]
+#[derive(Default)]
+pub struct CapturedBuildSelections {
+    pub entry: Option<TargetMachineCallable>,
+    pub calls: Vec<CapturedCall>,
+}
+
+type DeclarationSelection = (
+    (DeclarationCustody, Option<ProofDeclarationId>),
+    (DeclarationCustody, ProofDeclarationId),
+    Option<usize>,
+);
 
 fn require_scope_selections(
     scope: &ProofApplicationScope,
@@ -269,17 +322,13 @@ fn require_scope_selections(
     root: ProofDeclarationId,
     requester: DeclarationCustody,
     authority: Option<&dyn DeclarationSelectionAuthority>,
-    source_consent: Option<(
-        terminal_codec::TerminalExecutionView<'_>,
-        &dyn InvocationSourceSelection,
-    )>,
+    mut select: impl FnMut(DeclarationSelection) -> Result<(), String>,
 ) -> Result<(), String> {
-    require_invocation_selection(
+    select((
         (requester, None),
         (declaration(scope, root)?.custody, root),
-        authority,
-        source_consent,
-    )?;
+        None,
+    ))?;
     for &machine in &closure.machines {
         let facts = declaration(scope, machine)?;
         for request in facts.selections.as_ref().map_err(Clone::clone)? {
@@ -299,13 +348,10 @@ fn require_invocation_selections(
     root: ProofDeclarationId,
     requester: DeclarationCustody,
     authority: Option<&dyn DeclarationSelectionAuthority>,
-    source_consent: Option<(
-        terminal_codec::TerminalExecutionView<'_>,
-        &dyn InvocationSourceSelection,
-    )>,
+    mut select: impl FnMut(DeclarationSelection) -> Result<(), String>,
 ) -> Result<(), String> {
     let scope = &module.scalars.scalar_applications.proof_scope;
-    require_scope_selections(scope, closure, root, requester, authority, source_consent)?;
+    require_scope_selections(scope, closure, root, requester, authority, &mut select)?;
     let selected = selected_call_request_sources(module, closure)?;
     for edge in &closure.invocations {
         if !edge.provider && !edge.static_delegation {
@@ -351,16 +397,143 @@ fn require_invocation_selections(
                     continue;
                 }
             }
-            require_invocation_selection(
+            select((
                 (source.custody, Some(edge.source.machine())),
                 (target.custody, edge.target.machine()),
-                authority,
-                source_consent,
-            )?;
+                edge.call_ordinal,
+            ))?;
         }
     }
     Ok(())
 }
+
+// For a graphless Build, resolve each actually required selection to its
+// physical operation. Equal declarations mentioned at different sites do
+// not confer one another's capture consent.
+fn build_calls(
+    module: &terminal_psi::TerminalModule,
+    mut requests: Vec<(ProofDeclarationId, Option<usize>, ProofDeclarationId)>,
+) -> Result<Vec<CapturedCall>, String> {
+    use semantic_vocabulary::{CallableInvocationSite, InvocationSite};
+    if requests.is_empty() {
+        return Ok(Vec::new());
+    }
+    let scope = &module.scalars.scalar_applications.proof_scope;
+    let mut callables = scope
+        .callables
+        .iter()
+        .filter_map(|(_, row)| match row {
+            terminal_psi::ProofCallableAssociation::Callable {
+                declaration,
+                callable,
+            } => Some((*declaration, *callable)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    callables.sort_unstable_by_key(|&(declaration, _)| declaration);
+    let callable = |id| {
+        let first = callables.partition_point(|&(declaration, _)| declaration < id);
+        let &(declaration, callable) = callables.get(first)?;
+        (declaration == id && callables.get(first + 1).is_none_or(|row| row.0 != id))
+            .then_some(callable)
+    };
+    requests.sort_unstable();
+    requests.dedup();
+    let mut result = Vec::with_capacity(requests.len());
+    for group in requests.chunk_by(|a, b| a.0 == b.0) {
+        let Some(TargetMachineCallable::Machine(caller)) = callable(group[0].0) else {
+            return Err("captured Build source has no unique calling machine".into());
+        };
+        let machine = module
+            .machine(caller)
+            .ok_or("captured Build caller has no body")?;
+        let sites = machine
+            .module_invocations()
+            .map(|call| {
+                (
+                    call.site,
+                    TargetMachineCallable::Machine(call.inputs.callee),
+                )
+            })
+            .chain(
+                machine
+                    .boundary_invocations()
+                    .map(|call| (call.site, TargetMachineCallable::Boundary(call.boundary))),
+            )
+            .collect::<Vec<_>>();
+        for &(_, ordinal, declaration) in group {
+            let target = callable(declaration)
+                .ok_or("captured Build call has no unique target declaration")?;
+            let site = if let Some(ordinal) = ordinal {
+                let &(site, selected) = sites
+                    .get(ordinal)
+                    .ok_or("captured Build call has no emitted occurrence")?;
+                if selected != target {
+                    return Err("captured Build call selects a different declaration at its emitted occurrence".into());
+                }
+                Some(match site {
+                    InvocationSite::Cleanup {
+                        edge,
+                        action_ordinal,
+                    } => CallableInvocationSite::CleanupAction {
+                        edge,
+                        action_ordinal,
+                    },
+                    _ => CallableInvocationSite::Invocation(site),
+                })
+            } else {
+                // The proof closure lists cleanup and machine-value targets
+                // without an ordinal. Discharge every matching cleanup action
+                // and require a descriptor if this is also a dynamic target.
+                let target_is_dynamic = scope.plan.machines.iter().any(|(_, row)| {
+                    row.machine == group[0].0
+                        && scope
+                            .plan
+                            .symbols
+                            .span_or_empty(row.dynamic_realizations)
+                            .contains(&declaration)
+                });
+                let mut cleanup = false;
+                for &(ref site, selected) in &sites {
+                    if selected == target
+                        && let InvocationSite::Cleanup {
+                            edge,
+                            action_ordinal,
+                        } = *site
+                    {
+                        result.push((
+                            caller,
+                            Some(CallableInvocationSite::CleanupAction {
+                                edge,
+                                action_ordinal,
+                            }),
+                            target,
+                        ));
+                        cleanup = true;
+                    }
+                }
+                if !target_is_dynamic && cleanup {
+                    continue;
+                }
+                if !target_is_dynamic {
+                    return Err(
+                        "captured Build selection has neither a cleanup action nor a machine value"
+                            .into(),
+                    );
+                }
+                None
+            };
+            result.push((caller, site, target));
+        }
+    }
+    Ok(result)
+}
+
+type CapturedCall = (
+    semantic_vocabulary::MachineId,
+    Option<semantic_vocabulary::CallableInvocationSite>,
+    TargetMachineCallable,
+);
 
 // Source call summaries put direct calls before boundary calls. Prepare
 // that same canonical order once, retaining the exact public application;
@@ -544,7 +717,7 @@ fn declaration_admission_preserves_authority_without_a_pure_effect_floor() {
             root,
             DeclarationCustody::Package(package),
             None,
-            None,
+            |(from, to, _)| require_invocation_selection(from, to, None, None),
         )
     };
     assert!(check(Ok(facts.clone())).is_ok());

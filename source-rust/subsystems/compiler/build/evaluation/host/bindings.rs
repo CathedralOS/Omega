@@ -70,21 +70,20 @@ struct BindingState {
     carried_formations: Vec<NativeBindingFormation>,
 }
 
-/// What the binding host of a returned stage hands to the host of the next
-/// stage of the same activation: the selections executed so far, and what
-/// the earlier modules declared. Tickets and issued descriptions stay
-/// behind. Both name one module, and every ticket was committed.
+/// Issued selections, descriptions, and exact installed providers follow the activation.
 pub(crate) struct CarriedBindings {
+    pending: Vec<Option<source_compiler::publication::TerminalBuildSelectionRequest>>,
+    descriptions: Vec<product_queries::IssuedDescription>,
+    pub(crate) installed_providers: Vec<InstalledBuildProvider>,
     executed: Vec<ExecutedBuildSelection>,
     native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     declarations: Vec<Arc<ProductDeclarationRequest>>,
     native_formations: Vec<NativeBindingFormation>,
 }
 
-struct InstalledBuildProvider {
-    request: BuildProviderRequest,
-    declaration: String,
-    package: semantic_vocabulary::PackageKeyIdentity,
+pub(crate) struct InstalledBuildProvider {
+    pub(crate) request: BuildProviderRequest,
+    pub(crate) provider: source_compiler::publication::ProducedBuildProvider,
 }
 
 pub type BuildProviderRequest =
@@ -203,6 +202,9 @@ impl TerminalBuildBindingHost {
             return Err("a Build stage ended with an uncommitted request".to_owned());
         }
         Ok(CarriedBindings {
+            pending: std::mem::take(&mut state.pending),
+            descriptions: std::mem::take(&mut state.descriptions),
+            installed_providers: std::mem::take(&mut state.installed_providers),
             executed: std::mem::take(&mut state.executed),
             native_storage: std::mem::take(&mut state.native_storage),
             declarations,
@@ -210,11 +212,21 @@ impl TerminalBuildBindingHost {
         })
     }
 
-    pub(crate) fn adopt(&self, carried: CarriedBindings) -> Result<(), String> {
+    pub(crate) fn adopt(
+        &self,
+        mut carried: CarriedBindings,
+        prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
+    ) -> Result<(), String> {
+        for description in &mut carried.descriptions {
+            super::rebind_issued_marker(prefix, &mut description.value)?;
+        }
         let mut state = lock_state(&self.state)?;
         if !state.executed.is_empty() || !state.pending.is_empty() {
             return Err("a Build stage adopts earlier selections before it runs".to_owned());
         }
+        state.pending = carried.pending;
+        state.descriptions = carried.descriptions;
+        state.installed_providers = carried.installed_providers;
         state.executed = carried.executed;
         state.native_storage = carried.native_storage;
         state.carried_declarations = carried.declarations;
@@ -241,8 +253,8 @@ impl TerminalBuildBindingHost {
         }) else {
             return Ok(false);
         };
-        if installed.declaration != provider.declaration()
-            || installed.package != provider.package()
+        if installed.provider.declaration() != provider.declaration()
+            || installed.provider.package() != provider.package()
         {
             return Err("Build requirement already has a different exact provider backing".into());
         }
@@ -260,8 +272,7 @@ impl TerminalBuildBindingHost {
             .clone();
         state.installed_providers.push(InstalledBuildProvider {
             request,
-            declaration: provider.declaration().to_owned(),
-            package: provider.package(),
+            provider: provider.clone(),
         });
         state.awaiting_provider = None;
         Ok(())

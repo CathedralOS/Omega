@@ -659,6 +659,11 @@ impl SourceStorage {
             self.source_roots.append(SourceRoots {
                 source_id: parsed_source.source_id,
                 root_items: std::mem::take(&mut parsed_source.root_items),
+                build_imports: if parsed_source.scope == source_provenance::DependencyScope::Build {
+                    std::mem::take(&mut parsed_source.imports)
+                } else {
+                    Vec::new()
+                },
             });
         }
     }
@@ -763,6 +768,7 @@ impl ToolchainContractCustody {
 pub(crate) struct SourceRoots {
     pub source_id: source_text::SourceId,
     pub root_items: source_compiler::SourceItems,
+    pub build_imports: Vec<source_compiler::SourceImport>,
 }
 
 pub(crate) fn validate_package_source_frontier(

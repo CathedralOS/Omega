@@ -35,6 +35,7 @@ mod scalar_target_ranges;
 pub use scalar_target_ranges::{
     TargetScalarRange, application_sized_storage, target_scalar_ranges,
 };
+pub mod continuation;
 pub mod scalars;
 pub mod static_reach;
 pub mod storage;

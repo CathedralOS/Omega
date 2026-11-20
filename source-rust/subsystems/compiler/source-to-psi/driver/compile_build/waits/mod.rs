@@ -1,286 +1,369 @@
-//! Project the selected Build entry onto the statements checked at one preparation boundary.
-//! At a straight-line wait the next program receives the live storage described
-//! by its frame. Other bindings keep the current program running through their last use.
+//! Select the checked entry prefix ending at an authored dependency preparation.
 
-mod frame;
-mod lexical_uses;
+mod demand;
 #[cfg(test)]
 mod tests;
 
 use diagnostics::Diagnostic;
-use source_text::{SourceSpan, Span};
+use source_text::{SourceId, SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
-use syntax_trees::item::{Item, ItemHandle, Machine, StateHandle};
+use syntax_trees::item::StateHandle;
 use syntax_trees::statement::{StatementHandle, StatementNode};
-
-/// The same captured entry can receive different source-file IDs when the
-/// next program is assembled. Keep the authored preparation spans and the
-/// statement offsets where the interpreter can give up the entry frame.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildStage {
-    index: usize,
-    preparations: Vec<Span>,
-    program_ends: Vec<frame::Cut>,
-    homes: Vec<Span>,
-    saved_homes: Vec<Span>,
-    pub(super) excluded_homes: Vec<usize>,
-}
-
-impl BuildStage {
-    pub fn next_index(&self) -> Option<usize> {
-        (self.index < self.program_ends.len()).then(|| self.index + 1)
-    }
-
-    /// Source declarations of the compiler-supplied storage arguments, in entry order.
-    pub fn frame_homes(&self) -> &[Span] {
-        &self.homes
-    }
-
-    /// The shared parameter list includes locals whose last use has passed.
-    /// Only this wait's saved homes can supply values to the successor.
-    pub fn saves_frame_home(&self, local: Span) -> bool {
-        self.saved_homes
-            .binary_search_by_key(&(local.start, local.end), |span| (span.start, span.end))
-            .is_ok()
-    }
-
-    pub fn frame_parameter_name(home: Span) -> String {
-        format!("$build.home.{}", home.start)
-    }
-
-    pub fn preparations(&self) -> &[Span] {
-        &self.preparations
-    }
-
-    pub fn same_entry_plan(&self, other: &Self) -> bool {
-        self.preparations == other.preparations
-            && self.program_ends == other.program_ends
-            && self.homes == other.homes
-            && self.excluded_homes == other.excluded_homes
-    }
-}
 
 const BUILD_ENTRY: &str = "build";
 const BUILD_TYPE: &str = "Build";
 const PREPARATION: &str = "prepare_dependency";
 
-/// Keep already-resolved uses with the locals and facts they read. When typing
-/// reports a missing declaration beyond a wait, the checked prefix ends at that
-/// wait and materializes its live homes for the newly authorized scope.
-pub(super) struct EntryPlan {
-    item: ItemHandle,
-    machine: Machine,
+/// An authored Build import for which the loader has no selected module binding yet.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingBuildImport {
+    pub source: SourceId,
+    pub span: Span,
+    pub path: String,
+}
+
+/// An authored suspending call and the captured declaration that owns it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuildPreparationSite {
+    pub owner: source_admission::RetainedDeclaration,
+    pub call: Span,
+    pub projects_suffix: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuildStage {
+    incoming: Vec<BuildPreparationSite>,
+    outgoing: Vec<Vec<BuildPreparationSite>>,
+    advisories: Vec<Diagnostic>,
+    can_return: bool,
+}
+
+impl BuildStage {
+    /// A complete checked alternative can return without entering this preparation's arm.
+    pub fn can_finish_before_preparation(&self) -> bool {
+        self.can_return
+    }
+
+    pub fn unused_import_advisories(&self) -> &[Diagnostic] {
+        &self.advisories
+    }
+
+    pub(super) fn report_unused_imports(
+        &mut self,
+        typed: &crate::source_state::TypedTrees,
+        imports: &[PendingBuildImport],
+    ) {
+        if !self.outgoing.is_empty() || imports.is_empty() {
+            return;
+        }
+        // An admitted final stage used only declarations in its selected scope.
+        // An unchecked use in a dormant declaration still needs its import.
+        let mut incomplete_files = typed
+            .deferred_refusals
+            .iter()
+            .map(|row| row.source_span.source_id.0)
+            .collect::<Vec<_>>();
+        incomplete_files.sort_unstable();
+        incomplete_files.dedup();
+        for import in imports {
+            if incomplete_files.binary_search(&import.source.0).is_err() {
+                let diagnostic =
+                    Diagnostic::warning(format!("unused deferred Build import `{}`", import.path))
+                        .with_source_span(SourceSpan::new(import.source, import.span));
+                self.advisories.push(diagnostic);
+            }
+        }
+    }
+
+    pub fn outgoing_preparation_path(&self) -> Option<&[BuildPreparationSite]> {
+        let [only] = self.outgoing.as_slice() else {
+            return None;
+        };
+        Some(only)
+    }
+    pub fn outgoing_preparation_paths(&self) -> &[Vec<BuildPreparationSite>] {
+        &self.outgoing
+    }
+
+    /// Commit the one arm that the interpreter actually reached.
+    pub fn commit_preparation(&mut self, index: usize) -> Result<(), &'static str> {
+        if index >= self.outgoing.len() {
+            return Err("the Build reached a preparation outside its admitted paths");
+        }
+        let chosen = self.outgoing.swap_remove(index);
+        self.outgoing.clear();
+        self.outgoing.push(chosen);
+        Ok(())
+    }
+
+    pub fn incoming_preparation_path(&self) -> Option<&[BuildPreparationSite]> {
+        (!self.incoming.is_empty()).then_some(&self.incoming)
+    }
+    #[cfg(test)]
+    fn outgoing_parked_preparation(&self) -> Option<Span> {
+        self.outgoing_preparation_path()?
+            .last()
+            .map(|site| site.call)
+    }
+}
+
+struct AuthoredCall {
+    owner: SourceSpan,
+    call: Span,
     state: StateHandle,
-    statements: Vec<StatementHandle>,
-    homes: Vec<usize>,
-    stage: BuildStage,
-    incoming: Option<usize>,
-    first_statement: usize,
-    earliest: usize,
-    preferred: usize,
+    through: usize,
+    prepares: bool,
+    terminal_arm: bool,
+}
+
+pub(super) struct EntryPlan {
+    entry: SourceSpan,
+    calls: Vec<AuthoredCall>,
+    truncate: Vec<usize>,
+    pub(super) stage: BuildStage,
 }
 
 impl EntryPlan {
     pub(super) fn new(
         syntax: &SyntaxTrees,
-        selected_entry: SourceSpan,
-        start: usize,
-        excluded_homes: &[usize],
+        entry: SourceSpan,
+        previous: Option<&BuildStage>,
+        has_pending_imports: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let (item, machine, state) = entry(syntax, selected_entry).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected Build entry is missing from the parsed stage",
-            )]
-        })?;
-        let statements = syntax
-            .items
-            .statements(syntax.items.state(state).statements)
-            .to_vec();
-        let (positions, preparations): (Vec<_>, Vec<_>) = statements
-            .iter()
-            .enumerate()
-            .filter_map(|(position, &statement)| {
-                preparation(syntax, statement).map(|site| (position, site))
-            })
-            .unzip();
-        let mut cuts = if positions.is_empty() {
-            Default::default()
-        } else {
-            lexical_uses::program_ends(syntax, &statements, &positions)?
+        let incoming = match previous {
+            Some(stage) if stage.outgoing.is_empty() => {
+                return Err(vec![Diagnostic::error(
+                    "the selected Build stage has already finished",
+                )]);
+            }
+            Some(stage) => stage
+                .outgoing_preparation_path()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "the Build must identify the preparation it reached before resuming",
+                    )]
+                })?
+                .to_vec(),
+            None => Vec::new(),
         };
-        if !excluded_homes.is_empty() {
-            cuts.retain(|cut| {
-                cut.bindings
-                    .iter()
-                    .all(|binding| excluded_homes.binary_search(&binding.home).is_err())
-            });
+        let mut calls = Vec::new();
+        let selected = syntax.root_item_handles().iter().any(|handle| {
+            syntax
+                .root_item(*handle)
+                .as_machine()
+                .is_some_and(|machine| {
+                    machine.name.source_span() == entry
+                        && machine.name.as_str(syntax) == BUILD_ENTRY
+                        && machine.attached_data.is_none()
+                })
+        });
+        let mut machines = if has_pending_imports {
+            syntax.root_item_handles().to_vec()
+        } else {
+            Vec::new()
+        };
+        while let Some(handle) = machines.pop() {
+            let Some(machine) = syntax.items.item(handle).as_machine() else {
+                continue;
+            };
+            let owner = machine.name.source_span();
+            machines.extend(machine.nested_machines.handles());
+            for &state in syntax.items.state_handles(machine.states) {
+                let statements = syntax
+                    .items
+                    .statements(syntax.items.state(state).statements);
+                for (position, &statement) in statements.iter().enumerate() {
+                    if let StatementNode::Dispatch(dispatch) =
+                        syntax.statements.statement(statement)
+                    {
+                        let dispatch = syntax.statements.dispatch(*dispatch);
+                        for arm in &dispatch.arms {
+                            if let Some(call) = suspending_arm(syntax, arm.target) {
+                                calls.push(AuthoredCall {
+                                    owner,
+                                    state,
+                                    call,
+                                    through: position + 1,
+                                    prepares: false,
+                                    terminal_arm: true,
+                                });
+                            }
+                        }
+                        continue;
+                    }
+                    let transition = match syntax.statements.statement(statement) {
+                        StatementNode::Transition(arm) => Some(arm),
+                        _ => None,
+                    };
+                    if let Some(call) = suspending_call(syntax, statement) {
+                        calls.push(AuthoredCall {
+                            owner,
+                            call,
+                            state,
+                            through: position + 1,
+                            prepares: preparation(syntax, statement).is_some(),
+                            terminal_arm: transition.is_some(),
+                        });
+                    }
+                }
+            }
         }
-        if start > cuts.len() {
+        if !selected {
             return Err(vec![Diagnostic::error(
-                "Build entry has no stage after its last dependency preparation",
+                "selected Build entry is missing from the parsed stage",
             )]);
         }
-        let incoming = start.checked_sub(1);
-        let first_statement = incoming.map_or(0, |i| cuts[i].end + 1);
-        // A later empty-frame boundary may belong to the same preparation we
-        // just serviced. Only a wait in this program can authorize another cut.
-        let mut eligible = (start..cuts.len()).filter(|&i| cuts[i].wait >= first_statement);
-        let earliest = eligible.clone().next().unwrap_or(cuts.len());
-        let preferred = eligible
-            .find(|&i| cuts[i].bindings.is_empty())
-            .unwrap_or(cuts.len());
-        let mut homes = cuts
-            .iter()
-            .flat_map(|cut| cut.bindings.iter().map(|binding| binding.home))
-            .collect::<Vec<_>>();
-        homes.sort_unstable();
-        homes.dedup();
-        let stage = BuildStage {
-            index: preferred,
-            preparations,
-            homes: homes
-                .iter()
-                .map(|&pos| {
-                    frame::local(syntax, statements[pos])
-                        .name
-                        .source_span()
-                        .span
-                })
-                .collect(),
-            saved_homes: Vec::new(),
-            excluded_homes: excluded_homes.to_vec(),
-            program_ends: cuts,
-        };
+        calls.sort_unstable_by_key(|call| (call.owner.source_id.0, call.call.end));
         Ok(Self {
-            item,
-            machine,
-            state,
-            statements,
-            homes,
-            stage,
-            incoming,
-            first_statement,
-            earliest,
-            preferred,
+            entry,
+            calls,
+            truncate: Vec::new(),
+            stage: BuildStage {
+                incoming,
+                outgoing: Vec::new(),
+                advisories: Vec::new(),
+                can_return: false,
+            },
         })
     }
 
-    /// The parser can only nominate a registration home. Its state parameter
-    /// gives ordinary typing the same type occurrence and declaration scope as the local.
-    pub(super) fn registration_candidates(&self, syntax: &SyntaxTrees) -> Vec<(usize, usize)> {
-        self.homes
+    pub(super) fn can_park(&self) -> bool {
+        self.calls.iter().any(|call| call.prepares)
+    }
+
+    fn call_at(&self, owner: SourceSpan, site: Span) -> Option<usize> {
+        // A resolved module call can include its qualifier in the target span.
+        // Its final identifier and enclosing declaration keep their authored coordinates.
+        let row = self.calls.partition_point(|call| {
+            (call.owner.source_id.0, call.call.end) < (owner.source_id.0, site.end)
+        });
+        self.calls[row..]
             .iter()
-            .enumerate()
-            .filter_map(|(slot, &home)| {
-                let local = frame::local(syntax, self.statements[home]);
-                syntax
-                    .type_references
-                    .type_reference(local.type_reference)
-                    .as_named()
-                    .is_some_and(|name| name.as_str(syntax) == "DependencyRegistration")
-                    .then_some((slot + 1, home))
+            .take_while(|call| {
+                (call.owner.source_id.0, call.call.end) == (owner.source_id.0, site.end)
             })
-            .collect()
+            .position(|call| call.owner == owner && site.start <= call.call.start)
+            .map(|offset| row + offset)
     }
 
-    /// Resolve just the candidate homes when errors in the speculative body
-    /// prevented typing from returning its parameter declarations.
-    pub(super) fn project_frame_parameters(
-        &self,
-        syntax: &mut SyntaxTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        syntax.items.state_mut(self.state).statements = arena::HandleSpan::empty();
-        let mut machine = self.machine.clone();
-        machine.nested_machines = arena::HandleSpan::empty();
-        syntax.items.replace_item(self.item, Item::Machine(machine));
-        frame::project_parameters(syntax, self)
+    pub(super) fn select(
+        &mut self,
+        trees: &symbol_resolved_trees::source_resolved::SymbolResolvedTrees,
+        imports: &[PendingBuildImport],
+    ) -> Result<Vec<crate::source_state::ParkedBuildLocals>, Vec<Diagnostic>> {
+        let selected = demand::select(trees, self, imports)?;
+        let mut parked = Vec::new();
+        self.stage.can_return = selected.can_return;
+        for path in selected.paths {
+            let mut sites = Vec::with_capacity(path.len());
+            for frame in path {
+                let call = &self.calls[frame.authored];
+                let owner = crate::source_symbols::retain_declaration(&trees.symbols, frame.owner)
+                    .map_err(|why| vec![Diagnostic::error(why).with_source_span(call.owner)])?;
+                sites.push(BuildPreparationSite {
+                    owner,
+                    call: call.call,
+                    projects_suffix: frame.needs_projection,
+                });
+                if frame.needs_projection && !self.truncate.contains(&frame.authored) {
+                    if self
+                        .truncate
+                        .iter()
+                        .any(|&index| self.calls[index].state == call.state)
+                    {
+                        return Err(vec![Diagnostic::error("two preparation paths require different checked prefixes of the same machine body").with_source_span(call.owner)]);
+                    }
+                    let state = trees.machine_state(frame.state);
+                    let state_source = trees.symbols.symbol_source_span(state.symbol);
+                    if state_source.is_none()
+                        && trees
+                            .machine(frame.owner)
+                            .and_then(|machine| trees.machine_state_handles(machine.states).first())
+                            != Some(&frame.state)
+                    {
+                        return Err(vec![
+                            Diagnostic::error(
+                                "the suspended Build body has no unique authored state or entry",
+                            )
+                            .with_source_span(call.owner),
+                        ]);
+                    }
+                    self.truncate.push(frame.authored);
+                    parked.push(crate::source_state::ParkedBuildLocals {
+                        entry: call.owner,
+                        state: state_source,
+                        pending_completion_at: SourceSpan::new(call.owner.source_id, call.call),
+                        declarations: frame.declarations,
+                        deferred_subjects: frame.deferred_subjects,
+                    });
+                }
+            }
+            self.stage.outgoing.push(sites);
+        }
+        Ok(parked)
     }
 
-    pub(super) fn optional_wait(&self, syntax: &SyntaxTrees) -> Option<Span> {
-        (self.earliest < self.preferred).then(|| {
-            let wait = self.stage.program_ends[self.earliest].wait;
-            preparation(syntax, self.statements[wait])
-                .expect("a planned wait has an authored operation")
-        })
-    }
-
-    pub(super) fn project(
-        &self,
-        syntax: &mut SyntaxTrees,
-        use_frame: bool,
-        facts: &[crate::ReturnedScalarFact],
-    ) -> Result<BuildStage, Vec<Diagnostic>> {
-        let mut stage = self.stage.clone();
-        stage.index = if use_frame {
-            self.earliest
-        } else {
-            self.preferred
-        };
-        if stage.program_ends.is_empty() {
-            return Ok(stage);
+    pub(super) fn project(&self, syntax: &mut SyntaxTrees) {
+        for &index in &self.truncate {
+            let call = &self.calls[index];
+            let span = syntax.items.state(call.state).statements;
+            let count = u32::try_from(call.through).expect("a statement span fits its arena");
+            syntax.items.state_mut(call.state).statements =
+                arena::HandleSpan::from_parts_or_empty(span.start(), count);
         }
-        let outgoing = stage.program_ends.get(stage.index);
-        if let Some(cut) = outgoing {
-            stage.saved_homes = cut
-                .bindings
-                .iter()
-                .map(|binding| {
-                    frame::local(syntax, self.statements[binding.home])
-                        .name
-                        .source_span()
-                        .span
-                })
-                .collect();
-            stage
-                .saved_homes
-                .sort_unstable_by_key(|span| (span.start, span.end));
-            stage.saved_homes.dedup();
-        }
-        let end = outgoing.map_or(self.statements.len(), |cut| cut.end + 1);
-        let span = syntax.items.state(self.state).statements;
-        let offset = u32::try_from(self.first_statement).expect("statement offset fits its span");
-        let count =
-            u32::try_from(end - self.first_statement).expect("statement count fits its span");
-        syntax.items.state_mut(self.state).statements =
-            arena::HandleSpan::from_parts_or_empty(span.handle_at(offset), count);
-        let mut declaration = self.machine.clone();
-        if !self.homes.is_empty() {
-            frame::project(syntax, self, &stage, &mut declaration, facts)?;
-        }
-        syntax
-            .items
-            .replace_item(self.item, Item::Machine(declaration));
-        Ok(stage)
     }
 }
 
-#[cfg(test)]
-fn select_build_stage(
-    syntax: &mut SyntaxTrees,
-    selected_entry: SourceSpan,
-    stage: usize,
-) -> Result<BuildStage, Vec<Diagnostic>> {
-    EntryPlan::new(syntax, selected_entry, stage, &[])?.project(syntax, true, &[])
+fn suspending_call(syntax: &SyntaxTrees, statement: StatementHandle) -> Option<Span> {
+    let expression = match syntax.statements.statement(statement) {
+        StatementNode::Call(call) => {
+            return call
+                .operational_acknowledgement
+                .acknowledges_suspend
+                .then(|| call.target.source_span().span);
+        }
+        StatementNode::Transition(arm) if !arm.continuation.is_valid() && arm.target.is_valid() => {
+            return suspending_arm(syntax, arm.target);
+        }
+        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::Expression(expression) => *expression,
+        _ => return None,
+    };
+    if !expression.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Call(call) = syntax.expressions.expression(expression) else {
+        return None;
+    };
+    call.operational_acknowledgement
+        .acknowledges_suspend
+        .then(|| call.target.source_span().span)
 }
-
-/// The selected Build declaration with the state that holds its
-/// statements.
-fn entry(
+fn suspending_arm(
     syntax: &SyntaxTrees,
-    selected_entry: SourceSpan,
-) -> Option<(ItemHandle, Machine, StateHandle)> {
-    syntax.root_item_handles().iter().find_map(|handle| {
-        let machine = syntax.root_item(*handle).as_machine()?;
-        if machine.attached_data.is_some()
-            || machine.name.as_str(syntax) != BUILD_ENTRY
-            || machine.name.source_span() != selected_entry
-        {
-            return None;
+    target: syntax_trees::statement::TransitionTargetHandle,
+) -> Option<Span> {
+    match syntax.statements.transition_target(target) {
+        syntax_trees::statement::TransitionTargetNode::Named {
+            operational_acknowledgement,
+            path,
+            ..
+        } if operational_acknowledgement.acknowledges_suspend => syntax
+            .statements
+            .identifier_path_members(*path)
+            .last()
+            .map(|name| name.source_span().span),
+        syntax_trees::statement::TransitionTargetNode::Value(value) => {
+            let ExpressionNode::Call(call) = syntax.expressions.expression(*value) else {
+                return None;
+            };
+            call.operational_acknowledgement
+                .acknowledges_suspend
+                .then(|| call.target.source_span().span)
         }
-        let state = *syntax.items.state_handles(machine.states).first()?;
-        Some((*handle, machine.clone(), state))
-    })
+        _ => None,
+    }
 }
 
 /// The authored operation name in a top-level dependency preparation.

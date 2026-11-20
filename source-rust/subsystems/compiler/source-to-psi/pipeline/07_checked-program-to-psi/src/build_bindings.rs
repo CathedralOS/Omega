@@ -253,6 +253,7 @@ pub(crate) mod build_filesystem {
 }
 
 pub(crate) mod build_provider {
+    #[derive(Clone)]
     pub struct ProducedBuildProvider {
         code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
         path: String,

@@ -9,7 +9,7 @@ use crate::driver::prepare_typed_source::{
 };
 use crate::driver::resolve_and_type::ResolveAndTypeRequest;
 use crate::source_state::TypedTrees;
-use crate::{CompileTimings, ParsedStageSources, SourcePreparation, SourceTypingCheckpoint};
+use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
 use checked_program_to_psi::production;
 use checked_program_to_psi::production::{
     AcceptedTerminalSource, ConstantRead, ProducedTerminalProgram, TerminalProductionCustody,
@@ -17,25 +17,29 @@ use checked_program_to_psi::production::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+mod continuation;
+pub use continuation::{checked_build_stack, locate_build_suspending_call};
+mod product_imports;
 mod target_helpers;
 mod waits;
 use source_text::SourceId;
 use std::collections::HashSet;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-pub use waits::BuildStage;
+pub use waits::{BuildPreparationSite, BuildStage, PendingBuildImport};
 
 /// The parsed files selected by the package capture, including an explicit Build entry.
 pub struct BuildStageSource {
     pub parsed: ParsedStageSources,
     pub build_sources: HashSet<SourceId>,
+    pub pending_imports: Vec<PendingBuildImport>,
     pub entry: source_text::SourceSpan,
 }
 
 /// One typed interval of the Build entry and the exact waits used to project it.
 pub struct TypedBuildInterval {
     pub program: Arc<TypedTrees>,
-    /// Its successor, preparation sites, frame parameters, and live homes saved at this boundary.
+    /// The authored preparation paths this checked interval may reach.
     pub plan: BuildStage,
 }
 
@@ -66,16 +70,37 @@ impl BuildStageSource {
     pub fn prepare(
         self,
         previous: Option<&BuildStage>,
-        facts: &[crate::ReturnedScalarFact],
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
-        let (checkpoint, plan) =
-            self.resolve_entry_plan(previous, facts, preparation, host, authority)?;
+        let entry = self.entry;
+        let mut selected = self;
+        let imports = std::mem::take(&mut selected.pending_imports);
+        let mut request = selected.request(preparation, host, authority)?;
+        let mut plan =
+            waits::EntryPlan::new(&request.syntax.trees, entry, previous, !imports.is_empty())?;
+        let mut timings = CompileTimings::default();
+        let mut resolved = None;
+        let mut parked = Vec::new();
+        if plan.can_park() && !imports.is_empty() {
+            request.syntax.share_pages();
+            let frontier = request.resolve_build_scope(&mut timings)?;
+            parked = plan.select(frontier.trees(), &imports)?;
+            if !plan.stage.outgoing_preparation_paths().is_empty() {
+                request.syntax.partial_build_entry = Some(entry);
+                request.syntax.partial_build_can_return =
+                    plan.stage.can_finish_before_preparation();
+                plan.project(&mut request.syntax.trees);
+            } else {
+                resolved = Some(frontier);
+            }
+        }
+        let source = request.prepare_build_projection(&mut timings, resolved, parked)?;
+        plan.stage.report_unused_imports(source.typed(), &imports);
         Ok(TypedBuildInterval {
-            program: checkpoint.shared_typed(),
-            plan,
+            program: source.shared_typed(),
+            plan: plan.stage,
         })
     }
 
@@ -111,71 +136,6 @@ impl BuildStageSource {
         Ok(checkpoint.shared_typed())
     }
 
-    fn resolve_entry_plan(
-        self,
-        previous: Option<&BuildStage>,
-        facts: &[crate::ReturnedScalarFact],
-        preparation: &SourcePreparation,
-        host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-    ) -> Result<(SourceTypingCheckpoint, BuildStage), Vec<Diagnostic>> {
-        let entry = self.entry;
-        let mut request = self.request(preparation, host, authority)?;
-        let index = match previous {
-            None => 0,
-            Some(stage) => stage.next_index().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "the selected Build stage has already finished",
-                )]
-            })?,
-        };
-        let excluded = previous.map_or(&[][..], |stage| stage.excluded_homes.as_slice());
-        let plan = waits::EntryPlan::new(&request.syntax.trees, entry, index, excluded)?;
-        let candidates = if previous.is_none() {
-            plan.registration_candidates(&request.syntax.trees)
-        } else {
-            Vec::new()
-        };
-        if candidates.is_empty() {
-            return prepare_stage(request, entry, &plan, facts);
-        }
-        // The ordinary selected program already resolves each candidate's type.
-        // Reproject only when a user declaration shadows the toolchain name.
-        request.syntax.share_pages();
-        let mut probe = request.clone();
-        probe.frontends = request.frontends.fork()?;
-        let excluded = match prepare_stage(probe, entry, &plan, facts) {
-            Ok((source, stage)) => {
-                let excluded = unsupported_registration_homes(source.typed(), entry, &candidates)?;
-                if excluded.is_empty() {
-                    request.frontends.retain(&source)?;
-                    return Ok((source, stage));
-                }
-                excluded
-            }
-            Err(diagnostics) => {
-                // A speculative save can itself be ill-typed for a shadowing
-                // declaration. Its signature still determines whether to keep
-                // the original diagnostic or return to that local's ordinary lifetime.
-                let mut header = request.clone();
-                header.frontends = request.frontends.fork()?;
-                let unsupported = plan
-                    .project_frame_parameters(&mut header.syntax.trees)
-                    .and_then(|()| header.prepare(&mut CompileTimings::default()))
-                    .and_then(|source| {
-                        unsupported_registration_homes(source.typed(), entry, &candidates)
-                    });
-                match unsupported {
-                    Ok(excluded) if excluded.is_empty() => return Err(diagnostics),
-                    Ok(excluded) => excluded,
-                    Err(_) => candidates.iter().map(|&(_, home)| home).collect(),
-                }
-            }
-        };
-        let plan = waits::EntryPlan::new(&request.syntax.trees, entry, index, &excluded)?;
-        prepare_stage(request, entry, &plan, facts)
-    }
-
     fn request(
         self,
         preparation: &SourcePreparation,
@@ -197,79 +157,6 @@ impl BuildStageSource {
     }
 }
 
-fn prepare_stage(
-    request: ResolveAndTypeRequest,
-    entry: source_text::SourceSpan,
-    plan: &waits::EntryPlan,
-    facts: &[crate::ReturnedScalarFact],
-) -> Result<(SourceTypingCheckpoint, BuildStage), Vec<Diagnostic>> {
-    let prepare = |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
-        let stage = plan.project(&mut request.syntax.trees, use_frame, facts)?;
-        request.syntax.partial_build_entry = stage.next_index().map(|_| entry);
-        let source = request.prepare(&mut CompileTimings::default())?;
-        Ok((source, stage))
-    };
-    let Some(wait) = plan.optional_wait(&request.syntax.trees) else {
-        return prepare(request, false);
-    };
-    // Both projections use the ordinary resolver. Only the chosen projection
-    // can supply checked declarations to the next stage.
-    let mut candidate = request.clone();
-    candidate.frontends = request.frontends.fork()?;
-    let (source, stage) = prepare(candidate, false)?;
-    let after_wait = |span: source_text::SourceSpan| {
-        span.source_id == entry.source_id && span.span.start > wait.end
-    };
-    let in_build_package = |span: source_text::SourceSpan| {
-        request.sources.source_is_selected(span.source_id)
-            && request.sources.same_checked_instance(entry, span)
-    };
-    // A successful lookup pass can identify declarations a later interval
-    // might admit. A hard source error already refused this program.
-    // A helper's position says nothing about when it runs. The prefix checks
-    // every helper an early call reaches using its original scope.
-    if source.missing_name_uses().any(|(owner, site)| match owner {
-        Some(owner) if owner == entry => after_wait(site),
-        owner => in_build_package(owner.unwrap_or(site)),
-    }) {
-        return prepare(request, true);
-    }
-    request.frontends.retain(&source)?;
-    Ok((source, stage))
-}
-
-/// A same-spelling user type keeps its original lifetime in one program.
-fn unsupported_registration_homes(
-    typed: &TypedTrees,
-    entry: source_text::SourceSpan,
-    candidates: &[(usize, usize)],
-) -> Result<Vec<usize>, Vec<Diagnostic>> {
-    use crate::source_state::types::TypeReferenceNode;
-    let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(entry))
-        .and_then(|machine| typed.machine_states(machine).first())
-        .ok_or_else(|| vec![Diagnostic::error("selected Build entry has no typed frame")])?;
-    let params = typed.state_parameters(machine);
-    let types = &typed.type_reference_table;
-    let mut excluded = Vec::new();
-    for &(position, home) in candidates {
-        let slot = params.get(position).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected Build entry lost a candidate frame parameter",
-            )]
-        })?;
-        let admitted = matches!(types.type_reference(slot.type_reference), TypeReferenceNode::Reference { referee, .. }
-            if matches!(types.type_reference(*referee), TypeReferenceNode::Named { symbol, .. }
-                if typed.is_exact_toolchain_build_prelude_data(*symbol, "DependencyRegistration")));
-        if !admitted {
-            excluded.push(home);
-        }
-    }
-    Ok(excluded)
-}
-
 pub struct BuildInvocationJudgment {
     pub invocation: CheckedBuildInvocation,
     pub constants: Vec<ConstantRead>,
@@ -289,20 +176,16 @@ impl CheckedBuildInvocation {
         subjects: &[Option<PackageKeyIdentity>],
         invocation_sources: Option<Arc<dyn InvocationSourceConsent>>,
     ) -> Result<BuildInvocationJudgment, SourcePreparationFailure> {
-        // Only the final Build stage owes the requested whole-package check.
-        // Every stage still checks the selected entry and everything it calls.
         let subjects = if let Some(prefix) = typed.roots.partial_build_entry {
             if !typed.symbols.symbols().nodes().is_valid(entry)
                 || typed.symbols.symbol_source_span(entry) != Some(prefix)
             {
                 return Err(SourcePreparationFailure {
-                    diagnostics: vec![Diagnostic::error(
-                        "Build prefix belongs to a different entry",
-                    )],
+                    diagnostics: vec![Diagnostic::error("Build prefix belongs to a different entry")],
                     accounting: Default::default(),
                 });
             }
-            &[]
+            if typed.roots.partial_build_can_return { subjects } else { &[] }
         } else {
             subjects
         };

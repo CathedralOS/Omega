@@ -1066,6 +1066,30 @@ impl<'program> DeclaredCallTargets<'program> {
 /// without a declared target on their owning declaration. Selection closure
 /// identifies a public requirement; it grants no body or contract judgment.
 ///
+/// Keep a missing import's qualified name where ordinary lookup has already
+/// ruled out a declaration. A receiver that denotes a value supplies no import.
+fn unbound_call_path(
+    result: crate::source_symbols::UnresolvedName,
+    receiver_bound: bool,
+    members: &[crate::source_state::name::Identifier],
+    target: Option<&crate::source_state::name::Identifier>,
+) -> Option<Box<str>> {
+    if receiver_bound || result != crate::source_symbols::UnresolvedName::NoVisibleDeclaration {
+        return None;
+    }
+    let mut names = members
+        .iter()
+        .chain(target)
+        .flat_map(|name| name.as_str().split("::"));
+    let (first, second) = (names.next()?, names.next()?);
+    let mut path = String::from(first);
+    for component in std::iter::once(second).chain(names) {
+        path.push_str("::");
+        path.push_str(component);
+    }
+    Some(path.into_boxed_str())
+}
+
 /// Typing sees the program with every bundled library and does not know what
 /// an entry reaches, so such a call is not refused here: it is a row of the
 /// declaration, raised by whoever demands that declaration. A call of a bare
@@ -1124,6 +1148,7 @@ pub(crate) fn defer_unbound_calls(
                         handle,
                         DeferredRequest::UndeclaredValueName,
                         crate::source_symbols::UnresolvedName::NoVisibleDeclaration,
+                        None,
                     ));
                 }
                 continue;
@@ -1180,7 +1205,21 @@ pub(crate) fn defer_unbound_calls(
                 } else {
                     Default::default()
                 };
-                in_expressions.push((handle, request, bare));
+                let path = if !call.receiver.is_valid() {
+                    unbound_call_path(bare, false, &[], Some(&call.target))
+                } else if let ExpressionNode::Name(path) =
+                    program.expression_table.expression(call.receiver)
+                {
+                    unbound_call_path(
+                        bare,
+                        path.head_symbol.is_valid() || path.symbol.is_valid(),
+                        program.expression_table.name_path_members(path.members),
+                        Some(&call.target),
+                    )
+                } else {
+                    None
+                };
+                in_expressions.push((handle, request, bare, path));
             }
             if targets.named_expression_call(call)
                 && let Some(occurrence) = call.authored_call_selection
@@ -1235,7 +1274,20 @@ pub(crate) fn defer_unbound_calls(
                             } else {
                                 Default::default()
                             };
-                            in_declarations.push((machine.symbol, request, call.source_span, bare));
+                            let path = unbound_call_path(
+                                bare,
+                                call.receiver_root_symbol.is_valid()
+                                    || call.receiver_symbol.is_valid(),
+                                program.statement_table.name_path_members(call.receiver),
+                                Some(&call.target),
+                            );
+                            in_declarations.push((
+                                machine.symbol,
+                                request,
+                                call.source_span,
+                                bare,
+                                path,
+                            ));
                         }
                         if targets.named_call(call.target_symbol, receiver)
                             && let Some(occurrence) = call.authored_call_selection
@@ -1274,7 +1326,19 @@ pub(crate) fn defer_unbound_calls(
                             } else {
                                 Default::default()
                             };
-                            in_declarations.push((machine.symbol, request, *source_span, bare));
+                            let qualified = unbound_call_path(
+                                bare,
+                                path.head_symbol.is_valid() || path.receiver_symbol.is_valid(),
+                                program.statement_table.name_path_members(path.members),
+                                None,
+                            );
+                            in_declarations.push((
+                                machine.symbol,
+                                request,
+                                *source_span,
+                                bare,
+                                qualified,
+                            ));
                         }
                     }
                 }
@@ -1282,7 +1346,7 @@ pub(crate) fn defer_unbound_calls(
         }
         if !in_expressions.is_empty() {
             let owners = crate::source_state::references::collect_program_operand_owners(program);
-            for (handle, request, bare) in in_expressions {
+            for (handle, request, bare, path) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
                 let mut owned = false;
                 for owner in owners
@@ -1290,7 +1354,7 @@ pub(crate) fn defer_unbound_calls(
                     .filter(|owner| owner.is_valid())
                 {
                     owned = true;
-                    in_declarations.push((owner, request, source_span, bare));
+                    in_declarations.push((owner, request, source_span, bare, path.clone()));
                 }
                 if !owned {
                     return Err(Diagnostic::error(format!(
@@ -1303,7 +1367,7 @@ pub(crate) fn defer_unbound_calls(
         }
         rows = in_declarations
             .into_iter()
-            .map(|(declaration, request, source_span, bare)| {
+            .map(|(declaration, request, source_span, bare, path)| {
                 let undeclared = matches!(
                     request,
                     DeferredRequest::UnresolvedCallTarget | DeferredRequest::ReceiverCallSelection
@@ -1314,7 +1378,7 @@ pub(crate) fn defer_unbound_calls(
                 } else {
                     request
                 };
-                (declaration, request, source_span, bare)
+                (declaration, request, source_span, bare, path)
             })
             .collect();
     }
@@ -1365,9 +1429,9 @@ pub(crate) fn defer_unbound_calls(
                 })?;
         }
     }
-    for (declaration, request, source_span, lookup) in rows {
+    for (declaration, request, source_span, lookup, path) in rows {
         if lookup == crate::source_symbols::UnresolvedName::NoVisibleDeclaration {
-            program.record_missing_name(declaration, request, source_span);
+            program.record_missing_name(declaration, request, source_span, path);
         } else {
             program.record_deferred_refusal(declaration, request, source_span);
         }
@@ -2713,6 +2777,20 @@ mod tests {
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
+        // The later package diagnostic consumes the exact path kept by typing.
+        let mut qualified = program.clone();
+        let ExpressionNode::Call(call) = qualified.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        call.target = crate::source_state::name::Identifier::generated("kit::value");
+        defer_unbound_calls(&mut qualified, 0, &[]).unwrap();
+        let row = qualified.deferred_refusal(holder).unwrap();
+        assert_eq!(row.unresolved_call_path.as_deref(), Some("kit::value"));
+        assert_eq!(
+            row.source_span,
+            qualified.expression_table.source_span(unbound)
+        );
+
         // An ambiguous source lookup stays unserved, regardless of which
         // declarations elsewhere happen to carry its spelling.
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {

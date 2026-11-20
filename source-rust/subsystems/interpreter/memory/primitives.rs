@@ -136,6 +136,16 @@ pub(crate) mod activation_storage {
     }
 
     impl RuntimeActivationStorage {
+        /// Activation grants contain issuing-machine and operation coordinates.
+        /// A parked source frame may move only once all such grants are settled.
+        pub(crate) fn can_continue_entry(&self) -> bool {
+            self.ledgers.is_empty()
+                && self.grants.is_empty()
+                && self.owners.is_empty()
+                && self.claim_descriptors.is_empty()
+                && self.split_children.is_empty()
+        }
+
         pub(crate) fn measure_result_custody<'storage>(
             &'storage self,
             root: &StructuralRuntimePlace,
@@ -2024,6 +2034,13 @@ pub(crate) mod primitive_storage {
                 structural_type,
             }
         }
+        pub(crate) fn relocate_checked_entry(
+            &mut self,
+            map: &crate::continuation::Coordinates<'_, '_>,
+        ) -> Result<(), String> {
+            self.machine = map.machine(self.depth, self.machine)?;
+            map.ty(&mut self.structural_type)
+        }
         pub(crate) fn scalar_array_frame(self) -> (usize, PlaceId, StructuralTypeId) {
             (self.depth, self.place, self.structural_type)
         }
@@ -2078,6 +2095,12 @@ pub(crate) mod primitive_storage {
     }
 
     impl PrimitiveStorageFragment {
+        pub(crate) fn has_literal_scalar_types(&self) -> bool {
+            !matches!(self.logical, ScalarType::Callable(_))
+                && !matches!(self.stored, ScalarType::Callable(_))
+                && self.storage.has_literal_scalar_encoding()
+        }
+
         pub(crate) fn contiguous_address_endpoint(
             &self,
             observed: ScalarType,
@@ -2154,6 +2177,13 @@ pub(crate) mod primitive_storage {
     }
 
     impl PrimitiveStorage {
+        pub(crate) fn has_literal_scalar_encoding(&self) -> bool {
+            self.encoding.is_none_or(|encoding| {
+                !matches!(encoding.source, ScalarType::Callable(_))
+                    && !matches!(encoding.view, ScalarType::Callable(_))
+            })
+        }
+
         fn canonical(endpoint: PrimitiveStorageEndpoint) -> Self {
             Self {
                 endpoint,
@@ -4693,6 +4723,19 @@ pub(crate) mod primitive_storage {
             Ok(())
         }
 
+        pub(crate) fn retains_entry_array_element(
+            &self,
+            home: &PrimitiveStorageHome,
+            index: usize,
+        ) -> bool {
+            self.owned_array_home(home).is_ok()
+                && self
+                    .frame_array(home.depth, home.place)
+                    .is_some_and(|array| {
+                        array.structural_type == home.structural_type && index < array.len()
+                    })
+        }
+
         pub(crate) fn owned_array_home(
             &self,
             home: &PrimitiveStorageHome,
@@ -4874,6 +4917,40 @@ pub(crate) mod runtime_rows {
                 lease: None,
                 account: account.cloned(),
             }
+        }
+
+        /// Move rows whose keys change between publications without replacing their
+        /// storage leases. The caller owns the frame and drops it on any failure.
+        pub(crate) fn relocate_keys(
+            &mut self,
+            mut successor_key: impl FnMut(&Key) -> Result<Option<Key>, String>,
+        ) -> Result<(), String>
+        where
+            Key: Clone,
+        {
+            let mut changes = Vec::new();
+            for old in self.rows.keys() {
+                if let Some(new) = successor_key(old)? {
+                    changes.push((old.clone(), new));
+                }
+            }
+            // Remove all old keys first: two translated keys may exchange numbers.
+            let moved = changes
+                .into_iter()
+                .map(|(old, new)| {
+                    let value = self
+                        .rows
+                        .remove(&old)
+                        .ok_or("continuation lost a retained storage row")?;
+                    Ok((new, value))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            for (key, value) in moved {
+                if self.rows.insert(key, value).is_some() {
+                    return Err("continuation aliases two distinct storage paths".into());
+                }
+            }
+            Ok(())
         }
 
         pub(crate) fn from_rows(
@@ -5429,6 +5506,9 @@ pub(crate) mod scalar_storage {
     impl Eq for ScalarCell {}
 
     impl ScalarCell {
+        pub(crate) fn is_local_literal(&self) -> bool {
+            matches!(self, Self::Local(value) if value.literal().is_some())
+        }
         pub(crate) fn resident(
             original: TerminalScalarValue,
             backing: Rc<dyn TerminalScalarBacking>,
@@ -5523,6 +5603,18 @@ pub(crate) mod scalar_storage {
             } else {
                 self.0.insert(key, ScalarCell::Local(value))
             }
+        }
+        pub(crate) fn relocate_keys(
+            &mut self,
+            successor_key: impl FnMut(&Key) -> Result<Option<Key>, String>,
+        ) -> Result<(), String>
+        where
+            Key: Clone,
+        {
+            self.0.relocate_keys(successor_key)
+        }
+        pub(crate) fn has_only_literal_cells(&self) -> bool {
+            self.0.values().all(ScalarCell::is_local_literal)
         }
         pub(crate) fn insert_cell(
             &mut self,
@@ -5816,6 +5908,27 @@ pub(crate) mod storage_addresses {
     }
 
     type Coordinate = (u64, u64);
+
+    /// The integer address still contains these coordinates after a new program is admitted.
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    pub(crate) enum ExposedStorageSelector {
+        FieldName(terminal_psi::TerminalIdentityIndex),
+        Case(semantic_vocabulary::StructuralCaseId),
+        Field(semantic_vocabulary::StructuralFieldId),
+    }
+
+    impl ExposedStorageSelector {
+        pub(crate) fn unchanged(
+            self,
+            prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
+        ) -> bool {
+            match self {
+                Self::FieldName(name) => prefix.field_identity(name) == Some(name),
+                Self::Case(id) => prefix.unambiguous_case_id(id) == Some(id),
+                Self::Field(id) => prefix.unambiguous_field_id(id) == Some(id),
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub(crate) enum ScalarStorageAddressKey {
@@ -6130,6 +6243,25 @@ pub(crate) mod storage_addresses {
                 .or(self.local_structural_identities.exposure_namespace)
                 .ok_or_else(exhausted)?;
             let encoded = encode(namespace, root, &path)?;
+            for &(kind, coordinate) in &path {
+                let selector = match kind {
+                    0 => continue, // fixed element index
+                    1 => ExposedStorageSelector::FieldName(terminal_psi::TerminalIdentityIndex(
+                        u32::try_from(coordinate).map_err(|_| malformed())?,
+                    )),
+                    2 => ExposedStorageSelector::Case(
+                        semantic_vocabulary::StructuralCaseId::new(coordinate).ok_or(malformed())?,
+                    ),
+                    3 | 4 => ExposedStorageSelector::Field(
+                        semantic_vocabulary::StructuralFieldId::new(coordinate)
+                            .ok_or(malformed())?,
+                    ),
+                    _ => return Err(malformed()),
+                };
+                if let Err(index) = self.exposed_address_selectors.binary_search(&selector) {
+                    self.exposed_address_selectors.insert(index, selector);
+                }
+            }
             let value = IntegerValue::Unsigned(u128::from(encoded));
             if !integer.admits(value) {
                 return Err(exhausted());
@@ -6473,6 +6605,71 @@ pub(crate) mod storage_addresses {
                 exposed.push(view_address);
             }
             assert_ne!(exposed[0], exposed[1]);
+        }
+
+        #[test]
+        fn the_resumed_array_loan_writes_the_same_retired_backing() {
+            use crate::storage::primitive_storage::{PrimitiveStorage, PrimitiveStorageHome};
+            use crate::storage::scalar_array::PackedScalarArrayValue;
+            use semantic_vocabulary::{MachineId, PlaceId};
+
+            let mut execution = execution();
+            let place = PlaceId::new(1).unwrap();
+            let ty = StructuralTypeId::new(2).unwrap();
+            let home =
+                PrimitiveStorageHome::captured_frame(0, execution.current_machine, place, ty);
+            execution
+                .scalar_array_values
+                .publish(
+                    place,
+                    PackedScalarArrayValue::from_bytes(ty, &[1, 2, 3, 4], None)
+                        .unwrap()
+                        .snapshot()
+                        .unwrap(),
+                )
+                .unwrap();
+            execution.scalar_array_values.remove(&place);
+            assert!(execution.retains_entry_array_element(&home, 2));
+            assert!(!execution.retains_entry_array_element(&home, 4));
+
+            let mut endpoint = PrimitiveStorageEndpoint::OwnedArrayElement { home, index: 2 };
+            let original = execution.endpoint_identity(endpoint.clone()).unwrap();
+            execution.current_machine = MachineId::new(2).unwrap();
+            assert!(!execution.retains_entry_array_element(&home, 2));
+            let PrimitiveStorageEndpoint::OwnedArrayElement { home, .. } = &mut endpoint else {
+                unreachable!()
+            };
+            *home = PrimitiveStorageHome::captured_frame(0, execution.current_machine, place, ty);
+            assert_eq!(
+                execution.endpoint_identity(endpoint.clone()).unwrap(),
+                original
+            );
+
+            let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let replacement = crate::TerminalScalarValue::Integer {
+                scalar_type,
+                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+            };
+            execution
+                .store_primitive_storage(
+                    place,
+                    PrimitiveStorage {
+                        endpoint,
+                        encoding: None,
+                    },
+                    ScalarType::Integer(scalar_type),
+                    replacement,
+                )
+                .unwrap();
+            assert_eq!(
+                execution
+                    .scalar_array_values
+                    .backing(&place)
+                    .unwrap()
+                    .element(2)
+                    .unwrap(),
+                Some(replacement)
+            );
         }
 
         #[test]

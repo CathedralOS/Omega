@@ -47,7 +47,7 @@ pub(super) struct PendingQuery {
 }
 
 pub(super) struct IssuedDescription {
-    value: TerminalStructuralValue,
+    pub(super) value: TerminalStructuralValue,
     description: BuildProductDescription,
     _storage: Option<EvaluationStorageLease>,
 }

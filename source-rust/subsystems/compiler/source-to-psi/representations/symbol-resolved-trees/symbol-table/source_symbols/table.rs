@@ -3366,6 +3366,42 @@ impl SymbolTable {
         Resolve one source-backed top-level reference without turning a
         presentation spelling into global authority.
     */
+    pub fn lookup_source_type(&self, name: &str, reference: SourceSpan) -> SymbolLookup {
+        if let Some(symbol) = FixedCoreDeclaration::from_name(name)
+            .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
+        {
+            return SymbolLookup::Unique(symbol);
+        }
+        let builtin = crate::source_symbols::is_builtin_type_spelling(name);
+        let kinds: &[SymbolKind] = if builtin {
+            &[SymbolKind::BuiltinType]
+        } else {
+            &[
+                SymbolKind::BuiltinType,
+                SymbolKind::Data,
+                SymbolKind::TypeAlias,
+                SymbolKind::Machine,
+                SymbolKind::Trait,
+            ]
+        };
+        let lookup = self.lookup_top_level_by_name_and_kinds_from_source_matching(
+            name,
+            kinds,
+            reference,
+            |_| true,
+        );
+        match lookup {
+            SymbolLookup::NotFound if !builtin => self
+                .lookup_top_level_by_name_and_kinds_from_source_matching(
+                    name,
+                    &[SymbolKind::Conformance],
+                    reference,
+                    |_| true,
+                ),
+            other => other,
+        }
+    }
+
     pub fn find_top_level_by_name_and_kinds_from_source(
         &self,
         name: &str,

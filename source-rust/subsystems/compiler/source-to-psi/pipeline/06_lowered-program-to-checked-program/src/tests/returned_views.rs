@@ -102,6 +102,53 @@ fn a_view_a_boundary_returned_is_handed_on_by_a_machine() {
 }
 
 #[test]
+fn a_parked_provider_result_requires_its_original_lender_and_producing_call() {
+    let source = r"
+data Token { id: u64; }
+boundary trait Fs { machine path(source: @Token) -> @[u8] reaches none crashes none; }
+machine helper(source: @Token) -> @[u8] reaches Fs invokes Fs { Fs::path(source) }
+machine see(bytes: @[u8]) {}
+machine keep(token: @Token) {}
+machine pause() suspends {}
+machine entry() reaches Fs invokes Fs suspends {
+    let source: Token = Token { id: 1 };
+    let bytes: @[u8] = helper(@source);
+    suspend pause();
+    see(bytes);
+    keep(@source);
+}";
+    let RouteVerdict::Accepted(checked) = judge(elaborate(source)).unwrap() else {
+        panic!("the provider result and its lender survive the ordinary suspension");
+    };
+    let publication = checked.publish_invocation().unwrap();
+    let m = publication.artifact.view().module();
+    let entry = &m.machines[0];
+    let stop = entry
+        .operations()
+        .find(|op| op.suspension_crossing.is_some())
+        .unwrap();
+    let cut = (entry.id, stop.id);
+    terminal_semantics::continuation::CheckedPrefix::check(m, cut, m, cut)
+        .expect("the returned view has its original provider and live input");
+    let mut missing = m.clone();
+    let plan = missing
+        .execution
+        .suspension_call_plans
+        .iter_mut()
+        .find(|plan| Some(plan.crossing) == stop.suspension_crossing)
+        .unwrap();
+    let before = plan.live_values.len();
+    plan.live_values
+        .retain(|row| row.loans != terminal_psi::TerminalSuspensionValueLoans::ViewFree);
+    assert!(plan.live_values.len() < before);
+    plan.live_value_count = plan.live_values.len() as u32;
+    assert!(
+        terminal_semantics::continuation::CheckedPrefix::check(&missing, cut, &missing, cut)
+            .is_err()
+    );
+}
+
+#[test]
 fn a_provider_view_keeps_its_input_loan_without_borrowing_independent_storage() {
     let source = r#"
 data Token { id: u64; }

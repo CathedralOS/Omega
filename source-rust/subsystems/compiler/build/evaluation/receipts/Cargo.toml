@@ -8,6 +8,7 @@ version.workspace = true
 path = "native_binding.rs"
 
 [dependencies]
+source-provenance = { path = "../../../foundation/source-provenance" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 evaluation-contracts = { path = "../accounting/contracts" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }

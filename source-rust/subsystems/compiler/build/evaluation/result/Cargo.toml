@@ -24,4 +24,5 @@ source-completion-accounting = { path = "../../../source-to-psi/representations/
 source-declarations = { path = "../../../source-to-psi/representations/symbol-resolved-trees/declarations" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 symbols = { path = "../../../foundation/declaration-identity" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
 typed-trees = { path = "../../../source-to-psi/representations/typed-trees" }

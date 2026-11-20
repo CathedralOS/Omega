@@ -2834,6 +2834,16 @@ pub(crate) mod scalar_array {
                 self.rows.get_mut(place).map(|binding| &mut binding.value)
             }
 
+            pub(crate) fn backings_mut(
+                &mut self,
+            ) -> impl Iterator<Item = &mut PackedScalarArrayValue> {
+                self.rows.iter_mut().map(|(_, binding)| &mut binding.value)
+            }
+
+            pub(crate) fn backings(&self) -> impl Iterator<Item = &PackedScalarArrayValue> {
+                self.rows.values().map(|binding| &binding.value)
+            }
+
             pub(crate) fn has_retired(&self) -> bool {
                 self.rows.len() != self.live_count
             }
@@ -3001,7 +3011,7 @@ pub(crate) mod scalar_array {
 
         #[derive(Clone, Copy)]
         pub(crate) struct EmptyArrayState {
-            structural_type: StructuralTypeId,
+            pub(crate) structural_type: StructuralTypeId,
             initialized: bool,
         }
 

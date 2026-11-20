@@ -72,6 +72,7 @@ impl PreparedTerminalPublication {
             program.view(),
             self.selections.questions,
             self.selections.invocation_consent,
+            self.selections.captured_entry,
         );
         let provenance = self.provenance;
         let companions = self.companions;

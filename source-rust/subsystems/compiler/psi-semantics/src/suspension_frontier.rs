@@ -19,9 +19,9 @@ Liveness is the ordinary backward dataflow over the machine's blocks. A
 scalar is an SSA value. A structural root is treated the same way: it has one
 producer (its operation's result, a block parameter or a machine parameter),
 and every later operation that names it, a store into it or a cleanup of it
-included, is a use that keeps it live. A root with no producing result (a
-byte literal's home, for one) counts as present from entry, which can only
-add a row.
+included, is a use that keeps it live. A byte literal or trivial affine
+local is defined by its establishing operation's destination even though
+that operation has a Unit result.
 
 What the plan does not resolve yet: the loan lineage of a live value that
 holds a reference or a view after descriptor transport. A direct formation
@@ -120,7 +120,13 @@ fn operation_uses(operation: &Operation) -> BTreeSet<Name> {
 
 fn operation_definition(operation: &Operation) -> Option<Name> {
     match &operation.result {
-        OperationResult::Unit => None,
+        OperationResult::Unit => match &operation.kind {
+            terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, .. }
+            | terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } => {
+                Some(Name::Root(*destination))
+            }
+            _ => None,
+        },
         OperationResult::Scalar(value) => Some(Name::Value(value.id)),
         OperationResult::Structural(result) => Some(Name::Root(result.place)),
     }
@@ -231,6 +237,7 @@ struct LoanFormation<'a> {
     source: &'a StructuralArgument,
     lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
     direct: bool,
+    delegated_from: Vec<(BlockId, u32)>,
 }
 
 fn direct_storage(
@@ -254,56 +261,85 @@ fn direct_storage(
         })
 }
 
-/// Moves and scalar accesses preserve a direct permission. A call, a
-/// reborrow or a borrowed edge can delegate it to a child. Those cases need
-/// evidence of the child's lifetime before a plan can promise active access.
-fn retains_permission(
+/// A later reborrow cannot change an earlier crossing. Record the first
+/// possible delegation in each block and propagate it through CFG successors;
+/// a backedge can therefore invalidate a crossing on a later iteration.
+fn delegation_frontier(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
-) -> bool {
+) -> Vec<(BlockId, u32)> {
     use terminal_psi::OperationKind;
+    let mut origins = Vec::new();
+    let mut successors = Vec::new();
     for block in &machine.blocks {
-        for (index, op) in block.operations.iter().enumerate() {
-            let Some(locations) = lifetime.surviving.get(&(block.id, index as u32)) else {
-                continue;
-            };
-            match op.kind {
+        let first = block.operations.iter().enumerate().find_map(|(index, op)| {
+            let at = index as u32;
+            let locations = lifetime.surviving.get(&(block.id, at))?;
+            match &op.kind {
                 OperationKind::MoveStructuralValue { .. }
                 | OperationKind::StoreStructuralField { .. }
                 | OperationKind::PrimitiveScalarRead { .. }
+                | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::ScalarStructuralField { .. }
                 | OperationKind::BooleanStructuralField { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }
-                | OperationKind::ReleaseReference { .. } => continue,
+                | OperationKind::ReleaseReference { .. } => return None,
+                // Reading a view-free referent cannot copy or delegate the descriptor.
+                OperationKind::StructuralLeafCopy { path, .. }
+                    if matches!(path.first(), Some(StructuralPathSegment::Referent))
+                        && op.result.as_structural().is_some_and(|value| {
+                            module.structural_type(value.structural_type).is_some()
+                                && !contains_borrows(module, value.structural_type)
+                        }) => return None,
                 _ => {}
             }
             let uses = operation_uses(op);
-            if locations
-                .iter()
-                .any(|location| uses.contains(&Name::Root(location.root)))
-            {
-                return false;
-            }
-        }
-        if let Some(locations) = lifetime
-            .surviving
-            .get(&(block.id, block.operations.len() as u32))
-        {
-            let lends = block
-                .terminator
-                .successor_block_arguments()
-                .into_iter()
-                .flatten()
-                .any(|arg| {
-                    arg.access != StructuralAccess::Owned
-                        && locations.iter().any(|location| location.root == arg.place)
-                });
-            if lends {
-                return false;
-            }
+            locations.iter().any(|location| uses.contains(&Name::Root(location.root))).then_some(at)
+        });
+        let end = block.operations.len() as u32;
+        let edge_delegates = || lifetime.surviving.get(&(block.id, end)).is_some_and(|locations| {
+            block.terminator.successor_block_arguments().into_iter().flatten().any(|arg| {
+                arg.access != StructuralAccess::Owned
+                    && locations.iter().any(|location| location.root == arg.place)
+            })
+        });
+        if let Some(at) = first.or_else(|| edge_delegates().then_some(end)) {
+            origins.push((block.id, at));
+            successors.extend(block.terminator.successor_targets());
         }
     }
-    true
+    origins.sort_unstable_by_key(|(block, _)| *block);
+    if successors.is_empty() {
+        return origins;
+    }
+    let mut blocks = machine
+        .blocks
+        .iter()
+        .map(|block| (block, None))
+        .collect::<Vec<_>>();
+    blocks.sort_unstable_by_key(|(block, _)| block.id);
+    for (id, at) in origins.drain(..) {
+        let row = blocks
+            .binary_search_by_key(&id, |(block, _)| block.id)
+            .expect("block from this machine");
+        blocks[row].1 = Some(at);
+    }
+    while let Some(target) = successors.pop() {
+        let Ok(row) = blocks.binary_search_by_key(&target, |(block, _)| block.id) else {
+            continue;
+        };
+        let (block, first) = &mut blocks[row];
+        if first.replace(0) != Some(0) {
+            successors.extend(block.terminator.successor_targets());
+        }
+    }
+    origins.extend(
+        blocks
+            .into_iter()
+            .filter_map(|(block, first)| Some((block.id, first?))),
+    );
+    origins
 }
 
 /// Crossings in one caller share its block liveness and the transport of its
@@ -355,14 +391,19 @@ impl<'a> MachineFrontiers<'a> {
                     at,
                     &DescriptorLocation::whole(result.place),
                 );
-                let direct = direct_storage(self.module, self.machine, source)
-                    && retains_permission(self.machine, &lifetime);
+                let direct = direct_storage(self.module, self.machine, source);
+                let delegated_from = if direct {
+                    delegation_frontier(self.module, self.machine, &lifetime)
+                } else {
+                    Vec::new()
+                };
                 formations.push(LoanFormation {
                     operation: operation.id,
                     carrier: result.place,
                     source,
                     lifetime,
                     direct,
+                    delegated_from,
                 });
             }
         }
@@ -418,7 +459,7 @@ impl<'a> MachineFrontiers<'a> {
             {
                 continue;
             }
-            if !formation.direct {
+            if !formation.direct || formation.delegated_from.binary_search_by_key(&at.0, |(block, _)| *block).is_ok_and(|row| formation.delegated_from[row].1 <= at.1) {
                 continue;
             }
             loans.push((formation, carrier));

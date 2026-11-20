@@ -1057,7 +1057,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
         }
         // Capturing an existing reference aliases its already evaluated
         // binding; its initializer's calls were charged at that earlier Bind.
-        Statement::CaptureReference { .. } => {}
+        Statement::CaptureReference { .. } | Statement::ParkedBuildLocals(..) => {}
         Statement::Witness { .. } | Statement::Declare { .. } => {}
         Statement::Dispatch {
             subject,

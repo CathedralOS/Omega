@@ -14,10 +14,10 @@ use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTy
 
 // Runtime widths come from the exact published program. This lookup never
 // resolves a binder or closes an independently supplied type at a use site.
-fn closed_module<'program>(
+fn closed_types<'program>(
     program: &'program TerminalProgram<'_>,
-) -> Result<&'program terminal_codec::ClosedTerminalModule, String> {
-    program.closed_module().map_err(|error| {
+) -> Result<&'program terminal_codec::ClosedTypeCatalog, String> {
+    program.closed_types().map_err(|error| {
         format!("Terminal value requires its published closed type owner: {error:?}")
     })
 }
@@ -28,7 +28,7 @@ pub fn input_contents(
     structural_type: StructuralTypeId,
     value: &BuildTimeValue,
 ) -> Result<TerminalStructuralContents, String> {
-    closed_module(program)?;
+    closed_types(program)?;
     let mut values = Vec::new();
     write_structural(
         program,
@@ -211,11 +211,11 @@ fn write_fields(
 }
 
 fn scalar_value(
-    owner: &terminal_codec::ClosedTerminalModule,
+    owner: &terminal_codec::ClosedTypeCatalog,
     scalar: ScalarType,
     value: &BuildTimeValue,
 ) -> Result<TerminalScalarValue, String> {
-    let closed = owner.closed_types().scalar(scalar).map_err(|error| {
+    let closed = owner.scalar(scalar).map_err(|error| {
         format!("Terminal input scalar is not in its published type owner: {error:?}")
     })?;
     Ok(match (scalar, closed, value) {
@@ -243,11 +243,11 @@ pub fn scalar_result(
     program: &TerminalProgram<'_>,
     value: TerminalScalarValue,
 ) -> Result<BuildTimeValue, String> {
-    let owner = closed_module(program)?;
+    let owner = closed_types(program)?;
     match value {
         TerminalScalarValue::Boolean(value) => Ok(BuildTimeValue::Bool(value)),
         TerminalScalarValue::Integer { value, scalar_type } => {
-            let integer = owner.closed_types().integer(scalar_type).map_err(|error| {
+            let integer = owner.integer(scalar_type).map_err(|error| {
                 format!("Terminal result scalar is not in its published type owner: {error:?}")
             })?;
             if integer.bits() > 64 {
@@ -280,9 +280,8 @@ fn write_scalar(
     path: &[Path],
     values: &mut Vec<TerminalBoundaryStorageValue>,
 ) -> Result<(), String> {
-    let owner = closed_module(program)?;
+    let owner = closed_types(program)?;
     owner
-        .closed_types()
         .scalar(stored_scalar)
         .map_err(|error| {
             format!("Terminal stored scalar is not in its published type owner: {error:?}")
@@ -306,7 +305,7 @@ pub fn result_value(
         &BuildTimeValue,
     )],
 ) -> Result<BuildTimeValue, String> {
-    closed_module(instance.program())?;
+    closed_types(instance.program())?;
     if opaque_inputs.windows(2).any(|pair| {
         (pair[0].0.opaque_identity, pair[0].0.structural_type)
             >= (pair[1].0.opaque_identity, pair[1].0.structural_type)
@@ -451,7 +450,7 @@ fn read_fields(
 }
 
 fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<BuildTimeValue, String> {
-    closed_module(instance.program())?;
+    closed_types(instance.program())?;
     match instance
         .observe_result(path)
         .map_err(|error| format!("Terminal result contents: {error:?}"))?

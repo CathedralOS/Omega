@@ -90,6 +90,20 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
+    /// Package acquisition may name an anonymous source. Its original bytes,
+    /// origin and checked dependency scope still identify the captured file.
+    pub fn continues_capture_of(&self, earlier: &Self) -> bool {
+        self.path == earlier.path
+            && self.package_root == earlier.package_root
+            && self.origin == earlier.origin
+            && self.resolution_stratum == earlier.resolution_stratum
+            && self.dependency_scope == earlier.dependency_scope
+            && earlier
+                .package_identity
+                .is_none_or(|owner| self.package_identity == Some(owner))
+            && self.source == earlier.source
+    }
+
     pub fn directory_namespace(&self) -> Result<Vec<&str>, String> {
         self.resolution_stratum.directory_namespace(&self.path, &self.package_root)
     }

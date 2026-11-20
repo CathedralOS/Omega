@@ -26,6 +26,8 @@ use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_claus
 /// changing it; no admission token is persisted.
 pub struct ReplayScope<'a> {
     elaboration: &'a mut terminal_check_tables::program::Elaboration,
+    pub(super) inferred_calls: crate::checking::entry_inputs::InferredCalls,
+    pub(super) inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
 }
 
 pub fn prepare_replay<'source>(
@@ -107,7 +109,11 @@ pub fn prepare_replay<'source>(
         &elaboration.predicate_sources,
         activity,
     )?;
-    Ok(ReplayScope { elaboration })
+    Ok(ReplayScope {
+        elaboration,
+        inferred_calls: Default::default(),
+        inferred_results: Vec::new(),
+    })
 }
 
 /// A proof preparation borrows this exact formed module. Only the formation
@@ -166,7 +172,14 @@ impl ReplayScope<'_> {
         activity: &mut crate::checking::ProofSearchActivity,
     ) -> Checked<()> {
         // This publisher forms the proposed contract before changing it.
-        crate::checking::entry_inputs::require(self.elaboration, callee, predicate, sites, activity)
+        crate::checking::entry_inputs::require(
+            self.elaboration,
+            &mut self.inferred_calls,
+            callee,
+            predicate,
+            sites,
+            activity,
+        )
     }
 
     pub(crate) fn summarize(
@@ -183,7 +196,39 @@ impl ReplayScope<'_> {
             summary,
             exits,
             activity,
-        )
+        )?;
+        if self
+            .elaboration
+            .module
+            .identities
+            .invocation_scope()
+            .is_some()
+        {
+            let declaration = crate::checking::terminal_machine(
+                &self.elaboration.module.machines,
+                machine,
+                machine,
+            )?;
+            let (ordinal, added) = declaration
+                .ensures
+                .iter()
+                .enumerate()
+                .next_back()
+                .ok_or_else(|| {
+                    crate::checking::refusal(
+                        terminal_check_tables::RefusalReason::ForeignIdentity,
+                        machine,
+                        terminal_check_tables::Construct::Machine,
+                        "the checked result summary was not installed",
+                    )
+                })?;
+            self.inferred_results.push((
+                machine,
+                crate::checking::position(ordinal, machine)?,
+                added.clone(),
+            ));
+        }
+        Ok(())
     }
 
     pub(crate) fn finalize_callable_refinements(

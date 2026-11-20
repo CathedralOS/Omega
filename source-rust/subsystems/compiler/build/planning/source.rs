@@ -45,6 +45,7 @@ pub struct PreparedPlanningStage {
 pub(super) struct PlanningSource {
     query_authors: Option<Arc<SourceMap>>,
     query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
+    prepared_product_aliases: Vec<String>,
     pub(super) stage: BuildStage,
     pub(super) deferred: DeferredProductSources,
     pub(super) preparation: SourcePreparation,
@@ -55,6 +56,7 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
+    build_advisories: Vec<Diagnostic>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
@@ -137,6 +139,10 @@ impl PlannedProduct {
             .map_err(refusal)
     }
 
+    pub fn build_advisories(&self) -> &[Diagnostic] {
+        &self.build_advisories
+    }
+
     pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
         let sources = self
             .generated
@@ -179,7 +185,7 @@ pub fn prepare(
         )?;
         checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
     };
-    let interval = resolve(&mut assembled, None, &[], &preparation, profile, inputs)?;
+    let interval = resolve(&mut assembled, None, &preparation, profile, inputs)?;
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
@@ -200,6 +206,7 @@ pub fn prepare(
         evaluation,
         source: PlanningSource {
             stage: interval.plan,
+            prepared_product_aliases: Vec::new(),
             query_authors: interval.program.symbols.source_map(),
             query_declarations: None,
             deferred: deferred(assembled)?,
@@ -214,7 +221,6 @@ pub fn prepare(
 fn resolve(
     assembled: &mut AssembledSyntax,
     previous: Option<&BuildStage>,
-    facts: &[source_compiler::ReturnedScalarFact],
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
@@ -223,7 +229,6 @@ fn resolve(
         .build_stage_source()?
         .prepare(
             previous,
-            facts,
             preparation,
             profile.target_name(),
             inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
@@ -258,6 +263,12 @@ fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, Compil
 }
 
 impl PlanningSource {
+    pub(super) fn prepared_product_alias(&mut self, alias: String) {
+        if let Err(index) = self.prepared_product_aliases.binary_search(&alias) {
+            self.prepared_product_aliases.insert(index, alias);
+        }
+    }
+
     pub(super) fn resume(
         &mut self,
         evaluation: &mut PreparedBuildEvaluation,
@@ -292,17 +303,10 @@ impl PlanningSource {
         let interval = resolve(
             &mut assembled,
             Some(&self.stage),
-            evaluation.returned_scalars(),
             &self.preparation,
             self.profile,
             authority.as_ref(),
         )?;
-        if !interval.plan.same_entry_plan(&self.stage) {
-            return Err(vec![Diagnostic::error(
-                "the captured Build changed its dependency preparation sites",
-            )]
-            .into());
-        }
         evaluation
             .continue_stage(
                 BuildStageRequest {
@@ -314,20 +318,42 @@ impl PlanningSource {
                 },
                 &mut self.timings,
             )
-            .map_err(|failure| locate_failure(failure, &assembled, authority.as_ref()))?;
-        self.deferred = deferred(assembled)?;
-        self.stage = interval.plan;
-        self.query_authors = interval.program.symbols.source_map();
-        self.query_declarations = None;
-        evaluation
+            .map_err(|mut failure| {
+                if !self.prepared_product_aliases.is_empty()
+                    && let CompileFailure::Diagnostics(rows) | CompileFailure::SourceCompletion { diagnostics: rows, .. } = &mut failure
+                {
+                    for row in rows {
+                        let Some(alias) = row.source_span.and_then(|span| assembled.unresolved_build_import_alias(&interval.program, span)) else { continue };
+                        if self.prepared_product_aliases.binary_search_by(|name| name.as_str().cmp(alias)).is_ok()
+                            && !prepared.iter().any(|dependency| dependency.alias == alias)
+                            && !authority.as_ref().is_some_and(|graph| graph.dependency_target_for_purpose(
+                                graph.root(), build_declarations::DependencyPurpose::Build, alias).is_some())
+                        {
+                            row.message.push_str(&format!(". Alias `{alias}` was prepared as a Product dependency. To call it from Build, register it with `Build::build_dependency(builder, description)` and prepare that registration."));
+                        }
+                    }
+                }
+                locate_failure(failure, &assembled, authority.as_ref())
+            })?;
+        let activation = evaluation
             .execution()
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "the next Build stage has no admitted execution",
                 )]
             })?
-            .resume(previous)
-            .map_err(Into::into)
+            .resume(
+                previous,
+                interval.plan.incoming_preparation_path().ok_or_else(|| {
+                    refusal("the resumed Build has no incoming preparation".into())
+                })?,
+            )
+            .map_err(|rows| locate_failure(rows.into(), &assembled, authority.as_ref()))?;
+        self.deferred = deferred(assembled)?;
+        self.stage = interval.plan;
+        self.query_authors = interval.program.symbols.source_map();
+        self.query_declarations = None;
+        Ok(activation)
     }
 
     fn named_source(
@@ -438,7 +464,16 @@ impl PlanningSource {
                 selection_authority: Arc::new(inputs.clone()),
             })
         };
+        let mut build_advisories = self.stage.unused_import_advisories().to_vec();
+        if !build_advisories.is_empty() {
+            let sources = self
+                .query_authors
+                .as_deref()
+                .ok_or_else(|| refusal("Build diagnostic lost its source map".into()))?;
+            package_compilation::attribute_diagnostics(&mut build_advisories, sources, inputs);
+        }
         Ok(PlannedProduct {
+            build_advisories,
             generated,
             evaluated,
             build_profile: self.profile,

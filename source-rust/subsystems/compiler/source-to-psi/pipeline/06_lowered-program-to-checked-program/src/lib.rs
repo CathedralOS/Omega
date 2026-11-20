@@ -75,8 +75,6 @@ mod prove;
 mod rankings;
 mod refinement;
 mod result_summaries;
-mod returned_scalars;
-pub use returned_scalars::{ReturnedComparison, ReturnedOperand, ReturnedScalarFact};
 mod reuse;
 mod static_contracts;
 mod static_reach;
@@ -184,6 +182,9 @@ pub enum Discharged {
     /// they. Empty when the machine has no normal return, where the clause
     /// holds vacuously.
     EveryExit(Vec<ObligationId>),
+    /// Only the existing return edges have been proved. The stated result
+    /// guarantee still applies to an invocation prefix's uncompiled suffix.
+    PendingNormalGuarantee(Vec<ObligationId>),
     /// A `DataDomain` clause that a store or a zero establishment was not
     /// shown to keep, with why: the write opens an invariant window.
     /// `wiki/spec/language/dependent_values.md`, "Invariant windows": "A
@@ -231,6 +232,7 @@ impl Discharged {
         match self {
             Self::Certificate(evidence) => Some(evidence),
             Self::TargetCondition(_)
+            | Self::PendingNormalGuarantee(_)
             | Self::EveryExit(_)
             | Self::Window(_)
             | Self::Preserved
@@ -296,7 +298,6 @@ pub struct MachineDischarge {
     /// Prepared warning inputs are consumed only by accepted diagnostics.
     /// They never decide a mandatory obligation or storage/loan judgment.
     branch_warnings: branch_warnings::Deferred,
-    returned_scalars: Vec<ReturnedScalarFact>,
 }
 
 /// An authored transition arm whose condition contradicts the facts in force
@@ -326,6 +327,8 @@ impl MachineDischarge {
 
 #[derive(Debug)]
 pub struct Discharge {
+    inferred_calls: entry_inputs::InferredCalls,
+    inferred_results: Vec<(MachineId, u32, terminal_psi::ContractClause)>,
     pub machines: IdTable<MachineId, MachineDischarge>,
 }
 
@@ -572,7 +575,6 @@ fn discharge_inner(
                     windows: Vec::new(),
                     weakened_joins: Vec::new(),
                     conflicts: Vec::new(),
-                    returned_scalars: Vec::new(),
                     branch_warnings: branch_warnings::Deferred::default(),
                 });
             }
@@ -596,7 +598,11 @@ fn discharge_inner(
                 activity,
             )
         })?;
-    Ok(Discharge { machines })
+    Ok(Discharge {
+        machines,
+        inferred_calls: scope.inferred_calls,
+        inferred_results: scope.inferred_results,
+    })
 }
 
 /// Values that have no defining operation in the machine that names them and
@@ -940,11 +946,24 @@ fn check_prepared_machine(
     // dependency pass before moving any certificate out of this table. Once
     // it is complete, settlement owns each result; no duplicate proof tree
     // or intermediate verdict table is needed.
+    let pending_result = !lowered.ensures.is_empty()
+        && lowered.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                terminal_psi::Terminator::PendingNormalCompletion { .. }
+            )
+        });
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
         {
-            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+            let checked = published(tables, id, obligation, clause, &decided);
+            decided[index] = Some(match checked {
+                Ok(Discharged::EveryExit(exits)) if pending_result => {
+                    Ok(Discharged::PendingNormalGuarantee(exits))
+                }
+                other => other,
+            });
         }
     }
     // A store or a zero establishment that was not shown to keep a clause
@@ -1113,9 +1132,7 @@ fn check_prepared_machine(
             verdict,
         });
     }
-    let returned_scalars = returned_scalars::prove(&mut prepared, tables, unreached, activity)?;
     Ok(MachineDischarge {
-        returned_scalars,
         verdicts: settled,
         uses,
         windows: closures,
@@ -1471,6 +1488,7 @@ fn with_prepared_machine<Outcome>(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    minted::check_pending_operands(lowered, tables, &graph)?;
     let reference_graph =
         places::reference_graph_with_nominal_calls(module, id, formed.nominal_calls())?;
     let (context, ranking_bindings, result) = {

@@ -298,6 +298,7 @@ dependencies = [
  "source-declarations",
  "source-provenance",
  "symbols",
+ "terminal-codec",
  "typed-trees",
 ]
 
@@ -343,6 +344,7 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-work",
  "tokens",
 ]
@@ -822,6 +824,7 @@ dependencies = [
  "psi-program-identity",
  "record-storage",
  "semantic-vocabulary",
+ "source-provenance",
  "wire",
 ]
 
@@ -2191,6 +2194,7 @@ dependencies = [
  "build-execution",
  "compiler",
  "diagnostics",
+ "filesystem-authority",
  "host-provider-inputs",
  "installation-conditions",
  "optimization-requests",

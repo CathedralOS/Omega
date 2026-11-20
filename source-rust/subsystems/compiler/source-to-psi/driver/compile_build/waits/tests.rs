@@ -1,232 +1,678 @@
 use super::*;
-
-use source_text::SourceId;
+use syntax_trees_to_symbol_resolved_trees::resolution::{ResolutionRequest, resolve};
 
 const SOURCE: SourceId = SourceId(0);
+const PROGRAM: &str = r#"
+use kit;
+data Build {}
+machine Build::prepare_dependency(builder: @mut Build) suspends {}
+machine build(builder: @mut Build) suspends {
+    let before: u32 = 1;
+    suspend Build::prepare_dependency(builder);
+    let seven: u32 = TEST();
+    let after: u32 = before;
+}
+"#;
 
-fn parse(text: &str) -> SyntaxTrees {
+fn select(
+    text: &str,
+    imports: &[PendingBuildImport],
+) -> (
+    SyntaxTrees,
+    EntryPlan,
+    Vec<crate::source_state::ParkedBuildLocals>,
+) {
+    select_after(text, imports, None)
+}
+
+fn select_after(
+    text: &str,
+    imports: &[PendingBuildImport],
+    previous: Option<&BuildStage>,
+) -> (
+    SyntaxTrees,
+    EntryPlan,
+    Vec<crate::source_state::ParkedBuildLocals>,
+) {
     let tokens = crate::test_support::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
-    crate::test_support::frontend_fixture::parse_syntax_trees_with_id(SOURCE, &tokens).unwrap()
+    let mut syntax =
+        crate::test_support::frontend_fixture::parse_syntax_trees_with_id(SOURCE, &tokens).unwrap();
+    let start = text.find("machine build").unwrap() + "machine ".len();
+    let entry = SourceSpan::new(SOURCE, Span::new(start, start + 5));
+    let mut plan = EntryPlan::new(&syntax, entry, previous, !imports.is_empty()).unwrap();
+    let resolved = resolve_program(syntax.clone(), text);
+    let parked = plan.select(&resolved, imports).unwrap();
+    plan.project(&mut syntax);
+    (syntax, plan, parked)
 }
 
-/// The stage `stage` of `text`: how many stages the entry has, how many
-/// statements this one keeps, and how many nested machines.
-fn stage(text: &str, stage: usize) -> Result<(usize, usize, usize), String> {
-    let mut syntax = parse(text);
-    let name = text.find("machine build").unwrap() + "machine ".len();
-    let selected_entry = SourceSpan::new(
-        SOURCE,
-        Span {
-            start: name,
-            end: name + "build".len(),
-        },
+fn resolve_program(
+    syntax: SyntaxTrees,
+    text: &str,
+) -> symbol_resolved_trees::source_resolved::SymbolResolvedTrees {
+    let mut sources = crate::source_inputs::SourceMap::default();
+    assert_eq!(
+        sources
+            .add_with_metadata(
+                "app/build.omg".into(),
+                text.into(),
+                "app".into(),
+                None,
+                source_admission::SourceOrigin::User
+            )
+            .source_id,
+        SOURCE
     );
-    let selected = select_build_stage(&mut syntax, selected_entry, stage).map_err(|refusals| {
-        refusals
-            .into_iter()
-            .map(|refusal| refusal.message)
-            .collect::<Vec<_>>()
-            .join("\n")
-    })?;
-    let (_, machine, state) = entry(&syntax, selected_entry).unwrap();
-    Ok((
-        selected.program_ends.len() + 1,
-        syntax.items.state(state).statements.len(),
-        machine.nested_machines.len(),
-    ))
+    resolve(ResolutionRequest {
+        syntax,
+        sources: Some(std::sync::Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
+    .unwrap()
 }
 
 #[test]
-fn a_stage_uses_the_selected_declaration_occurrence_in_its_file() {
-    let text = "machine build(builder: @mut Build) {}\nmachine build(builder: @mut Build) suspends { suspend Build::prepare_dependency(builder, registration); }";
-    let mut syntax = parse(text);
-    let name = text.rfind("machine build").unwrap() + "machine ".len();
-    let occurrence = SourceSpan::new(
-        SOURCE,
-        Span {
-            start: name,
-            end: name + 5,
-        },
+fn selected_wait_keeps_the_original_declaration_needed_by_its_suffix() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (syntax, plan, parked) = select(&PROGRAM.replace("TEST", r"kit\seven"), &imports);
+    let site = plan.stage.outgoing_parked_preparation().unwrap();
+    assert_eq!(&PROGRAM[site.start..site.end], "prepare_dependency");
+    assert_eq!(
+        syntax
+            .items
+            .state(plan.calls[plan.truncate[0]].state)
+            .statements
+            .len(),
+        2
     );
-    let stage = select_build_stage(&mut syntax, occurrence, 0).unwrap();
-    let [site] = stage.preparations() else {
-        panic!("selected one preparation")
+    let [parked] = parked.as_slice() else {
+        panic!("one projected declaration")
     };
-    assert_eq!(&text[site.start..site.end], "prepare_dependency");
-    let mut syntax = parse(text);
-    assert!(select_build_stage(&mut syntax, SourceSpan::default(), 0).is_err());
-}
-
-const STAGED: &str = "
-machine build(builder: @mut Build) suspends {
-    Build::application(builder, \"app\");
-    let first: DependencyRegistration = Build::build_dependency(builder, one());
-    suspend Build::prepare_dependency(builder, first);
-    let second: DependencyRegistration = Build::build_dependency(builder, two());
-    suspend Build::prepare_dependency(builder, second);
-    let seven: i32 = kit\\v();
-    transition seven == 7 {
-        true -> done(builder),
-        _ -> wrong()
-    }
-    machine done(builder: @mut Build) { }
-    machine wrong() { }
-}
-";
-
-/// Each top-level wait ends a stage. The nested names stay visible in each stage.
-/// The final stage owns the closing dispatch and its two arms.
-#[test]
-fn an_entry_is_divided_at_each_top_level_preparation() {
-    assert_eq!(stage(STAGED, 0), Ok((3, 3, 2)));
-    assert_eq!(stage(STAGED, 1), Ok((3, 2, 2)));
-    assert_eq!(stage(STAGED, 2), Ok((3, 2, 2)));
-    assert!(stage(STAGED, 3).is_err());
-}
-
-/// The twins: an entry with no wait, and one whose only wait is inside a
-/// nested machine, are one stage and are left whole.
-#[test]
-fn an_entry_with_no_top_level_preparation_is_one_stage() {
-    let plain = "
-machine build(builder: @mut Build) {
-    Build::application(builder, \"app\");
-    let seven: i32 = 7;
-}
-";
-    assert_eq!(stage(plain, 0), Ok((1, 2, 0)));
-    assert!(stage(plain, 1).is_err());
-    let nested = "
-machine build(builder: @mut Build) suspends {
-    let registered: DependencyRegistration = Build::build_dependency(builder, one());
-    suspend wait(builder, registered);
-    machine wait(builder: @mut Build, registered: DependencyRegistration) suspends {
-        suspend Build::prepare_dependency(builder, registered);
-    }
-}
-";
-    assert_eq!(stage(nested, 0), Ok((1, 2, 1)));
-}
-
-/// A read, projection or loan after a wait belongs to the frame that
-/// established the local. The ordinary checker sees both sides of its use.
-#[test]
-fn a_local_used_after_preparation_stays_in_the_same_checked_program() {
-    for used in ["before", "before.alias", "pick(@before)"] {
-        let text = format!(
-            "
-machine build(builder: @mut Build) suspends {{
-    let before: DependencyDescription = one();
-    let registered: DependencyRegistration = Build::build_dependency(builder, two());
-    suspend Build::prepare_dependency(builder, registered);
-    let after: i32 = {used};
-}}
-"
-        );
-        assert_eq!(stage(&text, 0), Ok((1, 4, 0)));
-    }
+    assert_eq!(parked.declarations.len(), 1);
+    let span = parked.declarations[0];
+    assert_eq!(&PROGRAM[span.start..span.end], "before");
 }
 
 #[test]
-fn the_next_program_restores_the_home_and_its_loan_before_the_first_authored_use() {
-    let text = r#"
-machine build(builder: @mut Build) suspends {
-    let amount: i32 = 7;
-    let held: @i32 = @amount;
-    let registered: DependencyRegistration = Build::build_dependency(builder, request());
-    suspend Build::prepare_dependency(builder, registered);
-    let saved: i32 = $held;
-    builder.tests.disabled = saved == 7;
-    kit\configure(builder);
-}
-"#;
-    assert_eq!(stage(text, 0), Ok((3, 5, 0)));
-    assert_eq!(stage(text, 1), Ok((3, 5, 0)));
-}
-
-#[test]
-fn preparation_preserves_the_lexical_scope_of_earlier_locals() {
-    for declaration in [
-        "let value: i32 = 2;",
-        "let result: i32 = match 2 { value -> 7 };",
-        "transition 2 { value -> done() }",
+fn unrelated_missing_names_do_not_select_a_preparation() {
+    let pending = PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    };
+    for (name, imports) in [
+        (r"kitchen\seven", vec![pending.clone()]),
+        ("typo", vec![pending]),
+        (
+            r"kit\seven",
+            vec![PendingBuildImport {
+                source: SourceId(9),
+                span: Span::default(),
+                path: "kit".into(),
+            }],
+        ),
     ] {
-        let text = format!(
-            r#"
-machine build(builder: @mut Build) suspends {{
-    let value: i32 = 1;
-    let registered: DependencyRegistration = Build::build_dependency(builder, one());
-    suspend Build::prepare_dependency(builder, registered);
-    {declaration}
-    machine done() {{}}
-}}
-"#
+        let (_, plan, parked) = select(&PROGRAM.replace("TEST", name), &imports);
+        assert_eq!(plan.stage.outgoing_parked_preparation(), None);
+        assert!(parked.is_empty());
+        assert!(plan.truncate.is_empty());
+    }
+}
+
+#[test]
+fn a_later_call_demands_its_helpers_import_in_the_callers_stage() {
+    let program = PROGRAM.replace("TEST", "consume")
+        + r"
+machine consume() -> u32 { kit\seven() }";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, parked) = select(&program, &imports);
+    assert!(plan.stage.outgoing_parked_preparation().is_some());
+    assert_eq!(parked[0].declarations.len(), 1);
+    let [delayed] = parked[0].deferred_subjects.as_slice() else {
+        panic!("only the called machine needs the unavailable package");
+    };
+    assert_eq!(&program[delayed.span.start..delayed.span.end], "consume");
+}
+
+#[test]
+fn a_lexical_value_named_like_a_pending_import_does_not_request_it() {
+    let program = PROGRAM
+        .replace("    let seven", "    let kit: u32 = 1;\n    let seven")
+        .replace("TEST", r"kit\seven");
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, parked) = select(&program, &imports);
+    assert!(plan.stage.outgoing_parked_preparation().is_none());
+    assert!(parked.is_empty());
+}
+
+#[test]
+fn a_helper_preparation_keeps_its_actual_caller_and_return_body() {
+    let program = PROGRAM
+        .replace(
+            "    suspend Build::prepare_dependency(builder);",
+            "    suspend ready(builder);",
+        )
+        .replace("TEST", r"kit\seven")
+        + "\nmachine ready(builder: @mut Build) suspends { suspend Build::prepare_dependency(builder); }";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, parked) = select(&program, &imports);
+    let path = plan.stage.outgoing_preparation_path().unwrap();
+    assert_eq!(
+        path.iter()
+            .map(|site| &program[site.call.start..site.call.end])
+            .collect::<Vec<_>>(),
+        ["ready", "prepare_dependency"]
+    );
+    assert_eq!(parked.len(), 1);
+    let span = parked[0].declarations[0];
+    assert_eq!(&program[span.start..span.end], "before");
+}
+
+#[test]
+fn a_wait_inside_the_helper_keeps_the_helpers_post_wait_local() {
+    let program = PROGRAM
+        .replace(
+            "    suspend Build::prepare_dependency(builder);",
+            "    suspend ready(builder);",
+        )
+        .replace("TEST()", "7")
+        + r"
+machine ready(builder: @mut Build) suspends {
+    let held: u32 = 1;
+    suspend Build::prepare_dependency(builder);
+    let next: u32 = kit\seven();
+    let after: u32 = held;
+}";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, parked) = select(&program, &imports);
+    assert_eq!(plan.stage.outgoing_preparation_path().unwrap().len(), 2);
+    let [helper] = parked.as_slice() else {
+        panic!("only the helper reads a pending import");
+    };
+    assert_eq!(
+        &program[helper.entry.span.start..helper.entry.span.end],
+        "ready"
+    );
+    assert_eq!(helper.declarations.len(), 1);
+    let span = helper.declarations[0];
+    assert_eq!(&program[span.start..span.end], "held");
+}
+
+#[test]
+fn a_wait_matches_the_resolved_target_with_its_static_qualifier() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, _) = select(&PROGRAM.replace("TEST()", "7"), &imports);
+    let start = PROGRAM.find("suspend Build").unwrap() + "suspend ".len();
+    let end = start + "Build::prepare_dependency".len();
+    let selected = plan.call_at(plan.entry, Span::new(start, end)).unwrap();
+    assert!(plan.calls[selected].prepares);
+}
+
+#[test]
+fn a_helper_unreachable_from_build_does_not_request_a_dependency() {
+    let program = PROGRAM.replace("TEST()", "7")
+        + r"
+machine unused() -> u32 { kit\seven() }";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, parked) = select(&program, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_none());
+    assert!(parked.is_empty());
+}
+
+#[test]
+fn an_unused_deferred_import_warns_at_its_own_source_occurrence() {
+    use crate::source_state::deferred_refusals::DeferredRequest;
+    let mut program = crate::source_state::TypedTrees::default();
+    program.record_missing_name(
+        symbols::SymbolHandle::invalid(),
+        DeferredRequest::UndeclaredCallName,
+        SourceSpan::new(SourceId(8), Span::new(30, 36)),
+        Some("kit::value".into()),
+    );
+    let import = |source| PendingBuildImport {
+        source,
+        span: Span::new(4, 7),
+        path: "kit".into(),
+    };
+    let imports = [import(SOURCE), import(SourceId(8))];
+    let (_, mut finished, _) = select(&PROGRAM.replace("TEST()", "7"), &imports);
+    finished.stage.report_unused_imports(&program, &imports);
+    let [warning] = finished.stage.unused_import_advisories() else {
+        panic!("only the fully resolved source can report the unused import")
+    };
+    assert_eq!(warning.severity, diagnostics::DiagnosticSeverity::Warning);
+    assert_eq!(
+        warning.source_span,
+        Some(SourceSpan::new(SOURCE, Span::new(4, 7)))
+    );
+    assert_eq!(warning.message, "unused deferred Build import `kit`");
+    let (_, mut parked, _) = select(&PROGRAM.replace("TEST", r"kit\seven"), &imports);
+    parked.stage.report_unused_imports(&program, &imports);
+    assert!(parked.stage.unused_import_advisories().is_empty());
+}
+
+#[test]
+fn a_stage_keeps_its_borrowed_formal_for_the_mounted_call() {
+    let program = PROGRAM.replace("TEST()", r"kit\seven(builder)");
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let (_, _, parked) = select(&program, &imports);
+    let [entry] = parked.as_slice() else {
+        panic!("one projected entry")
+    };
+    let names: Vec<_> = entry
+        .declarations
+        .iter()
+        .map(|span| &program[span.start..span.end])
+        .collect();
+    assert_eq!(names, ["builder", "before"]);
+}
+
+#[test]
+fn a_conditional_preparation_retains_both_caller_arms() {
+    let program = r"
+use kit;
+data Build {}
+machine Build::prepare_dependency(builder: @mut Build) suspends {}
+machine build(builder: @mut Build, choosing: bool) suspends {
+    transition choosing {
+        true -> suspend ready(builder),
+        _ -> skipped()
+    }
+    machine skipped() {}
+    machine ready(builder: @mut Build) suspends {
+        let saved: u32 = 3;
+        suspend Build::prepare_dependency(builder);
+        let value: u32 = kit\seven();
+        let seen: u32 = saved;
+    }
+}";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let (syntax, plan, parked) = select(program, &imports);
+    let [caller, leaf] = plan.stage.outgoing_preparation_path().unwrap() else {
+        panic!("one conditional call and one wait")
+    };
+    assert_eq!(&program[caller.call.start..caller.call.end], "ready");
+    assert!(!caller.projects_suffix);
+    assert!(leaf.projects_suffix);
+    assert!(plan.stage.can_finish_before_preparation());
+    let entry = syntax
+        .root_items()
+        .find_map(|item| {
+            item.as_machine()
+                .filter(|machine| machine.name.as_str(&syntax) == "build")
+        })
+        .unwrap();
+    let state = syntax
+        .items
+        .state(syntax.items.state_handles(entry.states)[0]);
+    let [statement] = syntax.items.statements(state.statements) else {
+        panic!("one complete dispatch")
+    };
+    let StatementNode::Dispatch(dispatch) = syntax.statements.statement(*statement) else {
+        panic!("both authored arms")
+    };
+    let choices = syntax
+        .statements
+        .dispatch(*dispatch)
+        .arms
+        .iter()
+        .map(|arm| {
+            let syntax_trees::statement::TransitionTargetNode::Named { path, .. } =
+                syntax.statements.transition_target(arm.target)
+            else {
+                panic!("authored call")
+            };
+            syntax
+                .statements
+                .identifier_path_members(*path)
+                .last()
+                .unwrap()
+                .as_str(&syntax)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(choices, ["ready", "skipped"]);
+    assert_eq!(parked.len(), 1);
+    let only = &plan.calls[plan.truncate[0]];
+    assert_eq!(
+        &program[only.owner.span.start..only.owner.span.end],
+        "ready"
+    );
+}
+
+#[test]
+fn a_generated_entry_query_in_a_bind_operand_requests_its_import() {
+    let program = PROGRAM.replace(
+        "let seven: u32 = TEST();",
+        r#"Build::bind(builder, linux_x86_64\ProgramEntry, kit\select(builder, "ProgramEntry"));"#,
+    );
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let (_, plan, _) = select(&program, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_some());
+}
+
+#[test]
+fn a_missing_type_in_the_suffix_is_a_dependency_use() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let program = PROGRAM.replace("let seven: u32 = TEST();", r"let seven: kit\Answer = 7;");
+    let (_, plan, _) = select(&program, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_some());
+    let before = program.replace("let before: u32", r"let before: kit\Answer");
+    let (_, plan, _) = select(&before, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_none());
+}
+
+#[test]
+fn a_called_helpers_contract_is_a_dependency_use_before_its_body() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let program = PROGRAM.replace("TEST()", "consume()")
+        + r"
+machine consume() -> u32 requires kit\permitted() { 7u32 }";
+    let (_, plan, _) = select(&program, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_some());
+    let early = program.replace("let before: u32 = 1", "let before: u32 = consume()");
+    let (_, plan, _) = select(&early, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_none());
+}
+
+#[test]
+fn a_wait_in_a_sibling_arm_does_not_supply_another_arms_import() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let program = r"
+use kit;
+data Build {}
+machine Build::prepare_dependency(builder: @mut Build) suspends {}
+machine build(builder: @mut Build, choosing: bool) suspends {
+    transition choosing {
+        true -> suspend ready(builder),
+        _ -> finish()
+    }
+    machine ready(builder: @mut Build) suspends { suspend Build::prepare_dependency(builder); }
+    machine finish() { let result: u32 = kit\seven(); }
+}";
+    let (_, plan, _) = select(program, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_none());
+}
+
+#[test]
+fn a_value_returning_helper_keeps_its_authored_completion_at_a_nested_wait() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::new(5, 8),
+        path: "kit".into(),
+    }];
+    let program = PROGRAM
+        .replace(
+            "suspend Build::prepare_dependency(builder);",
+            "let saved: u32 = suspend ready(builder);",
+        )
+        .replace("TEST()", r"kit\seven(saved)")
+        + r"
+machine ready(builder: @mut Build) -> u32 suspends {
+    suspend Build::prepare_dependency(builder);
+    19u32
+}";
+    let (syntax, plan, parked) = select(&program, &imports);
+    let [caller, leaf] = plan.stage.outgoing_preparation_path().unwrap() else {
+        panic!("helper and caller")
+    };
+    assert!(caller.projects_suffix);
+    assert!(!leaf.projects_suffix);
+    assert_eq!(parked.len(), 1);
+    let ready = syntax
+        .root_items()
+        .find_map(|item| {
+            item.as_machine()
+                .filter(|machine| machine.name.as_str(&syntax) == "ready")
+        })
+        .unwrap();
+    let state = syntax
+        .items
+        .state(syntax.items.state_handles(ready.states)[0]);
+    let last = syntax.items.statements(state.statements).last().unwrap();
+    let StatementNode::Transition(arm) = syntax.statements.statement(*last) else {
+        panic!("ordinary return")
+    };
+    let syntax_trees::statement::TransitionTargetNode::Value(value) =
+        syntax.statements.transition_target(arm.target)
+    else {
+        panic!("authored return value")
+    };
+    let span = syntax.expressions.source_span(*value).span;
+    assert_eq!(&program[span.start..span.end], "19u32");
+}
+
+#[test]
+fn separate_dispatch_arms_prepare_only_their_own_missing_scopes() {
+    let program = r"
+use left;
+use right;
+data Build {}
+machine Build::prepare_dependency(builder: @mut Build) suspends {}
+machine build(builder: @mut Build, choosing: bool) suspends {
+    transition choosing {
+        true -> suspend first(builder),
+        _ -> suspend second(builder)
+    }
+    machine first(builder: @mut Build) suspends {
+        suspend Build::prepare_dependency(builder);
+        let seen: u32 = left\answer();
+    }
+    machine second(builder: @mut Build) suspends {
+        suspend Build::prepare_dependency(builder);
+        let seen: u32 = right\answer();
+    }
+}";
+    let imports = ["left", "right"].map(|path| PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: path.into(),
+    });
+    let (_, initial, parked) = select(program, &imports);
+    assert_eq!(parked.len(), 2);
+    assert!(!initial.stage.can_finish_before_preparation());
+    let choices = initial.stage.outgoing_preparation_paths();
+    assert_eq!(choices.len(), 2);
+    assert_eq!(
+        choices
+            .iter()
+            .map(|path| {
+                assert_eq!(path.len(), 2);
+                assert!(!path[0].projects_suffix && path[1].projects_suffix);
+                &program[path[0].call.start..path[0].call.end]
+            })
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
+    for (selected, remaining) in [(0, 1), (1, 0)] {
+        let mut actual = initial.stage.clone();
+        actual.commit_preparation(selected).unwrap();
+        let (_, next, _) = select_after(
+            program,
+            std::slice::from_ref(&imports[remaining]),
+            Some(&actual),
         );
-        let refusal = stage(&text, 0).unwrap_err();
-        assert!(
-            refusal.contains("binding `value` conflicts with a local still visible"),
-            "{refusal}"
+        assert!(next.stage.can_finish_before_preparation());
+        assert_eq!(
+            next.stage.incoming_preparation_path().unwrap(),
+            choices[selected]
+        );
+        assert_eq!(
+            next.stage.outgoing_preparation_path().unwrap(),
+            choices[remaining]
         );
     }
-    let disjoint = r#"
-machine build(builder: @mut Build) suspends {
-    let first: i32 = match 1 { item -> 7 };
-    let registered: DependencyRegistration = Build::build_dependency(builder, one());
-    suspend Build::prepare_dependency(builder, registered);
-    let second: i32 = match 2 { item -> 7 };
-}
-"#;
-    assert_eq!(stage(disjoint, 1), Ok((2, 1, 0)));
-}
-
-#[test]
-fn both_stages_can_name_the_same_nested_machine() {
-    let text = "
-machine build(builder: @mut Build) suspends {
-    helper(builder);
-    let registered: DependencyRegistration = Build::build_dependency(builder, one());
-    suspend Build::prepare_dependency(builder, registered);
-    helper(builder);
-    machine helper(builder: @mut Build) { }
-}
-";
-    assert_eq!(stage(text, 0), Ok((2, 3, 1)));
-    assert_eq!(stage(text, 1), Ok((2, 1, 1)));
+    let uncovered = program.replace(
+        "suspend Build::prepare_dependency(builder);\n        let seen: u32 = right",
+        "let seen: u32 = right",
+    );
+    assert_ne!(program, uncovered);
+    assert!(
+        select(&uncovered, &imports)
+            .1
+            .stage
+            .outgoing_preparation_paths()
+            .is_empty()
+    );
 }
 
 #[test]
-fn each_wait_saves_only_the_homes_needed_by_its_successor() {
-    let source = r#"
-machine build(builder: @mut Build) suspends {
-    let first: i32 = 3;
-    let held: @i32 = @first;
-    let one: DependencyRegistration = Build::build_dependency(builder, request());
-    suspend Build::prepare_dependency(builder, one);
-    builder.tests.disabled = $held == 3;
-    let second: i32 = 7;
-    let two: DependencyRegistration = Build::build_dependency(builder, request());
-    suspend Build::prepare_dependency(builder, two);
-    builder.tests.disabled = second == 7;
+fn a_record_constructor_alone_requests_the_missing_type() {
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let program = PROGRAM.replace(
+        "let seven: u32 = TEST();",
+        r"let item = kit\Score { value: 7i32 };",
+    );
+    let (_, plan, _) = select(&program, &imports);
+    assert!(plan.stage.outgoing_preparation_path().is_some());
+    assert!(!plan.stage.can_finish_before_preparation());
+    let early = program.replace(
+        "let before: u32 = 1;",
+        r"let before = kit\Score { value: 1i32 };",
+    );
+    assert!(
+        select(&early, &imports)
+            .1
+            .stage
+            .outgoing_preparation_paths()
+            .is_empty()
+    );
 }
-"#;
-    let name = source.find("build(").unwrap();
-    let entry = SourceSpan::new(SOURCE, Span::new(name, name + "build".len()));
-    let select = |index| select_build_stage(&mut parse(source), entry, index).unwrap();
-    let first_wait = select(0);
-    let second_wait = select(first_wait.next_index().unwrap());
-    let finished = select(second_wait.next_index().unwrap());
-    let [first, second] = *first_wait.frame_homes() else {
-        panic!("the two locals own the shared entry parameters");
+
+#[test]
+fn a_shared_use_requires_a_preparation_on_each_returning_arm() {
+    let program = r"
+use kit;
+data Build {}
+machine Build::prepare_dependency(builder: @mut Build) suspends {}
+machine build(builder: @mut Build, choosing: bool) suspends {
+    suspend choose(builder, choosing);
+    let must_be_available: u32 = kit\answer();
+}
+machine choose(builder: @mut Build, choosing: bool) suspends {
+    transition choosing { true -> suspend first(builder), _ -> skip() }
+    machine first(builder: @mut Build) suspends {
+        suspend Build::prepare_dependency(builder);
+        let seen: u32 = kit\answer();
+    }
+    machine skip() {}
+}";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (_, plan, parked) = select(program, &imports);
+    assert!(plan.stage.outgoing_preparation_paths().is_empty());
+    assert!(parked.is_empty());
+}
+
+#[test]
+fn a_projected_value_helper_keeps_its_real_result_type_and_exact_open_call() {
+    let text = r"
+use kit;
+data Build {}
+machine Build::prepare_dependency(builder: @mut Build) suspends {}
+machine build(builder: @mut Build) suspends { let saved: u32 = suspend ready(builder); }
+machine ready(builder: @mut Build) -> u32 suspends {
+    suspend Build::prepare_dependency(builder);
+    kit\answer()
+}";
+    let imports = [PendingBuildImport {
+        source: SOURCE,
+        span: Span::default(),
+        path: "kit".into(),
+    }];
+    let (syntax, plan, parked) = select(text, &imports);
+    let [open] = parked.as_slice() else {
+        panic!("only the actual value-producing body is open")
     };
-    assert_eq!(&source[first.start..first.end], "first");
-    assert_eq!(&source[second.start..second.end], "second");
-    assert_eq!(first_wait.frame_homes(), second_wait.frame_homes());
-    assert!(first_wait.saves_frame_home(first));
-    assert!(!first_wait.saves_frame_home(second));
-    assert!(!second_wait.saves_frame_home(first));
-    assert!(second_wait.saves_frame_home(second));
-    assert!(!finished.saves_frame_home(first));
-    assert!(!finished.saves_frame_home(second));
+    let path = plan.stage.outgoing_preparation_path().unwrap();
+    assert_eq!(path.len(), 2);
+    assert!(!path[0].projects_suffix && path[1].projects_suffix);
+    assert_eq!(
+        open.pending_completion_at,
+        SourceSpan::new(SOURCE, path[1].call)
+    );
+    assert_eq!(
+        &text[open.pending_completion_at.span.start..open.pending_completion_at.span.end],
+        "prepare_dependency"
+    );
+    let typed = symbol_resolved_trees_to_typed_trees::typing::lower_symbol_resolved_trees(
+        &resolve_program(syntax, text),
+    )
+    .unwrap();
+    let ready = typed
+        .machines()
+        .iter()
+        .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(open.entry))
+        .unwrap();
+    let entry = &typed.machine_states(ready)[0];
+    assert_eq!(typed.symbols.symbol_source_span(entry.symbol), open.state);
+    assert!(entry.return_type.is_valid());
+    assert_eq!(typed.display_type_reference(entry.return_type), "u32");
+
+    // The same shape without a pending use is an ordinary missing return.
+    let unfinished = text.replace(r"    kit\answer()", "");
+    assert_ne!(unfinished, text);
+    let (_, plan, rows) = select(&unfinished, &imports);
+    assert!(plan.stage.outgoing_preparation_paths().is_empty() && rows.is_empty());
 }

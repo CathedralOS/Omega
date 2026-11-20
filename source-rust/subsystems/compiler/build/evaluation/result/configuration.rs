@@ -31,9 +31,11 @@ pub struct BuildConfig {
 
 #[derive(Clone)]
 pub struct ComputedBuildConfig {
-    /// The Build judgment whose produced invocation returned this configuration.
-    /// Settings and observation digests cannot reconstruct its checked contracts.
-    pub accepted_build: Option<std::sync::Arc<checked_program_to_psi::AcceptedTerminalSource>>,
+    /// Published programs in execution order. Review can read their checked
+    /// contracts without keeping the compiler's source trees alive.
+    pub accepted_builds: Vec<terminal_codec::RetainedTerminalCode>,
+    /// The completed preparations and exact calls at which this Build resumed.
+    pub execution_history: std::sync::Arc<evaluation_receipts::BuildExecutionHistory>,
     pub config: BuildConfig,
     pub root_binding_requests: Vec<source_declarations::declaration_selection::ProductEntryBinding>,
     pub declared_product_selections:
@@ -60,7 +62,8 @@ pub struct ComputedBuildConfig {
 impl PartialEq for ComputedBuildConfig {
     fn eq(&self, other: &Self) -> bool {
         let Self {
-            accepted_build: _,
+            accepted_builds: _,
+            execution_history,
             config,
             root_binding_requests,
             declared_product_selections,
@@ -75,7 +78,8 @@ impl PartialEq for ComputedBuildConfig {
             selected_build_declaration,
             generated_sources,
         } = self;
-        config == &other.config
+        execution_history == &other.execution_history
+            && config == &other.config
             && root_binding_requests == &other.root_binding_requests
             && declared_product_selections == &other.declared_product_selections
             && product_selection_requests == &other.product_selection_requests
@@ -99,7 +103,8 @@ impl std::fmt::Debug for ComputedBuildConfig {
         // in the retained source judgment.
         formatter
             .debug_struct("ComputedBuildConfig")
-            .field("accepted_build", &self.accepted_build.is_some())
+            .field("accepted_builds", &self.accepted_builds.len())
+            .field("execution_history", &self.execution_history)
             .field("config", &self.config)
             .field("root_binding_requests", &self.root_binding_requests)
             .field(

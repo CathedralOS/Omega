@@ -113,8 +113,32 @@ impl ResolveAndTypeRequest {
     }
 
     pub(crate) fn prepare(
+        self,
+        timings: &mut CompileTimings,
+    ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
+        self.prepare_build_projection(timings, None, Vec::new())
+    }
+
+    pub(crate) fn resolve_build_scope(
+        &self,
+        timings: &mut CompileTimings,
+    ) -> Result<resolution::DeferredResolvedFrontier, Vec<Diagnostic>> {
+        resolve_build_bodies(
+            resolution::ResolutionRequest {
+                syntax: self.syntax.trees.clone(),
+                sources: Some(Arc::clone(&self.sources)),
+                top_level_bindings: self.top_level_bindings.clone(),
+                retained_base: None,
+            },
+            timings,
+        )
+    }
+
+    pub(crate) fn prepare_build_projection(
         mut self,
         timings: &mut CompileTimings,
+        resolved: Option<resolution::DeferredResolvedFrontier>,
+        parked: Vec<crate::source_state::ParkedBuildLocals>,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.trees.clone()),
@@ -123,7 +147,11 @@ impl ResolveAndTypeRequest {
             build_helper_identity: self.build_helper_identity.into(),
             recorded_authority: None,
         };
-        let activation = activation::select_retained_source(&self, &context, timings)?;
+        let activation = if resolved.is_none() {
+            activation::select_retained_source(&self, &context, &parked, timings)?
+        } else {
+            None
+        };
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax.trees, &self.source_items);
         }
@@ -161,31 +189,15 @@ impl ResolveAndTypeRequest {
                     timings,
                 )?
             } else {
-                let mut frontier = {
-                    timings.record_result(stages::RESOLVE, || {
-                        resolution::resolve_deferred(resolution::ResolutionRequest {
-                            syntax,
-                            sources: Some(self.sources),
-                            top_level_bindings: self.top_level_bindings,
-                            retained_base: None,
-                        })
-                    })
-                    .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
+                let frontier = match resolved {
+                    Some(frontier) => frontier,
+                    None => resolve_build_bodies(resolution::ResolutionRequest {
+                        syntax,
+                        sources: Some(self.sources),
+                        top_level_bindings: self.top_level_bindings,
+                        retained_base: None,
+                    }, timings)?,
                 };
-                loop {
-                    let selected = frontier.pending_machines_in(
-                        resolution::DeferredBodyScope::BuildAndToolchain,
-                    )?;
-                    if selected.is_empty() {
-                        break;
-                    }
-                    frontier = timings
-                        .record_result(stages::RESOLVE, || {
-                            frontier.complete_machine_bodies(&selected)
-                        })
-                        .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
-                        .into_resolved_frontier();
-                }
                 let typing = {
                     timings
                         .record_result(stages::TYPE, || {
@@ -215,9 +227,9 @@ impl ResolveAndTypeRequest {
                 .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
                 .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
         }
-        // An activated frontend can supply declarations from another stage.
-        // This projection alone determines whether the Build entry has a suffix.
         typing.typed_mut().roots.partial_build_entry = self.syntax.partial_build_entry;
+        typing.typed_mut().roots.partial_build_can_return = self.syntax.partial_build_can_return;
+        typing.typed_mut().parked_build_locals = parked;
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         if let Some(retained_requests) = retained_requests {
             PreCheckEvaluation::require_recorded_requests(typing.typed())?;
@@ -236,6 +248,28 @@ impl ResolveAndTypeRequest {
         };
         self.frontends.retain(&source)?;
         Ok(source)
+    }
+}
+
+fn resolve_build_bodies(
+    request: resolution::ResolutionRequest,
+    timings: &mut CompileTimings,
+) -> Result<resolution::DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let mut frontier = timings
+        .record_result(stages::RESOLVE, || resolution::resolve_deferred(request))
+        .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
+    loop {
+        let selected =
+            frontier.pending_machines_in(resolution::DeferredBodyScope::BuildAndToolchain)?;
+        if selected.is_empty() {
+            return Ok(frontier);
+        }
+        frontier = timings
+            .record_result(stages::RESOLVE, || {
+                frontier.complete_machine_bodies(&selected)
+            })
+            .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
+            .into_resolved_frontier();
     }
 }
 
@@ -268,20 +302,6 @@ impl SourceTypingCheckpoint {
 
     pub(crate) fn typed(&self) -> &crate::source_state::TypedTrees {
         self.input.typing.typed()
-    }
-
-    /// Every unresolved source declaration, paired with its lexical owner
-    /// when typing attached the occurrence to a machine or other declaration.
-    pub(crate) fn missing_name_uses(
-        &self,
-    ) -> impl Iterator<Item = (Option<source_text::SourceSpan>, source_text::SourceSpan)> + '_ {
-        self.typed().missing_name_uses().chain(
-            self.input
-                .typing
-                .resolved()
-                .missing_type_names()
-                .map(|site| (None, site)),
-        )
     }
 
     pub(crate) fn complete_authored(

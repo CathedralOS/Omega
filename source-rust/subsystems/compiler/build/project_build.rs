@@ -207,6 +207,12 @@ pub fn interpret(
         let mut activation = host.start().map_err(refusal)?;
         let mut build_dependencies = Vec::new();
         loop {
+            if !source.stage.outgoing_preparation_paths().is_empty() {
+                evaluation
+                    .execution()
+                    .ok_or_else(|| refusal("the Build stage lost its admitted execution".into()))?
+                    .arm_preparations(&mut activation, &source.stage)?;
+            }
             let ran = run(
                 &mut activation,
                 &mut source,
@@ -215,13 +221,18 @@ pub fn interpret(
                 &mut context,
             );
             let spent = activation.helper_evaluation_accounting().clone();
-            ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
-            if source.stage.next_index().is_none() {
+            let stop =
+                ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
+            let StageStop::AtPreparation(index) = stop else {
                 return activation
                     .complete()
                     .map_err(refusal)
                     .map_err(|failure| failure.with_source_completion_accounting(spent));
-            }
+            };
+            source
+                .stage
+                .commit_preparation(index)
+                .map_err(|error| refusal(error.into()))?;
             context = Some(BuildDiagnosticContext::ResumingBuild);
             activation = source
                 .resume(&mut evaluation, activation, &build_dependencies, services)
@@ -243,16 +254,22 @@ pub fn interpret(
     })
 }
 
+enum StageStop {
+    Returned,
+    AtPreparation(usize),
+}
+
 fn run(
     activation: &mut TerminalBuildActivation,
     source: &mut source::PlanningSource,
     services: &mut impl PlanningServices,
     build_dependencies: &mut Vec<ProductQueryDependency>,
     context: &mut Option<BuildDiagnosticContext>,
-) -> Result<(), CompileFailure> {
+) -> Result<StageStop, CompileFailure> {
     loop {
         match activation.advance(1024).map_err(refusal)? {
-            TerminalBuildStep::Returned => return Ok(()),
+            TerminalBuildStep::Returned => return Ok(StageStop::Returned),
+            TerminalBuildStep::AtPreparation(index) => return Ok(StageStop::AtPreparation(index)),
             TerminalBuildStep::NeedsWork => continue,
             TerminalBuildStep::Query(query) => {
                 let (description, selections) =
@@ -299,10 +316,22 @@ fn run(
                     request_ordinal: request.request_ordinal,
                     package: root,
                 };
-                if request.purpose == DependencyPurpose::Build {
-                    mount_build_dependency(build_dependencies, dependency)?;
+                let inputs = package_compilation::review_cache_inputs_digest(&dependency.inputs);
+                let child_build_source = dependency.child_build_source.map(|commitment| commitment.digest());
+                let handoff = dependency.generated.as_ref().map(package_compilation::package_build_handoff_digest);
+                let prepared_product_alias = match request.purpose {
+                    DependencyPurpose::Build => {
+                        mount_build_dependency(build_dependencies, dependency)?;
+                        None
+                    }
+                    DependencyPurpose::Product => Some(dependency.alias),
+                };
+                activation
+                    .dependency_prepared(selected, inputs, child_build_source, handoff)
+                    .map_err(refusal)?;
+                if let Some(alias) = prepared_product_alias {
+                    source.prepared_product_alias(alias);
                 }
-                activation.dependency_prepared(selected).map_err(refusal)?;
                 *context = Some(BuildDiagnosticContext::ResumingBuild);
             }
         }

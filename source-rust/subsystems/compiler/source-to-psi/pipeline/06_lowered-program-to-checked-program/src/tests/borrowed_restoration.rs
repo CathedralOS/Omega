@@ -32,6 +32,7 @@ fn verdict(body: &str) -> Result<Vec<String>, String> {
             .chain(conflicts.iter().map(|loan| format!("conflict: {loan:?}")))
             .collect()),
         RouteVerdict::Accepted(_) => Err("accepted".into()),
+        RouteVerdict::AcceptedPrefix(_) => Err(String::from("unfinished")),
         RouteVerdict::Incomplete(_) => Err("incomplete".into()),
         RouteVerdict::FallBack(refusal) => Err(format!("not supported: {}", refusal.detail)),
     }
