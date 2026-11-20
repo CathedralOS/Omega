@@ -6,12 +6,12 @@ record what is known about one machine's unsealed Terminal Psi module as rows
 over dense identities, so no checking step needs a name, a printed expression
 or a path string to find a fact. The crate is types only: no elaboration,
 checking or prover. It serves the decision to
-[check on the lowered form](../../../../../../../../wiki/drafts/designs/check_on_lowered_form.md).
+[check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md).
 
-[`program`](src/program.rs) owns the complete unsealed module and its checking
-rows. [`compilation`](src/compilation.rs) groups that module with every demanded
-generic form and conformance witness, using kept identities instead of calling
-back into source preparation. [`names`](src/names.rs) and source spans exist
+[The lowered program](lowered_program.rs) is the complete stage 05 output.
+[`program`](program.rs) owns the complete unsealed module and its checking
+rows. [Formation and witness records](compilation.rs) retain the identities of demanded
+generic forms and conformance implementations. [`names`](names.rs) and source spans exist
 only to map diagnostics back to source. Typed source records and Build operands
 stay with the producer/driver publication envelope, outside this source-free
 crate.

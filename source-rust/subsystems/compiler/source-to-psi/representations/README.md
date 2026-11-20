@@ -11,9 +11,10 @@ shows which records its operations produce and what the next operation reads.
 | --- | --- | --- |
 | [Tokens](tokens/token_stream.rs) | [Lexer](../pipeline/00_source-files-to-tokens/lexer.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) |
 | [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [Name resolution](../pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.rs) |
-| [Resolved source](symbol-resolved-trees/lib.rs) and its [symbol table](symbol-resolved-trees/symbol-table/symbol_table.rs) | Name resolution | [Typing](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
-| [Typed source](typed-trees/src/lib.rs) | Typing | [Stage 04 preparation](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) |
+| [Resolved source](symbol-resolved-trees/symbol_resolved_trees.rs) and its [symbol table](symbol-resolved-trees/symbol-table/symbol_table.rs) | Name resolution | [Typing](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
+| [Typed source](typed-trees/typed_trees.rs) | Typing | [Stage 04 preparation](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) |
 | [Prepared typed trees](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) | Stage 04 runs specialization, domain preparation and record-pattern preparation | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) |
+| [Lowered program](lowered-program/lowered_program.rs) | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | [Stage 06 judgment](../pipeline/06_lowered-program-to-checked-program/src/publication.rs) reads the root closure, demanded forms and witnesses together. |
 | [Terminal Psi](../../psi/psi.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
 | [Published target providers](published-target-providers/publication.rs) | [Stage 07](../pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs) binds the checked provider demand and completed Build bindings to a Psi manifest and deployment. | [Native stage 00](../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs) receives them for that manifest and target. |
 
