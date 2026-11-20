@@ -49,31 +49,55 @@ def observation_kind(data):
 
 
 class Route:
-    def __init__(self, args, work):
+    def __init__(self, args, work, shared=None):
         self.args = args
         self.work = work
         self.steps = []
         self.backends = {}
         self.artifacts = {}
+        self.shared = shared
 
     def stage(self, description, action):
         self.steps.append((description, action))
 
+    def publish(self, path, data):
+        path.write_bytes(data)
+        record = {"bytes": len(data), "sha256": sha256(data).hexdigest()}
+        self.artifacts[path.name] = record
+        return record
+
     def file(self, name, description, produce):
         path = self.work / name
-
-        def publish():
-            data = produce()
-            path.write_bytes(data)
-            self.artifacts[name] = {"bytes": len(data), "sha256": sha256(data).hexdigest()}
-
-        self.stage(f"{description} -> {name}", publish)
+        self.stage(f"{description} -> {name}", lambda: self.publish(path, produce()))
         return path
 
-    def run(self, name, description, program, payload):
+    def run(self, name, description, program, payload, *, guest=False):
         chain = " -> ".join(path.name for path in (program.image, *program.sources))
-        return self.file(name, f"{description} [{chain}]", lambda: invoke(
-            [program.image], program.input(payload()), self.args.seconds))
+        path = self.work / name
+
+        def run():
+            request = program.input(payload())
+            if self.shared is None:
+                self.publish(path, invoke([program.image], request, self.args.seconds))
+                return
+            key = sha256(program.image.read_bytes()).hexdigest(), sha256(request).hexdigest()
+            previous = None if guest else self.shared.get(key)
+            if previous is None:
+                data = invoke([program.image], request, self.args.seconds)
+            else:
+                original, digest = previous
+                data = original.read_bytes()
+                if sha256(data).hexdigest() != digest:
+                    raise ValueError(f"shared producer output changed: {original}")
+            record = self.publish(path, data)
+            record.update(producer_sha256=key[0], request_sha256=key[1])
+            if previous is not None:
+                record["reused_from"] = str(original.relative_to(self.work.parent))
+            elif not guest:
+                self.shared[key] = path, record["sha256"]
+
+        self.stage(f"{description} [{chain}] -> {name}", run)
+        return path
 
     @cached_property
     def gamma_interpreter(self):
@@ -168,7 +192,8 @@ class Route:
                                lambda: closure.read_bytes() + entry.read_bytes())
             evaluator = self.on_delta("evaluator", source, self.args.delta)
             self.run("guest.eeout", "interpret subject.epsilon with stdin.bin", evaluator,
-                     lambda: epsilon_request(closure.read_bytes(), guest.read_bytes(), stdin.read_bytes()))
+                     lambda: epsilon_request(closure.read_bytes(), guest.read_bytes(), stdin.read_bytes()),
+                     guest=True)
         else:
             source = self.file("epsilon-compiler.delta", "select the Epsilon compiler",
                                lambda: compiler_source(closure.read_bytes()))
@@ -177,7 +202,8 @@ class Route:
             delta = self.file("subject.delta", "read compiler result and attach the runtime",
                               lambda: linked_program(module.read_bytes()))
             program = self.on_delta("subject", delta, self.args.epsilon)
-            self.run("guest.eeout", "run the compiled Epsilon program with stdin.bin", program, stdin.read_bytes)
+            self.run("guest.eeout", "run the compiled Epsilon program with stdin.bin", program,
+                     stdin.read_bytes, guest=True)
 
 
 def execute_route(route, guest, stdin, expected, verbose):
@@ -239,6 +265,8 @@ def main():
     parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
                         help="interpret checked Delta directly or translate it to Gamma and interpret that source")
     parser.add_argument("--gamma-build", type=Path, help="reuse the selected Alpha or native cold build")
+    parser.add_argument("--reuse-stages", action="store_true",
+                        help="share intermediate outputs of identical invocations within this matrix")
     parser.add_argument("--profile", choices=("conformance", "construction"), default="conformance")
     parser.add_argument("--seconds", type=int, default=600, help="wall limit per producer or guest invocation")
     parser.add_argument("--plan", action="store_true", help="print the stages without building or running them")
@@ -256,6 +284,8 @@ def main():
     root = (args.output or Path(".")).resolve()
     choices = (args.gamma, args.delta, args.epsilon)
     matrix = "all" in choices
+    if args.reuse_stages and not matrix:
+        parser.error("--reuse-stages requires at least one selector set to all")
     if not args.plan:
         if root.exists():
             parser.error(f"output already exists: {root}")
@@ -279,13 +309,14 @@ def main():
         headers = ["Epsilon " + mode for mode in axes[2]]
         print("Gamma      Delta      " + " ".join(f"{header:18}" for header in headers).rstrip(), flush=True)
     cells = []
+    shared = {} if args.reuse_stages else None
     for gamma, delta, epsilon in product(*axes):
         label = f"{gamma}-{delta}-{epsilon}"
         row = argparse.Namespace(**vars(args))
         row.gamma, row.delta, row.epsilon = gamma, delta, epsilon
         row.gamma_build = builds.get(gamma)
         work = root / label if matrix else root
-        route = Route(row, work)
+        route = Route(row, work, shared)
         route.select()
         if args.plan:
             print(label)
