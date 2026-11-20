@@ -25,6 +25,29 @@ def check_tape(work, data, seconds, name="wire", expected=42):
     print(f"{name} exited {expected}. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
 
 
+def signed_mask_checker_input(encode):
+    compiler = ROOT / "source/subsystems/compiler/source_to_psi"
+    checker = compiler / "pipeline/typed_trees_to_checked_trees"
+    declarations = [
+        (compiler / "foundation/integers.omg",
+         ("public data ExactInteger ", "public machine exact_integer_negate(", "public machine exact_integer_at_most(")),
+        (checker / "zone.omg", ("public data Bound ", "public machine bound_at_most(")),
+        (checker / "evaluation.omg",
+         ("public data Value ", "public machine value_unknown(", "public machine value_constant(",
+          "public machine value_nonnegative(", "machine pick(", "public machine value_conjunction(")),
+    ]
+    units = []
+    for file, signatures in declarations:
+        source = file.read_bytes()
+        for signature in signatures:
+            start = source.index(signature.encode())
+            end = source.index(b"\n}", start) + 2
+            units.append(source[start:end])
+    cases = ROOT / "tests/bootstrap/independent/fixtures/interval/signed_mask.omg"
+    source = b"\n".join(units) + b"\n\n" + cases.read_bytes()
+    return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
+
+
 def check_build_source_ownership(encode, runner, work, seconds):
     packages = [("app", 0), ("core", 1), ("library", 0)]
     entries = [(0, 0), (1, 1), (2, 1)]
@@ -83,6 +106,8 @@ def main():
     unlinked, _, _, unit_rows = encode(packages, [], units, 0, b"main")
 
     inputs = {"linked": linked, "missing-edge": unlinked, "trailing-byte": linked + b"\0"}
+    if args.constructor or args.evaluator:
+        inputs["signed-mask-fact"] = signed_mask_checker_input(encode)
     # Each truncated packet keeps the declared arena length. Sweep through
     # the partial final group and a preceding full group in the native entry.
     truncations = {}
@@ -181,6 +206,11 @@ def main():
     if linked_output[:5] != bytes(5) or len(linked_output) <= 5:
         raise SystemExit(f"wire compilation failed: {linked_output[:40].hex()}")
     check_tape(work, linked_output[5:], args.seconds)
+
+    mask_output = evaluate("signed-mask-fact")
+    if mask_output[:5] != bytes(5) or len(mask_output) <= 5:
+        raise SystemExit(f"signed mask checker compilation failed: {mask_output[:40].hex()}")
+    check_tape(work, mask_output[5:], args.seconds, "signed-mask-fact")
 
     # The first source unit starts with the unresolved import. A compiler
     # refusal publishes its coordinate; malformed transport publishes none.
