@@ -9,11 +9,13 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from compiled import ROOT, delta_request, execute, gamma_request, omega_customer, reconstruct, shell
 from conformance.vectors import (
-    epsilon_historical_at_observations, epsilon_observations, epsilon_syntax_controls,
+    epsilon_envelope_observations, epsilon_historical_at_observations,
+    epsilon_observations, epsilon_syntax_controls,
 )
 
 PROFILES = {
     "language": epsilon_observations,
+    "envelope": epsilon_envelope_observations,
     "syntax-controls": epsilon_syntax_controls,
     "historical-at": epsilon_historical_at_observations,
 }
