@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current thirteen-member
-manifest materializes 26,190 lines / 1,002,709 bytes with SHA-256
-`3c1203fbe401537eec6c7155ed05bb04b19bdbaa97541b744c3c52077bb30a28`.
+manifest materializes 26,217 lines / 1,004,301 bytes with SHA-256
+`94bed362053a83d612ee77193fb147608d25a0fd590dcc6650c45e7cf76ede0c`.
 The manifest itself is 2,380 bytes, SHA-256
-`fc804afa656a99342708422589c1c120ea876b05d4f45b23295b19df7ffd793c`;
+`b2de342abd7620790ca96a598bcd7aea8a3a87994cee431380273a6074a65d14`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -561,8 +561,15 @@ A boundary may declare one terminal operation taking an ordinary `i32` and
 returning a fieldless record whose sole default predicate is the literal
 `false`. The checker resolves its result under the boundary's source unit.
 Its requirement publishes the owner's service reach, `crashes none` and
-`terminates`. Calling the uninstalled requirement returns `Incomplete` at
+`terminates`. Both statement and expression calls check the single signed status argument.
+Wrong arity or a mismatched value rejects at the call or argument. Calling
+the uninstalled requirement with a well-typed status returns `Incomplete` at
 its boundary keyword.
+
+Like the product scalar lowerer, the isolated Alpha adapter accepts a
+parameterless entry returning either an ordinary byte or Unit. A normally
+returning Unit entry yields process status zero. Entry selection grants no
+stream or exit service. [Product entry result](../../../source/subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/scalar.omg)
 
 A construction package can also include the authored core
 `ProcessExitPrimitive` and std `NativeProcessExit`. The checker resolves the

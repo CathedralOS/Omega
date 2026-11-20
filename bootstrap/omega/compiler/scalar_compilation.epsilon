@@ -1504,10 +1504,8 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state bare_call(call: OmegaCallExpressionSyntax) {
-        transition self.requires_service_installation(source, 0, 0, call.target) {
-            1 -> return 0
-            _ -> rejected(call.target.start)
-        }
+        return self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
+            call.argument_count, self.terminal_declaration_coordinate(source, 0, 0, call.target), call.start, call.target);
     }
     state unresolved_receiver(call: OmegaCallExpressionSyntax, receiver: OmegaExpressionSyntax) {
         transition receiver.kind {
@@ -1516,10 +1514,9 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state named_receiver(call: OmegaCallExpressionSyntax, receiver: OmegaExpressionSyntax) {
-        transition self.requires_service_installation(source, receiver.payload0, receiver.payload1, call.target) {
-            1 -> return 0
-            _ -> rejected(call.target.start)
-        }
+        return self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
+            call.argument_count, self.terminal_declaration_coordinate(source, receiver.payload0, receiver.payload1, call.target),
+            call.start, call.target);
     }
     state arity(call: OmegaCallExpressionSyntax, callee: i32) {
         transition call.argument_count == self.parser.machine_states[
@@ -3772,15 +3769,15 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
             self.parser.members[call.first_receiver_member].start, name.end);
         transition callee >= 0 {
             true -> call_arity(index, state_index, statement, call, callee)
-            _ -> unresolved_call(call, name)
+            _ -> unresolved_call(index, state_index, statement, call, name)
         }
     }
-    state unresolved_call(call: OmegaCallStatementSyntax, name: OmegaRelativeSpan) {
-        transition self.requires_service_installation(source, call.first_receiver_member,
-            call.receiver_member_count, name) {
-            1 -> return
-            _ -> reject(-1, 4, name.start)
-        }
+    state unresolved_call(index: i32, state_index: i32, statement: i32, call: OmegaCallStatementSyntax,
+        name: OmegaRelativeSpan) {
+        self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[state_index].first_statement,
+            call.first_argument, call.argument_count, self.terminal_declaration_coordinate(source, call.first_receiver_member,
+                call.receiver_member_count, name), call.start, name);
+        return;
     }
 
     // Every ordinary argument must match the callee's declared scalar parameter
@@ -4238,8 +4235,11 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
 
+    // The isolated Alpha adapter calls a parameterless entry. A returned byte
+    // is its process status; normal Unit completion already returns zero.
     state entry_result() {
-        transition self.state_types[self.parser.machine_items[self.selected_machine].first_state] == 8 {
+        let result: i32 = self.state_types[self.parser.machine_items[self.selected_machine].first_state];
+        transition (result == 8) || (result == 2) {
             true -> call_graph()
             _ -> incomplete(4, self.parser.machine_items[self.selected_machine].start)
         }
