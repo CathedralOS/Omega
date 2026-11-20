@@ -2228,29 +2228,19 @@ fn a_callable_alias_checks_its_clauses_and_closes_at_a_storage_use() {
 
         let storage = format!("{alias} data Slot {{ callback: Callback; }} machine main() {{}}");
         let verdicts = judge_prepared_source(&storage);
-        assert!(
-            verdicts
-                .iter()
-                .any(|v| matches!(v, Ok(RouteVerdict::FallBack(reason))
-            if reason.detail.contains(missing))),
-            "storage must diagnose {missing}"
-        );
+        assert!(verdicts.iter().any(|v| matches!(v, Ok(RouteVerdict::Rejected { violations, .. })
+            if violations.iter().any(|row| row.statement.contains(missing)))), "storage must reject the missing clause");
     }
     for signature in [
         "data Callback = machine(value: u32) -> u32 requires value;",
         "data Callback<T> = machine(value: u32, item: T) -> u32 requires value;",
     ] {
         let invalid = judge_prepared_source(&format!("{signature} machine main() {{}}"));
-        assert!(invalid.iter().any(|verdict| {
-            let failure = match verdict {
-                Ok(RouteVerdict::FallBack(failure))
-                | Err(crate::checking::CompilationRefusal::Elaboration(failure)) => failure,
-                _ => return false,
-            };
-            failure.detail.contains("the signature of `Callback`") && failure.source_span.is_some()
-        }), "an unused alias must diagnose its own ill-formed predicate: {invalid:?}");
+        assert!(invalid.iter().any(|v| matches!(v, Ok(RouteVerdict::Rejected { violations, .. })
+            if violations.iter().any(|row| row.statement.contains("a contract predicate must have type bool")
+                && row.statement.contains("the signature of `Callback`") && row.site.is_some()))),
+            "the unused alias must reject its own ill-formed predicate: {invalid:?}");
     }
-
 }
 
 #[test]

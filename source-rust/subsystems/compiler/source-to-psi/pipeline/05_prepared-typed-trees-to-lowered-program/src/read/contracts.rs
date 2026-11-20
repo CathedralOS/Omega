@@ -482,7 +482,11 @@ impl Program<'_> {
                 let (term, value_type) =
                     self.term(id, scope, expression, Some(ScalarType::Boolean))?;
                 if self.clause_operand_type(id, value_type)? != ScalarType::Boolean {
-                    return unserved("predicate whose value is not Boolean");
+                    return Err(reject(
+                        id,
+                        SourceOrigin::of(typed.expression_table.source_span(expression)),
+                        "a contract predicate must have type bool",
+                    ));
                 }
                 return canonical::equal(term, ScalarTerm::Boolean(true), id);
             }
