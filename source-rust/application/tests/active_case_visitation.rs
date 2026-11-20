@@ -24,7 +24,7 @@ fn invoke(fixture: &Path, source: &str, args: &[&str]) -> (ExitStatus, String) {
             "build.omg",
             "--build-input",
             "main.omg",
-            "main.omg",
+            "build.omg",
         ])
         .current_dir(scratch.path())
         .stdin(Stdio::null())

@@ -18,7 +18,7 @@ fn an_unlocked_std_entry_runs_on_both_engines() {
     );
     let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
+        .args(["run", "--both", "build.omg"])
         .current_dir(&project)
         .stdin(Stdio::null())
         .output()

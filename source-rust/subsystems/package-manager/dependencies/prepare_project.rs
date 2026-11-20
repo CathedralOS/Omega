@@ -67,7 +67,6 @@ pub struct LocalProjectPreparation {
     targets: Vec<PreparedProjectTarget>,
     canonical_root: PathBuf,
     entry_relative: PathBuf,
-    authored_build_present: bool, // Preflight source observation, independent of acceptance state.
     storage: SourceResolver,
     offline: bool,
 }
@@ -252,7 +251,7 @@ pub fn begin_local_project_preparation(
     entry_path: &Path,
     targets: &[TargetProfile],
     offline: bool,
-) -> Result<Option<LocalProjectPreparation>, PrepareLocalProjectError> {
+) -> Result<LocalProjectPreparation, PrepareLocalProjectError> {
     begin_local_project_preparation_in_storage(entry_path, targets, offline, |root| {
         SourceResolver::for_current_user(PrimaryGitChoices {
             excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
@@ -266,7 +265,7 @@ fn begin_local_project_preparation_in_storage(
     targets: &[TargetProfile],
     offline: bool,
     open_storage: impl FnOnce(&Path) -> Result<SourceResolver, SourceResolveError>,
-) -> Result<Option<LocalProjectPreparation>, PrepareLocalProjectError> {
+) -> Result<LocalProjectPreparation, PrepareLocalProjectError> {
     if targets.is_empty() {
         return Err(PrepareLocalProjectError::Locked(
             "local project preparation needs at least one requested target".to_owned(),
@@ -299,15 +298,6 @@ fn begin_local_project_preparation_in_storage(
         transaction
             .recover()
             .map_err(PrepareLocalProjectError::Publication)?;
-    }
-    let lock_present = match std::fs::symlink_metadata(project_root.join("omega.lock")) {
-        Ok(_) => true,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-        Err(error) => return Err(PrepareLocalProjectError::Locked(error.to_string())),
-    };
-    let authored_build_present = project_root.join("build.omg").is_file();
-    if !authored_build_present && !lock_present {
-        return Ok(None);
     }
     let baseline = transaction
         .as_ref()
@@ -382,17 +372,16 @@ fn begin_local_project_preparation_in_storage(
     })?;
     let storage =
         open_storage(&canonical_project_root).map_err(PrepareLocalProjectError::Storage)?;
-    Ok(Some(LocalProjectPreparation {
+    Ok(LocalProjectPreparation {
         transaction,
         baseline,
         accepted,
         targets: prepared_targets,
         canonical_root: canonical_project_root,
         entry_relative,
-        authored_build_present,
         storage,
         offline,
-    }))
+    })
 }
 
 impl LocalProjectPreparation {
@@ -458,11 +447,6 @@ impl LocalProjectPreparation {
         acquired
             .require_compilation_source(&self.entry_relative)
             .map_err(PrepareLocalProjectError::Acquisition)?;
-        if self.authored_build_present {
-            acquired
-                .require_compilation_source(Path::new("build.omg"))
-                .map_err(PrepareLocalProjectError::Acquisition)?;
-        }
         Ok(acquired)
     }
 

@@ -303,7 +303,7 @@ fn reopened_program_uses_the_host_pinned_package_lock() {
             "build.omg",
             "--build-input",
             "main.omg",
-            "main.omg",
+            "build.omg",
         ]);
         assert!(issued.status.success(), "{issued:?}");
         let output = String::from_utf8(issued.stdout).unwrap();
@@ -412,7 +412,7 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
             .args(flags)
             .args([
                 "--target", "linux_x86_64", "--build-input", "build.omg",
-                "--build-input", "main.omg", "main.omg",
+                "--build-input", "main.omg", "build.omg",
             ])
             .output()
             .unwrap();

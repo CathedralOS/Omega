@@ -23,7 +23,7 @@ pub(crate) fn prepare_build_prelude(
     let mut program_declares_build_data = false;
     for (_, file) in source_storage.source_roots.iter() {
         let is_build_file = Some(file.source_id) == build_source_id;
-        has_build_machine |= is_build_file && file.root_items.declares_build_machine();
+        has_build_machine |= is_build_file && !file.root_items.build_machines().is_empty();
         if file.root_items.declares_build_data() {
             if is_build_file {
                 build_source_declares_build_data = true;

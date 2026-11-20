@@ -27,10 +27,6 @@ pub fn build_prelude() -> BuildPrelude {
     }
 }
 
-pub fn default_build_source() -> &'static str {
-    "machine build(builder: @mut Build) {}\n"
-}
-
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
 use omega\language\core\AccessPolicy;

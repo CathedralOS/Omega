@@ -21,7 +21,6 @@ fn begin(root: &Path) -> LocalProjectPreparation {
         true,
     )
     .unwrap()
-    .unwrap()
 }
 
 fn source_graph(preparation: &LocalProjectPreparation) -> ResolvedPackageSourceClosure {
@@ -373,21 +372,19 @@ fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage()
 }
 
 #[test]
-fn selected_project_and_inspection_cannot_omit_the_preflight_observed_build() {
+fn named_file_capture_needs_only_the_entry_and_inspection_needs_the_package_build() {
     use crate::review::{PackageInspectionOptions, PackageInspectionTransaction};
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
     let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let only_main =
         SourceCaptureRequest::new([(b"main.omg".to_vec(), Obligation::Required)]).unwrap();
     let pending = begin(temporary.path());
-    let error = pending
-        .acquire_selected_root(&only_main)
-        .err()
-        .unwrap()
-        .to_string();
+    let selected = pending.acquire_selected_root(&only_main).unwrap();
     assert!(
-        error.contains("required compilation source") && error.contains("build.omg"),
-        "{error}"
+        !selected
+            .source_capture()
+            .tree()
+            .exists(Path::new("build.omg"))
     );
     drop(pending);
     let inspection = PackageInspectionTransaction::open(PackageInspectionOptions {

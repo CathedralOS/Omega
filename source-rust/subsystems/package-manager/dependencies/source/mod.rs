@@ -60,11 +60,11 @@ pub(crate) fn package_entry(
     root: &Path,
     captured: Option<&source_capture::CapturedSourceTree>,
 ) -> PathBuf {
-    let has_main = match captured {
-        Some(tree) => tree.is_file(Path::new("main.omg")),
-        None => root.join("main.omg").is_file(),
+    let has_build = match captured {
+        Some(tree) => tree.is_file(Path::new("build.omg")),
+        None => root.join("build.omg").is_file(),
     };
-    root.join(if has_main { "main.omg" } else { "build.omg" })
+    root.join(if has_build { "build.omg" } else { "main.omg" })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

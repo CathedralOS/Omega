@@ -20,6 +20,7 @@ Provenance:
 
 pub(crate) mod anonymous_owner;
 pub(crate) mod canonical_fs;
+mod entry;
 pub mod source_assembly;
 pub(crate) mod source_consumption;
 pub mod source_imports;

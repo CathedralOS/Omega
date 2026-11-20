@@ -371,7 +371,7 @@ mod product {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum ExecutedBuildSelection {
-        Entry(ExecutedRootBinding),
+        Entry(ProductEntryBinding),
         Declaration(ExecutedProductSelection),
         Exclusion(ExecutedEnumExclusion),
         Native(ExecutedNativeBinding),
@@ -435,7 +435,7 @@ mod product {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ExecutedRootBinding {
+    pub struct ProductEntryBinding {
         pub source_span: source_text::SourceSpan,
         pub slot: String,
         pub implementation: RootBindingSelection,
@@ -900,7 +900,7 @@ pub mod product_operands {
 pub use product::{
     BuildSelectionRequest, DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
     EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion,
-    ExecutedNativeBinding, ExecutedProductSelection, ExecutedRootBinding,
+    ExecutedNativeBinding, ExecutedProductSelection, ProductEntryBinding,
     ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };

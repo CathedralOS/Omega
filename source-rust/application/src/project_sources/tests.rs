@@ -15,7 +15,7 @@ fn compile(
 ) -> Result<CompletedProduct, Vec<diagnostics::Diagnostic>> {
     let profile = TargetProfile::MacosArm64;
     let product = super::open_product(
-        &project.join("main.omg"),
+        &project.join("build.omg"),
         profile,
         true,
         None,

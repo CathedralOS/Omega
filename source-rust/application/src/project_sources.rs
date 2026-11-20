@@ -305,6 +305,20 @@ fn planning_timings(enabled: bool) -> CompileTimings {
     }
 }
 
+/// A package check can name its conventional main file to select that existing package.
+pub(crate) enum ProjectInput<'a> {
+    File(&'a Path),
+    PackageCheck(&'a Path),
+}
+
+impl ProjectInput<'_> {
+    fn path(&self) -> &Path {
+        match self {
+            Self::File(path) | Self::PackageCheck(path) => path,
+        }
+    }
+}
+
 pub(crate) fn open_product(
     root: &Path,
     profile: TargetProfile,
@@ -312,7 +326,7 @@ pub(crate) fn open_product(
     build_directory: Option<&Path>,
     snapshot: Option<BuildSnapshotRequest>,
 ) -> Deployment {
-    open_products(root, &[profile], offline, false, build_directory, snapshot)?
+    open_products(ProjectInput::File(root), &[profile], offline, false, build_directory, snapshot)?
         .0
         .into_iter()
         .next()
@@ -323,7 +337,7 @@ pub(crate) fn open_product(
 /// Resolve and execute the authored Build once for the entire deployment set.
 /// The returned Product keeps the same source capture, grant joins and Build return.
 pub(crate) fn open_products(
-    root: &Path,
+    input: ProjectInput<'_>,
     profiles: &[TargetProfile],
     offline: bool,
     timings: bool,
@@ -344,53 +358,23 @@ pub(crate) fn open_products(
             "project Build execution needs a supported host",
         )]
     })?;
+    let root = input.path();
     let preparation =
         begin_local_project_preparation(root, profiles, offline).map_err(|e| error(e.into()))?;
     let workspace = product_publication::output_directory::base(root, build_directory);
     let mut session = PackageBuildSession::create(&workspace.join("package-manager"))
         .map_err(|e| error(e.into()))?;
     let result = (|| -> Result<_, PackageCommandError> {
-        if let Some(preparation) = &preparation {
-            let rejected: Vec<_> = preparation
-                .requested_target_errors()
-                .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
-                .collect();
-            if rejected.len() == profiles.len() {
-                return Ok(ProjectProducts(rejected));
-            }
+        let rejected: Vec<_> = preparation
+            .requested_target_errors()
+            .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
+            .collect();
+        if rejected.len() == profiles.len() {
+            return Ok(ProjectProducts(rejected));
         }
         let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
             Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
             _ => None,
-        };
-        let Some(preparation) = preparation else {
-            let capture = match selected {
-                Some(selection) => {
-                    package_compilation::capture_selected_anonymous_compilation_source(
-                        root, selection,
-                    )
-                }
-                None => package_compilation::capture_anonymous_compilation_source(root),
-            }
-            .map_err(|rows| {
-                let mut text = String::new();
-                let _ = diagnostics::write_diagnostics(&mut text, &rows);
-                text
-            })?;
-            let stage = project_build::prepare(
-                PlanningRequest {
-                    root,
-                    sources: PlanningSources::Captured(&capture),
-                    execution: session.source_build_inputs(profile, snapshot, false)?,
-                    artifact_only: false,
-                },
-                Default::default(),
-                planning_timings(timings),
-            )?;
-            return Ok(ProjectProducts::shared(
-                profiles,
-                project_build::interpret(stage, &mut ())?.open_product(None)?,
-            ));
         };
         let acquired = match selected {
             Some(selection) => preparation.acquire_selected_root(selection)?,
@@ -407,7 +391,14 @@ pub(crate) fn open_products(
             active: Vec::new(),
             settled: Vec::new(),
         };
-        let entry = preparation.entry_path();
+        let entry = match input {
+            ProjectInput::PackageCheck(path)
+                if path.file_name().is_some_and(|name| name == "main.omg") =>
+            {
+                acquired.entry_path()
+            }
+            _ => preparation.entry_path(),
+        };
         let returned = host.execute(&entry, &acquired, snapshot, false)?;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;

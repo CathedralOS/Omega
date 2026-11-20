@@ -288,5 +288,6 @@ fn lex_and_parse(
         build_sources: Default::default(),
         build_stage: None,
         frontends: Default::default(),
-    })
+    }
+    .with_build_entry(source.selections.policy.activation))
 }

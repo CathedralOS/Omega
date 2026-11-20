@@ -23,7 +23,6 @@ pub struct EvaluatedBuild {
 pub enum BuildSubjectValidation {
     EntryOnly,
     Checked,
-    AwaitingOwner,
 }
 
 /// What the Build admission's constants owe a Product frontier typed after

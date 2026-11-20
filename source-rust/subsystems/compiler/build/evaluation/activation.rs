@@ -49,12 +49,12 @@ pub use source_result::BuildSourceResult;
 use evaluation_accounting::EvaluationInvocationAccount;
 use normalized_build_settings::EvaluatedBuildSettings;
 use package_compilation::build_execution::build_value::BuildValueAdmission;
+use source_compiler::declaration_selection::ProductEntryBinding;
 use source_compiler::ProducedTerminalProgram;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
 use source_compiler::declaration_selection::ExecutedEnumExclusion;
 use source_compiler::declaration_selection::ExecutedNativeBinding;
 use source_compiler::declaration_selection::ExecutedProductSelection;
-use source_compiler::declaration_selection::ExecutedRootBinding;
 use source_compiler::declaration_selection::NativeBindingFormation;
 use source_compiler::declaration_selection::ProductDeclarationRequest;
 use std::sync::Arc;
@@ -95,7 +95,7 @@ pub struct ReturnedBuild {
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
-    pub(crate) root_bindings: Vec<ExecutedRootBinding>,
+    pub(crate) root_bindings: Vec<ProductEntryBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
     pub(crate) native_formations: Vec<NativeBindingFormation>,
     pub(crate) native_bindings: Vec<ExecutedNativeBinding>,

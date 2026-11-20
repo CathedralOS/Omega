@@ -361,7 +361,6 @@ machine build(builder: @mut Build) suspends {
             &[profile],
             true,
         )
-        .unwrap()
         .unwrap();
         let mut session = orchestration::BuildSession::create(&temporary.path().join(if cycle {
             "cycle-session"
@@ -440,7 +439,6 @@ fn source_discovery_root_inputs() {
             &[profile],
             true,
         )
-        .unwrap()
         .unwrap()
     };
 
@@ -550,7 +548,6 @@ fn source_discovery_root_resources() {
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let preparation = || {
         package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
-            .unwrap()
             .unwrap()
     };
     for (name, work, bytes, expected) in [
@@ -669,7 +666,6 @@ fn anonymous_generator_source_scope() {
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let preparation =
         package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
-            .unwrap()
             .unwrap();
     let acquired = preparation
         .acquire_root()
@@ -898,7 +894,6 @@ fn anonymous_generator_source_scope() {
     }
     let preparation =
         package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
-            .unwrap()
             .unwrap();
     let mut session =
         orchestration::BuildSession::create(&temporary.path().join("application-session")).unwrap();
@@ -1132,7 +1127,7 @@ fn initial_build_source_isolation() {
         .product_sources
         .take()
         .expect("pending Product sources")
-        .assemble(None, &mut timings, &mut catalogue)
+        .assemble(None, &[], &mut timings, &mut catalogue)
         .expect("joined Product sources");
     assert!(product.sources.files().any(|file| file.path == root));
     assert!(
@@ -1194,7 +1189,7 @@ fn deferred_product_uses_captured_imports() {
     let (_, product) = build
         .product_sources
         .expect("deferred Product")
-        .assemble(None, &mut timings, &mut catalogue)
+        .assemble(None, &[], &mut timings, &mut catalogue)
         .expect("Product import resolves from capture after live deletion");
     assert!(
         product
@@ -1446,7 +1441,6 @@ fn application_source_resolution(project: &str, private_call: bool) {
         &[profile],
         true,
     )
-    .unwrap()
     .unwrap();
     let mut session = orchestration::BuildSession::create(&temporary.path().join("session"))
         .expect("one project resource owner");
@@ -1595,8 +1589,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         &[profile],
         true,
     )
-    .expect("recover before source acquisition")
-    .expect("authored Build starts project preparation");
+    .expect("recover before source acquisition");
     let acquired = preparation
         .acquire_root()
         .expect("capture root before declaration");
@@ -1862,7 +1855,6 @@ fn project_session_lifecycle() {
     let preparation = || {
         package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
             .unwrap()
-            .unwrap()
     };
     let mut session =
         orchestration::BuildSession::create(&temporary.path().join("limited")).unwrap();
@@ -1926,7 +1918,6 @@ fn completed_build_target_fanout() {
         &[host],
         true,
     )
-    .unwrap()
     .unwrap();
     let mut session =
         orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
@@ -2084,7 +2075,6 @@ fn settled_build_product_contexts() {
         &[host],
         true,
     )
-    .unwrap()
     .unwrap();
     let mut session =
         orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();

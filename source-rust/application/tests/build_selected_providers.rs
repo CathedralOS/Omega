@@ -69,7 +69,7 @@ fn run_both(name: &str, product: &str) -> String {
     std::fs::write(root.join("main.omg"), product).expect("staged program");
     std::fs::write(root.join("build.omg"), BUILD).expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
+        .args(["run", "--both", "build.omg"])
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()

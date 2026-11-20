@@ -28,7 +28,7 @@ pub struct BuildStageSource {
     pub build_sources: HashSet<SourceId>,
     pub sources: Arc<SourceMap>,
     pub imports: Vec<SourceScopedTopLevelBinding>,
-    pub entry: SourceId,
+    pub entry: source_text::SourceSpan,
 }
 
 impl BuildStageSource {
@@ -39,7 +39,7 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
-        let entry = self.entry;
+        let entry = self.entry.source_id;
         self.request(preparation, host, authority, Some((entry, index)))
             .prepare(&mut UnmeasuredProduction)
     }
@@ -63,6 +63,13 @@ impl BuildStageSource {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
         build_stage: Option<(SourceId, usize)>,
     ) -> ResolveAndTypeRequest {
+        let entry = self.sources.get(self.entry.source_id).map(|file| {
+            source_admission::RetainedDeclaration::from_source_occurrence(
+                file.clone(),
+                self.entry.span,
+                symbols::SymbolKind::Machine,
+            )
+        });
         ResolveAndTypeRequest {
             syntax: self.syntax,
             source_items: self.source_items,
@@ -75,6 +82,7 @@ impl BuildStageSource {
             top_level_bindings: self.imports,
             selection_authority: authority,
         }
+        .with_build_entry(entry.as_ref())
     }
 }
 

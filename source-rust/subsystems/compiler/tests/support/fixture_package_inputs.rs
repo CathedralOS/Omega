@@ -451,13 +451,9 @@ pub fn discover_fixture(
         sealed_fixture_staging::fresh_staging_build_dir(&repo_root(), authored_project_root);
     let mut session = orchestration::BuildSession::create(&directory)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let preparation = package_manager::operations::begin_local_project_preparation(
-        authored_root_path,
-        &TargetProfile::ALL,
-        true,
-    )
-    .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let Some(preparation) = preparation else {
+    if !authored_project_root.join("build.omg").is_file()
+        && !authored_project_root.join("omega.lock").is_file()
+    {
         let staged =
             sealed_fixture_staging::stage_sealed_snapshot(&repo_root(), authored_project_root);
         return Ok(DiscoveredFixture {
@@ -472,7 +468,13 @@ pub fn discover_fixture(
             completed: Vec::new(),
             targets: Vec::new(),
         });
-    };
+    }
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        authored_root_path,
+        &TargetProfile::ALL,
+        true,
+    )
+    .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let snapshot = execution.snapshot.clone();
     let resolved = orchestration::resolve_project_sources(
         &mut session,

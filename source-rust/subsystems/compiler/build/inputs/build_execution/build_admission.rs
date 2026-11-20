@@ -3,7 +3,7 @@
 // by structurally emitted compiler-owned Build protocol companions.
 
 use super::{BuildMachineExecutionMode, BuildMachineFilesystemScope};
-use super::build_value::{BuildValueAdmission, is_build_machine};
+use super::build_value::BuildValueAdmission;
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemMetadataLayout;
 use build_time_values::BuildTimeValue;
@@ -31,23 +31,19 @@ impl SelectedBuildMachine {
 
 pub fn select_build_machine(
     typed: &source_compiler::source_state::TypedTrees,
-    build_source_id: Option<source_text::SourceId>,
-) -> Result<Option<&source_compiler::source_state::machine::Machine>, Vec<Diagnostic>> {
-    let mut build_machines = typed
-        .machines()
-        .iter()
-        .filter(|machine| is_build_machine(typed, machine, build_source_id));
-    let Some(machine) = build_machines.next() else {
-        return Ok(None);
-    };
-    if let Some(second) = build_machines.next() {
-        return Err(vec![Diagnostic::error(format!(
-            "two build machines exist (`{}` and `{}`); a program declares at most one",
-            machine.name.as_str(),
-            second.name.as_str(),
-        ))]);
+    entry: crate::source_assembly::BuildSourceSelection,
+) -> Result<&source_compiler::source_state::machine::Machine, Vec<Diagnostic>> {
+    let mut machines = typed.machines().iter().filter(|machine| {
+        typed.symbols.symbol_source_is_selected(machine.symbol)
+            && typed.symbols.symbol_source_span(machine.symbol) == Some(entry.entry())
+    });
+    match (machines.next(), machines.next()) {
+        (Some(machine), None) => Ok(machine),
+        _ => Err(vec![
+            Diagnostic::error("the selected Build declaration has no unique typed machine")
+                .with_source_span(entry.entry()),
+        ]),
     }
-    Ok(Some(machine))
 }
 
 pub fn admit_build_machine(

@@ -58,7 +58,7 @@ pub use dependencies::{
     DependencyPurpose, DependencyRow, DependencyRowError, FROM_SOURCE_HELPER_NAME,
     WITH_ALIAS_HELPER_NAME, is_dependency_call, project_dependency_rows,
 };
-pub use prelude::{BuildPrelude, build_prelude, default_build_source};
+pub use prelude::{BuildPrelude, build_prelude};
 pub use syntax_projection::{
     BuildEntrySyntaxProjection, package_authored_type_name, project_build_declaration_from_source,
     project_build_declaration_in_entry, project_build_entry_syntax,

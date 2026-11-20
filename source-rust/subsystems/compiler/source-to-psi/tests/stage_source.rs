@@ -3,7 +3,7 @@ use declaration_scope::ProductDeclarationScope;
 use semantic_vocabulary::{PackageKeyIdentity, source_selections::ProductTarget};
 use source_admission::{RetainedDeclaration, SourceOrigin, SourceResolutionStratum};
 use source_compiler::declaration_selection::{
-    DescribedProductEntry, ExecutedRootBinding, RootBindingSelection,
+    DescribedProductEntry, ProductEntryBinding, RootBindingSelection,
 };
 use source_compiler::product::ProductSourceInputs;
 use source_compiler::source_inputs::SourceMap;
@@ -44,7 +44,7 @@ fn product<'a>(
     files: SourceMap,
     root: SourceId,
     package: PackageKeyIdentity,
-    selections: &'a [ExecutedRootBinding],
+    selections: &'a [ProductEntryBinding],
 ) -> StageSource<'a> {
     StageSource {
         files: Arc::new(files),
@@ -228,7 +228,7 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
         symbols::SymbolKind::Machine,
     );
     let slot = "linux_x86_64::ProgramEntry";
-    let executed = ExecutedRootBinding {
+    let executed = ProductEntryBinding {
         source_span: SourceSpan::new(root, span),
         slot: slot.into(),
         implementation: RootBindingSelection::Described(DescribedProductEntry {

@@ -23,7 +23,6 @@ Provenance:
 - Reconciled package alias resolution and missing-edge diagnostics: `source/source_imports/package_selection.rs`.
 - Reserved toolchain mount recognition and captured-path normalization: `source/source_imports/paths.rs`.
 - Paused `Build` product-query dependency mounting and discovery: `source/source_imports/product_queries.rs`.
-- Companion `build.omg` / `main.omg` project root discovery: `source/source_imports/project.rs`.
 */
 
 mod bindings;
@@ -38,7 +37,6 @@ mod logical;
 mod package_selection;
 mod paths;
 mod product_queries;
-mod project;
 pub use product_queries::{ProductQueryDependency, ProductQueryInputs};
 
 pub(crate) use bindings::{
@@ -64,8 +62,6 @@ pub(crate) use package_selection::{
 };
 pub use paths::bundled_core_root;
 pub(crate) use paths::bundled_omega_root;
-pub(crate) use project::ProjectSourceSelection;
-pub use project::project_roots;
 
 use crate::PackageCompilationInputs;
 use bindings::ImportOccurrence;

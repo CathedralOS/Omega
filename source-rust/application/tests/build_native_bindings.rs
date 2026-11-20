@@ -276,7 +276,7 @@ fn windows_console_emits_with_its_authored_imports() {
             "build.omg",
             "--build-input",
             "main.omg",
-            "main.omg",
+            "build.omg",
         ])
         .current_dir(directory)
         .stdin(std::process::Stdio::null())

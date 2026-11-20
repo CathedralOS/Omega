@@ -6,8 +6,8 @@ use super::{PlanningServices, refusal};
 mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
-    BuildEvaluationRequest, BuildStageRequest, BuildSubjectValidation, CompileFailure,
-    EvaluatedBuild, PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+    BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
+    PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
     settle_rejoined_build_slice,
 };
 use diagnostics::Diagnostic;
@@ -253,7 +253,7 @@ fn stage_source(assembled: &mut AssembledSyntax) -> Result<BuildStageSource, Com
         source_items: std::mem::take(&mut assembled.source_items),
         roots: std::mem::take(&mut assembled.root_sources),
         build_sources: std::mem::take(&mut assembled.build_scope_sources),
-        entry: entry.source_id(),
+        entry: entry.entry(),
         sources: Arc::clone(&assembled.sources),
         imports: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
     })
@@ -378,6 +378,7 @@ impl PlanningSource {
             .deferred
             .assemble(
                 inputs,
+                &evaluated.configuration.root_binding_requests,
                 &mut self.timings,
                 &mut *self.preparation.catalogue()?,
             )
@@ -388,8 +389,7 @@ impl PlanningSource {
                 )
             })?
             .1;
-        if evaluated.subject_validation == BuildSubjectValidation::AwaitingOwner
-            || !evaluated.constants.read.is_empty()
+        if !evaluated.constants.read.is_empty()
             || evaluated.constants.folded_under_providers
         {
             let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);

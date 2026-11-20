@@ -20,7 +20,7 @@ fn run_both(name: &str) -> (bool, String) {
 
 fn run_project(project: &Path) -> (Option<i32>, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
+        .args(["run", "--both", "build.omg"])
         .current_dir(project)
         .stdin(Stdio::null())
         .output()

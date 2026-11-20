@@ -173,13 +173,13 @@ mod tests {
         std::fs::write(&main, "machine main() {}\n").expect("stage Product source");
         std::fs::write(
             root.join("build.omg"),
-            build_declarations::default_build_source(),
+            "machine build(builder: @mut Build) {}",
         )
         .expect("stage the ordinary Build entry");
         let mut timings = artifacts::compile_timings::CompileTimings::default();
         let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
         let checkpoint = crate::source_assembly::ImmutableSourceParseCheckpoint::prepare(
-            &main,
+            &root.join("build.omg"),
             None,
             None,
             &mut timings,
@@ -206,10 +206,8 @@ mod tests {
         .prepare(&mut source_compiler::UnmeasuredProduction)
         .expect("type the production Build declaration");
         let typed = source.typed();
-        let machine =
-            crate::build_execution::select_build_machine(typed, Some(build_source.source_id()))
-                .expect("select the source-owned Build entry")
-                .expect("the authored Build entry");
+        let machine = crate::build_execution::select_build_machine(typed, build_source)
+            .expect("the authored Build entry");
         let admission = BuildValueAdmission::admit(typed).expect("real Build admission");
         let scope = crate::build_execution::BuildMachineFilesystemScope::for_root(
             &main,

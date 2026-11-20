@@ -1,31 +1,6 @@
-// Exact toolchain build vocabulary queries: canonical `build` machine identity and prelude facets.
-//
-// `is_build_machine` verifies that a `build` machine symbol originates from the exact
-// companion `build.omg` `SourceId` selected by project discovery, rather than trusting
-// a filename scan or machine name alone. `has_exact_toolchain_build_facet` checks that
-// a facet data definition belongs to the compiler's build prelude.
-
+//! Identify compiler-owned data declarations in the admitted Build prelude.
 use source_compiler::source_state::TypedTrees;
 use symbols::SymbolHandle;
-
-const BUILD_MACHINE: &str = "build";
-
-pub(crate) fn is_build_machine(
-    typed: &TypedTrees,
-    machine: &source_compiler::source_state::machine::Machine,
-    build_source_id: Option<source_text::SourceId>,
-) -> bool {
-    if machine.name.as_str() != BUILD_MACHINE {
-        return false;
-    }
-    let Some(build_source_id) = build_source_id else {
-        return false;
-    };
-    typed
-        .symbols
-        .symbol_source_span(machine.symbol)
-        .is_some_and(|span| span.source_id == build_source_id)
-}
 
 pub(crate) fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,

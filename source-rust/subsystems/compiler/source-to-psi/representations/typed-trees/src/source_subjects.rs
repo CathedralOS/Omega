@@ -45,7 +45,16 @@ pub fn rejoin_build_activation(
         program.machines().iter().map(|machine| machine.symbol)
             .filter(|&symbol| program.symbols.symbol_source_is_selected(symbol)),
     )?;
-    if !contains(program, symbol, &[subject], DependencyScope::Build)? {
+    // The built-in entry belongs to the toolchain, even after a package adopts its sources.
+    // The declaration above has already rejoined the receiving table by exact source and span.
+    let file = declaration.source();
+    let default_path = std::path::Path::new(source_admission::source_identity::DEFAULT_BUILD_PATH);
+    let toolchain_default = file.origin == source_admission::SourceOrigin::Toolchain
+        && file.path == default_path
+        && file.package_root == default_path
+        && file.package_identity.is_none()
+        && file.dependency_scope == DependencyScope::Build;
+    if !toolchain_default && !contains(program, symbol, &[subject], DependencyScope::Build)? {
         return Err("selected Build activation is outside the package's admitted Build sources");
     }
     Ok(symbol)
