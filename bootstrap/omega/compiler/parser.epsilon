@@ -9347,11 +9347,18 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> type_base_end_punctuation()
             OmegaTokenKind::Identifier -> type_suffix_identifier()
-            OmegaTokenKind::Keyword -> incomplete_root()
+            OmegaTokenKind::Keyword -> type_end_keyword()
             _ -> type_end_failure(
                 self.scan.token_start,
                 self.scan.token_end
             )
+        }
+    }
+
+    state type_end_keyword() {
+        transition self.type_consumer {
+            OmegaTypeConsumer::Cast -> cast_end_keyword(0)
+            _ -> incomplete_root()
         }
     }
 
@@ -9631,7 +9638,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state cast_type_end() {
         self.cast_kind = OmegaCastKind::Carrier;
         self.cast_type_reference = 0;
-        self.cast_end = self.type_end;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Plus -> retain_cast_after_end(0)
             _ -> validate_cast_end_punctuation(0)
@@ -9728,6 +9734,14 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state cast_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> cast_domain_tail()
+            OmegaTokenKind::Keyword -> cast_end_keyword(1)
+            _ -> incomplete_root()
+        }
+    }
+    // Finish the left cast while the next 'as' is still the current token.
+    state cast_end_keyword(after_domain: i32) {
+        transition self.scan.keyword {
+            OmegaKeywordKind::As -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
     }
@@ -9796,6 +9810,13 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_expression_count = self.cast_expression_count + 1;
         self.expression_count = self.expression_count + 1;
         self.expression_consumer = self.cast_result_consumer;
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> primary_expression_end_keyword()
+            _ -> finish_cast_at_punctuation()
+        }
+    }
+
+    state finish_cast_at_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Plus -> add_domain_to_carrier_result()
             _ -> primary_expression_end_punctuation()
@@ -10272,6 +10293,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state retain_cast_type(next_cursor: i32) {
         self.cast_type_reference = self.type_root;
+        self.cast_end = self.type_end;
         transition true { true -> retain_cast_expression() }
     }
 
