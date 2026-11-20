@@ -449,6 +449,15 @@ machine Main::main(&mut self) {
     assert self.parser.data_items[0].first_requirement == 0;
     assert self.parser.data_items[0].requirement_count == 1;
 
+    self.parser.parse_view("machine p(){transition{_ -> suspend block target(42)} machine target(value:u8){} }");
+    self.check_complete();
+    self.check_machine_target(0, 1);
+    assert self.parser.transition_statements[0].acknowledgements == 3;
+    self.parser.parse_view("machine p(){machine self(){}}");
+    self.check_syntax_refused(20, 24);
+    self.parser.parse_view("machine p(){machine 7(){}}");
+    self.check_syntax_refused(20, 21);
+
     self.console.write_byte(65);
 }
 

@@ -25,6 +25,23 @@ machine OmegaParser::parse_view(
     self.parse_set(source);
 }
 
+// A lexer keyword can name an ordinary declaration. The self forms retain
+// their separate receiver/type meaning wherever a machine name is required.
+machine OmegaParser::ordinary_name_token(&mut self) -> i32 {
+    transition self.scan.token_kind {
+        OmegaTokenKind::Identifier -> return 1
+        OmegaTokenKind::Keyword -> keyword()
+        _ -> return 0
+    }
+    state keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> return 0
+            OmegaKeywordKind::SelfValue -> return 0
+            _ -> return 1
+        }
+    }
+}
+
 // Unit parsing appends into the same arenas only after independent lexical
 // preflight. All retained spans stay absolute; lookup recovers their exact
 // source owner from the admitted disjoint ranges.
@@ -428,7 +445,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             113 -> block_clause_value()
             114 -> acknowledgement_target()
             115 -> unmarked_path()
-            116 -> combined_acknowledgement_target()
+            116 -> acknowledgement_name()
             117 -> nested_block_value()
             118 -> transition_pattern_alias()
             119 -> transition_pattern_alias_end()
@@ -1288,33 +1305,13 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state member_token() {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> retain_member()
-            OmegaTokenKind::Keyword -> keyword_member()
+        transition self.ordinary_name_token() {
+            1 -> retain_member()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedPathMember,
                 self.scan.token_start,
                 self.scan.token_end
             )
-        }
-    }
-
-    // Omega's name-like parser rule admits contextual and ordinary keyword
-    // spellings in paths. `Self` and `self` remain semantic self forms rather
-    // than import-path members.
-    state keyword_member() {
-        transition self.scan.keyword {
-            OmegaKeywordKind::SelfType -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedPathMember,
-                self.scan.token_start,
-                self.scan.token_end
-            )
-            OmegaKeywordKind::SelfValue -> syntax_failure(
-                OmegaParseDiagnosticCode::ExpectedPathMember,
-                self.scan.token_start,
-                self.scan.token_end
-            )
-            _ -> retain_member()
         }
     }
 
@@ -2950,8 +2947,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state explicit_state_name_token() {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> retain_explicit_state_name()
+        transition self.ordinary_name_token() {
+            1 -> retain_explicit_state_name()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedStateName,
                 self.scan.token_start,
@@ -4750,9 +4747,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state transition_target_token() {
         transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> call_path_prefix(2)
             OmegaTokenKind::Keyword -> transition_target_keyword()
-            _ -> incomplete_root()
+            _ -> named_transition_target()
         }
     }
 
@@ -4760,6 +4756,13 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.keyword {
             OmegaKeywordKind::True -> transition_result_capacity(1)
             OmegaKeywordKind::False -> transition_result_capacity(0)
+            _ -> named_transition_target()
+        }
+    }
+
+    state named_transition_target() {
+        transition self.ordinary_name_token() {
+            1 -> call_path_prefix(2)
             _ -> incomplete_root()
         }
     }
@@ -4963,8 +4966,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state acknowledgement_target() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> acknowledgement_punctuation()
-            OmegaTokenKind::Identifier -> acknowledgement_identifier()
-            _ -> incomplete_root()
+            _ -> acknowledgement_name()
         }
     }
     state acknowledgement_punctuation() {
@@ -5003,9 +5005,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(116) }
     }
-    state combined_acknowledgement_target() {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> acknowledgement_identifier()
+    state acknowledgement_name() {
+        transition self.ordinary_name_token() {
+            1 -> acknowledgement_identifier()
             _ -> incomplete_root()
         }
     }
