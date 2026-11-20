@@ -6,6 +6,8 @@ use omega\language\core\byte_observation;
 
 public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 
+data Utf8View = machine(packet: @[u8] in Utf8) -> @[u8] in Utf8 reaches none crashes none;
+
 public trait Window {
     machine view<'input>(packet: @'input [u8] in Utf8) -> @'input [u8] in Utf8;
 }
@@ -16,7 +18,7 @@ Direct satisfies Window {
 
 machine main() crashes Trap {
     let packet: @[u8] in Utf8 = "é" as +Utf8;
-    let selected: machine(packet: @[u8] in Utf8) -> @[u8] in Utf8 reaches none crashes none = Direct::view;
+    let selected: Utf8View = Direct::view;
     let viewed: @[u8] in Utf8 = selected(packet);
     transition (viewed as -Utf8) == "é" {
         true -> done(),

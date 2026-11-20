@@ -31,6 +31,7 @@ enum Work {
 pub(crate) fn index_type_definitions<'a>(
     units: &mut [ResolvedSourceFile<'a>],
     types: &mut TypeCatalog<'a>,
+    output: &mut crate::TypedStage,
 ) -> Result<(), TypeError> {
     use NodeKind::{ConstParam, Data, Domain, GenericParams, KindedParam, PathType};
     for unit in units.iter_mut() {
@@ -141,6 +142,21 @@ pub(crate) fn index_type_definitions<'a>(
                             && let Some(alias) = types.aliases.get(id.as_ref())
                         {
                             target = alias.clone();
+                        }
+                        if let crate::ValueType::Callable(callable) = &target
+                            && unit.file.nodes[expression].kind == NodeKind::MachineType
+                        {
+                            output.record_callable_origin(callable.contract.clone(), unit.file.node_id(expression));
+                            // An alias can leave its own effects open. Its operands and
+                            // result are still carried at runtime on every invocation.
+                            for annotation in unit
+                                .file
+                                .parameters(expression)
+                                .map(|(_, ty)| ty)
+                                .chain(unit.file.result_annotation(expression))
+                            {
+                                unit.runtime_annotation(annotation, types)?;
+                            }
                         }
                         types.aliases.insert(unit.declaration(node)?, target);
                     }

@@ -26,6 +26,14 @@ rows also retain `guest.eeout` for byte comparison. A timeout records the
 stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
 and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
 
+For a long matrix run, add `--reuse-stages` to run each distinct compiler
+invocation once. Two rows can share an intermediate artifact when both the
+executable and its complete framed input have the same SHA-256. The runner
+checks the saved output digest on reuse. Each row's `result.json` records
+the two input digests and names the original artifact in `reused_from`.
+Every row still executes its own guest. Omit the flag to rebuild each row's
+intermediate artifacts independently.
+
 Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
 supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
 `--gamma native`. The runner checks its compiler source and fixed-point
@@ -80,7 +88,7 @@ Gamma. The Gamma backends then built the scanner programs. Sharing the Alpha sta
 Running the 256-byte input through the direct Delta interpreter exceeded a
 120-second wall limit on a shared Linux host. The same six-byte input as the Gamma-interpreted comparison (`20 30 5f 61 46 ff`) completed in
 34 seconds, returning exit 42 and the expected 24 result bytes. Both requests
-used the same Delta and Epsilon sources. The portable Omega compilation request reached the 300-second limit with empty output on this direct route. [Lexer source](../../../bootstrap/omega/compiler/lexical_classification.epsilon) ·
+used the same Delta and Epsilon sources. The portable Omega compilation request reached the 300-second limit with empty output on this direct route. [Lexer source](../../../bootstrap/omega/compiler/source-to-tokens/byte_classes.epsilon) ·
 [Test entry](../../../tests/bootstrap/independent/epsilon/lexical_main.epsilon)
 
 The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.md) and [native route](native.md) record the construction steps and limits. The [Gamma host comparison](gamma-hosts.md) gives commands to reproduce the four host/target combinations.

@@ -9,8 +9,7 @@ use omega_parser::parse_file;
 /// Every place a header clause can be written, with `CLAUSE` standing for the clause.
 const POSITIONS: &[&str] = &[
     "machine f(value: u32, done: bool) CLAUSE { 0 }",
-    "data D { step: machine(value: u32, done: bool) CLAUSE; }",
-    "machine h<const F: machine(value: u32, done: bool) CLAUSE>() { 0 }",
+    "data Step = machine(value: u32, done: bool) CLAUSE;",
     "machine g() requires machine f(value: u32, done: bool) CLAUSE; { 0 }",
     "trait T { machine f(value: u32, done: bool) CLAUSE; }",
 ];

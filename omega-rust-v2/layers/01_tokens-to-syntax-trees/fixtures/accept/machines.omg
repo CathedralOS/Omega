@@ -36,7 +36,8 @@ machine outer(count: u32) -> u32 {
     }
 }
 
-machine apply(step: machine(value: u32) -> u32 reaches none, start: u32) -> u32 {
+data Step = machine(value: u32) -> u32 reaches none crashes none;
+machine apply(step: Step, start: u32) -> u32 {
     step(start)
 }
 

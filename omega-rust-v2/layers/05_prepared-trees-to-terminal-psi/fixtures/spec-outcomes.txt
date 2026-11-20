@@ -9,20 +9,21 @@ language/data_and_literals.md:90  L5 fragment only: unsupported Psi declaration:
 language/domains.md:116  L5 domain only u64::AlignmentSize
 language/domains.md:495  L5 domain only i32::Impossible
 language/domains.md:572  L5 lowered previous | domains i32::Km, i32::Positive
-language/effects.md:226  L5 trait declarations MotorControl
-language/effects.md:571  L5 machine templates forward
-language/effects.md:636  L5 lowered example, local, apply | machine templates apply
-language/generics.md:242  L5 schema only Index
-language/generics.md:363  L5 data templates TinyBytes | domains u64::AtMost
-language/generics.md:506  L5 trait declarations ByteScanner
-language/generics.md:761  L5 machine templates apply_one, visit_one
+language/effects.md:231  L5 trait declarations MotorControl
+language/effects.md:576  L5 machine templates forward
+language/effects.md:641  L5 lowered example, local, apply | aliases SuspendingTransform | machine templates apply
+language/generics.md:246  L5 schema only Index
+language/generics.md:367  L5 data templates TinyBytes | domains u64::AtMost
+language/generics.md:510  L5 trait declarations ByteScanner
+language/generics.md:767  L5 machine templates apply_one, visit_one
 language/lifetimes.md:20  L5 schema only Message
+language/machine_values.md:44  L5 open gap: no Psi lowering for carrier runtime callable machine(u32) -> u8 | reader
 language/machines.md:33  L5 lowered clear, example | schemas Counter
 language/modules.md:227  L5 open gap: domain carrier requires a fixed scalar | Audio::Audible
 language/patterns.md:50  L5 lowered inspect, targets_one_user | schemas Command, Command::Operation
-language/some_packages.md:15  L5 data templates Reader
+language/some_packages.md:15  L5 data templates Reader | aliases ReadInto
 language/state_contracts.md:74  L5 machine templates invoke
-language/state_contracts.md:86  L5 fragment only: unsupported Psi declaration: ConstParam | const Target: machine() -> u64
+language/state_contracts.md:88  L5 alias only WaitForValue
 layouts/recasts.md:18  L5 fragment only: unsupported Psi declaration: Let | let bits: u32 = 0x3F80_0000u32;
 proofs/contracts.md:826  L5 lowered area, get
 proofs/mathematical_bindings.md:199  L5 data templates Witness

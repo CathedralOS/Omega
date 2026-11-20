@@ -64,7 +64,8 @@ fn local_declarations_follow_both_terminal_body_forms() {
 fn a_nested_helper_uses_the_enclosing_application_each_time() {
     let source = "machine always(value:bool)->bool {true}
                   machine never(value:bool)->bool {false}
-                  machine apply<const F:machine(value:bool)->bool>(value:bool)->bool {
+                  data BoolStep=machine(value:bool)->bool;
+                  machine apply<const F:BoolStep>(value:bool)->bool {
                       step(value)
                       machine step(input:bool)->bool {
                           invoke(input)

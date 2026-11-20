@@ -1,0 +1,39 @@
+use omega_lexer::lex;
+use omega_parser::parse_file;
+
+#[test]
+fn structural_callable_signatures_have_one_declaration_site() {
+    let source = "data Predicate<T> = machine(item:T)->bool;
+        data Inspector = machine<'a>(item:@'a u8);
+        data Factory = machine()->Predicate<u8> reaches none crashes none;
+        machine filter<T, const Keep:Predicate<T>>(item:T)->bool { Keep(item) }
+        machine forward<const Keep:machine>() {}
+        trait Reader { machine open()->Predicate<u8> terminates; }";
+    let bytes = source.as_bytes();
+    parse_file(bytes, &lex(bytes).unwrap()).unwrap();
+}
+
+#[test]
+fn each_inline_signature_points_at_the_type_to_extract() {
+    for marked in [
+        "machine filter(keep:|machine(item:u8)->bool) {}",
+        "machine filter<const Keep:|machine(item:u8)->bool>() {}",
+        "machine open()->|machine(offset:u32)->u8 requires ready {}",
+        "data Stream { read:|machine(offset:u32)->u8; }",
+        "data Choice { case Read(value:|machine()); }",
+        "machine main() { let read:|machine()->u8 = read_byte; }",
+        "data List = [|machine(); 4];",
+        "data Wrapper = Option<|machine()>;",
+        "data Factory = machine()->|machine()->u8;",
+        "data Higher = machine<const Inner:|machine<T>(value:T)>(input:u8);",
+        "data Sink = machine(read:|machine()->u8);",
+    ] {
+        let offset = marked.find('|').unwrap();
+        let source = marked.replace('|', "");
+        let bytes = source.as_bytes();
+        let error = parse_file(bytes, &lex(bytes).unwrap()).expect_err(marked);
+        assert_eq!(error.get_span().get_start_offset(), offset, "{marked}");
+        assert_eq!(error.get_span().slice(bytes), Some(&b"machine"[..]), "{marked}");
+        assert!(error.get_expected().contains("a named callable type"), "{error}");
+    }
+}

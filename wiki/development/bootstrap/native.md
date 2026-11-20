@@ -295,7 +295,7 @@ self-rebuild acceptance.
 `successor_test.py --compile-epsilon --literals --omega` constructs a
 Delta-written compiler using the source-constructed native predecessors, then
 compiles and executes the complete unchanged production
-`lexical_classification.epsilon` with its `OmegaNumericBase` declaration. This is a compiled source
+`source-to-tokens/byte_classes.epsilon` with its `OmegaNumericBase` declaration. This is a compiled source
 customer: the generated executable contains direct functions and lifted states,
 with no Epsilon parser, checker, expression tree or AST dispatcher in its runtime.
 The default invocation repeats cold construction; `--reuse-constructed` retains
@@ -603,7 +603,7 @@ fixture](../../../tests/bootstrap/independent/epsilon/lexer_digits_main.epsilon)
 ### Public Omega lexer observations
 
 The compiled-Epsilon gate exercises `OmegaLexScan::scan_at` and
-`OmegaLexScan::validate_lexical` in the complete production `lexer.epsilon`.
+`OmegaLexScan::validate_lexical` in the complete production `source-to-tokens/scan.epsilon`.
 The customer includes the production lexical classification file, the UTF-8
 validator and its lexical types. For each of 23 input records it reports the
 selected token or diagnostic, byte coordinates, decoded length, and the result

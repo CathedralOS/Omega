@@ -300,10 +300,10 @@ impl SyntaxParser<'_> {
         self.parse_params()?;
 
         if self.at(Punctuation::Arrow) {
-            self.parse_result(TypePosition::Plain)?;
+            self.parse_result()?;
         }
 
-        self.parse_clauses(TypePosition::Plain)?;
+        self.parse_clauses()?;
 
         match body_rule {
             BodyRule::Optional => self.parse_body_or_semicolon()?,
@@ -363,14 +363,11 @@ impl SyntaxParser<'_> {
     }
 
     /// `'->' type_in`
-    pub(crate) fn parse_result(
-        &mut self,
-        type_position: TypePosition,
-    ) -> Parsed {
+    pub(crate) fn parse_result(&mut self) -> Parsed {
         let result = self.open();
 
         self.bump();
-        self.parse_type_in(type_position)?;
+        self.parse_type_in(TypePosition::Plain)?;
         self.close(result, NodeKind::Result);
 
         Ok(())

@@ -1,6 +1,11 @@
 //! Runtime callable contracts. A machine value is a descriptor of a closed
 //! machine application; its structural contract is declared once, independently
 //! of every machine that may satisfy it, and owns the full call shape.
+//!
+//! A contract's declaration site is the signature on the right-hand side of
+//! its transparent alias. Every use of one alias application shares that
+//! contract. Distinct applications of a generic alias keep the alias site but
+//! remain distinct structural contracts.
 use super::type_expression::type_expression;
 use crate::lowering::types::{TypeError, scalar_carrier};
 use crate::{CallableContractId, LoweringError, TemplateCallable};
@@ -10,7 +15,7 @@ use omega_typed::{CallableType, PauseEffects, ValueType};
 /// a closed runtime contract with empty service and crash ceilings, no pause,
 /// no structural predicates or requirement identity, and scalar copy formals
 /// and result. Loans, nested callables and open rows refuse.
-fn supported(callable: &CallableType) -> bool {
+pub(crate) fn supported(callable: &CallableType) -> bool {
     let scalar = |ty: &ValueType| scalar_carrier(ty).is_ok();
     callable.closed_runtime
         && callable.requirement.is_none()
@@ -24,32 +29,24 @@ fn supported(callable: &CallableType) -> bool {
 }
 
 /// Collect each distinct runtime callable carrier. A contract is identified by
-/// its declaration site; two different contracts may not share one site.
+/// its declaration site and its complete structural type. Rows are ordered by
+/// site; applications of one generic alias keep their first-use order.
 pub(crate) fn collect<'a>(carriers: impl Iterator<Item = &'a ValueType>) -> Result<Vec<CallableType>, (usize, TypeError)> {
-    let mut found: Vec<(usize, &CallableType)> = Vec::new();
+    let mut found: Vec<&CallableType> = Vec::new();
     for (index, carrier) in carriers.enumerate() {
         let ValueType::Callable(callable) = carrier else { continue };
         if !supported(callable) {
             return Err((index, TypeError::UnsupportedCarrier(format!("runtime callable {carrier}"))));
         }
-        found.push((index, callable));
+        found.push(callable);
     }
-    found.sort_by(|(_, a), (_, b)| a.contract.cmp(&b.contract));
+    // A stable sort keeps the encounter order among applications of one site.
+    found.sort_by(|a, b| a.contract.cmp(&b.contract));
     let mut table: Vec<CallableType> = Vec::with_capacity(found.len());
-    for (index, callable) in found {
-        match table.last() {
-            Some(previous) if previous.contract == callable.contract => {
-                if previous != callable {
-                    return Err((
-                        index,
-                        TypeError::UnsupportedCarrier(format!(
-                            "distinct runtime callable contracts share one declaration: {}",
-                            ValueType::Callable(Box::new(callable.clone()))
-                        )),
-                    ));
-                }
-            }
-            _ => table.push(callable.clone()),
+    for callable in found {
+        let start = table.partition_point(|row| row.contract < callable.contract);
+        if !table[start..].contains(callable) {
+            table.push(callable.clone());
         }
     }
     Ok(table)
@@ -60,13 +57,13 @@ pub(crate) fn find(
     callable: &CallableType,
 ) -> Result<CallableContractId, TypeError> {
     let missing = || TypeError::UnsupportedCarrier(format!("runtime callable {}", ValueType::Callable(Box::new(callable.clone()))));
-    let index = table
-        .binary_search_by(|row| row.contract.cmp(&callable.contract))
-        .map_err(|_| missing())?;
-    if table[index] != *callable {
-        return Err(missing());
-    }
-    CallableContractId::from_index(index).ok_or_else(missing)
+    let start = table.partition_point(|row| row.contract < callable.contract);
+    let index = table[start..]
+        .iter()
+        .take_while(|row| row.contract == callable.contract)
+        .position(|row| row == callable)
+        .ok_or_else(missing)?;
+    CallableContractId::from_index(start + index).ok_or_else(missing)
 }
 
 /// The independent Psi declaration of one admitted contract.

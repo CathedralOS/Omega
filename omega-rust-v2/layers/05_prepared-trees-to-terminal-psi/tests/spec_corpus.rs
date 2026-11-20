@@ -17,11 +17,10 @@ const RESOLUTION: &str = include_str!("../../02_syntax-trees-to-symbol-resolved-
 const TYPING: &str = include_str!("../../03_symbol-resolved-trees-to-typed-trees/fixtures/spec-outcomes.txt");
 const LOWERING: &str = include_str!("../fixtures/spec-outcomes.txt");
 
-/// These fences demonstrate a generic parameter or local statements. Lowering
+/// These fences demonstrate local statements. Lowering
 /// receives packages, so the bare fragments are expected to refuse.
 const FRAGMENTS_WITHOUT_PACKAGE_CONTEXT: &[&str] = &[
     "language/data_and_literals.md:435",
-    "language/state_contracts.md:86",
     "layouts/recasts.md:18",
 ];
 
@@ -140,7 +139,7 @@ fn spec_fragments_have_reviewed_lowering_outcomes() {
                         && package.mathematics.is_empty(),
                     "{label}"
                 );
-                if label == "language/generics.md:506" {
+                if label == "language/generics.md:510" {
                     let scan = &package.traits[0].requirements[0];
                     let widths = [16u32, 32, 64].map(|n| vec![ScalarLiteral::Integer(n.into())]);
                     assert_eq!(scan.family.as_deref(), Some(widths.as_slice()));
@@ -210,7 +209,7 @@ fn spec_fragments_have_reviewed_lowering_outcomes() {
                     check_previous_distance(&package);
                 } else if label == "proofs/contracts.md:826" {
                     check_required_discharge_inputs(&package);
-                } else if label == "language/effects.md:636" {
+                } else if label == "language/effects.md:641" {
                     check_closed_callback(&package);
                 }
                 let machines = package
@@ -626,7 +625,7 @@ fn check_machine_templates(
     assert_eq!(first.invokes, [callback(first)]);
     assert_eq!(first.result.is_some(), first.signature.result.is_some());
     match label {
-        "language/effects.md:571" => {
+        "language/effects.md:576" => {
             assert_eq!(first.body[0].operands, [0]);
             assert_eq!(first.result, Some(0));
             assert!(requirement.is_none());
@@ -654,7 +653,7 @@ fn check_machine_templates(
             assert_eq!(first.signature.crash_ceiling, Some(vec![omega_typed::CrashCause::Trap]));
             assert_eq!(bound.crash_ceiling, None);
         }
-        "language/generics.md:761" => {
+        "language/generics.md:767" => {
             let member = &package.traits[0].dependent_requirements[0];
             assert_eq!(package.traits[0].parameters.len(), 1);
             assert_eq!(member.declaration.path, "ElementStep::apply");

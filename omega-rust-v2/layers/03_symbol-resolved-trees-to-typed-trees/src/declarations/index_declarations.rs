@@ -127,7 +127,7 @@ impl<'a> ResolvedSourceFile<'a> {
                             match source.nodes[i].kind {
                                 StableNumber => continue,
                                 Data => annotation = Some(catalog.types.open_data(self.declaration(i)?)),
-                                _ => annotation = Some(self.annotation(i, &catalog.types)?),
+                                _ => annotation = Some(self.runtime_annotation(i, &catalog.types)?),
                             }
                         }
                         fields.insert(
@@ -157,11 +157,11 @@ impl<'a> ResolvedSourceFile<'a> {
                     }
                     let params = source
                         .parameters(node_index)
-                        .map(|(name, annotation)| Ok((name.span, self.annotation(annotation, &catalog.types)?)))
+                        .map(|(name, annotation)| Ok((name.span, self.runtime_annotation(annotation, &catalog.types)?)))
                         .collect::<std::result::Result<Vec<_>, TypeError>>()?;
                     let result = source
                         .result_annotation(node_index)
-                        .map_or(Ok(ValueType::NoResult), |ty| self.annotation(ty, &catalog.types))?;
+                        .map_or(Ok(ValueType::NoResult), |ty| self.runtime_annotation(ty, &catalog.types))?;
                     let site = site_at(source, node_index);
                     let family = catalog.overloads.entry((&id.package, &id.path)).or_default();
                     for &previous in family

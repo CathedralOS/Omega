@@ -100,7 +100,7 @@ fn check_reflexivity_at<'stage, 'text>(
 #[test]
 fn a_checked_refinement_authorizes_only_its_exact_callable_binding() {
     let source = "machine identity(n:u64)->u64 requires n == n {n}
-                  machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+                  data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
                   const VALUE:u64=apply::<identity>(3u64);";
     let original = typed(source);
     let TypingProgress::Complete(trees) = &original else { unreachable!() };
@@ -122,7 +122,8 @@ fn a_skipped_contract_call_uses_the_refinement_from_its_own_selection() {
     let declarations = "data Check = machine(n:u64)->bool reaches none crashes none;
         machine identity(n:u64)->bool requires n == n reaches none crashes none {true}
         machine predicate<const F:Check>(n:u64)->bool reaches none crashes none terminates {F(n)}
-        machine invoke<const K:machine(n:u64)->bool>(n:u64)->bool {K(n)}
+        data Probe=machine(n:u64)->bool;
+        machine invoke<const K:Probe>(n:u64)->bool {K(n)}
         const VALUE:bool=invoke::<helper>(3u64);";
     for (route, selecting_caller) in [
         (
@@ -500,7 +501,8 @@ fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
 fn a_nested_callback_carries_checked_capture_refinement_to_its_own_use() {
     let source = "data Nonzero = machine(n:u64)->u64 requires n > 0u64 reaches none crashes none;
                   machine identity(n:u64)->u64 reaches none crashes none {n}
-                  machine relay<const K:machine(n:u64)->u64>(n:u64)->u64 {K(n)}
+                  data NumberStep=machine(n:u64)->u64;
+                  machine relay<const K:NumberStep>(n:u64)->u64 {K(n)}
                   machine outer<const F:Nonzero>(n:u64)->u64 {
                       relay::<helper>(n)
                       machine helper(value:u64)->u64 {F(value)}
@@ -621,7 +623,8 @@ fn a_nested_callback_carries_checked_capture_refinement_to_its_own_use() {
 #[test]
 fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_types() {
     let source = "machine leaf(n:u64)->u64 {n}
-                  machine apply<const K:u64, const F:machine(n:u64)->u64 requires K == 0u64>(n:u64)->u64 {F(n)}
+                  data NumberStep<const K:u64> = machine(n:u64)->u64 requires K == 0u64;
+                  machine apply<const K:u64, const F:NumberStep<K> >(n:u64)->u64 {F(n)}
                   machine run<const K:u64>(n:u64)->u64 {apply::<K,leaf>(n)}
                   const ZERO:u64=run::<0>(3u64);
                   const FOUR:u64=run::<4>(3u64);";

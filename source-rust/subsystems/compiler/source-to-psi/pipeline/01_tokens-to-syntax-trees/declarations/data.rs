@@ -44,7 +44,32 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
     input = next;
     if input.at_punctuation(PunctuationKind::Equal) {
         input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
+        let (carrier, next) = if input.at_keyword(tokens::KeywordKind::Machine) {
+            let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
+            if !input.at_punctuation(PunctuationKind::LeftParen)
+                && !input.at_punctuation(PunctuationKind::Less)
+            {
+                return Err(input.error_here("expected the parameter list of a callable alias"));
+            }
+            let (signature, next) =
+                crate::parameters::requirements::parse_structural_machine_contract(
+                    syntax_trees,
+                    name.clone(),
+                    input,
+                )?;
+            if !next.at_punctuation(PunctuationKind::Semicolon) {
+                return Err(next.error_here("expected `;` after the callable alias signature"));
+            }
+            let signature = syntax_trees.items.insert_state_signature(&signature);
+            (
+                syntax_trees
+                    .type_references
+                    .insert(syntax_trees::types::TypeReferenceNode::Callable { signature }),
+                next,
+            )
+        } else {
+            parse_type_reference_handle(syntax_trees, input)?
+        };
         if next.at_punctuation(PunctuationKind::Semicolon) {
             if properties.multiplicity != language_core::Multiplicity::Affine
                 || properties.carry.is_some()

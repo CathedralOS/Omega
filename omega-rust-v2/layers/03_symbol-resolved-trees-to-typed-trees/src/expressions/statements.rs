@@ -123,7 +123,7 @@ impl BodyTyper<'_, '_> {
             let [pattern, annotation] = *source.nodes[node_index].children.as_slice() else {
                 return Err(TypeError::unsupported(source, node_index));
             };
-            let ty = self.unit.annotation(annotation, &self.catalog.types)?;
+            let ty = self.unit.runtime_annotation(annotation, &self.catalog.types)?;
             self.record_obligation(node_index, ObligationKind::ZeroValue(ty.clone()));
             if source.nodes[node_index].words().any(|w| w.text == "mut") {
                 self.writable.insert(source.span(pattern));
@@ -154,8 +154,10 @@ impl BodyTyper<'_, '_> {
             let value = self.type_expression_with_expected_type(expr, declared.as_ref())?;
             (value, PatternSource::of(self.origin(expr)))
         };
-        let local_type = if let Some(expected) = declared {
+        let local_type = if let Some((annotation, expected)) = annotation.zip(declared) {
             let expected = crate::type_system::local_lifetimes::FieldLifetimes::from_value(expected, &value);
+            self.unit
+                .check_runtime_type(annotation, &expected, &self.catalog.types)?;
             self.check_destination(expr, &value, &expected)?;
             expected
         } else {
@@ -163,6 +165,8 @@ impl BodyTyper<'_, '_> {
             // keeps: `let _ = 5;` and `let (_, b) = (5, 6u8);` also declare
             // a binding without saying what its anonymous part holds.
             self.require_declared_number(expr, &value)?;
+            self.unit
+                .check_runtime_type(expr, &value, &self.catalog.types)?;
             value
         };
         if local_type == ValueType::NoResult {

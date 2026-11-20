@@ -173,11 +173,10 @@ fn template_fields(
 ) -> Result<Vec<TemplateField>, LoweringError> {
     super::data::checked_fields(prepared.typed(), tree, node, owner, field_nodes)?
         .iter()
-        .zip(field_nodes)
-        .map(|(f, &field)| {
+        .map(|f| {
             Ok(TemplateField {
                 declaration: crate::identity::declaration(&f.declaration, &f.site)?,
-                ty: field_type(prepared, tree, field, &f.ty, &f.site)?,
+                ty: field_type(prepared, &f.ty, &f.site)?,
                 site: f.site.clone(),
             })
         })
@@ -196,22 +195,20 @@ fn needs_template(params: &omega_typed::GenericParameters) -> bool {
 }
 fn field_type(
     prepared: &omega_prepared::PreparedTrees<'_>,
-    tree: &TypedTree<'_>,
-    field: usize,
     ty: &ValueType,
     site: &omega_typed::Site,
 ) -> Result<crate::TypeExpression, LoweringError> {
     let ValueType::Callable(callable) = ty else {
         return type_expression(ty, site);
     };
-    let file = tree.resolved().file;
-    let node = file
-        .child(field, NodeKind::MachineType)
-        .filter(|node| site_at(tree, *node) == callable.contract)
-        .ok_or_else(|| LoweringError::new(site, "stored callable lacks its checked structural contract"))?;
     if !callable.closed_runtime {
         return Err(LoweringError::new(site, "stored callable requires a closed structural interface"));
     }
-    let interface = callable_interface(prepared, tree, node, callable)?;
+    // The field names an alias; its signature owns the contract clauses.
+    let (origin, node) = prepared
+        .typed()
+        .callable_origin(&callable.contract)
+        .ok_or_else(|| LoweringError::new(site, "stored callable lacks its checked structural contract"))?;
+    let interface = callable_interface(prepared, &origin, node, callable)?;
     Ok(crate::TypeExpression(vec![crate::TypeExpressionStep::Callable(Box::new(interface))]))
 }

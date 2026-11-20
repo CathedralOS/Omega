@@ -308,7 +308,10 @@ fn read_alias<'a>(
         .get(declaration)
         .map_or(&[][..], Vec::as_slice);
     let kind = file.nodes[target].kind;
-    if !generic && enclosing.is_empty() && kind == NodeKind::ArrayType {
+    // A closed runtime signature names its row in the callable contract table, so
+    // every use of the alias and the alias itself denote one contract.
+    let runtime_signature = kind == NodeKind::MachineType && matches!(carrier, ValueType::Callable(c) if super::callables::supported(c));
+    if !generic && enclosing.is_empty() && (kind == NodeKind::ArrayType || runtime_signature) {
         return Ok(PendingAlias::Structural {
             declaration,
             carrier,
@@ -352,11 +355,29 @@ fn read_alias<'a>(
                 .collect::<Result<_, _>>()?,
             parameters,
             head,
-            expansion: super::type_expression::declaration_term(carrier, &site_at(tree, target))?,
+            expansion: alias_expansion(prepared, carrier, &site_at(tree, target))?,
         }),
         public,
         site,
     }))
+}
+
+/// A callable expansion keeps the complete interface of the signature that
+/// declares its contract, including its predicates and crash routes.
+fn alias_expansion(
+    prepared: &PreparedTrees<'_>,
+    carrier: &ValueType,
+    site: &Site,
+) -> Result<crate::DeclarationTerm, LoweringError> {
+    let ValueType::Callable(callable) = carrier else {
+        return super::type_expression::declaration_term(carrier, site);
+    };
+    let (origin, node) = prepared
+        .typed()
+        .callable_origin(&callable.contract)
+        .ok_or_else(|| LoweringError::new(site, "callable alias lacks its checked structural signature"))?;
+    let interface = super::type_expression::callable_interface(prepared, &origin, node, callable)?;
+    Ok(crate::DeclarationTerm::Type(crate::TypeExpression(vec![crate::TypeExpressionStep::Callable(Box::new(interface))])))
 }
 
 pub(super) fn field_members(

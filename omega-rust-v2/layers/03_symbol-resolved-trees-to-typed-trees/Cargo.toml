@@ -22,4 +22,4 @@ num-traits = "0.2"
 omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 omega-parser = { path = "../01_tokens-to-syntax-trees" }
 golden = { path = "../../tools/golden" }
-spec-corpus = { path = "../../tools/spec-corpus" }
+spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }

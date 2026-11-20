@@ -123,7 +123,8 @@ fn an_instantiated_return_keeps_the_distinction_between_bits_and_a_borrowed_desc
 
 #[test]
 fn a_selected_suspending_callback_retains_both_closed_call_sites() {
-    let text = "public machine apply<const F:machine(value:u32)->u32 suspends>(value:u32)->u32 suspends {suspend F(value)}
+    let text = "public data SuspendingTransform=machine(value:u32)->u32 suspends;
+              public machine apply<const F:SuspendingTransform>(value:u32)->u32 suspends {suspend F(value)}
               public machine local(value:u32)->u32 suspends {value}
               public machine example()->u32 suspends {suspend apply::<local>(42)}";
     let package = sources::lower(&[("pause.omg", text)]).unwrap();
@@ -155,7 +156,7 @@ fn a_selected_suspending_callback_retains_both_closed_call_sites() {
 
 #[test]
 fn open_callback_calls_preserve_operands_and_reject_an_unlowered_body() {
-    let source = "machine flip<const F:machine(x:u64,y:u64)->u64>(a:u64,b:u64)->u64{F(b,a)}";
+    let source = "data Combine=machine(x:u64,y:u64)->u64; machine flip<const F:Combine>(a:u64,b:u64)->u64{F(b,a)}";
     let pkg = sources::lower(&[("template.omg", source)]).unwrap();
     let m = &pkg.machine_templates[0];
     assert_eq!(m.body[0].target, omega_lowering::TemplateCallTarget::StaticBinder(0));
@@ -169,7 +170,7 @@ fn open_callback_calls_preserve_operands_and_reject_an_unlowered_body() {
 #[test]
 fn a_generic_machine_keeps_a_guarded_crash_distinct_from_an_unconditional_ceiling() {
     use omega_lowering::{CrashCause, PredicateOperator, PredicateStep};
-    let text = "machine relay<const F:machine(x:u64)->u64>(x:u64)->u64 crashes Trap x == 0 {F(x)}";
+    let text = "data NumberStep=machine(x:u64)->u64; machine relay<const F:NumberStep>(x:u64)->u64 crashes Trap x == 0 {F(x)}";
     let pkg = sources::lower(&[("guard.omg", text)]).unwrap();
     let signature = &pkg.machine_templates[0].signature;
     assert_eq!(signature.crash_ceiling.as_deref(), Some(&[CrashCause::Trap][..]));

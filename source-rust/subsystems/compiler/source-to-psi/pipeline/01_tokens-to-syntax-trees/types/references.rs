@@ -10,6 +10,9 @@ use syntax_trees::types::{
 };
 use tokens::PunctuationKind;
 
+pub(crate) const INLINE_CALLABLE_TYPE_ERROR: &str =
+    "declare the callable signature with `data Name = machine(...);` and use its alias here";
+
 pub(crate) fn parse_static_name<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Identifier> {
@@ -148,20 +151,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     }
 
     if input.at_keyword(tokens::KeywordKind::Machine) {
-        let source_span = input.current_source_span();
-        let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
-        let (signature, input) = crate::parameters::requirements::parse_runtime_machine_contract(
-            syntax_trees,
-            Identifier::new("$callable", source_span),
-            input,
-        )?;
-        let signature = syntax_trees.items.insert_state_signature(&signature);
-        return Ok((
-            syntax_trees
-                .type_references
-                .insert(TypeReferenceNode::Callable { signature }),
-            input,
-        ));
+        return Err(input.error_here(INLINE_CALLABLE_TYPE_ERROR));
     }
 
     // Runtime trait selectors have no source meaning. Reject before
@@ -292,6 +282,10 @@ pub(crate) fn parse_static_argument_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    if input.at_keyword(tokens::KeywordKind::Machine) {
+        return Err(input.error_here(INLINE_CALLABLE_TYPE_ERROR));
+    }
+
     if input.at_integer()
         || input
             .tokens

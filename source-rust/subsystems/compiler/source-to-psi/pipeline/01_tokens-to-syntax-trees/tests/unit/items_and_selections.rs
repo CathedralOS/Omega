@@ -469,7 +469,7 @@ fn atomic_spellings_are_ordinary_member_calls_through_parsing() {
         "compare_exchange_once",
     ] {
         let input = format!(
-            "data Registry {{ {member}: machine(key: u64, value: u64) -> u64 reaches none crashes none terminates; }} machine call(registry: Registry) -> u64 {{ (registry.{member})(1u64, 42u64) }}"
+            "data Operation = machine(key: u64, value: u64) -> u64 reaches none crashes none terminates; data Registry {{ {member}: Operation; }} machine call(registry: Registry) -> u64 {{ (registry.{member})(1u64, 42u64) }}"
         );
         let trees = crate::tests::parse_source_unwrap(&input);
         assert!(trees.expressions.iter_expressions().any(|(_, node)| matches!(node, ExpressionNode::Call(call) if call.target.as_str(&trees) == member && call.arguments.count() == 2)));

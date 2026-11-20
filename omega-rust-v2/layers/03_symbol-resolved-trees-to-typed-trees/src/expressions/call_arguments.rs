@@ -214,6 +214,8 @@ impl BodyTyper<'_, '_> {
         let mut applied = Vec::with_capacity(operands.len());
         for (position, (op, (span, formal))) in operands.iter().zip(&signature.parameters).enumerate() {
             let expected = instantiate(formal, &applied);
+            self.unit
+                .check_runtime_type(op.node, &expected, &self.catalog.types)?;
             self.admit_argument(node, position, op, &expected)?;
             let mut parameter = signature.site.clone();
             parameter.span = *span;
@@ -243,6 +245,8 @@ impl BodyTyper<'_, '_> {
             });
         }
         let result = instantiate(&signature.result, &applied);
+        self.unit
+            .check_runtime_type(node, &result, &self.catalog.types)?;
         if signature.requires {
             self.record_obligation(node, ObligationKind::CallPrecondition(target.machine.clone()));
         }

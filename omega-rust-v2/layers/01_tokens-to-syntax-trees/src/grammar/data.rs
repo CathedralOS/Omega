@@ -9,7 +9,7 @@ use omega_tokens::Punctuation;
 
 impl SyntaxParser<'_> {
     /// `visibility? 'data' word generic_params? attributes? dropped_by?
-    ///  ( '=' type ';' | requires* '{' data_member* '}' )`
+    ///  ( '=' (type | machine_type) ';' | requires* '{' data_member* '}' )`
     pub(crate) fn parse_data(&mut self) -> Parsed {
         self.enter_nesting()?;
 
@@ -32,7 +32,11 @@ impl SyntaxParser<'_> {
         }
 
         if self.eat(Punctuation::Equal) {
-            self.parse_type(TypePosition::Plain)?;
+            if self.at_machine_type() {
+                self.parse_machine_type()?;
+            } else {
+                self.parse_type(TypePosition::Plain)?;
+            }
             self.expect(Punctuation::Semicolon, "`;`")?;
         } else {
             self.parse_data_requirements()?;

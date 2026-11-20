@@ -629,7 +629,8 @@ machine build_entry(value: u32) -> u32 crashes none { ACK relay(value) }
         (
             "opaque callable",
             r#"
-machine build_entry(operation: machine(value: u32) -> u32 reaches none blocks crashes none, value: u32) -> u32 crashes none {
+data BlockingOperation = machine(value: u32) -> u32 reaches none blocks crashes none;
+machine build_entry(operation: BlockingOperation, value: u32) -> u32 crashes none {
     ACK operation(value)
 }
 "#,

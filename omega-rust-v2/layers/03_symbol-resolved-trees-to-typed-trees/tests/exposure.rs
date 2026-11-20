@@ -27,7 +27,7 @@ fn public_contract_checks_the_visibility_of_the_selected_overload() {
 
 #[test]
 fn a_static_callback_carries_the_machine_application_into_refinement_and_invocation() {
-    let declarations = "machine id<T>(x:T)->T{x} machine apply<const F:machine(x:u8)->u8>(x:u8)->u8{F(x)}";
+    let declarations = "machine id<T>(x:T)->T{x} data Transform=machine(x:u8)->u8; machine apply<const F:Transform>(x:u8)->u8{F(x)}";
     for selected in ["id::<u8>", "(id::<u8>)"] {
         let source = format!("{declarations} machine f(x:u8)->u8{{apply::<{selected}>(x)}}");
         let stage = check(&[("main.omg", &source)]).unwrap();
@@ -67,7 +67,7 @@ fn a_static_callback_carries_the_machine_application_into_refinement_and_invocat
 
 #[test]
 fn nested_callback_selection_keeps_each_enclosing_application() {
-    let source = "machine invoke<const F:machine(x:bool)->bool>(x:bool)->bool {F(x)}
+    let source = "data BooleanStep=machine(x:bool)->bool; machine invoke<const F:BooleanStep>(x:bool)->bool {F(x)}
                   machine outer<const FLAG:bool>(x:bool)->bool {
                       invoke::<helper>(x)
                       machine helper(x:bool)->bool {FLAG}
@@ -123,7 +123,7 @@ fn nested_callback_selection_keeps_each_enclosing_application() {
 
 #[test]
 fn a_static_callback_requires_admitted_arguments_for_its_selected_machine() {
-    let declarations = "trait Step<T>{machine run(x:T)->T;} ByteStep satisfies Step<u8>{machine run(x:u8)->u8{x}} BoolStep satisfies Step<bool>{machine run(x:bool)->bool{x}} machine selected<const E:Step<u8>>(x:u8)->u8{E::run(x)} machine apply<const F:machine(x:u8)->u8>(x:u8)->u8{F(x)}";
+    let declarations = "trait Step<T>{machine run(x:T)->T;} ByteStep satisfies Step<u8>{machine run(x:u8)->u8{x}} BoolStep satisfies Step<bool>{machine run(x:bool)->bool{x}} machine selected<const E:Step<u8>>(x:u8)->u8{E::run(x)} data Transform=machine(x:u8)->u8; machine apply<const F:Transform>(x:u8)->u8{F(x)}";
     let accepted = format!("{declarations} machine f(x:u8)->u8{{apply::<selected::<ByteStep>>(x)}}");
     let stage = check(&[("main.omg", &accepted)]).unwrap();
     assert!(stage.obligations.iter().any(|obligation| matches!(
@@ -164,7 +164,7 @@ fn a_static_callback_matches_the_applied_nominal_requirement() {
 
 #[test]
 fn a_static_callback_publishes_nested_evidence_at_the_selected_machine() {
-    let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} machine accept<const F:machine(x:u8)>(){} machine f(){accept::<theorem::<lemma>>()}";
+    let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} data Receiver=machine(x:u8); machine accept<const F:Receiver>(){} machine f(){accept::<theorem::<lemma>>()}";
     let resolved = support::resolve_packages(&[("game", "main.omg", source)], &[]);
     let typed = omega_typer::type_stage(&resolved).unwrap();
     let [hypothesis] = typed.logical_hypotheses.as_slice() else {

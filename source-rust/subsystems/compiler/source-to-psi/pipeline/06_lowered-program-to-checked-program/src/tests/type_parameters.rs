@@ -1153,7 +1153,8 @@ fn generic_callback_applications_keep_the_selected_contract() {
         let text = format!(
             r#"
             machine measure<T>(value: {reference}) -> u64 {{ 41u64 }}
-            machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 {{ Step(value) }}
+            data Measure<T> = machine(value: @T) -> u64;
+            machine invoke<T, const Step: Measure<T>>(value: @T) -> u64 {{ Step(value) }}
             machine entry<T>(value: @T) -> u64 {{ invoke::<T, measure<T>>(value) }}
         "#
         );
@@ -1318,7 +1319,8 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
             let { value as number } = move value;
             number
         }
-        machine invoke<T, const Step: machine(value: T) -> u32 reaches none crashes none terminates>(value: T) -> u32
+        data Finish<T> = machine(value: T) -> u32 reaches none crashes none terminates;
+        machine invoke<T, const Step: Finish<T>>(value: T) -> u32
         reaches none crashes none { Step(move value) }
         machine copy(value: u32) -> u32 reaches none crashes none terminates { value }
         machine entry() -> u32 reaches none crashes none {
@@ -1396,7 +1398,8 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
 fn an_unused_closed_callback_still_proves_its_type_requirement() {
     let source = r#"
         machine selected<T>(value: T) -> T requires T == u8 { move value }
-        machine consume<T, const Step: machine(value: T) -> T>(value: T) -> T {
+        data Transform<T> = machine(value: T) -> T;
+        machine consume<T, const Step: Transform<T>>(value: T) -> T {
             move value
         }
         machine entry() -> u8 { consume::<u8, selected<u8>>(7u8) }
@@ -1488,7 +1491,8 @@ fn callback_form(text: &str) -> Checked<crate::lowering::Elaboration> {
 const CALLBACK_REACH: &str = r#"
     boundary trait Output {}
     machine measure<T>(value: @T) -> u64 { 41u64 }
-    machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 { Step(value) }
+    data Measure<T> = machine(value: @T) -> u64;
+    machine invoke<T, const Step: Measure<T>>(value: @T) -> u64 { Step(value) }
     machine relay<T>(value: @T) -> u64 { invoke::<T, measure<T>>(value) }
     machine entry<T>(value: @T) -> u64 reaches none { relay::<T>(value) }
 "#;
@@ -1529,7 +1533,8 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
 fn an_unselected_callback_cannot_prove_an_empty_reach_ceiling() {
     let verdict = judge(callback_form(
         r#"
-        machine entry<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64
+        data Measure<T> = machine(value: @T) -> u64;
+        machine entry<T, const Step: Measure<T>>(value: @T) -> u64
         reaches none { Step(value) }
     "#,
     ))

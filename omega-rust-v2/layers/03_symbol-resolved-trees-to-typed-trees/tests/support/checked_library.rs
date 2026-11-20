@@ -54,8 +54,10 @@ fn consume(text: &str) -> Result<crate::TypedTrees<'_>, crate::TypeError> {
         public domain u8::Small;
         public const limit:u8=7;
         public data Word<const N:u64> { bits:u<N-1>; }
-        public machine run(f:machine() reaches Device crashes none) { f() }
-        public machine apply<const F:machine()->bool suspends>()->bool suspends { suspend F() }",
+        public data DeviceAction=machine() reaches Device crashes none;
+        public machine run(f:DeviceAction) { f() }
+        public data Readiness=machine()->bool suspends;
+        public machine apply<const F:Readiness>()->bool suspends { suspend F() }",
             &[],
             &Default::default(),
         )
@@ -135,6 +137,13 @@ fn imported_body_effects_propagate_to_the_selected_caller() {
         .find(|row| row.machine.path == "call")
         .unwrap();
     assert!(matches!(caller.reach.as_slice(), [row] if row.service.package == "library" && row.service.path == "Device"));
+    let run = stage.signatures.iter().find(|signature| signature.machine.path == "run").unwrap();
+    let crate::ValueType::Callable(callable) = &run.parameters[0].1 else { panic!("expected the library callback type") };
+    let (tree, node) = stage.callable_origin(&callable.contract).expect("imported callable alias RHS");
+    let file = tree.resolved().file;
+    assert_eq!(file.package, "library");
+    assert_eq!(file.nodes[node].kind, omega_parser::NodeKind::MachineType);
+    assert_eq!(file.span(node), callable.contract.span);
     assert!(
         matches!(caller.invokes.as_slice(), [crate::InvocationTarget::Declaration(slot)] if slot.declaration.package == "client" && slot.declaration.path == "action")
     );
@@ -150,8 +159,9 @@ const CHECKED_PRODUCER: &str = "
         public machine difference(a:Point,b:Point)->Point{a-b}
         public trait Add {machine + combine(x:u8,y:u8)->u8;}
         public machine guarded(x:u8)->u8 crashes Trap x == 0 {x}
-        machine relay<const F:machine(x:u8)->u8>(v:u8)->u8{F(v)}
-        public machine forward<const H:machine(x:u8)->u8>(v:u8)->u8{relay::<H>(v)}";
+        public data ByteStep=machine(x:u8)->u8;
+        machine relay<const F:ByteStep>(v:u8)->u8{F(v)}
+        public machine forward<const H:ByteStep>(v:u8)->u8{relay::<H>(v)}";
 
 fn type_checked_client(source: &str) -> (Result<crate::TypedTrees<'_>, crate::TypeError>, Result<crate::TypedTrees<'_>, crate::TypeError>) {
     static RESOLVED: OnceLock<SymbolResolvedTrees<'static>> = OnceLock::new();

@@ -1,13 +1,11 @@
-//! Most published examples mix declarations and statements. These four fences
-//! instead demonstrate clauses or a single generic parameter. The parser's
-//! corpus test checks that every listed fence still exists.
+//! Most published examples mix declarations and statements. The fences listed here
+//! demonstrate standalone clauses. The parser corpus test checks each label.
 use omega_parser::FragmentKind;
 
 pub const EXAMPLE_SHAPES: &[(&str, FragmentKind)] = &[
-    ("language/generics.md:306", FragmentKind::Clauses),
+    ("language/generics.md:310", FragmentKind::Clauses),
     ("language/termination.md:35", FragmentKind::Clauses),
     ("resources/content_custody.md:129", FragmentKind::Clauses),
-    ("language/state_contracts.md:86", FragmentKind::GenericParam),
 ];
 
 pub fn fragment_kind(label: &str) -> FragmentKind {

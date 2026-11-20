@@ -8,17 +8,25 @@ Ratified 2026-11-06 together with [some packages](some_packages.md). All `dyn`
 source forms, including captured `dyn Trait<_>`, are retired. Static traits,
 named conformances, proof laws and `machine F` generic binders remain. Anonymous bodies and capture syntax remain a separate proposal.
 
+<a id="named-structural-callable-types"></a>
+
 ## Callable types and construction
 
-A callable type is a structural signature with its clauses and no declaration
-name. The same type may type a static parameter or, when closed, a runtime
-value:
+Write an authored structural callable signature as the entire right-hand side
+of a [transparent data alias](generics.md#transparent-type-aliases). Use the
+alias name wherever the signature is needed, including parameters, results,
+fields, locals, container elements and generic arguments. A signature nested
+inside another signature also uses an alias. The alias names a type. Supplying
+a named machine selects the code.
 
 ```omega
 data Counter { value: u64; }
+data ClearCounter = machine(counter: @mut Counter) reaches none crashes none terminates;
+data CounterValue = machine(counter: @Counter) -> u64 reaches none crashes none terminates;
+
 data CounterOps {
-    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
-    value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
+    clear: ClearCounter;
+    value: CounterValue;
 }
 
 machine clear(counter: @mut Counter) terminates { counter.value = 0; }
@@ -28,15 +36,40 @@ let operations = CounterOps { clear: clear, value: value };
 let current: u64 = (operations.value)(@counter);
 ```
 
-The same type form is usable for locals, parameters, results, fields, arrays and
-other ordinary containers. Parameter names in its contract bind that callable's
-formal arguments; `result` denotes its result. Lifetime binders and ordinary
+The alias's semicolon closes its complete signature and contract. Its parameter
+names bind the callable's formal arguments and `result` denotes the callable's
+result. A machine returning the alias writes its own clauses after the alias
+name.
+
+```omega
+data ByteReader = machine(offset: u32) -> u8
+    requires offset < 256
+    reaches none crashes none;
+
+machine open_reader(ready: bool, reader: ByteReader) -> ByteReader
+requires ready
+{
+    reader
+}
+```
+
+A caller establishes `ready` when calling `open_reader` and establishes
+`offset < 256` when invoking the returned reader. Lifetime binders and ordinary
 `requires`, `ensures`, reach, invocation, suspension, blocking, crash, progress,
 resource and custody contracts retain their meanings. A runtime callable has
-fixed finite service and crash ceilings that the type must state: `reaches none`
+fixed finite service and crash ceilings that its type must state. `reaches none`
 and `crashes none` mean empty, and a callable type that omits either clause is
-an [open callable contract](effects.md#open-callable-contracts), which a
-runtime position rejects. Other axes retain their existing omission rules.
+an [open callable contract](effects.md#open-callable-contracts). Declaring an
+alias for an open contract is valid. Expand the alias and check the position
+where it is used. A static selection may use an open contract. A runtime use
+requires finite reach and crash ceilings, including through another alias
+or a container. Other axes retain their existing omission rules.
+
+For example, `data Predicate<T> = machine(value: T) -> bool;` names an open
+contract. `const Accept: Predicate<u8>` admits a statically selected machine
+and retains its effects when called. A runtime parameter `accept: Predicate<u8>`
+rejects because the contract leaves both ceilings open. Naming the signature
+preserves its structural identity and all its obligations.
 
 In a callable-valued context, a named machine reference selects an exact closed
 declaration application. A qualified named implementation member is eligible;

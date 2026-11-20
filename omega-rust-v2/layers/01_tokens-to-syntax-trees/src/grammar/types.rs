@@ -120,7 +120,7 @@ impl SyntaxParser<'_> {
         }
 
         if self.at_machine_type() {
-            return self.parse_machine_type(type_position);
+            return Err(self.error("a named callable type (declare its signature with `data Name = machine(...);`)"));
         }
 
         if self.at_word() {
@@ -144,15 +144,12 @@ impl SyntaxParser<'_> {
     }
 
     /// `machine` is a machine type when a parameter list or generic parameters follow; alone it is a name.
-    fn at_machine_type(&self) -> bool {
+    pub(super) fn at_machine_type(&self) -> bool {
         self.at_keyword("machine") && (self.nth_at(1, Punctuation::LeftParenthesis) || self.nth_at(1, Punctuation::Less))
     }
 
     /// `'machine' generic_params? '(' params ')' result? clause*`
-    fn parse_machine_type(
-        &mut self,
-        type_position: TypePosition,
-    ) -> Parsed<ClosedNode> {
+    pub(super) fn parse_machine_type(&mut self) -> Parsed<ClosedNode> {
         let machine_type = self.open();
 
         self.bump();
@@ -164,10 +161,10 @@ impl SyntaxParser<'_> {
         self.parse_params()?;
 
         if self.at(Punctuation::Arrow) {
-            self.parse_result(type_position)?;
+            self.parse_result()?;
         }
 
-        self.parse_clauses(type_position)?;
+        self.parse_clauses()?;
 
         Ok(self.close(machine_type, NodeKind::MachineType))
     }

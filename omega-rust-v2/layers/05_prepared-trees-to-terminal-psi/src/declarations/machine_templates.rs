@@ -287,7 +287,7 @@ fn lower(
     }
     let mut parameters = Vec::new();
     let mut bounds = Vec::new();
-    for (index, ((_, node, kind), param)) in file
+    for (index, ((_, _, kind), param)) in file
         .generic_parameters(sig.node.node)
         .zip(&params.parameters)
         .enumerate()
@@ -338,11 +338,13 @@ fn lower(
                     };
                     (Some(requirement), interface)
                 } else {
-                    let input = file
-                        .child(node, NodeKind::MachineType)
-                        .filter(|n| site_at(tree, *n) == bound.contract)
+                    // The bound names an alias; its signature owns the contract clauses.
+                    let (origin, input) = prepared
+                        .typed()
+                        .callable_origin(&bound.contract)
                         .ok_or_else(bad)?;
-                    (None, super::type_expression::callable_interface(prepared, tree, input, bound)?)
+                    let interface = super::type_expression::callable_interface(prepared, &origin, input, bound)?;
+                    (None, interface)
                 };
                 MachineTemplateBinder::Callable {
                     requirement,

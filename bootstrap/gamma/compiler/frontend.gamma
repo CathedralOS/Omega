@@ -52,11 +52,11 @@
     (let byte Int (read index)
       (if (eq byte 9)
         (p_validate (+ index 1))
-        (if (eq byte 10)
+        (if (eq byte '\n')
           (p_validate (+ index 1))
           (if (eq byte 13)
             (p_validate (+ index 1))
-            (if (lt byte 32)
+            (if (lt byte '\s')
               (p_fail)
               (if (lt byte 127) (p_validate (+ index 1)) (p_fail)))))))))
 
@@ -64,7 +64,7 @@
   (if (eq index (input))
     index
     (let byte Int (read index)
-      (if (eq byte 10)
+      (if (eq byte '\n')
         index
         (if (eq byte 13) index (p_comment (+ index 1)))))))
 
@@ -74,7 +74,7 @@
     (let byte Int (read index)
       (if (lt byte 33)
         (p_skip (+ index 1))
-        (if (eq byte 59) (p_skip (p_comment (+ index 1))) index)))))
+        (if (eq byte ';') (p_skip (p_comment (+ index 1))) index)))))
 
 (def p_token_end ((index Int)) Int
   (if (eq index (input))
@@ -82,16 +82,16 @@
     (let byte Int (read index)
       (if (lt byte 33)
         index
-        (if (eq byte 40)
+        (if (eq byte '(')
           index
-          (if (eq byte 41)
+          (if (eq byte ')')
             index
-            (if (eq byte 59) index (p_token_end (+ index 1)))))))))
+            (if (eq byte ';') index (p_token_end (+ index 1)))))))))
 
 ; The whole token must be decimal. A minus alone, or any non-digit, remains
 ; a symbol. Gamma arithmetic supplies literal accumulation modulo 2^64.
 (def p_atom ((begin Int) (end Int)) Int
-  (if (eq (read begin) 45)
+  (if (eq (read begin) '-')
     (if (eq (+ begin 1) end)
       (pair 2 (pair begin end))
       (p_number begin end (+ begin 1) 0 1))
@@ -102,12 +102,13 @@
   (if (eq index end)
     (pair 1 (if negative (- 0 value) value))
     (let byte Int (read index)
-      (if (lt byte 48)
+      (if (lt byte '0')
         (pair 2 (pair begin end))
         (if (lt byte 58)
-          (p_number begin end (+ index 1) (+ (* value 10) (- byte 48)) negative)
+          (p_number begin end (+ index 1) (+ (* value 10) (- byte '0')) negative)
           (pair 2 (pair begin end)))))))
 
+; Gamma reserves apostrophe (39) and backslash (92) inside character literals.
 ; Token results retain the next source offset beside the parsed node.
 (def p_character ((begin Int)) Int
   (if (lt (+ begin 2) (input))
@@ -117,7 +118,7 @@
         (if (eq (read (+ begin 2)) 39)
           (if (eq byte 39)
             (p_fail)
-            (if (lt byte 32)
+            (if (lt byte '\s')
               (p_fail)
               (if (lt byte 127)
                 (pair (+ begin 3) (pair 1 byte))
@@ -129,10 +130,10 @@
   (if (lt (+ begin 3) (input))
     (if (eq (read (+ begin 3)) 39)
       (let byte Int (read (+ begin 2))
-        (if (eq byte 110)
-          (pair (+ begin 4) (pair 1 10))
-          (if (eq byte 115)
-            (pair (+ begin 4) (pair 1 32))
+        (if (eq byte 'n')
+          (pair (+ begin 4) (pair 1 '\n'))
+          (if (eq byte 's')
+            (pair (+ begin 4) (pair 1 '\s'))
             (p_fail))))
       (p_fail))
     (p_fail)))
@@ -155,11 +156,11 @@
     (if (eq start (input))
       (if (p_length stack) (p_fail) (p_reverse current))
       (let byte Int (read start)
-        (if (eq byte 40)
+        (if (eq byte '(')
           (if (lt (p_length stack) 255)
             (p_parse_loop (+ start 1) (p_empty) (p_cons current stack))
             (p_fail))
-          (if (eq byte 41)
+          (if (eq byte ')')
             (if (p_length stack)
               (p_parse_loop (+ start 1)
                 (p_cons (pair 3 (p_reverse current)) (p_head stack))

@@ -2,7 +2,6 @@
 
 use crate::NodeKind;
 use crate::grammar::contexts::tail_rule::TailRule;
-use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::fragment_kind::FragmentKind;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
@@ -40,7 +39,7 @@ impl SyntaxParser<'_> {
                 }
             }
             FragmentKind::Clauses => {
-                self.parse_clauses(TypePosition::Plain)?;
+                self.parse_clauses()?;
 
                 // The `;` that would end a bodyless declaration, when the example shows it.
                 self.eat(Punctuation::Semicolon);

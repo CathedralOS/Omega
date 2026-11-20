@@ -3,6 +3,8 @@ use crate::type_relations::TypeRelations;
 use omega_resolved::DeclarationId;
 
 pub(crate) trait TypeInference: Sized {
+    fn open_runtime_contract(&self) -> Option<(&crate::CallableType, &'static str)>;
+    fn machine_type_parameters(&self) -> impl Iterator<Item = (&DeclarationId, usize)>;
     fn infer(
         &self,
         actual: &ValueType,
@@ -21,6 +23,30 @@ pub(crate) trait TypeInference: Sized {
 }
 
 impl TypeInference for ValueType {
+    fn open_runtime_contract(&self) -> Option<(&crate::CallableType, &'static str)> {
+        self.components().find_map(|part| {
+            let ValueType::Callable(c) = part else { return None };
+            if c.requirement.is_some() || c.closed_runtime {
+                return None;
+            }
+            let reason = match (&c.reach, &c.crash_ceiling) {
+                (Some(_), None) => "runtime callable requires an explicit crash ceiling",
+                (None, Some(_)) => "runtime callable requires an explicit reach ceiling",
+                _ => "runtime callable requires explicit reach and crash ceilings",
+            };
+            Some((c.as_ref(), reason))
+        })
+    }
+
+    fn machine_type_parameters(&self) -> impl Iterator<Item = (&DeclarationId, usize)> {
+        self.components().filter_map(|part| match part {
+            Self::Parameter { owner, index } if matches!(owner.kind, omega_syntax::NodeKind::Machine | omega_syntax::NodeKind::AsmMachine) => {
+                Some((owner.as_ref(), *index))
+            }
+            _ => None,
+        })
+    }
+
     fn infer(
         &self,
         actual: &ValueType,

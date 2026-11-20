@@ -151,7 +151,9 @@ machine command_motor(speed: u32) {
     MotorControl::set_speed(speed);
 }
 
-public machine apply<const F: machine(value: u32)>(value: u32) {
+public data ApplyValue = machine(value: u32);
+
+public machine apply<const F: ApplyValue>(value: u32) {
     F(value);
 }
 
@@ -160,16 +162,18 @@ public machine start_motor() reaches MotorControl {
 }
 ```
 
-`apply` knows nothing about motors. `apply<command_motor>` reaches
-`MotorControl`. To accept only callbacks that reach nothing, type the
-parameter `const F: machine(value: u32) reaches none`.
+`apply::<command_motor>` reaches `MotorControl`. Omitting `reaches` from
+`ApplyValue` leaves the service bound open. Adding `reaches none` to that
+alias would exclude `command_motor`.
 
 ## Suspension and blocking through callbacks
 
 Waiting follows the callback the same way:
 
 ```omega
-public machine apply<const F: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+public data SuspendingTransform = machine(value: u32) -> u32 suspends;
+
+public machine apply<const F: SuspendingTransform>(value: u32) -> u32
 suspends
 {
     suspend F(value)

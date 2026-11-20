@@ -47,14 +47,6 @@ impl ExpressionContext {
         stops_at_greater: true,
     };
 
-    /// The same context, inside `<...>` or not.
-    pub(crate) fn with_stops_at_greater(
-        self,
-        stops_at_greater: bool,
-    ) -> Self {
-        Self { stops_at_greater, ..self }
-    }
-
     pub(crate) fn get_allows_record_literal(&self) -> bool {
         self.allows_record_literal
     }

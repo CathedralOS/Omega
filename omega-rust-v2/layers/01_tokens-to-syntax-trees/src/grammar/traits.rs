@@ -59,7 +59,7 @@ impl SyntaxParser<'_> {
 
         self.bump();
         self.expect(Punctuation::Asterisk, "`*`")?;
-        self.parse_clauses(TypePosition::Plain)?;
+        self.parse_clauses()?;
         self.expect(Punctuation::Semicolon, "a clause or `;`")?;
         self.close(restriction, NodeKind::Restriction);
 
@@ -82,7 +82,7 @@ impl SyntaxParser<'_> {
 
         // The only clauses a conformance takes are hypotheses, `requires machine ...;`.
         while self.at_keyword("requires") && self.nth_at_keyword(1, "machine") {
-            self.parse_hypothesis(TypePosition::Plain)?;
+            self.parse_hypothesis()?;
         }
 
         self.refuse_separator_before_body()?;

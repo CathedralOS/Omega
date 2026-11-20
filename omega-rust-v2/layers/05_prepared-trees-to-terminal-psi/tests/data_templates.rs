@@ -102,7 +102,7 @@ fn an_existential_callable_shares_the_state_witness_and_keeps_its_postcondition(
         ("<", PredicateOperator::LessThan),
     ] {
         let text = format!(
-            "data Reader<'a, some S> {{ state: @'a mut S; read: machine(state: @mut S, output: @mut [u8]) -> u64 ensures result {token} output.len reaches none crashes none; }}"
+            "data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64 ensures result {token} output.len reaches none crashes none; data Reader<'a, some S> {{ state: @'a mut S; read: ReadInto<S>; }}"
         );
         let package = sources::lower(&[("reader.omg", &text)]).unwrap();
         let reader = &package.data_templates[0];
@@ -201,8 +201,9 @@ fn a_type_equation_and_array_extent_refer_to_the_same_constant_binder() {
 
 #[test]
 fn a_stored_callable_never_substitutes_an_unconditional_crash_for_a_guarded_route() {
-    let prefix = "data Reader<'a,some S> { state:@'a S; read:machine(x:u8) reaches none crashes Trap";
-    let plain = format!("{prefix};}}");
+    let prefix = "data ReadByte = machine(x:u8) reaches none crashes Trap";
+    let suffix = "; data Reader<'a,some S> { state:@'a S; read:ReadByte; }";
+    let plain = format!("{prefix}{suffix}");
     let product = sources::lower(&[("read.omg", &plain)]).unwrap();
     let [TypeExpressionStep::Callable(interface)] = product.data_templates[0].fields[1].ty.0.as_slice() else {
         panic!("expected a callable")
@@ -212,7 +213,7 @@ fn a_stored_callable_never_substitutes_an_unconditional_crash_for_a_guarded_rout
         panic!("expected one unconditional route")
     };
     assert_eq!((unconditional.cause, unconditional.guard.as_ref()), (omega_typed::CrashCause::Trap, None));
-    let guarded = format!("{prefix} x == 0;}}");
+    let guarded = format!("{prefix} x == 0{suffix}");
     let product = sources::lower(&[("read.omg", &guarded)]).unwrap();
     let [TypeExpressionStep::Callable(interface)] = product.data_templates[0].fields[1].ty.0.as_slice() else {
         panic!("expected a callable")

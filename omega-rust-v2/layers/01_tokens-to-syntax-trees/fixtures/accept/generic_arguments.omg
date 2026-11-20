@@ -1,6 +1,7 @@
 // GRAMMAR.md: generic arguments. Bare `<` in types, `::<` in expressions, and how each
 // argument is read as a type or as a value. A type-shaped argument followed by `in` is a
 // qualified type; the resolver reads it as a membership test when its binder takes a value.
+data Transform = machine(value: u32) -> u32;
 machine arguments(
     a: Outcome<u32, Never>,
     b: ByteBuffer<64>,
@@ -11,7 +12,7 @@ machine arguments(
     g: Routes<2, [open_file(), open_dir()]>,
     h: Routes<1, [(open_file)]>,
     i: Table<[a, b]>,
-    j: Callback<machine(value: u32) -> u32, A -> B>,
+    j: Callback<Transform, A -> B>,
     k: Holder<'a, core\Level>,
     l: Chosen<(clear satisfies A::clear)>,
     m: Signed<-1, !flag>,

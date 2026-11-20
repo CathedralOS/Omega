@@ -14,6 +14,9 @@ fn check_rows(program: &SymbolResolvedTrees) {
         .declarations
         .runtime_callable_contracts
         .iter()
+        .filter(|(_, contract)| {
+            program.symbols.get(contract.lexical_owner).kind != symbols::SymbolKind::TypeAlias
+        })
         .map(|(_, contract)| &contract.signature)
         .collect::<Vec<_>>();
     assert_eq!(contracts.len(), 3);
@@ -70,10 +73,13 @@ fn check_rows(program: &SymbolResolvedTrees) {
 fn runtime_callable_reach_rows_keep_authored_and_omitted_ceilings_across_seeding() {
     let text = r#"
 boundary trait Io { machine read() reaches none crashes none; }
+data LocalRead = machine() -> u32 reaches none blocks crashes none;
+data IoRead = machine() -> u32 reaches Io blocks crashes none;
+data OpenRead = machine() -> u32 blocks crashes none;
 machine hold(
-    first: machine() -> u32 reaches none blocks crashes none,
-    second: machine() -> u32 reaches Io blocks crashes none,
-    third: machine() -> u32 blocks crashes none,
+    first: LocalRead,
+    second: IoRead,
+    third: OpenRead,
     value: u32
 ) {}
 "#;

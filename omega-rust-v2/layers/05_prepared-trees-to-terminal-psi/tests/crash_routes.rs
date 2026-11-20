@@ -175,7 +175,8 @@ fn a_generic_instance_keeps_the_route_of_its_declaration() {
 #[test]
 fn a_routed_callback_selection_is_refused_before_its_guard_is_lost() {
     let routed = "machine guarded(x:u8)->u8 crashes Trap x == 0 {x}
-                  machine apply<const F:machine(x:u8)->u8>(v:u8)->u8{F(v)}
+                  data ByteStep=machine(x:u8)->u8;
+                  machine apply<const F:ByteStep>(v:u8)->u8{F(v)}
                   machine outer(a:u8)->u8{apply::<guarded>(a)}";
     let error = sources::lower(&[("route.omg", routed)]).unwrap_err();
     assert!(

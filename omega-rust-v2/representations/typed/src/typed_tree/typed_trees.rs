@@ -47,7 +47,7 @@ pub enum NodeSemantics<'a> {
 impl<'text> TypedTrees<'text> {
     pub fn new(
         resolved: SymbolResolvedTrees<'text>,
-        facts: TypedStage,
+        mut facts: TypedStage,
         first_local_obligation: usize,
     ) -> Self {
         let mut by_node = Vec::with_capacity(
@@ -91,6 +91,7 @@ impl<'text> TypedTrees<'text> {
                 .map(|(i, obligation)| (obligation.node, Record::Obligation(i))),
         );
         by_node.sort_by_key(|(node, _)| *node);
+        facts.callable_origins.sort_unstable();
         Self { resolved, facts, by_node }
     }
 
@@ -102,6 +103,24 @@ impl<'text> TypedTrees<'text> {
         self.resolved
             .trees()
             .map(|resolved| TypedTree { resolved, forest: self })
+    }
+
+    /// Find the alias RHS checked for this contract in its defining forest.
+    pub fn callable_origin(
+        &self,
+        contract: &crate::Site,
+    ) -> Option<(TypedTree<'_>, usize)> {
+        for forest in std::iter::once(self).chain(self.library) {
+            if let Ok(index) = forest
+                .facts
+                .callable_origins
+                .binary_search_by(|(site, _)| site.cmp(contract))
+            {
+                let node = forest.facts.callable_origins[index].1;
+                return Some((forest.trees().nth(node.file)?, node.node));
+            }
+        }
+        None
     }
 
     fn semantics_at(

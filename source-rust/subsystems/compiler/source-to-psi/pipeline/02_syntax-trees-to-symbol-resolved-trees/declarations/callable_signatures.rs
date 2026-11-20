@@ -14,6 +14,7 @@ pub(in crate::resolution::declarations) struct InputScope {
     parent: Option<usize>,
     type_names: Vec<String>,
     value_names: Vec<String>,
+    lifetimes: Vec<String>,
 }
 
 #[derive(Debug, Default)]
@@ -45,6 +46,23 @@ impl SignatureInputs {
         loop {
             let current = &self.scopes[scope];
             if current.type_names.iter().any(|bound| bound == name) {
+                return true;
+            }
+            let Some(parent) = current.parent else {
+                return false;
+            };
+            scope = parent;
+        }
+    }
+
+    pub(in crate::resolution::declarations) fn hides_lifetime(
+        &self,
+        mut scope: usize,
+        name: &str,
+    ) -> bool {
+        loop {
+            let current = &self.scopes[scope];
+            if current.lifetimes.iter().any(|bound| bound == name) {
                 return true;
             }
             let Some(parent) = current.parent else {
@@ -111,12 +129,12 @@ impl SignatureInputs {
             .map(|parameter| parameter.name.as_str(syntax).to_owned())
             .collect::<Vec<_>>();
         let mut value_names = type_names.clone();
-        type_names.extend(
-            signature
-                .lifetime_parameters
-                .iter()
-                .map(|name| name.as_str(syntax).to_owned()),
-        );
+        let lifetimes = signature
+            .lifetime_parameters
+            .iter()
+            .map(|name| name.as_str(syntax).to_owned())
+            .collect::<Vec<_>>();
+        type_names.extend(lifetimes.iter().cloned());
         value_names.extend(
             syntax
                 .items
@@ -139,6 +157,7 @@ impl SignatureInputs {
             parent,
             type_names,
             value_names,
+            lifetimes,
         });
         self.types.extend(
             syntax
@@ -210,6 +229,7 @@ impl SignatureInputs {
                         parent: Some(scope),
                         type_names: Vec::new(),
                         value_names: names,
+                        lifetimes: Vec::new(),
                     });
                     self.types.extend(
                         syntax

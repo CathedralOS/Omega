@@ -26,12 +26,30 @@ The stable artifact names and task IDs `D` and `C` in older records identify the
 bootstrap compiler and Omega compiler respectively. Implementation and remaining
 closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
 
+## Compiler stages
+
+The parser asks the scanner for one token at a time. The scalar compiler
+checks the parsed declarations and bodies and calls the Alpha encoder
+directly. These stages share one Epsilon translation unit.
+
+| Stage | Input and result | Implementation |
+| --- | --- | --- |
+| Tokenization | Given validated source bytes and a cursor, produce a token kind, span and next cursor, or a lexical diagnostic. | [Scanner](source-to-tokens/scan.epsilon) and [byte classification](source-to-tokens/byte_classes.epsilon) |
+| Parsing | Consume tokens from each source unit and fill the parser's declaration, statement and expression tables. | [Parser](parser.epsilon) and [shared representations](representations.epsilon) |
+| Declaration resolution | Resolve a name span to a declaration index using the requesting unit's package, module, imports and visibility. | [Resolver](resolution/declarations.epsilon) and [source set](source_set.epsilon) |
+| Checking and lowering | Check supported bodies and select the Alpha instructions for their operations. | [Scalar compiler](scalar_compilation.epsilon) |
+| Alpha emission | Encode instructions, resolve label fixups and validate the tape before publication. | [Tape encoder](alpha/tape.epsilon) |
+
+The Rust compiler's front end also separates tokenization, parsing and name
+resolution. Its later stages produce Psi. The Epsilon compiler's executable
+product is an Alpha tape. [Rust pipeline](../../../source-rust/subsystems/compiler/source-to-psi/pipeline)
+
 ## Retention inventory
 
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| `*.epsilon` | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| Epsilon source members | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [the hosted application](../../../source/application/ocreq) does not declare a support
@@ -43,10 +61,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,214 lines / 867,087 bytes with SHA-256
-`7ca03a41fc9beeaf8639b2c6000e3cba4570e8297a736cfd84898e31838db642`.
-The manifest itself is 1,674 bytes, SHA-256
-`f7bfaed56e6c77c8aa4c041cc40574aed3dd7f9fe2fc100769c3c0a884e0ae34`;
+manifest materializes 23,245 lines / 868,356 bytes with SHA-256
+`13f066b25b1948ddf631272f9725748e41ab4c4b431c3058015210f8e1f18e72`.
+The manifest itself is 1,698 bytes, SHA-256
+`1ca54a7f389837e1e9b4715f574272e9c0a279bb3ee25441a86cf014f95d948b`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -611,9 +629,10 @@ predicates, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
 over the same bare named type leaf, one unqualified `Base in Domain`
 constraint, recursively nested fixed arrays `[Type; length]`
-over bare named leaves with the same unsuffixed decimal length spelling and an
-optional outer domain, optional final member/case semicolons, mixed field/case
-order, and relative spans in separate live-prefix tables. A case reaches its
+with an unsuffixed decimal length, optional final member/case semicolons, mixed
+field/case order, and relative spans in separate live-prefix tables. A single
+named domain can qualify the leaf, an inner array or the outer array. Its
+constrained type node wraps the carrier selected by the source brackets. A case reaches its
 contiguous payload-field span in a separate arena; direct and payload fields
 share one binding control path. Type references are postorder tagged nodes: a
 constrained root points to its base and to one source-shaped constraint, while

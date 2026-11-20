@@ -22,7 +22,9 @@ fn resolve(source: &str) -> SymbolResolvedTrees<'_> {
 
 #[test]
 fn applied_machine_generic_argument_keeps_both_application_owners() {
-    let stage = resolve("machine id<T>(x:T)->T{x} machine apply<const F:machine(x:u8)->u8>(x:u8)->u8{F(x)}          machine f(x:u8)->u8{apply::<id::<u8>>(x)}");
+    let stage = resolve(
+        "machine id<T>(x:T)->T{x} data Transform=machine(x:u8)->u8; machine apply<const F:Transform>(x:u8)->u8{F(x)}          machine f(x:u8)->u8{apply::<id::<u8>>(x)}",
+    );
     let tree = stage.trees().next().unwrap();
     let owners: Vec<_> = tree
         .file

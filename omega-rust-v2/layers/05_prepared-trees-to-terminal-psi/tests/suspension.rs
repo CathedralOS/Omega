@@ -339,7 +339,7 @@ fn a_boundary_view_has_no_local_return_to_identify_its_backing() {
 
 #[test]
 fn a_closed_callback_keeps_its_declared_ceiling_while_only_its_selected_effect_parks() {
-    let text = "public machine apply<const F:machine(x:u8)->u8 suspends>(n:u8)->u8 suspends{suspend F(n)} machine quiet(n:u8)->u8{n} machine park(n:u8)->u8 suspends{n} machine direct(n:u8)->u8{apply::<quiet>(n)} machine delayed(n:u8)->u8 suspends{suspend apply::<park>(n)}";
+    let text = "public data SuspendingStep=machine(x:u8)->u8 suspends; public machine apply<const F:SuspendingStep>(n:u8)->u8 suspends{suspend F(n)} machine quiet(n:u8)->u8{n} machine park(n:u8)->u8 suspends{n} machine direct(n:u8)->u8{apply::<quiet>(n)} machine delayed(n:u8)->u8 suspends{suspend apply::<park>(n)}";
     let pkg = source::lower(&[("closed.omg", text)]).unwrap();
     for (name, parks) in [("direct", false), ("delayed", true)] {
         let caller = pkg

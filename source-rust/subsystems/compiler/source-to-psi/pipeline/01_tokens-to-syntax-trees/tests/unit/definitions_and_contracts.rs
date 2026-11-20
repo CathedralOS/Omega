@@ -802,102 +802,55 @@ fn rejects_self_as_ordinary_declaration_name() {
 }
 
 #[test]
-fn parses_typed_structural_callback_with_its_complete_envelope() {
+fn callable_alias_owns_its_complete_contract() {
     let source = r#"
-        public machine retain<
-            const Callback: machine(value: u32) -> u32 reaches none suspends blocks crashes none
-                requires value > 0u32, value <= 100u32
-                ensures result >= value,
-            const Count: u32
-        >(value: u32) -> u32 suspends blocks { suspend block Callback(value) }
-        "#;
-    let parsed = crate::tests::parse_source(source, "typed callback should parse");
-    let machine = crate::tests::root_machine(&parsed, "generic machine");
-    let parameters = parsed.items.type_parameters(machine.type_parameters);
-    assert_eq!(parameters.len(), 2);
-    let syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
-    } = &parameters[0].kind
-    else {
-        panic!("Callback should retain its structural contract");
+        data Callback<T> = machine(value: T) -> u32 reaches none suspends blocks crashes none
+            requires value > 0u32, value <= 100u32
+            ensures result >= value;
+        machine retain<const Transform: Callback<u32>>(value: u32) -> u32
+            suspends blocks { suspend block Transform(value) }
+    "#;
+    let parsed = crate::tests::parse_source(source, "callable alias and its use");
+    let Some(Item::TypeAlias(alias)) = parsed.root_items().next() else {
+        panic!("expected Callback alias");
     };
-    assert_eq!(contract.name.as_str(&parsed), "Callback");
+    let TypeReferenceNode::Callable { signature } =
+        parsed.type_references.type_reference(alias.expansion)
+    else {
+        panic!("the alias defines a callable");
+    };
+    let contract = parsed.items.state_signature(*signature);
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
     assert!(contract.return_type.is_valid());
-    assert!(contract.suspends);
-    assert!(contract.blocks);
-    assert!(contract.declares_no_crash_route);
+    assert!(contract.suspends && contract.blocks && contract.declares_no_crash_route);
     assert_eq!(contract.service_reach_keyword_source_spans.len(), 1);
     assert_eq!(
         parsed.items.capability_contracts(contract.contracts).len(),
         2
     );
-    assert!(matches!(
-        parameters[1].kind,
-        syntax_trees::item::TypeParameterKind::Const { .. }
-    ));
 }
 
 #[test]
-fn typed_callable_delimiters_preserve_nested_signatures_and_regular_fact_lists() {
-    let source = r#"
-        machine outer<const Factory: machine<const Inner: machine()>>() {}
-        public boundary trait Transfer {
-            machine transfer(value: u32) -> u32
-            reaches none
-            ensures result >= value, result <= 100u32
-            crashes none;
-        }
-        "#;
-    let parsed = crate::tests::parse_source(source, "callable delimiters should parse");
-    let machine = crate::tests::root_machine(&parsed, "generic machine");
-    let parameters = parsed.items.type_parameters(machine.type_parameters);
-    let syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
-    } = &parameters[0].kind
-    else {
-        panic!("Factory contract");
-    };
-    assert_eq!(
-        parsed.items.type_parameters(contract.type_parameters).len(),
-        1
-    );
-}
-
-#[test]
-fn parses_a_callable_argument_before_the_enclosing_parenthesis() {
-    let source = r#"
-        machine retain(
-            chosen: machine(value: u32) -> u32 reaches none crashes none
-                requires value >= 3u32 ensures result <= value
-        ) -> machine(value: u32) -> u32 reaches none crashes none
-            requires value >= 3u32 ensures result <= value
-        {
-            chosen
-        }
-    "#;
-    let parsed = crate::tests::parse_source(source, "both callable contracts should parse");
-    let machine = crate::tests::root_machine(&parsed, "retain");
-    let state = crate::tests::entry_state(&parsed, machine);
-    let [parameter] = parsed.items.state_parameters(state.parameters) else {
-        panic!("retain takes one parameter");
-    };
-    let parameter = parsed.items.state_parameter(*parameter);
-    for reference in [parameter.type_reference, state.return_type] {
-        let TypeReferenceNode::Callable { signature } =
-            parsed.type_references.type_reference(reference)
-        else {
-            panic!("the input and result are both callable types");
-        };
-        let signature = parsed.items.state_signature(*signature);
-        assert_eq!(parsed.items.state_parameters(signature.parameters).len(), 1);
-        assert_eq!(
-            parsed.items.capability_contracts(signature.contracts).len(),
-            2
-        );
-        assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
-        assert!(signature.declares_no_crash_route);
+fn structural_callable_signatures_only_parse_as_the_complete_alias_rhs() {
+    for text in [
+        "machine retain(callback: machine()) {}",
+        "machine factory() -> machine() {}",
+        "data Registry { callback: machine(); }",
+        "machine run() { let callback: machine() = selected; }",
+        "machine run<const Callback: machine()>() {}",
+        "data Factory = machine() -> machine();",
+        "data Factory = machine(inner: machine());",
+        "data Callbacks = [machine()];",
+        "data MaybeCallback = Maybe<machine()>;",
+    ] {
+        let tokens = Lexer::new(text).tokenize().unwrap();
+        assert!(parse_syntax_trees(&tokens).is_err(), "{text}");
     }
+    crate::tests::parse_source(
+        "data Callback = machine(); data Factory = machine() -> Callback; data Registry { callback: Callback; }
+         machine retain(callback: Callback) -> Callback { callback }",
+        "nested and runtime callable uses name their alias",
+    );
 }
 
 #[test]

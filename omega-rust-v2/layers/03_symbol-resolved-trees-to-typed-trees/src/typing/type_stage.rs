@@ -67,7 +67,7 @@ pub(crate) fn check_stage<'a>(
     let trait_tokens = trait_operator_tokens(resolved, &catalog.types.trait_operator_tokens);
     catalog.types.trait_operator_tokens.extend(trait_tokens);
     catalog.types.literal_constants.collect(&units);
-    index_type_definitions(&mut units, &mut catalog.types)?;
+    index_type_definitions(&mut units, &mut catalog.types, output)?;
     check_domain_visibility(resolved, &units, &catalog.types)?;
     for unit in &units {
         unit.index_static_equations(&mut catalog.types)?;

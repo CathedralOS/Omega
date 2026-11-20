@@ -2597,14 +2597,16 @@ Identity satisfies Pick {
     machine pick(value: u64) -> u64 reaches none crashes none
     requires value <= 100 ensures result <= value { value }
 }
-machine apply(operation: machine(value: u64) -> u64 reaches none crashes none
-    requires value <= 100 ensures result <= value, input: u64) -> u64
+data TransformValue = machine(value: u64) -> u64 reaches none crashes none
+    requires value <= 100 ensures result <= value;
+data TransformAmount = machine(amount: u64) -> u64 reaches none crashes none
+    requires amount <= 100 ensures result <= amount;
+machine apply(operation: TransformValue, input: u64) -> u64
 reaches none crashes none requires input <= 100 ensures result <= input {
     operation(input)
 }
 machine entry() -> u64 reaches none crashes none {
-    let selected: machine(amount: u64) -> u64 reaches none crashes none
-    requires amount <= 100 ensures result <= amount = Identity::pick;
+    let selected: TransformAmount = Identity::pick;
     apply(selected, 7)
 }
 "#;
@@ -2615,7 +2617,9 @@ machine entry() -> u64 reaches none crashes none {
             .iter()
             .filter_map(|(handle, contract)| {
                 let symbol = contract.signature.symbol;
-                if typed.symbols.get(symbol).kind != SymbolKind::CallableContract {
+                if typed.symbols.get(symbol).kind != SymbolKind::CallableContract
+                    || typed.symbols.get(contract.lexical_owner).kind == SymbolKind::TypeAlias
+                {
                     return None;
                 }
                 let parameters = typed.state_signature_parameters(&contract.signature);
@@ -2656,7 +2660,9 @@ machine entry() -> u64 reaches none crashes none {
             .iter()
             .filter_map(|(handle, contract)| {
                 let symbol = contract.signature.symbol;
-                if revised_typed.symbols.get(symbol).kind != SymbolKind::CallableContract {
+                if revised_typed.symbols.get(symbol).kind != SymbolKind::CallableContract
+                    || revised_typed.symbols.get(contract.lexical_owner).kind == SymbolKind::TypeAlias
+                {
                     return None;
                 }
                 let parameters = revised_typed.state_signature_parameters(&contract.signature);

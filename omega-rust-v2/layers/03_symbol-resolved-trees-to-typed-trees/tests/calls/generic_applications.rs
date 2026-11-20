@@ -32,7 +32,7 @@ fn runtime_indices_at_calls_bind_the_actual_subject() {
 
 #[test]
 fn nested_calls_publish_static_arguments_for_the_exact_lexical_owners() {
-    let code = "machine apply<const F:machine(value:bool)->bool>(value:bool)->bool {
+    let code = "data BooleanStep=machine(value:bool)->bool; machine apply<const F:BooleanStep>(value:bool)->bool {
                     step::<u8>(value)
                     machine step<T>(input:bool)->bool {
                         invoke(input)

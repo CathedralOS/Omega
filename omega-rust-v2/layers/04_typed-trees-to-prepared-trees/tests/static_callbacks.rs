@@ -20,8 +20,9 @@ fn resolve(code: &str) -> SourcePackage<'_> {
 #[test]
 fn generic_forwarders_use_the_exact_selected_static_machine() {
     let code = "machine bump(v:u8)->u8 { v +% 1 }
-                machine apply<const F:machine(v:u8)->u8>(v:u8)->u8 { F(v) }
-                machine forward<const H:machine(v:u8)->u8>(v:u8)->u8 { apply::<H>(v) }
+                data ByteStep=machine(v:u8)->u8;
+                machine apply<const F:ByteStep>(v:u8)->u8 { F(v) }
+                machine forward<const H:ByteStep>(v:u8)->u8 { apply::<H>(v) }
                 const VALUE:u8 = forward::<bump>(3u8);";
     let prepared = prepare_source_package(&resolve(code)).unwrap();
     assert_eq!(
@@ -33,7 +34,8 @@ fn generic_forwarders_use_the_exact_selected_static_machine() {
 #[test]
 fn nested_selections_of_the_same_machine_reach_the_leaf_callback() {
     let code = "machine bump(v:u8)->u8 {v +% 1u8}
-                machine apply<const F:machine(v:u8)->u8>(v:u8)->u8 {F(v)}
+                data ByteStep=machine(v:u8)->u8;
+                machine apply<const F:ByteStep>(v:u8)->u8 {F(v)}
                 machine relay(v:u8)->u8 {apply::<bump>(v)}
                 const RELAY:u8=apply::<relay>(7u8);
                 const DOUBLE:u8=apply::<apply::<bump>>(3u8);
@@ -62,7 +64,8 @@ fn nested_selections_of_the_same_machine_reach_the_leaf_callback() {
 fn a_skipped_callback_still_requires_termination() {
     let code = "machine recur(v:u8)->u8 { recur(v) }
                 machine identity(v:u8)->u8 {v}
-                machine choose<const F:machine(v:u8)->u8>(flag:bool,v:u8)->u8 {
+                data ByteStep=machine(v:u8)->u8;
+                machine choose<const F:ByteStep>(flag:bool,v:u8)->u8 {
                     match flag { true -> F(v), false -> v, }
                 }
                 const VALUE:u8 = choose::<identity>(false,3u8);";
@@ -80,7 +83,8 @@ fn a_skipped_callback_still_requires_termination() {
 fn a_skipped_callback_still_requires_non_suspending_selected_effects() {
     let code = "machine ready()->bool {true}
                 machine parked()->bool suspends {true}
-                machine choose<const F:machine()->bool suspends>(flag:bool)->bool suspends {
+                data Readiness=machine()->bool suspends;
+                machine choose<const F:Readiness>(flag:bool)->bool suspends {
                     transition flag { true -> suspend F(), false -> false, }
                 }
                 const VALUE:bool = choose::<ready>(false);";
@@ -100,7 +104,8 @@ fn a_skipped_callback_still_requires_non_suspending_selected_effects() {
 #[test]
 fn a_static_callback_executes_the_closed_application_of_a_generic_body() {
     let code = "machine identity<T>(v:T)->T {v}
-                machine apply<const F:machine(v:u8)->u8>(v:u8)->u8 { F(v) }
+                data ByteStep=machine(v:u8)->u8;
+                machine apply<const F:ByteStep>(v:u8)->u8 { F(v) }
                 const VALUE:u8 = apply::<identity::<u8>>(7u8);";
     let prepared = prepare_source_package(&resolve(code)).unwrap();
     assert_eq!(
@@ -112,11 +117,12 @@ fn a_static_callback_executes_the_closed_application_of_a_generic_body() {
 #[test]
 fn a_skipped_fact_call_checks_termination_of_its_exact_callback() {
     let code = "machine identity(input:bool)->bool {input}
-                machine predicate<const F:machine(input:bool)->bool>(value:bool)->bool
+                data BoolStep=machine(input:bool)->bool;
+                machine predicate<const F:BoolStep>(value:bool)->bool
                 reaches none crashes none terminates {F(value)}
                 machine guarded(value:bool)->bool requires true || predicate::<identity>(value) {value}
                 machine helper(value:bool)->bool {value && guarded(value)}
-                machine invoke<const K:machine(input:bool)->bool>(input:bool)->bool {K(input)}
+                machine invoke<const K:BoolStep>(input:bool)->bool {K(input)}
                 const VALUE:bool=invoke::<helper>(false);";
     let prepared = prepare_source_package(&resolve(code)).unwrap();
     assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration), Some(&PreparedValue::Bool(false)));
@@ -130,8 +136,9 @@ fn a_skipped_fact_call_checks_termination_of_its_exact_callback() {
 fn a_nested_callback_retains_the_selection_from_each_enclosing_application() {
     let code = "machine always(input:bool)->bool {true}
                 machine never(input:bool)->bool {false}
-                machine invoke<const K:machine(input:bool)->bool>(input:bool)->bool {K(input)}
-                machine outer<const F:machine(input:bool)->bool>(input:bool)->bool {
+                data BoolStep=machine(input:bool)->bool;
+                machine invoke<const K:BoolStep>(input:bool)->bool {K(input)}
+                machine outer<const F:BoolStep>(input:bool)->bool {
                     invoke::<helper>(input)
                     machine helper(value:bool)->bool {F(value)}
                 }
@@ -159,7 +166,8 @@ fn a_nested_callback_retains_the_selection_from_each_enclosing_application() {
 fn a_nested_callback_reads_the_same_static_value_as_a_direct_call() {
     for entry in ["helper(input)", "invoke::<helper>(input)"] {
         let code = format!(
-            "machine invoke<const K:machine(input:bool)->bool>(input:bool)->bool {{K(input)}}
+            "data BoolStep=machine(input:bool)->bool;
+             machine invoke<const K:BoolStep>(input:bool)->bool {{K(input)}}
              machine outer<const FLAG:bool>(input:bool)->bool {{
                  {entry}
                  machine helper(value:bool)->bool {{FLAG}}
@@ -182,7 +190,8 @@ fn a_nested_callback_reads_the_same_static_value_as_a_direct_call() {
 
 #[test]
 fn nested_callback_and_its_helpers_use_resolved_visibility_for_termination() {
-    let code = "machine apply<const F:machine(v:u8)->u8>(v:u8)->u8 {F(v)}
+    let code = "data ByteStep=machine(v:u8)->u8;
+                machine apply<const F:ByteStep>(v:u8)->u8 {F(v)}
                 machine outer(v:u8)->u8 {
                     apply::<step>(v)
                     public machine step(w:u8)->u8 {

@@ -85,6 +85,38 @@ def epsilon_syntax_controls(closure):
         yield name, epsilon_request(closure, source, b""), (0, invalid_token)
 
 
+def epsilon_envelope_observations(closure):
+    """Exact EEREQ v1 identity bytes and first-error coordinates."""
+    header = epsilon_request(closure, b"", b"")
+
+    def changed(*offsets):
+        request = bytearray(header)
+        for offset in offsets:
+            request[offset] ^= 0xff
+        return bytes(request)
+
+    def refusal(code, coordinate, limit=0, requested=0):
+        return 0, struct.pack("<8sBBHIQQQ", b"\xffEEOUT\x01\0", 1, 1, 0, code,
+                              coordinate, limit, requested)
+
+    yield "exact envelope admits empty source", header, (0, b"\x02\x08\0\0\0\0")
+    for offset in range(8):
+        yield f"incorrect identity byte {offset}", changed(offset), refusal(2, offset)
+    for index in range(32):
+        offset = 20 + index
+        yield f"incorrect digest byte {index}", changed(offset), refusal(5, offset)
+
+    # Supply multiple faults in the same request to exercise validation order.
+    yield "short header before identity", changed(0)[:51], refusal(1, 51)
+    yield "first identity byte before profile", changed(1, 7, 8), refusal(2, 1)
+    yield "profile before lengths", changed(8, 15, 19), refusal(3, 8)
+    yield "source length before stdin length", changed(15, 19), refusal(4, 15)
+    yield "stdin length before digest", changed(19, 20), refusal(4, 19)
+    yield "first digest byte before extent", changed(12, 21, 51), refusal(5, 21)
+    yield "source extent before stdin extent", changed(12, 16), refusal(6, 12, 0, 255)
+    yield "unexpected trailing byte", header + b"x", refusal(7, 52)
+
+
 def epsilon_program_cases(console=None):
     if console is None:
         console = _epsilon_console(b"&[u8]", b"&mut self")

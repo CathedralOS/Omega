@@ -5,11 +5,43 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from route import MODES, Program, Route, observation_kind
 
 
 class RouteTests(unittest.TestCase):
+    def test_matrix_reuses_only_identical_producer_invocations_and_runs_each_guest(self):
+        with tempfile.TemporaryDirectory() as temp, patch("route.invoke", return_value=b"output") as invoke:
+            root = Path(temp)
+            shared = {}
+
+            def cell(name, image, source=b"compiler", payload=b"input", guest=False):
+                work = root / name
+                work.mkdir()
+                executable, subject = work / "host", work / "source"
+                executable.write_bytes(image)
+                subject.write_bytes(source)
+                route = Route(argparse.Namespace(seconds=1), work, shared)
+                route.run("result", "run", Program(executable).bind(subject), lambda: payload, guest=guest)
+                route.steps[0][1]()
+                return route.artifacts["result"]
+
+            original = cell("one", b"host")
+            copy = cell("two", b"host")
+            self.assertEqual(copy["reused_from"], "one/result")
+            for field in ("sha256", "bytes", "producer_sha256", "request_sha256"):
+                self.assertEqual(copy[field], original[field])
+            cell("other-host", b"other")
+            cell("other-source", b"host", source=b"compile", payload=b"rinput")
+            cell("other-input", b"host", payload=b"input2")
+            for name in ("guest-one", "guest-two"):
+                self.assertNotIn("reused_from", cell(name, b"host", guest=True))
+            self.assertEqual(invoke.call_count, 6)
+            (root / "one/result").write_bytes(b"damaged")
+            with self.assertRaisesRegex(ValueError, "shared producer output changed"):
+                cell("damaged", b"host")
+
     def test_each_plan_executes_the_selected_epsilon_target(self):
         for gamma, delta, epsilon in product(MODES, repeat=3):
             with self.subTest(gamma=gamma, delta=delta, epsilon=epsilon):

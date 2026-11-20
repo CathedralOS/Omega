@@ -91,6 +91,8 @@ pub struct TypedStage {
     pub(crate) constructions: std::collections::BTreeMap<TreeNodeId, TypedConstruction>,
     pub(crate) owned_byte_literals: std::collections::BTreeMap<TreeNodeId, Arc<[u8]>>,
     pub signatures: Vec<Arc<TypedSignature>>,
+    /// Authored callable alias signatures and their nodes in this forest.
+    pub(crate) callable_origins: Vec<(Site, TreeNodeId)>,
     pub callable_bounds: Vec<(DeclarationId, usize, CallableType)>,
     pub calls: Vec<TypedCall>,
     pub operations: Vec<TypedOperation>,
@@ -123,6 +125,14 @@ pub struct TypedStage {
 }
 
 impl TypedStage {
+    pub fn record_callable_origin(
+        &mut self,
+        contract: Site,
+        node: TreeNodeId,
+    ) {
+        self.callable_origins.push((contract, node));
+    }
+
     pub fn record_constant_reference(
         &mut self,
         node: TreeNodeId,
