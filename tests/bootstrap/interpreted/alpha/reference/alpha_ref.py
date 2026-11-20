@@ -27,13 +27,18 @@ def trunc_div(a, b):               # signed division truncated toward zero (C se
     q = abs(a) // abs(b)
     return -q if (a < 0) != (b < 0) else q
 
-def run(tape, stdin_bytes):
+class AlphaTrap(Exception):
+    def __init__(self, output):
+        super().__init__('Alpha trap')
+        self.output = output
+
+
+def observe(tape, stdin_bytes):
+    """Return the exact 32-bit HALT observation and emitted bytes."""
     out = bytearray()
 
     def trap():
-        sys.stdout.buffer.write(out)
-        sys.stdout.buffer.flush()
-        sys.exit(132)              # existing Trap observation, including bounds failures
+        raise AlphaTrap(bytes(out))
 
     def check_range(address, width):
         if not 0 <= address <= MEMSIZE - width:
@@ -93,8 +98,7 @@ def run(tape, stdin_bytes):
             trap()
         check_range(pc, WIDTHS[op]) # complete operands before register, memory, or I/O effects
         if op == 0x00:                                   # halt d
-            sys.stdout.buffer.write(out); sys.stdout.buffer.flush()
-            sys.exit(R[M[pc + 1]] & 0xFF)
+            return R[M[pc + 1]] & 0xFFFFFFFF, bytes(out)
         elif op == 0x01:                                 # imm d, k
             R[M[pc + 1]] = rd8(pc + 2); pc += 10
         elif op == 0x02:                                 # mov d, s
@@ -147,9 +151,20 @@ def run(tape, stdin_bytes):
         else:
             trap()
 
+def run(tape, stdin_bytes):
+    try:
+        status, output = observe(tape, stdin_bytes)
+    except AlphaTrap as trapped:
+        status, output = 132, trapped.output
+    sys.stdout.buffer.write(output)
+    sys.stdout.buffer.flush()
+    sys.exit(status & 0xFF)
+
+
 def main():
     with open(sys.argv[1], 'rb') as f:
         tape = f.read()
     run(tape, sys.stdin.buffer.read())
 
-main()
+if __name__ == '__main__':
+    main()

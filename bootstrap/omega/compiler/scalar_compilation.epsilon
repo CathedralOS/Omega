@@ -24,6 +24,7 @@ data OmegaCheckedValueKind {
     case WideLiteral;
     case NegativeI32Literal;
     case SignedComparison;
+    case ProcessTerminal;
     case LowBits;
     case SharedByteRange;
     case SharedByteRead;
@@ -102,6 +103,10 @@ data OmegaFixedIndexPlan {
 
 data OmegaScalarCompiler {
     build: ConstructionBuildResult;
+    // A nonempty site belongs to the independently supplied standalone
+    // deployment. It is scoped to this compilation and cleared on return.
+    process_entry: OmegaRelativeSpan;
+    terminal_calls: [i32; 4096];
     byte_ranges: [OmegaByteRange; 16384];
     construction: OmegaConstructionDirectory;
     import_bindings: [OmegaImportBinding; 4096];
@@ -1600,8 +1605,11 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state bare_call(call: OmegaCallExpressionSyntax) {
-        return self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
-            call.argument_count, self.terminal_declaration_coordinate(source, 0, 0, call.target), call.start, call.target);
+        transition self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
+            call.argument_count, self.terminal_declaration_coordinate(source, 0, 0, call.target), call.start, call.target) {
+            1 -> physical(call)
+            _ -> return 0
+        }
     }
     state unresolved_receiver(call: OmegaCallExpressionSyntax, receiver: OmegaExpressionSyntax) {
         transition receiver.kind {
@@ -1610,9 +1618,18 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state named_receiver(call: OmegaCallExpressionSyntax, receiver: OmegaExpressionSyntax) {
-        return self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
+        transition self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
             call.argument_count, self.terminal_declaration_coordinate(source, receiver.payload0, receiver.payload1, call.target),
-            call.start, call.target);
+            call.start, call.target) {
+            1 -> physical(call)
+            _ -> return 0
+        }
+    }
+    state physical(call: OmegaCallExpressionSyntax) {
+        transition call.acknowledgements == 0 {
+            true -> retain(OmegaCheckedValueKind::ProcessTerminal, self.parser.call_arguments[call.first_argument])
+            _ -> unsupported(call.start)
+        }
     }
     state arity(call: OmegaCallExpressionSyntax, callee: i32) {
         transition call.argument_count == self.parser.machine_states[
@@ -2587,6 +2604,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::Call -> call(self.parser.call_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::BooleanBinary -> return self.emit_boolean_binary(expression,
             self.parser.binary_expressions[self.value_payloads[expression]], 0)
+        OmegaCheckedValueKind::ProcessTerminal -> return self.emit_process_terminal(self.value_payloads[expression])
         OmegaCheckedValueKind::SignedComparison -> return self.emit_boolean_binary(expression,
             self.parser.binary_expressions[self.value_payloads[expression]], 1)
         OmegaCheckedValueKind::LogicalNot -> logical_not()
@@ -3238,6 +3256,21 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 // Parsing and declaration selection remain inside the compiler. This internal
 // construction entry does not claim full OCREQ admission.
 machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
+    self.process_entry.end = 0;
+    self.compile_prepared_set(source, entry_unit, entry);
+}
+
+// The host has already compared the whole invocation with its own exact
+// deployment; the complete source-owned Build rejoined this root on this call.
+// A selected provider can justify lowering only inside that standalone process.
+machine OmegaScalarCompiler::compile_process_entry(&mut self, source: &[u8], entry_unit: i32) {
+    let entry: OmegaRelativeSpan = self.build.entry_definition;
+    self.process_entry = entry;
+    self.compile_prepared_set(source, entry_unit, source[entry.start..entry.end]);
+    self.process_entry.end = 0;
+}
+
+machine OmegaScalarCompiler::compile_prepared_set(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
     self.compile_closed_units(source, entry_unit, entry);
     transition self.status {
         OmegaScalarCompilationStatus::Complete -> return
@@ -3452,6 +3485,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         self.call_colors[index] = 0;
         self.block_bounds[index] = -1;
         self.reach_clauses[index] = -1;
+        self.terminal_calls[index] = -1;
         transition true { true -> reset_call_graph(index + 1) }
     }
 
@@ -3984,10 +4018,25 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state unresolved_call(index: i32, state_index: i32, statement: i32, call: OmegaCallStatementSyntax,
         name: OmegaRelativeSpan) {
-        self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[state_index].first_statement,
+        transition self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[state_index].first_statement,
             call.first_argument, call.argument_count, self.terminal_declaration_coordinate(source, call.first_receiver_member,
-                call.receiver_member_count, name), call.start, name);
-        return;
+                call.receiver_member_count, name), call.start, name) {
+            1 -> process_tail(index, state_index, statement, call)
+            _ -> return
+        }
+    }
+
+    state process_tail(index: i32, state_index: i32, statement: i32, call: OmegaCallStatementSyntax) {
+        let state_row: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        transition (call.acknowledgements == 0) && (statement + 1 == state_row.first_statement + state_row.statement_count) {
+            true -> process_terminal(index, state_index, self.parser.call_arguments[call.first_argument])
+            _ -> incomplete(4, call.start)
+        }
+    }
+    state process_terminal(index: i32, state_index: i32, argument: i32) {
+        self.state_terminal_kind[state_index] = 9;
+        self.state_targets[state_index] = argument;
+        transition true { true -> check_states(index, state_index + 1) }
     }
 
     // Every ordinary argument must match the callee's declared scalar parameter
@@ -4432,8 +4481,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state check_entry() {
         transition self.selected_machine >= 0 {
-            true -> entry_arity()
+            true -> chosen_entry(self.declaration_name(OmegaDeclarationKind::Machine, self.selected_machine))
             _ -> reject(11, 0, 0)
+        }
+    }
+    state chosen_entry(name: OmegaRelativeSpan) {
+        transition (self.process_entry.end == 0) || ((self.process_entry.start == name.start) && (self.process_entry.end == name.end)) {
+            true -> entry_arity()
+            _ -> reject(11, 4, name.start)
         }
     }
 
@@ -4793,9 +4848,17 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
             5 -> emit_dynamic_terminal(index, state_index)
             6 -> emit_unit_terminal(index, state_index)
             7 -> emit_trap_terminal(index, state_index)
+            // A selected process terminal consumes its one signed status.
+            9 -> emit_process_terminal(index, state_index)
             // The last statement already transferred to its no-return callee.
             8 -> emit_state(index, state_index + 1)
             _ -> internal()
+        }
+    }
+    state emit_process_terminal(index: i32, state_index: i32) {
+        transition self.emit_process_terminal(self.state_targets[state_index]) {
+            1 -> emit_state(index, state_index + 1)
+            _ -> emission_failure()
         }
     }
     state emit_trap_terminal(index: i32, state_index: i32) {
@@ -7710,4 +7773,10 @@ machine OmegaScalarCompiler::emit_unsigned_less_to(
         true -> return 1
         _ -> return 0
     }
+}
+
+// Alpha HALT ends this one simulated process with the low 32 bits of its signed
+// status. Its operand is evaluated once and has no normal successor.
+machine OmegaScalarCompiler::emit_process_terminal(&mut self, argument: i32) -> i32 {
+    return (self.emit_value(argument) == 1) && (self.tape.emit_r(0, 0) == 1);
 }
