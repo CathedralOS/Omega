@@ -54,10 +54,12 @@ def check_product_word(work, closure, seconds):
     subject = word + b"\n" + (fixtures / "wire_word.omg").read_bytes()
     request = epsilon_request(closure, guest, subject)
     (work / "wire.eereq").write_bytes(request)
+    print(f"Wire decoder: {len(request)} request bytes, sha256={hashlib.sha256(request).hexdigest()}", flush=True)
     observations = []
     # The matrix has already checked both constructions of each target evaluator.
     evaluators = {"alpha": "alpha-to-alpha-epsilon.vm", "linux": "linux-to-linux-epsilon.bin"}
     for target, evaluator in evaluators.items():
+        print(f"Running the wire decoder compiler on {target} (limit {seconds}s)", flush=True)
         output = produce(work / evaluator, request, work / f"{target}-wire.observation", seconds)
         if output[:5] != bytes(5) or len(output) == 5:
             raise RuntimeError(f"{target}: no successful wire compiler output, prefix {output[:40].hex()}")

@@ -18,14 +18,22 @@ on every route.
 | [Original interpreter](../tests/bootstrap/interpreted/epsilon/README.md) | Gamma evaluator on Alpha | Epsilon evaluator, interpreted by Gamma | Reconstructed the full evaluator in 567 s and passed its five portable language cases and two syntax controls. |
 | [Gamma compiled to Alpha](compiled_vm/README.md#compare-a-production-request-operation-across-evaluator-hosts) | Alpha | Epsilon evaluator on Alpha | Compiled the product's `Request.clear` and ran the resulting tape on Alpha. |
 | [Gamma compiled to native](independent/README.md) | Native | Native Epsilon evaluator | Compiled `Request.clear` and the product's complete wire decoder to Alpha. |
-| [Epsilon compiled to Delta, Alpha target](independent/README.md) | Alpha | Epsilon-to-Delta compiler on Alpha | Compiled the string scanner. Its 8,391,472-byte tape passed 17 cases. The full public scanner exceeded the Alpha tape limit. |
-| [Epsilon compiled to Delta, native target](independent/README.md) | Native | Native Epsilon-to-Delta compiler | Compiled the same string scanner and the full public lexer. The full lexer ran 23 cases. |
+| [Epsilon compiled to Delta, Alpha target](independent/README.md#public-omega-lexer-observations) | Alpha | Epsilon-to-Delta compiler on Alpha | Compiled the string scanner. Its 8,391,472-byte tape passed 17 cases. The full public scanner exceeded the Alpha tape limit. |
+| [Epsilon compiled to Delta, native target](independent/README.md#public-omega-lexer-observations) | Native | Native Epsilon-to-Delta compiler | Compiled the same string scanner and the full public lexer. The full lexer ran 23 cases. |
 
 The first three use one Delta-written evaluator to interpret the Epsilon-written
 [bootstrap compiler](interpreted/5_omega/README.md)
 (D in older records). The last two use a Delta-written compiler to translate Epsilon
 into Delta modules. Adding a runtime and entry point lets the Delta and Gamma
 compilers build an executable.
+
+The original Gamma interpreter also ran four predicates from the bootstrap
+compiler's lexer on six input bytes covering whitespace, digits, identifiers,
+a hexadecimal letter and byte 255. All 29 output bytes matched the native
+evaluator and the independently specified result, including Epsilon exit 42.
+On the same reconstructed evaluator, the 180-byte portable Omega program
+reached a 300 s wall limit and the full 23-case lexer reached 480 s. Neither run published a result during its allowance.
+[Interpreted measurements](../tests/bootstrap/interpreted/epsilon/README.md)
 
 Native can lead back to Alpha. Compile the Gamma-to-Alpha compiler for Linux
 and it emits tape for the original VM. Native-hosted and Alpha-hosted compilers
@@ -102,6 +110,16 @@ records), the product written in Omega.
 Construction of the full product and its reproducible self-build remain open.
 The product uses a deliberate subset of Omega while preserving the language's
 semantics and explicit refusals. [Omega compiler and libraries](../source)
+
+The complete construction input used here contains 304 Omega source units
+in seven packages. Its 3,955,617 bytes fit the constructor's source-input
+provision. Packaging it with the Epsilon-written bootstrap compiler for the
+evaluator takes 4,807,765 bytes. Both stock targets returned outer status
+253 with empty output at the Delta adapter's 4 MiB input check. A native
+evaluator rebuilt with an 8 MiB input limit reached the constructor on a
+same-size control. The real request ran for 480 s on that evaluator and
+published neither an artifact nor a compiler diagnostic before the watchdog.
+[Product input](../source/application/construction/construct.py) · [Evaluator experiment](../tests/bootstrap/independent/WHOLE_REQUEST.md)
 
 A host Rust toolchain builds the Rust comparator, which can compile Omega
 sources during development. Record that dependency when reporting a
