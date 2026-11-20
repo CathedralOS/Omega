@@ -8,6 +8,143 @@ Three changes made a reviewer’s comparisons more direct. The Epsilon wire entr
 | [Gamma scanner and compiler, #4546](https://github.com/CathedralOS/Omega/pull/4546) | `(eq byte 40)` became `(eq byte '(')`. Syntax words are grouped by length, e.g. `(c_chars2 at 'i' 'f')`. The two source files fell from 33,737 to 31,662 bytes. | Both targets rebuilt themselves byte for byte. The Alpha compiler fell from 230,666 to 212,403 bytes and the Linux x86-64 compiler from 226,861 to 226,310. Both classifiers passed 137 spelling and near-miss inputs. |
 | [Epsilon keyword table, #4548](https://github.com/CathedralOS/Omega/pull/4548) | `epsilon_span_is_8 … 98 111 117 110 100 97 114 121` became `(EpsilonKeyword "boundary" 10 …)`. Packed evaluator source grew from 617,122 to 618,016 bytes. Its generated Gamma source grew from 726,582 to 729,482. | The chosen table takes 421 Gamma pairs per ordinary source view and allocates none per lookup. Both Epsilon compilers emitted the same 1,106,536-byte public lexer module. Its 23 cases returned the expected 465 bytes. |
 
+## Follow a Gamma operation into the Epsilon compiler
+
+At `c6d64f0f3c4`, we ran the same 152,036-byte Delta compiler two ways
+to build the Epsilon compiler. Both runs began with the Linux x86-64 Alpha
+seed and the 1,773-byte Beta tape. Beta rebuilt itself and assembled the
+48,303-byte Gamma interpreter. From there the reviewer follows different
+implementations of Gamma.
+
+| How Delta's Gamma source runs | Additional work to audit at this stage |
+| --- | --- |
+| Interpret it directly | Follow the Beta interpreter's scanner, declaration check, evaluation stack, call frames and heap. The interpreter reads the Delta compiler plus its data and writes the result directly. |
+| Compile it to Alpha | The interpreter first builds the 34,932-byte Gamma compiler from its frontend, lowering and Alpha emitter. The compiler reproduces its 176,220-byte tape, then emits a 490,236-byte Delta compiler tape. Both tapes execute on the same seed VM. |
+
+Direct interpretation has fewer Gamma components to review through the point
+where Delta publishes Gamma source. If the next stage compiles that source to
+Alpha, the full route still includes the Gamma compiler and its emitter.
+Both routes also rely on the seed VM, the Beta implementation and the same
+Delta source. Agreement checks how Gamma executed that source. Testing what
+the resulting compiler accepts and rejects requires separate inputs.
+
+For a concrete example, Delta's `gamma_kind` reads the first field of an
+internal node. In the Beta dispatch table, `first` is the comment beside
+`dw 0x7473726966`. Read that word from the low byte upwards to verify the
+spelling. The interpreter's `eval_first` checks the pair tag, heap bounds,
+alignment and marker, then loads the first value and its tag.
+The compiler recognizes the spelling `'first'` in `c_short_kind`. Follow
+kind 17 into the Alpha emitter's `alpha_project`, then into `e_project`.
+The emitted instructions check the operand tag and load the two words.
+Here the reviewer must account for who can create a tagged pair. On both
+implementations, calling the production getter with `(pair 42 9)`
+returned byte 42. Calling it with the scalar `42` trapped with status 2
+and empty output. [Delta getter](../../../bootstrap/delta/compiler/implementation/representation/gamma/expressions.gamma) · [Beta implementation](../../../bootstrap/gamma/interpreter/gamma_evaluator.beta) · [Gamma lowering](../../../bootstrap/gamma/compiler/compiler.gamma) · [Alpha emitter](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma)
+
+The construction request contains 628,952 bytes of Epsilon compiler source
+written in Delta, 4,301 support bytes and the 16-byte header (SHA-256 of the
+whole request `4fc83fba765b1e3b9b704f0cbbc9754e02733233b713dfbf33c88cc475a45f4c`).
+The original interpreter and the Alpha- and Linux-hosted Delta compilers
+produced the same 807,984 bytes of Gamma, SHA-256
+`152059ad58aa048d20abfec74f0de9ea1ff20bd23d17a20d669365b4f9ca36fc`.
+Delta took 596.72 CPU seconds through the interpreter and 37.13 as an Alpha
+tape. Both had unlimited wall time. Changing profile 2 to profile 0 in that header left the source untouched.
+Each Gamma route returned status 1 and the identical 40-byte `DCOUT`
+refusal at request byte 8.
+
+The Alpha-hosted route took the comparison through the bootstrap compiler’s
+public scanner. Its 58,229-byte Epsilon source compiled to a 3,574,572-byte
+Alpha tape. On 23 inputs the tape returned the expected 465 bytes, including
+exit 42. Passing the source buffer as the scan offset gave the exact compiler
+response `rejected 18 58106`. These are construction-profile results for
+the quoted scanner. [Scanner and independent observations](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
+
+The Epsilon view writer provides a separate Delta check. We took its
+`epsilon_console_is_byte` definition and called it with the sum of the two
+input bytes minus one. Both ways of running Delta produced the same 4,415
+bytes of Gamma. Its Alpha tape returned 0, 1, 1 and 0 for −1, 0, 255 and
+256. Passing the byte buffer directly to that integer parameter produced
+the same 40-byte Delta type rejection on both routes (code 15 at byte 157).
+[View writer](../../../bootstrap/epsilon/interpreter/execution/console/output.delta) · [Delta rejection format](../../../bootstrap/delta/LANGUAGE.md#compiler-boundary-family)
+
+<details>
+<summary>Replay the Epsilon compiler construction on both Gamma hosts</summary>
+
+Start from `c6d64f0f3c4` on Linux x86-64 with a built `xtask` selected by
+`OMEGA_XTASK_BIN`. The launcher snapshots the Delta compiler's source in
+`program.gamma`, compiles it to Alpha, then feeds it the Epsilon compiler
+request. To interpret Delta's Gamma source directly, prepend the length and
+the source itself to the same request.
+
+```sh
+set -e
+work=$(mktemp -d)
+python3 tests/bootstrap/independent/whole_request.py "$work/inputs"
+tests/bootstrap/linux_x86_64/bootstrap --alpha --delta . "$work/alpha" "$work/inputs/compiler.dcreq"
+python3 - "$work" <<'PY'
+from pathlib import Path
+import sys
+work = Path(sys.argv[1])
+source = (work / "alpha/program.gamma").read_bytes()
+request = (work / "inputs/compiler.dcreq").read_bytes()
+(work / "direct.request").write_bytes(len(source).to_bytes(4, "little") + source + request)
+PY
+"$work/alpha/gamma-evaluator" < "$work/direct.request" > "$work/direct.gamma"
+cmp "$work/direct.gamma" "$work/alpha/producer.output"
+"$work/alpha/successor" < "$work/inputs/whole.epsilon" > "$work/alpha.module"
+```
+
+</details>
+
+### Why the full constructor changes the host choice
+
+The same checkout produced 26,354,274 bytes of Gamma for the whole
+Epsilon-written Omega constructor, SHA-256
+`215cd20cbc51fcdff281fb1075c474fc0afe3f4d1b89d141c18a974da6cd19cd`.
+Its decimal literals and single-name bindings alone account for **19,065,212
+bytes of Alpha tape** with this emitter. The seed accepts 16,777,212.
+
+| Counted source form | Sites | Emitted bytes per site | Minimum bytes |
+| --- | ---: | ---: | ---: |
+| Decimal integer expression | 364,404 | 29 (two 10-byte immediates and a 9-byte push call) | 10,567,716 |
+| Single-name `let` binding | 303,482 | 28 (9-byte pop call, 10-byte frame offset, 9-byte store call) | 8,497,496 |
+
+The count skips the application marker and every source line containing a
+comment or quoted literal. Binding counts exclude the initializer, whose
+literals are counted separately. As a check, the cold-built Alpha compiler
+emitted 1,129 bytes for `(def main () Int 0)`, 1,186 with one unused
+`let x Int 1`, and 1,243 with a second such binding. Each added literal and
+binding cost 57 bytes. [Emission rules](../../../bootstrap/gamma/compiler/compiler.gamma) · [Tape encoding and limit](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma)
+
+The original interpreter accepts a 137,363,456-byte framed input. At
+30,349,179 bytes the generated Gamma, its length and the 305-unit product
+fit that input boundary. This source has 8,005 declarations against a limit
+of 2,097,152 and at most 148 nested lists inside a declaration against a
+limit of 255. The interpreter scans tokens in the source buffer. It executed this entire
+generated constructor with an empty product input in 21.09 CPU seconds,
+returning the same five bytes as native (guest exit 3). The 305-unit execution on the original interpreter remains open. [Evaluator limits](../../../bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md) · [Reconstruct this Gamma source](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
+
+<details>
+<summary>Count the two source forms on the generated omega.gamma</summary>
+
+```python
+import re
+from pathlib import Path
+
+literals = bindings = 0
+integer = re.compile(rb"(?<![^\s(])-?[0-9]+(?=[\s)])")
+single_let = re.compile(rb"\(let [^\s()]+ Int\s")
+with Path("omega.gamma").open("rb") as source:
+    for line in source:
+        if b";" in line or b"'" in line or line.startswith(b"(def $application "):
+            continue
+        literals += len(integer.findall(line))
+        bindings += len(single_let.findall(line))
+print(literals, bindings, literals * 29 + bindings * 28)
+```
+
+</details>
+
 ## Reading punctuation in the Omega scanner
 
 The scanner now reads a block-comment opener as `source[cursor] == '/'`
