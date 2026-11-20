@@ -2,7 +2,7 @@ use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealiz
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationWorkBudget;
 use provider_admission::{
-    SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 use target::ExecutableImageEmissionRequest;
 
@@ -12,7 +12,7 @@ pub(crate) fn native_optimization_budget() -> OptimizationWorkBudget {
         .expect("compiler baseline optimizer ceilings are nonzero")
 }
 
-pub struct NativeCompileRequest<'request> {
+pub(crate) struct NativeCompileRequest<'request> {
     /// Retain original stage inputs for explicitly requested correspondence audits.
     pub retain_native_stage_inputs: bool,
     pub private_entry_ram: &'request [psi_entry_memory::PrivateEntryRamInitialization],
@@ -23,10 +23,7 @@ pub struct NativeCompileRequest<'request> {
     pub accepted_package_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub image_request: ExecutableImageEmissionRequest,
-    pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
-    pub components: &'request [crate::driver::inputs::components::ComponentCompilation<'request>],
-    /// How this request supplies the scalar values read by its selected execution.
-    pub scalars: super::inputs::scalars::ScalarInputs<'request>,
+    pub scalar_receipts: &'request mut Vec<native_scalar_inputs::EvaluationReceipt>,
 }
 
 impl NativeCompileRequest<'_> {
@@ -43,7 +40,7 @@ impl NativeCompileRequest<'_> {
         let proposal = retained.native_realization_proposal().ok_or_else(|| {
             diagnostics::error_in_context(
                 "retained Terminal product",
-                "source-evaluated import realization requires one native proposal",
+                "native compilation requires one native proposal",
             )
         })?;
         self.image_request

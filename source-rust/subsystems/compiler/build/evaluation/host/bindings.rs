@@ -19,17 +19,17 @@ inert until the product owner resolves and admits them.
 use crate::host::requests::build_facet;
 use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_compiler::declaration_selection::ProductEntryBinding;
-use source_compiler::declaration_selection::BuildOperation;
-use source_compiler::declaration_selection::BuildSelectionRequest;
-use source_compiler::declaration_selection::ExecutedBuildSelection;
-use source_compiler::declaration_selection::ExecutedProductSelection;
-use source_compiler::declaration_selection::NativeBindingFormation;
-use source_compiler::declaration_selection::ProductDeclarationRequest;
-use source_compiler::declaration_selection::ProviderReadinessRequest;
-use source_compiler::declaration_selection::RootBindingOperand;
-use source_compiler::declaration_selection::RootBindingSelection;
-use source_compiler::{
+use source_compiler::representations::declaration_selection::ProductEntryBinding;
+use source_compiler::representations::declaration_selection::BuildOperation;
+use source_compiler::representations::declaration_selection::BuildSelectionRequest;
+use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
+use source_compiler::representations::declaration_selection::ExecutedProductSelection;
+use source_compiler::representations::declaration_selection::NativeBindingFormation;
+use source_compiler::representations::declaration_selection::ProductDeclarationRequest;
+use source_compiler::representations::declaration_selection::ProviderReadinessRequest;
+use source_compiler::representations::declaration_selection::RootBindingOperand;
+use source_compiler::representations::declaration_selection::RootBindingSelection;
+use source_compiler::publication::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -45,7 +45,7 @@ pub use product_queries::{BuildProductDescription, BuildProductQuery};
 pub struct TerminalBuildBindingHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
-    queries: Arc<[source_compiler::TerminalBuildQueryCall]>,
+    queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
     tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
@@ -57,7 +57,7 @@ pub struct TerminalBuildBindingHost {
 
 #[derive(Default)]
 struct BindingState {
-    pending: Vec<Option<source_compiler::TerminalBuildSelectionRequest>>,
+    pending: Vec<Option<source_compiler::publication::TerminalBuildSelectionRequest>>,
     executed: Vec<ExecutedBuildSelection>,
     native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     awaiting_provider: Option<usize>,
@@ -65,7 +65,7 @@ struct BindingState {
     query: Option<product_queries::PendingQuery>,
     descriptions: Vec<product_queries::IssuedDescription>,
     /// The selections and native formations the modules of earlier stages
-    /// of this activation declared (`source-to-psi/build_invocation/stages`).
+    /// of this activation declared (`source-to-psi/driver/compile_build/waits`).
     carried_declarations: Vec<Arc<ProductDeclarationRequest>>,
     carried_formations: Vec<NativeBindingFormation>,
 }
@@ -88,7 +88,7 @@ struct InstalledBuildProvider {
 }
 
 pub type BuildProviderRequest =
-    ProviderReadinessRequest<source_compiler::TerminalBuildProviderRequirement>;
+    ProviderReadinessRequest<source_compiler::publication::TerminalBuildProviderRequirement>;
 
 impl BindingState {
     fn provider_is_installed(&self, request: &BuildProviderRequest) -> bool {
@@ -229,7 +229,7 @@ impl TerminalBuildBindingHost {
 
     pub(crate) fn has_installed_backing(
         &self,
-        provider: &source_compiler::ProducedBuildProvider,
+        provider: &source_compiler::publication::ProducedBuildProvider,
     ) -> Result<bool, String> {
         let state = lock_state(&self.state)?;
         let request = state
@@ -251,7 +251,7 @@ impl TerminalBuildBindingHost {
 
     pub(crate) fn provider_installed(
         &self,
-        provider: &source_compiler::ProducedBuildProvider,
+        provider: &source_compiler::publication::ProducedBuildProvider,
     ) -> Result<(), String> {
         let mut state = lock_state(&self.state)?;
         let request = state
@@ -618,7 +618,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     return Err(refuse("behavior exclusion code is outside its vocabulary"));
                 }
                 ExecutedBuildSelection::Exclusion(
-                    source_compiler::declaration_selection::ExecutedEnumExclusion {
+                    source_compiler::representations::declaration_selection::ExecutedEnumExclusion {
                         request: request.clone(),
                         code,
                         selecting_machine: call.selecting_machine.ok_or_else(|| {
@@ -647,7 +647,7 @@ fn activation_ticket<'values>(
     arguments: &'values [TerminalScalarValue],
     structural_arguments: &[TerminalStructuralValue],
     state: &BindingState,
-    request: &source_compiler::TerminalBuildSelectionRequest,
+    request: &source_compiler::publication::TerminalBuildSelectionRequest,
 ) -> Result<(usize, &'values [TerminalScalarValue]), TerminalEffectRejection> {
     let refuse = TerminalEffectRejection::new;
     let Some((

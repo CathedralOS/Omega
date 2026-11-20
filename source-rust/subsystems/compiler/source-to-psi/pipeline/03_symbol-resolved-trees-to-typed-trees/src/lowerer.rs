@@ -816,6 +816,10 @@ pub(crate) mod seeded_continuation {
             &self.typed
         }
 
+        pub fn shared_typed(&self) -> Arc<TypedTrees> {
+            Arc::clone(&self.typed)
+        }
+
         pub fn typed_mut(&mut self) -> &mut TypedTrees {
             Arc::make_mut(&mut self.typed)
         }
@@ -1902,7 +1906,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
-    crate::data_applications::prepare_from(&mut lowerer.typed_trees, cohort.typed_type_references)
+    typed_trees::data_applications::prepare_from(&mut lowerer.typed_trees, cohort.typed_type_references)
         .map_err(Diagnostic::error)?;
     let cast_destinations = crate::typing::expressions::construction_destinations::prepare(
         lowerer.source_trees,

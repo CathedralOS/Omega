@@ -2,12 +2,12 @@
 use declaration_scope::ProductDeclarationScope;
 use semantic_vocabulary::{PackageKeyIdentity, source_selections::ProductTarget};
 use source_admission::{RetainedDeclaration, SourceOrigin, SourceResolutionStratum};
-use source_compiler::declaration_selection::{
+use source_compiler::representations::declaration_selection::{
     DescribedProductEntry, ProductEntryBinding, RootBindingSelection,
 };
-use source_compiler::product::ProductSourceInputs;
-use source_compiler::source_inputs::SourceMap;
-use source_compiler::source_symbols::SourceScopedTopLevelBinding;
+use source_compiler::compile_product::ProductSourceInputs;
+use source_compiler::representations::source_inputs::SourceMap;
+use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
 use source_compiler::{StageSource, compile};
 use source_provenance::DependencyScope;
 use source_text::{SourceId, SourceSpan, Span};

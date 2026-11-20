@@ -5,18 +5,63 @@ use provider_admission::provider_installation::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 #[cfg(test)]
 use terminal_semantics::closed_owned_sequence_bounds;
-use verified_optimization_input::{NativeExecutionScope, ProposalScopeRequest, ScopeInputs};
+use verified_optimization_input::{NativeExecutionScope, NativeScopeBinding, TerminalNativeRealizationProposal};
 use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
-/// Follow the sealed proposal's edges before handing its selected execution to lowering.
+/// A private callable can inherit providers only from an already checked execution.
+pub enum NativeScopeEntry<'a> {
+    Program,
+    Callable {
+        entry: terminal_psi::TargetMachineCallable,
+        parent: &'a verified_optimization_input::ScopedProviderSelection,
+    },
+}
+
+/// Follow the authorized entry's providers, callbacks and assumed boundaries for one target.
 pub fn derive_native_scope(
-    request: ProposalScopeRequest<'_>,
-) -> Result<NativeExecutionScope, NativeExecutionScopeError> {
-    let reach = TargetReach::derive(request.inputs())?;
-    request
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    proposal: &TerminalNativeRealizationProposal,
+    origin: NativeScopeEntry<'_>,
+) -> Result<NativeExecutionScope, Vec<diagnostics::Diagnostic>> {
+    let targets = psi_target_layouts::terminal_target_context(
+        artifact.view(),
+        proposal.target_profile().target_name(),
+    );
+    let (entry, parent) = match origin {
+        NativeScopeEntry::Program => (proposal.target_program_entry(), None),
+        NativeScopeEntry::Callable { entry, parent } => (entry, Some(parent)),
+    };
+    let binding = NativeScopeBinding::checked(artifact, proposal, targets, entry, parent)?;
+    let assumptions = proposal
+        .providers()
+        .selection
+        .assumed_binding_coordinates(artifact.semantic_module())
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+    let reach = TargetReach::derive(ScopeInputs {
+        artifact: artifact.view(),
+        entry: binding.entry(),
+        entry_call: binding
+            .entry_call()
+            .map(|call| (call.boundary(), call.entry())),
+        adapters: binding.local_adapters(),
+        assumptions: &assumptions,
+        callbacks: &proposal.occurrences().callbacks,
+    })
+    .map_err(|reason| vec![diagnostics::Diagnostic::error(reason.to_string())])?;
+    binding
         .bind_target_reach(reach.emitted, reach.selected_candidate_positions)
-        .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+}
+
+/// Sources of native calls for one checked proposal and entry.
+struct ScopeInputs<'a> {
+    artifact: terminal_codec::TerminalArtifactView<'a>,
+    entry: MachineId,
+    entry_call: Option<(BoundaryMachineId, MachineId)>,
+    adapters: &'a [SelectedProviderAdapter],
+    assumptions: &'a [(BoundaryMachineId, BoundaryMachineId)],
+    callbacks: &'a [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
 }
 
 struct TargetReach {

@@ -3,21 +3,15 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(test)]
 use source_declarations::declaration_selection;
 #[cfg(test)]
 use source_symbol_table::source_inputs;
+#[cfg(test)]
 use source_symbol_table::source_symbols;
 use typed_trees::source_state;
 
 mod passes;
-mod product_operands;
-
-#[cfg(any(test, feature = "test-support"))]
-pub use product_operands::PreparedProductRequirement;
-pub use product_operands::{
-    prepare_product_operand_application, prepare_product_requirement_operand,
-    prepare_retained_product_application,
-};
 
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;

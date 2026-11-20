@@ -6,7 +6,7 @@ pub(crate) use callables::{
 };
 pub use callables::{
     callable_lifetimes, callable_signature_shapes, callable_values, runtime_callable_identity,
-    source_call_occurrences,
+    source_call_occurrences, static_operand_binding,
 };
 pub use definitions::{
     compiler_intrinsics, declaration_authority, declarations, native_locators,
@@ -14,7 +14,6 @@ pub use definitions::{
 };
 pub(crate) use definitions::{
     declaration_reflection, declared_bindings, numeric_declarations, operator_declarations,
-    product_and_trait_declarations,
 };
 pub(crate) use expressions::access_views_and_commitments;
 pub use expressions::{references, values};
@@ -25,7 +24,7 @@ pub(crate) use storage::{
     declaration_tables_and_index, frozen, selection_exclusions, source_review, symbol_rebinding,
 };
 pub(crate) use type_records::source_type_applications;
-pub use type_records::{boundary_values, opaque_representations, type_identity, type_system};
+pub use type_records::{boundary_values, data_applications, opaque_representations, type_identity, type_system};
 
 pub use access_views_and_commitments::constant_recipes;
 pub(crate) use access_views_and_commitments::{access_views, commitments};

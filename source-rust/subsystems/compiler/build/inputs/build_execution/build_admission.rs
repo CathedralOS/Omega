@@ -56,9 +56,9 @@ impl SelectedBuildMachine {
 }
 
 pub fn select_build_machine(
-    typed: &source_compiler::source_state::TypedTrees,
+    typed: &source_compiler::representations::source_state::TypedTrees,
     entry: crate::source_assembly::BuildSourceSelection,
-) -> Result<&source_compiler::source_state::machine::Machine, Vec<Diagnostic>> {
+) -> Result<&source_compiler::representations::source_state::machine::Machine, Vec<Diagnostic>> {
     let mut machines = typed.machines().iter().filter(|machine| {
         typed.symbols.symbol_source_is_selected(machine.symbol)
             && typed.symbols.symbol_source_span(machine.symbol) == Some(entry.entry())
@@ -73,7 +73,7 @@ pub fn select_build_machine(
 }
 
 pub fn admit_build_machine(
-    prepared: &source_compiler::AcceptedTerminalSource,
+    prepared: &source_compiler::publication::AcceptedTerminalSource,
     machine_symbol: SymbolHandle,
     stage: &source_compiler::BuildStage,
     filesystem_scope: &mut BuildMachineFilesystemScope,

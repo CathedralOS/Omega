@@ -12,10 +12,10 @@ activation.
 
 use super::{BindingState, TerminalBuildBindingHost, lock_state};
 use evaluation_accounting::EvaluationStorageLease;
-use source_compiler::declaration_selection::DescribedProductEntry;
-use source_compiler::declaration_selection::DescribedProductProvider;
-use source_compiler::declaration_selection::DescribedProductSchema;
-use source_compiler::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
+use source_compiler::representations::declaration_selection::DescribedProductEntry;
+use source_compiler::representations::declaration_selection::DescribedProductProvider;
+use source_compiler::representations::declaration_selection::DescribedProductSchema;
+use source_compiler::publication::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectRejection, TerminalEffectResult, TerminalStructuralValue,
@@ -313,9 +313,9 @@ impl TerminalBuildBindingHost {
                 .validate_shape()
                 .map_err(TerminalEffectRejection::new)?;
             let expected = if call.action == TerminalBuildQueryOperation::Parameter {
-                source_compiler::declaration_selection::BuildOperation::ParameterDescription
+                source_compiler::representations::declaration_selection::BuildOperation::ParameterDescription
             } else {
-                source_compiler::declaration_selection::BuildOperation::FieldDescription
+                source_compiler::representations::declaration_selection::BuildOperation::FieldDescription
             };
             if selected.operation != expected
                 || call.selecting_machine.is_none()
@@ -443,7 +443,7 @@ fn description_contents(
     use semantic_vocabulary::{
         CanonicalStructuralPathSegment as Path, IntegerType, IntegerValue, ScalarType,
     };
-    use source_compiler::TerminalBuildValueShape;
+    use source_compiler::publication::TerminalBuildValueShape;
     use terminal_interpreter::{
         TerminalAggregateValue, TerminalBoundaryStorageValue, TerminalScalarValue,
         TerminalStorageContents,

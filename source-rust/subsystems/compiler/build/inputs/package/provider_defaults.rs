@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
-use source_compiler::product::provider_declarations::{
+use source_compiler::compile_product::provider_declarations::{
     RetainedOperatorFamily, RetainedProviderSelection, RetainedProviderSubject,
 };
 use std::path::PathBuf;
@@ -37,7 +37,7 @@ impl CompletedProviderDefaults {
     pub(crate) fn reached_source_seeds(
         &self,
         inputs: &PackageCompilationInputs,
-        loaded_sources: Option<&source_compiler::source_inputs::SourceMap>,
+        loaded_sources: Option<&source_compiler::representations::source_inputs::SourceMap>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         inputs.admit_provider_activation(&self.supplier)?;
         let package_sliced = loaded_sources.is_some_and(|sources| {

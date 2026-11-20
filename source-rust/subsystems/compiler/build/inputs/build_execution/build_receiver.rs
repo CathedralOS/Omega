@@ -2,8 +2,8 @@
 //! Keep that source/type association through publication before minting a value.
 
 use semantic_vocabulary::{MachineId, ScalarType, StructuralTypeId};
-use source_compiler::AcceptedTerminalSource;
-use source_compiler::source_state::{
+use source_compiler::publication::AcceptedTerminalSource;
+use source_compiler::representations::source_state::{
     TypedTrees, machine::Machine, signature::StateParameter, types::TypeReferenceNode,
 };
 use terminal_psi::{

@@ -4,7 +4,7 @@
 use super::*;
 use crate::source_state::data::DataMember;
 use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::data_applications;
+use typed_trees::data_applications;
 
 fn source_program(payload: &str) -> crate::source_state::TypedTrees {
     source_program_in_scope(payload, true)

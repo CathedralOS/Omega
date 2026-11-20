@@ -1,0 +1,94 @@
+//! Source declarations reached by the entry, bindings and supplies of one compilation.
+
+use crate::source_state::TypedTrees;
+use crate::source_state::references::{DeclarationSelection, conformance_header_dependencies};
+use crate::source_state::trait_definition::Supply;
+use checked_program_to_psi::production;
+use symbols::SymbolHandle;
+
+/// Every declaration the request reaches from its entries, selections,
+/// bindings, subjects and supplies through the declarations each one names,
+/// sorted. A const argument is demanded when one of these declarations
+/// holds it.
+pub(crate) fn demanded_declarations(
+    program: &TypedTrees,
+    request: production::TerminalSourceCompilation<'_>,
+) -> Result<DeclarationSelection, String> {
+    let mut pending = request
+        .entries
+        .iter()
+        .chain(request.selected)
+        .copied()
+        .collect::<Vec<_>>();
+    for binding in request.bindings {
+        pending.extend([
+            binding.implementation,
+            binding.semantic_schema_symbol,
+            binding.requirement_symbol,
+        ]);
+    }
+    if !request.subjects.is_empty() {
+        for symbol in crate::source_state::references::collect_program_declarations(program) {
+            if crate::source_state::source_subjects::contains(
+                program,
+                symbol,
+                request.subjects,
+                request.purpose,
+            )? {
+                pending.push(symbol);
+            }
+        }
+    }
+    from_supplied_roots(program, pending, request.supplies.iter().copied()).map_err(str::to_owned)
+}
+
+impl super::FixedLayoutTargetScope {
+    pub(super) fn demanded_declarations(
+        &self,
+        program: &TypedTrees,
+    ) -> Result<DeclarationSelection, &'static str> {
+        let supplies = self
+            .provider_declarations
+            .iter()
+            .flat_map(crate::compile_product::provider_settlement::selected_supplies);
+        from_supplied_roots(program, self.entry_declarations.clone(), supplies)
+    }
+}
+
+/// A supplied member needs its provider's type arguments and its chosen body.
+/// An independent request for the entire provider still reaches every member.
+fn from_supplied_roots(
+    program: &TypedTrees,
+    mut roots: Vec<SymbolHandle>,
+    supplies: impl IntoIterator<Item = Supply>,
+) -> Result<DeclarationSelection, &'static str> {
+    let mut headers = Vec::new();
+    for supply in supplies {
+        roots.push(supply.slot);
+        if !program.symbols.symbols().nodes().is_valid(supply.slot) {
+            continue;
+        }
+        if let Some(provider) = program.conformance_by_symbol(supply.provider) {
+            if !headers.contains(&provider.symbol) {
+                headers.push(provider.symbol);
+                roots.extend(conformance_header_dependencies(program, provider));
+            }
+        } else {
+            roots.push(supply.provider);
+        }
+        for requirement in supply.requirements(program) {
+            roots.push(requirement);
+            // The structural reader diagnoses missing or ambiguous realizations.
+            if let Ok(machine) = supply.realization(program, requirement) {
+                roots.push(machine.symbol);
+            }
+        }
+    }
+    let mut selected = DeclarationSelection::from_computation_roots(program, roots)?;
+    for header in headers {
+        // Const arguments and layout occurrences belong to this header. Following
+        // its ordinary declaration edges would also request every member body.
+        selected.include(header);
+    }
+    Ok(selected)
+}

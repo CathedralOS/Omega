@@ -1,4 +1,4 @@
-//! Immutable native execution facts and the proposal inputs for a selected scope.
+//! Native execution facts retained after provider selection.
 use crate::native_proposal::TerminalNativeRealizationProposal;
 use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -18,130 +18,13 @@ pub struct NativeExecutionFacts {
 }
 
 impl TerminalNativeRealizationProposal {
-    pub fn program_scope_request<'a>(
-        &'a self,
-        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
-        components: &[&crate::AdmittedNativeComponentCall<'_>],
-    ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
-        let adapters = self.providers().checked_adapters.as_slice();
-        if components.iter().any(|component| {
-            component.selection().receiver()
-                != &terminal_codec::TerminalExecutionIdentity::portable(artifact.view().identity())
-        }) {
-            return Err(vec![Diagnostic::error(
-                "component scope selection names another receiving artifact",
-            )]);
-        }
-        for (position, component) in components.iter().enumerate() {
-            if components[..position].iter().any(|earlier| {
-                earlier.selection().receiving_boundary()
-                    == component.selection().receiving_boundary()
-            }) || adapters
-                .iter()
-                .filter(|adapter| component.replaces_local_adapter(adapter))
-                .count()
-                != 1
-            {
-                return Err(vec![Diagnostic::error(
-                    "component scope selection has competing or missing exact local adapter coordinates",
-                )]);
-            }
-        }
-        let local = adapters
-            .iter()
-            .filter(|adapter| {
-                !components
-                    .iter()
-                    .any(|component| component.replaces_local_adapter(adapter))
-            })
-            .cloned()
-            .collect::<Vec<_>>();
+    /// Target callable named by the checked program entry and its optional physical adapter.
+    pub fn target_program_entry(&self) -> terminal_psi::TargetMachineCallable {
         let entry = self.program_entry();
-        let root = entry.physical_adapter().map_or(
-            terminal_psi::TargetMachineCallable::Machine(entry.checked_entry().terminal_entry()),
-            |physical| terminal_psi::TargetMachineCallable::Machine(physical.machine()),
-        );
-        let semantic_call = crate::entry_settlement::bind_selected_program_entry_call(
-            artifact,
-            entry,
-            &self.providers().selection,
-            &self.providers().intrinsic_executions,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        self.scope_request(artifact, root, semantic_call, local, None)
-    }
-
-    pub fn callable_scope_request<'a>(
-        &'a self,
-        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
-        entry: terminal_psi::TargetMachineCallable,
-        previous: Option<&'a crate::ScopedProviderSelection>,
-    ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
-        let adapters = self.providers().checked_adapters.as_slice();
-        let local = if let Some(previous) = previous {
-            previous
-                .authorization()
-                .require_artifact(artifact)
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-            let scope = previous.scope();
-            scope.require_proposal_context(artifact.view(), self)?;
-            if scope.target_context().terminal_psi() != artifact.view().identity()
-                || scope.target_context().target() != self.target_profile().target_name()
-            {
-                return Err(vec![Diagnostic::error(
-                    "native callable preparation belongs to another artifact or target",
-                )]);
-            }
-            scope.local_adapters()
-        } else {
-            adapters
-        };
-        self.scope_request(
-            artifact,
-            entry,
-            None,
-            local.to_vec(),
-            previous.map(crate::ScopedProviderSelection::selection),
-        )
-    }
-
-    fn scope_request<'a>(
-        &'a self,
-        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
-        root: terminal_psi::TargetMachineCallable,
-        entry_call: Option<crate::SelectedProgramEntryCall>,
-        local_adapters: Vec<provider_admission::SelectedProviderAdapter>,
-        completed_selection: Option<&'a selected_provider_plans::SelectedProviderPlanFacts>,
-    ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
-        if self.program_entry().checked_entry().terminal_psi_identity()
-            != artifact.view().identity()
-        {
-            return Err(vec![Diagnostic::error(
-                "native proposal belongs to another canonical artifact",
-            )]);
-        }
-        let targets = psi_target_layouts::terminal_target_context(
-            artifact.view(),
-            self.target_profile().target_name(),
-        );
-        let entry = targets
-            .entry(artifact.view().identity(), artifact.semantic_module(), root)
-            .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-        let assumptions = self
-            .providers()
-            .selection
-            .assumed_binding_coordinates(artifact.semantic_module())
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        Ok(crate::ProposalScopeRequest {
-            artifact: artifact.view(),
-            entry,
-            targets,
-            entry_call,
-            local_adapters,
-            assumptions,
-            proposal: self,
-            completed_selection,
-        })
+        terminal_psi::TargetMachineCallable::Machine(entry.physical_adapter().map_or(
+            entry.checked_entry().terminal_entry(),
+            |adapter| adapter.machine(),
+        ))
     }
 
     pub fn settle_scoped_boundary_applications(

@@ -2106,85 +2106,74 @@ pub fn collect_selected_program_references(
     collect_program_references_with_roles(program, selection, None)
 }
 
+#[derive(Default)]
+struct ComputationDependencies {
+    rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+    owner: SymbolHandle,
+    current: ReferenceCollector,
+}
+
+impl ComputationDependencies {
+    fn finish(&mut self) {
+        let references = std::mem::take(&mut self.current);
+        if !self.owner.is_valid() {
+            return;
+        }
+        let mut dependencies: Vec<_> = references
+            .symbols
+            .into_iter()
+            .chain(references.descriptor_symbols)
+            .collect();
+        dependencies.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        dependencies.dedup();
+        self.rows.push((self.owner, dependencies));
+    }
+}
+
+impl Extend<SymbolHandle> for ComputationDependencies {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+        self.current.extend(symbols);
+    }
+}
+
+impl TypedReferences for ComputationDependencies {
+    fn derived_declaration_references(&self) -> bool {
+        false
+    }
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        self.finish();
+        self.owner = symbol;
+        true
+    }
+
+    fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+        self.current.declaration_description_dependency(symbol);
+    }
+
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.current.expression(expression)
+    }
+
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        self.current.type_reference(reference)
+    }
+
+    fn proof_fact(&mut self, fact: arena::Handle<ProofFact>) -> bool {
+        self.current.proof_fact(fact)
+    }
+
+    fn mathematical_type(&mut self, ty: MathematicalTypeHandle) -> bool {
+        self.current.mathematical_type(ty)
+    }
+}
+
 /// Actual source computation dependencies omit derived receipt/provenance
 /// ownership edges. Those edges keep source custody alive but do not request
 /// evaluating the owner again.
 pub fn collect_computation_symbol_dependencies(
     program: &TypedTrees,
 ) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
-    declaration_symbol_dependencies(program, false)
-}
-
-fn declaration_symbol_dependencies(
-    program: &TypedTrees,
-    derived: bool,
-) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
-    #[derive(Default)]
-    struct Declarations {
-        rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
-        owner: SymbolHandle,
-        current: ReferenceCollector,
-        derived: bool,
-    }
-
-    impl Declarations {
-        fn finish(&mut self) {
-            let references = std::mem::take(&mut self.current);
-            if !self.owner.is_valid() {
-                return;
-            }
-            let mut dependencies: Vec<_> = references
-                .symbols
-                .into_iter()
-                .chain(references.descriptor_symbols)
-                .collect();
-            dependencies.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-            dependencies.dedup();
-            self.rows.push((self.owner, dependencies));
-        }
-    }
-
-    impl Extend<SymbolHandle> for Declarations {
-        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-            self.current.extend(symbols);
-        }
-    }
-
-    impl TypedReferences for Declarations {
-        fn derived_declaration_references(&self) -> bool {
-            self.derived
-        }
-        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-            self.finish();
-            self.owner = symbol;
-            true
-        }
-
-        fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
-            self.current.declaration_description_dependency(symbol);
-        }
-
-        fn expression(&mut self, expression: ExpressionHandle) -> bool {
-            self.current.expression(expression)
-        }
-
-        fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-            self.current.type_reference(reference)
-        }
-
-        fn proof_fact(&mut self, fact: arena::Handle<ProofFact>) -> bool {
-            self.current.proof_fact(fact)
-        }
-
-        fn mathematical_type(&mut self, ty: MathematicalTypeHandle) -> bool {
-            self.current.mathematical_type(ty)
-        }
-    }
-
-    let mut declarations = Declarations {
-        derived,
-        ..Default::default()
-    };
+    let mut declarations = ComputationDependencies::default();
     visit_program(program, &mut declarations);
     declarations.finish();
     declarations.rows
@@ -2751,6 +2740,34 @@ fn visit_declaration_dependencies(
     }
 }
 
+/// Types and declarations used to form the implementation's trait application.
+pub fn conformance_header_dependencies(
+    program: &TypedTrees,
+    conformance: &crate::source_state::trait_definition::Conformance,
+) -> impl Iterator<Item = SymbolHandle> {
+    let mut dependencies = ComputationDependencies::default();
+    visit_conformance_header(program, &mut dependencies, conformance);
+    let owner = conformance.symbol;
+    let references = dependencies.current;
+    references
+        .symbols
+        .into_iter()
+        .chain(references.descriptor_symbols)
+        .filter(move |symbol| symbol.is_valid() && *symbol != owner)
+}
+
+fn visit_conformance_header(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    conformance: &crate::source_state::trait_definition::Conformance,
+) {
+    visit_type_parameters(program, retained, conformance.type_parameters);
+    visit_symbol(retained, conformance.trait_symbol);
+    for argument in program.type_reference_handles(conformance.arguments) {
+        visit_type_reference(program, retained, *argument);
+    }
+}
+
 pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferences) {
     for alias in program.type_aliases() {
         if !retained.declaration(alias.symbol) {
@@ -2779,16 +2796,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_declaration_dependencies(program, retained, conformance.symbol);
         visit_symbol(retained, conformance.symbol);
-        visit_type_parameters(program, retained, conformance.type_parameters);
-        visit_symbol(retained, conformance.trait_symbol);
+        visit_conformance_header(program, retained, conformance);
         for row in &conformance.rows {
             visit_symbol(retained, row.declaring_trait);
             visit_symbol(retained, row.requirement);
             visit_symbol(retained, row.realization_machine);
             visit_symbol(retained, row.realization_state);
-        }
-        for argument in program.type_reference_handles(conformance.arguments) {
-            visit_type_reference(program, retained, *argument);
         }
     }
 

@@ -62,7 +62,7 @@ struct Input {
 fn inputs(path: &std::path::Path) -> Vec<Input> {
     let text = std::fs::read_to_string(path).unwrap();
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
-    let mut sources = source_compiler::source_inputs::SourceMap::default();
+    let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             path.into(),
@@ -78,20 +78,20 @@ fn inputs(path: &std::path::Path) -> Vec<Input> {
         .tokenize()
         .unwrap();
     let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
-    let resolved = source_compiler::resolution::resolve(request).unwrap();
+    let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
     let typed =
-        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "main")
         .unwrap()
         .symbol;
-    let mut elaboration = source_compiler::lowering::elaborate_for(
+    let mut elaboration = source_compiler::test_support::lowering::elaborate_for(
         &typed,
-        source_compiler::lowering::Compilation {
+        source_compiler::test_support::lowering::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
@@ -105,9 +105,9 @@ fn inputs(path: &std::path::Path) -> Vec<Input> {
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let discharge = source_compiler::checking::discharge(
+    let discharge = source_compiler::test_support::checking::discharge(
         &mut elaboration,
-        &mut source_compiler::checking::ProofSearchActivity::default(),
+        &mut source_compiler::test_support::checking::ProofSearchActivity::default(),
     )
     .unwrap();
     let mut inputs = Vec::new();

@@ -177,7 +177,7 @@ mod tests {
         )
         .expect("stage the ordinary Build entry");
         let mut timings = artifacts::compile_timings::CompileTimings::default();
-        let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+        let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
         let checkpoint = crate::source_assembly::ImmutableSourceParseCheckpoint::prepare(
             &root.join("build.omg"),
             None,
@@ -191,12 +191,12 @@ mod tests {
             .expect("assemble the real Build vocabulary");
         let build_source = syntax.build_source.expect("production Build selection");
         let profile = target::TargetProfile::host_if_supported().expect("supported Build host");
-        let (source, _) = syntax
+        let interval = syntax
             .build_stage_source()
             .unwrap()
             .prepare(None, &[], &Default::default(), profile.target_name(), None)
             .unwrap();
-        let typed = source.typed();
+        let typed = interval.program.as_ref();
         let machine = crate::build_execution::select_build_machine(typed, build_source)
             .expect("the authored Build entry");
         let admission = BuildValueAdmission::admit(typed).expect("real Build admission");

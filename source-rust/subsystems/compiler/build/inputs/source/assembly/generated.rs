@@ -13,10 +13,10 @@ use std::sync::Arc;
 impl GeneratedSourceExtension {
     pub fn source_input(
         self,
-        base_sources: &Arc<source_compiler::source_inputs::SourceMap>,
+        base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
     ) -> Result<
         (
-            Arc<source_compiler::source_inputs::SourceMap>,
+            Arc<source_compiler::representations::source_inputs::SourceMap>,
             source_admission::LoadedSources,
         ),
         Vec<Diagnostic>,
@@ -47,7 +47,7 @@ pub(super) fn append_dependency_build_handoffs_to_storage(
     package_inputs: &PackageCompilationInputs,
     source_scope: source_provenance::DependencyScope,
     timings: &mut CompileTimings,
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let entries = crate::source::source_imports::admit_dependency_build_handoffs(
         package_inputs,
@@ -111,7 +111,7 @@ pub(super) fn append_stage_generated_sources(
     imports: &mut ImportQueue,
     inputs: &crate::source::source_imports::ProductQueryInputs,
     timings: &mut CompileTimings,
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     use crate::source::source_imports::LogicalSourceDiscovery as _;
     let mut retained = Vec::new();

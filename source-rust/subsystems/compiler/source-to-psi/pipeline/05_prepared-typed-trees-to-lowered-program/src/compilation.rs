@@ -16,7 +16,7 @@ type WitnessRow<'source> = (
 
 /// The driver keeps source publication custody while passing only `program`
 /// into checking. Both were minted from the same source owner and traversal.
-pub struct PreparedSource {
+pub struct LoweredCompilationWithSource {
     pub program: TerminalCompilation,
     pub source: crate::lowering::SourceCorrespondence,
 }
@@ -92,17 +92,17 @@ pub fn prepare_compilation(
     typed: &crate::lowering::PreparedTypedTrees,
     compilation: crate::lowering::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
-) -> Result<PreparedSource, Vec<diagnostics::Diagnostic>> {
+) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
     match crate::lowering::check_bound_callable_shapes(typed, compilation.bindings) {
         Ok(failures) if !failures.is_empty() => {
-            return Ok(PreparedSource {
+            return Ok(LoweredCompilationWithSource {
                 program: TerminalCompilation::FormationFailures(failures),
                 source: Default::default(),
             });
         }
         Ok(_) => {}
         Err(defect) => {
-            return Ok(PreparedSource {
+            return Ok(LoweredCompilationWithSource {
                 program: TerminalCompilation::FormationDefect(defect),
                 source: Default::default(),
             });
@@ -385,7 +385,7 @@ pub fn prepare_compilation(
     if let Ok(elaboration) = &mut closure {
         retain_installation_reach(&mut elaboration.module)?;
     }
-    Ok(PreparedSource {
+    Ok(LoweredCompilationWithSource {
         source,
         program: TerminalCompilation::Prepared(PreparedCompilation {
             closure,

@@ -154,7 +154,7 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
     let reopened = Arc::new(CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap());
     let trust = HostProducerTrust::accept("source-produced Windows fixture");
     let authorized = authorize_terminal_artifact(Arc::clone(&reopened), Some(&trust)).unwrap();
-    let source_compiler::provider_supply::SourceProviderDemand::Target { bindings, .. } =
+    let source_compiler::publication::SourceProviderDemand::Target { bindings, .. } =
         providers.receive(&reopened, profile.target_name()).unwrap()
     else {
         panic!("source did not issue a Windows deployment");

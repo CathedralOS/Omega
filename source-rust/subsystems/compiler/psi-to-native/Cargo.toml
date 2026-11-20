@@ -16,7 +16,6 @@ native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
-provider-plans = { path = "../build/providers/plans" }
 provider-correspondence = { path = "verification/provider-correspondence" }
 psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
 psi-provider-selections = { path = "../psi-execution-inputs/providers" }
@@ -47,11 +46,8 @@ arena = { path = "../../../foundation/arena" }
 function-identity = { path = "representations/function-identity" }
 selected-instructions = { path = "representations/selected-instructions" }
 abstract-operations = { path = "representations/abstract-operations" }
-wire = { path = "../../../foundation/wire" }
 bound-installations = { path = "verification/installation-admission/bound-installations" }
 installation-conditions = { path = "verification/installation-admission/conditions" }
-provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
-component-description = { path = "verification/component-description" }
 selected-instruction-analyses = { path = "pipeline/06_selected-instructions-to-selected-instructions/analyses" }
 native-encoding = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding" }
 object-file = { path = "pipeline/15_placed-functions-to-objects" }
@@ -77,6 +73,7 @@ verified-optimization-input = { path = "representations/abstract-operations/veri
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 
 [dev-dependencies]
+provider-plans = { path = "../build/providers/plans" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 isa-aarch64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 isa-x86_64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }

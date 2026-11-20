@@ -48,14 +48,14 @@ pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
 use normalized_build_settings::EvaluatedBuildSettings;
-use source_compiler::declaration_selection::ProductEntryBinding;
-use source_compiler::ProducedTerminalProgram;
-use source_compiler::declaration_selection::ExecutedBuildSelection;
-use source_compiler::declaration_selection::ExecutedEnumExclusion;
-use source_compiler::declaration_selection::ExecutedNativeBinding;
-use source_compiler::declaration_selection::ExecutedProductSelection;
-use source_compiler::declaration_selection::NativeBindingFormation;
-use source_compiler::declaration_selection::ProductDeclarationRequest;
+use source_compiler::representations::declaration_selection::ProductEntryBinding;
+use source_compiler::publication::ProducedTerminalProgram;
+use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
+use source_compiler::representations::declaration_selection::ExecutedEnumExclusion;
+use source_compiler::representations::declaration_selection::ExecutedNativeBinding;
+use source_compiler::representations::declaration_selection::ExecutedProductSelection;
+use source_compiler::representations::declaration_selection::NativeBindingFormation;
+use source_compiler::representations::declaration_selection::ProductDeclarationRequest;
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
@@ -84,7 +84,7 @@ fn require_source_acquisition(
 }
 
 pub struct ReturnedBuild {
-    pub(crate) helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
+    pub(crate) helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
     account: EvaluationInvocationAccount,
     unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
@@ -391,7 +391,7 @@ impl TerminalBuildHost {
             .ok_or("Build filesystem calls lost their artifact custody")?;
         let mut provider_slots = Vec::new();
         for call in binding_calls.iter() {
-            if let source_compiler::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
+            if let source_compiler::representations::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
                 provider_slots.extend_from_slice(&request.requirement.boundaries);
             }
         }
@@ -523,7 +523,7 @@ pub(crate) struct CarriedStage {
     output_issued: bool,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
+    helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
     request_host: crate::host::requests::CarriedRequests,
     binding_host: crate::host::bindings::CarriedBindings,
     pub(crate) filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
@@ -542,7 +542,7 @@ pub struct TerminalBuildActivation {
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
+    helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
 }
 
 /// The single reason the interpreter returned control to the planner.
@@ -565,7 +565,7 @@ impl TerminalBuildActivation {
 
     pub fn helper_evaluation_accounting(
         &self,
-    ) -> &source_compiler::compile_time::SourceCompletionAccounting {
+    ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
         &self.helper_accounting
     }
 
@@ -623,7 +623,7 @@ impl TerminalBuildActivation {
     pub fn install_provider(
         &mut self,
         selected: BuildDependencySelection,
-        provider: &source_compiler::ProducedBuildProvider,
+        provider: &source_compiler::publication::ProducedBuildProvider,
     ) -> Result<(), String> {
         if !matches!(self.state, ActivationState::Running) {
             return Err("Build provider installation requires a live readiness pause".into());

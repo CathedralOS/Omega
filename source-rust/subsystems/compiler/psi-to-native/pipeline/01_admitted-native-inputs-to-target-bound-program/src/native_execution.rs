@@ -1,14 +1,14 @@
 //! Issue the target-selected reach before the driver requests scalar values or lowers a body.
 use diagnostics::Diagnostic;
-use native_execution_scope::derive_native_scope;
+use native_execution_scope::{NativeScopeEntry, derive_native_scope};
 use verified_optimization_input::{
-    AdmittedNativeComponentCall, NativeExecutionFacts, NativeExecutionScope, ProposalScopeRequest,
+    NativeExecutionFacts, NativeExecutionScope,
     TerminalNativeRealizationProposal,
 };
 
 mod provider_bindings;
 
-/// A native program or export whose reachable provider bindings stage 01 completed.
+/// A native program whose reachable provider bindings stage 01 completed.
 pub struct PreparedNativeExecution(NativeExecutionFacts);
 
 impl std::ops::Deref for PreparedNativeExecution {
@@ -28,26 +28,12 @@ impl PreparedNativeExecution {
     }
 }
 
-fn issue_scope(request: ProposalScopeRequest<'_>) -> Result<NativeExecutionScope, Vec<Diagnostic>> {
-    derive_native_scope(request).map_err(|reason| vec![Diagnostic::error(reason.to_string())])
-}
-
 pub fn prepare_program(
     proposal: &TerminalNativeRealizationProposal,
     authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    components: &[&AdmittedNativeComponentCall<'_>],
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
-    let request = proposal.program_scope_request(authorization.artifact(), components)?;
-    provider_bindings::bind(proposal, authorization, issue_scope(request)?)
-}
-
-pub fn prepare_export(
-    proposal: &TerminalNativeRealizationProposal,
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    entry: terminal_psi::TargetMachineCallable,
-) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
-    let request = proposal.callable_scope_request(authorization.artifact(), entry, None)?;
-    provider_bindings::bind(proposal, authorization, issue_scope(request)?)
+    let scope = derive_native_scope(authorization.artifact(), proposal, NativeScopeEntry::Program)?;
+    provider_bindings::bind(proposal, authorization, scope)
 }
 
 /// An independently lowered callable inherits the selected providers of its owning execution.
@@ -67,12 +53,14 @@ impl<'a> BoundNativeCallable<'a> {
         artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let request = proposal.callable_scope_request(
+        let scope = derive_native_scope(
             artifact,
-            entry,
-            Some(execution.checked_providers()),
+            proposal,
+            NativeScopeEntry::Callable {
+                entry,
+                parent: execution.checked_providers(),
+            },
         )?;
-        let scope = issue_scope(request)?;
         let coverage = provider_bindings::callable_coverage(
             proposal,
             artifact,

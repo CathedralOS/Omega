@@ -2251,7 +2251,7 @@ machine entry() -> u32 crashes none {{
         };
         let input = program.clone();
         let lookups = crate::source_state::product_operand::ProductSourceLookups::new(&input);
-        let prepared = crate::preparation::prepare_product_requirement_operand(
+        let prepared = typed_trees::product_operand::formation::prepare_product_requirement_operand(
             &mut program,
             &lookups,
             &operand,

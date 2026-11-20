@@ -20,7 +20,7 @@ normalized-build-settings = { path = "../../settings/normalized" }
 optimization-requests = { path = "../../settings/optimizations" }
 package-compilation = { path = "../../inputs" }
 source-admission = { path = "../../../source-to-psi/representations/source-files/custody" }
-source-completion-accounting = { path = "../../../source-to-psi/product/accounting" }
+source-completion-accounting = { path = "../../../source-to-psi/representations/evaluation-receipts" }
 source-declarations = { path = "../../../source-to-psi/representations/symbol-resolved-trees/declarations" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 symbols = { path = "../../../foundation/declaration-identity" }

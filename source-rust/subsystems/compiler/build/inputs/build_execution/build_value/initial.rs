@@ -15,12 +15,12 @@ use crate::build_execution::{
 };
 use filesystem_authority::FilesystemGrantRootIdentity;
 use build_time_values::BuildTimeValue;
-use source_compiler::source_state::TypedTrees;
+use source_compiler::representations::source_state::TypedTrees;
 
 pub(super) fn initial_value(
     admission: &BuildValueAdmission,
     typed: &TypedTrees,
-    machine: &source_compiler::source_state::machine::Machine,
+    machine: &source_compiler::representations::source_state::machine::Machine,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> BuildTimeValue {
     let mut build_fields = Vec::new();

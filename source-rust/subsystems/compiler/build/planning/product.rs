@@ -8,10 +8,10 @@ use installation_conditions::InstallationEnvironmentAssumption;
 use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::PackageDependencyClosure;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_compiler::compile_time::BuildTimeSelectionAuthority;
-use source_compiler::product::provider_declarations::RetainedProviderSelection;
-use source_compiler::product::source_targets::SourceTarget;
-use source_compiler::product::{
+use source_compiler::compile_time_invocations::BuildTimeSelectionAuthority;
+use source_compiler::compile_product::provider_declarations::RetainedProviderSelection;
+use source_compiler::compile_product::source_targets::SourceTarget;
+use source_compiler::compile_product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
 use source_declarations::declaration_selection::{
@@ -124,7 +124,7 @@ impl ProductStage<'_> {
         self,
         profile: TargetProfile,
         declaration_path: &str,
-    ) -> Result<source_compiler::ProducedBuildProvider, Vec<Diagnostic>> {
+    ) -> Result<source_compiler::publication::ProducedBuildProvider, Vec<Diagnostic>> {
         self.source().produce_build_provider(profile.target_name(), declaration_path)
     }
 

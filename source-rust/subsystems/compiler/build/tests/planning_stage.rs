@@ -331,7 +331,7 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
     use build_execution::{CompileFailure, TerminalBuildActivation};
     use package_compilation::source_imports::ProductQueryDependency;
     use project_build::PlanningServices;
-    use source_compiler::TerminalBuildQueryOperation;
+    use source_compiler::publication::TerminalBuildQueryOperation;
 
     #[derive(Default)]
     struct QueryServices(Vec<TerminalBuildQueryOperation>);

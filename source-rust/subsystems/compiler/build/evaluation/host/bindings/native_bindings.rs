@@ -14,11 +14,11 @@ use locator::{NativeLocatorCase, NativeLocatorValue, decode_native_locator};
 use super::{TerminalBuildBindingAdapter, activation_ticket, lock_state};
 use semantic_vocabulary::source_selections::ProductTarget;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerSign, IntegerValue};
-use source_compiler::declaration_selection::BuildOperation;
-use source_compiler::declaration_selection::BuildSelectionRequest;
-use source_compiler::declaration_selection::ExecutedBuildSelection;
-use source_compiler::declaration_selection::ExecutedNativeBinding;
-use source_compiler::{TerminalBuildBindingOperation, TerminalBuildValueShape};
+use source_compiler::representations::declaration_selection::BuildOperation;
+use source_compiler::representations::declaration_selection::BuildSelectionRequest;
+use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
+use source_compiler::representations::declaration_selection::ExecutedNativeBinding;
+use source_compiler::publication::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffect,
     TerminalEffectRejection, TerminalEffectResult, TerminalScalarValue, TerminalStorageContents,
