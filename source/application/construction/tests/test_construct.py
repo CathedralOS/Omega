@@ -1,4 +1,4 @@
-"""Exercise the two constructor output contracts through the publication path."""
+"""Exercise construction request framing and outcome publication."""
 import contextlib
 import io
 import json
@@ -11,6 +11,75 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import construct
+
+
+class BuildSourceTests(unittest.TestCase):
+    packages = [('app', 0), ('core', 1), ('library', 0)]
+    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mut Build) {}'),
+               (1, 'defaults/build.omg', b'machine build(builder: @mut Build) {}')]
+    entries = [(0, 0), (1, 1), (2, 1)]
+
+    def frame(self, packages=None, sources=None, entries=None):
+        return construct.encode(
+            self.packages if packages is None else packages, [], [(0, b'machine entry() {}')],
+            0, b'entry', paths=['main.omg'],
+            build_sources=self.sources if sources is None else sources,
+            build_entries=self.entries if entries is None else entries)[0]
+
+    def test_v2_exact_build_bytes_and_scopes(self):
+        wire = self.frame()
+        (marker, version, packages, edges, units, entry, name_start, name_end,
+         length, builds) = struct.unpack_from('<10I', wire)
+        self.assertEqual((marker, version, packages, edges, units, entry, builds), (0, 2, 3, 0, 1, 0, 2))
+        arena = wire[-length:]
+        self.assertEqual(arena[name_start:name_end], b'entry')
+        selections = 4 * (10 + 3 * packages + 4 * edges + 5 * units)
+        files = selections + 8 * packages
+        self.assertEqual(list(struct.iter_unpack('<2I', wire[selections:files])), self.entries)
+        rows = list(struct.iter_unpack('<5I', wire[files:-length]))
+        self.assertEqual([(owner, arena[p:q].decode(), arena[a:b]) for owner, a, b, p, q in rows],
+                         self.sources)
+
+    def test_v2_requires_owned_entries_and_unique_files(self):
+        cases = {
+            'missing selection': dict(entries=self.entries[:-1]),
+            'duplicate requester': dict(entries=[(0, 0), (0, 1), (2, 1)]),
+            'missing file': dict(entries=[(0, 0), (1, 3), (2, 1)]),
+            'other package root': dict(entries=[(0, 0), (1, 1), (2, 0)]),
+            'shadowed default': dict(entries=[(0, 1), (1, 1), (2, 1)]),
+            'duplicate source': dict(sources=self.sources + [self.sources[0]]),
+            'ordinary fallback supplier': dict(sources=[self.sources[0], (2, *self.sources[1][1:])]),
+            'ambiguous core': dict(packages=[('app', 0), ('core', 1), ('other', 1)]),
+            'parent path': dict(sources=self.sources + [(0, '../extra.omg', b'')]),
+            'empty component': dict(sources=self.sources + [(0, 'dir//extra.omg', b'')]),
+            'unknown supplier': dict(sources=self.sources + [(3, 'extra.omg', b'')]),
+        }
+        for name, changes in cases.items():
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.frame(**changes)
+
+    def test_complete_capture_preserves_product_coordinates(self):
+        legacy, before = construct.compiler_input()
+        scoped, after = construct.compiler_input(with_build_sources=True)
+        self.assertEqual(struct.unpack_from('<II', legacy), (0, 1))
+        self.assertEqual(struct.unpack_from('<II', scoped), (0, 2))
+        self.assertEqual((before['units'], before['entry_unit']), (after['units'], after['entry_unit']))
+        arena = scoped[-struct.unpack_from('<I', scoped, 32)[0]:]
+        for row in after['build_units']:
+            owner = construct.PACKAGES[row['supplier']][1]
+            path = arena[row['path_start']:row['path_end']].decode()
+            data = arena[row['source_start']:row['source_end']]
+            self.assertEqual(path, row['path'])
+            self.assertEqual(data, (construct.ROOT / owner / path).read_bytes())
+            self.assertEqual(construct.digest(data), row['sha256'])
+        for requester, selected in after['build_entries']:
+            row = after['build_units'][selected]
+            root = construct.ROOT / construct.PACKAGES[requester][1] / 'build.omg'
+            if root.is_file():
+                self.assertEqual((row['supplier'], row['path']), (requester, 'build.omg'))
+            else:
+                self.assertEqual((construct.PACKAGES[row['supplier']][2], row['path']),
+                                 (1, 'defaults/build.omg'))
 
 
 class ConstructionOutputTests(unittest.TestCase):
