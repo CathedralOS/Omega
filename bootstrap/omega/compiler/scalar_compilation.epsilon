@@ -2737,6 +2737,23 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 // Parsing and declaration selection remain inside the compiler. This internal
 // construction entry does not claim full OCREQ admission.
 machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
+    self.compile_closed_units(source, entry_unit, entry);
+    transition self.status {
+        OmegaScalarCompilationStatus::Complete -> return
+        _ -> failed()
+    }
+    state failed() {
+        transition self.construction.active {
+            1 -> discard()
+            _ -> return
+        }
+    }
+    // A later file or the final call graph can refuse after an earlier file
+    // emitted code. No unfinished tape survives that failed invocation.
+    state discard() { self.tape.initialize(); }
+}
+
+machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
     self.entry_unit = entry_unit;
     self.status = OmegaScalarCompilationStatus::Pending;
     self.diagnostic_offset = 0;
@@ -2797,6 +2814,12 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         }
     }
     state imports() {
+        transition self.construction.active {
+            1 -> unit_imports(0)
+            _ -> pooled_imports()
+        }
+    }
+    state pooled_imports() {
         transition self.validate_imports(source) {
             1 -> reset_storage(0)
             _ -> return
@@ -2937,22 +2960,36 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     // overload family and falsely reject its arity before coverage is known.
     state check_declarations(index: i32) {
         transition index < self.parser.machine_count {
-            true -> machine_shape(index)
+            true -> declaration_unit(index)
             _ -> public_interfaces()
+        }
+    }
+    state declaration_unit(index: i32) {
+        transition (self.construction.active == 1) &&
+            (self.parser.unit_index != self.construction.machines[index].unit) {
+            true -> signature_view(index, self.construction.machines[index].unit)
+            _ -> machine_shape(index)
+        }
+    }
+    state signature_view(index: i32, unit: i32) {
+        self.load_construction_unit(source, unit);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> machine_shape(index)
+            _ -> internal()
         }
     }
     state public_interfaces() {
         transition self.construction.active {
-            1 -> unit_imports(0)
+            1 -> check_entry_bounds(0)
             _ -> check_interfaces()
         }
     }
-    // On the staged route the indexed signatures have scalar results and no
-    // parameters. Validate every file's imports before checking any body.
+    // The staged route validates every file's imports before any signature or
+    // body. This pass installs disjoint machine/state/parameter header rows.
     state unit_imports(unit: i32) {
         transition unit < self.parser.sources.unit_count {
             true -> unit_import_view(unit)
-            _ -> labels(0)
+            _ -> reset_storage(0)
         }
     }
     state unit_import_view(unit: i32) {
@@ -2977,8 +3014,18 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state check_entry_bounds(state_index: i32) {
         transition state_index < self.parser.machine_state_count {
             true -> decode_entry_bounds(state_index)
+            _ -> signatures_ready()
+        }
+    }
+    state signatures_ready() {
+        transition self.construction.active {
+            1 -> parameter_storage_ready()
             _ -> check_machine(0)
         }
+    }
+    state parameter_storage_ready() {
+        self.construction.parameter_cells = self.cell_count;
+        transition true { true -> labels(0) }
     }
     state decode_entry_bounds(state_index: i32) {
         transition self.decode_entry_bounds(source, state_index) {
@@ -3073,12 +3120,6 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
 
     state machine_types(index: i32) {
-        transition self.construction.active {
-            1 -> check_duplicate(index, 0)
-            _ -> check_signature(index)
-        }
-    }
-    state check_signature(index: i32) {
         transition self.check_signatures(source, index) {
             1 -> check_duplicate(index, 0)
             _ -> return
@@ -4032,7 +4073,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 
     state emit_machine(index: i32) {
         transition (self.construction.active == 1) && (index == self.construction.unit_end) {
-            true -> release_unit_cells(0)
+            true -> release_unit_cells(self.construction.parameter_cells)
             _ -> next_emitted_machine(index)
         }
     }
@@ -4049,7 +4090,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         transition true { true -> release_unit_cells(index + 1) }
     }
     state released_unit() {
-        self.cell_count = 0;
+        self.cell_count = self.construction.parameter_cells;
         self.effect_count = 0;
         transition true { true -> start_unit(self.parser.unit_index + 1) }
     }

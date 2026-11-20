@@ -1,31 +1,38 @@
-// Bodies own local syntax indexes. Other files can name a free machine by its
-// source span, visibility and checked scalar signature after that syntax goes
-// away. The directory order supplies both the call-graph identity and label.
+// Ordinary declarations keep their position in the whole program. Each
+// file's first row is also the end of the preceding file's range.
+data OmegaConstructionUnit {
+    machine_count: i32;
+    state_count: i32;
+    parameter_count: i32;
+}
+
 data OmegaConstructionMachine {
     name: OmegaRelativeSpan;
-    item: OmegaMachineSyntax;
-    body: OmegaMachineStateSyntax;
-    result: i32;
+    unit: i32;
+    is_public: i32;
 }
 
 data OmegaConstructionDirectory {
     machines: [OmegaConstructionMachine; 4096];
-    first_machine: [i32; 513];
-    count: i32;
+    units: [OmegaConstructionUnit; 513];
+    total: OmegaConstructionUnit;
     active: i32;
     unit_first: i32;
     unit_end: i32;
+    parameter_cells: i32;
 }
 
 machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entry: &[u8]) {
     self.construction.active = 0;
-    self.construction.count = 0;
+    self.construction.total.machine_count = 0;
+    self.construction.total.state_count = 0;
+    self.construction.total.parameter_count = 0;
     transition (self.parser.sources.unit_count > 1) && (self.parser.sources.valid(source) == 1) {
         true -> units(0, 1)
         _ -> pooled()
     }
     state units(unit: i32, eligible: i32) {
-        self.construction.first_machine[unit] = self.construction.count;
+        self.construction.units[unit] = self.construction.total;
         transition unit < self.parser.sources.unit_count {
             true -> parse(unit, eligible)
             _ -> finish(eligible)
@@ -41,8 +48,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state declarations(unit: i32, eligible: i32) {
-        self.parser.append_unit(source[0..self.parser.sources.units[unit].end],
-            self.parser.sources.units[unit].start);
+        self.parser.append_unit(source[0..self.parser.sources.units[unit].end], self.parser.sources.units[unit].start);
         transition self.parser.status {
             OmegaParserStatus::Complete -> index_unit(unit, eligible)
             _ -> return
@@ -50,59 +56,68 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     }
     state index_unit(unit: i32, eligible: i32) {
         transition (eligible == 1) && (self.parser.root_count == self.parser.machine_count + self.parser.use_count) &&
-            (self.parser.machine_count <= 4096 - self.construction.count) {
-            true -> machine_item(unit, 0)
+            (self.parser.machine_count <= 4096 - self.construction.total.machine_count) &&
+            (self.parser.machine_state_count <= 4096 - self.construction.total.state_count) &&
+            (self.parser.machine_parameter_count <= 16384 - self.construction.total.parameter_count) {
+            true -> parameter(unit, 0)
+            _ -> units(unit + 1, 0)
+        }
+    }
+    // Only by-value scalar types cross a file boundary in this path. Signatures
+    // with nominal layouts, references or entry proof obligations keep the
+    // pooled compiler. The ordinary signature checker validates all bindings.
+    state parameter(unit: i32, index: i32) {
+        transition index < self.parser.machine_parameter_count {
+            true -> parameter_type(unit, index)
+            _ -> state_item(unit, 0)
+        }
+    }
+    state parameter_type(unit: i32, index: i32) {
+        transition self.primitive_type(source, self.parser.machine_parameters[index].type_reference) > 0 {
+            true -> parameter(unit, index + 1)
+            _ -> units(unit + 1, 0)
+        }
+    }
+    state state_item(unit: i32, index: i32) {
+        transition index < self.parser.machine_state_count {
+            true -> signature(unit, index, self.parser.machine_states[index])
+            _ -> machine_item(unit, 0)
+        }
+    }
+    state signature(unit: i32, index: i32, row: OmegaMachineStateSyntax) {
+        transition (row.requirement_count == 0) && ((row.has_return_type == 0) ||
+            (self.primitive_type(source, row.return_type) > 0)) {
+            true -> state_item(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
     }
     state machine_item(unit: i32, local: i32) {
         transition local < self.parser.machine_count {
-            true -> signature(unit, local, self.parser.machine_items[local])
-            _ -> units(unit + 1, 1)
+            true -> name(unit, local, self.parser.machine_items[local])
+            _ -> next(unit)
         }
     }
-    state signature(unit: i32, local: i32, item: OmegaMachineSyntax) {
-        transition (item.path_member_count == 1) && (item.state_count == 1) && (item.is_bodyless == 0) &&
-            (item.has_target == 0) && (item.clause_count == 0) {
-            true -> state_signature(unit, local, item, self.parser.machine_states[item.first_state])
+    state name(unit: i32, local: i32, row: OmegaMachineSyntax) {
+        transition (row.path_member_count == 1) && (row.state_count >= 1) &&
+            (row.is_bodyless == 0) && (row.has_target == 0) && (row.clause_count == 0) {
+            true -> retain(unit, local, row, self.construction.total.machine_count + local)
             _ -> units(unit + 1, 0)
         }
     }
-    state state_signature(unit: i32, local: i32, item: OmegaMachineSyntax, body: OmegaMachineStateSyntax) {
-        transition (body.parameter_count == 0) && (body.requirement_count == 0) {
-            true -> entry_kind(unit, local, item, body)
-            _ -> units(unit + 1, 0)
-        }
-    }
-    state entry_kind(unit: i32, local: i32, item: OmegaMachineSyntax, body: OmegaMachineStateSyntax) {
-        transition body.name_kind {
-            OmegaMachineStateNameKind::GeneratedEntry -> result(unit, local, item, body)
-            _ -> units(unit + 1, 0)
-        }
-    }
-    state result(unit: i32, local: i32, item: OmegaMachineSyntax, body: OmegaMachineStateSyntax) {
-        transition body.has_return_type {
-            1 -> typed(unit, local, item, body, self.primitive_type(source, body.return_type))
-            _ -> retain(unit, local, item, body, 2)
-        }
-    }
-    state typed(unit: i32, local: i32, item: OmegaMachineSyntax, body: OmegaMachineStateSyntax, kind: i32) {
-        transition kind > 0 {
-            true -> retain(unit, local, item, body, kind)
-            _ -> units(unit + 1, 0)
-        }
-    }
-    state retain(unit: i32, local: i32, item: OmegaMachineSyntax, body: OmegaMachineStateSyntax, kind: i32) {
-        let global: i32 = self.construction.count;
-        self.construction.machines[global].name = self.parser.members[item.first_path_member];
-        self.construction.machines[global].item = item;
-        self.construction.machines[global].body = body;
-        self.construction.machines[global].result = kind;
-        self.construction.count = global + 1;
+    state retain(unit: i32, local: i32, row: OmegaMachineSyntax, global: i32) {
+        self.construction.machines[global].name = self.parser.members[row.first_path_member];
+        self.construction.machines[global].unit = unit;
+        self.construction.machines[global].is_public = row.is_public;
         transition true { true -> machine_item(unit, local + 1) }
     }
+    state next(unit: i32) {
+        self.construction.total.machine_count = self.construction.total.machine_count + self.parser.machine_count;
+        self.construction.total.state_count = self.construction.total.state_count + self.parser.machine_state_count;
+        self.construction.total.parameter_count = self.construction.total.parameter_count + self.parser.machine_parameter_count;
+        transition true { true -> units(unit + 1, 1) }
+    }
     state finish(eligible: i32) {
-        transition (eligible == 1) && (self.construction.count > 0) &&
+        transition (eligible == 1) && (self.construction.total.machine_count > 0) &&
             (self.entry_unit >= 0) && (self.entry_unit < self.parser.sources.unit_count) {
             true -> install()
             _ -> pooled()
@@ -112,56 +127,49 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     state install() {
         self.parser.reset_syntax();
         self.construction.active = 1;
-        self.parser.root_count = self.construction.count;
-        self.parser.machine_count = self.construction.count;
-        self.parser.machine_state_count = self.construction.count;
-        transition true { true -> install_machine(0) }
+        self.parser.root_count = self.construction.total.machine_count;
+        self.parser.machine_count = self.construction.total.machine_count;
+        self.parser.machine_state_count = self.construction.total.state_count;
+        transition true { true -> entry_machine(self.construction.units[self.entry_unit].machine_count) }
     }
-    state install_machine(global: i32) {
-        transition global < self.construction.count {
-            true -> install_signature(global, self.construction.machines[global])
+    state entry_machine(index: i32) {
+        transition index < self.construction.units[self.entry_unit + 1].machine_count {
+            true -> entry_name(index, self.construction.machines[index].name)
             _ -> return
         }
     }
-    state install_signature(global: i32, row: OmegaConstructionMachine) {
-        self.parser.machine_items[global] = row.item;
-        self.parser.machine_items[global].first_state = global;
-        self.parser.machine_states[global] = row.body;
-        self.parser.machine_states[global].subtree_end = global + 1;
-        self.state_types[global] = row.result;
-        self.state_owners[global] = global;
-        self.bound_first[global] = 0;
-        self.bound_count[global] = 0;
-        transition (self.parser.sources.unit_at(row.name.start) == self.entry_unit) &&
-            (self.span_equals(source, row.name.start, row.name.end, entry) == 1) {
-            true -> select(global)
-            _ -> install_machine(global + 1)
+    state entry_name(index: i32, name: OmegaRelativeSpan) {
+        transition self.span_equals(source, name.start, name.end, entry) {
+            1 -> select(index)
+            _ -> entry_machine(index + 1)
         }
     }
-    state select(global: i32) {
-        self.selected_machine = global;
-        transition true { true -> install_machine(global + 1) }
-    }
+    state select(index: i32) { self.selected_machine = index; }
 }
 
-// The checked module path and machine ordinal range live across units.
-// Expression, path, statement and type rows belong to this file.
+// Machine/state/parameter ordinal ranges are disjoint across units. Checking
+// another file may use those rows' names, typed signatures or assigned labels.
+// All expression, type, statement and path rows belong to the current file.
 machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], unit: i32) {
+    let first: OmegaConstructionUnit = self.construction.units[unit];
+    let end: OmegaConstructionUnit = self.construction.units[unit + 1];
     self.parser.reset_syntax();
-    self.construction.unit_first = self.construction.first_machine[unit];
-    self.construction.unit_end = self.construction.first_machine[unit + 1];
-    self.parser.machine_count = self.construction.unit_first;
-    self.parser.machine_state_count = self.construction.unit_first;
+    self.construction.unit_first = first.machine_count;
+    self.construction.unit_end = end.machine_count;
+    self.parser.machine_count = first.machine_count;
+    self.parser.machine_state_count = first.state_count;
+    self.parser.machine_parameter_count = first.parameter_count;
     self.parser.unit_index = unit;
     self.parser.append_unit(source[0..self.parser.sources.units[unit].end], self.parser.sources.units[unit].start);
-    transition (self.parser.machine_count == self.construction.unit_end) &&
-        (self.parser.machine_state_count == self.construction.unit_end) {
+    transition (self.parser.machine_count == end.machine_count) && (self.parser.machine_state_count == end.state_count) &&
+        (self.parser.machine_parameter_count == end.parameter_count) {
         true -> expose_signatures()
         _ -> internal()
     }
     state expose_signatures() {
-        self.parser.machine_count = self.construction.count;
-        self.parser.machine_state_count = self.construction.count;
+        self.parser.machine_count = self.construction.total.machine_count;
+        self.parser.machine_state_count = self.construction.total.state_count;
+        self.parser.machine_parameter_count = self.construction.total.parameter_count;
     }
     state internal() { self.parser.status = OmegaParserStatus::InternalFailure; }
 }

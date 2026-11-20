@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eleven-member
-manifest materializes 24,212 lines / 912,956 bytes with SHA-256
-`925f2090395250734cbbbe4ae80a93362f21bda8f9e6c28ec7871d48f517b568`.
+manifest materializes 24,267 lines / 915,335 bytes with SHA-256
+`db05f4fa1a335927b3e2d2559dd8776e1b1a512202588f219043d3cd2f4b1e58`.
 The manifest itself is 1,867 bytes, SHA-256
-`21961e71b49f95f93015be7349e3334f2fcc13df69194760de8fa55c6a07dde5`;
+`8b0c2bac84d3a66783898734cfc1aa9e4b48ef80f4eece3765e9f06b271666e0`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -91,17 +91,21 @@ header. Files in one package directory share a namespace. Types and calls retain
 their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
 
-For multi-unit construction the compiler first parses each complete file in
-a fresh syntax arena. When all declarations are free, clause-free machines
-with scalar results or Unit, no parameters and no nested states, it retains
-their names, signatures and source ranges in declaration order. Imports
-resolve against that directory before any body is checked. The body pass
-checks and emits each file using the ordinary scalar checker and Alpha
-emitter, then releases its local syntax and storage identifiers. Emitted
-instructions keep their assigned storage addresses across a call. The
-global call graph and effect checks run before the compiler publishes the
-tape. Other declaration shapes still use the pooled checker after the syntax
-pass. The single-unit public resource limits remain in force.
+For multi-unit construction the compiler parses each whole file in a fresh
+syntax arena. Free machines with by-value scalar parameter and result types,
+including nested states, can share a declaration directory. A machine without
+a result completes with Unit. The directory retains names, public visibility,
+owner files and the ranges of machine, state and parameter rows. Each file's
+imports resolve against that directory before signature checking. The existing
+checker then computes every signature and allocates the parameters' permanent
+storage. The body pass checks and emits one file at a time and reuses its local
+expression and statement rows. A callee receives fresh addresses for its local
+values. The caller's live values keep theirs. Call cycles and effects are
+checked before publishing the tape.
+
+Nominal layouts, reference signatures, machine clauses and state-entry requirements
+still use the pooled checker after the per-file syntax pass. The single-unit
+public resource limits remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
 Imports are file-local. Exact imports select declarations; namespace imports

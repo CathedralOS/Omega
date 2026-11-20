@@ -30,7 +30,13 @@ machine OmegaScalarCompiler::declaration_public(
 ) -> i32 {
     transition kind {
         OmegaDeclarationKind::Data -> return self.parser.data_items[index].is_public
-        OmegaDeclarationKind::Machine -> return self.parser.machine_items[index].is_public
+        OmegaDeclarationKind::Machine -> machine_visibility()
+    }
+    state machine_visibility() {
+        transition self.construction.active {
+            1 -> return self.construction.machines[index].is_public
+            _ -> return self.parser.machine_items[index].is_public
+        }
     }
 }
 

@@ -197,6 +197,16 @@ machine Main::source_sets(&mut self) {
         assert self.compiler.tape.finalized == 0;
         assert self.compiler.tape.payload_length() == 0;
         self.compiler.parser.sources.dependency_count = 1;
+        self.compiler.compile_set(source, 0, "absent");
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Reject -> retry(source)
+            _ -> self.console.exit_process(142)
+        }
+    }
+    state retry(source: &[u8]) {
+        assert self.compiler.outcome_code == 11;
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
         self.compiler.compile_set(source, 0, "main");
         self.publish(42, 143);
     }
