@@ -307,85 +307,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.diagnostic_end = unit_start + self.scan.diagnostic_end;
     }
 
-    // scan_preflighted_stage is public only because D17 has no private machine
-    // visibility. Here it is authorized solely by validate_lexical above and
-    // the same invocation-local source parameter.
     state scan_semantic(purpose: i32) {
-        self.scan.scan_preflighted_stage(source, self.cursor);
-        transition self.scan.accepted {
-            1 -> scanned(purpose)
-            _ -> internal_failure()
+        transition self.scan_significant_token(source) {
+            OmegaParserScanResult::Token -> semantic_token(purpose)
+            OmegaParserScanResult::End -> end_of_view(purpose)
+            OmegaParserScanResult::Internal -> internal_failure()
         }
-    }
-
-    state scanned(purpose: i32) {
-        transition self.scan.has_token {
-            1 -> token_progress(purpose)
-            _ -> end_progress(purpose)
-        }
-    }
-
-    state token_progress(purpose: i32) {
-        transition (self.scan.token_start == self.cursor) &&
-            (self.scan.token_end > self.cursor) &&
-            (self.scan.token_end <= source.len) &&
-            (self.scan.next_cursor > self.cursor) &&
-            (self.scan.next_cursor <= source.len) {
-            true -> token_advance_shape(purpose)
-            _ -> internal_failure()
-        }
-    }
-
-    state token_advance_shape(purpose: i32) {
-        transition self.scan.token_end == self.scan.next_cursor {
-            true -> trivia(purpose)
-            _ -> line_comment_advance(purpose)
-        }
-    }
-
-    // A line comment excludes its terminating LF from the token span but owns
-    // that byte's advance. No other scanner token may hide a span/advance gap.
-    state line_comment_advance(purpose: i32) {
-        transition self.scan.token_kind {
-            OmegaTokenKind::LineComment -> line_comment_extent(purpose)
-            _ -> internal_failure()
-        }
-    }
-
-    state line_comment_extent(purpose: i32) {
-        transition (self.scan.token_end < source.len) &&
-            (self.scan.next_cursor == self.scan.token_end + 1) {
-            true -> line_comment_newline(purpose)
-            _ -> internal_failure()
-        }
-    }
-
-    state line_comment_newline(purpose: i32) {
-        transition source[self.scan.token_end] {
-            10 -> trivia(purpose)
-            _ -> internal_failure()
-        }
-    }
-
-    state end_progress(purpose: i32) {
-        transition self.cursor == source.len {
-            true -> end_of_view(purpose)
-            _ -> internal_failure()
-        }
-    }
-
-    state trivia(purpose: i32) {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Whitespace -> advance_trivia(purpose)
-            OmegaTokenKind::LineComment -> advance_trivia(purpose)
-            OmegaTokenKind::BlockComment -> advance_trivia(purpose)
-            _ -> semantic_token(purpose)
-        }
-    }
-
-    state advance_trivia(purpose: i32) {
-        self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(purpose) }
     }
 
     state semantic_token(purpose: i32) {
@@ -10422,5 +10349,94 @@ machine OmegaParser::scan_static_call_suffix(&mut self, source: &[u8], cursor: i
             OmegaPunctuationKind::LeftParen -> return 1
             _ -> return 0
         }
+    }
+}
+
+data OmegaParserScanResult {
+    case Token;
+    case End;
+    case Internal;
+}
+
+// append_unit has validated this source view. Advance the cursor past trivia
+// and leave the next token in self.scan for the active grammar continuation.
+machine OmegaParser::scan_significant_token(&mut self, source: &[u8]) -> OmegaParserScanResult {
+    transition true { true -> scan() }
+    state scan() {
+        self.scan.scan_preflighted_stage(source, self.cursor);
+        transition self.scan.accepted {
+            1 -> scanned()
+            _ -> return OmegaParserScanResult::Internal
+        }
+    }
+
+    state scanned() {
+        transition self.scan.has_token {
+            1 -> token_progress()
+            _ -> end_progress()
+        }
+    }
+
+    state token_progress() {
+        transition (self.scan.token_start == self.cursor) &&
+            (self.scan.token_end > self.cursor) &&
+            (self.scan.token_end <= source.len) &&
+            (self.scan.next_cursor > self.cursor) &&
+            (self.scan.next_cursor <= source.len) {
+            true -> token_advance_shape()
+            _ -> return OmegaParserScanResult::Internal
+        }
+    }
+
+    state token_advance_shape() {
+        transition self.scan.token_end == self.scan.next_cursor {
+            true -> trivia()
+            _ -> line_comment_advance()
+        }
+    }
+
+    // A line comment excludes its terminating LF from the token span but owns
+    // that byte's advance. No other scanner token may hide a span/advance gap.
+    state line_comment_advance() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::LineComment -> line_comment_extent()
+            _ -> return OmegaParserScanResult::Internal
+        }
+    }
+
+    state line_comment_extent() {
+        transition (self.scan.token_end < source.len) &&
+            (self.scan.next_cursor == self.scan.token_end + 1) {
+            true -> line_comment_newline()
+            _ -> return OmegaParserScanResult::Internal
+        }
+    }
+
+    state line_comment_newline() {
+        transition source[self.scan.token_end] {
+            10 -> trivia()
+            _ -> return OmegaParserScanResult::Internal
+        }
+    }
+
+    state end_progress() {
+        transition self.cursor == source.len {
+            true -> return OmegaParserScanResult::End
+            _ -> return OmegaParserScanResult::Internal
+        }
+    }
+
+    state trivia() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Whitespace -> advance_trivia()
+            OmegaTokenKind::LineComment -> advance_trivia()
+            OmegaTokenKind::BlockComment -> advance_trivia()
+            _ -> return OmegaParserScanResult::Token
+        }
+    }
+
+    state advance_trivia() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan() }
     }
 }

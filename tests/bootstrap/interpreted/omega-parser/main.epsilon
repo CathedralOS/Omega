@@ -11,6 +11,24 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.parser.parse_view("// comment at EOF");
+    self.check_complete();
+    assert self.parser.root_count == 0;
+
+    self.parser.parse_view("// line\ndata /* gap */ A { x: u8; } // end");
+    self.check_complete();
+    assert self.parser.root_count == 1;
+    assert self.parser.data_items[0].name.start == 23;
+    assert self.parser.data_items[0].name.end == 24;
+
+    self.parser.parse_view("data // missing name\n");
+    self.check_syntax_refused(21, 21);
+
+    self.parser.parse_view("data /* missing");
+    self.check_lexical_failure();
+    assert self.parser.diagnostic_start == 5;
+    assert self.parser.diagnostic_end == 15;
+
     self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: @u8; d: u32 in Domain; }");
     self.check_data_rows();
 

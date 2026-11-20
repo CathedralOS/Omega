@@ -28,9 +28,11 @@ closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRA
 
 ## Compiler stages
 
-The parser asks the scanner for one token at a time. The scalar compiler
-checks the parsed declarations and bodies and calls the Alpha encoder
-directly. These stages share one Epsilon translation unit.
+The parser asks `scan_significant_token` for the next grammar token. The method
+skips trivia, checks that the scanner advanced correctly, and distinguishes a
+token from end of input and an internal failure. The scalar compiler checks
+the parsed declarations and bodies and calls the Alpha encoder directly.
+These stages share one Epsilon translation unit.
 
 | Stage | Input and result | Implementation |
 | --- | --- | --- |
@@ -61,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,245 lines / 868,356 bytes with SHA-256
-`13f066b25b1948ddf631272f9725748e41ab4c4b431c3058015210f8e1f18e72`.
+manifest materializes 23,261 lines / 868,749 bytes with SHA-256
+`d8ba11f435e6cde8e539a29464049d5276fff8c1b0a578a25d5c1868d15609cc`.
 The manifest itself is 1,698 bytes, SHA-256
-`1ca54a7f389837e1e9b4715f574272e9c0a279bb3ee25441a86cf014f95d948b`;
+`43a40fe3073737001518df2e3b023ff3ea4afc3060b423b951a01d2a0c68b748`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
