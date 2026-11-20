@@ -1,6 +1,10 @@
 ; Byte literals are source data, never identifier spellings or executable forms.
 ; A closing quote belongs to the token; delimiters inside the literal are bytes.
 ; Zero reports a malformed/unclosed token because every successful end is positive.
+(def character_quote ((byte Int)) Int (eq byte 39))
+
+(def literal_quote ((byte Int)) Int (if (eq byte '"') 1 (character_quote byte)))
+
 (def byte_literal_escape_marker ((byte Int)) Int (eq byte 92))
 
 ; The small escape alphabet serves readable compiler source templates. Unknown
@@ -24,15 +28,29 @@
             0)
           (if (lt byte 32) 0 (byte_literal_scan (+ index 1))))))))
 
-(def byte_literal_boundary ((after Int)) Int
+(def literal_boundary ((after Int)) Int
   (if (eq after (source_length)) 1
     (let byte Int (source_read after)
       (if (is_space byte) 1
         (if (eq byte '(') 1
           (if (eq byte ')') 1 (eq byte ';')))))))
 
-(def byte_literal_valid ((start Int) (after Int)) Int
-  (let end Int (byte_literal_scan (+ start 1))
-    (if end
-      (if (eq end after) (byte_literal_boundary after) 0)
-      0)))
+; Apostrophe (39) quotes one ASCII byte as an Int. The scanner validates the
+; closing quote and width before either execution path reads the value.
+(def character_literal_value ((start Int)) Int
+  (let byte Int (source_read (+ start 1))
+    (if (byte_literal_escape_marker byte)
+      (let escaped Int (source_read (+ start 2))
+        (if (character_quote escaped) escaped (byte_literal_escape_value escaped)))
+      (if (character_quote byte) -1 (if (lt byte '\s') -1 byte)))))
+
+(def character_literal_end ((start Int)) Int
+  (if (lt (+ start 2) (source_length))
+    (let close Int (if (byte_literal_escape_marker (source_read (+ start 1)))
+                     (+ start 3) (+ start 2))
+      (if (lt close (source_length))
+        (if (character_quote (source_read close))
+          (if (lt (character_literal_value start) 0) 0 (+ close 1))
+          0)
+        0))
+    0))

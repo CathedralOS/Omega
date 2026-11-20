@@ -17,6 +17,26 @@ Three changes made a reviewer’s comparisons more direct. The Epsilon wire entr
 
 These runs use fixed revisions. The four host/target tests predate the 729,482-byte keyword-table evaluator. The wire tape exercises one Omega product; the complete Omega-in-Omega rebuild is still open.
 
+## Quoted ASCII integers in Delta
+
+Delta lets the Epsilon lexer say `(ascii_between c 'A' 'Z')`. The shared
+checker reads one quoted byte, the direct interpreter returns its integer
+value and the compiler emits a decimal Gamma integer. The change added
+1,015 bytes to the packed Delta compiler source relative
+to #4572 (152,036 to 153,051 bytes). The Linux compiler grew from 507,409 to
+511,856 bytes. [Literal grammar](../../../bootstrap/delta/LANGUAGE.md#program-form)
+
+In a comparison on the same pinned evaluator entry, 146 byte constants in
+Epsilon's lexical checker and token reader were respelled. Their generated
+Gamma differed in names derived from Delta source offsets. Both built the
+same 2,004,942-byte Linux evaluator, SHA-256
+`023d970589e30d0806ddd7f38041a7e81660224e46fc8700b363a4d13d96721a`.
+Both executed the 256-byte Omega classifier and rejected its wrong-type twins
+at offsets 2032 and 2991. To exercise quoted delimiters, escapes and bad
+source coordinates on both Delta profiles, run the direct interpreter and
+compiled literal checks. [Direct tests](../../../tests/bootstrap/interpreted/delta/interpreter.py) ·
+[Compiled tests](../../../tests/bootstrap/independent/epsilon/literal_controls.py)
+
 <details>
 <summary>Reproduce the measurements from pinned sources</summary>
 

@@ -47,9 +47,9 @@
         (if (eq byte ')')
           (+ index 1)
           (if (eq byte '"')
-            (let after Int (byte_literal_scan (+ index 1))
-              (if after after (source_length)))
-            (token_word_end index)))))))
+            (byte_literal_scan (+ index 1))
+            (if (character_quote byte) (character_literal_end index)
+              (token_word_end index))))))))
 
 (def token_word_end ((index Int)) Int
   (if (eq index (source_length))

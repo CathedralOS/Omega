@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import struct
 
+from interpreted.delta.character_literals import character_programs, invalid_characters
+
 
 def run(work, vm, producer, realize, seconds):
     support = (work / "support.bin").read_bytes()
@@ -26,6 +28,18 @@ def run(work, vm, producer, realize, seconds):
         executable = vm.compile_program(work, receipt, f"literal-{index}", compiler=producer,
                                         realize=realize)
         assert vm.execute(executable) == (0, expected), ("literal bytes", index)
+
+    characters, decimal, expected = character_programs()
+    for profile in (1, 2):
+        status, receipt = compile_delta(characters, profile)
+        assert status == 0 and compile_delta(decimal, profile) == (0, receipt)
+        program = vm.compile_program(work, receipt, f'characters-{profile}', compiler=producer,
+                                     realize=realize)
+        assert vm.execute(program) == (0, expected)
+        for source, code, offset in invalid_characters():
+            status, refusal = compile_delta(source, profile)
+            assert status == 1 and struct.unpack('<8sBBHIQQQ', refusal) == (
+                b'\xffDCOUT\x01\x00', 1, 1, 0, code, offset, 0, 0), source
 
     # Both canonical profiles require a Bytes entry. Exercise the existing
     # raw-source scalar diagnostic entry separately.

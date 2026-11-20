@@ -10,6 +10,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from compiled import ROOT, execute, gamma_program, gamma_request as frame, pack, reconstruct, shell
 from conformance.vectors import epsilon_observations, epsilon_syntax_controls
+from interpreted.delta.character_literals import character_programs, invalid_characters
 
 HERE = Path(__file__).resolve().parent
 DELTA = ROOT / "bootstrap/delta"
@@ -40,6 +41,10 @@ def observations(profile="conformance"):
     for payload in (b"", b"\x00\xff"):
         yield f"nominal matches and mutual recursion {len(payload)} input bytes", frame(values, payload), (
             0, b"+" + payload[-1:] + b'\n\\"')
+    characters, _, expected = character_programs()
+    yield "quoted ASCII integers", frame(characters), (0, expected)
+    for source, code, offset in invalid_characters():
+        yield f"invalid character {source!r}", frame(source), failure(1, 1, code, offset)
     # Sibling scopes may reuse a spelling; equal-length and prefix-related
     # names in one active scope still refer to their distinct bindings.
     scopes = b"""(def main ((scope Bytes)) Bytes

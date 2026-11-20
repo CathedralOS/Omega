@@ -34,7 +34,7 @@ program      := data-declaration* function-declaration+
 data         := (data TYPE (CONSTRUCTOR TYPE*)+)
 function     := (def NAME ((NAME TYPE)*) TYPE expression)
 type         := Int | Bytes | TYPE
-expression   := INTEGER | BYTE_STRING | NAME
+expression   := INTEGER | CHARACTER | BYTE_STRING | NAME
               | (if expression expression expression)
               | (let NAME TYPE expression expression)
               | (+ expression expression) | (- expression expression)
@@ -50,6 +50,15 @@ expression   := INTEGER | BYTE_STRING | NAME
               | (bytes_concat expression expression)
 pattern      := CONSTRUCTOR | (CONSTRUCTOR NAME*)
 ```
+
+A `CHARACTER` is an `Int` spelled with single quotes. For example, `'A'` and
+`65` have the same type and value. It contains one printable ASCII byte or one
+escape. Use `\'` for apostrophe, `\\` for backslash, and `\t`, `\n`, or `\r`
+for tab, LF, or CR. A double quote can be written directly or as `\"`.
+Parentheses, space and semicolon inside the quotes are literal bytes.
+The closing quote must be followed by whitespace, a parenthesis, a comment, or
+source end. Empty, wide, unclosed and malformed spellings are syntax errors
+at the opening quote. Whole-source byte validation takes precedence.
 
 A `BYTE_STRING` is an immutable `Bytes` value written between double quotes.
 Its unescaped contents are printable ASCII except double quote and backslash.
