@@ -1,0 +1,12 @@
+; Observe token codes through the same bounded source view as the framed evaluator.
+(def test_keyword_codes ((source EpsilonSourceView) (cursor Int)) Bytes
+  (let start Int (epsilon_token_start source cursor)
+    (let code Int (epsilon_token_code source start)
+      (if (eq code 0) (bytes_single 0)
+        (bytes_concat (bytes_single code)
+          (test_keyword_codes source (epsilon_token_end source start)))))))
+
+(def main ((input Bytes)) Bytes
+  (match (epsilon_source_view input 1 (- (bytes_length input) 2))
+    (InvalidEpsilonSourceView (bytes_single 255))
+    ((ValidEpsilonSourceView source) (test_keyword_codes source 0))))

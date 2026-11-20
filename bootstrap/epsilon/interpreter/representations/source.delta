@@ -1,7 +1,12 @@
 ; Compiler input windows are not Epsilon runtime views or program storage.
 ; Only the source factories establish the backing/origin/length invariant.
+; A source view owns one immutable vocabulary for all its token rescans.
+(data EpsilonKeywordList
+  (NoEpsilonKeywords)
+  (EpsilonKeyword Bytes Int EpsilonKeywordList))
+
 (data EpsilonSourceView
-  (EpsilonSourceViewAt Bytes Int Int))
+  (EpsilonSourceViewAt Bytes Int Int EpsilonKeywordList))
 
 (data EpsilonSourceViewOutcome
   (InvalidEpsilonSourceView)

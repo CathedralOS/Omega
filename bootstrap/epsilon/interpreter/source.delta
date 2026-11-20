@@ -8,21 +8,26 @@
         (if (lt available origin) InvalidEpsilonSourceView
           (if (lt (- available origin) length) InvalidEpsilonSourceView
             (ValidEpsilonSourceView
-              (EpsilonSourceViewAt backing origin length))))))))
+              (EpsilonSourceViewAt backing origin length (epsilon_keywords length)))))))))
 
 (def epsilon_source_whole ((backing Bytes)) EpsilonSourceView
-  (EpsilonSourceViewAt backing 0 (bytes_length backing)))
+  (let length Int (bytes_length backing)
+    (EpsilonSourceViewAt backing 0 length (epsilon_keywords length))))
 
 (def epsilon_source_length ((source EpsilonSourceView)) Int
   (match source
-    ((EpsilonSourceViewAt backing origin length) length)))
+    ((EpsilonSourceViewAt backing origin length keywords) length)))
+
+(def epsilon_source_keywords ((source EpsilonSourceView)) EpsilonKeywordList
+  (match source
+    ((EpsilonSourceViewAt backing origin length keywords) keywords)))
 
 ; All consumers use factory-established views. Validate the relative index
 ; before addition, retaining ordinary Delta Bytes failure on an invalid read.
 ; No dummy byte, input-header byte, or sealed stdin byte substitutes for it.
 (def epsilon_source_byte ((source EpsilonSourceView) (index Int)) Int
   (match source
-    ((EpsilonSourceViewAt backing origin length)
+    ((EpsilonSourceViewAt backing origin length keywords)
       (if (lt index 0) (bytes_get (bytes_empty) 0)
         (if (lt index length)
           (bytes_get backing (+ origin index))

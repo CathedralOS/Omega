@@ -51,24 +51,53 @@
       0)
     0))
 
+; Delta constructs byte literals at runtime. Build this list once per admitted
+; source view so rescanning identifiers can compare the same spellings.
+; Shorter words come first. Lookup stops when the next word is too long.
+(def epsilon_keywords ((sourceLength Int)) EpsilonKeywordList
+  (if (lt sourceLength 2) NoEpsilonKeywords
+    (EpsilonKeyword "u8" 25
+    (EpsilonKeyword "let" 17
+    (EpsilonKeyword "mut" 23
+    (EpsilonKeyword "i32" 24
+    (EpsilonKeyword "data" 12
+    (EpsilonKeyword "case" 13
+    (EpsilonKeyword "true" 20
+    (EpsilonKeyword "self" 22
+    (EpsilonKeyword "trait" 11
+    (EpsilonKeyword "state" 15
+    (EpsilonKeyword "false" 21
+    (EpsilonKeyword "never" 26
+    (EpsilonKeyword "return" 18
+    (EpsilonKeyword "assert" 19
+    (EpsilonKeyword "machine" 14
+    (EpsilonKeyword "boundary" 10
+    (EpsilonKeyword "transition" 16
+      NoEpsilonKeywords)))))))))))))))))))
+
+(def epsilon_keyword_matches
+  ((source EpsilonSourceView) (start Int) (word Bytes) (index Int) (length Int)) Int
+  (if (eq index length) 1
+    (if (eq (epsilon_source_byte source (+ start index)) (bytes_get word index))
+      (epsilon_keyword_matches source start word (+ index 1) length) 0)))
+
+(def epsilon_find_keyword
+  ((source EpsilonSourceView) (start Int) (length Int) (words EpsilonKeywordList)) Int
+  (match words
+    (NoEpsilonKeywords 1)
+    ((EpsilonKeyword word code rest)
+      (let wordLength Int (bytes_length word)
+        (if (lt length wordLength) 1
+          (if (if (eq length wordLength)
+                (epsilon_keyword_matches source start word 0 length) 0)
+            code
+            (epsilon_find_keyword source start length rest)))))))
+
 (def epsilon_keyword_code ((source EpsilonSourceView) (start Int) (end Int)) Int
-  (if (epsilon_span_is_8 source start end 98 111 117 110 100 97 114 121) 10
-    (if (epsilon_span_is_5 source start end 116 114 97 105 116) 11
-      (if (epsilon_span_is_4 source start end 100 97 116 97) 12
-        (if (epsilon_span_is_4 source start end 99 97 115 101) 13
-          (if (epsilon_span_is_7 source start end 109 97 99 104 105 110 101) 14
-            (if (epsilon_span_is_5 source start end 115 116 97 116 101) 15
-              (if (epsilon_span_is_10 source start end 116 114 97 110 115 105 116 105 111 110) 16
-                (if (epsilon_span_is_3 source start end 108 101 116) 17
-                  (if (epsilon_span_is_6 source start end 114 101 116 117 114 110) 18
-                    (if (epsilon_span_is_6 source start end 97 115 115 101 114 116) 19
-                      (if (epsilon_span_is_4 source start end 116 114 117 101) 20
-                        (if (epsilon_span_is_5 source start end 102 97 108 115 101) 21
-                          (if (epsilon_span_is_4 source start end 115 101 108 102) 22
-                            (if (epsilon_span_is_3 source start end 109 117 116) 23
-                              (if (epsilon_span_is_3 source start end 105 51 50) 24
-                                (if (epsilon_span_is_2 source start end 117 56) 25
-                                  (if (epsilon_span_is_5 source start end 110 101 118 101 114) 26 1))))))))))))))))))
+  (let length Int (- end start)
+    (if (lt length 2) 1
+      (if (lt 10 length) 1
+        (epsilon_find_keyword source start length (epsilon_source_keywords source))))))
 
 (def epsilon_skip_comment ((source EpsilonSourceView) (index Int) (length Int)) Int
   (if (eq index length)
