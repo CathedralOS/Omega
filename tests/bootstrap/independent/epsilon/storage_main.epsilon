@@ -35,6 +35,11 @@ machine Counter::copies(&mut self, first: Counter, buffer: [u8; 8], tag: Marker,
     }
 }
 
+machine Main::checked_counter(&mut self, index: i32) -> Counter {
+    assert self.bytes[index] == 7;
+    return self.counter;
+}
+
 machine Main::main(&mut self) {
     let index: i32 = self.console.read_byte();
     let stress: i32 = self.console.read_byte();
@@ -68,9 +73,13 @@ machine Main::main(&mut self) {
     self.console.write_byte(65);
     transition stress {
         1 -> retain(view, index, 300000)
+        2 -> check_field(index)
         _ -> retain(view, index, 3)
     }
 
+    state check_field(index: i32) {
+        self.console.exit_process(self.checked_counter(index).left);
+    }
     state retain(view: &[u8], index: i32, remaining: i32) {
         transition remaining {
             0 -> finish(view, index)

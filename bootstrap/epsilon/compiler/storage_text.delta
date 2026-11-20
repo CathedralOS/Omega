@@ -30,14 +30,18 @@
 (def epsilon_emit_stored_effect_names ((coordinate Int)) Bytes
   (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate)))
 
+(def epsilon_emit_stored_value_then_named ((coordinate Int) (expression Bytes)
+  (fields Bytes) (continuation Bytes)) Bytes
+  (epsilon_emit_match (epsilon_emit_call "epsilon_compiled_value_step"
+    (epsilon_emit_spaced expression (epsilon_emit_decimal coordinate)))
+    (bytes_concat (epsilon_emit_case (epsilon_emit_call "EpsilonContinueValue" fields) continuation)
+      "((EpsilonStopValue ep_terminal) ep_terminal)\n")))
+
 (def epsilon_emit_stored_value_then ((coordinate Int) (expression Bytes) (continuation Bytes)) Bytes
   (let fields Bytes (epsilon_emit_spaced
     (epsilon_emit_spaced (epsilon_emit_generated "value" coordinate) (epsilon_emit_generated "place" coordinate))
     (epsilon_emit_stored_effect_names coordinate))
-    (epsilon_emit_match (epsilon_emit_call "epsilon_compiled_value_step"
-      (epsilon_emit_spaced expression (epsilon_emit_decimal coordinate)))
-      (bytes_concat (epsilon_emit_case (epsilon_emit_call "EpsilonContinueValue" fields) continuation)
-        "((EpsilonStopValue ep_terminal) ep_terminal)\n"))))
+    (epsilon_emit_stored_value_then_named coordinate expression fields continuation)))
 
 (def epsilon_emit_stored_scalar_then ((coordinate Int) (expression Bytes) (continuation Bytes)) Bytes
   (let fields Bytes (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate)

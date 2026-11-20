@@ -270,6 +270,8 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     executable, storage_report = program(source, 'storage-target')
     storage_report['cases'] = []
     for name, payload, expected in [('live', b'\2', b'\0' + struct.pack('<i', 42) + b'A'),
+                                    ('returned-field', b'\x02\x02', b'\0' + struct.pack('<i', 6) + b'A'),
+                                    ('field-base-trap', b'\x08\x02', b'\1\6A'),
                                     ('bounds', b'\10', b'\1\6A'), ('eof', b'', b'\1\6A')]:
         actual = observe(executable, payload)
         assert actual == expected == reference(source, payload, f'storage-reference-{name}'), (name, actual, expected)
