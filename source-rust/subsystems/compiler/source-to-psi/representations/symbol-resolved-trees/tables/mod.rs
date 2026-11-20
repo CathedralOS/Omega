@@ -1,4 +1,9 @@
 //! Publish declaration and body tables from newly resolved source, or append completed bodies.
+pub mod lookup_indexes;
+mod storage;
+mod views;
+pub use storage::{SymbolResolvedBodyStorage, SymbolResolvedDeclarationStorage, SymbolResolvedTypeStorage};
+
 use crate::source_resolved::data::{DataField, DataMember};
 use crate::source_resolved::expression::{ExpressionSource, ExpressionTable};
 use crate::source_resolved::machine::{Machine, OwnedData};
@@ -8,7 +13,7 @@ use crate::source_resolved::signature::{StateParameter, StateSignature};
 use crate::source_resolved::state::State;
 use crate::source_resolved::statement::{Statement, StatementNode, StatementTable};
 use crate::source_resolved::types::{TypeConstraint, TypeReference, TypeReferenceTable};
-use crate::source_resolved::{SymbolResolvedDeclarationStorage, SymbolResolvedTrees};
+use crate::SymbolResolvedTrees;
 use arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -396,5 +401,31 @@ mod tests {
             .map(|state| program.machine_state(*state))
             .expect("entry state");
         assert_eq!(state.statement_nodes.count(), 1);
+    }
+}
+
+
+impl crate::SymbolResolvedTrees {
+    pub fn rebuild_tables(&mut self) {
+        let tables =
+            crate::tables::SymbolResolvedTreeTables::from_symbol_resolved_trees_with_state_spans(self);
+        self.tables.bodies.expressions = tables.bodies.expressions;
+        self.tables.bodies.statements = tables.bodies.statements;
+        self.tables.types.references = tables.types.references;
+    }
+
+    pub fn append_completed_body_tables(
+        &mut self,
+        predecessor: &Self,
+        completed_machines: &[symbols::SymbolHandle],
+    ) {
+        let tables = crate::tables::SymbolResolvedTreeTables::from_body_completion(
+            self,
+            predecessor,
+            completed_machines,
+        );
+        self.tables.bodies.expressions = tables.bodies.expressions;
+        self.tables.bodies.statements = tables.bodies.statements;
+        self.tables.types.references = tables.types.references;
     }
 }

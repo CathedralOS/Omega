@@ -772,7 +772,7 @@ pub mod expression {
             assert_eq!(table.match_arms(arms)[0].source_span, source_span);
             assert_eq!(
                 table.display_name(expression),
-                "match true { false => \"first\", _ => \"fallback\" }"
+                "match true { false -> \"first\", _ -> \"fallback\" }"
             );
 
             let mut copied = ExpressionTable::new();
@@ -2161,7 +2161,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         /// namespace from a parameter or local with the same name.
         pub target_is_static: bool,
         pub authored_call_binding:
-            Option<crate::declaration_selection::ResolvedAuthoredCallBinding>,
+            Option<source_declarations::declaration_selection::ResolvedAuthoredCallBinding>,
         pub receiver: ExpressionHandle,
         pub target_symbol: SymbolHandle,
         pub target: DiagnosticName,

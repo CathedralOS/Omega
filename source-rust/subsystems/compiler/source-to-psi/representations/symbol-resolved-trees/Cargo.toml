@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [lib]
-path = "lib.rs"
+path = "symbol_resolved_trees.rs"
 
 [features]
 test-support = []
