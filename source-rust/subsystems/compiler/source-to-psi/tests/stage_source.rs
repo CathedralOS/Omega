@@ -1,4 +1,5 @@
 //! Exercise the public source compilation boundary with independently acquired inputs.
+use declaration_scope::ProductDeclarationScope;
 use semantic_vocabulary::{PackageKeyIdentity, source_selections::ProductTarget};
 use source_admission::{RetainedDeclaration, SourceOrigin, SourceResolutionStratum};
 use source_compiler::declaration_selection::{
@@ -91,7 +92,9 @@ const OMEGA_OUTCOME: &str =
 fn omega_compiler_storage_and_outcomes_publish_psi() {
     // Compile the product declarations directly so a broken hosted Build
     // cannot hide a regression in their field types or accessors.
-    let sources = include_str!("../../../../../source/subsystems/compiler/source_to_psi/representations/source_files/source.omg");
+    let sources = include_str!(
+        "../../../../../source/subsystems/compiler/source_to_psi/representations/source_files/source.omg"
+    );
     let (storage, _) = sources
         .split_once("public machine source_set_add(")
         .unwrap();
@@ -114,8 +117,20 @@ fn complete_omega_request_protocol_publishes_psi() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let wire_package = PackageKeyIdentity::from_digest([0x62; 32]).unwrap();
     let mut files = SourceMap::default();
-    let request = capture_file(&mut files, "compiler_request", package, "request.omg", OMEGA_REQUEST);
-    let outcome = capture_file(&mut files, "compiler_request", package, "outcome.omg", OMEGA_OUTCOME);
+    let request = capture_file(
+        &mut files,
+        "compiler_request",
+        package,
+        "request.omg",
+        OMEGA_REQUEST,
+    );
+    let outcome = capture_file(
+        &mut files,
+        "compiler_request",
+        package,
+        "outcome.omg",
+        OMEGA_OUTCOME,
+    );
     let protocol = capture_file(
         &mut files,
         "compiler_request",
@@ -131,10 +146,20 @@ fn complete_omega_request_protocol_publishes_psi() {
         include_str!("../../../../../source/foundation/wire/codec.omg"),
     );
     let mut stage = product(files, request, package, &[]);
+    let scope = ProductDeclarationScope::from_direct_dependencies(
+        &[package, wire_package],
+        [(package, wire_package)],
+    );
+    stage.declaration_authority = Some(&scope);
     stage.roots.extend([outcome, protocol, wire]);
-    stage.imports.push(SourceScopedTopLevelBinding::logical_module_import(
-        protocol, wire, "wire::u32_from_le_bytes", 1,
-    ));
+    stage
+        .imports
+        .push(SourceScopedTopLevelBinding::logical_module_import(
+            protocol,
+            wire,
+            "wire::u32_from_le_bytes",
+            1,
+        ));
     let program = compile(stage).unwrap();
     assert!(!program.to_bytes().is_empty());
 }
@@ -151,24 +176,42 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
             "psi",
             psi,
             "representations/lowered_program/scalar.omg",
-            include_str!("../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/scalar.omg"),
+            include_str!(
+                "../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/scalar.omg"
+            ),
         );
         let layouts = capture_file(
             &mut files,
             "psi",
             psi,
             "representations/lowered_program/layouts.omg",
-            include_str!("../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/layouts.omg"),
+            include_str!(
+                "../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/layouts.omg"
+            ),
         );
         let mut stage = product(files, root, customer, &[]);
+        let scope =
+            ProductDeclarationScope::from_direct_dependencies(&[customer, psi], [(customer, psi)]);
+        stage.declaration_authority = Some(&scope);
         stage.roots.extend([scalar, layouts]);
-        stage.imports.push(SourceScopedTopLevelBinding::logical_module_import(root, scalar, import, 1));
+        stage
+            .imports
+            .push(SourceScopedTopLevelBinding::logical_module_import(
+                root, scalar, import, 1,
+            ));
         compile(stage)
     };
-    let artifact = check("machine handle(p: ScalarParameter) -> u64 in Trapping { p.type_handle }").unwrap();
+    let artifact =
+        check("machine handle(p: ScalarParameter) -> u64 in Trapping { p.type_handle }").unwrap();
     assert!(!artifact.to_bytes().is_empty());
-    let errors = check("machine handle(p: ScalarLayout) -> u64 in Trapping { p.size }").unwrap_err();
-    assert!(errors.iter().any(|d| d.message.contains("ScalarLayout")), "{errors:?}");
+    let errors =
+        check("machine handle(p: ScalarLayout) -> u64 in Trapping { p.size }").unwrap_err();
+    assert!(
+        errors.iter().any(|d| d
+            .message
+            .contains("type without a symbol while reading the signature of `handle`")),
+        "{errors:?}"
+    );
 }
 
 #[test]
