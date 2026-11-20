@@ -5,7 +5,17 @@ import struct
 import subprocess
 import sys
 
-from vectors import GAMMA_CASES, INVALID_GAMMA, epsilon_observations
+from vectors import (
+    GAMMA_CASES, INVALID_GAMMA, epsilon_historical_at_observations,
+    epsilon_observations, epsilon_syntax_controls,
+)
+
+
+EPSILON_PROFILES = {
+    "language": epsilon_observations,
+    "historical-at": epsilon_historical_at_observations,
+    "syntax-controls": epsilon_syntax_controls,
+}
 
 
 def gamma_observations():
@@ -22,6 +32,8 @@ def main():
     gamma = modes.add_parser("gamma", help="evaluator reading length-framed Gamma source on stdin")
     gamma.add_argument("evaluator", type=Path)
     epsilon = modes.add_parser("epsilon", help="evaluator reading EEREQ on stdin")
+    epsilon.add_argument("--profile", choices=EPSILON_PROFILES, default="language",
+                         help="Epsilon language, original @ inputs, or invalid-token controls")
     epsilon.add_argument("evaluator", type=Path)
     epsilon.add_argument("closure", type=Path, help="packed evaluator used to build the executable")
     omega = modes.add_parser("omega", help="command that compiles and runs an Omega source file")
@@ -40,7 +52,7 @@ def main():
     else:
         command = [args.evaluator.resolve()]
         cases = (gamma_observations() if args.rung == "gamma"
-                 else epsilon_observations(args.closure.read_bytes()))
+                 else EPSILON_PROFILES[args.profile](args.closure.read_bytes()))
 
     passed = failed = 0
     for name, payload, expected in cases:
@@ -55,7 +67,10 @@ def main():
             print(f"{name}: expected exit {expected[0]} and stdout {expected[1]!r}, "
                   f"got {result.returncode}, {result.stdout!r}, stderr {result.stderr!r}", file=sys.stderr)
         failed += 1
-    print(f"{args.rung}: {passed} passed, {failed} failed")
+    label = args.rung
+    if args.rung == "epsilon" and args.profile != "language":
+        label = f"epsilon/{args.profile}"
+    print(f"{label}: {passed} passed, {failed} failed")
     return int(failed > 0)
 
 

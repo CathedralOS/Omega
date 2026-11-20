@@ -451,6 +451,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             62 -> transition_arrow_token()
             63 -> transition_target_token()
             64 -> transition_target_open_token()
+            65 -> transition_arm_end_token()
             66 -> state_body_token()
             67 -> machine_member_token()
             68 -> satisfies_trait_token()
@@ -754,6 +755,11 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             )
             64 -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionTargetOpen,
+                source.len,
+                source.len
+            )
+            65 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedTransitionArm,
                 source.len,
                 source.len
             )
@@ -4325,6 +4331,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state transition_arm_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> transition_separator_failure()
             OmegaPunctuationKind::RightBrace -> finish_transition_block()
             _ -> incomplete_root()
         }
@@ -4875,7 +4882,33 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.transition_statement_count = self.transition_statement_count + 1;
         self.statement_count = self.statement_count + 1;
         self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(65) }
+    }
+
+    // After a complete arm, only a comma or the closing brace may follow.
+    // Returning to arm parsing after the comma permits one trailing comma.
+    state transition_arm_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_arm_end_punctuation()
+            _ -> transition_separator_failure()
+        }
+    }
+    state transition_arm_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Comma -> after_transition_separator()
+            OmegaPunctuationKind::RightBrace -> finish_transition_block()
+            _ -> transition_separator_failure()
+        }
+    }
+    state after_transition_separator() {
+        self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(61) }
+    }
+    state transition_separator_failure() {
+        transition true {
+            true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm,
+                self.scan.token_start, self.scan.token_end)
+        }
     }
 
     state finish_transition_block() {

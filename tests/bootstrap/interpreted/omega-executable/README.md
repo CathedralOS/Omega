@@ -188,11 +188,11 @@ top of the bound member closure, never part of the manifested members.
 | `controls_c.epsilon` | 2,834 | `1ec2b16b0d97631bc88f23c0d39c417e6184875c1178913fba4629b815fc3465` |
 | `controls_d.epsilon` | 2,852 | `b54adbcd30b9f192217b89b96efd3b548443a6e9426bb7891c98845fa89e8adb` |
 | `controls_e.epsilon` | 2,795 | `881feab7746fe17185dfa163629b13c788274891f43c9ab7d72d1f07a3272d72` |
-| `controls_f.epsilon` | 4,465 | `a144d2beb326b1b4f6d0251c97089c5b54dae5d3fc737d6b573a7e2ef7888190` |
+| `controls_f.epsilon` | 4,465 | `17c38612a596bd23ec8bee9f48a43e9bf6591595ba7ec819122acd9692033fc2` |
 | `controls_g.epsilon` | 3,175 | `c3fb524c98a52ad999832af0b7525e75f98900ec69b6f6ac965348a3a20da137` |
-| `controls_h.epsilon` | 3,249 | `30a4006338f1eb08a169fb6b2d844881adb3314b9c39c51fcaea6029838964bc` |
-| `controls_i.epsilon` | 3,754 | `23139dabc77402e41850ff841c1961fba6d0c3713cf30392634186d0159c678f` |
-| `controls_j.epsilon` | 4,571 | `c0226b7ac5ffab6e91fc8edfcc3f64fa3e4e179b20489b77722e8db6d81e96cd` |
+| `controls_h.epsilon` | 3,249 | `5113940dc5134f6052ddb4766d72ff80d55d44241e05db15e11c2210445bac59` |
+| `controls_i.epsilon` | 3,754 | `5b1181c8e56caf2e1ff5ca4d1a7f4b61f0f16ba4488a645418985a73b8b9c6f4` |
+| `controls_j.epsilon` | 5,581 | `203066aca3611f2581bcc849f3d239f0eaf76b673c75389d81d5ad73e9b3ecf5` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/interpreted/omega-identity.sh` covers the refusals. The

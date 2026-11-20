@@ -167,13 +167,10 @@ bootstrap/interpreted/4_epsilon/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
-# Rust-producer omission (omega-rust/README.md): a produced closure's closed
-# dependency set carries no omega-rust/ artifact, build step, or
-# checkout-derived path. Audit every manifested member spelling and the
-# bootstrap invocation surfaces before the byte-identity pins below, so a
-# forged dependency row reports provenance rather than an identity mismatch.
-# This script names the forbidden spellings itself, exactly like the
-# retired-path grep, so it is not one of the audited step files.
+# A produced closure's declared dependencies omit Rust producer artifacts,
+# toolchain build steps and checkout-derived paths. Audit manifest members and
+# bootstrap invocations before checking byte identity so a forged dependency
+# reports its source. This developer-only gate is outside the construction.
 set --
 for omission_manifest in $(find \
     "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \

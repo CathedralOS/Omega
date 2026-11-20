@@ -17,7 +17,7 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as +Trapping; transition 1 { 1 -> done() } machine done() {} }");
     self.check_machine_rows();
 
-    self.parser.parse_view("machine p(scalar: u32 in Trapping) -> bool { transition scalar == 95 { true -> true _ -> other(scalar) } machine other(value: u32 in Trapping) -> bool { transition value < 128 { true -> false _ -> true } } }");
+    self.parser.parse_view("machine p(scalar: u32 in Trapping) -> bool { transition scalar == 95 { true -> true,_ -> other(scalar) } machine other(value: u32 in Trapping) -> bool { transition value < 128 { true -> false,_ -> true } } }");
     self.check_transition_results();
 
     // The retired declaration is not an alias; the word remains an identifier.
@@ -158,7 +158,7 @@ machine Main::main(&mut self) {
     assert self.parser.expression_group_count == 0;
     self.check_call_stacks_empty();
 
-    self.parser.parse_view("machine p() -> bool { transition !f(1) && g(h(2)) { true -> true _ -> false } } machine q() -> bool { transition compare(47) { true -> true _ -> false } }");
+    self.parser.parse_view("machine p() -> bool { transition !f(1) && g(h(2)) { true -> true,_ -> false } } machine q() -> bool { transition compare(47) { true -> true,_ -> false } }");
     self.check_subject_call_rows();
 
     // These declarations and clear body are exact canonical source bytes;

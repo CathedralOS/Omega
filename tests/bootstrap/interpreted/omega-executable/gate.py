@@ -18,15 +18,15 @@ ENTRY_IDENTITIES = {
     "controls_e.epsilon": (2795,
                            "881feab7746fe17185dfa163629b13c788274891f43c9ab7d72d1f07a3272d72"),
     "controls_f.epsilon": (4465,
-                           "a144d2beb326b1b4f6d0251c97089c5b54dae5d3fc737d6b573a7e2ef7888190"),
+                           "17c38612a596bd23ec8bee9f48a43e9bf6591595ba7ec819122acd9692033fc2"),
     "controls_g.epsilon": (3175,
                            "c3fb524c98a52ad999832af0b7525e75f98900ec69b6f6ac965348a3a20da137"),
     "controls_h.epsilon": (3249,
-                           "30a4006338f1eb08a169fb6b2d844881adb3314b9c39c51fcaea6029838964bc"),
+                           "5113940dc5134f6052ddb4766d72ff80d55d44241e05db15e11c2210445bac59"),
     "controls_i.epsilon": (3754,
-                           "23139dabc77402e41850ff841c1961fba6d0c3713cf30392634186d0159c678f"),
-    "controls_j.epsilon": (4571,
-                           "c0226b7ac5ffab6e91fc8edfcc3f64fa3e4e179b20489b77722e8db6d81e96cd"),
+                           "5b1181c8e56caf2e1ff5ca4d1a7f4b61f0f16ba4488a645418985a73b8b9c6f4"),
+    "controls_j.epsilon": (5581,
+                           "203066aca3611f2581bcc849f3d239f0eaf76b673c75389d81d5ad73e9b3ecf5"),
 }
 
 import argparse
@@ -100,8 +100,8 @@ def main():
     require_identity("Delta compiler", delta_compiler, 151525,
                      "de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 839299,
-                     "49316cde32e52b6277b29fa11434eb96ed8c0e3bbfddc7bf5e2d8a126e44beb2")
+    require_identity("D", compiler, 845978,
+                     "f7b757331f515541f1125dc931f1a20911298185df9da81019ce691636e1c0a6")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))

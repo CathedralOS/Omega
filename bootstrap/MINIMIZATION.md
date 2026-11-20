@@ -42,7 +42,7 @@ source-specific recognizers and manufactured output do not count as compilation.
 ## Retention test
 
 The Omega-written compiler should follow the structure of
-[`omega-rust`](../omega-rust) as closely as practical: corresponding pipeline
+[`source-rust/`](../source-rust) as closely as practical: corresponding pipeline
 stages, Psi/Omega ownership boundaries, representations and core mechanisms.
 This is a structural reference, not a requirement for line-by-line translation.
 Reasonable simplifications and improvements are welcome. Keep the implementation

@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,612 lines / 839,299 bytes with SHA-256
-`49316cde32e52b6277b29fa11434eb96ed8c0e3bbfddc7bf5e2d8a126e44beb2`.
+manifest materializes 22,778 lines / 845,978 bytes with SHA-256
+`f7b757331f515541f1125dc931f1a20911298185df9da81019ce691636e1c0a6`.
 The manifest itself is 1,674 bytes, SHA-256
-`8d587950e39ea9c2b0caab5b3e336c244d0bf419c6ee485f24b9e5b076a39cfc`;
+`a946dd927b11d83c4852b4107bda0bbf488146ed59682397f52045ffc25d5a43`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/interpreted/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -101,7 +101,7 @@ It supports
 resolved ordinary free calls, nested argument calls, scalar comparisons,
 short-circuit Boolean operations, and parameterized same-owner tail transfers.
 Boolean transition subjects may depend on runtime values, with Boolean or
-wildcard guards and either a machine transfer or a direct Boolean result.
+wildcard guards, a comma between arms, an optional trailing comma, and either a machine transfer or a direct Boolean result.
 An operand of a transition subject may use a local with a keyword spelling,
 including `target`. The ordinary name resolver checks that binding.
 Boolean literals and `self` retain their expression roles. Match expressions
@@ -158,7 +158,13 @@ No admitted source operation converts these private addresses to numeric values.
 Numeric comparisons bias both unsigned words by the high bit before Alpha's
 signed comparison, preserving unsigned order. Decimal literals currently cover
 `0..4294967295`; larger `u64` spellings remain explicitly
-unsupported. Plain `u64` addition by a nonnegative literal is admitted when
+unsupported. For plain `u32` addition, the compiler tracks which bits may be set
+in each operand and admits disjoint masks. It admits multiplication by a value
+whose only possible values are zero and one power of two if shifting the other
+mask cannot discard a bit. These proofs apply to byte widening and immutable
+scalar bindings. Mutable bindings and unknown word inputs retain the full
+carrier mask. Both operands execute once in source order.
+Plain `u64` addition by a nonnegative literal is admitted when
 checked upper bounds prove the complete result at most 2147483647. The emitted
 word addition is then exact; unproved plain arithmetic remains unsupported.
 Qualified `u32 in Trapping` supports addition, subtraction and multiplication;
@@ -864,7 +870,7 @@ return and `x`.
 machine mark(n:u32 in Trapping)->u32 in Trapping {(n as u32) as +Trapping}
 machine main()->u8 {
     let x:u32 in Trapping=mark(3 as +Trapping);
-    transition x==3 {true->pass() _->miss()}
+    transition x==3 {true->pass(), _->miss()}
     machine pass()->u8 {42}
     machine miss()->u8 {1}
 }

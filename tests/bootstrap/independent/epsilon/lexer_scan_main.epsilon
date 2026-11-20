@@ -1,0 +1,87 @@
+data Main {
+    console: Console;
+    scanner: OmegaLexScan;
+    bytes: [u8; 64];
+}
+
+machine token_tag(kind: OmegaTokenKind) -> i32 {
+    transition kind {
+        OmegaTokenKind::Identifier -> return 1
+        OmegaTokenKind::Integer -> return 2
+        OmegaTokenKind::Float -> return 3
+        OmegaTokenKind::StringLiteral -> return 4
+        OmegaTokenKind::Keyword -> return 5
+        OmegaTokenKind::Punctuation -> return 6
+        OmegaTokenKind::Whitespace -> return 7
+        OmegaTokenKind::LineComment -> return 8
+        OmegaTokenKind::BlockComment -> return 9
+    }
+}
+
+machine diagnostic_tag(code: OmegaLexDiagnosticCode) -> i32 {
+    transition code {
+        OmegaLexDiagnosticCode::InvalidUtf8 -> return 1
+        OmegaLexDiagnosticCode::OutsideLexicalProfile -> return 2
+        OmegaLexDiagnosticCode::UnterminatedBlockComment -> return 3
+        OmegaLexDiagnosticCode::UnterminatedStringLiteral -> return 4
+        OmegaLexDiagnosticCode::UnterminatedStringEscape -> return 5
+        OmegaLexDiagnosticCode::UnsupportedEscape -> return 6
+        OmegaLexDiagnosticCode::UnterminatedHexEscape -> return 7
+        OmegaLexDiagnosticCode::InvalidHexEscapeDigit -> return 8
+    }
+}
+
+machine Main::observe(&mut self) {
+    self.console.write_byte(self.scanner.accepted);
+    self.console.write_byte(self.scanner.has_token);
+    self.console.write_byte(self.scanner.internal_failure);
+    self.console.write_byte(self.scanner.token_start);
+    self.console.write_byte(self.scanner.token_end);
+    self.console.write_byte(self.scanner.next_cursor);
+    self.console.write_byte(self.scanner.decoded_length);
+    self.console.write_byte(self.scanner.diagnostic_start);
+    self.console.write_byte(self.scanner.diagnostic_end);
+    transition self.scanner.has_token {
+        1 -> token()
+        _ -> no_token()
+    }
+    state token() { self.console.write_byte(token_tag(self.scanner.token_kind)); }
+    state no_token() {
+        transition self.scanner.diagnostic_end > self.scanner.diagnostic_start {
+            true -> rejected()
+            _ -> no_tag()
+        }
+    }
+    state rejected() { self.console.write_byte(diagnostic_tag(self.scanner.diagnostic_code)); }
+    state no_tag() { self.console.write_byte(0); }
+}
+
+// Each input record contains length, cursor, and that many source bytes.
+machine Main::main(&mut self) {
+    transition true { true -> record() }
+    state record() {
+        let length: i32 = self.console.read_byte();
+        transition length >= 0 { true -> cursor(length) _ -> done() }
+    }
+    state cursor(length: i32) {
+        assert length <= 64;
+        let offset: i32 = self.console.read_byte();
+        assert offset >= 0;
+        transition true { true -> read(length, offset, 0) }
+    }
+    state read(length: i32, offset: i32, index: i32) {
+        transition index < length { true -> append(length, offset, index) _ -> scan(length, offset) }
+    }
+    state append(length: i32, offset: i32, index: i32) {
+        let byte: i32 = self.console.read_byte();
+        assert byte >= 0;
+        self.bytes[index] = byte;
+        transition true { true -> read(length, offset, index + 1) }
+    }
+    state scan(length: i32, offset: i32) {
+        let source: &[u8] = self.bytes[0..length];
+        self.inspect(source, offset);
+        transition true { true -> record() }
+    }
+    state done() { self.console.exit_process(42); }
+}

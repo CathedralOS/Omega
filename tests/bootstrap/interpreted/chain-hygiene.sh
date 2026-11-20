@@ -56,7 +56,7 @@ PY
 expect_result() {
   expected=$1
   description=$2
-  diagnostic=${3:-owners differ}
+  diagnostic=${3:-unexpected product source owners}
   if sh "$FIXTURE_ROOT/tools/bootstrap/check-chain-hygiene.sh" \
       > "$FIXTURE_PARENT/result" 2>&1; then
     actual=accepted
@@ -68,8 +68,10 @@ expect_result() {
     echo "bootstrap owner inventory: $description was $actual" >&2
     exit 1
   fi
-  if [ "$expected" = rejected ]; then
-    grep -q "$diagnostic" "$FIXTURE_PARENT/result"
+  if [ "$expected" = rejected ] && ! grep -Fq -- "$diagnostic" "$FIXTURE_PARENT/result"; then
+    cat "$FIXTURE_PARENT/result" >&2
+    echo "bootstrap owner inventory: $description did not report '$diagnostic'" >&2
+    exit 1
   fi
 }
 
@@ -149,8 +151,7 @@ rm "$FIXTURE_ROOT/source/retired/.DS_Store"
 expect_result accepted 'clean checkout once the retired owner is removed'
 
 # Rust-producer omission: no produced closure's declared dependency set may
-# carry an omega-rust/ artifact, a Rust-toolchain build step, or a
-# checkout-derived path (omega-rust/README.md).
+# carry a Rust producer artifact, a toolchain build step or a checkout-derived path.
 mkdir -p "$FIXTURE_ROOT/tools/bootstrap/omega"
 printf 'cargo build --release\n' > "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
 expect_result rejected 'bootstrap step invoking the Rust toolchain' \
@@ -158,12 +159,20 @@ expect_result rejected 'bootstrap step invoking the Rust toolchain' \
 rm "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
 cp "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources" \
   "$FIXTURE_PARENT/omega_compiler.epsilon.sources"
-printf 'member 0000000000000000000000000000000000000000000000000000000000000009 1 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 omega-rust/forged.epsilon\n' \
-  >> "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
-expect_result rejected 'manifest member inside omega-rust/' \
-  'produced closure carries the Rust producer'
-cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
-  "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
+for producer in source-rust omega-rust-v2 omega-rust
+do
+  printf 'cat "%s/forged.epsilon"\n' "$producer" > "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
+  expect_result rejected "bootstrap step reading $producer/" \
+    "producer-build-step: step references Rust producer: $producer/forged.epsilon"
+  rm "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
+
+  printf 'member 0000000000000000000000000000000000000000000000000000000000000009 1 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 %s/forged.epsilon\n' "$producer" \
+    >> "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
+  expect_result rejected "manifest member inside $producer/" \
+    "producer-artifact: member is inside $producer/: $producer/forged.epsilon"
+  cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
+    "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
+done
 expect_result accepted 'restored manifests omit the Rust producer again'
 
 echo 'bootstrap owner inventory: archive, checkout, peer, flat-layout, gate-prefix, and Rust-producer omission cases pass'

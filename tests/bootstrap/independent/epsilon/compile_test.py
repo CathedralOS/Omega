@@ -27,11 +27,11 @@ CONSOLE = b'''boundary trait Console {
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
  machine read_byte() -> i32;
- machine write_line(text: @[u8]);
+ machine write_line(text: &[u8]);
 }
 data Main { console: Console; }
 '''
-EMPTY_MAIN = b'machine Main::main(@mut self) {}\n'
+EMPTY_MAIN = b'machine Main::main(&mut self) {}\n'
 CONTROLS = [
     ('count', '5', 5), ('call', '5', 6),
     ('add_overflow', '', ('trap', 1)),
@@ -212,7 +212,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     assert reference(invalid, b'', 'stored-case-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
 
     payload = source + (b'\ndata Number { case Box(value: i32); }\n'
-                        b'machine Main::save_number(@mut self) { let number: Number = Number::Box(7); }\n')
+                        b'machine Main::save_number(&mut self) { let number: Number = Number::Box(7); }\n')
     offset = payload.index(b'Number::Box(7)')
     assert observe(compiler, payload) == b'unsupported ' + str(offset).encode()
     assert reference(payload, b'', 'stored-case-payload') == expected_exit
@@ -355,7 +355,7 @@ def run(work, vm, producer, realize, seconds):
         scalar_observations = []
         for name, argument, value in CONTROLS:
             call = f'ep_test_{name}({argument})'.encode()
-            main = b'machine Main::main(@mut self) { let value: i32 = ' + call + b''';
+            main = b'machine Main::main(&mut self) { let value: i32 = ' + call + b''';
  self.console.write_byte(value & 255);
  self.console.write_byte((value >> 8) & 255);
  self.console.write_byte((value >> 16) & 255);
@@ -380,7 +380,7 @@ def run(work, vm, producer, realize, seconds):
         # Unsupported Console text output and a payload parameter remain valid
         # Epsilon source. Neither may publish a previously emitted prefix.
         for name, suffix in (
-            ('effect', b'machine Main::unused_write(@mut self) { self.console.write_line("text"); }\n'),
+            ('effect', b'machine Main::unused_write(&mut self) { self.console.write_line("text"); }\n'),
             ('nominal', b'data Color { case Red(value: i32); case Blue; }\nmachine nominal(value: Color) -> i32 { return 0; }\n'),
         ):
             request = source + suffix
@@ -399,6 +399,17 @@ def run(work, vm, producer, realize, seconds):
         report['stage'] = 'actual-request-and-storage'
         checkpoint()
         report['stored_customers'] = stored_customers(work, observe, compile_delta, reference, compiler)
+        report['stage'] = 'lexer-observations'
+        checkpoint()
+        scan_spec = importlib.util.spec_from_file_location('epsilon_lexer_scan', FIXTURES / 'lexer_scan_test.py')
+        scan_controls = importlib.util.module_from_spec(scan_spec)
+        scan_spec.loader.exec_module(scan_controls)
+        predecessor = ROOT / 'build/independent-native-reference'
+        alpha = predecessor / 'alpha-compiler'
+        assert identity(alpha.read_bytes()) == report['enum_customer']['alpha_compiler_image']
+        report['lexer_scan'] = scan_controls.run(
+            work, vm, composition, CONSOLE[:CONSOLE.index(b'data Main')], compiler, alpha,
+            observe, compile_delta, reference, identity, seconds)
         report.update(state='passed', stage='complete', refusal_controls=3, finished=time.time())
         checkpoint()
         return report

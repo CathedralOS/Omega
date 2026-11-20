@@ -19,12 +19,7 @@ impl Invocation {
         fs::create_dir_all(directory.join("nested")).unwrap();
         if workspace {
             fs::create_dir_all(directory.join("tools/xtask")).unwrap();
-            fs::create_dir_all(directory.join("omega-rust")).unwrap();
-            for marker in [
-                "Cargo.toml",
-                "tools/xtask/Cargo.toml",
-                "omega-rust/pipeline.md",
-            ] {
+            for marker in ["Cargo.toml", "tools/xtask/Cargo.toml", "build.omg"] {
                 fs::write(directory.join(marker), "").unwrap();
             }
         }
@@ -90,11 +85,17 @@ fn shared_binary_audits_another_checkout_from_a_nested_directory() {
 }
 
 #[test]
-fn outside_checkout_invocation_refuses_without_creating_an_audit() {
+fn unrelated_checkout_invocation_refuses_without_creating_an_audit() {
     let invocation = Invocation::new(false);
+    invocation.git(&["init", "-q"]);
     let output = invocation.audit(false);
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("no Omega workspace contains"));
+    assert_eq!(output.status.code(), Some(2));
+    let expected = format!(
+        "Git checkout {} is not an Omega workspace",
+        invocation.0.canonicalize().unwrap().display()
+    );
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains(&expected), "{diagnostic}");
     assert!(!invocation.0.join("audit.json").exists());
 }
 
@@ -195,7 +196,7 @@ fn status_commands_accept_a_closed_output_reader() {
 fn worktree_status_shows_a_claim_before_the_first_commit() {
     let invocation = Invocation::new(true);
     invocation.git(&["init", "-b", "main"]);
-    invocation.git(&["add", "Cargo.toml", "tools", "omega-rust"]);
+    invocation.git(&["add", "Cargo.toml", "tools", "build.omg"]);
     invocation.git(&[
         "-c",
         "user.name=Worktree status test",

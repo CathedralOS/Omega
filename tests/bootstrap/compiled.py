@@ -122,7 +122,7 @@ def epsilon_customer(work, producer, realize=stamp):
     print(f"Epsilon customer: reconstructed bound {len(receipt)}-byte receipt in {elapsed:.3f}s; {artifact.stat().st_size} artifact bytes; exit, stdin, trap, reject and malformed-envelope observations passed", flush=True)
 
 
-def omega_customer(work, timeout, controls=False):
+def omega_customer(work, timeout, controls=False, *, observe=None):
     closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
     source = closure + (gate / ("controls_b.epsilon" if controls else "main_ocreq.epsilon")).read_bytes()
@@ -132,7 +132,10 @@ def omega_customer(work, timeout, controls=False):
     (work / (label + "-request.bin")).write_bytes(request)
     print(f"{label} customer: {len(source)} Epsilon source bytes; execution allowance {timeout}s", flush=True)
     started = time.monotonic()
-    status, observation = execute(work / "epsilon", request, timeout)
+    if observe is None:
+        status, observation = execute(work / "epsilon", request, timeout)
+    else:
+        status, observation = observe(request, timeout)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     (work / (label + "-observation.bin")).write_bytes(observation)
     if controls:

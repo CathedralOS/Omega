@@ -1,0 +1,6 @@
+machine Main::inspect(&mut self, source: &[u8], offset: i32) {
+    self.scanner.scan_at(source, offset);
+    self.observe();
+    self.scanner.validate_lexical(source);
+    self.observe();
+}
