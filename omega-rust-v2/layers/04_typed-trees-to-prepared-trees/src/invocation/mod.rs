@@ -226,7 +226,7 @@ enum Step<'a> {
         site: TreeNodeId,
         carrier: ValueType,
     },
-    ProjectFields(Vec<DeclarationId>),
+    ProjectFields(Vec<(TreeNodeId, DeclarationId)>),
     ReadArray,
     ArrayLength,
     ProduceZero {

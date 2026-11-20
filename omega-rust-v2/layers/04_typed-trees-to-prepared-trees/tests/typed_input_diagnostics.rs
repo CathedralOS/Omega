@@ -292,3 +292,129 @@ fn a_floating_literal_reports_conflicting_typed_values_at_its_own_site() {
         });
     });
 }
+
+#[test]
+fn invocation_contracts_require_their_typed_records() {
+    const CLIENT: &str = "const ANSWER:u8=geo\\guarded(42u8);";
+    const CALL_SITE: &str = "geo\\guarded(42u8)";
+    let guarded = Program {
+        library: "public machine guarded(x:u8)->u8 reaches none crashes Trap x == 0 terminates {x}",
+        client: CLIENT,
+        occurrence: CALL_SITE,
+    };
+
+    guarded.check(
+        PreparationReason::CrashCauseWithoutRoute,
+        "the selected crash cause has no typed route",
+        |facts| {
+            assert_eq!(facts.crash_routes.len(), 1);
+            facts.crash_routes.clear();
+        },
+    );
+    guarded.check(
+        PreparationReason::CrashGuardWithoutPredicate,
+        "the selected crash guard has no typed predicate",
+        |facts| {
+            let [route] = facts.crash_routes.as_slice() else {
+                panic!("expected one crash route");
+            };
+            let guard = route.guard.clone().expect("expected a guarded route");
+            let before = facts.obligations.len();
+            facts.obligations.retain(|o| o.site != guard);
+            assert_eq!(facts.obligations.len() + 1, before);
+        },
+    );
+}
+
+#[test]
+fn owned_field_refusals_blame_the_selector() {
+    use PreparationReason::*;
+    use omega_typed::{PlaceStep, Projection};
+
+    let program = Program {
+        occurrence: "p.left",
+        ..RECORD
+    };
+    for (reason, message) in [
+        (FieldNotInActiveValue, "the selected field is not in the active owned value"),
+        (OwnedFieldMismatch, "the selected owned field has a different result type or source tree"),
+        (OwnedFieldWithoutRootType, "the selected owned field has no supported root type"),
+        (FieldReadNeedsProof, "the selected field read requires proof or borrowed storage"),
+    ] {
+        program.check_changed(reason, message, |trees| {
+            let (selector, mut step, field) = trees
+                .trees()
+                .find_map(|tree| {
+                    let file = tree.resolved().file;
+                    (0..file.nodes.len()).find_map(|index| {
+                        let node = file.node_id(index);
+                        let (_, path) = trees.place_path(node);
+                        let [step] = path.as_slice() else { return None };
+                        let Some(Projection::Field(field)) = &step.projection else { return None };
+                        (file.span(index).slice(program.client.as_bytes()) == Some(b"p.left")).then(|| {
+                            let original = PlaceStep {
+                                base: step.base,
+                                through: step.through.clone(),
+                                projection: step.projection.clone(),
+                            };
+                            (node, original, field.as_ref().clone())
+                        })
+                    })
+                })
+                .expect("one typed field selector");
+
+            let mut facts = trees.into_facts();
+            match reason {
+                FieldNotInActiveValue => {
+                    let fields = facts
+                        .record_fields
+                        .values_mut()
+                        .find(|fields| fields.iter().any(|entry| entry.declaration == field))
+                        .expect("the selected field belongs to the control shape");
+                    std::sync::Arc::make_mut(fields).retain(|entry| entry.declaration != field);
+                }
+                OwnedFieldMismatch => {
+                    step.base.file = usize::MAX;
+                    facts.record_place_step(selector, step);
+                }
+                OwnedFieldWithoutRootType => {
+                    let [signature] = facts.signatures.as_slice() else { panic!("expected first") };
+                    assert_eq!(signature.node.file, selector.file);
+                    step.base = signature.node;
+                    facts.record_place_step(selector, step);
+                }
+                FieldReadNeedsProof => {
+                    let answer = facts.constants[0].declaration.clone();
+                    facts.record_constant_reference(selector, answer);
+                }
+                _ => unreachable!(),
+            }
+            facts
+        });
+    }
+}
+
+#[test]
+fn a_field_chain_reports_the_first_component_missing_from_the_active_value() {
+    let client = "data Inner [copy]{value:u8;} data Outer [copy]{inner:Inner;} machine read(p:Outer)->u8{p.inner.value} const ANSWER:u8=read(Outer{inner:Inner{value:42u8}});";
+    for (shape, occurrence) in [("Outer", "p.inner"), ("Inner", "p.inner.value")] {
+        let program = Program {
+            library: "",
+            client,
+            occurrence,
+        };
+        program.check(
+            PreparationReason::FieldNotInActiveValue,
+            "the selected field is not in the active owned value",
+            |facts| {
+                let (_, fields) = facts
+                    .record_fields
+                    .iter_mut()
+                    .find(|(id, _)| id.path == shape)
+                    .unwrap();
+                assert_eq!(fields.len(), 1);
+                std::sync::Arc::make_mut(fields).clear();
+            },
+        );
+    }
+}
