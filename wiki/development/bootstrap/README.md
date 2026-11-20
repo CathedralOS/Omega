@@ -201,3 +201,63 @@ units, the native executable reached the 10 GiB memory guard while reading
 its input. The source model advanced from the renamed binding in
 `expressions.omg` at byte 87,497 to the qualified array element in
 `scalar.omg` at byte 116,239. [Payload results](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#named-payload-bindings)
+
+### Fitting the compiler and its product into one request
+
+The 305-unit product occupied 3,996,333 bytes. Adding the 889,999-byte
+Omega compiler and its 52-byte Epsilon request header brought the input to
+**4,886,384 bytes**. The Delta profile determines whether the Epsilon
+evaluator receives that input. Both source-built evaluators, one running
+on Alpha and one on Linux, gave the following results on a guest that
+read and echoed its first input byte. [Delta byte profiles](../../../bootstrap/delta/LANGUAGE.md#compiler-application-profile)
+
+| Complete request | Conformance | Construction |
+| --- | --- | --- |
+| 4,194,304 bytes | Echoed Z | Echoed Z |
+| 4,194,305 bytes | Exit 253 | Echoed Z |
+| 4,886,384 bytes | Exit 253 | Echoed Z |
+| 8,388,608 bytes | Exit 253 | Echoed Z |
+| 8,388,609 bytes | Exit 253 | Exit 253 |
+
+Every echo produced exactly `005a0000005a` (guest exit 90 and byte Z).
+Exit 253 produced no output. With a bad first header byte at the product’s
+full size, both construction evaluators returned the same 40-byte
+`EEOUT` refusal as on a 52-byte input. This distinguishes a Delta input
+limit from an Epsilon header refusal. The actual product request returned exit 253 with empty output on both
+conformance targets. Its SHA-256 was `65852bc6f3bff86e6743fa264194a002f67c1b1a1f819ccb67daafb8e0daa2c6`.
+[Omega constructor](../../../source/application/construction/construct.py) ·
+[Epsilon request format](../../../bootstrap/epsilon/interpreter/EVALUATOR_ENTRY.md)
+
+<details>
+<summary>Repeat the full-size echo on both hosts</summary>
+
+From `9df6f79be79`, create the guest and payload below. The test guest comes
+from the portable suite. Padding brings its complete request to exactly the
+size of the compiler and product above.
+
+```sh
+work=$(mktemp -d)
+PYTHONPATH=tests/bootstrap python3 - "$work" <<'PYTEST'
+from pathlib import Path
+import sys
+from conformance.vectors import epsilon_program_cases
+w = Path(sys.argv[1])
+_, source, _, _ = next(c for c in epsilon_program_cases() if c[0] == "stdin")
+(w / "echo.epsilon").write_bytes(source)
+(w / "stdin").write_bytes(b"Z" + bytes(4886384 - 52 - len(source) - 1))
+PYTEST
+for delta in alpha native; do
+  python3 tests/bootstrap/route.py "$work/$delta" --gamma native --delta "$delta" \
+    --epsilon interpret --profile construction --source "$work/echo.epsilon" \
+    --stdin "$work/stdin" --seconds 7200
+done
+```
+
+The construction profile emitted 718,770 bytes of Gamma, SHA-256
+`f49b1b93c26c1f04827d90f9da2d547497f044cf71640d709c29e2dfb47f86d6`.
+That source produced a 2,208,546-byte Alpha tape (`727575d9cb20`) and a
+1,957,092-byte Linux executable (`5b17b0fb5fcf`). The conformance build
+reproduced the 2,204,117-byte Alpha and 1,953,223-byte Linux evaluator
+from the same Delta program. [Matrix runner](../../../tests/bootstrap/route.py)
+
+</details>
