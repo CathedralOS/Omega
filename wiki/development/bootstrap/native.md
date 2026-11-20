@@ -641,6 +641,16 @@ That tape returned the identical eight bytes on the seed. The customer enters
 the checker with prepared syntax. Constructing the full Omega compiler from its
 Epsilon sources remains open. [Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)
 
+The earlier Epsilon compiler emitted 4,013,215 bytes for that same signature
+customer, including the storage marker. Its matching runtime and entry made a
+4,107,257-byte Delta program. The stock Delta producer admitted the input and
+returned status 2 with a 40-byte DCOUT at program byte 3,132,226. Syntax
+storage (space 1, code 7) requested 114,294,800 bytes against a 114,294,752-byte
+limit. Shared continuations brought the program to 2,386,951 bytes including
+runtime and entry. The same stock Delta producer then published the Gamma
+program executed above. The old Delta program's SHA-256 is
+`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`.
+
 ### Full bootstrap compiler source
 
 A separate run gave the compiled Epsilon frontend the complete 845,978-byte
