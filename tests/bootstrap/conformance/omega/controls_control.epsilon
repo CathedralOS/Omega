@@ -108,6 +108,7 @@ machine Main::main(&mut self) {
         self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,140);
         self.source_sets();
         self.named_terminal_values();
+        self.nested_machines();
     }
 }
 
@@ -245,4 +246,23 @@ machine Main::named_terminal_values(&mut self) {
     self.refusal("machine main()->u8{transition{_->missing}}", 1, 173);
     self.refusal("machine main()->u8{let value:bool=true;transition{_->value}}", 1, 174);
     self.refusal("machine main()->u8{let value:u8=42;transition{_->block value}}", 1, 175);
+}
+
+// Helpers with the same name in separate branches resolve at their own calls.
+machine Main::nested_machines(&mut self) {
+    self.positive("machine choose(left:bool)->u8{transition left{true->a(),_->b()}machine a()->u8{transition{_->leaf()}machine leaf()->u8{42}}machine b()->u8{transition{_->leaf()}machine leaf()->u8{7}}}machine main()->u8{transition choose(true)==42 && choose(false)==7{true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 42, 201);
+    self.positive("machine main()->u8{transition{_->outer()}machine outer()->u8{transition{_->inner()}machine inner()->u8{transition{_->common()}}}machine common()->u8{42}}", 42, 202);
+    self.positive("machine main()->u8{transition{_->outer()}machine leaf()->u8{7}machine outer()->u8{transition{_->leaf()}machine leaf()->u8{42}}}", 42, 203);
+    self.positive("machine main()->u8{transition{_->outer(true)}machine outer(first:bool)->u8{transition first{true->inner(),_->done()}machine inner()->u8{transition{_->outer(false)}}machine done()->u8{42}}}", 42, 204);
+    self.positive("machine main()->u8{transition{_->outer(42)}machine outer(value:u8)->u8{transition{_->inner(value)}machine inner(value:u8)->u8{value}}}", 42, 205);
+    self.positive("machine helper(){machine outer(){machine leaf(){}}}machine main()->u8{helper();42}", 42, 206);
+    self.positive("machine main()->u8{transition{_->outer(42)}machine outer(leaf:u8)->u8{transition{_->inner(leaf)}machine inner(x:u8)->u8{x}}machine cousin()->u8{transition{_->leaf()}machine leaf()->u8{7}}}", 42, 207);
+    self.rejected_at("machine main()->u8{transition{_->sibling()}machine outer()->u8{transition{_->hidden()}machine hidden()->u8{42}}machine sibling()->u8{transition{_->hidden()}}}", 147, 208);
+    self.rejected_at("machine main()->u8{transition{_->outer()}machine outer()->u8{transition{_->inner()}machine inner()->u8{42}machine inner()->u8{7}}}", 114, 209);
+    self.rejected_at("machine main()->u8{transition{_->outer(42)}machine outer(value:u8)->u8{transition{_->inner()}machine inner()->u8{value}}}", 113, 210);
+    self.rejected_at("machine main()->u8{transition{_->outer()}machine outer()->u8{transition{_->inner()}machine inner()->u8{42}7}}", 106, 211);
+    // An ordinary global call is available in a cousin and hidden beneath a local helper.
+    self.positive("machine leaf()->u8{42}machine main()->u8{transition{_->sibling()}machine outer()->u8{transition{_->leaf()}machine leaf()->u8{7}}machine sibling()->u8{leaf()}}", 42, 212);
+    self.refusal("machine leaf()->u8{7}machine main()->u8{transition{_->outer()}machine outer()->u8{let answer:u8=leaf();transition{_->answer}machine leaf()->u8{42}}}", 2, 213);
+    assert self.compiler.outcome_coordinate == 96;
 }

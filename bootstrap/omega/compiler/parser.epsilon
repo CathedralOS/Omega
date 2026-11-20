@@ -267,6 +267,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.case_body_end = 0;
     self.case_first_payload_field = 0;
     self.machine_first_state = 0;
+    self.machine_member_scope = -1;
     self.machine_first_clause = 0;
     self.state_first_parameter = 0;
     self.state_first_requirement = 0;
@@ -1373,6 +1374,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state begin_machine_bounded(is_public: i32) {
         self.first_member = self.member_count;
         self.machine_first_state = self.machine_state_count;
+        self.machine_member_scope = -1;
         self.machine_first_clause = self.machine_clause_count;
         self.state_first_parameter = self.machine_parameter_count;
         self.state_first_requirement = self.requirement_count;
@@ -3026,14 +3028,14 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state finish_current_state() {
         transition self.state_is_explicit {
-            1 -> retain_explicit_state_for_machine_members()
+            1 -> begin_retain_explicit_state(2)
             _ -> retain_implicit_state_for_machine()
         }
     }
 
     state begin_nested_state() {
         transition self.state_is_explicit {
-            1 -> incomplete_root()
+            1 -> begin_retain_explicit_state(1)
             _ -> retain_implicit_state_for_explicit_state()
         }
     }
@@ -3161,21 +3163,37 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> machine_member_punctuation()
             OmegaTokenKind::Keyword -> machine_member_keyword()
-            _ -> incomplete_root()
+            _ -> expected_machine_body_end()
         }
     }
 
     state machine_member_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::Machine -> begin_explicit_state()
-            _ -> incomplete_root()
+            _ -> expected_machine_body_end()
         }
     }
 
     state machine_member_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::RightBrace -> retain_machine()
-            _ -> incomplete_root()
+            OmegaPunctuationKind::RightBrace -> close_member_scope()
+            _ -> expected_machine_body_end()
+        }
+    }
+
+    state expected_machine_body_end() {
+        transition true {
+            true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedMachineBodyEnd,
+                self.scan.token_start, self.scan.token_end)
+        }
+    }
+
+    state close_member_scope() {
+        self.machine_states[self.machine_member_scope].subtree_end = self.machine_state_count;
+        self.machine_member_scope = self.machine_states[self.machine_member_scope].lexical_parent;
+        transition self.machine_member_scope < 0 {
+            true -> retain_machine()
+            _ -> finish_explicit_state()
         }
     }
 
@@ -8016,9 +8034,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> finish_retain_state(continuation) }
     }
 
-    state retain_explicit_state_for_machine_members() {
+    state begin_retain_explicit_state(continuation: i32) {
         transition self.machine_state_count < 4096 {
-            true -> retain_explicit_state_bounded()
+            true -> retain_explicit_state_bounded(continuation)
             _ -> resource_failure(
                 OmegaParserResource::States,
                 4096,
@@ -8027,7 +8045,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
-    state retain_explicit_state_bounded() {
+    state retain_explicit_state_bounded(continuation: i32) {
         self.machine_states[self.machine_state_count].block_bound = self.state_block_bound;
         self.machine_states[self.machine_state_count].crash_bound = self.state_crash_bound;
         self.machine_states[self.machine_state_count].name_kind =
@@ -8052,16 +8070,23 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             self.state_first_statement;
         self.machine_states[self.machine_state_count].statement_count =
             self.statement_count - self.state_first_statement;
-        transition true { true -> finish_retain_state(2) }
+        transition true { true -> finish_retain_state(continuation) }
     }
 
     state finish_retain_state(continuation: i32) {
+        self.machine_states[self.machine_state_count].lexical_parent = self.machine_member_scope;
+        self.machine_states[self.machine_state_count].subtree_end = self.machine_state_count + 1;
         self.machine_state_count = self.machine_state_count + 1;
         transition continuation {
             0 -> retain_machine()
-            1 -> begin_explicit_state()
+            1 -> open_member_scope()
             _ -> finish_explicit_state()
         }
+    }
+
+    state open_member_scope() {
+        self.machine_member_scope = self.machine_state_count - 1;
+        transition true { true -> begin_explicit_state() }
     }
 
     state finish_explicit_state() {

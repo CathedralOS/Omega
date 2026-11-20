@@ -370,36 +370,32 @@ machine OmegaScalarCompiler::resolve_machine(
     return self.resolve_declaration(source, start, end, OmegaDeclarationKind::Machine);
 }
 
-// Resolve a transition-target name to the index of an authored state owned
-// by machine_index, or -1 when the machine declares no such state.
+// Each declaration owns the direct children in its lexical scope. Skip a
+// child's subtree when comparing siblings, then continue in the parent scope.
 machine OmegaScalarCompiler::resolve_state(
-    &mut self, source: &[u8], machine_index: i32, start: i32, end: i32
+    &mut self, source: &[u8], caller: i32, start: i32, end: i32
 ) -> i32 {
-    let item: OmegaMachineSyntax = self.parser.machine_items[machine_index];
-    transition true {
-        true -> scan(item.first_state, item.first_state + item.state_count)
-    }
+    transition true { true -> scan(caller, caller + 1) }
 
-    state scan(state_index: i32, last: i32) {
-        transition state_index < last {
-            true -> candidate(state_index, last)
-            _ -> return -1
+    state scan(scope: i32, candidate: i32) {
+        transition candidate < self.parser.machine_states[scope].subtree_end {
+            true -> compare(scope, candidate)
+            _ -> ascend(self.parser.machine_states[scope].lexical_parent)
         }
     }
 
-    state candidate(state_index: i32, last: i32) {
-        transition self.parser.machine_states[state_index].name_kind {
-            OmegaMachineStateNameKind::Authored -> compare(state_index, last)
-            _ -> scan(state_index + 1, last)
+    state compare(scope: i32, candidate: i32) {
+        let name: OmegaRelativeSpan = self.parser.machine_states[candidate].name;
+        transition self.span_equals(source, name.start, name.end, source[start..end]) {
+            1 -> return candidate
+            _ -> scan(scope, self.parser.machine_states[candidate].subtree_end)
         }
     }
 
-    state compare(state_index: i32, last: i32) {
-        let name: OmegaRelativeSpan = self.parser.machine_states[state_index].name;
-        transition self.span_equals(source, name.start, name.end,
-            source[start..end]) {
-            1 -> return state_index
-            _ -> scan(state_index + 1, last)
+    state ascend(parent: i32) {
+        transition parent < 0 {
+            true -> return -1
+            _ -> scan(parent, parent + 1)
         }
     }
 }
@@ -1352,7 +1348,7 @@ machine OmegaScalarCompiler::check_value(
     }
     state target(call: OmegaCallExpressionSyntax) {
         transition (call.has_receiver != 0) ||
-            (self.resolve_state(source, owner, call.target.start, call.target.end) < 0) {
+            (self.resolve_state(source, state_index, call.target.start, call.target.end) < 0) {
             true -> global_target(call)
             _ -> unsupported(call.target.start)
         }
@@ -2025,7 +2021,7 @@ machine OmegaScalarCompiler::check_transition_target(
         OmegaTransitionTargetKind::Machine -> target(row)
     }
     state target(row: OmegaTransitionStatementSyntax) {
-        let target: i32 = self.resolve_state(source, owner, row.target.start, row.target.end);
+        let target: i32 = self.resolve_state(source, state_index, row.target.start, row.target.end);
         transition target >= 0 {
             true -> signature(row, target)
             _ -> outside_owner(row)
@@ -2638,7 +2634,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     state parameter(index: i32, offset: i32) {
         transition offset < self.parser.machine_states[index].parameter_count {
             true -> parameter_type(index, offset, self.parser.machine_states[index].first_parameter + offset)
-            _ -> names(index, self.parser.machine_items[owner].first_state + 1)
+            _ -> sibling_names(index, self.parser.machine_states[index].lexical_parent)
         }
     }
     state parameter_type(index: i32, offset: i32, slot: i32) {
@@ -2681,7 +2677,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     }
     state parameter_scope(index: i32, offset: i32, name: OmegaRelativeSpan) {
         transition (self.resolve_machine(source, name.start, name.end) < 0) &&
-            (self.resolve_state(source, owner, name.start, name.end) < 0) {
+            (self.resolve_state(source, index, name.start, name.end) < 0) {
             true -> parameter_names(index, offset, name, 0)
             _ -> unsupported(name.start)
         }
@@ -2700,6 +2696,12 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
             _ -> parameter_names(index, offset, name, previous + 1)
         }
     }
+    state sibling_names(index: i32, parent: i32) {
+        transition parent < 0 {
+            true -> next(index + 1)
+            _ -> names(index, parent + 1)
+        }
+    }
     state names(index: i32, previous: i32) {
         transition previous < index {
             true -> compare_name(index, previous, self.parser.machine_states[index].name,
@@ -2710,7 +2712,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     state compare_name(index: i32, previous: i32, name: OmegaRelativeSpan, other: OmegaRelativeSpan) {
         transition self.span_equals(source, name.start, name.end, source[other.start..other.end]) {
             1 -> same_name(index, previous, name.start)
-            _ -> names(index, previous + 1)
+            _ -> names(index, self.parser.machine_states[previous].subtree_end)
         }
     }
     state same_name(index: i32, previous: i32, coordinate: i32) {
@@ -3206,7 +3208,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state local_scope(index: i32, state_index: i32, statement_offset: i32,
         local: OmegaLocalDataStatementSyntax) {
         transition (self.resolve_machine(source, local.name.start, local.name.end) < 0) &&
-            (self.resolve_state(source, index, local.name.start, local.name.end) < 0) {
+            (self.resolve_state(source, state_index, local.name.start, local.name.end) < 0) {
             true -> local_value(index, state_index, statement_offset, local)
             _ -> incomplete(4, local.name.start)
         }
@@ -3333,7 +3335,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         call: OmegaCallStatementSyntax) {
         let name: OmegaRelativeSpan = self.parser.members[call.target_member];
         transition (call.receiver_member_count > 0) ||
-            (self.resolve_state(source, index, name.start, name.end) < 0) {
+            (self.resolve_state(source, state_index, name.start, name.end) < 0) {
             true -> global_call_target(index, state_index, statement, call, name)
             _ -> incomplete(4, name.start)
         }
