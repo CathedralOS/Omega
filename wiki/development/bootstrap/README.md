@@ -360,6 +360,12 @@ capacity limit in the independent Epsilon model.
 | Compile to Alpha | Ran the 11,976,860-byte constructor on the seed. Its tiny-package tape (22 bytes) and linked wire tape (1,607 bytes) both exited 42. Both wire refusals matched the native route. [Receipts](compiled-alpha.md#running-the-whole-omega-constructor-on-one-tape) | Packing adds 8,233 authored bytes to the Gamma compiler (23.5%). The seed runs a 340-byte decoder. The 305-unit application still needs a successful run. |
 | Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | The full-product run at `6e2b05e9599` crossed 24 GiB before writing a result. Reusing temporary pairs has since cut peak memory for building the constructor from 4.44 to 1.61 GiB. The full-product run is still open. |
 
+With Linux Gamma and a Linux constructor, the Alpha and Linux hosts for the
+Epsilon compiler both passed the same 111-byte package. They compiled the
+full Epsilon source to identical Delta in 625 and 85 CPU seconds respectively.
+Running each constructor on the package produced the same 22-byte program,
+which exited 42 on the seed. [Reproduce both matrix rows](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#compare-the-complete-omega-compiler-across-routes)
+
 The first self-build milestone is an Alpha tape for
 `source/application/construction/main.omg::entry_start`. Then run that tape
 on the same package graph, and replay its output to check reproducibility.
