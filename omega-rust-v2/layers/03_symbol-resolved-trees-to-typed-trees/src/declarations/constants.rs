@@ -41,7 +41,7 @@ pub(crate) fn infer<'a>(
                 Ok(value) => {
                     catalog.constants.insert(id, value);
                 }
-                Err(error) if error.waiting_for_static_value() => catalog.types.indices.defer_constant(id),
+                Err(error) if error.waiting_for_static_value() => catalog.types.indices.defer_declaration(id),
                 Err(error) => return Err(error),
             }
             Ok(())

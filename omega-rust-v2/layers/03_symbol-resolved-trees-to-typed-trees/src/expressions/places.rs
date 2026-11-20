@@ -297,8 +297,7 @@ impl BodyTyper<'_, '_> {
         let id = case.unwrap_or(owner);
         let fields = self
             .catalog
-            .fields
-            .get(id)
+            .fields_at(id, source, *head)?
             .ok_or_else(|| TypeError::at(source, *head, "missing field declarations"))?;
         let mut seen = HashSet::new();
         let mut witnesses = vec![None; self.catalog.types.witness_count(owner)];
@@ -551,8 +550,7 @@ impl BodyTyper<'_, '_> {
                 let shape = subject.as_ref().and_then(|s| self.cases.get(s)).unwrap_or(id);
                 let (position, declared) = self
                     .catalog
-                    .fields
-                    .get(shape)
+                    .fields_at(shape, source, node_index)?
                     .and_then(|fields| fields.get(field))
                     .ok_or_else(|| TypeError::at(source, node_index, format!("{} has no field {}", id.path, field)))?;
                 self.unit

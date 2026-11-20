@@ -26,7 +26,7 @@ pub(crate) struct IndexEvaluations<'a> {
     allow_pending: bool,
     demands: RefCell<Vec<StaticValueDemand>>,
     blocked: RefCell<Vec<TreeNodeId>>,
-    pending_constants: RefCell<HashSet<DeclarationId>>,
+    pending_declarations: RefCell<HashSet<DeclarationId>>,
     pub(super) specializations: IndexSpecializations,
     supplied: HashMap<&'a StaticValueRequest, &'a StaticValue>,
     pub(super) uses: RefCell<HashMap<StaticValueRequest, IndexEvaluation>>,
@@ -53,7 +53,7 @@ impl<'a> IndexEvaluations<'a> {
             allow_pending,
             demands: RefCell::default(),
             blocked: RefCell::default(),
-            pending_constants: RefCell::default(),
+            pending_declarations: RefCell::default(),
             uses: RefCell::default(),
         })
     }
@@ -61,22 +61,38 @@ impl<'a> IndexEvaluations<'a> {
         self.demands.take()
     }
 
-    pub(crate) fn defer_constant(
+    pub(crate) fn defer_declaration(
         &self,
         declaration: &DeclarationId,
     ) {
-        self.pending_constants.borrow_mut().insert(declaration.clone());
+        self.pending_declarations.borrow_mut().insert(declaration.clone());
     }
 
-    pub(crate) fn constant_is_pending(
+    pub(crate) fn declaration_is_pending(
         &self,
         declaration: &DeclarationId,
     ) -> bool {
-        self.pending_constants.borrow().contains(declaration)
+        self.pending_declarations.borrow().contains(declaration)
+    }
+
+    /// A declaration whose annotation is waiting cannot participate in selection
+    /// or supply a body for evaluation until the next typing pass.
+    pub(crate) fn ready_annotation<T>(&self, declaration: &DeclarationId, result: Result<T, TypeError>) -> Result<Option<T>, TypeError> {
+        match result {
+            Err(error) if error.waiting_for_static_value() => {
+                self.defer_declaration(declaration);
+                Ok(None)
+            }
+            other => other.map(Some),
+        }
     }
 
     pub(crate) fn take_blocked_nodes(&self) -> Vec<TreeNodeId> {
         self.blocked.take()
+    }
+
+    pub(crate) fn block_node(&self, node: TreeNodeId) {
+        self.blocked.borrow_mut().push(node);
     }
 
     pub(crate) fn wait(
@@ -84,7 +100,7 @@ impl<'a> IndexEvaluations<'a> {
         file: &IndexedSource<'_>,
         node: usize,
     ) -> TypeError {
-        self.blocked.borrow_mut().push(file.node_id(node));
+        self.block_node(file.node_id(node));
         TypeError::waiting(file, node)
     }
 
@@ -94,7 +110,7 @@ impl<'a> IndexEvaluations<'a> {
         value: &ValueType,
     ) {
         if self.retain_demands(value) && static_demands(value).any(|demand| demand.request().node != node) {
-            self.blocked.borrow_mut().push(node);
+            self.block_node(node);
         }
     }
 

@@ -33,35 +33,46 @@ impl TypeCatalog<'_> {
         name: &'a Symbol,
     ) -> Result<&'a DeclarationId, &'a str> {
         self.selected_domain(name, None)
+            .map(|selection| selection.expect("selection without a carrier has no width comparison"))
     }
 
     /// Select among visible domains. A carrier-deferred candidate, found through an applied
     /// integer root such as u<8>, matches only when its normalized declared carrier is
     /// the normalized written or subject carrier. Without that carrier it still competes.
-    pub(crate) fn selected_domain<'a>(
+    fn selected_domain<'a>(
         &self,
         name: &'a Symbol,
         carrier: Option<&ValueType>,
-    ) -> Result<&'a DeclarationId, &'a str> {
+    ) -> Result<Option<&'a DeclarationId>, &'a str> {
         match name {
-            Symbol::Declaration(id) => Ok(id),
+            Symbol::Declaration(id) => Ok(Some(id)),
             Symbol::DomainCandidates { candidates, ambiguity } => {
-                let mut names = candidates.iter().filter(|c| {
-                    c.type_binder
-                        .as_ref()
-                        .is_none_or(|binder| self.binder_names_type(binder))
-                        && (!c.carrier_deferred
-                            || carrier.is_none_or(|carrier| {
-                                self.domains
-                                    .known_carrier(&c.declaration)
-                                    .is_some_and(|declared| declared.carrier() == carrier.carrier())
-                            }))
-                });
-                match (names.next(), names.next()) {
-                    (Some(candidate), None) => Ok(&candidate.declaration),
-                    (None, _) => Err("no visible domain on the written carrier"),
-                    _ => Err(ambiguity),
+                let mut matched = None;
+                let mut waiting = false;
+                for candidate in candidates {
+                    if candidate.type_binder.as_ref().is_some_and(|binder| !self.binder_names_type(binder)) {
+                        continue;
+                    }
+                    if candidate.carrier_deferred && let Some(subject) = carrier {
+                        let Some(declared) = self.domains.known_carrier(&candidate.declaration) else {
+                            waiting |= self.indices.declaration_is_pending(&candidate.declaration);
+                            continue;
+                        };
+                        if declared.carrier() != subject.carrier() {
+                            if self.indices.can_wait_for_equality(declared.carrier(), subject.carrier()) {
+                                self.indices.retain_demands(declared);
+                                self.indices.retain_demands(subject);
+                                waiting = true;
+                            }
+                            continue;
+                        }
+                    }
+                    if matched.replace(&candidate.declaration).is_some() {
+                        return Err(ambiguity);
+                    }
                 }
+                if waiting { return Ok(None); }
+                matched.map(Some).ok_or("no visible domain on the written carrier")
             }
             _ => Err("expected an exact declaration"),
         }
@@ -88,7 +99,8 @@ impl<'a> ResolvedSourceFile<'a> {
             .ok_or_else(|| TypeError::at(self.file, node, "expected a domain declaration"))?;
         types
             .selected_domain(name, carrier)
-            .map_err(|message| TypeError::at(self.file, node, message))
+            .map_err(|message| TypeError::at(self.file, node, message))?
+            .ok_or_else(|| types.indices.wait(self.file, node))
     }
     pub(crate) fn domain_reference(
         &self,
@@ -149,7 +161,12 @@ impl<'a> ResolvedSourceFile<'a> {
         if let (Some(required), Some(actual)) = (&written, subject) {
             let actual = normalize(actual)?;
             if required.carrier() != actual.carrier() {
-                return Err(TypeError::at(self.file, n, format!("domain qualifier names {required}, found {actual}")));
+                if !types.indices.can_wait_for_equality(required.carrier(), actual.carrier()) {
+                    return Err(TypeError::at(self.file, n, format!("domain qualifier names {required}, found {actual}")));
+                }
+                types.indices.retain_demands(required);
+                types.indices.retain_demands(&actual);
+                return Err(types.indices.wait(self.file, n));
             }
         }
         // Candidates found through an applied integer root are selected by the
@@ -163,11 +180,18 @@ impl<'a> ResolvedSourceFile<'a> {
             _ => None,
         };
         let id = self.domain_name_on(n, selection_carrier.as_ref(), types)?;
-        if let Some(written) = &written
-            && types.domains.known_carrier(id).is_some()
-            && !types.domains.admits(id, written)
-        {
-            return Err(TypeError::at(self.file, n, "no visible domain on the written carrier"));
+        if let Some(declared) = types.domains.known_carrier(id) {
+            if let Some(use_carrier) = written.as_ref().or(subject)
+                && types.indices.can_wait_for_equality(declared.carrier(), use_carrier.carrier())
+            {
+                types.indices.retain_demands(declared);
+                types.indices.retain_demands(use_carrier);
+                return Err(types.indices.wait(self.file, n));
+            } else if let Some(written) = &written
+                && !types.domains.admits(id, written)
+            {
+                return Err(TypeError::at(self.file, n, "no visible domain on the written carrier"));
+            }
         }
         if deferred {
             self.check_signature_selection(n, id)?;
@@ -192,6 +216,9 @@ impl<'a> ResolvedSourceFile<'a> {
         carrier: &ValueType,
         types: &TypeCatalog<'_>,
     ) -> Result<DomainApplication, TypeError> {
+        if types.indices.declaration_is_pending(id) {
+            return Err(types.indices.wait(self.file, n));
+        }
         let mut arguments = Vec::new();
         for (index, &arg) in self.arguments_for(n, id).iter().enumerate() {
             let binder = types.domains.index_binder(id, index);
@@ -243,6 +270,11 @@ impl<'a> ResolvedSourceFile<'a> {
                     .normalize_at(expected.clone(), self, arg)
                     .map_err(|msg| TypeError::at(self.file, arg, msg))?;
                 if actual != expected {
+                    if types.indices.can_wait_for_equality(&actual, &expected) {
+                        types.indices.retain_demands(&actual);
+                        types.indices.retain_demands(&expected);
+                        return Err(types.indices.wait(self.file, n));
+                    }
                     return Err(TypeError::at(
                         self.file,
                         arg,

@@ -117,6 +117,9 @@ impl<'a> ResolvedSourceFile<'a> {
         types: &TypeCatalog<'_>,
     ) -> Result<ValueType, TypeError> {
         let source = self.file;
+        if types.indices.declaration_is_pending(id) {
+            return Err(types.indices.wait(source, node_index));
+        }
         let mut groups = HashMap::new();
         for &section in self.file.reference_sections(node_index) {
             if !matches!(source.nodes[section].kind, NodeKind::TypeArgs | NodeKind::ExpressionArgs) {
