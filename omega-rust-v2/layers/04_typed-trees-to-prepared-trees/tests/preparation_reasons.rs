@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use omega_preparation::{
-    FloatFormat, FloatOperation, FloatRealization, FloatSemantics, PreparationFailure, PreparationReason, RefusalCause,
+    FloatFormat, FloatOperation, FloatRealization, FloatSemantics, PreparationFailure, PreparationReason, PreparedValue, RefusalCause,
     TargetIdentity, TargetSemantics, prepare_source_package_diagnosed, prepare_source_package_diagnosed_with_inputs, prepare_source_package_for_target,
 };
 use omega_resolver::{ParsedSource, StageSource};
@@ -555,4 +555,19 @@ fn a_valid_shift_count_can_still_exceed_the_selected_carrier() {
             "static evaluation cannot admit this invocation: exact operation exceeds its selected integer carrier",
         ),
     );
+}
+
+#[test]
+fn a_precondition_on_an_array_result_rejects_the_false_call() {
+    let source = "machine pair(n:u8)->[u8;2] requires n > 0u8 {[n,n]} const VALUE:[u8;2]=pair(0u8);";
+    let valid = source.replace("pair(0u8)", "pair(7u8)");
+    with_package(&valid, |package| {
+        let prepared = omega_preparation::prepare_source_package(package).unwrap();
+        assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration),
+            Some(&PreparedValue::Array([PreparedValue::Integer(7.into()), PreparedValue::Integer(7.into())].into())));
+    });
+    let start = source.find("pair(0u8)").unwrap();
+    assert_refusal(source, None, owned(Phase::Preparation, PreparationReason::PreconditionFalse,
+        "the selected precondition is false for the supplied arguments", (start, start + "pair(0u8)".len()),
+        "static evaluation cannot admit this invocation: the selected precondition is false for the supplied arguments"));
 }

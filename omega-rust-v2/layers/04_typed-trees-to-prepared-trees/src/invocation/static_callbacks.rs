@@ -586,10 +586,10 @@ impl ConstantEvaluation<'_, '_> {
             || file.child(declaration, NodeKind::Hypothesis).is_some()
             || tree.resolved().is_exported(declaration) && !signature.terminates
             || signature.satisfies.is_some()
-            || !signature.multiplicity_bounds.is_empty()
         {
             return Err(PreparationReason::CallbackContractOutsideFragment.into());
         }
+        self.check_multiplicity_bounds(signature, &selection.arguments)?;
         let mut trait_scopes = selection
             .enclosing_arguments
             .iter()

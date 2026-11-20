@@ -85,6 +85,7 @@ fn construction_obligation<'a>(
     tree: &'a TypedTree<'_>,
     node: usize,
     owner: &DeclarationId,
+    admits_return: impl Fn(&ObligationKind) -> bool,
 ) -> Result<Option<&'a TypingObligation>, EvaluationError> {
     let mut establishment = None;
     for record in tree.semantics_at(node) {
@@ -96,13 +97,24 @@ fn construction_obligation<'a>(
                 establishment = Some(obligation)
             }
             NodeSemantics::Obligation(obligation) if matches!(obligation.kind, ObligationKind::ZeroField { .. }) => {}
+            NodeSemantics::Obligation(o) if matches!(o.kind, ObligationKind::ReturnBorrow { .. }) => {
+                if !admits_return(&o.kind) {
+                    return Err(EvaluationError::from(NEEDS_CONSTRUCTION_PROOF).at_node(tree.resolved().file.node_id(node)));
+                }
+            }
             _ => return Err(NEEDS_CONSTRUCTION_PROOF.into()),
         }
     }
     Ok(establishment)
 }
 
-impl ConstantEvaluation<'_, '_> {
+pub(crate) struct AdmittedConstruction<'node, 'trees> {
+    pub(crate) initializer: &'node TypedConstruction,
+    pub(crate) fields: &'node [ValueType],
+    pub(crate) establishment: Option<&'trees TypingObligation>,
+}
+
+impl<'trees> ConstantEvaluation<'trees, '_> {
     pub(crate) fn canonical_identity(
         &self,
         value: &PreparedValue,
@@ -165,7 +177,8 @@ impl ConstantEvaluation<'_, '_> {
         carrier: &ValueType,
         owner: &DeclarationId,
         instantiate: impl Fn(&ValueType) -> ValueType,
-    ) -> Result<(&'a TypedConstruction, &'a [ValueType]), EvaluationError> {
+        admits_return: impl Fn(&ObligationKind) -> bool,
+    ) -> Result<AdmittedConstruction<'a, 'trees>, EvaluationError> {
         let construction = tree
             .construction(node)
             .ok_or(PreparationReason::NominalWithoutInitializer)?;
@@ -187,47 +200,46 @@ impl ConstantEvaluation<'_, '_> {
             None => None,
         }
         .ok_or_else(|| EvaluationError::from(PreparationReason::CaseOutsideCarrier).at_node(tree.resolved().file.node_id(node)))?;
-        let establishment = construction_obligation(tree, node, owner)?;
+        let establishment = construction_obligation(tree, node, owner, admits_return)?;
         if shape.requires_establishment != establishment.is_some() {
             return Err(NEEDS_CONSTRUCTION_PROOF.into());
         }
-        if let Some(obligation) = establishment
-            && !self
-                .nominal
-                .establishments
-                .iter()
-                .any(|proof| proof.covers(self.trees, obligation, carrier))
-        {
-            return Err(NEEDS_CONSTRUCTION_PROOF.into());
-        }
-        Ok((construction, fields))
+        let establishment = establishment
+            .map(|obligation| {
+                self.nominal.establishments.iter()
+                    .find(|proof| proof.covers(self.trees, obligation, carrier))
+                    .map(|proof| proof.obligation)
+                    .ok_or(NEEDS_CONSTRUCTION_PROOF)
+            })
+            .transpose()?;
+        Ok(AdmittedConstruction {
+            initializer: construction,
+            fields,
+            establishment,
+        })
     }
 
     pub(crate) fn check_construction_proof(
         &self,
-        tree: &TypedTree<'_>,
-        node: usize,
+        obligation: &TypingObligation,
         carrier: &ValueType,
         fields: &[PreparedValue],
     ) -> Result<(), EvaluationError> {
-        let construction = tree.construction(node).ok_or(UNSUPPORTED_BODY)?;
-        if let Some(obligation) = construction_obligation(tree, node, &construction.owner)? {
-            let proof = self
-                .nominal
-                .establishments
-                .iter()
-                .find(|proof| {
-                    proof.covers(self.trees, obligation, carrier)
-                        && proof.fields.as_ref() == fields
-                        && proof.target_dependencies.iter().all(|used| {
-                            self.target
-                                .is_some_and(|target| target.matches_observation(used))
-                        })
-                })
-                .ok_or(NEEDS_CONSTRUCTION_PROOF)?;
-            for dependency in &proof.target_dependencies {
-                self.record_observation(dependency.clone());
-            }
+        let proof = self
+            .nominal
+            .establishments
+            .iter()
+            .find(|proof| {
+                proof.covers(self.trees, obligation, carrier)
+                    && proof.fields.as_ref() == fields
+                    && proof.target_dependencies.iter().all(|used| {
+                        self.target
+                            .is_some_and(|target| target.matches_observation(used))
+                    })
+            })
+            .ok_or(NEEDS_CONSTRUCTION_PROOF)?;
+        for dependency in &proof.target_dependencies {
+            self.record_observation(dependency.clone());
         }
         Ok(())
     }

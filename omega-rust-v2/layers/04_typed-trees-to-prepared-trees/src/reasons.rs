@@ -103,6 +103,8 @@ preparation_reasons! {
     UnsupportedBody => "the selected body is outside the supported static evaluation fragment",
     /// A static call argument has no closed value in the evaluated fragment.
     UnsupportedArgument => "the static call has an argument without a supported closed value",
+    /// A closed generic argument does not satisfy its parameter's storage contract.
+    MultiplicityBoundMismatch => "the selected type argument does not satisfy its multiplicity bound",
     /// A contract needs proof outside the evaluated fragment.
     UnsupportedContract => "the selected contract needs proof outside the supported static evaluation fragment",
     /// A request's typed source file is not in this pass.
@@ -159,6 +161,8 @@ preparation_reasons! {
     IntegerPreconditionFalse => "the selected integer precondition is false for the supplied arguments",
     /// Another invocation's precondition is false.
     PreconditionFalse => "the selected precondition is false for the supplied arguments",
+    /// The signature and its selected declaration disagree about an ensures clause.
+    PostconditionDeclarationMismatch => "the signature and declaration disagree about postconditions",
     /// A postcondition has no typed proposition.
     PostconditionWithoutProposition => "the selected postcondition has no typed proposition",
     /// A declared crash cause has no typed route.

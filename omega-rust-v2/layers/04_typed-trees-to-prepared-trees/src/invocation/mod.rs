@@ -215,7 +215,7 @@ enum Step<'a> {
     FinishTuple(usize),
     FinishZeroArray { site: TreeNodeId, count: usize },
     FinishConstruction {
-        proof: Option<(TreeNodeId, ValueType)>,
+        proof: Option<(&'a omega_typed::TypingObligation, ValueType)>,
         owner: DeclarationId,
         case: Option<DeclarationId>,
         positions: Vec<usize>,
@@ -534,8 +534,8 @@ impl ConstantEvaluation<'_, '_> {
                     .into_iter()
                     .collect::<Option<_>>()
                     .ok_or(UNSUPPORTED_BODY)?;
-                if let Some((site, carrier)) = proof {
-                    self.check_construction_proof(&self.tree(site)?, site.node, &carrier, &fields)?;
+                if let Some((obligation, carrier)) = proof {
+                    self.check_construction_proof(obligation, &carrier, &fields)?;
                 }
                 execution.values.push(match case {
                     Some(case) => PreparedValue::Sum { owner, case, fields },

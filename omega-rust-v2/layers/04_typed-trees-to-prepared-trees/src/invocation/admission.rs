@@ -144,12 +144,13 @@ impl ConstantEvaluation<'_, '_> {
         self.admit_callback_effects(effects, application.as_deref(), &callback_bindings, execution)?;
         if signature.satisfies.is_some()
             || &specialize(&signature.result) != carrier
-            || !signature.multiplicity_bounds.is_empty()
             || (file.child(declaration, NodeKind::GenericParams).is_some() && application.is_none())
             || file.child(declaration, NodeKind::Hypothesis).is_some()
         {
             return Err(UNSUPPORTED_CONTRACT.into());
         }
+
+        self.check_multiplicity_bounds(signature, application.as_ref().map_or(&[], |call| call.type_arguments.as_slice()))?;
 
         let parameters = file
             .child(declaration, NodeKind::Params)
@@ -179,6 +180,31 @@ impl ConstantEvaluation<'_, '_> {
                 .argument_step(request_tree, operand, &specialize(carrier), scope)
                 .unwrap_or_else(Step::Reject);
             execution.steps.push(argument);
+        }
+        Ok(())
+    }
+
+    pub(super) fn check_multiplicity_bounds(
+        &self,
+        signature: &TypedSignature,
+        arguments: &[ValueType],
+    ) -> Result<(), EvaluationError> {
+        for &(index, bound) in &signature.multiplicity_bounds {
+            let argument = arguments.get(index).filter(|value| !value.depends_on_call_input());
+            let actual = argument.and_then(|value| {
+                value.multiplicity_with(
+                    &|id| {
+                        self.trees.data_properties.iter()
+                            .chain(self.trees.library.into_iter().flat_map(|lib| &lib.data_properties))
+                            .find(|(owner, _)| owner == id)
+                            .map(|(_, properties)| properties.multiplicity)
+                    },
+                    &|_, _| None,
+                )
+            });
+            if actual != Some(bound) {
+                return Err(PreparationReason::MultiplicityBoundMismatch.into());
+            }
         }
         Ok(())
     }
@@ -322,16 +348,17 @@ impl ConstantEvaluation<'_, '_> {
         execution: &mut Execution<'a>,
     ) -> Result<(), EvaluationError> {
         let signature = invocation.signature;
-        if !signature.has_guarantee {
-            return Ok(());
-        }
         let file = tree.resolved().file;
-        let guarantees = file.nodes[signature.node.node]
+        let mut guarantees = file.nodes[signature.node.node]
             .children
             .iter()
             .copied()
             .rev()
-            .filter(|&node| file.nodes[node].kind == NodeKind::Ensures);
+            .filter(|&node| file.nodes[node].kind == NodeKind::Ensures)
+            .peekable();
+        if signature.has_guarantee != guarantees.peek().is_some() {
+            return Err(PreparationReason::PostconditionDeclarationMismatch.into());
+        }
         for clause in guarantees {
             let [predicate] = *file.nodes[clause].children.as_slice() else {
                 return Err(UNSUPPORTED_CONTRACT.into());

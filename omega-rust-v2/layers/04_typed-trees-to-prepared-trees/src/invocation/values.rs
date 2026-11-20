@@ -85,7 +85,7 @@ impl ConstantEvaluation<'_, '_> {
     }
 
     pub(super) fn schedule_aggregate<'a>(
-        &self,
+        &'a self,
         tree: &TypedTree<'_>,
         node: usize,
         carrier: &ValueType,
@@ -181,11 +181,14 @@ impl ConstantEvaluation<'_, '_> {
             }
             ValueType::Nominal(owner) | ValueType::Applied(owner, _) => {
                 let instantiate = |ty: &ValueType| scope.instantiate(ty);
-                let (construction, fields) = self.construction(tree, node, carrier, owner, instantiate)?;
+                let admitted = self
+                    .construction(tree, node, carrier, owner, instantiate, |kind| self.admits_owned_return(scope, kind, carrier))?;
+                let construction = admitted.initializer;
+                let fields = admitted.fields;
                 let (mut positions, defaults) = self.construction_positions(tree, node, construction, fields, instantiate).map_err(|error| error.at_node(file.node_id(node)))?;
                 positions.extend(&defaults);
                 execution.steps.push(Step::FinishConstruction {
-                    proof: Some((file.node_id(node), carrier.clone())),
+                    proof: admitted.establishment.map(|obligation| (obligation, carrier.clone())),
                     owner: owner.as_ref().clone(),
                     case: construction.case.clone(),
                     positions,
@@ -228,6 +231,11 @@ impl ConstantEvaluation<'_, '_> {
                 }
             }
             ty if IntegerRange::for_type(ty).is_some() => PreparedValue::Integer(BigInt::ZERO),
+            ValueType::Tuple(elements) => {
+                execution.steps.push(Step::FinishTuple(elements.len()));
+                execution.steps.extend(elements.iter().rev().map(|element| Step::ProduceZero { site, carrier: element.clone() }));
+                return Ok(());
+            }
             ValueType::Array(_, 0) => PreparedValue::Array([].into()),
             ValueType::Array(element, length) => {
                 let length = usize::try_from(*length).map_err(|_| PreparationReason::ZeroArrayNeedsStorage)?;
