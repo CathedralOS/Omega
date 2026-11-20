@@ -69,9 +69,9 @@ struct Registrations {
     issued: Vec<Registration>,
     /// The registration a parked `Build::prepare_dependency` waits for.
     awaiting: Option<usize>,
-    /// Whether the request this host completed last was a dependency
-    /// preparation. A stage that is not the last one must end there.
-    ended_at_preparation: bool,
+    /// A normal return can advance the source scope only after this program
+    /// has completed an authenticated preparation.
+    completed_preparation: bool,
 }
 
 /// What the request host of a returned stage hands to the host of the next
@@ -187,14 +187,14 @@ impl TerminalBuildRequestHost {
         Ok(())
     }
 
-    /// Whether the stage this host served returned right after a dependency
-    /// preparation completed, with no other request after it.
-    pub(crate) fn ended_at_preparation(&self) -> Result<bool, String> {
+    /// The source planner can extend this program only after the guest actually
+    /// returned from an authenticated preparation.
+    pub(crate) fn completed_preparation(&self) -> Result<bool, String> {
         Ok(self
             .registrations
             .lock()
             .map_err(|_| REGISTRATIONS_POISONED)?
-            .ended_at_preparation)
+            .completed_preparation)
     }
 
     pub(crate) fn carry(&self) -> Result<CarriedRequests, String> {
@@ -221,7 +221,7 @@ impl TerminalBuildRequestHost {
             return Err("a Build stage adopts earlier requests before it runs".into());
         }
         *registrations = carried.registrations;
-        registrations.ended_at_preparation = false;
+        registrations.completed_preparation = false;
         *log = carried.log;
         Ok(())
     }
@@ -392,13 +392,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
-        if call.action != Operation::PrepareDependency {
-            self.host
-                .registrations
-                .lock()
-                .map_err(|_| refuse(REGISTRATIONS_POISONED))?
-                .ended_at_preparation = false;
-        }
         if call.action == Operation::LogLine {
             let [facet, _] = structural_arguments.as_slice() else {
                 return Err(refuse("Build log request has an invalid argument roster"));
@@ -462,7 +455,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     "Build dependency preparation requires its completed preparation",
                 ));
             }
-            registrations.ended_at_preparation = true;
+            registrations.completed_preparation = true;
             return Ok(TerminalEffectResult::Unit);
         }
         // A registration returns the marker that names it; every other

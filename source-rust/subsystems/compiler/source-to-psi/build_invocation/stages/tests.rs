@@ -32,7 +32,7 @@ fn stage(text: &str, stage: usize) -> Result<(usize, usize, usize), String> {
     })?;
     let (_, machine, state) = entry(&syntax, selected_entry).unwrap();
     Ok((
-        selected.preparations().len() + 1,
+        selected.program_ends.len() + 1,
         syntax.items.state(state).statements.len(),
         machine.nested_machines.len(),
     ))
@@ -110,11 +110,10 @@ machine build(builder: @mut Build) suspends {
     assert_eq!(stage(nested, 0), Ok((1, 2, 1)));
 }
 
-/// Only the entry's parameters cross a wait. A statement after it that
-/// uses a local bound before it is refused by that local's name, whether
-/// it reads the local or a field of it.
+/// A read, projection or loan after a wait belongs to the frame that
+/// established the local. The ordinary checker sees both sides of its use.
 #[test]
-fn a_local_bound_before_a_preparation_is_not_carried_across_it() {
+fn a_local_used_after_preparation_stays_in_the_same_checked_program() {
     for used in ["before", "before.alias", "pick(@before)"] {
         let text = format!(
             "
@@ -126,12 +125,25 @@ machine build(builder: @mut Build) suspends {{
 }}
 "
         );
-        let refusal = stage(&text, 0).unwrap_err();
-        assert!(
-            refusal.starts_with("not supported yet:") && refusal.contains("`before`"),
-            "{refusal}"
-        );
+        assert_eq!(stage(&text, 0), Ok((1, 4, 0)));
     }
+}
+
+#[test]
+fn the_next_program_starts_after_the_last_use_of_the_saved_storage() {
+    let text = r#"
+machine build(builder: @mut Build) suspends {
+    let amount: i32 = 7;
+    let held: @i32 = @amount;
+    let registered: DependencyRegistration = Build::build_dependency(builder, request());
+    suspend Build::prepare_dependency(builder, registered);
+    let saved: i32 = $held;
+    builder.tests.disabled = saved == 7;
+    kit\configure(builder);
+}
+"#;
+    assert_eq!(stage(text, 0), Ok((2, 6, 0)));
+    assert_eq!(stage(text, 1), Ok((2, 1, 0)));
 }
 
 #[test]

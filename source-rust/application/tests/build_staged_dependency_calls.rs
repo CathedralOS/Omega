@@ -1,54 +1,6 @@
-/*
-
-End-to-end CLI check that a Build can call code from a build dependency it
-prepared (`omega --check`).
-
-A `build.omg` registers a build dependency, waits for it, and then calls it:
-
-    use kit;
-
-    machine build(builder: &mut Build)
-    suspends
-    {
-        Build::application(builder, "staged");
-        builder.tests.disabled = true;
-        ... registered = Build::build_dependency(builder, request aliased "kit");
-
-        suspend Build::prepare_dependency(builder, registered);
-        let seven: i32 = kit\v();
-        ...
-    }
-
-The statements after the wait use a package that does not exist for the Build
-until the wait is over. `wiki/spec/build/scoped_execution.md` ("Checked Build
-stages") says how that is checked: "Execute only a completely checked and
-admitted prefix", and "After preparation, the compiler resolves and checks
-the dependent continuation before it executes." So the Build is checked and
-run in stages, one per top-level wait. The first stage is everything up to
-and including the wait. Once the dependency is prepared, the rest is
-resolved with `kit` selectable, checked, and run against the same Build: the
-same `builder`, the same registrations, nothing run twice.
-
-The first program does exactly that, and binds its entry only if `kit\v()`
-returned what the dependency declares (7) and `builder.tests.disabled`, set
-before the wait, is still set after it. Its other arm declares a second
-project role, which a Build is refused for. So the program compiles only if
-the call went through the dependency, the setting was carried, and the
-statements before the wait ran once.
-
-The others are the same project with a line changed:
-
-- the dependency returns 8: the other arm is taken and refused, so the value
-  really came from the dependency;
-- a statement after the wait uses a local bound before it: refused as not
-  supported yet, since only the entry's parameters are carried across a wait;
-- the call is written before the wait: `kit` names nothing there, and the
-  Build is rejected before any of it runs;
-- the statements after the wait call a dependency registered for the Product
-  (`lib`): a Product dependency is not selectable from a Build;
-- they call a machine of `kit` that is not public: not selectable either.
-
-*/
+//! Exercise Build preparation through the CLI. A Build can use a local or a
+//! loan after a wait, while a dependency name becomes selectable only after
+//! its registration has been prepared.
 
 use std::process::Command;
 
@@ -71,11 +23,10 @@ fn check(name: &str, before: &str, after: &str, value: i32) -> (bool, String) {
 machine build(builder: @mut Build)
 suspends
 {{
-    Build::application(builder, \"staged\");
     builder.tests.disabled = true;
     let mut kit_request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
     dependency\\with_alias(@mut kit_request, \"kit\");
-    let kit_registered: DependencyRegistration = Build::build_dependency(builder, kit_request);
+    let kit_registered: DependencyRegistration = register(builder, kit_request);
 {before}
     suspend Build::prepare_dependency(builder, kit_registered);
 {after}
@@ -85,6 +36,10 @@ suspends
     machine wrong(builder: @mut Build) {{
         Build::application(builder, \"second_role\");
     }}
+}}
+machine register(builder: @mut Build, request: DependencyDescription) -> DependencyRegistration {{
+    Build::application(builder, \"staged\");
+    Build::build_dependency(builder, request)
 }}
 "
         ),
@@ -147,20 +102,87 @@ fn the_value_after_the_wait_is_the_one_the_dependency_returns() {
 }
 
 #[test]
-fn a_local_bound_before_the_wait_is_not_carried_across_it() {
+fn preparation_keeps_the_registration_and_its_live_shared_loan() {
+    // The initializer registers the project role. Repeating it fails even
+    // when it supplies the same name. The second wait authenticates the token.
     let (compiled, stderr) = check(
-        "captured-local",
-        "    let before: i32 = 7;",
-        "    let seven: i32 = before;
+        "captured-registration",
+        "    let held: @DependencyRegistration = @kit_registered;",
+        "    suspend Build::prepare_dependency(builder, $held);
+    let seven: i32 = kit\\v();
     transition seven == 7 {
         true -> carried(builder),
         _ -> wrong(builder)
     }",
         7,
     );
+    assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn a_mutable_loan_still_names_the_original_local_after_a_wait() {
+    let (compiled, stderr) = check(
+        "mutable-local",
+        "    let mut amount: i32 = 3;
+    let loan: @mut i32 = @mut amount;",
+        "    $loan = 7;
+    transition amount == 7 {
+        true -> carried(builder),
+        _ -> wrong(builder)
+    }",
+        7,
+    );
+    assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn the_build_uses_a_loan_then_calls_the_newly_visible_dependency_after_one_wait() {
+    let (compiled, stderr) = check(
+        "loan-and-import",
+        "    let message: @[u8] = \"prepared\";
+    let amount: i32 = 7;
+    let held: @i32 = @amount;",
+        &format!(
+            "    builder.tests.disabled = $held == 7;\n    BuildLog::write_line(@mut builder.log, message);\n{}",
+            after("kit\\v")
+        ),
+        7,
+    );
+    assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn resumption_cannot_turn_a_guest_value_into_an_issued_registration() {
+    let (compiled, stderr) = check(
+        "forged-registration",
+        "    let fake: DependencyRegistration = DependencyRegistration {};
+    let held: @DependencyRegistration = @fake;",
+        "    suspend Build::prepare_dependency(builder, $held);",
+        7,
+    );
     assert!(!compiled);
     assert!(
-        stderr.contains("not supported yet") && stderr.contains("`before`"),
+        stderr.contains("requires a registration this activation issued"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn a_write_conflicting_with_a_loan_that_crosses_a_wait_is_refused() {
+    let (compiled, stderr) = check(
+        "conflicting-write",
+        "    let mut amount: i32 = 3;
+    let loan: @i32 = @amount;",
+        "    amount = 7;
+    transition $loan == 3 {
+        true -> carried(builder),
+        _ -> wrong(builder)
+    }",
+        7,
+    );
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("storage is changed while a conflicting reference remains live"),
         "{stderr}"
     );
 }
@@ -200,7 +222,7 @@ fn a_call_written_before_the_wait_names_nothing() {
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
         line.strip_prefix("at ")
-            .and_then(|position| position.strip_suffix(":11:22"))
+            .and_then(|position| position.strip_suffix(":10:22"))
     });
     let expected_path = std::path::PathBuf::from(format!(
         "omega-build-staged-dependency-calls-{}-used-before",
@@ -234,7 +256,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
         line.strip_prefix("in package `staged`, ")
-            .and_then(|position| position.strip_suffix(":15:22"))
+            .and_then(|position| position.strip_suffix(":14:22"))
     });
     let expected_path = std::path::PathBuf::from(format!(
         "omega-build-staged-dependency-calls-{}-product-dependency",

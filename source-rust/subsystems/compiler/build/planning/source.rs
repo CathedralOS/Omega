@@ -295,7 +295,7 @@ impl PlanningSource {
             self.profile,
             authority.as_ref(),
         )?;
-        if stage.preparations() != self.stage.preparations() {
+        if !stage.same_entry_plan(&self.stage) {
             return Err(vec![Diagnostic::error(
                 "the captured Build changed its dependency preparation sites",
             )]
