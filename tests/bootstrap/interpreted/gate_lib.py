@@ -58,8 +58,8 @@ def require_rung_identities(directory, adapter):
     Return the checked D and Epsilon bytes so callers frame exactly that
     validated evaluator subject; callers keep their per-entry checks."""
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 613964,
-                     "5f4566300416b8007de49d3606256bea7ccaef8947707898ae8b6250b23f8b75")
+    require_identity("Epsilon", epsilon, 614177,
+                     "1f312cf3857c137930fa07b1dcae31a9bb6f844e0ed9f78a3c228f824b5b0292")
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
@@ -69,5 +69,5 @@ def require_rung_identities(directory, adapter):
 
 
 def require_receipt_identity(receipt):
-    require_identity("Epsilon execution receipt", receipt, 710691,
-                     "3b3c1e2575d3c61055e20bb9123195aaa61acd90881d76bee5c7679a18e582ee")
+    require_identity("Epsilon execution receipt", receipt, 710829,
+                     "4d48a2d2d2a2ee32b2ca2b17b81c5569314efdf99fbbb09d20629676e349ecef")

@@ -132,7 +132,7 @@ nonwildcard_arm
                := nonwildcard_pattern "->" continuation
 wildcard_arm   := "_" "->" continuation
 nonwildcard_pattern
-               := INT | "true" | "false"
+               := INT | CHAR | "true" | "false"
                 | IDENT "::" IDENT binder?
 binder         := "{" (IDENT ("," IDENT)*)? "}"
 continuation   := expression
@@ -643,8 +643,8 @@ repeated scalar selectors and exact sum cases.
 A sum transition must name every case exactly once or end with `_`; this is a
 static rule and the `or` is inclusive. Naming every current case and retaining
 a final `_` is legal, so adding a case does not invalidate an untouched
-transition. A scalar transition may use integer or Boolean patterns and the
-optional final `_`. If no scalar arm matches, execution traps as
+transition. A scalar transition may select an integer, a quoted byte or a
+Boolean, with an optional final `_`. If no scalar arm matches, execution traps as
 `NonExhaustiveTransition`.
 
 Pattern names resolve before semantic checks. An unknown owner or case is
@@ -664,8 +664,10 @@ and typed-binder facts.
 
 Scalar selector identity is the validated `i32` value, never its token spelling:
 `false`, `0`, and `00` are one selector, and `true`, `1`, and `001` are one
-selector. Negative patterns are not grammatical because unary `-` is not part
-of `nonwildcard_pattern`; `-1 ->` is `UnexpectedToken` at `-`. Out-of-range
+selector. A quoted byte selects its decoded value. For example, `'/'`,
+`'\x2F'` and `47` all select 47. Mixing these spellings in one transition
+reports `DuplicatePattern` at the second selector. Negative patterns are not
+grammatical because unary `-` is not part of `nonwildcard_pattern`; `-1 ->` is `UnexpectedToken` at `-`. Out-of-range
 positive integer tokens reject before semantic selector identity is formed.
 
 Static sum coverage consumes a complete sum subject and completed pattern

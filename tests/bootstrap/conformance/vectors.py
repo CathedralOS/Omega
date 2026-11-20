@@ -139,6 +139,26 @@ self.console.exit_process(42); }"""
     yield "missing right operand before close paren", epsilon_request(closure, malformed, b""), (
         0, struct.pack("<BBI", 2, 7, close))
 
+    source = console + br"""transition self.console.read_byte() {
+        0 -> return
+        '/' -> self.console.exit_process(42)
+        '\xFF' -> self.console.exit_process(17)
+        _ -> self.console.exit_process(9)
+    } }"""
+    for label, value, status in (("slash", 47, 42), ("escaped high byte", 255, 17),
+                                 ("wildcard", 65, 9)):
+        yield f"quoted selector {label}", epsilon_request(closure, source, bytes([value])), (
+            0, struct.pack("<Bi", 0, status))
+
+    for first, second in ((b"'/'", b"47"), (b"47", br"'\x2f'"),
+                          (b"true", br"'\x01'")):
+        source = (console + b"transition 0 { " + first + b" -> return "
+                  + second + b" -> return } }")
+        offset = source.index(second + b" -> return }")
+        label = f"duplicate selectors {first!r} and {second!r}"
+        yield label, epsilon_request(closure, source, b""), (
+            0, struct.pack("<BBI", 2, 25, offset))
+
 
 def epsilon_envelope_observations(closure):
     """Exact EEREQ v1 identity bytes and first-error coordinates."""
