@@ -191,7 +191,7 @@ fn unannotated_binding_of_an_unsuffixed_number_is_refused() {
 // Patterns and places: Boolean dispatch must cover both values.
 #[test]
 fn boolean_dispatch_must_cover_its_subject() {
-    check(Case {
+    diagnostic_twins::check_with_reason(Case {
         layer: "L3",
         producer: "typer",
         good: &[("dispatch.omg", "machine pick(b: bool) -> u8 { match b { true -> 1, false -> 0, } }")],
@@ -200,7 +200,24 @@ fn boolean_dispatch_must_cover_its_subject() {
         occurrence: "match b { true -> 1, }",
         reason: "dispatch does not cover its subject",
         rule: "Patterns and places",
-    });
+    }, None, Some(omega_typer::DispatchError::UncoveredSubject.into()));
+}
+
+#[test]
+fn tuple_dispatch_must_cover_each_declared_case_in_its_branch() {
+    let schema = "data Mode { case On; case Off; }";
+    let source = |dispatch: &str| format!("{schema}\nmachine pick(x: Mode, b: bool) -> bool {{ {dispatch} }}");
+    let missing = "match (x, b) { (_, true) -> true, (Mode::On, false) -> false, }";
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("dispatch.omg", &source("match (x, b) { (_, true) -> true, (Mode::On, false) -> false, (Mode::Off, false) -> true, }"))],
+        bad: &[("dispatch.omg", &source(missing))],
+        file: "dispatch.omg",
+        occurrence: missing,
+        reason: "dispatch does not cover its subject",
+        rule: "Patterns and places",
+    }, None, Some(omega_typer::DispatchError::UncoveredSubject.into()));
 }
 
 // Patterns and places: a returned reference must not expose invocation-local storage.
@@ -214,6 +231,23 @@ fn returned_reference_to_local_storage_is_refused() {
         file: "views.omg",
         occurrence: "move v",
         reason: "returned reference borrows invocation-local storage",
+        rule: "Patterns and places",
+    });
+}
+
+// Rebuilding the argument reads only the copyable leaf. Moving the affine
+// field instead would remove it from shared storage before the named call.
+#[test]
+fn a_named_call_cannot_move_an_affine_field_from_shared_storage() {
+    let program = |arg: &str| format!("data B{{n:u8;}} data H{{item:B;}} machine take(b:B){{}} machine run(h:@H){{take({arg});}}");
+    check(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("field.omg", &program("B{n:h.item.n}"))],
+        bad: &[("field.omg", &program("move h.item"))],
+        file: "field.omg",
+        occurrence: "h.item",
+        reason: "reading root\\B out of borrowed storage requires a copy type; borrow it with @ instead",
         rule: "Patterns and places",
     });
 }

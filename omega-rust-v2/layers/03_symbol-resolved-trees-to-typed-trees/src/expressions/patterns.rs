@@ -1,4 +1,5 @@
 use super::destination::Destination;
+use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::{Origin, PatternSource};
 use crate::type_error::SourceTypeError;
@@ -109,8 +110,9 @@ impl BodyTyper<'_, '_> {
             .and_then(ValueType::nominal_parts)
             .and_then(|(id, _)| self.catalog.cases.get(id))
             .is_some_and(|ids| ids.iter().all(|id| cases.contains(*id)));
-        if !(all || product_covers(&products) || subject == Some(&ValueType::Bool) && booleans == [true, true] || complete_sum) {
-            return Err(TypeError::at(source, node_index, "dispatch does not cover its subject"));
+        let complete_bool = subject == Some(&ValueType::Bool) && booleans == [true, true];
+        if !(all || complete_bool || complete_sum || product_covers(subject, &products, self.catalog)) {
+            return Err(TypeError::for_reason(&site_at(source, node_index), crate::DispatchError::UncoveredSubject));
         }
         let target = expected
             .cloned()
@@ -329,7 +331,10 @@ impl BodyTyper<'_, '_> {
                     }
                     owner
                 };
-                let fields = self.catalog.fields_at(shape, source, node_index)?.ok_or_else(|| TypeError::at(source, node_index, "missing field declarations"))?;
+                let fields = self
+                    .catalog
+                    .fields_at(shape, source, node_index)?
+                    .ok_or_else(|| TypeError::at(source, node_index, "missing field declarations"))?;
                 let mut seen = HashSet::new();
                 let mut rest = false;
                 let mut total = true;
@@ -403,41 +408,84 @@ impl BodyTyper<'_, '_> {
 fn pattern_subject(ty: &ValueType) -> &ValueType {
     ty.reference_parts().map_or(ty, |(_, inner)| inner)
 }
-fn product_covers(rows: &[Vec<PatternCoverage>]) -> bool {
+fn product_covers(
+    subject: Option<&ValueType>,
+    rows: &[Vec<PatternCoverage>],
+    catalog: &DeclarationCatalog<'_>,
+) -> bool {
+    let Some(ValueType::Tuple(types)) = subject else { return false };
     if rows.is_empty() {
         return false;
     }
-    // Split only the Boolean positions actually constrained by a surviving arm.
-    let mut pending = vec![(0, rows.iter().collect::<Vec<_>>())];
-    while let Some((index, rows)) = pending.pop() {
-        if rows.is_empty() {
+    // Expand a nested tuple only where an arm actually inspects its components.
+    // A wildcard over the tuple also covers every component of that tuple.
+    let mut components: Vec<_> = types
+        .iter()
+        .enumerate()
+        .rev()
+        .map(|(index, ty)| (ty, rows.iter().map(|row| &row[index]).collect::<Vec<_>>()))
+        .collect();
+    let mut columns = Vec::new();
+    while let Some((ty, patterns)) = components.pop() {
+        if let ValueType::Tuple(fields) = pattern_subject(ty)
+            && patterns
+                .iter()
+                .any(|pattern| matches!(pattern, PatternCoverage::Product(_)))
+        {
+            for (index, field) in fields.iter().enumerate().rev() {
+                let children = patterns
+                    .iter()
+                    .map(|&pattern| match pattern {
+                        PatternCoverage::Product(parts) => &parts[index],
+                        other => other,
+                    })
+                    .collect();
+                components.push((field, children));
+            }
+        } else {
+            columns.push((ty, patterns));
+        }
+    }
+
+    let mut pending = vec![(0, (0..rows.len()).collect::<Vec<_>>())];
+    while let Some((index, arms)) = pending.pop() {
+        if arms.is_empty() {
             return false;
         }
-        if rows
+        if arms
             .iter()
-            .any(|r| r[index..].iter().all(PatternCoverage::is_total))
+            .any(|&arm| columns[index..].iter().all(|(_, cells)| cells[arm].is_total()))
         {
             continue;
         }
-        // Advance through every position in order. A wildcard participates in both branches.
-        if rows.iter().all(|r| r[index].is_total()) {
-            pending.push((index + 1, rows));
-            continue;
-        }
-        if rows
-            .iter()
-            .any(|r| !matches!(r[index], PatternCoverage::All | PatternCoverage::Bool(_)))
+        let (ty, cells) = &columns[index];
+        let matching = |accepts: &dyn Fn(&PatternCoverage) -> bool| {
+            arms.iter()
+                .copied()
+                .filter(|&arm| cells[arm].is_total() || accepts(cells[arm]))
+                .collect()
+        };
+        if pattern_subject(ty) == &ValueType::Bool
+            && arms
+                .iter()
+                .any(|&arm| matches!(cells[arm], PatternCoverage::Bool(_)))
         {
-            return false;
-        }
-        for value in [false, true] {
-            pending.push((
-                index + 1,
-                rows.iter()
-                    .copied()
-                    .filter(|r| r[index].is_total() || matches!(r[index],PatternCoverage::Bool(b) if b==value))
-                    .collect(),
-            ));
+            for value in [false, true] {
+                pending.push((index + 1, matching(&|cell| matches!(cell, PatternCoverage::Bool(b) if *b == value))));
+            }
+        } else if arms
+            .iter()
+            .any(|&arm| matches!(cells[arm], PatternCoverage::Case(_)))
+            && let Some((owner, _)) = pattern_subject(ty).nominal_parts()
+            && let Some(cases) = catalog.cases.get(owner)
+        {
+            // Enumerate the declaration's cases, including any case omitted from the arms.
+            for case in cases {
+                pending.push((index + 1, matching(&|cell| matches!(cell, PatternCoverage::Case(id) if id.as_ref() == *case))));
+            }
+        } else {
+            // A value comparison or partial payload cannot prove coverage for this component.
+            pending.push((index + 1, arms.into_iter().filter(|&arm| cells[arm].is_total()).collect()));
         }
     }
     true

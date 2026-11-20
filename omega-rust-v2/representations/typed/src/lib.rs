@@ -6,7 +6,7 @@ mod evaluation;
 mod typed_tree;
 mod typing;
 
-pub use errors::typing_reason::{CrashDeclarationError, DirectCallPauseError, TypingReason};
+pub use errors::typing_reason::{CrashDeclarationError, DirectCallPauseError, DispatchError, TypingReason};
 pub use errors::type_error::TypeError;
 pub use evaluation::integer_arithmetic::{IntegerOperationError, evaluate_integer_index, evaluate_integer_operation};
 pub use evaluation::integer_index::IntegerIndex;

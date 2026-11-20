@@ -31,6 +31,9 @@ typing_reasons! {
         ExceedsSuspensionCeiling => "call exceeds the machine's suspension ceiling",
         ExceedsBlockingCeiling => "call exceeds the machine's blocking ceiling",
     },
+    Dispatch(DispatchError, "dispatch") {
+        UncoveredSubject => "dispatch does not cover its subject",
+    },
     CrashDeclaration(CrashDeclarationError, "crash-declaration") {
         GuardOnNone => "crashes none cannot carry a route guard",
         UnknownCause => "crash clause requires Trap, Abort or none",
