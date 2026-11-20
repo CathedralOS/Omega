@@ -1,9 +1,6 @@
 # Where compiler tests go
 
-A compiler test is a Rust test in this directory, declared as a `[[test]]` in
-the crate's `Cargo.toml`. Prove a change with a test on the changed code, then
-a very small area around it (for the lowered-form checker, the
-`lowered_route_*` tests here).
+Exercise the public compiler API here. Cargo discovers the Rust test files at this directory's root. Tests for individual stages live with their stage. Project planning and Build execution tests live in [build/tests](../build/tests/). The archived orchestration tests still list cases to port to these owners.
 
 Keep compiler-owned programs in [fixtures/](fixtures/), grouped by feature, then `pass`, `fail` or `run`, then case name. A failing case pins its diagnostic in `expected.txt`. A runtime case pins the exit or output read by its test. Keep a program used by several crates in the [shared fixtures](../../../../tests/fixtures/). Resolve package locations from the authored `build.omg`.
 
@@ -17,4 +14,4 @@ not a checked expected result.
 
 ## Running a fixture
 
-From the repository root, run the Rust test which names the fixture, for example `mbx test -p compiler --test byte_view_arrivals`. Its harness prepares the package inputs, selects the target and checks the observation. A direct CLI invocation follows the [CLI package review workflow](../../../application/README.md).
+From the repository root, run the Rust test which names the fixture, for example `mbx test -p compiler --test final_stage_validators`. This harness opens a saved Psi artifact and checks target-specific validation through the compiler API. A direct CLI invocation follows the [CLI package review workflow](../../../application/README.md).

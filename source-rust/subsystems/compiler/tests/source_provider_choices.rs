@@ -2,11 +2,11 @@
 //! These controls keep the original missing/default/conflict/override/target
 //! oracles, then exercise the canonical plans and artifact-bound proposal.
 
-use source_compiler::product::provider_declarations::{
-    ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
-};
 use source_compiler::product::provider_choices::{
     PreparedProviderChoices, prepare_with_source_defaults,
+};
+use source_compiler::product::provider_declarations::{
+    ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
 use source_compiler::{AcceptedTerminalSource, TerminalSourceCompilation};
 use std::sync::Arc;
@@ -47,7 +47,7 @@ fn typed(supplied: &str, program: &str) -> Fixture {
 
 fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::Diagnostic>> {
     let mut sources = source_compiler::source_inputs::SourceMap::default();
-    let mut syntax = None;
+    let mut roots = Vec::new();
     for (path, text, origin) in [
         (
             "program/main.omg",
@@ -55,7 +55,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
             source_admission::SourceOrigin::User,
         ),
         (
-            "<target-package>",
+            "program/provider.omg",
             supplied,
             source_admission::SourceOrigin::Toolchain,
         ),
@@ -71,26 +71,40 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
                 source_provenance::DependencyScope::Product,
             )
             .source_id;
-        let tokens = crate::frontend_fixture::Lexer::new(text)
-            .tokenize()
-            .expect("lex source");
-        match &mut syntax {
-            None => {
-                syntax = Some(
-                    crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
-                        .expect("parse source"),
-                )
-            }
-            Some(syntax) => {
-                crate::frontend_fixture::parse(syntax, id, &tokens).expect("parse source");
-            }
-        }
+        roots.push(id);
     }
-    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax.unwrap());
-    request.sources = Some(Arc::new(sources));
-    let resolved = source_compiler::resolution::resolve(request).expect("resolve source");
-    let typed =
-        source_compiler::typing::lower_symbol_resolved_trees(&resolved).expect("type source");
+    let mut syntax = source_compiler::SourceSyntax::new(roots[0]);
+    let files = sources
+        .selected_files()
+        .map(|file| source_admission::LoadedSource {
+            source_id: file.source_id,
+            path: file.path.clone(),
+            source: Arc::clone(&file.source),
+            origin: Some(file.origin),
+            scope: file.dependency_scope,
+        })
+        .collect();
+    let observer = &mut source_compiler::UnmeasuredProduction;
+    let parsed = source_compiler::SourceInput(files).append(&mut syntax, observer)?;
+    let request = source_compiler::ResolveAndTypeRequest {
+        syntax,
+        source_items: parsed
+            .sources
+            .span_or_empty(parsed.batch)
+            .iter()
+            .map(|file| (file.source_id, file.root_items.clone()))
+            .collect(),
+        root_sources: roots,
+        sources: Arc::new(sources),
+        build_helper_identity: TARGET,
+        build_sources: Default::default(),
+        build_stage: None,
+        frontends: Default::default(),
+        top_level_bindings: Vec::new(),
+        selection_authority: None,
+    };
+    let (source, _) = request.prepare(observer)?;
+    let typed = source.complete_authored(observer)?.finish().typed;
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
         source_provenance::DependencyScope::Product,
@@ -213,7 +227,7 @@ fn check_conditions(
         TARGET,
         &[],
         std::slice::from_ref(proposal),
-        &mut Default::default(),
+        &mut Vec::new(),
     )
     .map(drop)
 }
@@ -327,7 +341,8 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
         panic!("one exact native declaration")
     };
     let candidates =
-        target_provider_admission::selected_provider_candidate_rows(declaration, accepted.module()).unwrap();
+        target_provider_admission::selected_provider_candidate_rows(declaration, accepted.module())
+            .unwrap();
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].candidate_positions.len(), 1);
     let artifact = produced(&accepted);
@@ -433,6 +448,3 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
         "reached Linux requirement remains unsupplied"
     );
 }
-
-#[path = "../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
