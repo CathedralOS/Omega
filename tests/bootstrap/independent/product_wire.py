@@ -25,6 +25,42 @@ def check_tape(work, data, seconds, name="wire", expected=42):
     print(f"{name} exited {expected}. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
 
 
+def check_build_source_ownership(encode, runner, work, seconds):
+    packages = [("app", 0), ("core", 1), ("library", 0)]
+    entries = [(0, 0), (1, 1), (2, 1)]
+    default = (ROOT / "source/library/core/defaults/build.omg").read_bytes()
+    files = [(0, "build.omg", b"machine build(builder: @mut Build) {}"), (1, "defaults/build.omg", default)]
+    wire, _, _, _ = encode(packages, [], [(0, b"machine main() -> u8 {42}")], 0, b"main",
+                            paths=["main.omg"], build_sources=files, build_entries=entries)
+    # Mutate already encoded words to reach the Omega reader past the host's
+    # own ownership checks. Offsets here count u32 words from the header.
+    selections = 10 + 3 * len(packages) + 5
+    sources = selections + 2 * len(entries)
+
+    def replace_words(changes):
+        changed = bytearray(wire)
+        for word, value in changes.items():
+            struct.pack_into("<I", changed, 4 * word, value)
+        return changed
+
+    first_path = struct.unpack_from("<2I", wire, 4 * (sources + 3))
+    cases = {
+        "build-replay-pending": (246, wire),
+        "build-missing-unit": (253, replace_words({selections + 1: len(files)})),
+        "build-duplicate-requester": (253, replace_words({selections + 2: 0})),
+        "build-other-owner": (253, replace_words({selections + 5: 0})),
+        "build-shadowed-default": (253, replace_words({selections + 1: 1})),
+        "build-duplicate-file": (253, replace_words(
+            {sources + 5: 0, sources + 8: first_path[0], sources + 9: first_path[1]})),
+        "build-wrong-default-owner": (253, replace_words({sources + 5: 2})),
+        "build-truncated-arena": (253, wire[:-1]),
+    }
+    for name, (status, request) in cases.items():
+        (work / f"{name}.stdin").write_bytes(request)
+        if execute(runner, request, seconds) != (status, b""):
+            raise SystemExit(f"{name}: expected exit {status} with empty stdout")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="new directory for the construction inputs")
@@ -57,6 +93,7 @@ def main():
         (work / f"{name}.stdin").write_bytes(stdin)
     if args.omega_constructor:
         runner = args.omega_constructor.resolve(strict=True)
+        check_build_source_ownership(encode, runner, work, args.seconds)
         status, output = execute(runner, linked, args.seconds)
         if status:
             raise SystemExit(f"Omega constructor refused linked wire package with exit {status}")

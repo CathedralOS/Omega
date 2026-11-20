@@ -1,0 +1,197 @@
+use omega\language\core\ProcessExit;
+
+// Build entry selections follow the complete Product prefix. Their ordinals
+// address only the separate Build table.
+machine build_table_word(input: @ConstructionInput, selections: u32, units: u32, field: u32) -> u32
+reaches ProcessExit crashes Trap
+{
+    let product_words: u64 = input.package_count as u64 * 3 + input.edge_count as u64 * 4
+        + input.unit_count as u64 * 5;
+    let offset: u64 = selections as u64 * 2 + units as u64 * 5 + field as u64;
+    row_word(input, product_words + offset)
+}
+
+machine build_source_word(input: @ConstructionInput, unit: u32, field: u32) -> u32
+reaches ProcessExit crashes Trap
+{ build_table_word(input, input.package_count, unit, field) }
+
+machine build_source_path(input: @ConstructionInput, unit: u32) -> @[u8]
+reaches ProcessExit crashes Trap
+{
+    let start: u64 = build_source_word(input, unit, 3) as u64;
+    let end: u64 = build_source_word(input, unit, 4) as u64;
+    transition start < end && end <= input.buffer_length as u64 && end <= 4194304 {
+        true -> view(input, start, end),
+        _ -> empty(input)
+    }
+    machine view(input: @ConstructionInput, start: u64, end: u64) -> @[u8]
+    requires start <= end && end <= 4194304
+    { @input.bytes[start..end] }
+    machine empty(input: @ConstructionInput) -> @[u8] { @input.bytes[0..0] }
+}
+
+machine same_build_path(left: @[u8], right: @[u8]) -> bool crashes Trap {
+    transition left.len == right.len {
+        true -> scan(left, right, 0),
+        _ -> false
+    }
+    machine scan(left: @[u8], right: @[u8], index: u64) -> bool {
+        transition index < left.len && index < right.len {
+            true -> byte(left, right, index),
+            _ -> true
+        }
+    }
+    machine byte(left: @[u8], right: @[u8], index: u64) -> bool
+    requires index < left.len && index < right.len
+    {
+        transition left[index] == right[index] {
+            true -> scan(left, right, index + 1),
+            _ -> false
+        }
+    }
+}
+
+machine build_path_valid(path: @[u8]) -> bool crashes Trap {
+    transition { _ -> scan(path, 0, 0) }
+    machine scan(path: @[u8], start: u64, index: u64) -> bool
+    requires start <= index && index <= path.len
+    {
+        transition index < path.len {
+            true -> byte(path, start, index),
+            _ -> component(@path[start..index])
+        }
+    }
+    machine byte(path: @[u8], start: u64, index: u64) -> bool
+    requires start <= index && index < path.len
+    {
+        transition path[index] {
+            0 -> false,  // NUL
+            92 -> false, // Backslash
+            47 -> separator(path, start, index), // Forward slash
+            _ -> scan(path, start, index + 1)
+        }
+    }
+    machine separator(path: @[u8], start: u64, index: u64) -> bool
+    requires start <= index && index < path.len
+    {
+        transition component(@path[start..index]) {
+            true -> scan(path, index + 1, index + 1),
+            _ -> false
+        }
+    }
+    machine component(part: @[u8]) -> bool { part.len > 0 && !same_build_path(part, ".") && !same_build_path(part, "..") }
+}
+
+machine has_build_file(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8]) -> bool
+reaches ProcessExit crashes Trap
+{
+    transition { _ -> scan(input, limit, supplier, path, 0) }
+    machine scan(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8], unit: u32) -> bool {
+        transition unit < limit {
+            true -> file(input, limit, supplier, path, unit),
+            _ -> false
+        }
+    }
+    machine file(input: @ConstructionInput, limit: u32, supplier: u32, path: @[u8], unit: u32) -> bool
+    requires unit < limit
+    {
+        transition build_source_word(input, unit, 0) == supplier && same_build_path(build_source_path(input, unit), path) {
+            true -> true,
+            _ -> scan(input, limit, supplier, path, unit + 1)
+        }
+    }
+}
+
+machine unique_core(input: @ConstructionInput, supplier: u32) -> bool
+reaches ProcessExit crashes Trap
+{
+    transition row_word(input, supplier as u64 * 3 + 2) == 1 {
+        true -> scan(input, supplier, 0),
+        _ -> false
+    }
+    machine scan(input: @ConstructionInput, supplier: u32, package: u32) -> bool {
+        transition package < input.package_count {
+            true -> check(input, supplier, package),
+            _ -> true
+        }
+    }
+    machine check(input: @ConstructionInput, supplier: u32, package: u32) -> bool
+    requires package < input.package_count
+    {
+        transition package != supplier && row_word(input, package as u64 * 3 + 2) == 1 {
+            true -> false,
+            _ -> scan(input, supplier, package + 1)
+        }
+    }
+}
+
+machine build_evidence_valid(input: @ConstructionInput) -> bool
+reaches ProcessExit crashes Trap
+{
+    transition { _ -> sources(input, 0) }
+    machine sources(input: @ConstructionInput, unit: u32) -> bool {
+        transition unit < input.build_unit_count {
+            true -> file(input, unit),
+            _ -> entries(input, 0)
+        }
+    }
+    machine file(input: @ConstructionInput, unit: u32) -> bool
+    requires unit < input.build_unit_count
+    {
+        let supplier: u32 = build_source_word(input, unit, 0);
+        let start: u32 = build_source_word(input, unit, 1);
+        let end: u32 = build_source_word(input, unit, 2);
+        let path: @[u8] = build_source_path(input, unit);
+        transition supplier < input.package_count && start <= end && end <= input.buffer_length
+            && build_path_valid(path) && !has_build_file(input, unit, supplier, path) {
+            true -> sources(input, unit + 1),
+            _ -> false
+        }
+    }
+    machine entries(input: @ConstructionInput, requester: u32) -> bool {
+        transition requester < input.package_count {
+            true -> entry(input, requester),
+            _ -> true
+        }
+    }
+    machine entry(input: @ConstructionInput, requester: u32) -> bool
+    requires requester < input.package_count
+    {
+        let owner: u32 = build_table_word(input, requester, 0, 0);
+        let unit: u32 = build_table_word(input, requester, 0, 1);
+        transition owner == requester && unit < input.build_unit_count {
+            true -> selected(input, requester, unit),
+            _ -> false
+        }
+    }
+    machine selected(input: @ConstructionInput, requester: u32, unit: u32) -> bool
+    requires requester < input.package_count
+    {
+        let supplier: u32 = build_source_word(input, unit, 0);
+        let path: @[u8] = build_source_path(input, unit);
+        let local: bool = supplier == requester && same_build_path(path, "build.omg");
+        let fallback: bool = same_build_path(path, "defaults/build.omg") && unique_core(input, supplier)
+            && !has_build_file(input, input.build_unit_count, requester, "build.omg");
+        transition local || fallback {
+            true -> entries(input, requester + 1),
+            _ -> false
+        }
+    }
+}
+
+// Capturing Build files supplies the inputs for replay. Until the compiler
+// checks them, the construction application must terminate before publication.
+machine check_build_input(input: @ConstructionInput) reaches ProcessExit crashes Trap {
+    transition input.has_build_sources {
+        true -> check(input),
+        _ -> accepted()
+    }
+    machine check(input: @ConstructionInput) {
+        transition build_evidence_valid(input) {
+            true -> pending(),
+            _ -> malformed()
+        }
+    }
+    machine pending() { ProcessExit::exit_process(246); }
+    machine accepted() {}
+}
