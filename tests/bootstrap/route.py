@@ -68,12 +68,16 @@ class Route:
         return self.file(name, f"{description} [{chain}]", lambda: invoke(
             [program.image], program.input(payload()), self.args.seconds))
 
+    @cached_property
+    def gamma_interpreter(self):
+        self.stage("rebuild Beta and the Gamma interpreter on Alpha",
+                   lambda: reconstruct(self.work, seconds=self.args.seconds))
+        return Program(self.work / "reference")
+
     def prepare_gamma(self):
         host = self.args.gamma
         if host == "interpret":
-            self.stage("rebuild Beta and the Gamma interpreter on Alpha",
-                       lambda: reconstruct(self.work, seconds=self.args.seconds))
-            self.host = Program(self.work / "reference")
+            self.host = self.gamma_interpreter
             return
         build = self.args.gamma_build or self.work / "cold"
         if self.args.gamma_build:
@@ -131,7 +135,7 @@ class Route:
         return path
 
     def on_delta(self, name, source, mode):
-        if mode == "interpret":
+        if mode == "interpret" and self.args.delta_interpreter == "direct":
             interp = self.work / "interpreter.gamma"
             self.stage("assemble the direct Delta interpreter", lambda: materialize(self.work, self.args.profile))
             return self.on_gamma("delta-interpreter", interp).bind(source)
@@ -140,6 +144,8 @@ class Route:
         profile = 1 if self.args.profile == "conformance" else 2
         gamma = self.run(name + ".gamma", f"translate {source.name} to Gamma", compiler,
                          lambda: delta_request(source.read_bytes(), support.read_bytes(), profile))
+        if mode == "interpret":
+            return self.gamma_interpreter.bind(gamma)
         return self.image(name, mode, self.backend(mode), gamma)
 
     def select(self):
@@ -174,6 +180,7 @@ def execute_route(route, guest, stdin, expected, verbose):
     (work / "stdin.bin").write_bytes(stdin)
     args = route.args
     report = {"gamma": args.gamma, "delta": args.delta, "epsilon": args.epsilon, "profile": args.profile,
+              "delta_interpreter": args.delta_interpreter if args.delta == "interpret" else None,
               "source_sha256": sha256(guest).hexdigest(), "stdin_sha256": sha256(stdin).hexdigest(),
               "seconds_per_invocation": args.seconds, "stages": []}
     status = 0
@@ -222,6 +229,8 @@ def main():
     program.add_argument("--source", type=Path, help="complete Epsilon program with its entry")
     program.add_argument("--case", choices=("stdin", "exit", "trap"), help="portable control (default: stdin)")
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
+    parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
+                        help="interpret checked Delta directly or translate it to Gamma and interpret that source")
     parser.add_argument("--gamma-build", type=Path, help="reuse the selected Alpha or native cold build")
     parser.add_argument("--profile", choices=("conformance", "construction"), default="conformance")
     parser.add_argument("--seconds", type=int, default=600, help="wall limit per producer or guest invocation")
@@ -231,6 +240,8 @@ def main():
         parser.error("an output directory is required for execution")
     if args.stdin and not args.source:
         parser.error("--stdin requires --source")
+    if args.delta_interpreter == "gamma" and args.delta not in ("interpret", "all"):
+        parser.error("--delta-interpreter gamma requires --delta interpret or all")
     if args.gamma_build and args.gamma not in ("alpha", "native"):
         parser.error("--gamma-build requires --gamma alpha or --gamma native")
     if args.seconds <= 0:
@@ -272,6 +283,8 @@ def main():
             print(label)
             for description, _ in route.steps:
                 print("  " + description)
+            if gamma != "interpret" and not row.gamma_build:
+                builds[gamma] = work / "cold"
             continue
         status, report = execute_route(route, guest, stdin, expected, verbose=not matrix)
         if matrix:
@@ -291,7 +304,7 @@ def main():
         if not status:
             observations.setdefault(report["observation_sha256"], []).append(label)
         # The cold launcher publishes gamma-compiler after the fixed-point check.
-        if (work / "cold/gamma-compiler").is_file():
+        if report["stages"][0].get("completed") and (work / "cold/gamma-compiler").is_file():
             builds[gamma] = work / "cold"
     if len(observations) > 1:
         for digest, rows in observations.items():

@@ -15,7 +15,9 @@ The default control reads `Z`, writes it, and exits 90. All three routes
 must produce `00 5a 00 00 00 5a`. Use `--source FILE --stdin FILE` for your
 own Epsilon program and raw input. Use `--plan` to inspect the stages without
 running them. The plan shows which compiler runs, where it runs, and which
-runtime handoff is required. [Route runner](../../../tests/bootstrap/route.py)
+runtime handoff is required. Interpreted Delta defaults to the direct interpreter.
+Add `--delta-interpreter gamma` to translate Delta and interpret the emitted
+Gamma, as in the original interpreted route. [Route runner](../../../tests/bootstrap/route.py)
 
 Each run needs a new output directory and the repository's built `xtask` for
 source manifests. Each row retains its source, input, intermediate artifacts,
@@ -30,6 +32,15 @@ supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
 rebuild and records the host executable's hash. Interpreted Gamma starts
 from Beta. `--profile construction` selects the larger Delta byte limits for
 whole-compiler inputs. [Cold build](../../../tests/bootstrap/linux_x86_64/README.md)
+
+### Same stdin program across routes
+
+With the language sources at `f040d53f89d`, all nine selections on
+Alpha-hosted Gamma and all nine on Linux-hosted Gamma returned the expected
+six bytes. The guest read `Z`, wrote `Z`, and exited 90. The twelve routes
+that compiled the guest produced identical Delta and Gamma source. All six
+Alpha targets emitted the same 487,013-byte tape. All six Linux targets
+emitted the same 260,706-byte executable.
 
 ## Tested threads through the matrix
 

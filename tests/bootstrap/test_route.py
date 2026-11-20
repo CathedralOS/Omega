@@ -14,7 +14,7 @@ class RouteTests(unittest.TestCase):
         for gamma, delta, epsilon in product(MODES, repeat=3):
             with self.subTest(gamma=gamma, delta=delta, epsilon=epsilon):
                 args = argparse.Namespace(gamma=gamma, delta=delta, epsilon=epsilon,
-                                          gamma_build=None, profile="conformance", seconds=1)
+                                          gamma_build=None, profile="conformance", seconds=1, delta_interpreter="direct")
                 route = Route(args, Path("/unused"))
                 route.select()
                 stages = [name for name, _ in route.steps]
@@ -27,6 +27,16 @@ class RouteTests(unittest.TestCase):
                 self.assertEqual("assemble the direct Delta interpreter" in stages, delta == "interpret")
                 self.assertEqual("rebuild Beta and the Gamma interpreter on Alpha" in stages,
                                  gamma == "interpret")
+
+    def test_delta_can_interpret_the_translators_actual_gamma_output(self):
+        args = argparse.Namespace(gamma="native", delta="interpret", epsilon="interpret",
+                                  gamma_build=None, profile="conformance", seconds=1, delta_interpreter="gamma")
+        route = Route(args, Path("/unused"))
+        route.select()
+        stages = [name for name, _ in route.steps]
+        self.assertTrue(any("translate evaluator.delta to Gamma" in name for name in stages))
+        self.assertIn("[reference -> evaluator.gamma]", stages[-1])
+        self.assertNotIn("assemble the direct Delta interpreter", stages)
 
     def test_interpreters_consume_only_their_own_source(self):
         with tempfile.TemporaryDirectory() as temp:
