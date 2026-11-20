@@ -225,10 +225,17 @@ machine Main::main(&mut self) {
         // Domain entries cannot become arithmetic on the unparenthesized result.
         self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 -Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,192);
         self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 =Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,193);
-        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 +Trapping +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,194);
+        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 +Trapping +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",1,194);
         self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 + 1} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",1,195);
         self.refusal("machine mark(n:u32)->u32 in Trapping {n as u32 in Trapping} machine main()->u8 {let x:u32 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,196);
         self.positive("machine mark(n:u32)->u32 in Trapping {(n as u32) as +Trapping} machine main()->u8 {let x:u32 in Trapping=mark(3);transition x==3 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,197);
+        // Both spellings of a policy exchange keep the same operand and result.
+        self.positive("machine main()->u8 {let width:u64 in Trapping=42u64 as +Trapping;let forward:u64 in Wrapping=width as -Trapping +Wrapping;let reverse:u64 in Wrapping=width as +Wrapping -Trapping;let kept:u64 in Wrapping=reverse as =Wrapping;let plain:u64=forward as -Wrapping;transition (kept as -Wrapping)==plain && plain==42u64 {true->42,_->1}}",42,50);
+        self.refusal("machine change(width:u64 in Trapping)->u64 in Wrapping {width as -Trapping +Trapping} machine main()->u8 {42}",1,51);
+        self.refusal("machine change(width:u64 in Trapping)->u64 in Wrapping {7u64 as -Trapping +Wrapping} machine main()->u8 {42}",1,52);
+        self.refusal("machine change(width:u64 in Trapping)->u64 in Wrapping {7u64 as =Wrapping} machine main()->u8 {42}",1,53);
+        self.refusal("machine change(width:u64 in Trapping)->u64 in Wrapping {width as -Foreign +Wrapping} machine main()->u8 {42}",2,54);
+        self.positive("machine main()->u8 {let width:u64 in Trapping=42u64 as +Trapping;let forward:u64 in Wrapping=width as -Trapping as +Wrapping;let reverse:u64 in Wrapping=width as +Wrapping -Trapping;let kept:u64 in Wrapping=reverse as =Wrapping;let plain:u64=forward as -Wrapping;transition (kept as -Wrapping)==plain && plain==42u64 {true->42,_->1}}",42,55);
     }
 
     state batch_11() {

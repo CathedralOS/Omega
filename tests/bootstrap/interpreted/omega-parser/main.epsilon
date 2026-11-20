@@ -266,18 +266,25 @@ machine Main::main(&mut self) {
     assert self.parser.cast_expressions[0].domain.end -
         self.parser.cast_expressions[0].domain.start == 16;
 
-    // Retired whole-type domain casts and unsupported multi-entry casts must
-    // not become successful casts or accidental arithmetic expressions.
+    // A run after one 'as' owns all its domain entries. A second 'as' starts a new run.
     self.parser.parse_view("machine p() { x = value as u32 in Trapping; }");
     self.check_refused();
     self.parser.parse_view("machine p() { x = value as +Trapping -Other; }");
-    self.check_refused();
+    self.check_complete();
+    self.check_cast_kind(0, 1);
+    self.check_cast_kind(1, 2);
+    assert self.parser.cast_expressions[0].first_entry == 0;
+    assert self.parser.cast_expressions[1].first_entry == 0;
+    self.parser.parse_view("machine p() { x = value as -Trapping as +Wrapping; }");
+    self.check_complete();
+    assert self.parser.cast_expressions[1].first_entry == 1;
     self.parser.parse_view("machine p() { x = value as u32 +Trapping; }");
     self.check_carrier_and_domain();
     self.parser.parse_view("machine p() { x = value as u32 + 1; }");
     self.check_refused();
     self.parser.parse_view("machine p() { x = value as =Trapping; }");
-    self.check_incomplete(27, 28);
+    self.check_complete();
+    self.check_cast_kind(0, 3);
     self.parser.parse_view("machine p() { x = value as +");
     self.check_refused();
     self.parser.parse_view("machine p() { let x: bool = scalar < \x01; }");
@@ -927,6 +934,7 @@ machine Main::check_cast_kind(&mut self, index: i32, expected: i32) {
         OmegaCastKind::Carrier -> carrier()
         OmegaCastKind::AddDomain -> add()
         OmegaCastKind::RemoveDomain -> remove()
+        OmegaCastKind::KeepDomain -> keep()
     }
     state carrier() {
         assert expected == 0;
@@ -935,6 +943,7 @@ machine Main::check_cast_kind(&mut self, index: i32, expected: i32) {
         assert self.parser.cast_expressions[index].domain.end == 0;
     }
     state add() { assert expected == 1; transition true { true -> domain() } }
+    state keep() { assert expected == 3; transition true { true -> domain() } }
     state remove() { assert expected == 2; transition true { true -> domain() } }
     state domain() {
         assert self.parser.cast_expressions[index].target_type == 0;
