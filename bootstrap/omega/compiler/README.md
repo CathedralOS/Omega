@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current thirteen-member
-manifest materializes 26,217 lines / 1,004,301 bytes with SHA-256
-`94bed362053a83d612ee77193fb147608d25a0fd590dcc6650c45e7cf76ede0c`.
+manifest materializes 26,265 lines / 1,006,567 bytes with SHA-256
+`c5488bef807258433ce8333daffdfdf144520d6d8d0989858992397a2d0fc42e`.
 The manifest itself is 2,380 bytes, SHA-256
-`b2de342abd7620790ca96a598bcd7aea8a3a87994cee431380273a6074a65d14`;
+`5d9d5c2c9e9d95b75a6bc3d5dc3efcb07e4e8087dbdfd5be159523175340749b`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -395,7 +395,10 @@ selector evaluation and, for assignment, through the RHS. Whole-array overlap
 is conservative: this slice does not yet prove separate element loans disjoint.
 
 Shared and mutable record-reference parameters carry the original referent
-address. A caller can borrow several owned records or their projected fields
+address. An explicit `$source` copies a named reference's copyable record,
+and `$target = replacement` writes the whole record through a mutable
+reference. Both use the full referent's range for loan and bound checks.
+A caller can borrow several owned records or their projected fields
 in one call. The checker keeps earlier arguments' loans live while it checks
 later arguments. It permits two shared loans to the same field and an exclusive
 loan beside a disjoint sibling. Overlap with an exclusive loan refuses in

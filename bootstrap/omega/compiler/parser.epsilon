@@ -6447,6 +6447,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::Ampersand -> retain_framed_operator_path()
             OmegaPunctuationKind::Pipe -> retain_framed_operator_path()
             OmegaPunctuationKind::Caret -> retain_framed_operator_path()
+            OmegaPunctuationKind::Equal -> retain_framed_operator_path()
             OmegaPunctuationKind::EqualEqual -> retain_framed_operator_path()
             OmegaPunctuationKind::ExclamationEqual ->
                 retain_framed_operator_path()
