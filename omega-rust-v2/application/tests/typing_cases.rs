@@ -540,3 +540,26 @@ machine demo() { let x = one(); }";
     check_source_change(source, "let x = one()", "let x = noop()",
         "noop()", "binding requires a value", "Data and bindings");
 }
+
+#[test]
+fn an_inferred_constant_cannot_depend_on_itself() {
+    check_source_change("const A = 1u8;", "1u8", "A", "A",
+        "cannot infer a constant through a dependency cycle", "Data and bindings");
+}
+
+#[test]
+fn a_match_of_unsuffixed_integers_needs_a_result_type() {
+    let source = "machine choose(flag: bool, fallback: u8) -> u8 {
+    let value = match flag {
+        true -> 1,
+        false -> fallback,
+    };
+    value
+}";
+    let refused_match = "match flag {
+        true -> 1,
+        false -> 2,
+    }";
+    check_source_change(source, "false -> fallback", "false -> 2", refused_match,
+        "dispatch needs a result type", "Patterns and places");
+}
