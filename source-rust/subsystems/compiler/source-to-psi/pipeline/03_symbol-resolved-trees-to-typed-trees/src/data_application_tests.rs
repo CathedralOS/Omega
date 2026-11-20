@@ -8,12 +8,7 @@ data Envelope<T> { case Value(payload: T); }
 data Holder { value: Envelope<Buffer<u8, capacity()>>; }
 machine capacity() -> u64 { 4 }
 "#;
-    let tokens = crate::frontend_fixture::Lexer::new(text)
-        .tokenize()
-        .unwrap();
-    let syntax = crate::frontend_fixture::parse_syntax_trees(&tokens).unwrap();
-    let resolved =
-        crate::resolution::resolve(crate::resolution::ResolutionRequest::new(syntax)).unwrap();
+    let resolved = crate::resolve_fixture(text);
     let mut program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
     let holder = program
         .data_definitions()

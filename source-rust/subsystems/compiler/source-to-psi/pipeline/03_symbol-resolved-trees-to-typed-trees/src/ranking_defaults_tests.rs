@@ -4,13 +4,7 @@ use semantic_vocabulary::RankingViewId;
 use source_declarations::RankingWitness;
 
 fn resolve_and_type(source: &str) -> TypedTrees {
-    let tokens = crate::typing::frontend_fixture::Lexer::new(source)
-        .tokenize()
-        .expect("ranking source lexes");
-    let syntax = crate::typing::frontend_fixture::parse_syntax_trees(&tokens)
-        .expect("ranking source parses");
-    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest::new(syntax))
-        .expect("ranking subjects resolve");
+    let resolved = crate::resolve_fixture(source);
     for machine in resolved.machines.iter() {
         if let Some(witness) = &machine.termination_plan.implementation_witness
             && witness.view_path.is_empty()

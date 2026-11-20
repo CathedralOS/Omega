@@ -1648,12 +1648,7 @@ mod boolean_result_tests {
                 comparison
             }
         "#;
-        let tokens = crate::typing::frontend_fixture::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = crate::typing::frontend_fixture::parse_syntax_trees(&tokens).unwrap();
-        let resolved =
-            crate::resolution::resolve(crate::resolution::ResolutionRequest::new(syntax)).unwrap();
+        let resolved = crate::resolve_fixture(source);
         let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let mut captured = 0;
         let mut authored = 0;
