@@ -1,0 +1,192 @@
+// A memberless boundary is a service identity. The source unit and declaration,
+// including its package, determine that identity. No provider is needed to name it.
+machine OmegaScalarCompiler::check_service_declarations(&mut self, source: &[u8]) -> i32 {
+    transition true { true -> item(0) }
+    state item(index: i32) {
+        transition index < self.parser.boundary_trait_count {
+            true -> shape(index, self.parser.boundary_traits[index])
+            _ -> return 1
+        }
+    }
+    state shape(index: i32, row: OmegaBoundaryTraitSyntax) {
+        transition row.requirement_count == 0 {
+            true -> name(index, row.name)
+            _ -> unsupported(row.boundary_keyword.start)
+        }
+    }
+    state name(index: i32, name: OmegaRelativeSpan) {
+        transition self.parser.reserved_namespace(source, name.start, name.end) {
+            1 -> rejected(name.start)
+            _ -> previous(index, name, self.parser.sources.unit_at(name.start), 0)
+        }
+    }
+    state previous(index: i32, name: OmegaRelativeSpan, unit: i32, other: i32) {
+        transition other < index {
+            true -> compare(index, name, unit, other, self.parser.boundary_traits[other].name)
+            _ -> record_name(index, name, unit, 0)
+        }
+    }
+    state compare(index: i32, name: OmegaRelativeSpan, unit: i32, other: i32, prior: OmegaRelativeSpan) {
+        transition (self.parser.sources.equal_name(source, name, prior) == 1) &&
+            (self.same_module(source, unit, self.parser.sources.unit_at(prior.start)) == 1) {
+            true -> rejected(name.start)
+            _ -> previous(index, name, unit, other + 1)
+        }
+    }
+    state record_name(index: i32, name: OmegaRelativeSpan, unit: i32, record: i32) {
+        transition record < self.parser.data_count {
+            true -> compare_record(index, name, unit, record, self.parser.data_items[record].name)
+            _ -> item(index + 1)
+        }
+    }
+    state compare_record(index: i32, name: OmegaRelativeSpan, unit: i32, record: i32, other: OmegaRelativeSpan) {
+        transition (self.parser.sources.equal_name(source, name, other) == 1) &&
+            (self.same_module(source, unit, self.parser.sources.unit_at(other.start)) == 1) {
+            true -> rejected(name.start)
+            _ -> record_name(index, name, unit, record + 1)
+        }
+    }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+}
+
+// Retain the selected trait for each occurrence. Repeated occurrences have
+// the same identity; an explicit empty row has the sole member handle -1.
+machine OmegaScalarCompiler::check_reach_clause(
+    &mut self, source: &[u8], owner: i32, clause: i32
+) -> i32 {
+    let row: OmegaMachineClauseSyntax = self.parser.machine_clauses[clause];
+    self.reach_clauses[owner] = clause;
+    transition true { true -> member(row, 0) }
+    state member(row: OmegaMachineClauseSyntax, index: i32) {
+        transition index < row.member_count {
+            true -> name(row, index, self.parser.members[row.first_member + index])
+            _ -> return 1
+        }
+    }
+    state name(row: OmegaMachineClauseSyntax, index: i32, name: OmegaRelativeSpan) {
+        transition self.span_equals(source, name.start, name.end, "none") {
+            1 -> empty(row, name)
+            _ -> service_name(row, index, name)
+        }
+    }
+    state service_name(row: OmegaMachineClauseSyntax, index: i32, name: OmegaRelativeSpan) {
+        // Operational markers have their own axes and cannot name services.
+        transition (self.span_equals(source, name.start, name.end, "Suspend") == 1) ||
+            (self.span_equals(source, name.start, name.end, "Block") == 1) ||
+            (self.span_equals(source, name.start, name.end, "thread_block") == 1) ||
+            (self.span_equals(source, name.start, name.end, "sync_wait") == 1) {
+            true -> rejected(name.start)
+            _ -> resolved(row, index, name,
+                self.resolve_declaration(source, name.start, name.end, OmegaDeclarationKind::Service))
+        }
+    }
+    state empty(row: OmegaMachineClauseSyntax, name: OmegaRelativeSpan) {
+        self.reach_members[row.first_member] = -1;
+        transition row.member_count == 1 {
+            true -> return 1
+            _ -> rejected(name.start)
+        }
+    }
+    state resolved(row: OmegaMachineClauseSyntax, index: i32, name: OmegaRelativeSpan, service: i32) {
+        transition service >= 0 {
+            true -> visibility(row, index, name, service)
+            _ -> rejected(name.start)
+        }
+    }
+    state visibility(row: OmegaMachineClauseSyntax, index: i32, name: OmegaRelativeSpan, service: i32) {
+        transition (self.parser.machine_items[owner].is_public == 0) ||
+            (self.parser.boundary_traits[service].is_public == 1) {
+            true -> retain(row, index, service)
+            _ -> rejected(name.start)
+        }
+    }
+    state retain(row: OmegaMachineClauseSyntax, index: i32, service: i32) {
+        self.reach_members[row.first_member + index] = service;
+        transition true { true -> member(row, index + 1) }
+    }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+}
+
+// -1 means infer from calls. An authored clause publishes its upper bound
+// even when this implementation uses fewer services.
+machine OmegaScalarCompiler::authored_reach(&mut self, owner: i32, service: i32) -> i32 {
+    let last: i32 = self.reach_clauses[owner];
+    transition last >= 0 {
+        true -> clause(self.parser.machine_items[owner].first_clause, last)
+        _ -> return -1
+    }
+    state clause(cursor: i32, last: i32) {
+        transition cursor <= last {
+            true -> kind(cursor, last, self.parser.machine_clauses[cursor])
+            _ -> return 0
+        }
+    }
+    state kind(cursor: i32, last: i32, row: OmegaMachineClauseSyntax) {
+        transition row.kind {
+            OmegaMachineClauseKind::Reaches -> member(cursor, last, row, 0)
+            _ -> clause(cursor + 1, last)
+        }
+    }
+    state member(cursor: i32, last: i32, row: OmegaMachineClauseSyntax, index: i32) {
+        transition index < row.member_count {
+            true -> compare(cursor, last, row, index)
+            _ -> clause(cursor + 1, last)
+        }
+    }
+    state compare(cursor: i32, last: i32, row: OmegaMachineClauseSyntax, index: i32) {
+        transition self.reach_members[row.first_member + index] == service {
+            true -> return 1
+            _ -> member(cursor, last, row, index + 1)
+        }
+    }
+}
+
+// The admitted ordinary-call graph is acyclic. Compute one membership bit
+// per machine, visiting callees before callers. Keeping just the current
+// service uses linear storage regardless of the number of service identities.
+machine OmegaScalarCompiler::check_service_calls(&mut self) -> i32 {
+    transition true { true -> service(0) }
+    state service(index: i32) {
+        transition index < self.parser.boundary_trait_count {
+            true -> machine_at(index, 0)
+            _ -> return 1
+        }
+    }
+    state machine_at(index: i32, position: i32) {
+        transition position < self.call_order_count {
+            true -> owner(index, position, self.call_order[position])
+            _ -> service(index + 1)
+        }
+    }
+    state owner(index: i32, position: i32, owner: i32) {
+        let authored: i32 = self.authored_reach(owner, index);
+        transition authored == 1 {
+            true -> publish(index, position, owner, 1)
+            _ -> call(index, position, owner, authored, self.call_edge_heads[owner])
+        }
+    }
+    state call(index: i32, position: i32, owner: i32, authored: i32, edge: i32) {
+        transition edge >= 0 {
+            true -> callee(index, position, owner, authored, edge)
+            _ -> publish(index, position, owner, 0)
+        }
+    }
+    state callee(index: i32, position: i32, owner: i32, authored: i32, edge: i32) {
+        transition self.published_reach[self.call_edge_targets[edge]] {
+            1 -> contribution(index, position, owner, authored, edge)
+            _ -> call(index, position, owner, authored, self.call_edge_next[edge])
+        }
+    }
+    state contribution(index: i32, position: i32, owner: i32, authored: i32, edge: i32) {
+        transition authored == 0 {
+            true -> rejected(self.call_edge_offsets[edge])
+            _ -> publish(index, position, owner, 1)
+        }
+    }
+    state publish(index: i32, position: i32, owner: i32, reaches: i32) {
+        self.published_reach[owner] = reaches;
+        transition true { true -> machine_at(index, position + 1) }
+    }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+}

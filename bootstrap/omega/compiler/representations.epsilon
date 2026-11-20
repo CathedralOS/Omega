@@ -269,12 +269,14 @@ data OmegaSourceSet {
 data OmegaDeclarationKind {
     case Data;
     case Machine;
+    case Service;
 }
 
 data OmegaImportBindingKind {
     case Namespace;
     case Data;
     case Machine;
+    case Service;
 }
 
 data OmegaImportBinding {
