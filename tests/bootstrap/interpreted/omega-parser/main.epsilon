@@ -11,6 +11,15 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.check_boundary_traits(
+        "public boundary trait Service { machine stop(code:i32)->Never reaches Service crashes none terminates; machine stop()->u8; } boundary trait Other {} machine entry()->u8{42}"
+    );
+    self.parser.parse_view("boundary trait A { machine f(x i32); }");
+    self.check_refused();
+    self.parser.parse_view("boundary trait A { machine f();");
+    self.check_refused();
+    self.parser.parse_view("boundary trait A { machine f() { 42 } }");
+    self.check_incomplete(31, 32);
     self.parser.parse_view("machine p(name:@[u8]) {transition name != \".\" && name != \"\\x2e.\" {true->pass(), _->fail()} machine pass() {} machine fail() {}}");
     self.check_complete();
     assert self.parser.binary_expression_count == 3;
@@ -1398,5 +1407,81 @@ machine Main::check_subject_string(&mut self, expression: i32, start: i32, end: 
     transition literal.kind {
         OmegaExpressionKind::String -> return
         _ -> self.console.exit_process(1)
+    }
+}
+
+// The same spelling can occur in more than one overload. Keep both signatures
+// under their declaring trait and keep free machines in their own table.
+machine Main::check_boundary_traits(&mut self, source: &[u8]) {
+    self.parser.parse_view(source);
+    self.check_complete();
+    assert self.parser.root_count == 3;
+    assert self.parser.boundary_trait_count == 2;
+    assert self.parser.boundary_requirement_count == 2;
+    assert self.parser.machine_count == 1;
+    assert self.parser.machine_state_count == 1;
+    let service: OmegaBoundaryTraitSyntax = self.parser.boundary_traits[0];
+    assert service.is_public == 1;
+    assert service.first_requirement == 0;
+    assert service.requirement_count == 2;
+    self.check_span(source, service.name, "Service");
+    self.check_span(source, service.boundary_keyword, "boundary");
+    let other: OmegaBoundaryTraitSyntax = self.parser.boundary_traits[1];
+    assert other.is_public == 0;
+    assert other.first_requirement == 2;
+    assert other.requirement_count == 0;
+    self.check_span(source, other.name, "Other");
+    let stop: OmegaBoundaryRequirementSyntax = self.parser.boundary_requirements[0];
+    self.check_span(source, stop.name, "stop");
+    assert stop.first_parameter == 0;
+    assert stop.parameter_count == 1;
+    assert stop.has_return_type == 1;
+    self.check_span(source, self.parser.machine_parameters[0].name, "code");
+    self.check_type_name(source, self.parser.machine_parameters[0].type_reference, "i32");
+    self.check_type_name(source, stop.return_type, "Never");
+    assert stop.first_clause == 0;
+    assert stop.clause_count == 3;
+    let overload: OmegaBoundaryRequirementSyntax = self.parser.boundary_requirements[1];
+    self.check_span(source, overload.name, "stop");
+    assert overload.parameter_count == 0;
+    assert overload.has_return_type == 1;
+    assert overload.clause_count == 0;
+    self.check_type_name(source, overload.return_type, "u8");
+    transition self.parser.roots[0].kind {
+        OmegaRootKind::BoundaryTrait -> check_reach()
+        _ -> self.console.exit_process(1)
+    }
+    state check_reach() {
+        transition self.parser.machine_clauses[0].kind {
+            OmegaMachineClauseKind::Reaches -> check_crash()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state check_crash() {
+        transition self.parser.machine_clauses[1].kind {
+            OmegaMachineClauseKind::CrashesNone -> check_progress()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state check_progress() {
+        transition self.parser.machine_clauses[2].kind {
+            OmegaMachineClauseKind::EventualTermination -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_span(&mut self, source: &[u8], span: OmegaRelativeSpan, expected: &[u8]) {
+    assert self.parser.scan.span_equals(source, span.start, span.end, expected) == 1;
+}
+
+machine Main::check_type_name(&mut self, source: &[u8], node: i32, expected: &[u8]) {
+    let row: OmegaTypeReferenceSyntax = self.parser.type_references[node];
+    transition row.kind {
+        OmegaTypeReferenceKind::Named -> check_name(row)
+        _ -> self.console.exit_process(1)
+    }
+    state check_name(type_row: OmegaTypeReferenceSyntax) {
+        assert self.parser.scan.span_equals(source, type_row.payload0, type_row.payload1, expected) == 1;
     }
 }

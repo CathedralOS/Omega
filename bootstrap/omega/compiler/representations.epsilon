@@ -291,11 +291,38 @@ data OmegaRootKind {
     case Use;
     case Data;
     case Machine;
+    case BoundaryTrait;
 }
 
 data OmegaRootSyntax {
     kind: OmegaRootKind;
     item_index: i32;
+}
+
+// Each boundary requirement belongs to exactly one trait. Its parameter,
+// predicate, type and clause handles use the ordinary signature arenas.
+data OmegaBoundaryTraitSyntax {
+    name: OmegaRelativeSpan;
+    boundary_keyword: OmegaRelativeSpan;
+    first_requirement: i32;
+    requirement_count: i32;
+    is_public: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaBoundaryRequirementSyntax {
+    name: OmegaRelativeSpan;
+    first_parameter: i32;
+    parameter_count: i32;
+    first_predicate: i32;
+    predicate_count: i32;
+    first_clause: i32;
+    clause_count: i32;
+    has_return_type: i32;
+    return_type: i32;
+    start: i32;
+    end: i32;
 }
 
 data OmegaDataMultiplicity {
@@ -447,6 +474,7 @@ data OmegaMachineClauseKind {
     case Blocks;
     case BlocksFalse;
     case Terminates;
+    case EventualTermination;
 }
 
 data OmegaExternalBindingKind {
@@ -460,7 +488,8 @@ data OmegaExternalBindingKind {
 // single cause or none spelling. Terminates owns one path-shaped
 // subject in first_member/member_count and one qualified ranking-view path in
 // first_view_member/view_member_count; it is a private witness, not the bare
-// public termination guarantee. All forms reuse the path-member arena and
+// public termination guarantee. EventualTermination retains that bare keyword
+// on a bodyless boundary requirement. All forms reuse the path-member arena and
 // preserve one source-ordered machine-clause ledger.
 data OmegaMachineClauseSyntax {
     kind: OmegaMachineClauseKind;
@@ -934,6 +963,10 @@ data OmegaParseDiagnosticCode {
     case ExpectedBorrowOperand;
     case InvalidSourcePath;
     case RetiredModuleHeader;
+    case ExpectedTraitName;
+    case ExpectedTraitBody;
+    case ExpectedTraitMemberOrEnd;
+    case ExpectedTraitRequirementEnd;
 }
 
 data OmegaParserResource {
@@ -1026,6 +1059,13 @@ data OmegaParser {
     // count. Failure/incomplete may leave unowned prefixes; reset invalidates
     // prior rows by zeroing counts rather than clearing arrays.
     roots: [OmegaRootSyntax; 4096];
+    // Each trait is one root. Each requirement name consumes a path member.
+    boundary_traits: [OmegaBoundaryTraitSyntax; 4096];
+    boundary_requirements: [OmegaBoundaryRequirementSyntax; 16384];
+    boundary_trait_count: i32;
+    boundary_requirement_count: i32;
+    in_boundary_trait: i32;
+    pending_boundary_keyword: OmegaRelativeSpan;
     members: [OmegaRelativeSpan; 16384];
     uses: [OmegaUseSyntax; 4096];
     data_items: [OmegaDataSyntax; 4096];
