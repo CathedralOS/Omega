@@ -52,6 +52,11 @@ def run(delta, gamma, work, full_output):
         broken = bytearray(frame)
         broken[offset] ^= 1
         check(execute(delta, broken, 1), failure(1, 4, 1, offset), f'changed identity at {offset}')
+    broken = bytearray(frame)
+    broken[2] ^= 1
+    broken[5] ^= 1
+    check(execute(delta, broken, 1), failure(1, 4, 1, 2), 'first changed identity byte')
+    check(execute(delta, broken[:-1], 1), failure(1, 4, 1, 15), 'short header before identity')
 
     def request(profile, source, trailer=support):
         return header(profile, len(source)) + source + trailer
