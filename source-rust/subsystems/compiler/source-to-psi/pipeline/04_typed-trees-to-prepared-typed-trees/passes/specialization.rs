@@ -110,7 +110,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             Err((Stop::Rejected(message), span)) if conditional => {
                 program.record_deferred_refusal_with_detail(
                     holder,
-                    DeferredRequest::StaticApplication,
+                    DeferredRequest::InvalidStaticApplication,
                     span,
                     message,
                 );
@@ -164,7 +164,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 Err(Stop::Rejected(message)) if conditional => {
                     program.record_deferred_refusal_with_detail(
                         holder,
-                        DeferredRequest::StaticApplication,
+                        DeferredRequest::InvalidStaticApplication,
                         site.source_span(program),
                         message,
                     );

@@ -168,11 +168,8 @@ impl std::fmt::Display for RunError {
                 write!(formatter, "cannot retain Psi run output: {error}")
             }
             Self::Compilation(diagnostics) => {
-                write!(formatter, "native compile FAILED:")?;
-                for diagnostic in diagnostics {
-                    write!(formatter, "\n  {diagnostic}")?;
-                }
-                Ok(())
+                formatter.write_str("compilation failed")?;
+                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
             }
             Self::Publication(error) => write!(formatter, "native publication FAILED: {error}"),
             Self::Spawn { executable, error } => write!(
