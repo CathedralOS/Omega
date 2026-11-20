@@ -12,9 +12,10 @@ letters name historical subjects, not public names. A bootstrap compiler must
 cover what its successor uses, not every Omega feature. Formal correctness
 certificates are optional future work and do not block construction. Ordinary Omega proof and safety rules still apply.
 
-A variant may organize itself differently, with its own source, specification
-and run commands. Tie comparisons to the actual consuming compilers, source
-revisions, resource profiles and observations. A one- or two-day cold run may be
+Keep each implementation under its language. Record which interpreter or
+compiler a route uses at each step and where the resulting program runs.
+Tie comparisons to the actual consuming compilers, source revisions,
+resource profiles and observations. A one- or two-day cold run may be
 acceptable; a timeout means the run did not finish, not that the program is
 wrong. Document failed experiments and fixes tried before retiring them. Do not
 stop at a prototype of a viable path.
@@ -26,9 +27,9 @@ implementing them. Keep working while a question is open.
 
 ## Active peer construction work
 
-- **INTERPRETED-CONSTRUCTION.** (new-scope) Make the numbered interpreted rungs
-  run under test again, reconcile their source identities with their consumers,
-  and complete one run on actual Omega compiler input. Carry missing coverage and
+- **INTERPRETED-CONSTRUCTION.** (new-scope) Exercise the interpreted route, verify the
+  stage identities against their consumers and complete one run on actual
+  Omega compiler input. Carry missing coverage and
   shared execution-cost fixes through to the successor. Identity checks alone do
   not show the compiler runs.
 - **COMPILED-CONSTRUCTION.** (new-scope) Take the compiled route to building
@@ -40,10 +41,11 @@ implementing them. Keep working while a question is open.
   own sources and end-to-end program behavior. The Rust compiler is a
   comparator, not a hidden construction stage. Coordinate with
   OMEGA-PRODUCT-COMPILER-SOURCE in [TASKS.md](TASKS.md).
-- **INDEPENDENT-CONSTRUCTION.** (new-scope) Develop the standalone-language peer
-  under `bootstrap/independent/`, with an actual successor compiler as its first
-  customer. Document its seed and compare total implementation, review and
-  execution costs with the other paths. If viable, carry it through the Omega
+- **INDEPENDENT-CONSTRUCTION.** (new-scope) Develop the standalone route from the
+  [native Gamma backend](bootstrap/gamma/compiler/linux_x86_64/native.gamma) and
+  [Epsilon-to-Delta compiler](bootstrap/epsilon/to-delta/), using an actual
+  successor compiler as its first customer. Document its seed and compare
+  implementation, review and execution costs with the other paths. If viable, carry it through the Omega
   compiler and its reproducible self-rebuild; stage count and native versus VM
   output are engineering choices.
 
@@ -55,13 +57,13 @@ product. Listing them gives that variant no priority over the other routes.
 ## Interpreted variant and Omega self-hosting
 
 - **OMEGA-D.** Finish the Epsilon sources listed in
-  `bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources` as the bootstrap
+  `bootstrap/omega/compiler/omega_compiler.epsilon.sources` as the bootstrap
   compiler for the Omega compiler sources, following specified Omega semantics
   and the compiler's needs; slow interpreted execution is fine when feasible.
 
   - Migrate the evaluator, independent refinement model, fixtures and full D
     source closure to `epsilon-expression-arm-results` in
-    [the Epsilon contract](bootstrap/interpreted/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions):
+    [the Epsilon contract](bootstrap/epsilon/LANGUAGE.md#8-machines-states-and-transitions):
     direct value results, forwarded machine-call results, explicit `{}` for no
     result, unchanged state transfers and ordinary `return expression?;`. Remove
     optional arm-return parsing and its pattern-arrow probe. Re-admit changed source
@@ -89,7 +91,7 @@ product. Listing them gives that variant no priority over the other routes.
     identity inputs and graph sharing in D and C without a compiled-project
     registry or fake lineage.
   - Continue from the [source-to-executable gate](tests/bootstrap/interpreted/omega-executable/README.md)
-    and `bootstrap/interpreted/5_omega/scalar_compilation.epsilon`: extend parsed
+    and `bootstrap/omega/compiler/scalar_compilation.epsilon`: extend parsed
     scalar operations and checked call and state sequencing through the existing
     Alpha emitter. Keep the changed-source, entry-selection, invalid-body and
     no-partial-output controls as the path grows; do not replace the gate with
@@ -150,7 +152,7 @@ product. Listing them gives that variant no priority over the other routes.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
     executable construction obligations close, then reconstruct/check it on a blank supported
     host without unavailable-host success or a hidden substitute authority.
-  - Complete [Delta's cumulative pair containment](bootstrap/interpreted/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
+  - Complete [Delta's cumulative pair containment](bootstrap/delta/to-gamma/implementation/boundary/execution_storage.md#remaining-obligation)
     for the selected Gamma profile. Scaled allocation projections and individual
     full-extent runs do not cover every admitted composition. Derive the full bound,
     reprovision consistently if needed, and validate the actual Epsilon sources

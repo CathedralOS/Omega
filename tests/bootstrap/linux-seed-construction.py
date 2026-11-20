@@ -8,13 +8,13 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP = ROOT / "bootstrap/linux_x86_64/bootstrap"
-BETA = Path("bootstrap/interpreted/1_beta/beta_compiler.beta")
-GAMMA = Path("bootstrap/interpreted/2_gamma/gamma_evaluator.beta")
-COMPILER = [Path("bootstrap/compiled_vm/compiler.gamma"),
-            Path("bootstrap/compiled_vm/frontend.gamma")]
-NATIVE = Path("bootstrap/independent/native.gamma")
-ALPHA = Path("bootstrap/compiled_vm/alpha_backend.gamma")
+BOOTSTRAP = ROOT / "bootstrap/hosts/linux_x86_64/bootstrap"
+BETA = Path("bootstrap/beta/beta_compiler.beta")
+GAMMA = Path("bootstrap/gamma/interpreter/gamma_evaluator.beta")
+COMPILER = [Path("bootstrap/gamma/compiler/compiler.gamma"),
+            Path("bootstrap/gamma/compiler/frontend.gamma")]
+NATIVE = Path("bootstrap/gamma/compiler/linux_x86_64/native.gamma")
+ALPHA = Path("bootstrap/gamma/compiler/alpha/alpha_backend.gamma")
 
 
 def invoke(argv, data=b""):
@@ -81,7 +81,7 @@ def check_stamped(seed, executable, tape):
 
 
 def check_alpha_stages(out):
-    seed = (ROOT / "bootstrap/interpreted/0_alpha/alpha_x64_linux").read_bytes()
+    seed = (ROOT / "bootstrap/alpha/alpha_x64_linux").read_bytes()
     for executable, tape in (("beta-seed", "admitted-beta.tape"), ("beta", "beta.tape"),
                              ("gamma-evaluator", "gamma.tape"), ("gamma0", "gamma0.tape"),
                              ("gamma1", "gamma1.tape"), ("gamma-compiler", "gamma2.tape"),
@@ -111,7 +111,7 @@ def check(work, alpha):
     gamma = (ROOT / GAMMA.with_name("gamma_evaluator_bytecode.tape")).read_bytes()
     assert (out / "beta.tape").read_bytes() == beta
     assert (out / "gamma.tape").read_bytes() == gamma
-    seed = (ROOT / "bootstrap/interpreted/0_alpha/alpha_x64_linux").read_bytes()
+    seed = (ROOT / "bootstrap/alpha/alpha_x64_linux").read_bytes()
     for name, tape in [("beta-seed", beta), ("beta", beta), ("gamma-evaluator", gamma)]:
         check_stamped(seed, out / name, tape)
 

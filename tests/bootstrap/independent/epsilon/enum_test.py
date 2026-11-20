@@ -14,7 +14,7 @@ def _run(work, vm, producer, realize, seconds, composition, compiler):
     fixtures = root / 'tests/bootstrap/independent/epsilon'
     work = Path(work)
     support = (work.parent / 'support.bin').read_bytes()
-    closure = vm.pack('bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources', work / 'enum-evaluator.delta')
+    closure = vm.pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'enum-evaluator.delta')
     console = b'''boundary trait Console {
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
@@ -42,11 +42,11 @@ data Main { console: Console; }
 
     # These are exact complete production owners. No compiler implementation
     # recognizes either filename, selected byte string or digest.
-    declarations = (root / 'bootstrap/interpreted/5_omega/representations.epsilon').read_bytes()
+    declarations = (root / 'bootstrap/omega/compiler/representations.epsilon').read_bytes()
     start = declarations.index(b'data OmegaNumericBase {')
     end = declarations.index(b'data OmegaKeywordKind {', start)
     nominal = declarations[start:end]
-    lexical = (root / 'bootstrap/interpreted/5_omega/lexical_classification.epsilon').read_bytes()
+    lexical = (root / 'bootstrap/omega/compiler/lexical_classification.epsilon').read_bytes()
     forwarding = (fixtures / 'enum_forward.epsilon').read_bytes()
     # Forward type declarations in Epsilon must still precede all functions in
     # emitted Delta. Deliberately place the authored enum after its customers.

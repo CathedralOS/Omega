@@ -12,7 +12,7 @@ Build the native Epsilon evaluator using the published Linux driver and canonica
 Delta request. The resulting directory contains the native Gamma compiler,
 the Delta compiler and its emitted Epsilon evaluator Gamma source in
 `producer.output`, and the native evaluator in `successor`.
-[Linux construction](../../../bootstrap/linux_x86_64/README.md#compile-gamma-source-emitted-by-the-supplied-program)
+[Linux construction](../../../bootstrap/hosts/linux_x86_64/README.md#compile-gamma-source-emitted-by-the-supplied-program)
 
 From the repository root, set `native` to that directory and choose a new
 output directory. The constructor writes `product.bin` and its source manifest.
@@ -53,8 +53,8 @@ output in 10.27 seconds. The generated Gamma entry returns that status before in
 stdin exceeds 4,194,304 bytes. The private input check allows 8,388,608 bytes.
 The 4 MiB output check and the enclosing Gamma runtime’s 131 MiB sealed-input
 limit both retain their original values.
-[Generated entry](../../../bootstrap/interpreted/3_delta/support/adapter.gamma)
-and [Gamma runtime](../../../bootstrap/compiled_vm/compiler.gamma)
+[Generated entry](../../../bootstrap/delta/to-gamma/support/adapter.gamma)
+and [Gamma runtime](../../../bootstrap/gamma/compiler/compiler.gamma)
 
 The measured private build also regenerated the receipt through Delta. It used
 the widened adapter and replaced its rolling checksum in the Delta producer's

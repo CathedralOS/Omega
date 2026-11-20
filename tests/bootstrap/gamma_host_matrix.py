@@ -47,7 +47,7 @@ def check_epsilon(row, compiler, delta_program, target, request, closure, work, 
 
 
 def check_product_word(work, closure, seconds):
-    compiler = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "omega.epsilon")
+    compiler = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
     fixtures = ROOT / "tests/bootstrap/conformance/omega"
     guest = compiler + (fixtures / "main.epsilon").read_bytes()
     word = (ROOT / "source/foundation/wire/codec.omg").read_bytes()
@@ -75,8 +75,8 @@ def check_product_word(work, closure, seconds):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("alpha", type=Path, help="output of linux_x86_64/bootstrap --alpha")
-    parser.add_argument("linux", type=Path, help="output of linux_x86_64/bootstrap")
+    parser.add_argument("alpha", type=Path, help="output of bootstrap/hosts/linux_x86_64/bootstrap --alpha")
+    parser.add_argument("linux", type=Path, help="output of bootstrap/hosts/linux_x86_64/bootstrap")
     parser.add_argument("output", type=Path, help="new directory for all four rows")
     parser.add_argument("--epsilon", action="store_true", help="also construct and exercise the full Epsilon evaluator")
     parser.add_argument("--wire", action="store_true", help="also run the Omega product wire decoder on both evaluators")
@@ -92,13 +92,14 @@ def main():
         if (directory / "compiler.gamma").read_bytes() != sources[name]:
             raise ValueError(f"{directory}: compiler source differs from checkout")
 
-    delta = (ROOT / "bootstrap/linux_x86_64/delta.gamma").read_bytes()
-    support = pack("bootstrap/interpreted/3_delta/support/support.gamma.sources", work / "support.bin")
+    delta = (ROOT / "bootstrap/delta/to-gamma/distribution.gamma").read_bytes()
+    support = pack("bootstrap/delta/to-gamma/support/support.gamma.sources", work / "support.bin")
     customer = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
     request = delta_request(customer, support)
+    inputs = (b"", b"A\x00B", bytes(range(256)))
     include_epsilon = args.epsilon or args.wire
     if include_epsilon:
-        closure = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
+        closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
         entry = (ROOT / "tests/bootstrap/conformance/epsilon/evaluator_entry.delta").read_bytes()
         evaluator_request = delta_request(closure + entry, support)
     evaluator_products = {}
@@ -123,7 +124,7 @@ def main():
             image = work / f"{row}-customer.bin"
             result_images[row] = produce(compiler, receipts[row], image, args.seconds)
             program = executable(image, target)
-            for payload in (b"", b"A\x00B", bytes(range(256))):
+            for payload in inputs:
                 if execute(program, payload, args.seconds) != (0, payload * 2):
                     raise RuntimeError(f"{row}: wrong Delta customer observation ({len(payload)} bytes)")
             print(f"{row}: refused invalid Gamma and matched all three Delta executions", flush=True)
@@ -137,6 +138,12 @@ def main():
                 raise RuntimeError(f"{target}: {name} differs between hosts")
     if len(set(receipts.values())) != 1:
         raise RuntimeError("Delta compilers emitted different Gamma source for the same request")
+    receipt = receipts["alpha-to-alpha"]
+    interpreted = struct.pack("<I", len(receipt)) + receipt
+    for payload in inputs:
+        if execute(hosts["alpha"] / "gamma-evaluator", interpreted + payload, args.seconds) != (0, payload * 2):
+            raise RuntimeError(f"Gamma interpreter: wrong Delta customer observation ({len(payload)} bytes)")
+    print("Delta customer: interpreter, Alpha tape and Linux executable matched on all three inputs.", flush=True)
     if include_epsilon:
         if len({receipt for receipt, _ in evaluator_products.values()}) != 1:
             raise RuntimeError("Delta compilers emitted different Epsilon evaluator receipts")

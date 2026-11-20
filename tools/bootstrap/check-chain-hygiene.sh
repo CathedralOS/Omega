@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Check the interpreted variant's closed artifacts and dependency boundary.
+# Check language owners, the selected construction artifacts and their dependencies.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -25,9 +25,16 @@ owner_roots() {
   # Include untracked source so a new alternate owner fails before staging.
   if [ -e "$OMEGA_REPO_ROOT/.git" ] &&
       git -C "$OMEGA_REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    owner_files=$(git -C "$OMEGA_REPO_ROOT" ls-files \
-      --cached --others --exclude-standard -- "$1") ||
+    inventory=$(git -C "$OMEGA_REPO_ROOT" ls-files -t \
+      --cached --deleted --others --exclude-standard -- "$1") ||
       fail "cannot inventory $1 owners"
+    # With --cached --deleted Git reports a missing file twice: once in the
+    # index and once tagged R. Keep path spellings intact, including Git quoting.
+    owner_files=$(printf '%s\n' "$inventory" | awk '
+      /^R / { removed[substr($0, 3)] = 1; next }
+      { files[substr($0, 3)] = 1 }
+      END { for (f in files) if (!(f in removed)) print f }
+    ')
   else
     # Source archives remain checkable without Git metadata or a Git binary.
     owner_files=$(find "$OMEGA_REPO_ROOT/$1" -mindepth 2 ! -type d -print | \
@@ -46,10 +53,13 @@ for required in \
   "$OMEGA_PATH_BETA_COMPILER" \
   "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_GAMMA_EVALUATOR" \
+  "$OMEGA_PATH_GAMMA/compiler/alpha" \
+  "$OMEGA_PATH_GAMMA/compiler/linux_x86_64" \
   "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_EPSILON" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
+  "$OMEGA_PATH_EPSILON/to-delta" \
   "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
@@ -86,7 +96,7 @@ printf '%s\n' "$xtask_usage" | grep -q 'gamma-invoke' ||
   fail "Gamma atomic invocation plumbing is absent from xtask"
 [ -f "$OMEGA_PATH_BETA/LANGUAGE.md" ] || fail "Beta contract is absent"
 [ -f "$OMEGA_PATH_GAMMA/LANGUAGE.md" ] || fail "Gamma contract is absent"
-[ -f "$OMEGA_PATH_GAMMA/COMPOSED_ARTIFACT.md" ] ||
+[ -f "$OMEGA_PATH_GAMMA_EVALUATOR/COMPOSED_ARTIFACT.md" ] ||
   fail "Gamma composed-artifact contract is absent"
 [ -f "$OMEGA_PATH_DELTA/LANGUAGE.md" ] || fail "Delta contract is absent"
 [ -f "$OMEGA_PATH_EPSILON/LANGUAGE.md" ] || fail "Epsilon contract is absent"
@@ -99,14 +109,10 @@ printf '%s\n' "$xtask_usage" | grep -q 'gamma-invoke' ||
 [ -f "$OMEGA_PATH_BETA_ENCODING_SOURCES" ] ||
   fail "Beta encoding theory source manifest is absent"
 
-for flat_rung in "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA"
+for flat_rung in "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA"
 do
   nested_directories=$(find "$flat_rung" -mindepth 1 -type d -print)
   [ -z "$nested_directories" ] || fail "flat rung contains subdirectories: $nested_directories"
-done
-for compiler_rung in "$OMEGA_PATH_DELTA" "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA_D"
-do
-  [ ! -e "$compiler_rung/compiler" ] || fail "redundant compiler directory remains: $compiler_rung/compiler"
 done
 printf '%s\n' "$xtask_usage" | grep -q 'source-closure' ||
   fail "source-closure materializer is absent from xtask"
@@ -130,7 +136,7 @@ done
 
 for retired in \
   "$OMEGA_REPO_ROOT/tools/alpha" \
-  "$OMEGA_REPO_ROOT/bootstrap/interpreted/0_alpha/checker" \
+  "$OMEGA_REPO_ROOT/bootstrap/alpha/checker" \
   "$OMEGA_REPO_ROOT/tests/proof-checker" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker"
 do
@@ -152,8 +158,20 @@ subsystems'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
   fail "unexpected product source owners: $tracked_source_roots"
 
-# Numbered owners belong to the interpreted variant. Other bootstrap roots
-# are independent peers and establish their own inventories and trust boundary.
+# Each language owns its implementations. Host launchers, proofs and the
+# recorded routes span languages and have separate owners.
+bootstrap_owners=$(owner_roots bootstrap)
+expected_bootstrap_owners='alpha
+beta
+delta
+epsilon
+gamma
+hosts
+omega
+proofs
+routes'
+[ "$bootstrap_owners" = "$expected_bootstrap_owners" ] ||
+  fail "unexpected bootstrap owners: $bootstrap_owners"
 
 tracked_compiler_sources=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
@@ -161,9 +179,9 @@ tracked_compiler_sources=$(find \
   -type f -name '*compiler.*' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
-expected_compiler_sources='bootstrap/interpreted/1_beta/beta_compiler.beta
-bootstrap/interpreted/3_delta/delta_compiler.gamma
-bootstrap/interpreted/4_epsilon/epsilon_compiler.delta'
+expected_compiler_sources='bootstrap/beta/beta_compiler.beta
+bootstrap/delta/to-gamma/delta_compiler.gamma
+bootstrap/epsilon/interpreter/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
@@ -171,21 +189,7 @@ bootstrap/interpreted/4_epsilon/epsilon_compiler.delta'
 # toolchain build steps and checkout-derived paths. Audit manifest members and
 # bootstrap invocations before checking byte identity so a forged dependency
 # reports its source. This developer-only gate is outside the construction.
-set --
-for omission_manifest in $(find \
-    "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
-    "$OMEGA_PATH_DELTA" "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA_D" \
-    "$OMEGA_PATH_PROOFS" -type f -name '*.sources' -print | sort)
-do
-  set -- "$@" --manifest "$omission_manifest"
-done
-for omission_step in $(find "$OMEGA_REPO_ROOT/tools/bootstrap" \
-    -type f \( -name '*.sh' -o -name '*.py' \) \
-    ! -name 'check-chain-hygiene.sh' -print | sort)
-do
-  set -- "$@" --steps "$omission_step"
-done
-sh "$OMEGA_REPO_ROOT/tools/rust_producer_omission.sh" "$@" ||
+sh "$OMEGA_REPO_ROOT/tools/rust_producer_omission.sh" ||
   fail "produced closure carries the Rust producer"
 
 # The enumerated compiler sources must be exactly the bound chain artifacts:
@@ -193,6 +197,10 @@ sh "$OMEGA_REPO_ROOT/tools/rust_producer_omission.sh" "$@" ||
 # packed closure, and the composed record to the audited edge records, and
 # refuses before any consumer could pack a substituted manifest.
 require_delta_compiler_identity
+require_bound_identity "Delta compiler distribution" \
+  "$OMEGA_PATH_DELTA_COMPILER/distribution.gamma" \
+  "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256" \
+  "bootstrap/delta/to-gamma/README.md"
 require_epsilon_evaluator_identity
 require_omega_compiler_identity
 
@@ -219,14 +227,14 @@ tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_EPSILON_COMPILER" \
   -type f -name '*compiler*.tape' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | sort || true)
-expected_compiler_tapes='bootstrap/interpreted/1_beta/beta_compiler_bytecode.tape'
+expected_compiler_tapes='bootstrap/beta/beta_compiler_bytecode.tape'
 [ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
   fail "compiler tapes differ from selected edges or declared experiments"
 
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
   --exclude=check-chain-hygiene.sh \
-  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/interpreted/0_alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
+  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
   "$OMEGA_PATH_BOOTSTRAP" "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \
   "$OMEGA_REPO_ROOT/README.md" "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true)
@@ -236,7 +244,7 @@ for bootstrap_source in \
   "$OMEGA_PATH_BETA_COMPILER_SOURCE" \
   "$OMEGA_PATH_BETA/LANGUAGE.md" \
   "$OMEGA_PATH_GAMMA/LANGUAGE.md" \
-  "$OMEGA_PATH_GAMMA/COMPOSED_ARTIFACT.md" \
+  "$OMEGA_PATH_GAMMA_EVALUATOR/COMPOSED_ARTIFACT.md" \
   "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
   "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \

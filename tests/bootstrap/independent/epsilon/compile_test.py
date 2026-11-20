@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "tests/bootstrap/conformance"))
 from vectors import ocreq_request
 
-COMPILER = ROOT / 'bootstrap/independent/epsilon'
+COMPILER = ROOT / 'bootstrap/epsilon/to-delta'
 FIXTURES = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location('epsilon_composition', FIXTURES / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
@@ -134,7 +134,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
         return executable, {'source': identity(source), 'generated': identity(generated),
                             'target': identity(target), 'image': identity(executable.read_bytes())}
 
-    base = ROOT / 'bootstrap/interpreted/5_omega'
+    base = ROOT / 'bootstrap/omega/compiler'
     # Complete existing production owners, with no body extraction or rewriting.
     source = ((base / 'representations.epsilon').read_bytes()
               + (base / 'request_and_utf8.epsilon').read_bytes() + boundary
@@ -295,7 +295,7 @@ def run(work, vm, producer, realize, seconds):
 
     checkpoint()
     try:
-        closure = vm.pack('bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources', work / 'evaluator.delta')
+        closure = vm.pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler_source = composition.compiler_source(closure)
         compiler = compile_delta(compiler_source, 'compiler')
         report['compiler_source'] = identity(compiler_source)
@@ -304,7 +304,7 @@ def run(work, vm, producer, realize, seconds):
         report['target_runtime'] = identity(runtime)
         report['stage'] = 'actual-lexical-customer'
         checkpoint()
-        actual = (ROOT / 'bootstrap/interpreted/5_omega/lexical_classification.epsilon').read_bytes()
+        actual = (ROOT / 'bootstrap/omega/compiler/lexical_classification.epsilon').read_bytes()
         # This is the complete unchanged prefix of four production machines.
         # The next machine needs sums, outside this declared scalar capability.
         prefix = actual[:actual.index(b'machine omega_digit_in_base(')]

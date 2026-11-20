@@ -43,9 +43,17 @@ def header(length):
     return b'DCREQ\x01\0\0' + struct.pack('<II', 1, length)
 
 
+def delta_root(repo):
+    current = repo / 'bootstrap/delta/to-gamma'
+    if current.is_dir():
+        return current
+    # The archived compiler revision in WIDE_OUTPUT.md predates language ownership.
+    return repo / 'bootstrap/interpreted/3_delta'
+
+
 def stock_support(repo):
     support = (repo / 'build/independent-successors/support.bin').read_bytes()
-    record = (repo / 'bootstrap/interpreted/3_delta/delta_compiler.composed').read_text()
+    record = (delta_root(repo) / 'delta_compiler.composed').read_text()
     fields = dict(row.split(' ', 1) for row in record.splitlines()[1:])
     assert identity(support) == {'bytes': int(fields['support-length']), 'sha256': fields['support-sha256']}
     return support
@@ -73,7 +81,7 @@ def construct(repo, out, traverse):
                     (gamma.read_bytes(), report['native_compiler_elf'])]
     for data, expected in constructors:
         assert identity(data) == expected
-    root = repo / 'bootstrap/interpreted/3_delta'
+    root = delta_root(repo)
     adapter = (root / 'support/adapter.gamma').read_bytes()
     expanded = replace_member(adapter, b'(lt 4194304 n)', b'(lt 134217728 n)')
     if traverse:
@@ -119,7 +127,7 @@ def calibrate(repo, out):
     stock = stages / 'delta'
     support = stock_support(repo)
     wide_support = (out / 'output-support.bin').read_bytes()
-    support_dir = repo / 'bootstrap/interpreted/3_delta/support'
+    support_dir = delta_root(repo) / 'support'
     preceding = (support_dir / 'bytes.gamma').read_bytes() + (support_dir / 'conformance.gamma').read_bytes()
     identity_program = b'(def main ((input Bytes)) Bytes input)\n'
     canonical = compile_delta(stock, identity_program, support)
@@ -224,7 +232,11 @@ def check_output(executable, output, data, copies, suffix, status):
 
 
 def frame(repo, observation, out):
-    composition = runpy.run_path(str(repo / 'tests/bootstrap/independent/epsilon/composition.py'))
+    composer = repo / 'tests/bootstrap/independent/epsilon/composition.py'
+    if not composer.is_file():
+        # The archived peer keeps its composition helper with the compiler.
+        composer = repo / 'bootstrap/independent/epsilon/composition.py'
+    composition = runpy.run_path(str(composer))
     module, runtime = composition['decode_module'](observation.read_bytes())
     driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
     target = composition['program_source'](module, driver, runtime)

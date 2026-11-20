@@ -29,8 +29,10 @@ Variants are peers. Use separate worktrees and branches to advance materially
 different approaches concurrently. No variant is designated selected during
 exploration. Share useful discoveries and comparison inputs without requiring a
 common implementation or premature convergence. A merged variant change is not
-selection of that architecture. The numbered source directories under
-`interpreted/` describe that variant; their existence grants it no privileged status.
+selection of that architecture. Group implementations by the language they
+run. Each language after Beta can be interpreted, compiled to Alpha or compiled
+to native code. Record a tested sequence across those choices with its actual
+inputs, hosts and results in the [construction matrix](README.md).
 
 Use **bootstrap compiler** for the compiler that first builds the Omega compiler,
 and **Omega compiler** for the product. Historical C/D labels and artifact paths
