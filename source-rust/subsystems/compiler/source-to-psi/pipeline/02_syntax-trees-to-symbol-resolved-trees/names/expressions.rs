@@ -1265,6 +1265,7 @@ mod traversal {
                     .set_compiler_selection_partition(condition, partition);
             }
             arm.pattern = MatchPattern::Destructure(TableDestructurePattern {
+                subject_binding: Default::default(),
                 application_type: Default::default(),
                 head,
                 fields: HandleSpan::empty(),
@@ -1387,6 +1388,7 @@ mod traversal {
                 }
             } else {
                 TableDestructurePattern {
+                    subject_binding: Default::default(),
                     application_type: Default::default(),
                     head,
                     fields: HandleSpan::empty(),

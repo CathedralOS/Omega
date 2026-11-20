@@ -214,6 +214,8 @@ pub(crate) mod match_dispatch {
         } else {
             Default::default()
         };
+        let subject_binding =
+            lower_expression_into_table(lowerer, syntax_trees, pattern.subject_binding)?;
         let head = lower_expression_into_table(lowerer, syntax_trees, pattern.head)?;
         let mut fields = Vec::new();
         for field in syntax_trees.expressions.match_fields(pattern.fields) {
@@ -313,6 +315,7 @@ pub(crate) mod match_dispatch {
         }
         let fields = expression_table(lowerer).insert_match_fields(fields);
         Ok(MatchPattern::Destructure(TableDestructurePattern {
+            subject_binding,
             application_type,
             head,
             fields,

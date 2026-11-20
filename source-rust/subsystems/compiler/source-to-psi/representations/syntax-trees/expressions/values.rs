@@ -708,6 +708,8 @@ pub enum MatchPattern {
     syntax_trees_derive::SyntaxRelocate,
 )]
 pub struct TableDestructurePattern {
+    /// The authored identifier binding the whole subject of an irrefutable arm.
+    pub subject_binding: ExpressionHandle,
     pub application_type: crate::types::TypeReferenceHandle,
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,

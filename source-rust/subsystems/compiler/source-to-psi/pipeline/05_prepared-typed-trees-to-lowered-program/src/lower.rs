@@ -508,6 +508,7 @@ impl<'a> Lowering<'a> {
             point: None,
             slots: vec![None; slot_types.len()],
             selected: Vec::new(),
+            scalar_subjects: Vec::new(),
             slot_types,
             lender_homes: &[],
             qualifications,
@@ -829,6 +830,10 @@ struct Lowering<'a> {
     /// arm the sum it selected on, the case, and the block parameter each
     /// scalar payload field arrived as.
     selected: Vec<places::Chosen>,
+    scalar_subjects: Vec<(
+        arena::Handle<crate::source_state::expression::CompletedValueCapture>,
+        ValueId,
+    )>,
     /// The declared type of each slot, as the body states it.
     slot_types: &'a [ValueType],
     lender_homes: &'a [Option<StructuralTypeId>],

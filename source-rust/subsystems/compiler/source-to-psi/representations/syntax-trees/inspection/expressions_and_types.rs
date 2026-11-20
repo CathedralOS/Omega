@@ -116,6 +116,10 @@ pub struct MatchArmSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MatchPatternSnapshot {
+    Binding {
+        name: String,
+        guard: Option<Box<ExpressionSnapshot>>,
+    },
     Value {
         value: Box<ExpressionSnapshot>,
     },
@@ -791,6 +795,15 @@ pub(crate) fn snapshot_match_pattern(
         MatchPattern::Value(value) => MatchPatternSnapshot::Value {
             value: Box::new(snapshot_expression_handle(syntax_trees, value)),
         },
+        MatchPattern::Destructure(pattern) if pattern.subject_binding.is_valid() => {
+            MatchPatternSnapshot::Binding {
+                name: syntax_trees.display_expression_name(pattern.subject_binding),
+                guard: pattern
+                    .guard
+                    .is_valid()
+                    .then(|| Box::new(snapshot_expression_handle(syntax_trees, pattern.guard))),
+            }
+        }
         MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
             application_type: pattern.application_type.is_valid().then(|| {
                 Box::new(snapshot_type_reference_handle(

@@ -341,8 +341,19 @@ impl Lowering<'_> {
                     *capture,
                 )
             }
-            ExpressionKind::SavedSubject(_)
-            | ExpressionKind::ByteLiteral(_)
+            ExpressionKind::SavedSubject(capture) => {
+                let value = self
+                    .scalar_subjects
+                    .iter()
+                    .rev()
+                    .find(|(owner, _)| owner == capture)
+                    .map(|(_, value)| *value)
+                    .ok_or_else(|| {
+                        self.internal("a scalar saved subject is outside its match capture")
+                    })?;
+                Ok(Reached::Value(Value::Scalar(value)))
+            }
+            ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. } => Err(self.internal("a data literal has a scalar type")),

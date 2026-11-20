@@ -1342,6 +1342,33 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         ExpressionNode::Name { .. }
                     )
                 {
+                    if crate::patterns::bindings::bare_binding(syntax_trees, head).is_some()
+                        && state
+                            .arm_start
+                            .tokens
+                            .first()
+                            .is_some_and(|token| token.kind == tokens::TokenKind::Identifier)
+                    {
+                        let pattern = TableDestructurePattern {
+                            subject_binding: head,
+                            has_rest: true,
+                            ..Default::default()
+                        };
+                        if input.at_keyword(KeywordKind::If) {
+                            let input = input.take_keyword(KeywordKind::If, "if")?;
+                            state.phase = MatchPhase::Guard { pattern };
+                            self.frames.push(Frame::Match(state));
+                            return Ok(Step::Descend(
+                                Descent::Expression(ExpressionContext::NoStructLiteral),
+                                input,
+                            ));
+                        }
+                        return self.match_after_pattern(
+                            state,
+                            MatchPattern::Destructure(pattern),
+                            input,
+                        );
+                    }
                     return self.match_after_pattern(state, MatchPattern::Value(head), input);
                 }
                 state.phase = MatchPhase::PatternFields { head };
@@ -1424,6 +1451,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             .statements
             .insert_outcome_proof_selectors(fields.proof_selectors);
         let pattern = TableDestructurePattern {
+            subject_binding: Default::default(),
             application_type: Default::default(),
             head,
             fields: fields_span,
@@ -1473,7 +1501,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 state.capture = syntax_trees.expressions.insert_match_subject(subject);
             }
             let capture = state.capture;
-            let bindings = syntax_trees
+            let mut bindings = syntax_trees
                 .expressions
                 .match_fields(destructure.fields)
                 .iter()
@@ -1484,11 +1512,21 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     Some(DestructureBinding {
                         component: field.component,
                         binding: binding.clone(),
-                        member: field.member.clone(),
+                        member: Some(field.member.clone()),
                         case_variant: None,
                     })
                 })
                 .collect::<Vec<_>>();
+            if let Some(binding) =
+                crate::patterns::bindings::bare_binding(syntax_trees, destructure.subject_binding)
+            {
+                bindings.push(DestructureBinding {
+                    binding,
+                    member: None,
+                    component: Default::default(),
+                    case_variant: None,
+                });
+            }
             for (position, binding) in bindings.iter().enumerate() {
                 if bindings[..position].iter().any(|prior| {
                     prior.binding.as_str(syntax_trees) == binding.binding.as_str(syntax_trees)

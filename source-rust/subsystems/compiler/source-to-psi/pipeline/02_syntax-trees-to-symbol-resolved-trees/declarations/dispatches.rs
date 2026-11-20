@@ -130,7 +130,7 @@ fn prepare_pattern(
 ) -> Option<TransitionPattern> {
     let (is_structural, pattern) = match slot.pattern {
         MatchPattern::Wildcard => return None,
-        MatchPattern::Destructure(pattern) => (true, pattern),
+        MatchPattern::Destructure(pattern) => (!pattern.subject_binding.is_valid(), pattern),
         MatchPattern::Value(value) => {
             let (head, guard) = if arm_pattern_is_condition(syntax, value) {
                 (ExpressionHandle::invalid(), value)

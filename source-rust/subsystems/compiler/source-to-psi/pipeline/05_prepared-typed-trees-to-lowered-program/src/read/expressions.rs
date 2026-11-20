@@ -916,9 +916,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let subject = self.expression(id, slots, matched.subject, None)?;
-        let Some(record) = self.opened(id, subject.result, Access::Read)? else {
-            return self.scalar_match(id, slots, matched, subject, expected, source);
-        };
+        let record = self.opened(id, subject.result, Access::Read)?;
         if !self
             .typed
             .expression_table
@@ -942,6 +940,11 @@ impl<'t> Program<'t> {
             ));
         }
         self.captures.push((matched.capture, subject.clone()));
+        let Some(record) = record else {
+            let result = self.scalar_match(id, slots, matched, subject, expected, source);
+            self.captures.pop();
+            return result;
+        };
         let saved = Expression {
             call_context: None,
             kind: ExpressionKind::SavedSubject(matched.capture),
@@ -1206,9 +1209,6 @@ impl<'t> Program<'t> {
                 ));
             }
         };
-        // Stage 03 gives every match a completed subject capture, but only a
-        // destructuring arm reads it, and a scalar has none: the capture is
-        // not pushed, so a saved-subject read in an arm stays refused.
         let mut arms: Vec<(Selector, Expression)> = Vec::new();
         let mut default = None;
         let mut result = expected;
@@ -1276,7 +1276,7 @@ impl<'t> Program<'t> {
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Match {
-                capture: None,
+                capture: Some(matched.capture),
                 subject: Box::new(subject),
                 arms,
                 default,
