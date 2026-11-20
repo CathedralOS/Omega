@@ -94,21 +94,21 @@ whole-compiler inputs. [Cold build](../../../tests/bootstrap/linux_x86_64/README
 
 ### Same stdin program across routes
 
-All 27 routes ran the portable stdin control from `f040d53f89d` with a
-120-second limit per producer or guest invocation. The table counts matching
-Epsilon observations out of the three Epsilon choices for each pair of lower
-rungs. The runs reused cold-built Alpha and Linux Gamma compilers.
-Every completed route returned `00 5a 00 00 00 5a`.
+**24/27 routes** read `Z`, echoed it and exited 90. Each completed route
+returned `00 5a 00 00 00 5a`. The cells count Epsilon modes verified across
+the recorded snapshots.
 
 | Gamma host | Direct Delta interpreter | Delta on Alpha | Delta on Linux |
 | --- | --- | --- | --- |
-| Interpreter | 3 timed out | 3 timed out | 3 timed out |
+| Interpreter | 2/3 (compiled guests) | 1/3 (Epsilon interpreter) | 3/3 |
 | Alpha | 3/3 | 3/3 | 3/3 |
 | Linux | 3/3 | 3/3 | 3/3 |
 
-Among those 18 completed routes, all twelve that compiled the guest produced
-identical Delta and Gamma source. All six Alpha targets emitted the same
-487,013-byte tape. All six Linux targets emitted the same 260,706-byte executable.
+The first run at `f040d53f89d` allowed 120 seconds per invocation. Eighteen
+routes completed using the cold-built Gamma compilers. The twelve compiled
+guests had identical Delta and Gamma source. All six Alpha targets emitted
+the same 487,013-byte tape and all six Linux targets the same 260,706-byte
+executable. The other nine ran out of time on the shared host.
 
 One of the nine timed-out routes completed with a 900-second per-stage limit.
 With `--gamma interpret --delta native --epsilon interpret`, interpreted
@@ -119,13 +119,13 @@ The Epsilon program then returned the same six bytes in 0.02 seconds.
 Two further routes interpreted Gamma and Delta directly and ran the compiled
 Epsilon guest on Alpha and Linux. The original Gamma interpreter also built
 the Linux Epsilon compiler from the matched `5144ec25e81` sources, and both
-of its generated guests echoed `Z` and exited 90. The portable stdin control
-has therefore completed on **23/27** routes across the recorded snapshots.
-[Direct-Delta receipts](interpreted-gamma-matrix.md#replay-the-compiled-guest) · [Linux Epsilon compiler receipts](interpreted-gamma-matrix.md#building-the-portable-stdin-program-with-the-original-gamma-and-linux-epsilon-compiler)
+of its generated guests echoed `Z` and exited 90. On `93ad7259148`, the
+Alpha Epsilon evaluator built by original Gamma returned the same six bytes.
+[Direct-Delta receipts](interpreted-gamma-matrix.md#replay-the-compiled-guest) · [Linux Epsilon compiler receipts](interpreted-gamma-matrix.md#building-the-portable-stdin-program-with-the-original-gamma-and-linux-epsilon-compiler) · [Alpha evaluator and compiler receipts](interpreted-gamma-matrix.md#epsilon-on-alpha-built-by-original-gamma)
 
 ### Omega compiler byte classifier
 
-**21/27 routes** ran the classifier and refused its wrong-type twin.
+**23/27 routes** ran the classifier and refused its wrong-type twin.
 
 The positive program runs the production lexer’s byte classifier on all 256
 byte values and checks twelve answers per byte. Its twin passes an integer to
@@ -137,7 +137,7 @@ the full positive is unfinished. **Open** has neither completed observation.
 | Gamma | Delta | Epsilon interpreter | Epsilon to Alpha | Epsilon to Linux |
 | --- | --- | --- | --- | --- |
 | Interpreter | Interpreter | Open | Open | Open |
-| Interpreter | Alpha | Both | Open | Open |
+| Interpreter | Alpha | Both | Both | Both |
 | Interpreter | Linux | Both | Both | Both |
 | Alpha | Interpreter | Refusal | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
@@ -208,9 +208,10 @@ Gamma (`da44deee6b51…`) in 720.37 CPU seconds. On the linked
 classifier, the same Delta compiler emitted 170,803 bytes of Gamma
 (`99befce038db…`). The original interpreter then ran both Gamma backends,
 producing an 880,161-byte Alpha tape (`d260052ecef6…`) and a 468,679-byte
-Linux executable (`fc95d11d86c8…`). Both ran all 256 inputs. A complete
-row also requires the Epsilon compiler that produced the linked classifier
-and its observed refusal of the twin.
+Linux executable (`fc95d11d86c8…`). The Alpha Epsilon compiler built by
+original Gamma produced the classifier module and refused its twin. Both
+generated guests returned the exact 3,077 bytes on all 256 inputs.
+[Alpha compiler and guest replays](interpreted-gamma-matrix.md#epsilon-on-alpha-built-by-original-gamma)
 
 The independently constructed Linux Epsilon compiler from `5144ec25e81`
 emitted the same 65,013-byte classifier module (`bd1d5bd47e66…`).

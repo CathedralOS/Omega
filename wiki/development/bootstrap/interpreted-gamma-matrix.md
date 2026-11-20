@@ -310,6 +310,53 @@ python3 tests/bootstrap/route.py NEW --gamma interpret --delta interpret \
   --delta-interpreter gamma --epsilon alpha --case omega-byte-classes --seconds 16300
 ```
 
+## Epsilon on Alpha built by original Gamma
+
+On `93ad7259148` the Beta-written Gamma interpreter ran the Gamma-to-Alpha
+compiler on the [813,584-byte Epsilon compiler](#running-the-translated-epsilon-compiler-on-the-original-gamma-interpreter).
+The complete 848,101-byte input had SHA-256
+`5bdbd8d285b9d9862610389ef617e2cc30af6d839911e517885c6dbac0375181`.
+An earlier attempt stopped at its wall limit. With no wall limit, the same
+interpreter produced the 4,344,852-byte tape in 1,112.8 CPU seconds
+(1,923.3 elapsed), peaking at 335,312 KiB. Its SHA-256 was
+`6028d8020435247dbd786fb5bbb8116ce1fd93e6c45483e5cef9c4af79377752`,
+identical to the independently compiled host's tape.
+
+Stamping the tape on the Alpha seed produced executable SHA-256
+`873079efb9c1673eb3afc3e2928223d0b151c5178d20b2f1364ceb1cb3661232`.
+It compiled `omega-byte-classes` into the expected 65,013-byte Delta module.
+Linking this module and reframing the resulting Delta and Gamma sources
+reproduced the complete requests for the original interpreter's measured
+translator and both target builds in the preceding section. Both emitted
+guests ran again on all 256 inputs and matched all 3,077 expected bytes.
+For each target the Alpha Epsilon compiler also ran again on the 3,745-byte
+twin and returned `rejected 18 2032`. These establish the default
+`interpret / alpha / alpha` and `interpret / alpha / native` classifier pairs.
+
+The 339-byte portable stdin control also ran on the Alpha Epsilon evaluator
+built by this original interpreter. Its 3,824,516-byte tape had SHA-256
+`7ac34034e12f02bc0994967d927e6829927d2ec12348263af01b566ad7312f66`.
+The complete 392-byte EEREQ had SHA-256
+`0ee2ea1aa9f51801c5a5390f21765310bdf2a03df0878a1ebd226451f75ee782`.
+The seed returned `00 5a 00 00 00 5a` with process status zero. This
+establishes `interpret / alpha / interpret` on the portable program.
+
+Use the pinned checkout and named-case runner described in the
+[matrix](README.md#omega-compiler-byte-classifier). Equivalently, run the
+following against current sources with fresh output directories. The default
+runner has no elapsed-time limit.
+
+```sh
+for target in alpha native; do
+  for guest in omega-byte-classes omega-wrong-base; do
+    python3 tests/bootstrap/route.py "/tmp/original-alpha-$target-$guest" \
+      --gamma interpret --delta alpha --epsilon "$target" --case "$guest"
+  done
+done
+python3 tests/bootstrap/route.py /tmp/original-alpha-stdin \
+  --gamma interpret --delta alpha --epsilon interpret --case stdin
+```
+
 ## Omega lexical byte classes on the original Gamma route
 
 The Omega compiler's `byte_classes.epsilon` ran over all 256 byte values
