@@ -1,5 +1,5 @@
-// The first input contains the exact SourceId, SourceUnit and clear declarations
-// followed by storage_controls.omg. Other cases exercise generic storage rules.
+// The first program exercises the complete product source_files module and
+// the ConstructionInput byte arena. Other cases exercise generic storage rules.
 boundary trait Console {
     machine exit_process(return_code: i32) -> never;
     machine write_byte(value: i32);
