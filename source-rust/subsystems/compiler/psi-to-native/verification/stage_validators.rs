@@ -233,6 +233,20 @@ pub enum NativeValidationError {
     Failed(Vec<StageValidationRow>),
 }
 
+impl NativeValidationError {
+    pub fn into_diagnostics(self) -> Vec<Diagnostic> {
+        match self {
+            Self::Compilation(diagnostics) => diagnostics,
+            Self::Unavailable(diagnostic) => vec![diagnostic],
+            Self::Failed(rows) => rows
+                .iter()
+                .filter(|row| matches!(row.result, StageValidationResult::Failed(_)))
+                .map(|row| Diagnostic::error(row.to_string()))
+                .collect(),
+        }
+    }
+}
+
 impl From<Vec<Diagnostic>> for NativeValidationError {
     fn from(diagnostics: Vec<Diagnostic>) -> Self {
         Self::Compilation(diagnostics)

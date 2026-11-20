@@ -69,7 +69,10 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         .join("tests/fixtures/calls/run/scalar_contract_route_exit/main.omg");
     let project = open_project(&fixture, &targets);
     let stage = project.product_stage(&targets).unwrap();
-    let Artifact::Psi(published) = compiler::compile(CompileRequest::Psi(stage.source())).unwrap()
+    let Artifact::Psi(published) =
+        compiler::compile(CompileRequest::Psi(stage.source()), Default::default())
+            .unwrap()
+            .artifact
     else {
         panic!("expected portable program");
     };
@@ -133,11 +136,16 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
         .join("tests/fixtures/providers/run/native_boundary_supply/main.omg");
     let product = open_project(&path, &[profile]);
     let stage = product.product_stage(&[profile]).unwrap();
-    let Artifact::Native(direct) = compiler::compile(CompileRequest::Native {
-        program: stage.program(profile, vec![]).unwrap(),
-        entry_memory: &[],
-    })
-    .unwrap() else {
+    let Artifact::Native(direct) = compiler::compile(
+        CompileRequest::Native {
+            program: stage.program(profile, vec![]).unwrap(),
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .unwrap()
+    .artifact
+    else {
         panic!("expected source image")
     };
     let publication =
@@ -183,12 +191,16 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
         (changed, "different service contract"),
         (Vec::new(), "has no provider"),
     ] {
-        let refusal = compiler::compile(CompileRequest::Native {
-            program: saved(install(inputs)),
-            entry_memory: &[],
-        })
+        let refusal = compiler::compile(
+            CompileRequest::Native {
+                program: saved(install(inputs)),
+                entry_memory: &[],
+            },
+            Default::default(),
+        )
         .err()
-        .expect("foreign import requires its exact checked declaration");
+        .expect("foreign import requires its exact checked declaration")
+        .into_diagnostics();
         assert!(
             refusal
                 .iter()
@@ -197,11 +209,16 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
         );
     }
     let installation = install(bindings);
-    let Artifact::Native(received) = compiler::compile(CompileRequest::Native {
-        program: saved(installation.clone()),
-        entry_memory: &[],
-    })
-    .unwrap() else {
+    let Artifact::Native(received) = compiler::compile(
+        CompileRequest::Native {
+            program: saved(installation.clone()),
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .unwrap()
+    .artifact
+    else {
         panic!("expected saved native image")
     };
     let image = &received
@@ -220,11 +237,16 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
             .output()
             .bytes
     );
-    let Artifact::Runtime(runtime) = compiler::compile(CompileRequest::Runtime {
-        program: saved(installation),
-        entry_memory: &[],
-    })
-    .unwrap() else {
+    let Artifact::Runtime(runtime) = compiler::compile(
+        CompileRequest::Runtime {
+            program: saved(installation),
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .unwrap()
+    .artifact
+    else {
         panic!("expected runtime admission")
     };
     let runtime = runtime.runtime_provisions().unwrap();
@@ -299,11 +321,16 @@ fn folded_product(path: &Path, profile: TargetProfile) -> product_publication::C
             .dependencies
             .is_empty()
     );
-    let Artifact::Runtime(folded) = compiler::compile(CompileRequest::Runtime {
-        program: stage.program(profile, vec![]).unwrap(),
-        entry_memory: &[],
-    })
-    .unwrap() else {
+    let Artifact::Runtime(folded) = compiler::compile(
+        CompileRequest::Runtime {
+            program: stage.program(profile, vec![]).unwrap(),
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .unwrap()
+    .artifact
+    else {
         panic!("expected folded product")
     };
     let artifact = folded.artifact().unwrap();

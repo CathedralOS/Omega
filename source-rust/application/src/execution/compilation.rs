@@ -155,10 +155,14 @@ pub(super) fn compile(
                 entry_memory: &private_entry_ram,
             },
         };
-        let product = match compiler::compile(request).map_err(|mut rows| {
-            planned.attribute_diagnostics(&mut rows);
-            rows
-        })? {
+        let product = match compiler::compile(request, Default::default())
+            .map_err(|failure| {
+                let mut rows = failure.into_diagnostics();
+                planned.attribute_diagnostics(&mut rows);
+                rows
+            })?
+            .artifact
+        {
             compiler::Artifact::Native(product) | compiler::Artifact::Runtime(product) => product,
             compiler::Artifact::Psi(_) => {
                 return Err(vec![Diagnostic::error(

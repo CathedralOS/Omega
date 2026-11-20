@@ -44,7 +44,17 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
     };
     let named =
         StageValidatorRequest::from_exact_names(["FixedFrameCorrespondence"], false).unwrap();
-    let (product, rows) = compiler::compile_with_validators(native, &named).unwrap();
+    let compiler::CompileOutput {
+        artifact: product,
+        validations: rows,
+    } = compiler::compile(
+        native,
+        compiler::CompileOptions {
+            validators: Some(&named),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     let Artifact::Native(product) = product else {
         panic!("expected the requested native product")
     };
@@ -66,7 +76,17 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
         entry_memory: &[],
     };
     let all = StageValidatorRequest::from_exact_names([], true).unwrap();
-    let (admitted, rows) = compiler::compile_with_validators(runtime(), &all).unwrap();
+    let compiler::CompileOutput {
+        artifact: admitted,
+        validations: rows,
+    } = compiler::compile(
+        runtime(),
+        compiler::CompileOptions {
+            validators: Some(&all),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(matches!(admitted, Artifact::Runtime(_)));
     assert_eq!(rows.len(), 3);
     assert!(
@@ -78,7 +98,13 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
                     ))
     );
 
-    let Err(error) = compiler::compile_with_validators(runtime(), &named) else {
+    let Err(error) = compiler::compile(
+        runtime(),
+        compiler::CompileOptions {
+            validators: Some(&named),
+            ..Default::default()
+        },
+    ) else {
         panic!("runtime admission returned a product for an unavailable named check")
     };
     assert!(matches!(error, NativeValidationError::Unavailable(_)));

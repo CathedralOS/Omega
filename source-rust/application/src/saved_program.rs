@@ -172,7 +172,9 @@ pub(crate) fn prepare(
             entry_memory,
         },
     };
-    match (requested, compiler::compile(request)?) {
+    let compiled = compiler::compile(request, Default::default())
+        .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)?;
+    match (requested, compiled.artifact) {
         (ExecutionProduct::Native, Artifact::Native(product))
         | (ExecutionProduct::Runtime, Artifact::Runtime(product)) => Ok(product),
         _ => Err(SavedProgramError::Internal(

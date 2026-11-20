@@ -23,21 +23,22 @@ fn compile(
     )?;
     let stage = product.product_stage(&[profile])?;
     let program = stage.program(profile, Vec::new())?;
-    match requested {
-        Product::Runtime => match compiler::compile(CompileRequest::Runtime {
+    let request = match requested {
+        Product::Runtime => CompileRequest::Runtime {
             program,
             entry_memory: &[],
-        })? {
-            Artifact::Runtime(product) => Ok(product),
-            _ => panic!("expected runtime admission"),
         },
-        Product::Native => match compiler::compile(CompileRequest::Native {
+        Product::Native => CompileRequest::Native {
             program,
             entry_memory: &[],
-        })? {
-            Artifact::Native(product) => Ok(product),
-            _ => panic!("expected native compilation"),
         },
+    };
+    let compiled = compiler::compile(request, Default::default())
+        .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)?;
+    match (requested, compiled.artifact) {
+        (Product::Runtime, Artifact::Runtime(product))
+        | (Product::Native, Artifact::Native(product)) => Ok(product),
+        _ => panic!("unexpected compilation product"),
     }
 }
 

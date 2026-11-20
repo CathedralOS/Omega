@@ -38,7 +38,10 @@ fn emit(
     artifact: CanonicalTerminalArtifact,
 ) -> Result<FinishedNativeImage, Vec<diagnostics::Diagnostic>> {
     with_published_target(artifact, |program, target| {
-        native_compiler::emit(program, target, &[])
+        native_compiler::prepare_saved_program(program, target)?
+            .emit(&[], &Default::default())
+            .map(|output| output.image)
+            .map_err(native_compiler::stage_validators::NativeValidationError::into_diagnostics)
     })
 }
 
@@ -53,9 +56,14 @@ fn requested_validators_check_the_emitted_linux_program() {
         true,
     )
     .unwrap();
-    let (image, rows) = with_published_target(
+    let native_compiler::NativeEmission {
+        image,
+        validations: rows,
+    } = with_published_target(
         CanonicalTerminalArtifact::from_bytes(SAVED).unwrap(),
-        |program, target| native_compiler::emit_with_validators(program, target, &[], &validators),
+        |program, target| {
+            native_compiler::prepare_saved_program(program, target)?.emit(&[], &validators)
+        },
     )
     .unwrap();
     assert!(matches!(
@@ -87,7 +95,9 @@ fn named_rewrite_without_a_selected_rule_refuses_even_with_every_validator() {
             .unwrap();
     let result = with_published_target(
         CanonicalTerminalArtifact::from_bytes(SAVED).unwrap(),
-        |program, target| native_compiler::emit_with_validators(program, target, &[], &validators),
+        |program, target| {
+            native_compiler::prepare_saved_program(program, target)?.emit(&[], &validators)
+        },
     );
     assert!(
         matches!(result, Err(NativeValidationError::Unavailable(diagnostic))

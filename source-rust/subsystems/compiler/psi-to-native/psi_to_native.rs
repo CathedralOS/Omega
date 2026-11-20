@@ -20,7 +20,6 @@ pub use driver::inputs::published_application::{
 
 use diagnostics::Diagnostic;
 use provider_admission::current_terminal_authority_policy;
-use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
 use driver::request::NativeCompileRequest;
 use driver::inputs::scalars::ScalarInputs;
@@ -39,39 +38,10 @@ pub mod test_support {
     pub use crate::driver::inputs::scalars::ScalarInputs;
 }
 
-/// Emit the requested native image from a published Psi program.
-pub fn emit(
-    program: AuthorizedTerminalArtifact,
-    target: SavedProgramTarget<'_>,
-    entry_memory: &[PrivateEntryRamInitialization],
-) -> Result<native_artifact::FinishedNativeImage, Vec<Diagnostic>> {
-    prepare_saved_program(program, target)?.emit(entry_memory)
-}
-
-/// Check the requested stages against originals from this emission before releasing its image.
-pub fn emit_with_validators(
-    program: AuthorizedTerminalArtifact,
-    target: SavedProgramTarget<'_>,
-    entry_memory: &[PrivateEntryRamInitialization],
-    validators: &stage_validators::StageValidatorRequest,
-) -> Result<
-    (
-        native_artifact::FinishedNativeImage,
-        Vec<stage_validators::StageValidationRow>,
-    ),
-    stage_validators::NativeValidationError,
-> {
-    prepare_saved_program(program, target)?.emit_with_validators(entry_memory, validators)
-}
-
-/// Stop after admitting the provisions needed by the Psi interpreter.
-pub fn admit_published_runtime(
-    program: AuthorizedTerminalArtifact,
-    target: SavedProgramTarget<'_>,
-    entry_memory: &[PrivateEntryRamInitialization],
-    accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
-) -> Result<AdmittedRuntimeProgram, Vec<Diagnostic>> {
-    prepare_saved_program(program, target)?.admit_runtime(entry_memory, accounting)
+/// The emitted image and the checks requested against its stage inputs.
+pub struct NativeEmission {
+    pub image: native_artifact::FinishedNativeImage,
+    pub validations: Vec<stage_validators::StageValidationRow>,
 }
 
 /// A native invocation whose target provider demand was matched to its authorized
@@ -96,44 +66,17 @@ impl NativeProgram {
     pub fn emit(
         self,
         entry_memory: &[PrivateEntryRamInitialization],
-    ) -> Result<native_artifact::FinishedNativeImage, Vec<Diagnostic>> {
-        self.emit_image(entry_memory, false).map(|(image, _)| image)
-    }
-
-    pub fn emit_with_validators(
-        self,
-        entry_memory: &[PrivateEntryRamInitialization],
         validators: &stage_validators::StageValidatorRequest,
-    ) -> Result<
-        (
-            native_artifact::FinishedNativeImage,
-            Vec<stage_validators::StageValidationRow>,
-        ),
-        stage_validators::NativeValidationError,
-    > {
+    ) -> Result<NativeEmission, stage_validators::NativeValidationError> {
         let profile = self.native_realization_proposal()?.target_profile();
-        let (image, replay) = self.emit_image(entry_memory, !validators.is_empty())?;
-        let rows = validators.check(profile, &image, &replay)?;
-        Ok((image, rows))
-    }
-
-    fn emit_image(
-        self,
-        entry_memory: &[PrivateEntryRamInitialization],
-        retain_native_stage_inputs: bool,
-    ) -> Result<
-        (
-            native_artifact::FinishedNativeImage,
-            published_object_verification::NativeStageReplay,
-        ),
-        Vec<Diagnostic>,
-    > {
-        self.finish(
+        let (image, originals) = self.finish(
             entry_memory,
             &mut Vec::new(),
-            retain_native_stage_inputs,
+            !validators.is_empty(),
             |terminal, request| driver::compile(&terminal, request),
-        )
+        )?;
+        let validations = validators.check(profile, &image, &originals)?;
+        Ok(NativeEmission { image, validations })
     }
 
     pub fn admit_runtime(
