@@ -255,8 +255,10 @@ machine Main::payload_omissions(&mut self) {
 }
 
 machine Main::named_terminal_values(&mut self) {
+    self.positive("data Value [copy]{case Missing;case Found(value:u8);} machine pick(x:bool)->Value{transition x{false->Value::Missing,_->Value::Found{value:42}}} machine score(v:Value)->u8{transition v{Value::Found{value as n}->n,_->0}} machine main()->u8{transition score(pick(false))==0 && score(pick(true))==42{true->42,_->7}}", 42, 216);
     self.positive("machine select(take:bool, matched:u8, other:u8)->u8 { transition take { true -> matched, false -> other } } machine main()->u8 { transition select(true, 42, 7)==42 && select(false, 7, 42)==42 {true->pass(),_->fail()} machine pass()->u8{42} machine fail()->u8{7} }", 42, 171);
     self.positive("data OverloadMatch [copy] { case None; case One(handle: u64 in Trapping); case Ambiguous; } machine choose(value:OverloadMatch, choose_value:bool)->OverloadMatch { transition choose_value { true -> value, false -> other() } machine other()->OverloadMatch { OverloadMatch::None } } machine observe(item:OverloadMatch)->u8 crashes Trap { transition item { OverloadMatch::One {handle as n} -> check(n), _ -> no() } machine check(n:u64 in Trapping)->u8 {transition n==42 {true->yes(),_->no()}} machine yes()->u8{42} machine no()->u8{7} } machine main()->u8 crashes Trap { let handle:u64 in Trapping=42 as u64 +Trapping; let val:OverloadMatch=OverloadMatch::One {handle:handle}; transition observe(choose(val,true))==42 && observe(choose(val,false))==7 {true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{7} }", 42, 172);
+    self.refusal("data V [copy]{case None;case Some(x:u8);}machine pick()->V{transition{_->V::Some{unknown:42}}}machine main()->u8{42}", 1, 217);
     self.refusal("machine main()->u8{transition{_->missing}}", 1, 173);
     self.refusal("machine main()->u8{let value:bool=true;transition{_->value}}", 1, 174);
     self.refusal("machine main()->u8{let value:u8=42;transition{_->block value}}", 1, 175);

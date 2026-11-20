@@ -769,6 +769,7 @@ data OmegaExpressionConsumer {
     case IndexedBase;
     case IndexedIndex;
     case TransitionPatternFieldValue;
+    case TransitionResult;
 }
 
 // Every postfix index suspends its surrounding expression while its selector
