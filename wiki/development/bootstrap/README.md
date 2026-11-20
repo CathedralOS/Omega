@@ -92,8 +92,11 @@ in 555.79 seconds. Both the 726,601-byte evaluator source and the
 1,977,558-byte Linux executable matched the native-hosted build byte for byte.
 The Epsilon program then returned the same six bytes in 0.02 seconds.
 Two further routes interpreted Gamma and Delta directly and ran the compiled
-Epsilon guest on Alpha and Linux. This brings the stdin control to **21/27**
-on this source tree. [Receipts](interpreted-gamma-matrix.md#replay-the-compiled-guest)
+Epsilon guest on Alpha and Linux. The original Gamma interpreter also built
+the Linux Epsilon compiler from the matched `5144ec25e81` sources, and both
+of its generated guests echoed `Z` and exited 90. The portable stdin control
+has therefore completed on **23/27** routes across the recorded snapshots.
+[Direct-Delta receipts](interpreted-gamma-matrix.md#replay-the-compiled-guest) · [Linux Epsilon compiler receipts](interpreted-gamma-matrix.md#building-the-portable-stdin-program-with-the-original-gamma-and-linux-epsilon-compiler)
 
 ### Omega compiler byte classifier
 
@@ -110,7 +113,7 @@ the full positive is unfinished. **Open** has neither completed observation.
 | --- | --- | --- | --- | --- |
 | Interpreter | Interpreter | Open | Open | Open |
 | Interpreter | Alpha | Both | Open | Open |
-| Interpreter | Linux | Both | Open | Open |
+| Interpreter | Linux | Both | Refusal | Refusal |
 | Alpha | Interpreter | Refusal | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
 | Alpha | Linux | Both | Both | Both |
@@ -137,8 +140,10 @@ On the four-byte control, the Alpha-hosted direct Delta interpreter running
 the Epsilon interpreter produced the expected 53 bytes in 267.92 CPU seconds.
 It also refused the full classifier’s wrong-base twin in 134.90 CPU
 seconds. The positive column above always requires all 256 inputs.
-Translating Delta to Gamma and running that Gamma on the original interpreter
-also completed the full pair. [Translated Delta receipts](interpreted-gamma-matrix.md#run-the-generated-evaluator-directly-on-gamma)
+The optional translated-Delta interpreter completed the pair for **all three**
+Epsilon choices on original Gamma. Each generated guest ran all 256 inputs.
+The table above uses the direct implementation for its Delta interpreter cells.
+[Interpreted guest](interpreted-gamma-matrix.md#run-the-generated-evaluator-directly-on-gamma) · [Compiled Alpha and Linux guests](https://github.com/CathedralOS/Omega/pull/4649)
 
 With Gamma compiled to Alpha and Delta interpreted directly, both compiled
 Epsilon guests exited 42. The Alpha tape was 880,161 bytes and the Linux
@@ -169,6 +174,12 @@ producing an 880,161-byte Alpha tape (`d260052ecef6…`) and a 468,679-byte
 Linux executable (`fc95d11d86c8…`). Both ran all 256 inputs. A complete
 row also requires the Epsilon compiler that produced the linked classifier
 and its observed refusal of the twin.
+
+The independently constructed Linux Epsilon compiler from `5144ec25e81`
+emitted the same 65,013-byte classifier module (`bd1d5bd47e66…`).
+Fresh runs for the Alpha and Linux target selections both returned
+`rejected 18 2032`. This snapshot has a different storage runtime, so
+its own linked guest and backends must also be verified for a complete row.
 
 To repeat the experiment with the pinned compiler sources, use a fresh
 checkout of the positive runner and select the two test files that added the
@@ -207,7 +218,7 @@ returns `rejected 18 58004`. A dash means this comparison has no result.
 | --- | --- | --- | --- | --- |
 | Interpreter | Alpha | Both | — | — |
 | Interpreter | Linux | Both | — | — |
-| Alpha | Alpha | Both | — | Refusal |
+| Alpha | Alpha | Both | Refusal | Refusal |
 | Alpha | Linux | Both | Refusal | Refusal |
 | Linux | Alpha | Both | Refusal | Refusal |
 | Linux | Linux | Both | Both | Both |
@@ -291,6 +302,15 @@ The complete 305-unit input at `950caad840a` with the two length-policy correcti
 3,994,871 bytes (`f2a57db79ed0e90fd1bcacd9baa7df1e979094aa3e97cbd96bb04f7d7d65be65`).
 [Compiler source](https://github.com/CathedralOS/Omega/pull/4646) · [Product input](https://github.com/CathedralOS/Omega/pull/4627)
 
+The next product at `e8ef069cde7` changes five stores in `generics.omg`.
+Its 305-unit input occupies 3,994,901 bytes, SHA-256
+`4dd77c669bdd7efdc3834ffb37e2072e2ccae832c040f5bdd65c56b4dd570db5`.
+Exercising the five stored values in isolation produced a 1,917-byte
+Alpha tape that preserved 4,294,967,297 and exited 42. Restoring each
+old conversion separately gave five type refusals. The native Rust peer
+also checked the high bits and generation stamps against the original array
+sizes. [Five stores, controls and product manifest](https://github.com/CathedralOS/Omega/pull/4652)
+
 | Run on the seed-built toolchain | Observed result |
 | --- | --- |
 | Same compiler library with the public OCREQ entry, Alpha and Linux Epsilon evaluators | Both compiled `machine main() -> u8 { 42 }` to the same 22-byte tape. It exited 42 on Alpha. Linux also reported a corrupted OCREQ identity at byte 3. |
@@ -304,6 +324,13 @@ from byte 405,395 to byte 412,420, the nested helper at
 machines by lexical scope. The seed-built evaluator then compiled the
 shadowing case to a 523-byte tape that exited 42 and rejected access to a
 sibling’s private helper at byte 154. [Complete input comparison](https://github.com/CathedralOS/Omega/pull/4627) · [Scope rules and controls](https://github.com/CathedralOS/Omega/pull/4644)
+
+On that same 3,996,362-byte frozen product (`f240f7213f9b…`), the
+899,660-byte compiler advanced another 9,592 source bytes. The complete
+source-model run returned `00030000007c700600` after 494.61 CPU seconds.
+Status 3 is the constructor’s `ResourceFailure`, at source byte 422,012
+in the call to `payload_field`, `expressions.omg:546:72`. The nine-byte
+receipt includes the source coordinate and carries no tape.
 
 <details>
 <summary>Reproduce the source-model inputs</summary>

@@ -53,6 +53,18 @@ by 7,776 bytes and the Alpha tape by 8,451 bytes. All four old and new
 executables returned exit 42 and byte `A` on input `02`.
 [Storage customer](../../../tests/bootstrap/independent/epsilon/storage_main.epsilon)
 
+## Writing the same bytes under both Delta profiles
+
+On the original Gamma interpreter, the 256-byte classifier took 703.15 CPU
+seconds with indexed output and 383.27 seconds with construction-profile
+traversal. Both returned the same 3,077 bytes and refused the twin at byte
+2,032. The smaller example reverses the result. Repeatedly doubling a
+shared, empty-wrapped value produced exactly 1 KiB. Indexed output took
+0.445 CPU seconds and 128 KiB of memory on Linux. Traversal took
+0.965 CPU seconds and 32,640 KiB. The representation of the output can
+therefore change which implementation is cheaper to run.
+[Source fixture and measured profile comparison](https://github.com/CathedralOS/Omega/pull/4650)
+
 ## Which routes agreed
 
 - **Four Gamma host and target pairs.** The #4546 Gamma compilers ran on Alpha and Linux and generated both targets. All four produced the same 726,582-byte Gamma source for the **#4542 Epsilon evaluator**. On either host the Alpha evaluator was 3,798,810 bytes and the Linux evaluator 1,985,896. Each passed five portable observations and two syntax refusals. [Host/target gate](../../../tests/bootstrap/gamma_host_matrix.py)
