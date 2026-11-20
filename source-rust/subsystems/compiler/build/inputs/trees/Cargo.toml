@@ -1,0 +1,16 @@
+[package]
+name = "build-output"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+[lib]
+path = "trees.rs"
+
+[dependencies]
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+filesystem-authority = { path = "../../evaluation/authority/filesystem" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+optimization-selections = { path = "../../../foundation/optimization-selections" }

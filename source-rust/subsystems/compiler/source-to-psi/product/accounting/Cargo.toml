@@ -8,15 +8,15 @@ version.workspace = true
 path = "accounting.rs"
 
 [dependencies]
-evaluation-work = { path = "../../../build/evaluation/work" }
-evaluation-contracts = { path = "../../../build/evaluation/usage" }
+evaluation-work = { path = "../../../build/evaluation/accounting/work" }
+evaluation-contracts = { path = "../../../build/evaluation/accounting/contracts" }
 build-invocation = { path = "../../../build/evaluation/invocations" }
 build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }
 build-time-values = { path = "../../../build/evaluation/values" }
 checked-program-to-psi = { path = "../../pipeline/07_checked-program-to-psi" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 evaluation-accounting = { path = "../../../build/evaluation/accounting" }
-evaluation-admission = { path = "../../../build/evaluation/admission" }
+evaluation-admission = { path = "../../../build/evaluation/authority/admission" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }

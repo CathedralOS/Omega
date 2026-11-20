@@ -111,7 +111,7 @@ fn compile_targets(
     } else {
         None
     };
-    let base = project_build::output_directory::base(
+    let base = product_publication::output_directory::base(
         &arguments.root_path,
         scratch
             .as_ref()
@@ -126,7 +126,7 @@ fn compile_targets(
             } else {
                 base.clone()
             };
-            project_build::output_directory::acquire(&directory, &arguments.root_path)
+            product_publication::output_directory::acquire(&directory, &arguments.root_path)
         })
         .collect();
     let active: Vec<_> = profiles

@@ -9,7 +9,7 @@ use compiler::{
 use diagnostics::Diagnostic;
 use normalized_build_settings::EvaluatedBuildSettings;
 use package_manager::operations::ReviewedHostPackages;
-use project_build::output_directory;
+use product_publication::output_directory;
 use psi_authorization::AuthorizedTerminalArtifact;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;

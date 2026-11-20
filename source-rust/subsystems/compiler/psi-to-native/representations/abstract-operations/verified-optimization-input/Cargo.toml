@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 native-behavior-exclusions = { path = "../../../verification/behavior-exclusions" }
 provider-acceptance = { path = "../../../../build/providers/acceptance" }
-behavior-exclusion-requests = { path = "../../../../build/behavior-exclusions" }
+behavior-exclusion-requests = { path = "../../../../build/settings/behavior-exclusions" }
 native-binding-admission = { path = "../../../verification/native-bindings" }
 direct-boundary-bindings = { path = "../../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../targets/intrinsics" }

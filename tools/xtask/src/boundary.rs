@@ -31,9 +31,14 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi",
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
-    "source-rust/subsystems/compiler/build/evaluation",
+    "source-rust/subsystems/compiler/build/evaluation/accounting",
+    "source-rust/subsystems/compiler/build/evaluation/authority",
+    "source-rust/subsystems/compiler/build/evaluation/invocations",
+    "source-rust/subsystems/compiler/build/evaluation/receipts",
+    "source-rust/subsystems/compiler/build/evaluation/scalars",
+    "source-rust/subsystems/compiler/build/evaluation/values",
     "source-rust/subsystems/compiler/build/providers",
-    "source-rust/subsystems/compiler/build/behavior-exclusions",
+    "source-rust/subsystems/compiler/build/settings/behavior-exclusions",
     "source-rust/subsystems/interpreter",
 ];
 
@@ -170,8 +175,8 @@ pub fn forbidden_rules() -> Vec<Rule> {
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
-            ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
-            ("source-rust/subsystems/compiler/build/execution/result", linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/build/inputs/declarations", linear_pipeline::TEXT_READER),
+            ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
             ("source-rust/subsystems/compiler/source-to-psi/product/accounting", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
@@ -1323,8 +1328,8 @@ mod tests {
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
             (stages[1], SOURCE_PROVIDER_PUBLICATION, None, false),
             ("source-rust/subsystems/compiler/psi/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
-            ("source-rust/subsystems/compiler/build/package-compilation", linear_pipeline::PSI_STAGES[7], None, false),
-            ("source-rust/subsystems/compiler/build/package-compilation", stages[0], None, false),
+            ("source-rust/subsystems/compiler/build/inputs", linear_pipeline::PSI_STAGES[7], None, false),
+            ("source-rust/subsystems/compiler/build/inputs", stages[0], None, false),
             (library, stages[2], None, false),
             (library, stages[2], Some("build"), false),
             (library, stages[2], Some("dev"), true),
@@ -1836,6 +1841,17 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn native_consumers_can_read_build_accounting_but_cannot_run_the_project_build() {
+        let evaluation = "source-rust/subsystems/compiler/build/evaluation";
+        assert!(under(
+            &format!("{evaluation}/accounting/contracts"),
+            PERMITTED_OWNERS
+        ));
+        assert!(!under(evaluation, PERMITTED_OWNERS));
+        assert!(!under(&format!("{evaluation}/result"), PERMITTED_OWNERS));
     }
 
     #[test]

@@ -9,7 +9,7 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
-build-evaluation-result = { path = "../compiler/build/execution/result" }
+build-evaluation-result = { path = "../compiler/build/evaluation/result" }
 source-completion-accounting = { path = "../compiler/source-to-psi/product/accounting" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
 provider-acceptance = { path = "../compiler/build/providers/acceptance" }
@@ -21,7 +21,7 @@ declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
 source-provenance = { path = "../compiler/foundation/source-provenance" }
-evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
+evaluation-contracts = { path = "../compiler/build/evaluation/accounting/contracts" }
 source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
@@ -30,19 +30,19 @@ terminal-codec = { path = "../compiler/psi/codec" }
 evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
 terminal-work = { path = "../compiler/psi/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
-build-declarations = { path = "../compiler/build/build-declarations" }
-build-execution = { path = "../compiler/build/execution" }
-build-output = { path = "../compiler/build/build-output" }
+build-declarations = { path = "../compiler/build/inputs/declarations" }
+build-execution = { path = "../compiler/build/evaluation" }
+build-output = { path = "../compiler/build/inputs/trees" }
 compiler-identity = { path = "../compiler/foundation/compiler-identity" }
 review-evidence = { path = "review/evidence" }
 source-acquisition = { path = "source-acquisition" }
-package-compilation = { path = "../compiler/build/package-compilation" }
+package-compilation = { path = "../compiler/build/inputs" }
 platform-custody = { path = "../../foundation/filesystem" }
 target = { path = "../compiler/psi-to-native/targets/target" }
 provider-admission = { path = "../compiler/psi-to-native/verification/provider-admission" }
 arena = { path = "../../foundation/arena" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
-filesystem-authority = { path = "../compiler/build/evaluation/filesystem" }
+filesystem-authority = { path = "../compiler/build/evaluation/authority/filesystem" }
 diagnostics = { path = "../../foundation/diagnostics" }
 source-syntax = { path = "../compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
 syntax-trees = { path = "../compiler/source-to-psi/representations/syntax-trees" }

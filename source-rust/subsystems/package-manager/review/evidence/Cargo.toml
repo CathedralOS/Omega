@@ -6,7 +6,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-build-consent = { path = "../../../compiler/build/evaluation/consent" }
+build-consent = { path = "../../../compiler/build/evaluation/authority/consent" }
 provider-acceptance = { path = "../../../compiler/build/providers/acceptance" }
 native-intrinsics = { path = "../../../compiler/psi-to-native/targets/intrinsics" }
 provider-plans = { path = "../../../compiler/build/providers/plans" }

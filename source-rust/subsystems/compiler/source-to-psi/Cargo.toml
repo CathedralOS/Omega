@@ -19,10 +19,10 @@ test-support = [
 ]
 
 [dependencies]
-evaluation-work = { path = "../build/evaluation/work" }
+evaluation-work = { path = "../build/evaluation/accounting/work" }
 build-invocation = { path = "../build/evaluation/invocations" }
 evaluation-accounting = { path = "../build/evaluation/accounting" }
-evaluation-admission = { path = "../build/evaluation/admission" }
+evaluation-admission = { path = "../build/evaluation/authority/admission" }
 psi-provider-selections = { path = "../psi/providers" }
 psi-scalar-applications = { path = "../psi/scalar-applications" }
 psi-target-layouts = { path = "../psi/layout/admission" }
@@ -32,7 +32,7 @@ schema-reflection = { path = "../psi/schema" }
 source-completion-accounting = { path = "product/accounting" }
 build-scalar-evaluation = { path = "../build/evaluation/scalars" }
 build-time-values = { path = "../build/evaluation/values" }
-build-value-projection = { path = "../build/evaluation/value-projection" }
+build-value-projection = { path = "../build/evaluation/values/projection" }
 service-surface = { path = "../psi/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
@@ -50,11 +50,11 @@ typed-trees = { path = "representations/typed-trees" }
 source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
-behavior-exclusion-requests = { path = "../build/behavior-exclusions" }
+behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
 application-identity = { path = "../psi/application-identity" }
 layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }
-evaluation-contracts = { path = "../build/evaluation/usage" }
+evaluation-contracts = { path = "../build/evaluation/accounting/contracts" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
 source-admission = { path = "representations/source-files/custody" }
 source-text = { path = "../../../foundation/source-text" }
