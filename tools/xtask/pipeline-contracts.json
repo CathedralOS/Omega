@@ -17927,7 +17927,7 @@
       "kind": "test_support",
       "meaning": "Accept the matching native image, reject wrong-target and changed-manifest inputs, and verify full and sliced execution without decoding again.",
       "producer": "retained-image runtime regression",
-      "signature": "cf369bcdbb1e9eb953733fb8e384fd540e12e4ea6213d056fb01474fbd329c29"
+      "signature": "31bcb2a3d3b114bccc1aa269d65fb34507988512e9de76008c1b9354781e84e3"
     },
     {
       "consumers": [
