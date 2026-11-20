@@ -108,6 +108,16 @@ product, a 10 GiB resident-memory guard stopped the native executable after
 194.5 seconds with empty output. This run produced neither a product tape nor
 a compiler diagnostic. [Wire program and refusal controls](#product-wire-package-through-the-construction-entry)
 
+Two truncated copies of the same product isolate input staging. Each keeps
+the original header and all package and unit rows, so the constructor must
+consume the declared byte buffer before it can start the Omega parser.
+With the first 512 KiB of `product.bin`, the executable returned guest exit
+3 at EOF and peaked at 10,400,176 KiB RSS. With the first 576 KiB, it reached
+the same 10 GiB guard as the complete product with empty output. These runs
+use the whole native executable identified above. To replay the shorter
+input, pipe `head -c 524288 "$work/product.bin"` to `"$work/omega"`.
+The 14,914-byte entry-only product separately reached its 5 GiB guard.
+
 The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.

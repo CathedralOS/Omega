@@ -20,8 +20,21 @@
             (di_arguments head (- (syntax_count node) 1) (second (syntax_children node))
               0 0 locals globals)))))))
 
+; A checked call or match has a short-lived lexical environment. Keep one row
+; per binding, sharing the outer scope. Source offsets remain valid throughout
+; this execution. A negative start marks the end of a call's local scope.
 (def di_bind ((locals Int) (name Int) (value Int)) Int
-  (name_trie_insert locals (syntax_after name) (syntax_start name) value))
+  (pair (syntax_start name) (pair (syntax_after name) (pair value locals))))
+
+(def di_find_local ((locals Int) (start Int) (end Int)) Int
+  (let previous Int (first locals)
+    (if (lt previous 0) (fail)
+      (let ((row Int (second locals)) (binding Int (second row))
+            (width Int (- end start)))
+        (if (if (eq (+ previous width) (first row))
+              (eq width (identity_cursor_common_prefix previous start end width 0)) 0)
+          (first binding)
+          (di_find_local (second binding) start end))))))
 
 (def di_lookup ((trie Int) (name Int)) Int
   (let found Int (name_trie_find_option trie (syntax_after name) (syntax_start name))
@@ -35,7 +48,7 @@
         (if (is_digit byte) (di_decimal start end 0 0)
           (if (is_upper byte)
             (pair (constructor_metadata_tag (di_lookup (global_constructors globals) node)) 0)
-            (di_lookup locals node)))))))
+            (di_find_local locals start end)))))))
 
 ; Evaluate and save each operand once in source order. Binding and application
 ; consume the resulting ordered value spine under the authored arity.
@@ -79,7 +92,7 @@
 (def di_call ((declaration Int) (args Int) (globals Int)) Int
   (let ((params Int (syntax_child declaration 2))
         (locals Int (di_bind_names (syntax_count params) (syntax_children params)
-                     args (empty_name_trie) 1)))
+                     args (pair -1 0) 1)))
     (di_eval (syntax_child declaration 4) locals globals)))
 
 ; Parameter binders are (name type) nodes; pattern binders are already names.

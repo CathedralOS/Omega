@@ -17,10 +17,12 @@ python3 tests/bootstrap/interpreted/delta/interpreter.py /tmp/delta-linux --host
   --runner /tmp/gamma-hosts/linux-to-linux-compiler.bin --epsilon
 ```
 
-Each route checks 23 Delta observations. They include three inputs to the
+Each route checks 27 Delta observations. They include three inputs to the
 matrix's byte-doubling program, nominal fields and matches, mutual recursion,
 strict call arguments, byte and arithmetic traps, publication and logical
-length limits, malformed requests and whole-program static rejection.
+length limits, malformed requests and whole-program static rejection. Four
+scope cases cover equal-length and prefix-related names, name reuse in sibling
+scopes, duplicate active binders and unbound references.
 `--epsilon` adds the five portable Epsilon language observations and the two
 invalid-token controls. Each one parses and checks the complete Delta-written
 Epsilon evaluator and its entry, then executes it on the sealed EEREQ.
@@ -88,3 +90,53 @@ Omit `--source` and `--stdin` to run the direct interpreter's control suite.
 The default conformance profile retains its 4 MiB source limit. The construction
 controls exercise larger guest input, source admission, static rejection and
 oversize output. [Direct interpreter source profiles](../../../../bootstrap/delta/interpreter/README.md)
+
+### Local bindings and the linked constructor
+
+The two-package input above is 829 bytes. Its expected result from the
+Epsilon evaluator is five zero bytes followed by a 1,607-byte Alpha tape
+that exits 42. Both direct runs checked the same 18,365,364-byte Delta
+constructor and used the same compact Linux Gamma producer, 1,300-second
+wall budget and 6 GiB resident-memory guard. The host stopped both runs
+at the memory guard before either published a byte.
+
+| Runtime local bindings | Wall seconds | CPU seconds | Peak RSS (KiB) | Output bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Persistent name trie | 515.68 | 371.12 | 6,292,352 | 0 |
+| Linked rows of source spans and values | 740.63 | 649.25 | 6,291,840 | 0 |
+
+At 371.39 CPU seconds the linked rows had used 3,835,080 KiB. Each bind now
+allocates three pairs. Lookup scans the active rows and compares identifier
+bytes. To isolate the allocation cost, run this Delta source with the two
+input bytes `XY` through the same Linux interpreters.
+
+```lisp
+(def count_down ((remaining_count Int) (result_at_end Bytes)) Bytes
+  (if (eq remaining_count 0) result_at_end
+    (let remaining_prior Int remaining_count
+      (let remaining_after Int (- remaining_prior 1)
+        (count_down remaining_after result_at_end)))))
+(def main ((input Bytes)) Bytes (count_down 20000 input))
+```
+
+Both returned `XY`. Peak RSS fell from 85,760 to 15,744 KiB and CPU time
+from 3.423 to 2.043 seconds. The Linux conformance and Alpha construction
+controls passed all 27 and 30 observations respectively.
+
+The compact Linux interpreters also executed the complete 4,107,257-byte
+Delta signature-checking customer (SHA-256
+`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`)
+with empty guest input. Both exited 0 and returned the frozen Epsilon
+observation `00 2a 00 00 00 01 02 00`.
+
+| Runtime local bindings | Wall seconds | CPU seconds | Peak RSS (KiB) |
+| --- | ---: | ---: | ---: |
+| Persistent name trie | 17.17 | 15.51 | 277,248 |
+| Linked rows of source spans and values | 17.59 | 16.53 | 255,232 |
+
+With the full constructor and the 239-byte portable Omega product, the old
+and new direct interpreters both reached the 600-second wall limit with
+zero output bytes. The name trie used 455.38 CPU seconds and 9,455,744 KiB
+peak RSS under a 14 GiB guard. The linked rows used 475.55 CPU seconds and
+4,054,016 KiB under a 6 GiB guard. On the same product the Epsilon evaluator
+returned the five-byte success observation and a 50-byte tape that exited 42.
