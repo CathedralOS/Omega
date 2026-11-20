@@ -122,3 +122,21 @@ input bytes `XY` through the same Linux interpreters.
 Both returned `XY`. Peak RSS fell from 85,760 to 15,744 KiB and CPU time
 from 3.423 to 2.043 seconds. The Linux conformance and Alpha construction
 controls passed all 27 and 30 observations respectively.
+
+The compact Linux interpreters also executed the complete 4,107,257-byte
+Delta signature-checking customer (SHA-256
+`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`)
+with empty guest input. Both exited 0 and returned the frozen Epsilon
+observation `00 2a 00 00 00 01 02 00`.
+
+| Runtime local bindings | Wall seconds | CPU seconds | Peak RSS (KiB) |
+| --- | ---: | ---: | ---: |
+| Persistent name trie | 17.17 | 15.51 | 277,248 |
+| Linked rows of source spans and values | 17.59 | 16.53 | 255,232 |
+
+With the full constructor and the 239-byte portable Omega product, the old
+and new direct interpreters both reached the 600-second wall limit with
+zero output bytes. The name trie used 455.38 CPU seconds and 9,455,744 KiB
+peak RSS under a 14 GiB guard. The linked rows used 475.55 CPU seconds and
+4,054,016 KiB under a 6 GiB guard. On the same product the Epsilon evaluator
+returned the five-byte success observation and a 50-byte tape that exited 42.
