@@ -172,6 +172,38 @@ Both lower source inventories had the identical reference executable and
 complete input. This compiler source is the shared intermediate for building
 an Alpha- or Linux-hosted Epsilon compiler through the original interpreter.
 
+## Building the portable stdin program with the original Gamma and Linux Epsilon compiler
+
+On `5144ec25e810`, the seed-built Gamma interpreter ran the Linux backend on
+its own 810,690-byte Epsilon compiler translation. The full 853,136-byte
+backend input had SHA-256
+`bdb6ee8fc83095bc3ba14042507712271e8fd8e3ea3598998e80215ff5000eeb`.
+It produced a 3,003,306-byte x86-64 ELF, SHA-256
+`4ba51b501ac9111edc121b9d90bdbd99586cc1e335a5a1245b999cf02a6d98eb`.
+The interpreter, the complete Delta-to-Gamma input (`b550e9fe…` above) and
+the complete Gamma-to-Linux input matched the frozen portable stdin inventory
+byte for byte.
+
+That ELF compiled the 339-byte stdin program to a fresh 3,247-byte Delta
+module, SHA-256 `b440b5d18c3abc5d68e2e440211693f32a3bfda5a46ae470be61d7b9a1e60e1a`.
+Linking it reproduced the 99,270-byte Delta program measured above. The
+original interpreter had translated it to 81,742 Gamma bytes and emitted both
+targets. The Alpha and Linux programs each ran again on `Z` and returned
+`00 5a 00 00 00 5a` with process status zero. This establishes two more
+default selections, `interpret / native / alpha` and
+`interpret / native / native`. The frozen stdin workload now has **23 of 27** verified selections.
+
+The same original-built Epsilon compiler also ran on both Omega lexical
+classifiers. The valid 3,748-byte source produced a 65,013-byte Delta module,
+SHA-256 `bd1d5bd47e663ecf27518374302e276913543fa67bc47479439dce60c0376314`,
+in 11.502 seconds. The 3,745-byte wrong-base source returned the 16 ASCII
+bytes `rejected 18 2032` in 0.169 seconds. The classifier uses a different
+linked program and needs its own measured lower and target stages.
+
+Replay the original stdin selection at `5144ec25e810` with
+`python3 tests/bootstrap/route.py NEW --gamma interpret --delta native --epsilon alpha --case stdin --seconds 12000`.
+Use a fresh directory and `--epsilon native` for the Linux guest.
+
 ## Original Gamma on the named classifier sources
 
 The named `omega-byte-classes` case at `8da0d6a9f82` has the same
