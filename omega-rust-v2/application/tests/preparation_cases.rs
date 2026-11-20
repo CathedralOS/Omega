@@ -395,3 +395,17 @@ fn a_nested_omission_reports_the_constructor_that_requires_the_proof() {
         },
     );
 }
+
+#[test]
+fn an_out_of_bounds_read_identifies_the_failed_subscript_in_the_initializer() {
+    check(PreparationReason::ArrayIndexOutOfBounds, Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[("array.omg", "const TABLE:[u8;2]=[4u8,5u8]; const ANSWER:u8=TABLE[0u64] +% TABLE[1u64];")],
+        bad: &[("array.omg", "const TABLE:[u8;2]=[4u8,5u8]; const ANSWER:u8=TABLE[0u64] +% TABLE[2u64];")],
+        file: "array.omg",
+        occurrence: "TABLE[2u64]",
+        reason: refusal!("selected array read requires index < items.len"),
+        rule: FROZEN_VALUES,
+    });
+}

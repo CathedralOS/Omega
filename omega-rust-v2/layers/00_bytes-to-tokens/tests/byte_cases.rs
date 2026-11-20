@@ -189,6 +189,43 @@ fn carriage_return_in_quoted_rejects() {
 }
 
 #[test]
+fn raw_line_break_points_at_the_break_even_inside_an_escape() {
+    let body_prefix = b"name \"\xc3\xa9";
+    let escape_prefixes: [&[u8]; 4] = [b"", b"\\", br"\x", br"\x4"];
+    let line_breaks: [&[u8]; 3] = [b"\n", b"\r", b"\r\n"];
+    let tails: [&[u8]; 2] = [b"", b"\";"];
+
+    for escape_prefix in escape_prefixes {
+        let break_offset = body_prefix.len() + escape_prefix.len();
+        for line_break in line_breaks {
+            for tail in tails {
+                let source = [body_prefix.as_slice(), escape_prefix, line_break, tail].concat();
+                expect_error(&source, LexErrorKind::NewlineInQuoted, SourceSpan::new(break_offset, break_offset + 1));
+            }
+        }
+    }
+}
+
+#[test]
+fn a_bad_escape_before_a_line_break_still_wins() {
+    expect_error(b"\"\\q\n", LexErrorKind::UnknownEscape, SourceSpan::new(1, 3));
+    expect_error(b"\"\\xZ\n", LexErrorKind::InvalidHexEscape, SourceSpan::new(1, 3));
+}
+
+#[test]
+fn escaped_line_breaks_decode_and_raw_crlf_after_the_quote_is_trivia() {
+    let source = b"\"\xc3\xa9\\n\\x0D\"\r\n";
+    let tokens = lex(source).expect("escaped breaks and a CRLF outside the literal must lex");
+    assert_eq!(tokens.len(), 2);
+    assert_eq!(tokens[0].get_kind(), TokenKind::Quoted);
+    assert_eq!(tokens[0].get_span(), SourceSpan::new(0, 10));
+    assert_eq!(tokens[1].get_kind(), TokenKind::Whitespace);
+    assert_eq!(tokens[1].get_span(), SourceSpan::new(10, 12));
+    let spelling = tokens[0].get_span().slice(source).unwrap();
+    assert_eq!(decode_quoted_bytes(spelling), Some(vec![0xc3, 0xa9, b'\n', b'\r']));
+}
+
+#[test]
 fn raw_tab_in_quoted_is_allowed() {
     let source_bytes = b"\"a\tb\"";
 
@@ -214,6 +251,8 @@ fn hex_escape_cut_off_by_the_closing_quote_rejects() {
 #[test]
 fn hex_escape_at_end_of_file_rejects() {
     expect_error(b"\"\\x", LexErrorKind::InvalidHexEscape, SourceSpan::new(1, 3));
+    expect_error(br#"head "\x4"#, LexErrorKind::InvalidHexEscape, SourceSpan::new(6, 8));
+    expect_error(br#"head "\x41"#, LexErrorKind::UnterminatedQuoted, SourceSpan::new(5, 10));
 }
 
 // Cases taken from Omega V1's own lexer tests, to confirm the two lexers agree where the contract does.

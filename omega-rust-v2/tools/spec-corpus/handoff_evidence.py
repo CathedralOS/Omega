@@ -213,20 +213,25 @@ def document_rules(stage, source):
     return rows
 
 
+def passing_fixture(stage, fixture, evidence, results):
+    binary, accept, reject = GOLDEN_TESTS[stage]
+    emitter = accept if "accept" in Path(fixture).parts else reject
+    return (evidence["goldens"].get(f"{stage}/{fixture}") == emitter
+            and results.get((stage, f"tests/{binary}.rs", emitter)) == "ok")
+
+
 def check_lexer_fixtures(row, fixture_dir, evidence, results, errors):
     unconfirmed = set()
-    binary, accept, reject = GOLDEN_TESTS["L0"]
     for item in row["named_requirements"]:
         if item["kind"] != "fixture":
             continue
         fixture = item["name"]
         source = fixture_dir / fixture
         key = f"L0/{fixture}"
-        test = accept if item["side"] == "direct" else reject
         missing = [p.name for p in (source, source.with_suffix(".expected")) if not p.is_file()]
         if missing:
             errors.append(f"L0 {row['rule']}: missing fixture pair member in {source.parent}: {', '.join(missing)}")
-        item["verified"] = not missing and evidence["goldens"].get(key) == test and results.get(("L0", f"tests/{binary}.rs", test)) == "ok"
+        item["verified"] = not missing and passing_fixture("L0", fixture, evidence, results)
         if item["verified"]:
             row.setdefault(item["side"], []).append(fixture)
         else:
@@ -287,14 +292,14 @@ def finish(report, directory):
             row["consumer"] = []
             row["refusal_only_rule"] = ((stage == "L0" and row["rule"] in {"R13", "R17"})
                                         or (stage == "L4" and row["rule"].startswith("When preparation stops, its diagnosed entry point")))
-            if stage == "L0" and row["rule"] == "R16" and "L1/accept/right_shift.omg" in evidence["goldens"]:
-                row["consumer"].append("L1 · right_shift.omg checks shift grouping and nested generic closers")
             if stage == "L0":
                 unconfirmed_fixtures.update(check_lexer_fixtures(row, path.parent / "fixtures", evidence, results, errors))
             for fixture in row.pop("fixtures"):
-                if stage in {"L1", "L3"} and not (path.parent / "fixtures" / fixture).is_file():
-                    errors.append(f"{stage} line {row['line']}: mapped fixture missing: {fixture}")
-                if (path.parent / "fixtures" / fixture).is_file() and f"{stage}/{fixture}" in evidence["goldens"]:
+                source = path.parent / "fixtures" / fixture
+                if not source.is_file() or not source.with_suffix(".expected").is_file():
+                    errors.append(f"{stage} line {row['line']}: mapped fixture missing its input or expectation: {fixture}")
+                    unconfirmed_fixtures.add(f"{stage}/{fixture}")
+                elif passing_fixture(stage, fixture, evidence, results):
                     if fixture.startswith("accept/"):
                         row["direct"].append(fixture)
                     else:
@@ -323,7 +328,9 @@ def finish(report, directory):
             for group in (("accept", "reject", "prepared/accept", "prepared/reject") if stage == "L3" else ("accept", "reject")):
                 for source in sorted((fixture_dir / group).glob("*.omg")):
                     key = f"{stage}/{source.relative_to(fixture_dir).as_posix()}"
-                    if key not in evidence["goldens"]:
+                    fixture = source.relative_to(fixture_dir).as_posix()
+                    if not source.with_suffix(".expected").is_file() or not passing_fixture(stage, fixture, evidence, results):
+                        unconfirmed_fixtures.add(key)
                         errors.append(f"fixture output comparison unconfirmed: {key}")
     observed = reviewed_comparisons.apply(report, outlines, unconfirmed_fixtures)
     byte_tests = {(w.rule, w.side, f"byte_cases::{w.test}") for w in observed

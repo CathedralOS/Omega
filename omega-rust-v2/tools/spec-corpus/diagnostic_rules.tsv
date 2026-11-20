@@ -41,6 +41,7 @@ L4	public_machine_without_a_termination_promise_is_refused	A local declaration a
 L4	recursive_component_without_a_checked_ranking_is_refused	A local declaration after a tail expression
 L4	discarded_operand_still_refuses_its_failed_precondition	An explicit discard evaluates its operand
 L4	exact_intermediate_overflow_refuses_the_call	L4 evaluates integers, Booleans, floating-point values
+L4	an_out_of_bounds_read_identifies_the_failed_subscript_in_the_initializer	L4 evaluates integers, Booleans, floating-point values
 L4	linear_constant_type_cannot_freeze	L4 evaluates integers, Booleans, floating-point values
 L4	cleanup_in_an_inactive_payload_prevents_freezing	L4 evaluates integers, Booleans, floating-point values
 L4	a_nested_omission_reports_the_constructor_that_requires_the_proof	L4 evaluates integers, Booleans, floating-point values

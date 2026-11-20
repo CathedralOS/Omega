@@ -74,6 +74,31 @@ fn malformed_selection_rows_refuse_the_first_missing_part() {
 }
 
 #[test]
+fn trait_body_separator_is_diagnosed_only_after_a_complete_header() {
+    use omega_parser::ParseErrorKind::{SeparatorBeforeBody, UnexpectedToken};
+
+    for header in ["trait T", "trait U = T"] {
+        let good = format!("{header} {{}}");
+        let bytes = good.as_bytes();
+        parse_file(bytes, &lex(bytes).unwrap()).expect(&good);
+    }
+
+    for (prefix, token, rest, kind, expected) in [
+        ("trait T ", ",", " {}", SeparatorBeforeBody, "`{`"),
+        ("trait U = T ", ";", " {}", SeparatorBeforeBody, "`{`"),
+        ("trait U = ", ",", " {}", UnexpectedToken, "a type"),
+        ("trait T ", ";", "", UnexpectedToken, "`{`"),
+    ] {
+        let source = format!("{prefix}{token}{rest}");
+        let bytes = source.as_bytes();
+        let error = parse_file(bytes, &lex(bytes).unwrap()).expect_err(&source);
+        assert_eq!((error.get_kind(), error.get_expected()), (kind, expected), "{source}");
+        assert_eq!(error.get_span().get_start_offset(), prefix.len(), "{source}");
+        assert_eq!(error.get_span().slice(bytes), Some(token.as_bytes()), "{source}");
+    }
+}
+
+#[test]
 fn bracketed_generic_arguments_have_the_same_shape_in_types_and_expressions() {
     // One bare name inside brackets denotes a slice type. A comma, a call,
     // or parentheses around that same name selects an array of values.

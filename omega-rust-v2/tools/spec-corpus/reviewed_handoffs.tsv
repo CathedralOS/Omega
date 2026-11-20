@@ -210,3 +210,4 @@ L3	Readiness is per closed demand,	consumer	L4	tests/static_callbacks.rs	closure
 L3	Readiness is per closed demand,	refusals	L4	tests/static_callbacks.rs	closure::the_same_field_recipe_can_run_for_one_nested_selection_while_another_waits	closed-callback-readiness/captured-refusal
 L4	When preparation reads a closed aggregate argument,	direct	L4	tests/owned_records.rs	value_witness::an_invalid_closed_argument_cannot_freeze_a_scalar_or_a_whole_record	closed-argument-fields/producer
 L4	When preparation reads a closed aggregate argument,	refusals	L4	tests/owned_records.rs	value_witness::an_invalid_closed_argument_is_refused_before_direct_or_nested_named_reads	closed-argument-fields/refusal
+L0	R16	consumer	L1	tests/golden_fixtures.rs	accept_fixtures_parse_to_their_expected_trees	fixture/accept/right_shift.omg

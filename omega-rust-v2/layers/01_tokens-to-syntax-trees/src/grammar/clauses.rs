@@ -148,10 +148,10 @@ impl SyntaxParser<'_> {
             Clause::Clobbers => {
                 self.expect_word("`none` or a register name")?;
 
-                // A comma continues the list only if a name follows; a comma before `{` is caught by the caller.
-                while self.at(Punctuation::Comma) && self.nth_at_word(1) {
+                // Leave a comma immediately before the body to the header's separator diagnostic.
+                while self.at(Punctuation::Comma) && !self.nth_at(1, Punctuation::LeftBrace) {
                     self.bump();
-                    self.bump();
+                    self.expect_word("a register name")?;
                 }
                 NodeKind::Clobbers
             }

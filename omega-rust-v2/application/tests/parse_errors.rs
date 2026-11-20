@@ -159,17 +159,6 @@ fn omega(
         .map_err(|error| format!("could not run omega source {action}: {error}"))
 }
 
-/// Splits `file:line:column: producer: reason (bytes start..end)` into its observed parts.
-fn split_rendered(rendered: &str) -> Option<(&str, &str, &str, &str, &str)> {
-    let (file, rest) = rendered.split_once(':')?;
-    let (_line, rest) = rest.split_once(':')?;
-    let (_column, rest) = rest.split_once(": ")?;
-    let (producer, rest) = rest.split_once(": ")?;
-    let (reason, span) = rest.rsplit_once(" (bytes ")?;
-    let (start, end) = span.strip_suffix(')')?.split_once("..")?;
-    Some((file, producer, reason, start, end))
-}
-
 fn measure(
     kind: ParseErrorKind,
     case: &Case,
@@ -213,12 +202,13 @@ fn measure(
             String::from_utf8_lossy(&lowered.stderr)
         ));
     }
-    let (file, producer, reason, start, end) = split_rendered(rendered.trim_end()).ok_or_else(|| format!("unparsable diagnostic {rendered:?}"))?;
-    if producer != "parser" {
-        return Err(format!("first producer is {producer:?}, not the parser"));
-    }
     let observed = refusal.get_kind();
-    Ok(format!("OMEGA_DIAGNOSTIC_KIND\tL1\t{observed:?}\t{file}\t{start}\t{end}\t{reason}"))
+    let field = spec_corpus::diagnostic_field;
+    Ok(format!(
+        "OMEGA_DIAGNOSTIC_KIND\tL1\t{kind:?}\t{observed:?}\t{}\t{}",
+        field(expected.strip_suffix('\n').ok_or("golden diagnostic has no line terminator")?),
+        field(rendered.strip_suffix('\n').ok_or("parser diagnostic has no line terminator")?),
+    ))
 }
 
 #[test]
