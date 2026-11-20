@@ -113,12 +113,45 @@ def compiler_input():
     return wire, manifest
 
 
+def epsilon_tape(observation):
+    """Extract stdout only when the Epsilon construction entry exited zero."""
+    if len(observation) < 5 or observation[0] != 0:
+        return b'', {'epsilon_observation_prefix': observation[:40].hex()}
+    code = int.from_bytes(observation[1:5], 'little', signed=True)
+    outcome = {'epsilon_exit': code}
+    if code == 0:
+        return observation[5:], outcome
+    if code in (1, 2, 3) and len(observation) == 9:
+        outcome['source_offset'] = int.from_bytes(observation[5:], 'little')
+    return b'', outcome
+
+
+def stamp_constructor(tape, executable):
+    # The bootstrap helper verifies the seed for this host before stamping.
+    subprocess.run(['sh', '-eu', '-c', '''
+        OMEGA_REPO_ROOT=$1
+        . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+        . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
+        stamp_seed "$2" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$3"
+    ''', 'stamp-constructor', str(ROOT), str(tape), str(executable)], check=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, default=ROOT / 'build/omega-construction/input.bin')
-    parser.add_argument('--compiler', type=Path, help='exact executable constructor; omitted to only materialize its input')
+    producers = parser.add_mutually_exclusive_group()
+    producers.add_argument('--compiler', type=Path, help='executable Omega constructor that writes raw tape')
+    producers.add_argument('--epsilon-compiler', type=Path,
+                           help='compiled Epsilon constructor that writes a framed guest outcome')
+    producers.add_argument('--compiler-tape', type=Path, help='Omega constructor tape to run on the Alpha seed')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/omega-construction/omega.tape')
     args = parser.parse_args()
+    producer = args.compiler or args.epsilon_compiler or args.compiler_tape
+    if producer is not None:
+        paths = [args.input, args.input.with_suffix('.json'), args.input.with_suffix('.result.json'),
+                 producer, args.output]
+        if len({path.resolve() for path in paths}) != len(paths):
+            parser.error('the constructor, input, manifests and output need distinct paths')
     wire, manifest = compiler_input()
     args.input.parent.mkdir(parents=True, exist_ok=True)
     args.input.write_bytes(wire)
@@ -126,26 +159,35 @@ def main():
     manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     print(f'compiler closure: {len(manifest["units"])} units, {manifest["source_bytes"]} source bytes; entry {ENTRY}::{ENTRY_NAME.decode()}')
     print(f'input: {args.input} sha256={manifest["input_sha256"]}')
-    if args.compiler is None:
+    if producer is None:
         return 0
-    compiler = args.compiler.resolve(strict=True)
+    compiler = producer.resolve(strict=True)
     compiler_sha = digest(compiler.read_bytes())
     args.output.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
-    with tempfile.TemporaryFile() as pending:
-        result = subprocess.run([str(compiler)], input=wire, stdout=pending,
-                                stderr=subprocess.PIPE, check=False)
-        pending.seek(0)
-        tape = pending.read()
+    with tempfile.TemporaryDirectory() as temp:
+        runner = compiler
+        if args.compiler_tape:
+            runner = Path(temp) / 'constructor'
+            stamp_constructor(compiler, runner)
+        runner_sha = digest(runner.read_bytes()) if args.compiler_tape else compiler_sha
+        result = subprocess.run([str(runner)], input=wire, capture_output=True, check=False)
+    if args.epsilon_compiler:
+        producer_kind = 'epsilon-executable'
+        tape, outcome = epsilon_tape(result.stdout)
+    else:
+        producer_kind = 'alpha-tape' if args.compiler_tape else 'executable'
+        tape, outcome = result.stdout, {}
     current, _ = compiler_input()
     unchanged = current == wire and digest(compiler.read_bytes()) == compiler_sha
     accepted = result.returncode == 0 and bool(tape) and unchanged
-    receipt = {'compiler': str(compiler), 'compiler_sha256': compiler_sha,
+    receipt = {'compiler': str(compiler), 'compiler_kind': producer_kind, 'compiler_sha256': compiler_sha,
                'input_sha256': manifest['input_sha256'], 'elapsed_seconds': time.monotonic() - started,
-               'exit': result.returncode, 'stdout_bytes': len(tape),
-               'stdout_sha256': digest(tape), 'stderr': result.stderr.decode(errors='replace'),
-               'inputs_unchanged': unchanged, 'published': accepted}
+               'runner_sha256': runner_sha, 'exit': result.returncode, 'stdout_bytes': len(result.stdout),
+               'stdout_sha256': digest(result.stdout), 'stderr': result.stderr.decode(errors='replace'),
+               'inputs_unchanged': unchanged, 'published': accepted, **outcome}
     if accepted:
+        receipt.update(tape_bytes=len(tape), tape_sha256=digest(tape))
         with tempfile.NamedTemporaryFile(dir=args.output.parent, delete=False) as output:
             output.write(tape)
             temporary = Path(output.name)

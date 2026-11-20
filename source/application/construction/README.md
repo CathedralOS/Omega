@@ -33,13 +33,35 @@ producer identities are unchanged. A failure records the constructor's real
 status; the script never substitutes a literal or helper program for the
 compiler source.
 
+The compiled Epsilon constructor frames its guest output. Use
+`--epsilon-compiler` to check the guest exit code and extract the raw tape.
+On a compiler refusal the receipt includes the guest status and the source
+offset when supplied. Use `--compiler-tape` to run a published Omega
+constructor on the audited Alpha seed. With a checkout held fixed and a
+compiled Epsilon constructor at `$constructor`, this pair attempts two
+generations and keeps their input hashes and results.
+
+```sh
+python3 source/application/construction/construct.py --epsilon-compiler "$constructor" \
+  --input build/gen1/input.bin --output build/gen1/omega.tape &&
+python3 source/application/construction/construct.py --compiler-tape build/gen1/omega.tape \
+  --input build/gen2/input.bin --output build/gen2/omega.tape
+```
+
+Each `input.result.json` binds the input, producer, executable and full stdout
+by hash. A successful receipt also identifies the published tape. Repeat
+generation two on the same inputs to check that its tape is reproducible.
+
 During development the Rust compiler may build
 `source/application/construction/main.omg`. Bootstrap variants must eventually build
 this same application from their documented seeds and then use it to rebuild
 itself reproducibly. Neither self-compilation nor a source-only bootstrap of
 it works yet. The backend handles a limited subset of checked integer and
-storage code, and the compiler's own source still goes beyond it. The
-refusals it reports decide the next implementation work.
+storage code, and the compiler's own source still goes beyond it. For example,
+the [scalar lowerer](../../subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/scalar.omg)
+requires a clause-free entry with a byte return type. This application's
+`entry_start` has no explicit return type, reads stdin and calls Console and
+ProcessExit. Lowering this entry requires those behaviors on Alpha.
 
 ## Closed source-set input
 
