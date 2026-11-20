@@ -370,7 +370,8 @@ def omega_storage_program():
                 b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
                 b"public data ModulePath\n", b"public machine module_path_append(",
                 b"public data SourceRange ", b"public data PackageRow ", b"public data DependencyScope ",
-                b"public data DependencyRow ", b"public data SourceSet\n", b"public machine path_length(")),
+                b"public data DependencyRow ", b"public data SourceSet\n", b"public machine path_length(",
+                b"public machine source_set_byte_or_nul(")),
         (construction, (b"data ConstructionInput {",)),
     ):
         for marker in markers:
