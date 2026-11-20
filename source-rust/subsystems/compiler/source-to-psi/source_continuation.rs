@@ -31,8 +31,6 @@ pub struct ResolveAndTypeRequest {
     pub root_sources: Vec<source_text::SourceId>,
     pub frontends: SourceFrontends,
     pub build_helper_identity: &'static str,
-    pub build_sources: std::collections::HashSet<source_text::SourceId>,
-    pub build_stage: Option<(source_text::SourceSpan, usize)>,
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
@@ -135,26 +133,7 @@ impl ResolveAndTypeRequest {
     pub fn prepare(
         mut self,
         observer: &mut impl PsiCompilationObserver,
-    ) -> Result<
-        (
-            SourceContinuation,
-            source_declarations::build_stage::BuildStage,
-        ),
-        Vec<Diagnostic>,
-    > {
-        crate::target_helpers::select_build_helpers(
-            &mut self.syntax.trees,
-            self.build_helper_identity,
-            &self.build_sources,
-        );
-        // Only the requested Build stage is resolved and checked. A Product
-        // request keeps the entry whole because it does not execute it.
-        let build_stage = match self.build_stage {
-            Some((source, stage)) => {
-                crate::build_stages::select_build_stage(&mut self.syntax.trees, source, stage)?
-            }
-            None => source_declarations::build_stage::BuildStage::WHOLE,
-        };
+    ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         let context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.trees.clone()),
             bindings: self.top_level_bindings.clone(),
@@ -268,13 +247,10 @@ impl ResolveAndTypeRequest {
             context,
         });
         self.frontends.retain(Arc::clone(&input))?;
-        Ok((
-            SourceContinuation {
-                input,
-                completions: Default::default(),
-            },
-            build_stage,
-        ))
+        Ok(SourceContinuation {
+            input,
+            completions: Default::default(),
+        })
     }
 }
 

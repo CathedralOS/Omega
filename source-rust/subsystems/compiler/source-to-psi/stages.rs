@@ -57,12 +57,8 @@ pub use source_syntax::{
     ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
     SourceInput, SourceItems, SourceSyntax,
 };
-#[path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/build_stages.rs"]
-pub(crate) mod build_stages;
 #[path = "pipeline/01_tokens-to-syntax-trees/streaming.rs"]
 pub(crate) mod source_parsing;
-#[path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/build_helpers.rs"]
-pub(crate) mod target_helpers;
 
 pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
 pub use crate::source_preparation::{ProductRepresentationInput, SourcePreparationFailure};

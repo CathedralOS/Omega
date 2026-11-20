@@ -1,7 +1,6 @@
 //! Authored declaration selections carried from resolved source through typing and lowering.
 #![forbid(unsafe_code)]
 
-pub mod build_stage;
 pub mod declaration_selection;
 mod domain_contracts;
 mod machine_contracts;

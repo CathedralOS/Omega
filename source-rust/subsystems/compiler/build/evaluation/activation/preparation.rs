@@ -106,7 +106,7 @@ impl PreparedBuildExecution {
     }
 
     /// Admits the accepted program of the next stage of this activation
-    /// (`admission/build_stages.rs`) under the filesystem scope, sponsor and
+    /// (`source-to-psi/build_invocation/stages`) under the filesystem scope, sponsor and
     /// execution profile the activation already has.
     pub(crate) fn admit_stage(
         &self,

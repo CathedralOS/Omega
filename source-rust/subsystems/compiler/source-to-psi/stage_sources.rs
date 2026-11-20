@@ -72,8 +72,6 @@ impl ParsedStageSources {
             top_level_bindings: self.imports,
             build_helper_identity: host,
             selection_authority: None,
-            build_sources: Default::default(),
-            build_stage: None,
             frontends: Default::default(),
         })
     }

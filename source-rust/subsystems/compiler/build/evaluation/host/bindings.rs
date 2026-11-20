@@ -65,7 +65,7 @@ struct BindingState {
     query: Option<product_queries::PendingQuery>,
     descriptions: Vec<product_queries::IssuedDescription>,
     /// The selections and native formations the modules of earlier stages
-    /// of this activation declared (`admission/build_stages.rs`).
+    /// of this activation declared (`source-to-psi/build_invocation/stages`).
     carried_declarations: Vec<Arc<ProductDeclarationRequest>>,
     carried_formations: Vec<NativeBindingFormation>,
 }
