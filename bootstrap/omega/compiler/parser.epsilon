@@ -567,6 +567,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             119 -> transition_pattern_alias_end()
             120 -> struct_literal_omission_end(1)
             121 -> struct_literal_omission_end(0)
+            122 -> indexed_member_name()
             _ -> internal_failure()
         }
     }
@@ -1018,6 +1019,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             119 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionArm, source.len, source.len)
             120 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, source.len, source.len)
             121 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedStructLiteralFieldEnd, source.len, source.len)
+            122 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedExpressionPathMember, source.len, source.len)
             _ -> internal_failure()
         }
     }
@@ -7715,12 +7717,58 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state primary_expression_end_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Dot -> begin_indexed_member()
             OmegaPunctuationKind::LeftBracket ->
                 begin_completed_indexed_expression()
             _ -> primary_expression_end_consumer_punctuation()
         }
     }
 
+    state begin_indexed_member() {
+        transition self.expressions[self.expression_result].kind {
+            OmegaExpressionKind::Indexed -> scan_indexed_member()
+            OmegaExpressionKind::Projection -> indexed_member_depth()
+            _ -> incomplete_root()
+        }
+    }
+    state indexed_member_depth() {
+        transition self.expressions[self.expression_result].payload3 < 128 {
+            true -> scan_indexed_member()
+            _ -> resource_failure(OmegaParserResource::ExpressionDepth, 128,
+                self.expressions[self.expression_result].payload3 + 1)
+        }
+    }
+    state scan_indexed_member() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(122) }
+    }
+    state indexed_member_name() {
+        transition self.ordinary_name_token() {
+            1 -> indexed_member_capacity()
+            _ -> path_expression_member_failure()
+        }
+    }
+    state indexed_member_capacity() {
+        transition self.expression_count < 16384 {
+            true -> retain_indexed_member()
+            _ -> resource_failure(OmegaParserResource::Expressions, 16384, self.expression_count + 1)
+        }
+    }
+    state retain_indexed_member() {
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::Projection;
+        self.expressions[self.expression_count].path_kind = OmegaPathExpressionKind::Member;
+        self.expressions[self.expression_count].payload0 = self.expression_result;
+        self.expressions[self.expression_count].payload1 = self.scan.token_start;
+        self.expressions[self.expression_count].payload2 = self.scan.token_end;
+        self.expressions[self.expression_count].payload3 = self.expressions[self.expression_result].payload3 + 1;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.expression_result = self.expression_count;
+        self.expression_count = self.expression_count + 1;
+        self.expression_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(54) }
+    }
     state begin_completed_indexed_expression() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument ->

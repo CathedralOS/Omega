@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,525 lines / 882,084 bytes with SHA-256
-`d584dfb704b4b4104e9819b5d184fd44d06e8877986989e063e320ad4be6c1f8`.
+manifest materializes 23,671 lines / 888,824 bytes with SHA-256
+`55aed32e6f8a828649d9f01aba27cafffccab975859aef91bb3e7add720fc218`.
 The manifest itself is 1,698 bytes, SHA-256
-`62c666c97b8ee588eaa1365b9ea8ef14ad25c60048b1c6383cf852610c3180d2`;
+`c66e91821fa0bd8f0c4e762c7aee2a94da47fbdd48c504d007abb78143fddf01`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -293,14 +293,26 @@ evaluate their fields in authored order; arguments evaluate left to right and
 copy values into distinct staging storage before the next call can overwrite
 its result. No affine record moves or partial initialization are admitted yet.
 Fixed arrays may be retained, zero-established and copied inside these records.
-Fixed `u8` arrays also support indexed copy reads and writes through a checked
-core operation plan. The plan retains the concrete element/extent, collection,
-selector, access mode, parent backing and bounds evidence. Explicit shared or
-mutable removal of the array shell's `Trapping` domain preserves element types
+Fixed arrays of `u8` and copy records support indexed reads and whole-element
+writes through a checked core operation plan. The plan retains the concrete
+element type, layout stride, array length, collection, selector, access mode,
+parent backing and bounds evidence. An indexed record can supply a named field
+in an rvalue. Each field suffix retains its base expression and name span. The
+compiler resolves the field against that record declaration and applies its
+checked field offset. Whole-record stores copy exactly one element while the
+loan covers the parent array. Explicit shared or mutable removal of the array
+shell's `Trapping` domain preserves element types
 and closes its empty restoration debt. Reads use shared views and writes use
 mutable views; other reference attenuation remains unsupported. Other domains,
 range views and structural
 equivalence of separately spelled array value types remain unsupported.
+
+The storage test runs the production `path_length` on two nonzero `SourceRange`
+elements in a reduced `SourceSet`. It checks a copy taken before a write,
+a keyword-spelled field and the field beside the last element. The complete
+23,348-byte `source.omg` reaches the declaration of `SourceSet` and returns
+`Incomplete`. Its `bytes: [u8; 4194304]` field occupies 32 MiB in the current
+word layout. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -515,8 +527,9 @@ a completed operand from the admitted primary, group, and cast slice before
 that value enters the binary frame; borrow/reference and other contextual
 unary forms remain incomplete. Postfix indexing may start from a retained path
 in any framed-value consumer or continue a completed literal, call, cast, or
-indexed value. Repeated brackets retain a left-to-right expression chain; each
-bracket independently reuses the canonical index/range representation. Index
+indexed value. A completed indexed value can take up to 128 named field
+suffixes. Repeated brackets retain a left-to-right expression chain. Each
+bracket reuses the canonical index/range representation. Index
 operands may themselves contain that same postfix form. A 128-frame context
 stack suspends every live outer bracket coordinate while the inner indexed
 expression is retained, then rejoins the completed inner handle as the outer
