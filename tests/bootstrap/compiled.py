@@ -296,7 +296,7 @@ def omega_values_customer(work, timeout):
     (work / "values-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 53, 44, 52, 42, 56, 37, 0, 2, 47, 43)):
+    for index, expected in enumerate((42, 42, 53, 44, 52, 42, 56, 37, 0, 2, 47, 42, 43)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -310,7 +310,7 @@ def omega_values_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega values customer: twelve emitted executables and 33 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega values customer: thirteen emitted executables and 34 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_control_customer(work, timeout):

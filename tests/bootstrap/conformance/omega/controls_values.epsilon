@@ -55,6 +55,9 @@ machine Main::main(&mut self) {
     self.refusal("machine early(value: u8) -> u8 { value + 1 } machine main() -> u8 { 42 }", 2, 75);
     assert self.compiler.outcome_space == 4;
     assert self.compiler.outcome_coordinate == 0;
+    // The call changes its source from 42 to 7. Reading the returned field must execute it once.
+    self.positive("data Item [copy] { source_span:u8; decoy:u8; } data Root [copy] { span:u8; } data Counter [copy] { n:u8; } machine item(c:@mut Counter)->Item { let saved:u8=c.n; c.n=7; Item {source_span:saved,decoy:1} } machine main()->u8 { let mut c:Counter; c.n=42; let root:Root=Root {span:item(@mut c).source_span}; transition c.n==7 {true->root.span,_->1} }", 42, 91);
+    self.refusal("data Item [copy]{n:u8;} machine item()->Item{Item{n:42}} machine main()->u8{item().absent}", 1, 92);
     self.positive("machine main() -> u8 { 43 }", 43, 90);
 }
 

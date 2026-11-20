@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 25,115 lines / 954,332 bytes with SHA-256
-`e7732846c8caaf4b0159e4ffbfece75bf1a076e55e56e5647481ecb96bb0c987`.
+manifest materializes 25,116 lines / 954,399 bytes with SHA-256
+`b4638563fa3cf6c27fc05e77fcf35a55ddb0adccbd4ae87f35b259cbc543651d`.
 The manifest itself is 2,039 bytes, SHA-256
-`b4026bdbb21387ec03d50e978546b9b340168cb50b8f212aed28fe69379ee28a`;
+`4f11dd3db660d589a72a00f7a040529aef6b779e7e2a2b0ec51d1e2a3436bce1`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -337,7 +337,7 @@ Fixed arrays may be retained, zero-established and copied inside these records.
 Fixed arrays of `u8`, bare `u64`, and copy records support indexed reads and
 whole-element writes through a checked core operation plan. The plan retains the concrete
 element type, layout stride, array length, collection, selector, access mode,
-parent backing and bounds evidence. An indexed record can supply a named field
+parent backing and bounds evidence. A call returning a copy record or an indexed record can supply a named field
 in an rvalue. Each field suffix retains its base expression and name span. The
 compiler resolves the field against that record declaration and applies its
 checked field offset. Whole-record stores copy exactly one element while the
