@@ -676,6 +676,7 @@ fn a_computed_result_domain_selects_the_exact_overload() {
 fn an_operand_waits_for_its_common_result_domain_context() {
     const DEFINITIONS: &str = "domain<const K:bool> u8::Label<K>;
         machine enabled()->bool{true}
+        machine identity<T>(value:T)->T {value}
         machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
         machine pick(x:u8)->u8{x}";
     const SINKS: &str = "machine sink(x:u8 in Label<enabled()>,y:bool){}
@@ -683,6 +684,7 @@ fn an_operand_waits_for_its_common_result_domain_context() {
     for operand in [
         "pick(x)",
         "(pick(x))",
+        "identity(pick(x))",
         "match true {true -> pick(x), false -> pick(x),}",
     ] {
         let source = format!("{SINKS}\nmachine run(x:u8){{sink({operand},true)}}");
@@ -703,7 +705,7 @@ fn an_operand_waits_for_its_common_result_domain_context() {
                     .trees()
                     .calls
                     .iter()
-                    .all(|call| !matches!(call.machine.path.as_str(), "pick" | "sink"))
+                    .all(|call| !matches!(call.machine.path.as_str(), "pick" | "sink" | "identity"))
             );
             let prepared = prepare_source_package(&package).unwrap();
             let typed = prepared.typed();
@@ -738,21 +740,27 @@ fn an_operand_waits_for_its_common_result_domain_context() {
 fn a_pending_context_reaches_the_operands_of_its_prospective_signatures() {
     let source = "domain<const K:bool> u8::Label<K>;
         machine enabled()->bool{true}
+        machine identity<T>(value:T)->T{value}
         machine leaf(x:u8)->u8 in Label<true>{x as +Label<true>}
         machine relay(x:u8 in Label<true>)->u8 in Label<true>{x}
         machine relay(x:bool)->u8{0u8}
         machine sink(x:u8 in Label<enabled()>,y:bool){}
         machine sink(x:u8 in Label<true>,y:u8){}
         machine run(x:u8){sink(relay(leaf(x)),true)}";
-    let prepared = prepare(source).unwrap();
-    let typed = prepared.typed();
-    for name in ["leaf", "relay"] {
-        let selected = typed
-            .calls
-            .iter()
-            .find(|call| call.machine.path == name)
-            .unwrap();
-        assert_eq!(selected.result.domains().len(), 1);
+    for program in [
+        source.to_owned(),
+        source.replace("relay(leaf(x))", "identity(relay(identity(leaf(x))))"),
+    ] {
+        let prepared = prepare(&program).unwrap();
+        let typed = prepared.typed();
+        for name in ["leaf", "relay"] {
+            let selected = typed
+                .calls
+                .iter()
+                .find(|call| call.machine.path == name)
+                .unwrap();
+            assert_eq!(selected.result.domains().len(), 1);
+        }
     }
 }
 

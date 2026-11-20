@@ -126,7 +126,7 @@ application is determined. Inference does not waive a binder's declared carrier
 or obligations. Named constants and forwarded binders must match that carrier
 before canonical identity erases their source names. Authored local annotations
 remain independent store obligations; inferred call-result types follow the
-selected application's substituted result.
+selected application's substituted result. See [Inferring operand types from a generic result](#inferring-operand-types-from-a-generic-result).
 
 ## Transparent type aliases
 
@@ -930,3 +930,23 @@ an applied name qualifies a member in an expression, as in
 `Sensor::<29u64>::read()`. A type application uses `Buffer<8>`, and a
 declaration introduces its parameters with `machine id<T>(value: T)`.
 Reference spellings are described under [borrows and aliases](ownership.md#borrows-and-aliases).
+
+## Inferring operand types from a generic result
+
+When the expected result of a generic machine call uniquely determines an
+omitted type argument, use that binding to type the call's operands exactly as
+for an explicit type argument. Match the declared result against the expected
+type, including its domains. Substitute the bindings this determines into the
+parameter types before selecting an overload for a nested call. A parameter
+whose type is still undetermined supplies no expected type from that signature.
+Competing signatures supply an expected operand type only when they agree on it.
+Two applications of the same domain form an unordered set. Their positions in
+the normalized result cannot decide which type argument each supplies.
+
+For example, given `machine identity<T>(value: T) -> T`, a destination of
+`u8 in WireByte` fixes `T` in `identity(encode(value))`. Both this spelling
+and `identity::<u8 in WireByte>(encode(value))` select the overload of
+`encode` returning `u8 in WireByte`. For `machine is_valid<T>(value: T) -> bool`,
+a `bool` destination leaves `T` open. The inner call then follows ordinary
+[result-domain selection](domains.md#result-domain-overloads). Inference never
+tries combinations of inner overloads to make an outer application fit.
