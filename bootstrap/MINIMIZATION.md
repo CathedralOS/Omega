@@ -9,11 +9,12 @@ The goal is a working, independently reviewable construction, not a collection o
 language prototypes. This mandate supersedes the former fixed-topology,
 full-language bootstrap-compiler and mandatory formal-certificate requirements.
 
-Optimize the complete construction path: what each stage costs to implement,
-what it lets its successor express, and what the whole chain costs to understand
-and execute. Humans and LLMs must be able to trace semantics, control flow,
-storage, dependencies and trust assumptions. Source size and stage count are
-measurements, not objectives. Complexity near the seed affects every successor.
+Prefer the complete construction that a reviewer can most readily understand
+and independently verify from the seed. Weigh each stage's implementation cost
+against what it lets its successor express. Humans and LLMs must be able to
+trace its semantics, control flow, storage, dependencies and trust assumptions.
+Complexity near the seed affects every successor. Record execution time as a
+secondary cost. A reviewer may choose a slower route to audit fewer mechanisms.
 
 Keep `bootstrap/` for the seeds, language implementations, construction inputs
 and their contracts. Host launchers, reference implementations, test fixtures
@@ -82,18 +83,21 @@ disclose these differences rather than requiring identical internals. Record:
 - actual outputs, failures and independently reviewed semantic controls; and
 - retained tooling and additional trusted components.
 
-Do not infer correctness from line counts, matching hashes, successful execution,
-or agreement between reviewers. Distinguish actual measurements, conservative
-bounds, projections and unrun checks. Reproducibility means repeated construction
-from the same declared inputs/profile produces the required deterministic result;
+For the same customer, identify which sources a reviewer must read, which
+stages share an implementation, and which results have an independent check.
+Source size, stage count and runs completed within a budget cannot establish
+ease of audit. Matching hashes, successful execution and agreement between
+reviewers cannot establish correctness alone. Distinguish actual measurements,
+conservative bounds, projections and unrun checks. Reproducibility means
+repeated construction from the same declared inputs/profile produces the required deterministic result;
 first and self-compiled generations need not be byte-identical.
 
 <a id="private-capacity-changes"></a>
 
-A measured one- or two-day cold bootstrap can be acceptable. Diagnose bottlenecks
-and reasonable remedies before declaring an architecture infeasible. A host
-watchdog expiration is an unfinished observation, not a language rejection.
-Choose resource budgets before expensive runs and account for the shared host.
+There is no elapsed-time cutoff for a candidate. A host operator may budget a
+run on a shared machine. If that budget expires, record the last stage and
+leave its observation open. A completed replay can supply that evidence later.
+Diagnose bottlenecks before declaring an architecture infeasible.
 Private capacity tuning is delegated; preserve defined failure behavior and
 validate changed boundaries instead of merely raising constants.
 

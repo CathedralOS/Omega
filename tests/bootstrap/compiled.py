@@ -1,4 +1,5 @@
 """Shared construction and comparison helpers for the compiled bootstrap routes."""
+import argparse
 import hashlib
 import os
 from pathlib import Path
@@ -14,6 +15,17 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class Invalid(ValueError):
     """A source-constructed compiler rejected the supplied program."""
+
+
+def add_invocation_budget(parser):
+    def positive_seconds(value):
+        seconds = int(value)
+        if seconds <= 0:
+            raise argparse.ArgumentTypeError("--seconds must be positive")
+        return seconds
+
+    parser.add_argument("--seconds", type=positive_seconds,
+                        help="optional wall limit per invocation (default: unlimited)")
 
 
 def invoke(command, data, seconds, *, cwd=None, env=None):

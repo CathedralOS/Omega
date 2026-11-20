@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from compiled import (ROOT, delta_request, executable, gamma_backend_source, gamma_request,
+from compiled import (ROOT, add_invocation_budget, delta_request, executable, gamma_backend_source, gamma_request,
                       invoke, pack, pack_delta_compiler, reconstruct)
 from conformance.vectors import epsilon_program_cases, epsilon_request
 from independent.epsilon.composition import CompileRefusal, compiler_source, linked_program
@@ -308,7 +308,7 @@ def main():
     parser.add_argument("--reuse-stages", action="store_true",
                         help="share intermediate outputs of identical invocations within this matrix")
     parser.add_argument("--profile", choices=("conformance", "construction"), default="conformance")
-    parser.add_argument("--seconds", type=int, default=600, help="wall limit per producer or guest invocation")
+    add_invocation_budget(parser)
     parser.add_argument("--plan", action="store_true", help="print the stages without building or running them")
     args = parser.parse_args()
     if not args.output and not args.plan:
@@ -319,8 +319,6 @@ def main():
         parser.error("--delta-interpreter gamma requires --delta interpret or all")
     if args.gamma_build and args.gamma not in ("alpha", "native"):
         parser.error("--gamma-build requires --gamma alpha or --gamma native")
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     root = (args.output or Path(".")).resolve()
     choices = (args.gamma, args.delta, args.epsilon)
     matrix = "all" in choices
