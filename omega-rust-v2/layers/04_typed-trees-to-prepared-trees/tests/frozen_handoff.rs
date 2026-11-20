@@ -355,3 +355,17 @@ fn owned_tuple_snapshot_preserves_each_component_and_its_type() {
         Some(&PreparedValue::Tuple([PreparedValue::Bool(true), PreparedValue::Integer(7.into())].into()))
     );
 }
+
+#[test]
+fn omitting_an_inferred_tuple_field_freezes_each_components_zero() {
+    let source = package(
+        "data Boxed<T [copy]> [copy] { hint:T; payload:T; } machine boxed<T [copy]>(hint:T)->Boxed<T> {Boxed::<T>{hint:hint,..}} const VALUE=boxed((7u8,true));"
+    );
+    let prepared = prepare_source_package(&source).unwrap();
+    let constant = &prepared.typed().constants[0].declaration;
+    let Some(PreparedValue::Record { fields, .. }) = prepared.constant(constant) else { panic!("expected a frozen Boxed record") };
+    assert_eq!(fields.as_ref(), &[
+        PreparedValue::Tuple([PreparedValue::Integer(7.into()), PreparedValue::Bool(true)].into()),
+        PreparedValue::Tuple([PreparedValue::Integer(0.into()), PreparedValue::Bool(false)].into()),
+    ]);
+}

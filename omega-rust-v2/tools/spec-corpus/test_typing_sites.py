@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from typing_sites import GOLDEN_TEST, HEADER, SOURCE, attach_witnesses, finish, parse, record_return, source_link, summary
+from typing_sites import GOLDEN_TEST, HEADER, SOURCE, attach_witnesses, details, finish, parse, record_return, source_link, summary
 
 
 def _tsv(*rows, count=None):
@@ -26,6 +26,27 @@ class TypingSitesTests(unittest.TestCase):
         self.assertEqual(report["measurement_errors"] + inventory["errors"], [])
         self.assertEqual([r["stage_tests"] for r in inventory["rows"]], [["tests/x.rs::domain"], ["tests/x.rs::case"], ["tests/x.rs::pending"]])
         self.assertTrue(all("package_tests" not in row for row in inventory["rows"]))
+
+    def test_returned_wording_distinguishes_branches_at_the_same_dynamic_site(self):
+        inventory = parse(_tsv("a.rs\t3\t5\tf\tat\tdynamic\treason", "a.rs\t4\t5\tg\tat\tliteral\tbad"))
+        target = "tests/x.rs"
+        report = {"suites": {"L3": {"tests": []}}, "measurement_errors": []}
+        for test, line, messages in [("field", 3, ["expected field", "expected field"]),
+                                     ("callable", 3, ["expected callable", "expected field"]),
+                                     ("literal", 4, ["changed wording"])]:
+            report["suites"]["L3"]["tests"].append({"test": test, "target": target, "status": "ok"})
+            for message in messages:
+                record_return(report, "L3", target, (target, test),
+                              f"OMEGA_TYPING_RETURN\t\t{SOURCE}/a.rs\t{line}\t5\trefused\tapp\tf.omg\t0\t1\t{len(message)}\t{message}")
+        attach_witnesses(inventory, report)
+        dynamic, literal = inventory["rows"]
+        self.assertEqual(dynamic["returned_messages"], {
+            "expected field": [f"{target}::field", f"{target}::callable"], "expected callable": [f"{target}::callable"]})
+        self.assertNotIn("stage_tests", literal)
+        self.assertEqual(len(inventory["errors"]), 1)
+        self.assertIn("disagrees with the literal", inventory["errors"][0])
+        rendered = "\n".join(details(inventory, Path.cwd()))
+        self.assertIn(f"Returned “expected callable” to `{target}::callable`", rendered)
 
     def test_another_tree_cannot_supply_a_witness_for_the_same_relative_file(self):
         root = Path(__file__).absolute().parents[2]

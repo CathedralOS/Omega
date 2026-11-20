@@ -3,7 +3,7 @@
 use super::domains::Domains;
 use crate::evaluation::{check_static_indices::IndexEvaluations, primitive_indices::LiteralConstants};
 use crate::type_system::substitution::TypeInference;
-use crate::{Access, ValueType};
+use crate::ValueType;
 use omega_resolved::DeclarationId;
 use omega_syntax::NodeKind;
 use std::collections::{HashMap, HashSet};
@@ -102,21 +102,11 @@ impl TypeCatalog<'_> {
         &self,
         ty: &ValueType,
     ) -> crate::Multiplicity {
-        use crate::Multiplicity::*;
-        match ty {
-            ValueType::Array(t, _) | ValueType::IndexedArray(t, _) | ValueType::Qualified(t, _) | ValueType::AtLifetime(t, _) => self.multiplicity(t),
-            ValueType::Tuple(parts) => parts.iter().map(|t| self.multiplicity(t)).max().unwrap_or(Copy),
-            ValueType::Nominal(id) | ValueType::Applied(id, _) => self
-                .data_properties
-                .get(id.as_ref())
-                .map_or(Affine, |p| p.multiplicity),
-            ValueType::Parameter { owner, index } => self
-                .parameter(owner, *index)
-                .and_then(|p| p.multiplicity)
-                .unwrap_or(Affine),
-            ValueType::Reference(Access::Mut | Access::Write, _) | ValueType::Witness { .. } => Affine,
-            _ => Copy,
-        }
+        let default = crate::Multiplicity::Affine;
+        ty.multiplicity_with(
+            &|id| Some(self.data_properties.get(id).map_or(default, |p| p.multiplicity)),
+            &|owner, index| Some(self.parameter(owner, index).and_then(|p| p.multiplicity).unwrap_or(default)),
+        ).expect("the typing catalog supplies a default for every declaration and parameter")
     }
     pub fn validate_bound(
         &self,

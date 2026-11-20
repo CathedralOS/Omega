@@ -28,7 +28,7 @@ CLASSES = {
 }
 LIMITS = ("Names are not resolved: aliases, `Self::` calls and imported constructors are missed. "
           "Only `test` is read from `cfg`. Macro bodies are inspected only when they parse as expressions. "
-          "Generated code and the runtime value of dynamic messages are not seen.")
+          "The scanner cannot see generated code. Returned messages below come from executed tests.")
 
 
 def parse(text):
@@ -129,7 +129,7 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
     workspace = Path(__file__).absolute().parents[2]
     roots = (Path(SOURCE), workspace / SOURCE, workspace.resolve() / SOURCE)
 
-    def find_site(origin, name, phase):
+    def find_site(origin, name, phase, reason):
         origin_path = Path(origin["path"])
         path = next((origin_path.relative_to(root).as_posix() for root in roots if origin_path.is_relative_to(root)), None)
         site = sites.get((path, origin["line"], origin["column"]))
@@ -137,6 +137,8 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
             inventory["errors"].append(f"{name}: returned diagnostic originated outside the inventory at {origin['path']}:{origin['line']}:{origin['column']}")
         elif site["class"] in {"unclassified", "malformed"} or (site["class"] == "pending") != (phase == "pending"):
             inventory["errors"].append(f"{name}: {phase} result points to a {site['class']} site")
+        elif site["class"] == "literal" and site["text"] != reason:
+            inventory["errors"].append(f"{name}: returned reason disagrees with the literal at its Rust origin")
         else:
             return site
         return None
@@ -145,12 +147,8 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
         if not case["verified"]:
             continue
         observation = case["observation"]
-        site = find_site(observation["compiler_site"], name, "refused")
-        if site is None:
-            continue
-        if site["class"] == "literal" and site["text"] != observation["reason"]:
-            inventory["errors"].append(f"{name}: returned reason disagrees with the literal at its Rust origin")
-        else:
+        site = find_site(observation["compiler_site"], name, "refused", observation["reason"])
+        if site is not None:
             site.setdefault("package_tests", []).append(name)
 
     statuses = {}
@@ -168,9 +166,13 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
         if result["test_status"] != "ok" or (target, test) in invalid:
             continue
         name = f"{target}::{test}"
-        site = find_site(result["compiler_site"], name, result["phase"])
+        site = find_site(result["compiler_site"], name, result["phase"], result["reason"])
         if site is not None and name not in site.setdefault("stage_tests", []):
             site["stage_tests"].append(name)
+        if site is not None and site["class"] in {"dynamic", "template"}:
+            witnesses = site.setdefault("returned_messages", {}).setdefault(result["reason"], [])
+            if name not in witnesses:
+                witnesses.append(name)
         fixture = result["fixture"]
         if site is not None and fixture:
             checked_fixtures.setdefault(fixture, []).append((site, result))
@@ -216,7 +218,11 @@ def details(inventory, directory):
             lines.append(f"- [{row['path']}:{row['line']}:{row['column']}]({link}#L{row['line']}) · {row['scope']} · {row['constructor']}{text}")
             for name in row.get("package_tests", []):
                 lines.append(f"  - Returned to package test `{name}`. [Original input and diagnostic](rule-diagnostics.md#l3)")
-            if row.get("stage_tests"):
+            if row.get("returned_messages"):
+                for message, tests in sorted(row["returned_messages"].items()):
+                    names = ", ".join(f"`{name}`" for name in sorted(tests))
+                    lines.append(f"  - Returned “{readable(message)}” to {names}")
+            elif row.get("stage_tests"):
                 lines.append("  - Returned to " + ", ".join(f"`{name}`" for name in row["stage_tests"]))
             if row.get("fixtures"):
                 lines.append("  - Checked against handwritten expectations for " + ", ".join(f"`{name}`" for name in row["fixtures"]))

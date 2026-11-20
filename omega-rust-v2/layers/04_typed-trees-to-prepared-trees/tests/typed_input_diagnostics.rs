@@ -272,6 +272,13 @@ fn static_callbacks_require_the_selected_signature_and_its_effects() {
         client: "data NumberStep=machine(n:u64)->u64; machine identity(n:u64)->u64{n} machine apply<const F:NumberStep>(n:u64)->u64{F(n)} const ANSWER:u64=apply::<identity>(42u64);",
         occurrence: "apply::<identity>(42u64)",
     };
+    program.check(PreparationReason::RefinementApplicationMismatch, "the static callable refinement does not identify the selected application", |facts| {
+        let index = facts.obligations.iter_mut().find_map(|obligation| match &mut obligation.kind {
+            omega_typed::ObligationKind::RefineCallable { formal: Some((_, index)), .. } => Some(index),
+            _ => None,
+        }).expect("a refinement obligation for identity");
+        *index = usize::MAX;
+    });
     program.check(PreparationReason::CallbackWithoutSignature, "the static callback has no typed signature", |facts| {
         facts.signatures.retain(|s| s.machine.path != "identity");
     });
@@ -285,6 +292,27 @@ fn static_callbacks_require_the_selected_signature_and_its_effects() {
     program.check(PreparationReason::ForwardedCallbackNeedsRefinement, "the exact static callback needs checked refinement of its callable contract", |facts| {
         let signature = facts.signatures.iter_mut().find(|s| s.machine.path == "identity").unwrap();
         std::sync::Arc::make_mut(signature).parameters[0].1 = ValueType::Bool;
+    });
+}
+
+#[test]
+fn an_indirect_call_reports_which_operand_or_selection_it_cannot_admit() {
+    let program = Program {
+        library: "",
+        client: "data Step=machine(n:u64)->u64; machine identity(n:u64)->u64{n} machine apply<const F:Step>(n:u64)->u64{F(n)} const ANSWER:u64=apply::<identity>(42u64);",
+        occurrence: "F(n)",
+    };
+    let chain = "\ncall chain: apply -> <indirect or unsupported call>";
+    program.check(PreparationReason::CallbackDisagreesWithCall, &format!("the selected static callback disagrees with the typed call{chain}"), |facts| {
+        facts.indirect_calls[0].operands.clear();
+    });
+    program.check(PreparationReason::RuntimeCallableArgument, &format!("preparation cannot materialize a runtime callable argument{chain}"), |facts| {
+        let call = &mut facts.indirect_calls[0];
+        call.operands[0].callable = Some(call.entry.clone());
+    });
+    program.check(PreparationReason::InexactCallbackSelection, &format!("preparation requires an exact static callback selection{chain}"), |facts| {
+        let call = &mut facts.indirect_calls[0];
+        call.entry = omega_typed::InvocationTarget::StoredCallable(call.site.clone());
     });
 }
 
@@ -497,4 +525,100 @@ fn a_field_chain_reports_the_first_component_missing_from_the_active_value() {
             },
         );
     }
+}
+
+#[test]
+fn an_authored_postcondition_needs_both_the_signature_flag_and_its_proposition() {
+    let source = "const ANSWER:u8=keep(42u8); machine keep(n:u8)->u8 ensures result == 0u8 {n}";
+    let trees = typed_packages::typed("", source);
+    let original = TypingProgress::Complete(trees);
+    let refusal = prepare(&original).unwrap_err();
+    let start = source.find("keep(42u8)").unwrap();
+    let call = (start, start + "keep(42u8)".len());
+    spec_corpus::assert_preparation_cause!(
+        refusal, RefusalCause::Preparation(PreparationReason::PostconditionNeedsProof), "client", "client.omg", call,
+        "static evaluation cannot admit this invocation: the selected postcondition requires a checked proof for the arguments and result",
+    );
+
+    let TypingProgress::Complete(trees) = original else { unreachable!() };
+    let resolved = trees.resolved().clone();
+    let mut facts = trees.into_facts();
+    let signature = &mut facts.signatures[0];
+    assert!(signature.has_guarantee);
+    std::sync::Arc::make_mut(signature).has_guarantee = false;
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved.clone(), facts, 0));
+    let refusal = prepare(&changed).unwrap_err();
+    spec_corpus::assert_preparation_cause!(
+        refusal, RefusalCause::Preparation(PreparationReason::PostconditionDeclarationMismatch), "client", "client.omg", call,
+        "static evaluation cannot admit this invocation: the signature and declaration disagree about postconditions",
+    );
+
+    let TypingProgress::Complete(trees) = changed else { unreachable!() };
+    let mut facts = trees.into_facts();
+    std::sync::Arc::make_mut(&mut facts.signatures[0]).has_guarantee = true;
+    let before = facts.obligations.len();
+    facts.obligations.retain(|o| !matches!(o.kind, omega_typed::ObligationKind::ProveGuarantee { .. }));
+    assert_eq!(facts.obligations.len() + 1, before);
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let refusal = prepare(&changed).unwrap_err();
+    spec_corpus::assert_preparation_cause!(
+        refusal, RefusalCause::Preparation(PreparationReason::PostconditionWithoutProposition), "client", "client.omg", call,
+        "static evaluation cannot admit this invocation: the selected postcondition has no typed proposition",
+    );
+}
+
+#[test]
+fn a_signature_cannot_invent_an_authored_postcondition() {
+    CALL.check(PreparationReason::PostconditionDeclarationMismatch, "the signature and declaration disagree about postconditions", |facts| {
+        std::sync::Arc::make_mut(&mut facts.signatures[0]).has_guarantee = true;
+    });
+}
+
+#[test]
+fn preparation_checks_the_closed_type_against_its_selected_multiplicity() {
+    let program = Program {
+        library: "",
+        client: "machine keep<T [copy]>(x:T)->T{x} const ANSWER:u8=keep(42u8);",
+        occurrence: "keep(42u8)",
+    };
+    for missing in [false, true] {
+        program.check(PreparationReason::MultiplicityBoundMismatch, "the selected type argument does not satisfy its multiplicity bound", |facts| {
+            let bound = &mut std::sync::Arc::make_mut(&mut facts.signatures[0]).multiplicity_bounds[0];
+            if missing {
+                bound.0 = usize::MAX;
+            } else {
+                bound.1 = omega_typed::Multiplicity::Linear;
+            }
+        });
+    }
+}
+
+#[test]
+fn a_selected_generic_callback_checks_its_own_closed_bound() {
+    let program = Program {
+        library: "",
+        client: "data Step=machine(n:u64)->u64; machine keep<T [copy]>(n:T)->T{n} machine apply<const F:Step>(n:u64)->u64{F(n)} const ANSWER:u64=apply::<keep::<u64> >(42u64);",
+        occurrence: "apply::<keep::<u64> >(42u64)",
+    };
+    program.check(PreparationReason::MultiplicityBoundMismatch, "the selected type argument does not satisfy its multiplicity bound", |facts| {
+        let callback = facts.signatures.iter_mut().find(|s| s.machine.path == "keep").unwrap();
+        std::sync::Arc::make_mut(callback).multiplicity_bounds[0].1 = omega_typed::Multiplicity::Linear;
+    });
+}
+
+#[test]
+fn a_generic_constructor_cannot_discharge_another_machines_return_obligation() {
+    let program = Program {
+        library: "",
+        client: "data Boxed<T [copy]> [copy]{value:T;} machine wrap<T [copy]>(x:T)->Boxed<T>{Boxed::<T>{value:x}} machine other()->u8{0u8} const INPUT=wrap(7u8); const ANSWER:u8=42u8;",
+        occurrence: "Boxed::<T>{value:x}",
+    };
+    program.check(PreparationReason::ConstructionNeedsProof, "the selected constructor requires proof outside the prepared value fragment", |facts| {
+        let other = &facts.signatures.iter().find(|signature| signature.machine.path == "other").unwrap().machine;
+        let obligation = facts.obligations.iter_mut().find_map(|obligation| match &mut obligation.kind {
+            omega_typed::ObligationKind::ReturnBorrow { machine } if machine.path == "wrap" => Some(machine),
+            _ => None,
+        }).expect("a return obligation for wrap");
+        *obligation = other.clone();
+    });
 }
