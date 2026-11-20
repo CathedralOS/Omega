@@ -19,6 +19,7 @@ data OmegaCheckedValueKind {
     case WrappingArithmetic;
     case NullaryCase;
     case CaseLiteral;
+    case ProjectedRead;
 }
 
 // Each call or terminal transfer has one resolved target. Its incoming list
@@ -48,15 +49,12 @@ data OmegaScalarCompilationStatus {
     case InternalFailure;
 }
 
-// This source-owned, toolchain-core catalog realizes the fixed-u8 subset of
-// the normative sealed indexing family. Its version-1 identities are schema
-// 1: copy-read (&[u8; N], u64) -> u8, requiring index < N and shared readable
-// backing; schema 2: indexed place (&mut [u8; N], u64) -> exclusive writable
-// u8 storage at that exact collection/index, requiring index < N and a valid
-// exclusive parent loan. Both instantiate Element=u8 (copy) and the exact N;
-// neither adds reach/crash routes. Schema 2 returns a place, never a copy-read
-// value dressed as storage. The scoped loan must close and restore the owner's
-// original qualification. Only explicit Trapping removal views are admitted;
+// The closed core catalog selects a by-copy read (schema 1) or an exclusive
+// indexed place (schema 2) at the exact fixed-array type, element and length.
+// This compiler realizes u8 and copy-record elements with admitted layouts.
+// Both schemas require a u64 selector proven less than the array length. A
+// write also requires writable backing. Neither introduces a reach/crash
+// route. Explicit Trapping removal views retain the underlying array shape;
 // their known empty establishment debt does not erase backing/loan duties.
 // Array-shell adaptation preserves element type and domains. Authored names or
 // signatures cannot mint these core identities. This closed catalog is not a
@@ -65,10 +63,11 @@ data OmegaScalarCompilationStatus {
 // bound evidence. Occurrence coordinates are not general mutable-value facts:
 // proofs below use immutable snapshots or predicates preserved by every write.
 // This is internal checked lowering, not a published Terminal Psi certificate.
-data OmegaByteIndexPlan {
+data OmegaFixedIndexPlan {
     schema: i32;
     array_type: i32;
     element_type: i32;
+    stride: i32;
     extent: i32;
     collection: i32;
     selector: i32;
@@ -192,7 +191,7 @@ data OmegaScalarCompiler {
     loan_offsets: [i32; 16384];
     loan_sizes: [i32; 16384];
     loan_count: i32;
-    index_plans: [OmegaByteIndexPlan; 16384];
+    index_plans: [OmegaFixedIndexPlan; 16384];
     assignment_loan_base: i32;
     literal_value: i32;
     literal_status: i32;
@@ -1078,7 +1077,8 @@ machine OmegaScalarCompiler::expression_type(
     transition row.kind {
         OmegaExpressionKind::Integer -> return 0
         OmegaExpressionKind::Boolean -> return 1
-        OmegaExpressionKind::Indexed -> return self.byte_index_result_type(source, state_index, before, expression)
+        OmegaExpressionKind::Indexed -> return self.index_result_type(source, state_index, before, expression)
+        OmegaExpressionKind::Projection -> member(row, self.expression_type(source, owner, state_index, before, row.payload0))
         OmegaExpressionKind::StructLiteral -> literal(self.parser.struct_literals[row.payload0])
         OmegaExpressionKind::Path -> path(row)
         OmegaExpressionKind::Call -> call(self.parser.call_expressions[row.payload0])
@@ -1086,6 +1086,18 @@ machine OmegaScalarCompiler::expression_type(
         OmegaExpressionKind::Unary -> unary(self.parser.unary_expressions[row.payload0])
         OmegaExpressionKind::Cast -> cast(self.parser.cast_expressions[row.payload0])
         _ -> return -1
+    }
+    state member(row: OmegaExpressionSyntax, kind: i32) {
+        transition (kind >= 100000) && (kind < 104096) {
+            true -> field(self.resolve_field(source, kind - 100000, row.payload1, row.payload2))
+            _ -> return -1
+        }
+    }
+    state field(slot: i32) {
+        transition slot >= 0 {
+            true -> return self.field_types[slot]
+            _ -> return -1
+        }
     }
     state path(row: OmegaExpressionSyntax) {
         transition row.payload3 > 1 {
@@ -1236,6 +1248,7 @@ machine OmegaScalarCompiler::check_value(
     transition row.kind {
         OmegaExpressionKind::Path -> path()
         OmegaExpressionKind::Indexed -> indexed()
+        OmegaExpressionKind::Projection -> member(row, self.expression_type(source, owner, state_index, before, row.payload0))
         OmegaExpressionKind::Borrow -> return self.check_borrow(source, state_index, before, expression, expected)
         OmegaExpressionKind::StructLiteral -> return self.check_record_literal(source, owner, state_index, before, expression, expected)
         OmegaExpressionKind::Call -> call(self.parser.call_expressions[row.payload0])
@@ -1260,15 +1273,51 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state indexed() {
-        transition expected == 8 {
+        transition (expected == 8) || ((expected >= 100000) && (expected < 104096)) {
             true -> indexed_place()
             _ -> unsupported(self.diagnostic_offset)
         }
     }
     state indexed_place() {
-        transition self.check_byte_index(source, state_index, before, expression, 0) {
-            1 -> retain(OmegaCheckedValueKind::IndexedRead, expression)
+        transition self.check_index(source, state_index, before, expression, 0) {
+            1 -> indexed_type()
             _ -> return 0
+        }
+    }
+    state indexed_type() {
+        transition self.place_types[expression] == expected {
+            true -> retain(OmegaCheckedValueKind::IndexedRead, expression)
+            _ -> rejected(self.diagnostic_offset)
+        }
+    }
+    state member(row: OmegaExpressionSyntax, kind: i32) {
+        transition (kind >= 100000) && (kind < 104096) {
+            true -> member_base(row, kind)
+            _ -> unsupported(row.payload1)
+        }
+    }
+    state member_base(row: OmegaExpressionSyntax, kind: i32) {
+        transition self.check_value(source, owner, state_index, before, row.payload0, kind) {
+            1 -> member_field(row, self.resolve_field(source, kind - 100000, row.payload1, row.payload2))
+            _ -> return 0
+        }
+    }
+    state member_field(row: OmegaExpressionSyntax, field: i32) {
+        transition field >= 0 {
+            true -> member_type(row, field)
+            _ -> rejected(row.payload1)
+        }
+    }
+    state member_type(row: OmegaExpressionSyntax, field: i32) {
+        transition self.field_types[field] == expected {
+            true -> member_copy(row, field)
+            _ -> rejected(row.payload1)
+        }
+    }
+    state member_copy(row: OmegaExpressionSyntax, field: i32) {
+        transition self.type_copy(source, expected) {
+            1 -> retain(OmegaCheckedValueKind::ProjectedRead, field)
+            _ -> unsupported(row.payload1)
         }
     }
     state integer(row: OmegaExpressionSyntax) {
@@ -2049,6 +2098,15 @@ machine OmegaScalarCompiler::emit_value_load(&mut self, cell: i32) -> i32 {
         }
     }
 }
+// Address capture uses one word, even when this expression's eventual value fills a record.
+machine OmegaScalarCompiler::emit_save_address(&mut self, cell: i32) -> i32 {
+    return (self.tape.emit_imm(1, 33554432 + self.cell_offsets[cell], 0) == 1) &&
+        (self.tape.emit_rr(11, 1, 0) == 1);
+}
+machine OmegaScalarCompiler::emit_restore_address(&mut self, cell: i32) -> i32 {
+    return (self.tape.emit_imm(0, 33554432 + self.cell_offsets[cell], 0) == 1) &&
+        (self.tape.emit_rr(10, 0, 0) == 1);
+}
 machine OmegaScalarCompiler::emit_value_store(&mut self, cell: i32) -> i32 {
     transition self.tape.emit_imm(1, 33554432 + self.cell_offsets[cell], 0) {
         1 -> return self.emit_store_at(self.cell_types[cell], self.cell_sizes[cell])
@@ -2069,7 +2127,8 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::Place -> return self.emit_place_value(expression)
         OmegaCheckedValueKind::Borrow -> return self.emit_place_address(self.value_payloads[expression])
         OmegaCheckedValueKind::RecordLiteral -> return self.emit_record_literal(expression)
-        OmegaCheckedValueKind::IndexedRead -> indexed()
+        OmegaCheckedValueKind::IndexedRead -> return self.emit_place_value(expression)
+        OmegaCheckedValueKind::ProjectedRead -> member(self.value_payloads[expression])
         OmegaCheckedValueKind::ForwardedReference -> return self.emit_value_load(self.value_payloads[expression])
         OmegaCheckedValueKind::ExactWordArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::WrappingArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
@@ -2078,9 +2137,11 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
             self.parser.binary_expressions[self.value_payloads[expression]])
         _ -> return self.tape.fail_internal(expression)
     }
-    state indexed() {
-        transition self.emit_index_address(expression) {
-            1 -> return self.tape.emit_rr(10, 0, 0)
+    state member(field: i32) {
+        transition (self.emit_value(self.parser.expressions[expression].payload0) == 1) &&
+            (self.tape.emit_imm(1, self.field_offsets[field], 0) == 1) &&
+            (self.tape.emit_rr(3, 0, 1) == 1) {
+            true -> return self.emit_address_value(self.field_types[field])
             _ -> return 0
         }
     }
@@ -3984,13 +4045,13 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         let row: OmegaAssignmentStatementSyntax = self.parser.assignment_statements[
             self.parser.statements[self.parser.machine_states[state_index].first_statement + statement_offset].item_index];
         transition (self.emit_place_address(row.target) == 1) &&
-            (self.emit_value_store(49152 + row.target) == 1) &&
+            (self.emit_save_address(49152 + row.target) == 1) &&
             (self.emit_value(row.value) == 1) &&
             (self.tape.emit_rr(2, 2, 0) == 1) &&
-            (self.emit_value_load(49152 + row.target) == 1) &&
+            (self.emit_restore_address(49152 + row.target) == 1) &&
             (self.tape.emit_rr(2, 1, 0) == 1) &&
             (self.tape.emit_rr(2, 0, 2) == 1) &&
-            (self.emit_store_at(self.place_types[row.target], self.place_extent[row.target]) == 1) {
+            (self.emit_store_at(self.place_types[row.target], self.assignment_store_size(row.target)) == 1) {
             true -> emit_statements(index, state_index, statement_offset + 1)
             _ -> emission_failure()
         }
@@ -4815,7 +4876,7 @@ machine OmegaScalarCompiler::check_place(
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
         OmegaExpressionKind::Path -> path(row)
-        OmegaExpressionKind::Indexed -> return self.check_byte_index(source, state_index, before, expression, 1)
+        OmegaExpressionKind::Indexed -> return self.check_index(source, state_index, before, expression, 1)
         _ -> unsupported()
     }
     state path(row: OmegaExpressionSyntax) {
@@ -5294,16 +5355,25 @@ machine OmegaScalarCompiler::emit_place_address(&mut self, expression: i32) -> i
     }
 }
 
+// The parent extent covers every possible element for loans; a store copies only its selected element.
+machine OmegaScalarCompiler::assignment_store_size(&mut self, target: i32) -> i32 {
+    transition self.parser.expressions[target].kind {
+        OmegaExpressionKind::Indexed -> return self.index_plans[target].stride
+        _ -> return self.place_extent[target]
+    }
+}
+
 machine OmegaScalarCompiler::emit_place_value(&mut self, expression: i32) -> i32 {
     transition self.emit_place_address(expression) {
-        1 -> value()
+        1 -> return self.emit_address_value(self.place_types[expression])
         _ -> return 0
     }
-    state value() {
-        transition (self.place_types[expression] >= 100000) && (self.place_types[expression] < 400000) {
-            true -> return 1
-            _ -> return self.tape.emit_rr(10, 0, 0)
-        }
+}
+
+machine OmegaScalarCompiler::emit_address_value(&mut self, kind: i32) -> i32 {
+    transition (kind >= 100000) && (kind < 400000) {
+        true -> return 1
+        _ -> return self.tape.emit_rr(10, 0, 0)
     }
 }
 
@@ -5368,11 +5438,9 @@ machine OmegaScalarCompiler::type_size(&mut self, source: &[u8], kind: i32) -> i
     }
 }
 
-// Infer only the byte-index family this compiler can select. This inspects
-// collection type without evaluating a selector or acquiring a loan. Other
-// indexed results are unknown coverage, never an invented u8 that could cause
-// a false operator mismatch before the indexing checker runs.
-machine OmegaScalarCompiler::byte_index_result_type(
+// Infer only element types realized by the checked fixed-array catalog.
+// This pass leaves the selector and its loan to the indexing checker.
+machine OmegaScalarCompiler::index_result_type(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
 ) -> i32 {
     let row: OmegaIndexedExpressionSyntax = self.parser.indexed_expressions[
@@ -5425,17 +5493,35 @@ machine OmegaScalarCompiler::byte_index_result_type(
         }
     }
     state element(row: OmegaTypeReferenceSyntax) {
-        transition self.scalar_type(source, row.payload0) == 8 {
-            true -> return 8
+        return self.copy_index_element(source, row.payload0);
+    }
+}
+
+// Use the existing checked record layout and multiplicity for both read and
+// whole-element assignment. A sum, reference or other array element remains
+// outside the fixed-array index families this compiler realizes.
+machine OmegaScalarCompiler::copy_index_element(&mut self, source: &[u8], reference: i32) -> i32 {
+    let kind: i32 = self.scalar_type(source, reference);
+    transition kind {
+        8 -> return 8
+        _ -> record(kind)
+    }
+    state record(kind: i32) {
+        transition (kind >= 100000) && (kind < 104096) {
+            true -> shape(kind, kind - 100000)
+            _ -> return -1
+        }
+    }
+    state shape(kind: i32, declaration: i32) {
+        transition (self.parser.data_items[declaration].case_count == 0) &&
+            (self.type_size(source, kind) > 0) && (self.type_copy(source, kind) == 1) {
+            true -> return kind
             _ -> return -1
         }
     }
 }
 
-// Select the sealed fixed-byte-array schema from checked types and access,
-// never from a source helper name. Only explicit reference-domain removal
-// changes a qualified array into the plain collection admitted by this schema.
-machine OmegaScalarCompiler::check_byte_index(
+machine OmegaScalarCompiler::check_index(
     &mut self, source: &[u8], state_index: i32, before: i32,
     expression: i32, access: i32
 ) -> i32 {
@@ -5512,7 +5598,16 @@ machine OmegaScalarCompiler::check_byte_index(
         }
     }
     state array(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax) {
-        transition self.scalar_type(source, row.payload0) == 8 {
+        let element: i32 = self.copy_index_element(source, row.payload0);
+        transition element > 0 {
+            true -> element_stride(base, removed, kind, row, element)
+            _ -> unsupported()
+        }
+    }
+    state element_stride(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax, element: i32) {
+        self.index_plans[expression].element_type = element;
+        self.index_plans[expression].stride = self.type_size(source, element);
+        transition self.index_plans[expression].stride > 0 {
             true -> count(base, removed, kind, row)
             _ -> unsupported()
         }
@@ -5520,7 +5615,7 @@ machine OmegaScalarCompiler::check_byte_index(
     state count(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax) {
         self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
         transition (self.literal_status == 1) && (self.literal_value > 0) &&
-            (self.literal_value <= 2097152) {
+            (self.literal_value <= 16777216 / self.index_plans[expression].stride) {
             true -> authority(base, removed, kind, self.literal_value)
             _ -> unsupported()
         }
@@ -5539,7 +5634,6 @@ machine OmegaScalarCompiler::check_byte_index(
     }
     state capture(base: i32, removed: i32, kind: i32, count: i32) {
         self.index_plans[expression].array_type = kind;
-        self.index_plans[expression].element_type = 8;
         self.index_plans[expression].extent = count;
         self.index_plans[expression].collection = base;
         self.index_plans[expression].removed_trapping = removed;
@@ -5573,7 +5667,7 @@ machine OmegaScalarCompiler::check_byte_index(
         self.place_roots[expression] = self.index_plans[expression].parent_root;
         self.place_offsets[expression] = self.index_plans[expression].parent_offset;
         self.place_extent[expression] = self.index_plans[expression].parent_extent;
-        self.place_types[expression] = 8;
+        self.place_types[expression] = self.index_plans[expression].element_type;
         self.place_indirect[expression] = self.place_indirect[self.index_plans[expression].collection];
         self.place_writable[expression] = access;
         self.place_fields[expression] = -1;
@@ -5603,7 +5697,7 @@ machine OmegaScalarCompiler::check_index_bound(
         }
     }
     state contextual() {
-        let plan: OmegaByteIndexPlan = self.index_plans[expression];
+        let plan: OmegaFixedIndexPlan = self.index_plans[expression];
         transition self.prove_ceiling(source, plan.owner_state, plan.before, selector, plan.extent - 1) {
             1 -> retain(3, selector, plan.extent - 1)
             _ -> unsupported()
@@ -5625,7 +5719,7 @@ machine OmegaScalarCompiler::retain_index_loan(&mut self, expression: i32) -> i3
         _ -> unsupported()
     }
     state retain() {
-        let plan: OmegaByteIndexPlan = self.index_plans[expression];
+        let plan: OmegaFixedIndexPlan = self.index_plans[expression];
         self.loan_access[self.loan_count] = plan.access;
         self.loan_context[self.loan_count] = 1;
         self.loan_roots[self.loan_count] = plan.parent_root;
@@ -5641,9 +5735,10 @@ machine OmegaScalarCompiler::retain_index_loan(&mut self, expression: i32) -> i3
 // assignment saves this resulting address again before its RHS, so a later
 // selector-field mutation cannot redirect the pending store.
 machine OmegaScalarCompiler::emit_index_address(&mut self, expression: i32) -> i32 {
-    let plan: OmegaByteIndexPlan = self.index_plans[expression];
+    let plan: OmegaFixedIndexPlan = self.index_plans[expression];
     transition ((plan.schema == 1) || (plan.schema == 2)) &&
-        (plan.element_type == 8) && (plan.extent > 0) &&
+        (plan.element_type == self.place_types[expression]) && (plan.stride > 0) &&
+        (plan.extent > 0) && (plan.extent <= 16777216 / plan.stride) &&
         ((plan.bound_kind == 1) || (plan.bound_kind == 2) || (plan.bound_kind == 3)) &&
         (plan.bound_limit >= 0) && (plan.bound_limit < plan.extent) &&
         (plan.parent_root == self.place_roots[plan.collection]) &&
@@ -5652,13 +5747,13 @@ machine OmegaScalarCompiler::emit_index_address(&mut self, expression: i32) -> i
         true -> capture(plan)
         _ -> return self.tape.fail_internal(expression)
     }
-    state capture(plan: OmegaByteIndexPlan) {
+    state capture(plan: OmegaFixedIndexPlan) {
         transition (self.emit_place_address(plan.collection) == 1) &&
-            (self.emit_value_store(49152 + expression) == 1) &&
+            (self.emit_save_address(49152 + expression) == 1) &&
             (self.emit_value(plan.selector) == 1) &&
             (self.tape.emit_rr(2, 2, 0) == 1) &&
-            (self.emit_value_load(49152 + expression) == 1) &&
-            (self.tape.emit_imm(1, 8, 0) == 1) &&
+            (self.emit_restore_address(49152 + expression) == 1) &&
+            (self.tape.emit_imm(1, plan.stride, 0) == 1) &&
             (self.tape.emit_rr(5, 2, 1) == 1) &&
             (self.tape.emit_rr(3, 0, 2) == 1) {
             true -> return 1

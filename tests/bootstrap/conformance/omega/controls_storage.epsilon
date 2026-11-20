@@ -110,6 +110,15 @@ machine Main::main(&mut self) {
         // Default storage requires a supported domain on the element itself.
         self.refusal("data Page {rows:[u64 in Unknown;2];} machine main()->u8{let page:Page;42}", 2, 80);
         self.refusal("data Page {rows:[u64 in ;2];} machine main()->u8{let page:Page;42}", 1, 81);
+        // A field suffix cannot turn a non-copy element, an out-of-range
+        // selector, or an unavailable loan into readable storage.
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[0].unknown}", 1, 82);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[2].v}", 1, 83);
+        self.refusal("data R {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[0].v}", 2, 84);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;grid.r[true].v}", 1, 85);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let mut grid:Grid;grid.r[0]=grid.r[1];42}", 2, 86);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let grid:Grid;let b:bool=grid.r[0].v;42}", 1, 87);
+        self.refusal("data R [copy] {v:u8;} data Grid {r:[R;2];} machine main()->u8 {let mut grid:Grid;grid.r[0].v=1;42}", 2, 88);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }

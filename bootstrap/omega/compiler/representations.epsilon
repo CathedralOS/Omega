@@ -653,6 +653,7 @@ data OmegaExpressionKind {
     case Unary;
     case Membership;
     case Borrow;
+    case Projection;
 }
 
 data OmegaBinaryOperatorKind {
@@ -794,6 +795,8 @@ data OmegaStructLiteralSyntax {
 // Unary payload0 select their dedicated rows. Borrow uses payload0 for its
 // operand, payload1 for access (0 shared, 1 mutable, 2 write-only), and
 // payload2/payload3 for the complete operator span; payload4/payload5 are zero.
+// Projection payload0 names the completed base; payload1/payload2 are the
+// member name span and payload3 bounds the postfix chain depth at 128.
 // Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
     kind: OmegaExpressionKind;
