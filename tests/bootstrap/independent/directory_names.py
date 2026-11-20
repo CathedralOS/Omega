@@ -124,10 +124,15 @@ def cases():
 
     yield from nominal_record_cases(encode)
     yield from nominal_sum_cases(encode)
+    yield from nominal_array_cases(encode)
 
 
 def copy_declaration(definitions, name):
-    start = definitions.index(b"public data " + name + b" [copy] {")
+    return declaration(definitions, b"public data " + name + b" [copy] {")
+
+
+def declaration(definitions, header):
+    start = definitions.index(header)
     return definitions[start:definitions.index(b"\n}", start) + 2]
 
 
@@ -239,6 +244,81 @@ def nominal_sum_cases(encode):
                          record.replace(b"public data", b"data")], paths)
     coordinate = rows[2][1] + hit.index(b"item:Packet")
     yield "private-type-in-case-payload", data, struct.pack("<BII", 0, 1, coordinate)
+
+
+
+def nominal_array_cases(encode):
+    def packet(sources, paths, library=None):
+        packages = [("app", 0)]
+        dependencies = []
+        if library:
+            packages.append((library, 0))
+            dependencies.append((0, 1, library))
+        return encode(packages, dependencies, sources, 0, b"main", paths=paths)
+
+    # Compile the unedited declaration and reach both ends of its four-MiB field.
+    definitions = (ROOT / "source/application/construction/main.omg").read_bytes()
+    storage = declaration(definitions, b"data ConstructionInput {")
+    caller = b"""machine main()->u8{
+    let mut a:ConstructionInput;
+    a.unit_count=305;
+    a.bytes[4194303]=255;
+    a.bytes[4194302]=41;
+    a.bytes[0]=42;
+    transition a.unit_count==305 && a.bytes[0]==42 && a.bytes[4194302]==41 && a.bytes[4194303]==255 {true->42,_->7}
+}"""
+    data, _, _, _ = packet([(0, caller), (0, storage)], ["caller.omg", "input.omg"])
+    yield "forward-product-construction-array", data, 42
+
+    definitions = (ROOT / "source/subsystems/compiler/alpha/emit.omg").read_bytes()
+    emitter = declaration(definitions, b"public data AlphaEmitter {")
+    caller = b"""use alpha\\AlphaEmitter;machine main()->u8{
+    let mut a:AlphaEmitter;
+    a.bytes[2097151]=42;
+    a.labels[10239]=73;
+    a.marks[65535]=99;
+    transition a.labels[10239]==73 && a.marks[65535]==99 {true->a.bytes[2097151],_->7}
+}"""
+    data, _, _, _ = packet([(0, caller), (1, emitter)], ["caller.omg", "emit.omg"], "alpha")
+    yield "forward-product-emitter-arrays", data, 42
+
+    storage = b"public data Packet{bytes:[u8;9];tail:u64;}"
+    length = b"public machine length(bytes:@[u8])->u64{bytes.len}"
+    for name, end in [("borrow-retained-byte-array", b"9"), ("borrow-past-retained-byte-array", b"10")]:
+        main = (b"use wire\\Packet;use wire\\length;machine main()->u8{let mut p:Packet;p.bytes[8]=42;p.tail=77;"
+                b"let n:u64=length(@p.bytes[7.." + end + b"]);"
+                b"transition n==2&&p.tail==77{true->p.bytes[8],_->7}}")
+        data, _, _, rows = packet([(0, main), (1, length), (1, storage)], ["main.omg", "length.omg", "packet.omg"], "wire")
+        expected = 42 if end == b"9" else struct.pack("<BII", 0, 1, rows[0][1] + main.index(b".."))
+        yield name, data, expected
+
+    # Two directories expose the same spelling and layout. The field's owner
+    # file chooses the element identity and declares the indexable extent.
+    caller = b"""use types\\Shelf;use left\\Part;machine main()->u8{
+    let mut s:Shelf;
+    let p:Part=Part{byte:42};
+    s.parts[2]=p;
+    let saved:Part=s.parts[2];
+    saved.byte
+}"""
+    paths = ["main.omg", "types/shelf.omg", "left/part.omg", "right/part.omg"]
+    part = b"public data Part [copy]{byte:u8;}"
+    for name, module, length in [
+        ("array-field-declaring-scope", b"left", b"3"),
+        ("different-nominal-array-owner", b"right", b"3"),
+        ("wrong-array-extent", b"left", b"2"),
+    ]:
+        shelf = b"use " + module + b"\\Part;public data Shelf{parts:[Part;" + length + b"];}"
+        data, _, _, rows = packet([(0, caller), (0, shelf), (0, part), (0, part)], paths)
+        if name == "array-field-declaring-scope":
+            yield name, data, 42
+        else:
+            yield name, data, struct.pack("<BII", 0, 1, rows[0][1] + caller.index(b"machine main"))
+
+    caller = b"use types\\Shelf;machine main()->u8{42}"
+    shelf = b"use left\\Part;public data Shelf{parts:[Part;3];}"
+    data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
+    yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
 
 
 def main():

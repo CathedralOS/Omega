@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,727 lines / 1,029,142 bytes with SHA-256
-`d73063737f31f35b4a402c5f3980be81edafbf73ee579525728504e8cceaea36`.
+The manifest materializes 26,795 lines / 1,031,761 bytes with SHA-256
+`8bc16c29cf64e78128722a935607123698bb49e509284719a6ac76c346585bc8`.
 The manifest itself is 2,381 bytes, SHA-256
-`d6e65b7105691246bf662b1b4fad52f7ec65495ce24e3b56181e79f284481949`;
+`ab7d537dd33bfed54702f367b371e365eb527f0829546d5b6b951ea034dee280`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -97,17 +97,19 @@ The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
 and parameters.
 
-Each file's imports resolve before signature or body checking. Every record or
-case payload field retains the scalar type or nominal declaration resolved in
-its own file. The layout checker can then follow forward and nested records across files and
+Each file's imports resolve before signature or body checking. Record and case
+payload fields retain the scalar type or nominal declaration resolved in their
+own file. A fixed-array field also retains its logical count and resolved element
+type, including a nominal element declared in a later file. The layout checker can then follow forward and nested records across files and
 detect a by-value cycle. Public interfaces are checked against their owner's
 imports. The compiler gives parameters permanent addresses. Bodies reuse
 local syntax rows and get fresh storage addresses, so a callee can use the
 same local row number while its caller's value remains live. Call cycles and
 effects are checked before publishing the tape.
 
-Arrays, references, machine clauses and authored requirements still use
-the pooled checker after per-file parsing. The single-unit public resource
+Shared byte-slice parameters carry a borrowed range and its live length across
+a file boundary. Nested array fields, array-valued parameters and results,
+other references, machine clauses and authored requirements still use the pooled checker. The single-unit public resource
 limits remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
@@ -320,11 +322,13 @@ and [terminal calls](../../../wiki/spec/language/state_contracts.md#terminal-cal
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
 
-A fixed-array type names the parser row that holds its element type and length.
-`omega_fixed_array_type` places plain arrays in `[200000, 300000)` and Trapping
-arrays in `[300000, 400000)`. `fixed_array_row` checks the decoded row against
-the parser's live count before a consumer reads it. The public parser admits
-at most 16,384 type rows.
+A fixed-array type identifies its element and declared length. Plain arrays
+occupy type IDs in `[200000, 300000)` and Trapping arrays in `[300000, 400000)`.
+Within either band, rows below 16,384 refer to live parser type syntax.
+For an array in a retained nominal declaration, the row is 16,384 plus its
+field ID. That field retains the resolved element type and logical count after
+the compiler releases the declaring file's syntax. Layout, indexed access and
+borrowed byte ranges all consult those same two values.
 
 Records retain declaration identity, field qualification and copy/affine
 multiplicity. In the private Alpha layout, a scalar cell occupies one
