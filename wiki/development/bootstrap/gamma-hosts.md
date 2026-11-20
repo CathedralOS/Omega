@@ -36,6 +36,16 @@ it in the audited VM. Both hosts still share the frontend and backend source,
 so cross-host equality cannot detect a mistake common to those sources.
 [Alpha backend](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma) · [Linux backend](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma)
 
+The Gamma scanner can spell punctuation and escapes with its own character
+literals. Changing just those spellings reproduced both compiler images from
+`36cb9c98760` byte for byte. The keyword reader now groups syntax words by
+length and compares their characters in spelling order. For example, a reviewer
+can read `(c_chars4 at 'p' 'a' 'i' 'r')` on one line. A name differing at the
+last character still goes through ordinary name lookup. The two shared source
+files went from 33,737 to 31,662 bytes. Cold self-compilation produced a
+212,403-byte Alpha tape (previously 230,666) and a 226,310-byte Linux binary
+(previously 226,861). [Keyword reader](../../../bootstrap/gamma/compiler/compiler.gamma) · [Differential checks](../../../tests/bootstrap/compiled.py)
+
 From the repository root, use fresh output directories. The Python comparison
 harness runs outside the construction chain. Its `xtask source-closure`
 helper materializes the ordered support bytes used in the test request.
