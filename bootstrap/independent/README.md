@@ -573,7 +573,10 @@ those predecessor artifacts byte for byte. The 610,797-byte Delta-written
 Epsilon compiler was rebuilt. Its 795,622-byte Gamma receipt produces a
 28,071,326-byte native executable and an 8,947,202-byte Alpha tape. Both
 compiler hosts emitted identical Delta for the 16,466-byte string customer
-and returned the same wrong-owner refusal at byte 14,793. The string customer's
+and returned the same wrong-owner refusal at byte 14,793. A separate attempt
+to compile the full public source on the Alpha-hosted Epsilon compiler reached
+its 600-second wall-clock limit under shared host load before publishing a
+module. The string customer's
 727,812-byte Gamma receipt produced a 26,900,281-byte native executable and an
 8,391,472-byte Alpha tape.
 
