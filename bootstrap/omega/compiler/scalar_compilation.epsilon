@@ -101,6 +101,7 @@ data OmegaFixedIndexPlan {
 }
 
 data OmegaScalarCompiler {
+    build: ConstructionBuildResult;
     byte_ranges: [OmegaByteRange; 16384];
     construction: OmegaConstructionDirectory;
     import_bindings: [OmegaImportBinding; 4096];

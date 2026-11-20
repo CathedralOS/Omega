@@ -1,0 +1,336 @@
+// One fully evaluated ground Build. Its Product operands keep their authored
+// source sites until the Product resolver supplies the declaration identities.
+// Unsupported statements cannot produce a partial set of choices.
+data ConstructionBuildResult {
+    name: OmegaRelativeSpan;
+    entry: OmegaRelativeSpan;
+    slot: OmegaRelativeSpan;
+    provider: OmegaRelativeSpan;
+    entry_definition: OmegaRelativeSpan;
+    slot_definition: OmegaRelativeSpan;
+    provider_definition: OmegaRelativeSpan;
+    primitive_definition: OmegaRelativeSpan;
+}
+
+machine OmegaScalarCompiler::build_spelling(&mut self, source: &[u8], span: OmegaRelativeSpan, text: &[u8]) -> i32 {
+    return self.span_equals(source, span.start, span.end, text);
+}
+
+// The accepted activation must have the ordinary ground Build signature and
+// no additional promises or states. The parser has already checked its body.
+machine OmegaScalarCompiler::ground_builder(&mut self, source: &[u8], machine_id: i32) -> i32 {
+    let row: OmegaMachineSyntax = self.parser.machine_items[machine_id];
+    transition (row.path_member_count == 1) && (row.is_bodyless == 0) && (row.has_target == 0) &&
+        (row.clause_count == 0) && (row.state_count == 1) &&
+        (self.build_spelling(source, self.parser.members[row.first_path_member], "build") == 1) {
+        true -> state_row(self.parser.machine_states[row.first_state])
+        _ -> return -1
+    }
+    state state_row(row: OmegaMachineStateSyntax) {
+        transition (row.has_return_type == 0) && (row.requirement_count == 0) && (row.parameter_count == 1) {
+            true -> parameter(row.first_parameter, self.parser.machine_parameters[row.first_parameter])
+            _ -> return -1
+        }
+    }
+    state parameter(id: i32, row: OmegaMachineParameterSyntax) {
+        transition (row.is_const == 0) && (row.is_self == 0) && (self.build_spelling(source, row.name, "Build") == 0) &&
+            (self.build_spelling(source, row.name, "alpha_bootstrap") == 0) {
+            true -> reference(id, self.parser.type_references[row.type_reference])
+            _ -> return -1
+        }
+    }
+    state reference(id: i32, row: OmegaTypeReferenceSyntax) {
+        transition row.kind { OmegaTypeReferenceKind::Reference -> access(id, row) _ -> return -1 }
+    }
+    state access(id: i32, row: OmegaTypeReferenceSyntax) {
+        transition (row.payload1 == 1) && (row.payload2 == 0) {
+            true -> builder(id, self.parser.type_references[row.payload0])
+            _ -> return -1
+        }
+    }
+    state builder(id: i32, row: OmegaTypeReferenceSyntax) {
+        transition row.kind { OmegaTypeReferenceKind::Named -> prelude(id, row) _ -> return -1 }
+    }
+    state prelude(id: i32, row: OmegaTypeReferenceSyntax) {
+        transition self.span_equals(source, row.payload0, row.payload1, "Build") {
+            1 -> return id
+            _ -> return -1
+        }
+    }
+}
+
+// Accept an exact ground path expression with the required arity. Returning
+// its first path member preserves the occurrence rather than inventing a name.
+machine OmegaScalarCompiler::build_path_argument(&mut self, index: i32, width: i32) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[self.parser.call_arguments[index]];
+    transition row.kind { OmegaExpressionKind::Path -> path(row) _ -> return -1 }
+    state path(row: OmegaExpressionSyntax) {
+        transition row.path_kind { OmegaPathExpressionKind::Name -> members(row) _ -> return -1 }
+    }
+    state members(row: OmegaExpressionSyntax) {
+        transition (row.payload1 == width) && (row.payload3 == width) {
+            true -> return row.payload0
+            _ -> return -1
+        }
+    }
+}
+
+machine OmegaScalarCompiler::run_build_operation(&mut self, source: &[u8], handle: OmegaRelativeSpan,
+    package: i32, call: OmegaCallStatementSyntax) -> i32 {
+    transition (call.acknowledgements == 0) && (call.name_member_count == 2) &&
+        (call.receiver_member_count == 1) && (call.receiver_starts_at_self == 0) && (call.argument_count > 0) {
+        true -> receiver(self.parser.members[call.first_receiver_member], self.parser.members[call.target_member])
+        _ -> return 0
+    }
+    state receiver(first: OmegaRelativeSpan, name: OmegaRelativeSpan) {
+        transition (self.build_spelling(source, first, "Build") == 1) && (self.read_query(source, first.start, name.end) == 2) {
+            true -> builder(name, self.build_path_argument(call.first_argument, 1))
+            _ -> return 0
+        }
+    }
+    state builder(name: OmegaRelativeSpan, member: i32) {
+        transition (member >= 0) && (self.parser.sources.equal_name(source, handle, self.parser.members[member]) == 1) {
+            true -> operation(name)
+            _ -> return 0
+        }
+    }
+    state operation(name: OmegaRelativeSpan) {
+        transition self.build_spelling(source, name, "application") {
+            1 -> application()
+            _ -> binding(name)
+        }
+    }
+    state application() {
+        transition (self.build.name.end == 0) && (call.argument_count == 2) && (call.machine_argument_count == 0) {
+            true -> literal(self.parser.expressions[self.parser.call_arguments[call.first_argument + 1]])
+            _ -> return 0
+        }
+    }
+    state literal(row: OmegaExpressionSyntax) {
+        transition row.kind { OmegaExpressionKind::String -> named(row.payload0 + 1, row.payload1 - 1) _ -> return 0 }
+    }
+    state named(start: i32, end: i32) {
+        let name: OmegaRelativeSpan = self.parser.sources.packages[package].name;
+        transition (self.parser.sources.identifier_range(source, start, end) == 1) &&
+            (self.span_equals(source, start, end, source[name.start..name.end]) == 1) {
+            true -> retain_name(start, end)
+            _ -> return 0
+        }
+    }
+    state retain_name(start: i32, end: i32) { self.build.name.start = start; self.build.name.end = end; return 1; }
+    state binding(name: OmegaRelativeSpan) {
+        transition self.build_spelling(source, name, "bind") {
+            1 -> bind()
+            _ -> selection(name)
+        }
+    }
+    state bind() {
+        transition (self.build.entry.end == 0) && (call.argument_count == 3) && (call.machine_argument_count == 0) {
+            true -> target(self.build_path_argument(call.first_argument + 1, 2), self.build_path_argument(call.first_argument + 2, 1))
+            _ -> return 0
+        }
+    }
+    state target(id: i32, implementation: i32) {
+        transition (id >= 0) && (implementation >= 0) &&
+            (self.parser.sources.equal_name(source, handle, self.parser.members[implementation]) == 0) &&
+            (self.build_spelling(source, self.parser.members[id], "alpha_bootstrap") == 1) &&
+            (self.build_spelling(source, self.parser.members[id + 1], "ProgramEntry") == 1) &&
+            (self.read_query(source, self.parser.members[id].start, self.parser.members[id + 1].end) == 1) {
+            true -> retain_entry(implementation)
+            _ -> return 0
+        }
+    }
+    state retain_entry(implementation: i32) { self.build.entry = self.parser.members[implementation]; return 1; }
+    state selection(name: OmegaRelativeSpan) {
+        transition (self.build.slot.end == 0) && (self.build_spelling(source, name, "select_provider") == 1) &&
+            (call.argument_count == 2) && (call.machine_argument_count == 2) {
+            true -> selected(self.build_path_argument(call.first_argument + 1, 1))
+            _ -> return 0
+        }
+    }
+    state selected(target_id: i32) {
+        transition (target_id >= 0) && (self.build_spelling(source, self.parser.members[target_id], "alpha_bootstrap") == 1) {
+            true -> retain_selection(self.parser.static_machine_arguments[call.first_machine_argument],
+                self.parser.static_machine_arguments[call.first_machine_argument + 1])
+            _ -> return 0
+        }
+    }
+    state retain_selection(slot: OmegaStaticMachineArgumentSyntax, provider: OmegaStaticMachineArgumentSyntax) {
+        transition (self.parser.sources.equal_name(source, handle, self.parser.members[slot.first_path_member]) == 0) &&
+            (self.parser.sources.equal_name(source, handle, self.parser.members[provider.first_path_member]) == 0) {
+            true -> occurrences(slot, provider)
+            _ -> return 0
+        }
+    }
+    state occurrences(slot: OmegaStaticMachineArgumentSyntax, provider: OmegaStaticMachineArgumentSyntax) {
+        self.build.slot.start = slot.start;
+        self.build.slot.end = slot.end;
+        self.build.provider.start = provider.start;
+        self.build.provider.end = provider.end;
+        return 1;
+    }
+}
+
+// An empty activated Build still has to be parsed and typed. Uncalled helpers
+// and additional scope units require the more general Build evaluator.
+machine OmegaScalarCompiler::empty_build(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    self.parser.reset_syntax();
+    self.parser.append_unit(source[0..end], start);
+    transition self.parser.status {
+        OmegaParserStatus::Complete -> declaration()
+        _ -> return 0
+    }
+    state declaration() {
+        transition (self.parser.root_count == 1) && (self.parser.machine_count == 1) &&
+            (self.ground_builder(source, 0) >= 0) {
+            true -> return self.parser.machine_states[self.parser.machine_items[0].first_state].statement_count == 0
+            _ -> return 0
+        }
+    }
+}
+
+// The invocation supplies a validated temporary scope row at config. Parse
+// the Product and Build separately, then rejoin each inert occurrence using
+// the ordinary Product visibility resolver in the Build's file scope.
+machine OmegaScalarCompiler::check_ground_application(&mut self, source: &[u8], config: i32,
+    entry_unit: i32, requested: OmegaRelativeSpan) -> i32 {
+    self.construction.active = 0;
+    self.build.name.end = 0;
+    self.build.entry.end = 0;
+    self.build.slot.end = 0;
+    self.build.provider.end = 0;
+    self.build.entry_definition.end = 0;
+    self.build.slot_definition.end = 0;
+    self.build.provider_definition.end = 0;
+    self.build.primitive_definition.end = 0;
+    transition (config > 0) && (config < 512) && (entry_unit >= 0) && (entry_unit < config) &&
+        (self.parser.sources.unit_count == config + 1) && (self.parser.sources.valid(source) == 1) {
+        true -> products()
+        _ -> return 0
+    }
+    state products() {
+        self.parser.sources.unit_count = config;
+        self.parser.parse_set(source);
+        self.parser.sources.unit_count = config + 1;
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> scope(self.parser.machine_count, self.parser.use_count, self.parser.root_count)
+            _ -> return 0
+        }
+    }
+    state scope(machines: i32, imports: i32, roots: i32) {
+        self.parser.unit_index = config;
+        self.parser.retain_unit_namespace(source, config, self.parser.sources.units[config].path);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> parse(machines, imports, roots, self.parser.sources.units[config])
+            _ -> return 0
+        }
+    }
+    state parse(machines: i32, imports: i32, roots: i32, row: OmegaSourceUnit) {
+        self.parser.append_unit(source[0..row.end], row.start);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> configuration(machines, imports, roots)
+            _ -> return 0
+        }
+    }
+    state configuration(machines: i32, imports: i32, roots: i32) {
+        transition (self.parser.machine_count == machines + 1) &&
+            (self.parser.root_count - roots == self.parser.use_count - imports + 1) {
+            true -> signature(machines, imports, self.ground_builder(source, machines))
+            _ -> return 0
+        }
+    }
+    state signature(machines: i32, imports: i32, parameter: i32) {
+        transition parameter >= 0 {
+            true -> shadows(machines, imports, parameter)
+            _ -> return 0
+        }
+    }
+    state shadows(machines: i32, imports: i32, parameter: i32) {
+        transition imports < self.parser.use_count {
+            true -> imported(machines, imports, parameter, self.parser.uses[imports])
+            _ -> execute(machines, self.parser.machine_states[self.parser.machine_items[machines].first_state], parameter, 0)
+        }
+    }
+    state imported(machines: i32, imports: i32, parameter: i32, row: OmegaUseSyntax) {
+        let name: OmegaRelativeSpan = self.parser.members[row.first_member + row.member_count - 1];
+        transition (self.build_spelling(source, name, "Build") == 0) && (self.build_spelling(source, name, "alpha_bootstrap") == 0) {
+            true -> shadows(machines, imports + 1, parameter)
+            _ -> return 0
+        }
+    }
+    state execute(machines: i32, body: OmegaMachineStateSyntax, parameter: i32, offset: i32) {
+        transition offset < body.statement_count {
+            true -> statement(machines, body, parameter, offset, self.parser.statements[body.first_statement + offset])
+            _ -> catalog(machines)
+        }
+    }
+    state statement(machines: i32, body: OmegaMachineStateSyntax, parameter: i32, offset: i32, row: OmegaStatementSyntax) {
+        transition row.kind {
+            OmegaStatementKind::Call -> perform(machines, body, parameter, offset, self.parser.call_statements[row.item_index])
+            _ -> return 0
+        }
+    }
+    state perform(machines: i32, body: OmegaMachineStateSyntax, parameter: i32, offset: i32, call: OmegaCallStatementSyntax) {
+        transition self.run_build_operation(source, self.parser.machine_parameters[parameter].name,
+            self.parser.sources.units[config].package, call) {
+            1 -> execute(machines, body, parameter, offset + 1)
+            _ -> return 0
+        }
+    }
+    state catalog(machines: i32) {
+        // Keep Build imports for designated Product-operand resolution, but
+        // exclude build() itself from the Product machine directory.
+        self.parser.machine_count = machines;
+        transition (self.build.name.end > 0) && (self.build.entry.end > 0) &&
+            (self.parser.sources.equal_name(source, self.build.entry, requested) == 1) &&
+            (self.validate_imports(source) == 1) && (self.check_service_declarations(source) == 1) &&
+            (self.check_terminal_suppliers(source) == 1) {
+            true -> entry(self.resolve_declaration(source, self.build.entry.start, self.build.entry.end, OmegaDeclarationKind::Machine))
+            _ -> return 0
+        }
+    }
+    state entry(index: i32) {
+        transition index >= 0 {
+            true -> owner(self.declaration_name(OmegaDeclarationKind::Machine, index))
+            _ -> return 0
+        }
+    }
+    state owner(name: OmegaRelativeSpan) {
+        transition self.parser.sources.unit_at(name.start) == entry_unit {
+            true -> bound(name)
+            _ -> return 0
+        }
+    }
+    state bound(name: OmegaRelativeSpan) {
+        self.build.entry_definition = name;
+        transition self.build.slot.end > 0 {
+            true -> service(self.resolve_declaration(source, self.build.slot.start, self.build.slot.end, OmegaDeclarationKind::Service))
+            _ -> return 1
+        }
+    }
+    state service(index: i32) {
+        transition (self.exit_service >= 0) && (index == self.exit_service) && (self.exit_primitive >= 0) {
+            true -> implementation(index, self.resolve_declaration(source, self.build.provider.start,
+                self.build.provider.end, OmegaDeclarationKind::Implementation))
+            _ -> return 0
+        }
+    }
+    state implementation(service: i32, index: i32) {
+        transition index >= 0 {
+            true -> supplies(service, index, self.parser.implementations[index].trait_name)
+            _ -> return 0
+        }
+    }
+    state supplies(service: i32, index: i32, name: OmegaRelativeSpan) {
+        transition self.resolve_declaration(source, name.start, name.end, OmegaDeclarationKind::Service) == service {
+            true -> retained(service, index)
+            _ -> return 0
+        }
+    }
+    state retained(service: i32, index: i32) {
+        self.build.slot_definition = self.declaration_name(OmegaDeclarationKind::Service, service);
+        self.build.provider_definition = self.declaration_name(OmegaDeclarationKind::Implementation, index);
+        self.build.primitive_definition = self.declaration_name(OmegaDeclarationKind::BoundaryMachine, self.exit_primitive);
+        return 1;
+    }
+}
