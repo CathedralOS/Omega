@@ -61,5 +61,8 @@ The product input contains 304 Omega source units in seven packages. Its
 compiler source to the evaluator. Both original conformance targets refused
 that packet at their 4 MiB input limit. The construction-profile Linux
 evaluator reached the guest on a same-length malformed request. The earlier
-480-second run on the full valid input produced no compiler outcome.
+480-second run on the full valid input produced no compiler outcome. The
+compiled Linux constructor reached a 10 GiB memory guard while staging the
+product. A 512 KiB prefix reached its expected EOF refusal. A 576 KiB prefix
+reached the same guard before the parser could run.
 [Constructor input](../../../source/application/construction/construct.py) · [Interpreted measurements](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
