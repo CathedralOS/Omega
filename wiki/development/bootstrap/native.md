@@ -116,6 +116,25 @@ compiler's checked lowering. The 128-MiB output limit includes the 128-byte
 ELF header and 88-byte startup.
 The Alpha backend separately retains its audited 16-MiB seed-hole limit.
 
+The Linux runtime reuses the first 8 MiB of its pair area. At allocation,
+both operands are still on the tagged value stack. When the area fills, the
+runtime walks that stack and copies reachable young pairs into the rest of
+the area. It then visits the children of each copy. A forwarding address
+preserves shared children. Older pairs are immutable, so they cannot point
+back into a later allocation batch. Each full batch counts toward the same
+lifetime allocation limit as before. The seed-construction test holds a
+shared tree across three refills and checks the last admitted allocation and
+the adjacent refusal using a smaller private limit.
+
+On the same 25,733,081-byte Gamma source for the Epsilon-written Omega
+compiler at `bcf71f0bbfc`, peak resident memory for native code generation
+fell from 4,660,772 to 1,690,456 KiB. The resulting constructor checked the
+same Omega package lacking its required process provider in 27,232 KiB,
+down from 354,848 KiB. Both returned the same nine bytes, reporting the
+missing provider at source byte 904.
+[Allocation code](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma) ·
+[Seed-construction tests](../../../tests/bootstrap/linux-seed-construction.py)
+
 Storage limits and authored traps retain the shared compiler's distinct statuses.
 Returned `mmap`, read or write system-call errors exit 3. Host signals can
 terminate execution separately: a pipe with no reader has the ordinary default
