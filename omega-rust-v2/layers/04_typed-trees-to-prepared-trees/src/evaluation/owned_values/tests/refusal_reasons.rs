@@ -225,3 +225,19 @@ fn stage_input_establishment_for_other_fields_is_refused_at_the_construction() {
     assert!(matches!(prepared.constant(declaration),
         Some(PreparedValue::Record { owner, fields }) if owner.path == "Checked" && fields.as_ref() == [integer(3)]));
 }
+
+#[test]
+fn a_nested_omission_reports_the_literal_that_requested_the_zero() {
+    let declarations = "data Part [copy] {value:u8;} data Inner [copy] {part:Part;} data Outer [copy] {inner:Inner;}";
+    let source = format!("{declarations} const VALUE:Outer=Outer{{inner:Inner{{..}}}};");
+    let PreparedValue::Record { fields, .. } = prepared_constant(&source, "VALUE") else { panic!("expected Outer") };
+    let [PreparedValue::Record { fields, .. }] = fields.as_ref() else { panic!("expected Inner") };
+    let [PreparedValue::Record { fields, .. }] = fields.as_ref() else { panic!("expected Part") };
+    assert_eq!(fields.as_ref(), &[integer(0)]);
+    authored_refusal(
+        &source.replace("Part [copy] {", "Part [copy] requires false {"),
+        PreparationReason::OmittedFieldZeroNeedsProof,
+        "the omitted field's zero value requires proof of the data predicate",
+        "Inner{..}",
+    );
+}

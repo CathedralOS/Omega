@@ -20,7 +20,7 @@ impl ConstantEvaluation<'_, '_> {
                 && &landing.ty == carrier
             {
                 if landed.is_some_and(|previous| previous != &landing.value) {
-                    return Err(PreparationReason::ConflictingFloatLandings.into());
+                    return Err(EvaluationError::from(PreparationReason::ConflictingFloatLandings).at_node(file.node_id(node)));
                 }
                 landed = Some(&landing.value);
             }

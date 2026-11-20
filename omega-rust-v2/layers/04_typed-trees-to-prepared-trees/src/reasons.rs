@@ -107,6 +107,10 @@ preparation_reasons! {
     UnsupportedContract => "the selected contract needs proof outside the supported static evaluation fragment",
     /// A request's typed source file is not in this pass.
     RequestWithoutTypedFile => "the evaluation request has no typed source file",
+    /// The source file exists but does not contain the requested expression node.
+    RequestWithoutTypedNode => "the evaluation request has no expression at the selected node",
+    /// The request names an existing expression at a different source occurrence.
+    RequestSiteMismatch => "the evaluation request selects a different source occurrence",
     /// A pattern selects no supported owned value.
     PatternWithoutSelection => "the selected pattern has no supported owned-value selection",
     /// A fixed-array read is out of bounds.
@@ -251,6 +255,10 @@ preparation_reasons! {
     ConstructorCarrierMismatch => "the selected constructor has a different carrier",
     /// A case does not belong to the carrier.
     CaseOutsideCarrier => "the selected case does not belong to the carrier",
+    /// An authored initializer points outside its construction's subtree.
+    InitializerOutsideConstruction => "the selected field initializer is outside its construction",
+    /// An authored field position is absent or already occupied in the selected shape.
+    InvalidConstructorFieldSlot => "the selected field initializer has no unique position in this construction",
     /// A constructor field has neither initializer nor typed zero request.
     ConstructorFieldWithoutInitializer => "the selected constructor has a field without an initializer or typed zero request",
     /// A by-value type contains itself.

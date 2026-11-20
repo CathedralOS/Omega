@@ -170,7 +170,7 @@ impl ConstantEvaluation<'_, '_> {
             .construction(node)
             .ok_or(PreparationReason::NominalWithoutInitializer)?;
         if &construction.owner != owner || &instantiate(&construction.carrier) != carrier {
-            return Err(PreparationReason::ConstructorCarrierMismatch.into());
+            return Err(EvaluationError::from(PreparationReason::ConstructorCarrierMismatch).at_node(tree.resolved().file.node_id(node)));
         }
         let shape = self
             .trees
@@ -186,7 +186,7 @@ impl ConstantEvaluation<'_, '_> {
             None if shape.cases.is_empty() => Some(&shape.fields),
             None => None,
         }
-        .ok_or(PreparationReason::CaseOutsideCarrier)?;
+        .ok_or_else(|| EvaluationError::from(PreparationReason::CaseOutsideCarrier).at_node(tree.resolved().file.node_id(node)))?;
         let establishment = construction_obligation(tree, node, owner)?;
         if shape.requires_establishment != establishment.is_some() {
             return Err(NEEDS_CONSTRUCTION_PROOF.into());
@@ -242,9 +242,14 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<(Vec<usize>, Vec<usize>), EvaluationError> {
         let mut seen = vec![false; fields.len()];
         let mut authored = Vec::with_capacity(construction.initializers.len());
+        let field_expressions = node + 1..tree.resolved().file.nodes[node].end;
         for initializer in &construction.initializers {
-            if std::mem::replace(seen.get_mut(initializer.position).ok_or(UNSUPPORTED_BODY)?, true) {
-                return Err(UNSUPPORTED_BODY.into());
+            if !field_expressions.contains(&initializer.expression) {
+                return Err(PreparationReason::InitializerOutsideConstruction.into());
+            }
+            let written = seen.get_mut(initializer.position).ok_or(PreparationReason::InvalidConstructorFieldSlot)?;
+            if std::mem::replace(written, true) {
+                return Err(PreparationReason::InvalidConstructorFieldSlot.into());
             }
             authored.push(initializer.position);
         }

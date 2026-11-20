@@ -182,7 +182,7 @@ impl ConstantEvaluation<'_, '_> {
             ValueType::Nominal(owner) | ValueType::Applied(owner, _) => {
                 let instantiate = |ty: &ValueType| scope.instantiate(ty);
                 let (construction, fields) = self.construction(tree, node, carrier, owner, instantiate)?;
-                let (mut positions, defaults) = self.construction_positions(tree, node, construction, fields, instantiate)?;
+                let (mut positions, defaults) = self.construction_positions(tree, node, construction, fields, instantiate).map_err(|error| error.at_node(file.node_id(node)))?;
                 positions.extend(&defaults);
                 execution.steps.push(Step::FinishConstruction {
                     proof: Some((file.node_id(node), carrier.clone())),
@@ -234,7 +234,7 @@ impl ConstantEvaluation<'_, '_> {
                 // Determine the element's admissible zero once. Reuse the
                 // owned snapshot for each element without evaluating it again.
                 execution.steps.extend([
-                    Step::FinishZeroArray(length),
+                    Step::FinishZeroArray { site, count: length },
                     Step::ProduceZero {
                         site,
                         carrier: element.as_ref().clone(),
