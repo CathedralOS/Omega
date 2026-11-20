@@ -12,7 +12,7 @@ use terminal_runtime::{
 #[test]
 fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let bytes = include_bytes!(
-        "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+        "../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
     );
     let artifact = Arc::new(CanonicalTerminalArtifact::from_bytes(bytes).unwrap());
     let profile = target::TargetProfile::LinuxX64;
@@ -51,7 +51,9 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         native_provider: None,
         artifact,
         target: Some(target),
-        provisions: report.runtime_provisions().map(|runtime| runtime.execution()),
+        provisions: report
+            .runtime_provisions()
+            .map(|runtime| runtime.execution()),
         provider_proposal: None,
         x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
         memory_ordering: None,
@@ -94,10 +96,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     other_image.artifact = &other;
     other_image.provisions = None;
     assert!(matches!(
-        project_build::published_terminal::execute_published_terminal(
-            other_image,
-            report.retained_native_artifact()
-        ),
+        retained_image_runtime::execute(other_image, report.retained_native_artifact()),
         Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target"
         ))
@@ -113,10 +112,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let mut wrong_image_target = request(wrong_target);
     wrong_image_target.provisions = None;
     assert!(matches!(
-        project_build::published_terminal::execute_published_terminal(
-            wrong_image_target,
-            Some(native)
-        ),
+        retained_image_runtime::execute(wrong_image_target, Some(native)),
         Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target"
         ))
@@ -127,12 +123,9 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         std::num::NonZeroU64::new(1).unwrap(),
     )
     .unwrap();
-    let published = project_build::published_terminal::execute_published_terminal(
-        request(profile.target_name()),
-        Some(native),
-    )
-    .unwrap();
-    let published_sliced = project_build::published_terminal::execute_published_terminal_sliced(
+    let published =
+        retained_image_runtime::execute(request(profile.target_name()), Some(native)).unwrap();
+    let published_sliced = retained_image_runtime::execute_sliced(
         request(profile.target_name()),
         Some(native),
         std::num::NonZeroU64::new(1).unwrap(),

@@ -11,7 +11,7 @@ use package_compilation::source_imports::ProductQueryDependency;
 use package_compilation::{PackageBuildHandoff, PackageCompilationInputs};
 use package_manager::PackageCommandError;
 use package_manager::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
-use project_build::planning::PlanningServices;
+use project_build::PlanningServices;
 
 pub(super) struct SourceServices<'a, 's, 'p> {
     pub host: &'a mut SourceHost<'s, 'p>,
@@ -225,11 +225,11 @@ impl HandoffSources<'_> {
     /// original Build return and the handoffs of its own dependencies.
     pub(super) fn dependency_product(
         &self,
-        settled: &project_build::planning::SettledDependency,
+        settled: &project_build::SettledDependency,
         purpose: DependencyPurpose,
         target: target::TargetProfile,
         cache: &mut Vec<PackageBuildHandoff>,
-    ) -> Result<project_build::planning::PlannedProduct, CompileFailure> {
+    ) -> Result<project_build::PlannedProduct, CompileFailure> {
         let inputs = settled
             .inputs()
             .clone()

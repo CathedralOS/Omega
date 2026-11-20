@@ -9,7 +9,7 @@ use terminal_interpreter::{
 use terminal_runtime::embedding::{HostedTerminalProgram, execute_with_image_installation};
 use terminal_runtime::{TerminalRuntimeError, TerminalRuntimeObservation, TerminalRuntimeRequest};
 
-use product_publication::RetainedNativeArtifact;
+use native_artifact::RetainedNativeArtifact;
 
 /// Run the portable program with metadata from the optional completed product.
 /// Observations of addresses or regions cannot be used as a native product.
@@ -17,17 +17,17 @@ use product_publication::RetainedNativeArtifact;
 /// ```compile_fail
 /// fn run_with_host_addresses(request: terminal_runtime::TerminalRuntimeRequest<'_>,
 ///                            addresses: Vec<(u64, u64)>) {
-///     project_build::published_terminal::execute_published_terminal(request, Some(&addresses)).unwrap();
+///     retained_image_runtime::execute(request, Some(&addresses)).unwrap();
 /// }
 /// ```
-pub fn execute_published_terminal(
+pub fn execute(
     request: TerminalRuntimeRequest<'_>,
     image: Option<&RetainedNativeArtifact>,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    execute_published_terminal_sliced(request, image, std::num::NonZeroU64::MAX)
+    execute_sliced(request, image, std::num::NonZeroU64::MAX)
 }
 
-pub fn execute_published_terminal_sliced(
+pub fn execute_sliced(
     request: TerminalRuntimeRequest<'_>,
     image: Option<&RetainedNativeArtifact>,
     quantum: std::num::NonZeroU64,

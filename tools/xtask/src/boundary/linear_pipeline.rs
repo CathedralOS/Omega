@@ -234,8 +234,12 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                 "pipeline package is outside its declared numbered owner: {start}"
             ));
         }
-        let runtime =
-            [super::RUNTIME_ROOT, super::NATIVE_PROVIDER_RUNTIME_ROOT].contains(&start.as_str());
+        let runtime = [
+            super::RUNTIME_ROOT,
+            super::NATIVE_PROVIDER_RUNTIME_ROOT,
+            super::RETAINED_IMAGE_RUNTIME,
+        ]
+        .contains(&start.as_str());
         let representation = under(start, &REPRESENTATIONS);
         if phase.is_none() && !runtime && !representation && !FRONTEND.contains(&start.as_str()) {
             continue;
@@ -262,7 +266,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     .any(|edge| edge.owner == here && edge.dependency == next);
                 let stage_or_representation =
                     representation || native.is_some() || under(start, &PSI_STAGES);
-                let enters_coordinator = stage_or_representation
+                let enters_coordinator = (runtime || stage_or_representation)
                     && [
                         SOURCE_DRIVER,
                         native_stages::DRIVER,
@@ -270,8 +274,14 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                         super::PRODUCT_COORDINATOR,
                     ]
                     .contains(&next.as_str());
+                // Only the retained-image leaf may inspect the completed image directly.
+                let reads_retained_image = start == super::RETAINED_IMAGE_RUNTIME
+                    && here == super::RETAINED_IMAGE_RUNTIME
+                    && next == native_stages::NATIVE_ARTIFACT;
                 if enters_coordinator
-                    || (runtime && dependency_phase.is_some())
+                    || (runtime
+                        && dependency_phase.is_some()
+                        && !reads_retained_image)
                     || forbidden_frontend(start, next)
                     || (!scoped_reader
                         && (later
@@ -296,6 +306,27 @@ mod tests {
     use super::*;
     use crate::boundary::tests::pkg;
     use crate::boundary::{Dependency, Package};
+
+    #[test]
+    fn only_the_retained_image_host_may_read_the_completed_image() {
+        let host = super::super::RETAINED_IMAGE_RUNTIME;
+        let core = super::super::RUNTIME_ROOT;
+        let image = native_stages::NATIVE_ARTIFACT;
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg("core", core, &[("image-host", host, None)]),
+                pkg("image-host", host, &[("image", image, None), ("helper", "shared", None)]),
+                pkg("image", image, &[]),
+                pkg("helper", "shared", &[("driver", native_stages::DRIVER, None)]),
+                pkg("driver", native_stages::DRIVER, &[]),
+            ],
+        };
+        let errors = violations(&metadata).unwrap();
+        assert!(errors.iter().any(|row| row.contains("core -> image-host -> image")));
+        assert!(errors.iter().any(|row| row.contains("image-host -> helper -> driver")));
+        assert!(!errors.iter().any(|row| row.starts_with("forbidden production dependency: image-host -> image ")));
+    }
 
     #[test]
     fn loose_packages_and_loose_driver_modules_cannot_reenter_the_pipeline() {

@@ -3,184 +3,150 @@
     {
       "consumers": [
         "CLI execution",
-        "Build test execution",
+        "Build registered tests",
         "native product embedders"
       ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "alias:Image#1",
-      "kind": "definition",
-      "meaning": "The concrete retained native artifact required at the public Build execution entrance.",
-      "producer": "Build published-image host",
-      "signature": "7dd513fc7fc4686f2fcebb87226b69f55d8ef14bea8a1bd9a3246da35736306e"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "function:execute_published_terminal#1",
-      "kind": "host_operation",
-      "meaning": "Execute the canonical program with an optional concrete retained native product and a single work grant.",
-      "producer": "Build published-image host",
-      "signature": "41c7d37e4cd3980ef7109af7ae7feabcb7a6451e661e0d051dfa67205b85915d"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "function:execute_published_terminal_sliced#1",
-      "kind": "host_operation",
-      "meaning": "Run the real product-aware invocation and replenish the same PSI instance across work slices.",
-      "producer": "Build published-image host",
-      "signature": "1ceb661cf904471c402019c16dbc4c32b01083db37bd4c73ac1a4cf1194be0f9"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "function:inspect#1",
-      "kind": "checker",
-      "meaning": "Require the actual native artifact, its canonical manifest, semantic root and target, then consume its verified root descriptor observations.",
-      "producer": "Build published-image host",
-      "signature": "f6638f8f911f4a046bac2a348b11f152ecd28c21cc02f4e730d837207cff083a"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "function:require_valid_inspection#1",
-      "kind": "checker",
-      "meaning": "Turn a supplied but invalid image into an execution failure that cannot skip comparison.",
-      "producer": "Build published-image host",
-      "signature": "287707a97d155a2c2e0408e0ce023eaed4630a1a146ccade8ebb33b413b43543"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "invocation::macro:include#1",
-      "kind": "definition",
-      "meaning": "Compile the shared private invocation for this host\u00e2\u20ac\u2122s concrete image type.",
-      "producer": "Build published-image host",
-      "signature": "ea7ded363331abff031ca2e1ca867d3bad4ebcbb0b84c0c241096df801d49ca1"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "module:invocation#1",
-      "kind": "definition",
-      "meaning": "Compile the shared private invocation for this host\u00e2\u20ac\u2122s concrete image type.",
-      "producer": "Build published-image host",
-      "signature": "9c687d94e13967003e90e83f144d3f380b5f09fbc8ec6beb4cffb67df2a3b473"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "module:tests#1",
-      "kind": "definition",
-      "meaning": "Exercise malformed native layouts and target/root binding.",
-      "producer": "Build published-image host",
-      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "tests::function:invalid_native_inspection_is_not_comparison_unavailability#1",
-      "kind": "test_support",
-      "meaning": "Require malformed target inspection to fail before comparison without reporting an absent capability.",
-      "producer": "Build published-image host",
-      "signature": "c2a68b147ad4ffc351f7cb063c10ac78ad1d9ec33b39c4ecab18d662fdee28b7"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "tests::function:malformed_native_layout_environment_is_a_failure#1",
-      "kind": "test_support",
-      "meaning": "Require a malformed native environment to fail comparison.",
-      "producer": "Build published-image host",
-      "signature": "801a1fb40651d5d5754705caff68b2ae58534d62cc177de2d728a1611d449464"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "tests::use:super :: { TerminalNativeCodeLayoutEnvironment , require_valid_inspection }#1",
-      "kind": "test_support",
-      "meaning": "Imports the real artifact, interpreter or host capability exercised by these regressions.",
-      "producer": "Build published-image host",
-      "signature": "0b058ad10b62dcc8c9168c23b0b03e1d832eff5505f6a64983de999b4b7583b5"
-    },
-    {
-      "consumers": [
-        "CLI execution",
-        "Build test execution",
-        "native product embedders"
-      ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
       "item": "use:terminal_interpreter :: { TerminalNativeCodeLayout , TerminalNativeCodeLayoutEnvironment , TerminalNativeCodeRegion , }#1",
       "kind": "definition",
-      "meaning": "Imports terminal_interpreter::{ TerminalNativeCodeLayout , TerminalNativeCodeLayoutEnvironment , TerminalNativeCodeRegion , } for the owning host or inspector.",
-      "producer": "Build published-image host",
+      "meaning": "The interpreter owns the machine entry, linked region and complete layout environment installed for the running Psi.",
+      "producer": "retained-image runtime host",
       "signature": "d38cb551b4ddb752e30c202f871084719844c77155635d8a1e0ddcf9281622a2"
     },
     {
       "consumers": [
         "CLI execution",
-        "Build test execution",
+        "Build registered tests",
         "native product embedders"
       ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "use:terminal_runtime :: embedding :: { HostContext , HostedTerminalProgram , establish_host_entry }#1",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "use:terminal_runtime :: embedding :: { HostedTerminalProgram , execute_with_image_installation }#1",
       "kind": "definition",
-      "meaning": "Imports terminal_runtime::embedding::{ HostContext , HostedTerminalProgram , establish_host_entry } for the owning host or inspector.",
-      "producer": "Build published-image host",
-      "signature": "2fef23409aaac38085ca421faf9b17323822a89bd057af77e02690d2635ac85f"
+      "meaning": "The runtime host prepares the sealed program and resumes it with the admitted image-specific installation.",
+      "producer": "retained-image runtime host",
+      "signature": "6d52349986c07e8cc2759c2b0405d975c82913fd37307157dab13ba775e0f8e8"
     },
     {
       "consumers": [
         "CLI execution",
-        "Build test execution",
+        "Build registered tests",
         "native product embedders"
       ],
-      "file": "source-rust/subsystems/compiler/build/published_terminal.rs",
-      "item": "use:terminal_runtime :: { TerminalDomainExitDelegation , TerminalRuntimeError , TerminalRuntimeObservation , TerminalRuntimeRequest , }#1",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "use:terminal_runtime :: { TerminalRuntimeError , TerminalRuntimeObservation , TerminalRuntimeRequest }#1",
       "kind": "definition",
-      "meaning": "Imports terminal_runtime::{ TerminalDomainExitDelegation , TerminalRuntimeError , TerminalRuntimeObservation , TerminalRuntimeRequest , } for the owning host or inspector.",
-      "producer": "Build published-image host",
-      "signature": "3027dd79839ecbec4d4cb3900725e3838e65f0214a176d52198d40496d814689"
+      "meaning": "Return the regular execution observation or runtime failure for the original host request.",
+      "producer": "retained-image runtime host",
+      "signature": "a0d02ea1005df8a8e6a3af46d0efc9d7fb86ca6aa523ae7da5af21b41ed21def"
+    },
+    {
+      "consumers": [
+        "CLI execution",
+        "Build registered tests",
+        "native product embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "use:native_artifact :: RetainedNativeArtifact#1",
+      "kind": "definition",
+      "meaning": "Only the completed native artifact provides the target, manifest and checked root-layout inspection consumed here.",
+      "producer": "retained-image runtime host",
+      "signature": "12e03b3ce55b8f81a00bc213d6f0c0b9c4287ba524f39a5690a872db434fa797"
+    },
+    {
+      "consumers": [
+        "CLI execution",
+        "Build registered tests",
+        "native product embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "function:execute#1",
+      "kind": "host_operation",
+      "meaning": "Run a published Psi program with its optional completed native image and a single work grant.",
+      "producer": "retained-image runtime host",
+      "signature": "4f44ffd5c9dd89accf93b55ae83f8c4bdcef58dd20fed63b510f781b375a1a8a"
+    },
+    {
+      "consumers": [
+        "CLI execution",
+        "Build registered tests",
+        "native product embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "function:execute_sliced#1",
+      "kind": "host_operation",
+      "meaning": "Admit the retained image for this Psi and resume the same instance across bounded work slices.",
+      "producer": "retained-image runtime host",
+      "signature": "af084dfdec1ba61b46069aebc25310c5e3f1664c306c1b1f0c006bc389a3a804"
+    },
+    {
+      "consumers": [
+        "CLI execution",
+        "Build registered tests",
+        "native product embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "function:inspect#1",
+      "kind": "checker",
+      "meaning": "Check the requested target, canonical manifest and semantic root against the retained image before installing its linked descriptors.",
+      "producer": "retained-image runtime host",
+      "signature": "f9e8d687d106b81200eed1d54e6c2a026c0dbd937ac1aa857a651a07ec7d2a3e"
+    },
+    {
+      "consumers": [
+        "CLI execution",
+        "Build registered tests",
+        "native product embedders"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "function:require_valid_inspection#1",
+      "kind": "checker",
+      "meaning": "Preserve failed inspection as a runtime error so the caller cannot treat a malformed image as an unavailable comparison.",
+      "producer": "retained-image runtime host",
+      "signature": "287707a97d155a2c2e0408e0ce023eaed4630a1a146ccade8ebb33b413b43543"
+    },
+    {
+      "consumers": [
+        "retained-image host tests"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "module:tests#1",
+      "kind": "test_support",
+      "meaning": "Keep malformed target and code-region regressions with the runtime attachment they exercise.",
+      "producer": "retained-image runtime regression",
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
+    },
+    {
+      "consumers": [
+        "retained-image host tests"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "tests::use:super :: { TerminalNativeCodeLayoutEnvironment , require_valid_inspection }#1",
+      "kind": "test_support",
+      "meaning": "Exercise the real image-inspection error conversion and linked environment.",
+      "producer": "retained-image runtime regression",
+      "signature": "0b058ad10b62dcc8c9168c23b0b03e1d832eff5505f6a64983de999b4b7583b5"
+    },
+    {
+      "consumers": [
+        "retained-image host tests"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "tests::function:invalid_native_inspection_is_not_comparison_unavailability#1",
+      "kind": "test_support",
+      "meaning": "A refused target remains an inspection error even when native/Psi comparison is optional.",
+      "producer": "retained-image runtime regression",
+      "signature": "c2a68b147ad4ffc351f7cb063c10ac78ad1d9ec33b39c4ecab18d662fdee28b7"
+    },
+    {
+      "consumers": [
+        "retained-image host tests"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
+      "item": "tests::function:malformed_native_layout_environment_is_a_failure#1",
+      "kind": "test_support",
+      "meaning": "Malformed linked region metadata cannot become a valid or unavailable image installation.",
+      "producer": "retained-image runtime regression",
+      "signature": "801a1fb40651d5d5754705caff68b2ae58534d62cc177de2d728a1611d449464"
     },
     {
       "consumers": [
@@ -17899,55 +17865,69 @@
     },
     {
       "consumers": [
-        "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "retained-image host tests"
       ],
-      "file": "source-rust/subsystems/compiler/build/tests/retained_runtime.rs",
-      "item": "function:retained_execution_preserves_identity_and_resumes_without_decoding#1",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
+      "item": "use:compiler :: { Artifact , CompileRequest , NativeTarget , Program , TargetProviderInstallation }#1",
       "kind": "test_support",
-      "meaning": "Run one published Build artifact through portable and image-aware hosts, reject foreign manifests and targets, and preserve the borrowed module across work slices.",
-      "producer": "terminal hosted interpreter",
-      "signature": "87f16643e718883143d2eb29b141011f0181d9fbe0b2dbff3c47034650e08f21"
+      "meaning": "Emit a completed native product from the same saved portable program used for runtime checks.",
+      "producer": "retained-image runtime regression",
+      "signature": "ad65bc83421f2738eced79a465a5138d14fc5f2f0e180359f83297dbc0177658"
     },
     {
       "consumers": [
-        "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "retained-image host tests"
       ],
-      "file": "source-rust/subsystems/compiler/build/tests/retained_runtime.rs",
-      "item": "use:orchestration :: { BuildRequest , BuildTargets , NativeDestination , ProjectProduct }#1",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
+      "item": "use:psi_authorization :: { HostProducerTrust , authorize_terminal_artifact }#1",
       "kind": "test_support",
-      "meaning": "Imports the real artifact, interpreter or host capability exercised by these regressions.",
-      "producer": "terminal hosted interpreter",
-      "signature": "20ab4b77d94ab556b1ccd7ef944f3fa1ea5a8f04889f9241269ade54928b24bd"
+      "meaning": "Authorize the saved canonical fixture through its explicit producer trust before compiling it.",
+      "producer": "retained-image runtime regression",
+      "signature": "85215479b2645f421158c192a6cb34467e427ca0b0c68caf07619f656286b889"
     },
     {
       "consumers": [
-        "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "retained-image host tests"
       ],
-      "file": "source-rust/subsystems/compiler/build/tests/retained_runtime.rs",
-      "item": "use:platform_custody :: temporary_directory :: TemporaryDirectory#1",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
+      "item": "use:std :: sync :: Arc#1",
       "kind": "test_support",
-      "meaning": "Imports the real artifact, interpreter or host capability exercised by these regressions.",
-      "producer": "terminal hosted interpreter",
-      "signature": "c071e05a2569b865a152f22d84d2367dcc31bbc80fcc783e23ae4ae27a4d5c95"
+      "meaning": "Share the authorized canonical artifact between the request and its retained native output.",
+      "producer": "retained-image runtime regression",
+      "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
     },
     {
       "consumers": [
-        "portable execution",
-        "Build published-image execution",
-        "PSI embedders"
+        "retained-image host tests"
       ],
-      "file": "source-rust/subsystems/compiler/build/tests/retained_runtime.rs",
+      "file": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
+      "item": "use:terminal_codec :: CanonicalTerminalArtifact#1",
+      "kind": "test_support",
+      "meaning": "Use the sealed Psi bytes and manifest of the saved program in the identity and decode-count controls.",
+      "producer": "retained-image runtime regression",
+      "signature": "2eed3c0428456f5be49e126ff02f8927b2ad6bca432dd205e1807af507715fa9"
+    },
+    {
+      "consumers": [
+        "retained-image host tests"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
       "item": "use:terminal_runtime :: { TerminalDomainExitDelegation , TerminalExecutionResult , TerminalExecutionStatus , TerminalRuntimeError , TerminalRuntimeRequest , }#1",
       "kind": "test_support",
-      "meaning": "Imports the real artifact, interpreter or host capability exercised by these regressions.",
-      "producer": "terminal hosted interpreter",
+      "meaning": "Run ordinary and sliced host requests and match their public observations or refusal.",
+      "producer": "retained-image runtime regression",
       "signature": "bfca9a17e4e982ed64d32ea6dd9e23f10a16a0a5444b689c67056e6e8ff0ec4a"
+    },
+    {
+      "consumers": [
+        "retained-image host tests"
+      ],
+      "file": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
+      "item": "function:retained_execution_preserves_identity_and_resumes_without_decoding#1",
+      "kind": "test_support",
+      "meaning": "Accept the matching native image, reject wrong-target and changed-manifest inputs, and verify full and sliced execution without decoding again.",
+      "producer": "retained-image runtime regression",
+      "signature": "31bcb2a3d3b114bccc1aa269d65fb34507988512e9de76008c1b9354781e84e3"
     },
     {
       "consumers": [
@@ -20492,7 +20472,7 @@
   ],
   "roots": [
     {
-      "path": "source-rust/subsystems/compiler/build/published_terminal.rs",
+      "path": "source-rust/subsystems/interpreter/host/retained-image/execution.rs",
       "allowed_kinds": [
         "checker",
         "definition",
@@ -20792,7 +20772,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/build/tests/retained_runtime.rs",
+      "path": "source-rust/subsystems/interpreter/host/retained-image/tests/retained_runtime.rs",
       "allowed_kinds": [
         "test_support"
       ]

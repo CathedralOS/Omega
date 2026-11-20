@@ -10,7 +10,7 @@ use package_manager::resolution::source::{
     WorkspaceMemberObservation,
 };
 use package_manager::{PackageBuildSession, PackageCommandError};
-use project_build::planning::{self, PlanningRequest, PlanningSources, ReturnedPlanningStage};
+use project_build::{PlanningRequest, PlanningSources, ReturnedPlanningStage};
 use std::path::Path;
 use std::rc::Rc;
 use target::TargetProfile;
@@ -70,7 +70,7 @@ pub(crate) fn resolve(
 type SettledSource = (
     AcquiredBuildSource,
     DeclaredBuildSource,
-    planning::SettledDependency,
+    project_build::SettledDependency,
 );
 
 struct SourceHost<'session, 'policy> {
@@ -99,7 +99,7 @@ impl SourceHost<'_, '_> {
         let execution = self
             .session
             .source_build_inputs(self.profile, snapshot, dependency)?;
-        let stage = planning::prepare(
+        let stage = project_build::prepare(
             PlanningRequest {
                 root: entry,
                 sources: PlanningSources::Captured(acquired.source_capture()),
@@ -110,7 +110,7 @@ impl SourceHost<'_, '_> {
             planning_timings(self.timings),
         )?;
         self.active.push(acquired.clone());
-        let result = planning::interpret(
+        let result = project_build::interpret(
             stage,
             &mut services::SourceServices {
                 host: self,
@@ -263,12 +263,12 @@ impl SourceHost<'_, '_> {
     }
 }
 
-type Deployment = Result<Rc<planning::PlannedProduct>, Vec<Diagnostic>>;
+type Deployment = Result<Rc<project_build::PlannedProduct>, Vec<Diagnostic>>;
 
 pub(crate) struct ProjectProducts(Vec<(TargetProfile, Deployment)>);
 
 impl ProjectProducts {
-    fn shared(profiles: &[TargetProfile], planned: planning::PlannedProduct) -> Self {
+    fn shared(profiles: &[TargetProfile], planned: project_build::PlannedProduct) -> Self {
         let planned = Rc::new(planned);
         Self(
             profiles
@@ -281,7 +281,7 @@ impl ProjectProducts {
     pub fn select(
         &self,
         target: TargetProfile,
-    ) -> Result<&planning::PlannedProduct, Vec<Diagnostic>> {
+    ) -> Result<&project_build::PlannedProduct, Vec<Diagnostic>> {
         self.0
             .iter()
             .find(|(profile, _)| *profile == target)
@@ -377,7 +377,7 @@ pub(crate) fn open_products(
                 let _ = diagnostics::write_diagnostics(&mut text, &rows);
                 text
             })?;
-            let stage = planning::prepare(
+            let stage = project_build::prepare(
                 PlanningRequest {
                     root,
                     sources: PlanningSources::Captured(&capture),
@@ -389,7 +389,7 @@ pub(crate) fn open_products(
             )?;
             return Ok(ProjectProducts::shared(
                 profiles,
-                planning::interpret(stage, &mut ())?.open_product(None)?,
+                project_build::interpret(stage, &mut ())?.open_product(None)?,
             ));
         };
         let acquired = match selected {

@@ -4,7 +4,7 @@ This directory holds implementations and samples kept for reference or piecemeal
 
 | Area | Archived material | Current owner |
 | --- | --- | --- |
-| Project builds | [V1 Build orchestration](source-rust/compiler/v1-build-orchestration/) | [Project Build](../source-rust/subsystems/compiler/build/README.md) |
+| Project builds | [V1 Build orchestration](source-rust/compiler/v1-build-orchestration/) and the [V2 staged host loop](source-rust/subsystems/compiler/build/README.md) | [Project Build](../source-rust/subsystems/compiler/build/README.md) |
 | Source compilation | [Earlier evaluation, input and language implementations](source-rust/subsystems/compiler/source-to-psi/) | [Source to Psi](../source-rust/subsystems/compiler/source-to-psi/README.md) |
 | Native compilation | [Native derivation records](source-rust/subsystems/compiler/psi-to-native/native-derivation-record/README.md) | [Psi to native](../source-rust/subsystems/compiler/psi-to-native/README.md) |
 | Package review | [V1 Product capture](source-rust/subsystems/package-manager/review/evidence/v1-product-capture/) | [Package review evidence](../source-rust/subsystems/package-manager/review/evidence/README.md) |

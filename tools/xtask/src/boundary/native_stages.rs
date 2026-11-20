@@ -34,6 +34,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
             IMAGE_EMISSION,
         ),
         (PRODUCT_PUBLICATION, NATIVE_ARTIFACT),
+        (super::RETAINED_IMAGE_RUNTIME, NATIVE_ARTIFACT),
     ];
     // Published-object replay reconstructs precisely these witnesses.
     for dependency in [

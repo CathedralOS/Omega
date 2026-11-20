@@ -1,6 +1,6 @@
 # Project Build
 
-[Project planning](planning/mod.rs) prepares the project’s captured Build source, resumes its interpreter when it requests a dependency or provider, and opens the Product selected by its return. [Product planning](planning/product.rs) passes the selected source, bindings and settings to the source and native compilers.
+The CLI starts a project Build with `project_build::prepare` and passes the captured source to [the project-build crate root](planning/mod.rs). `project_build::interpret` resumes the authored Build when it requests a dependency or provider. Its returned stage opens the selected Product with `open_product`. [Product planning](planning/product.rs) passes the selected source, bindings and settings to the source and native compilers.
 
 | Directory | Responsibility |
 | --- | --- |
@@ -9,5 +9,3 @@
 | [settings](settings/README.md) | Decode the returned value into target settings, [optimization requests](settings/optimizations/requests.rs) and [behavior exclusions](settings/behavior-exclusions/requests.rs). |
 | [providers](providers) | Record the receiver’s [acceptance](providers/acceptance/acceptance.rs), the provider’s [plan](providers/plans/provider_plan.rs) and the [selected plans](providers/selections). |
 | [publication](publication/publication.rs) | Publish the selected product to an [owned output directory](publication/output_directory.rs) and retain the native output with its canonical Psi artifact. |
-
-[Retained-product execution](published_terminal.rs) admits the image’s target and layout before supplying it to the interpreter.
