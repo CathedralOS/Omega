@@ -53,7 +53,7 @@ output in 10.27 seconds. The generated Gamma entry returns that status before in
 stdin exceeds 4,194,304 bytes. The private input check allows 8,388,608 bytes.
 The 4 MiB output check and the enclosing Gamma runtime’s 131 MiB sealed-input
 limit both retain their original values.
-[Generated entry](../../../bootstrap/delta/to-gamma/support/adapter.gamma)
+[Generated entry](../../../bootstrap/delta/compiler/support/adapter.gamma)
 and [Gamma runtime](../../../bootstrap/gamma/compiler/compiler.gamma)
 
 The measured private build also regenerated the receipt through Delta. It used

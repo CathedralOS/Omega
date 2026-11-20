@@ -1,0 +1,9 @@
+; A pure program has an empty Main::main receiver body. Invoke its compiled
+; callable and convert its result to the same observation as the stored entry.
+(def epsilon_compiled_entry ((input Bytes)) Bytes
+  (match (ep_owned_4_Main_main)
+    (EpsilonCompiledResultless
+      (bytes_concat (bytes_single 0) (epsilon_compiled_u32 0)))
+    ((EpsilonCompiledTrap kind) (bytes_concat (bytes_single 1) (bytes_single kind)))
+    ((EpsilonCompiledInternal offset) (epsilon_compiled_internal_observation offset))
+    ((EpsilonCompiledScalar value) (epsilon_compiled_internal_observation 0))))

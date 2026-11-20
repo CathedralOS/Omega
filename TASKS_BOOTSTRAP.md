@@ -43,7 +43,7 @@ implementing them. Keep working while a question is open.
   OMEGA-PRODUCT-COMPILER-SOURCE in [TASKS.md](TASKS.md).
 - **INDEPENDENT-CONSTRUCTION.** (new-scope) Develop the standalone route from the
   [native Gamma backend](bootstrap/gamma/compiler/linux_x86_64/native.gamma) and
-  [Epsilon-to-Delta compiler](bootstrap/epsilon/to-delta/), using an actual
+  [Epsilon-to-Delta compiler](bootstrap/epsilon/compiler/), using an actual
   successor compiler as its first customer. Document its seed and compare
   implementation, review and execution costs with the other paths. If viable, carry it through the Omega
   compiler and its reproducible self-rebuild; stage count and native versus VM
@@ -152,7 +152,7 @@ product. Listing them gives that variant no priority over the other routes.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
     executable construction obligations close, then reconstruct/check it on a blank supported
     host without unavailable-host success or a hidden substitute authority.
-  - Complete [Delta's cumulative pair containment](bootstrap/delta/to-gamma/implementation/boundary/execution_storage.md#remaining-obligation)
+  - Complete [Delta's cumulative pair containment](bootstrap/delta/compiler/implementation/boundary/execution_storage.md#remaining-obligation)
     for the selected Gamma profile. Scaled allocation projections and individual
     full-extent runs do not cover every admitted composition. Derive the full bound,
     reprovision consistently if needed, and validate the actual Epsilon sources

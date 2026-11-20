@@ -78,7 +78,7 @@
   (i_add (i_imm s 12 value) reg 12))
 (def e_bound ((s Int) (reg Int) (end Int) (error Int)) Int
   (i_jlt (i_imm s 13 end) 13 reg error))
-(def e_push ((s Int)) Int
+(def e_push_body ((s Int)) Int
   (let ((a Int (i_mov s 10 246))
         (b Int (e_add a 10 16))
         (c Int (e_bound b 10 134217728 2))
@@ -86,9 +86,9 @@
         (e Int (e_add d 246 8))
         (f Int (i_store e 246 1)))
     (e_add f 246 8)))
-(def e_pop ((s Int) (value Int) (tag Int)) Int
+(def e_pop_body ((s Int) (value Int)) Int
   (let ((a Int (e_add s 246 -8))
-        (b Int (i_load a tag 246))
+        (b Int (i_load a (+ value 1) 246))
         (c Int (e_add b 246 -8)))
     (i_load c value 246)))
 (def e_slot ((s Int) (offset Int) (store Int)) Int
@@ -230,7 +230,7 @@
     s38))
 (def e_runtime ((s Int) (application Int) (mainid Int)) Int
   (let h Int (e_header s mainid)
-    (e_finish (if application (e_application h) (e_scalar h)) application)))
+    (i_stack_runtime (e_finish (if application (e_application h) (e_scalar h)) application))))
 
 ; Fixed syntax words are compared byte-for-byte; identifiers remain source spans.
 (def c_kind ((node Int)) Int
@@ -533,8 +533,8 @@
             (if (eq kind 19) (i_mov s 0 249) (p_fail))))))))
 (def e_primitive ((s Int) (kind Int)) Int
   (let ((arity Int (c_arity kind))
-        (a Int (if (eq arity 2) (e_pop s 2 3) s))
-        (b Int (if arity (e_pop a 0 1) a)))
+        (a Int (if (eq arity 2) (e_pop s 2) s))
+        (b Int (if arity (e_pop a 0) a)))
     (e_push
       (if (eq kind 14) (e_pair b)
         (if (+ (eq kind 17) (eq kind 18)) (e_project b kind)
@@ -615,7 +615,7 @@
             (c_loop (e_call s (c_a payload) (c_b payload) (c_c payload) parameters)
               rest functions parameters)
             (if (eq tag 3)
-              (let a Int (i_jnz (e_pop s 0 1) 1 1)
+              (let a Int (i_jnz (e_pop s 0) 1 1)
                 (c_loop (i_jz a 0 (c_a payload)) rest functions parameters))
               (if (eq tag 4)
                 (c_loop (s_mark (i_jmp s (c_a payload)) (c_b payload))
@@ -625,7 +625,7 @@
                   (if (eq tag 6) (c_bind_action s rest functions parameters payload)
                     (if (eq tag 7)
                       (let ((slot Int (s_slots s))
-                            (a Int (s_local (e_slot (e_pop s 0 1) slot 1) (+ slot 1)))
+                            (a Int (s_local (e_slot (e_pop s 0) slot 1) (+ slot 1)))
                             (context Int (c_d payload))
                             (env Int (c_env_add (first context) (c_a payload) slot))
                             (next Int (a_simple 6 (c_b payload) (c_c payload)
@@ -640,7 +640,7 @@
         (f Int (e_push e)) (g Int (e_add f 246 (* 16 locals))))
     (e_bound g 246 134217728 2)))
 (def e_return ((s Int) (parameters Int)) Int
-  (let ((a Int (e_pop s 0 1)) (b Int (i_mov a 6 0))
+  (let ((a Int (e_pop s 0)) (b Int (i_mov a 6 0))
         (c Int (i_mov b 7 1)) (d Int (e_slot c parameters 0))
         (e Int (i_mov d 246 247)) (f Int (i_mov e 247 0))
         (g Int (i_mov f 0 6)) (h Int (i_mov g 1 7))

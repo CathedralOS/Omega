@@ -1,6 +1,7 @@
-"""Exercise the cold Linux command with only its five source inputs available."""
+"""Exercise the offline Linux launcher with an isolated source tree and an empty PATH."""
 
 import argparse
+import hashlib
 from pathlib import Path
 import shutil
 import struct
@@ -15,6 +16,10 @@ COMPILER = [Path("bootstrap/gamma/compiler/compiler.gamma"),
             Path("bootstrap/gamma/compiler/frontend.gamma")]
 NATIVE = Path("bootstrap/gamma/compiler/linux_x86_64/native.gamma")
 ALPHA = Path("bootstrap/gamma/compiler/alpha/alpha_backend.gamma")
+
+DELTA = Path("bootstrap/delta/compiler")
+ENTRY = DELTA / "delta_compiler.gamma"
+MANIFEST = DELTA / "implementation/implementation.gamma.sources"
 
 
 def invoke(argv, data=b""):
@@ -91,7 +96,96 @@ def check_alpha_stages(out):
     assert first == (out / "gamma1.tape").read_bytes() == (out / "gamma2.tape").read_bytes()
 
 
-def check(work, alpha):
+def checked_members(manifest):
+    header, *rows = (ROOT / manifest).read_text().splitlines()
+    assert header == "GammaSourceClosureV1" and rows
+    for row in rows:
+        _, _, size, digest, spelling = row.split(" ")
+        path = manifest.parent / spelling
+        data = (ROOT / path).read_bytes()
+        assert len(data) == int(size) and hashlib.sha256(data).hexdigest() == digest
+        yield path, data
+
+
+def check_manifest_edits(work):
+    # A source root with no lower stages stops immediately after taking the
+    # Delta snapshot. Changes to the manifest must change that snapshot.
+    source = work / "edited"
+    members = source / MANIFEST.parent
+    members.mkdir(parents=True)
+    (source / ENTRY).write_bytes(b"; prefix")
+    (members / "z.gamma").write_bytes(b" Z")
+    (members / "a.gamma").write_bytes(b" A")
+    (members / "link.gamma").symlink_to("a.gamma")
+    (members / "linked").symlink_to(members, target_is_directory=True)
+    (members / "binary.gamma").write_bytes(b"\x80a")
+    header = "GammaSourceClosureV1"
+    first = f"member {'1' * 64} 2 {hashlib.sha256(b' Z').hexdigest()} z.gamma"
+    second = f"member {'2' * 64} 2 {hashlib.sha256(b' A').hexdigest()} a.gamma"
+
+    def build(name, text):
+        (source / MANIFEST).write_bytes(text.encode("ascii"))
+        out = work / name
+        result = invoke([BOOTSTRAP, "--delta", source, out])
+        assert result.returncode and not result.stdout, result
+        return out, result.stderr
+
+    out, error = build("edited-output", "\r\n".join((header, first, second)))
+    assert b"beta_compiler.beta" in error
+    assert (out / "program.gamma").read_bytes() == b"; prefix Z A"
+    before = (out / "program.gamma").read_bytes()
+    again = invoke([BOOTSTRAP, "--delta", source, out])
+    assert again.returncode and (out / "program.gamma").read_bytes() == before
+
+    cases = [
+        "bad-header\n" + first, header, header + "\n\n" + first,
+        header + "\n" + first.replace(" 2 ", " 1 "),
+        header + "\n" + first.replace(" 2 ", " 3 "),
+        header + "\n" + first.replace(" 2 ", " 02 "),
+        header + "\n" + first.replace(" 2 ", " 18446744073709551616 "),
+        header + "\n" + first.replace("member ", "member  "),
+        header + "\n" + first.replace(hashlib.sha256(b" Z").hexdigest(), "bad"),
+        "\n".join((header, second, first)), "\n".join((header, first, first)),
+        "\n".join((header, first, second.replace("a.gamma", "z.gamma"))),
+    ]
+    for path in ("missing.gamma", "../a.gamma", "/a.gamma", "./a.gamma",
+                 "foo//a.gamma", "bad name.gamma", ".gamma", "a.delta", "link.gamma",
+                 "linked/a.gamma", "binary.gamma"):
+        cases.append(header + "\n" + first.replace("z.gamma", path))
+    for i, text in enumerate(cases):
+        out, error = build(f"refused-{i}", text)
+        assert b"Delta compiler source" in error and not (out / "program.gamma").exists(), (text, error)
+
+
+def check_delta(work, source, alpha):
+    check_manifest_edits(work)
+    expected = bytearray((ROOT / ENTRY).read_bytes())
+    for path, data in checked_members(MANIFEST):
+        (source / path).parent.mkdir(parents=True, exist_ok=True)
+        (source / path).write_bytes(data)
+        expected.extend(data)
+    for path in (MANIFEST, ENTRY):
+        shutil.copyfile(ROOT / path, source / path)
+    support = b"".join(data for _, data in checked_members(DELTA / "support/support.gamma.sources"))
+    customer = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
+    request = work / "double.dcreq"
+    request.write_bytes(b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(customer)) + customer + support)
+    out = work / "delta"
+    command = [BOOTSTRAP, "--alpha"] if alpha else [BOOTSTRAP]
+    result = invoke([*command, "--delta", source, out, request])
+    assert (result.returncode, result.stdout, result.stderr) == (0, b"", b""), result
+    assert (out / "program.gamma").read_bytes() == expected
+    direct = invoke([out / "gamma-compiler"], expected)
+    artifact = out / ("program.tape" if alpha else "program")
+    assert (direct.returncode, direct.stdout, direct.stderr) == (0, artifact.read_bytes(), b""), direct
+    if alpha:
+        check_alpha_stages(out)
+    for payload in (b"", b"A\x00B", bytes(range(256))):
+        observed = invoke([out / "successor"], payload)
+        assert (observed.returncode, observed.stdout, observed.stderr) == (0, payload * 2, b"")
+
+
+def check(work, alpha, delta):
     source = work / "source"
     compiler_files = [*COMPILER, ALPHA if alpha else NATIVE]
     for name in (BETA, GAMMA, *compiler_files):
@@ -99,6 +193,9 @@ def check(work, alpha):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / name, dest)
 
+    if delta:
+        check_delta(work, source, alpha)
+        return
     if alpha:
         check_source_producer(work, source, alpha=True)
         return
@@ -174,7 +271,8 @@ def check(work, alpha):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--alpha", action="store_true", help="exercise the Alpha tape target")
+    parser.add_argument("--delta", action="store_true", help="build Delta from the canonical source tree")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
-        check(Path(directory), args.alpha)
-    print("Cold Linux Gamma construction, changed programs and refusals passed")
+        check(Path(directory), args.alpha, args.delta)
+    print("Cold Linux construction, changed programs and refusals passed")

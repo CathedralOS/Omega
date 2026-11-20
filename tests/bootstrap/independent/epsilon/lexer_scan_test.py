@@ -104,20 +104,11 @@ def scan_source(root, fixtures, boundary, public):
     return utf8_type + token_types + implementation + boundary + (fixtures / 'lexer_scan_main.epsilon').read_bytes() + customer.read_bytes()
 
 
-def run(work, vm, composition, boundary, compiler, alpha, observe, compile_delta, reference, identity, seconds):
+def run(work, composition, boundary, compiler, observe, compile_delta, reference, identity, alpha_program, check_alpha):
     """Use the same Gamma receipt and input bytes for both realizations."""
     fixtures = Path(__file__).parent
-    driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
-    def stamp(name, tape):
-        tape_path = work / f'{name}.alpha.tape'
-        tape_path.write_bytes(tape)
-        executable = work / f'{name}-alpha'
-        vm.stamp(tape_path, executable)
-        return executable
-
     compiler_receipt = (work / 'compiler.gamma').read_bytes()
-    compiler_tape = observe(alpha, compiler_receipt)
-    alpha_host = stamp('scan-compiler', compiler_tape)
+    alpha_host, compiler_tape = alpha_program('scan-compiler', compiler_receipt)
     results = {'compiler_receipt': identity(compiler_receipt), 'alpha_compiler_tape': identity(compiler_tape)}
     for name, cases in [('scan-string', string_cases()), ('scan-public', lexical_cases())]:
         source = scan_source(composition.ROOT, fixtures, boundary, name == 'scan-public')
@@ -130,7 +121,7 @@ def run(work, vm, composition, boundary, compiler, alpha, observe, compile_delta
         generated, runtime = composition.decode_module(observed)
         assert runtime == 'storage'
         (work / f'{name}.observation').write_bytes(observed)
-        target = composition.program_source(generated, driver, runtime)
+        target = composition.program_source(generated, runtime=runtime)
         native = compile_delta(target, name)
         receipt = (work / f'{name}.gamma').read_bytes()
         payload, expected = batch(cases)
@@ -144,19 +135,7 @@ def run(work, vm, composition, boundary, compiler, alpha, observe, compile_delta
                   'compiler_output': identity(observed), 'generated': identity(generated),
                   'delta': identity(target), 'receipt': identity(receipt), 'native': identity(native.read_bytes()),
                   'input': identity(payload), 'output': identity(expected), 'epsilon_exit': 42}
-        # Only Alpha's smaller customer is known to fit the current stamped
-        # seed. If the full compiler starts publishing, execute it as well.
-        status, tape = vm.execute(alpha, receipt, seconds)
-        report['alpha_compiler_output'] = identity(tape)
-        report['alpha_compiler_exit'] = status
-        if status == 0:
-            executable = stamp(name, tape)
-            actual = observe(executable, payload)
-            (work / f'{name}.alpha.output').write_bytes(actual)
-            assert actual == expected, (name, actual.hex())
-            report['alpha_tape'] = identity(tape)
-        else:
-            assert name == 'scan-public' and status == 249 and not tape, (name, status, len(tape))
+        report.update(check_alpha(name, payload, expected))
         if name == 'scan-string':
             call = b'token_tag(self.scanner.token_kind)'
             assert source.count(call) == 1

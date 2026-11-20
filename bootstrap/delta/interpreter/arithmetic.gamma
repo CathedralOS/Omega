@@ -1,0 +1,22 @@
+; Gamma wraps addition, subtraction and multiplication. Delta rejects an
+; unrepresentable mathematical result. Gamma division/remainder already trap
+; for a zero divisor and for MIN / -1.
+(def di_add ((left Int) (right Int)) Int
+  (let result Int (+ left right)
+    (if (if (lt right 0) (lt left result) (lt result left)) (/ 1 0) result)))
+
+(def di_subtract ((left Int) (right Int)) Int
+  (let result Int (- left right)
+    (if (if (lt right 0) (lt result left) (lt left result)) (/ 1 0) result)))
+
+(def di_multiply ((left Int) (right Int)) Int
+  (if (eq left 0) 0
+    (let result Int (* left right)
+      (if (eq left -1)
+        (if (eq right -9223372036854775808) (/ 1 0) result)
+        (if (eq (/ result left) right) result (/ 1 0))))))
+
+(def di_decimal ((index Int) (end Int) (negative Int) (value Int)) Int
+  (if (eq index end) (if negative value (- 0 value))
+    (di_decimal (+ index 1) end negative
+      (- (* value 10) (- (source_read index) 48)))))

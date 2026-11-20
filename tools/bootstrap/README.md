@@ -31,7 +31,7 @@ identity; it is not a proof.
 `tools/bootstrap/delta/compiler_env.sh` pins the Delta edge's request entry,
 source manifest, ordered support-member manifest, `GammaComposedV2` record,
 repacked canonical closure and packed support section the same way against
-`bootstrap/delta/to-gamma/README.md` and `delta_compiler.composed`. It
+`bootstrap/delta/compiler/README.md` and `delta_compiler.composed`. It
 checks that the record names the chosen evaluator tape, packed closure
 and packed support section. It also pins the staged-compiler gate's
 `development_driver.gamma` diagnostic entry, packed on top of the pinned
@@ -39,7 +39,7 @@ member bytes. The archived [_Delta identity test_](../../_recycling/tests/bootst
 `tools/bootstrap/epsilon/evaluator_env.sh` pins the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
 against `bootstrap/epsilon/interpreter/README.md`. Both refuse before writing if
-the bytes differ from the pins, including a changed manifest or member. The Epsilon file also pins the canonical `execution_driver.delta`
+the bytes differ from the pins, including a changed manifest or member. The Epsilon file also pins the interpreted Omega executable gate’s private `execution_driver.delta`
 slice adapter and the evaluator receipt identity that the pinned Delta edge
 rebuilds from the pinned evaluator, driver and support section;
 the archived [Epsilon identity test](../../_recycling/tests/bootstrap/epsilon-identity.sh) records the driver and receipt refusals
@@ -66,7 +66,9 @@ artifact and its obligations.
 
 `check-chain-hygiene.sh` verifies the Alpha and Beta artifacts and the
 declared compiler source closures. It checks that their manifest members and
-bootstrap steps omit the Rust producer. Alpha and Beta have flat seed
+bootstrap steps omit the Rust producer. The Delta interpreter's ordered source
+list and the Epsilon compiler and runtime lists must resolve to source files
+under their respective language directories. Alpha and Beta have flat seed
 directories. Gamma, Delta, Epsilon and Omega keep implementations under their
 language. The Linux launcher and proof experiments live under
 [bootstrap tests](../../tests/bootstrap/). The [route reports](../../wiki/development/bootstrap/) record measured results.

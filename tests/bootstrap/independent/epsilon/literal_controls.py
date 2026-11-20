@@ -30,7 +30,7 @@ def run(work, vm, producer, realize, seconds):
     # The canonical request admits only profile one. Exercise the existing
     # raw-source diagnostic entry separately, preserving that boundary.
     development_source = vm.pack(
-        "bootstrap/delta/to-gamma/implementation/implementation.gamma.sources",
+        "bootstrap/delta/compiler/implementation/implementation.gamma.sources",
         work / "literal-development.gamma",
         "tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma")
     development = vm.compile_program(work, development_source, "literal-development",
@@ -65,7 +65,7 @@ def run(work, vm, producer, realize, seconds):
     base = vm.pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources",
                    work / "literal-emitter-base.delta")
     driver = root / "tests/bootstrap/interpreted/delta/byte-literals"
-    subject = base + b"\n" + (root / "bootstrap/epsilon/to-delta/emission.delta").read_bytes()
+    subject = base + b"\n" + (root / "bootstrap/epsilon/compiler/emission.delta").read_bytes()
     subject += b"\n" + (driver / "emitter_driver.delta").read_bytes()
     (work / "literal-emitter.delta").write_bytes(subject)
     status, receipt = compile_delta(subject)
@@ -80,7 +80,7 @@ def run(work, vm, producer, realize, seconds):
     representations = [line.split()[4] for line in manifest.read_text().splitlines()[1:]
                        if line.split()[4].startswith("representations/")]
     target = b"\n".join((manifest.parent / path).read_bytes() for path in representations)
-    target += b"\n" + (root / "bootstrap/epsilon/to-delta/runtime/values.delta").read_bytes()
+    target += b"\n" + (root / "bootstrap/epsilon/compiler/runtime/values.delta").read_bytes()
     target += b"\n" + fragment + b"\n" + (driver / "emitted_driver.delta").read_bytes()
     (work / "literal-target.delta").write_bytes(target)
     status, target_receipt = compile_delta(target)

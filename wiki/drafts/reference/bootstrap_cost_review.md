@@ -40,7 +40,7 @@ than simplifying the chain:
   pre-normalization expectations. Removing either summary removes its
   consumer's evidence, not only private metadata.
 - The shared-prefix name cursor stays without expansion, as its
-  [owner README](../../../bootstrap/delta/to-gamma/implementation/checking/names/README.md)
+  [owner README](../../../bootstrap/delta/compiler/implementation/checking/names/README.md)
   already records; the measured removal cost below bought no conformance or
   failure-behavior improvement.
 
@@ -69,7 +69,7 @@ on that subject. Both receipts matched the selected evaluator's exact
 this is cumulative allocation, not live memory or host RSS. Both fit the
 selected provision. Single-run timings do not establish a throughput gain.
 The decision above retains the
-[existing cursor](../../../bootstrap/delta/to-gamma/implementation/checking/names/README.md)
+[existing cursor](../../../bootstrap/delta/compiler/implementation/checking/names/README.md)
 without expansion; neither customer fit nor
 this isolated comparison closes full parameter, constructor, or match limits.
 Both investigations ran on macOS arm64; no Windows result is claimed.

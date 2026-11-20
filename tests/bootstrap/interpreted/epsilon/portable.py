@@ -41,7 +41,7 @@ def check(work, receipt_path, seconds, profile, omega):
             materialize_delta_support "$1/support.bin"
         """, work)
         compiler = (work / "compiler.gamma").read_bytes()
-        entry = ROOT / "tests/bootstrap/conformance/epsilon/evaluator_entry.delta"
+        entry = ROOT / "bootstrap/epsilon/interpreter.delta"
         subject = closure + entry.read_bytes()
         request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                    + subject + (work / "support.bin").read_bytes())

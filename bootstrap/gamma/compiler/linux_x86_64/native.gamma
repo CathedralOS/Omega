@@ -12,6 +12,11 @@
 (def n_load_b ((s Int) (reg Int)) Int (n_register s 10390345 reg)) ; 49 8b 9e
 (def n_store ((s Int) (reg Int)) Int (n_register s 8816969 reg)) ; 49 89 86
 
+; Native register operations inline the evaluation stack transfers.
+(def e_push ((s Int)) Int (e_push_body s))
+(def e_pop ((s Int) (value Int)) Int (e_pop_body s value))
+(def i_stack_runtime ((s Int)) Int s)
+
 ; x86 adds the signed displacement to the address after its four-byte field.
 ; The target's suffix and the bytes following the field share the same code end.
 ; The entire emitted image fits in 128 MiB, inside signed rel32 reach.

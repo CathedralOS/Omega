@@ -5,7 +5,7 @@ from pathlib import Path
 import struct
 import time
 
-from compiled import ROOT, execute, pack, shell, stamp
+from compiled import ROOT, execute, pack, pack_delta_compiler, shell, stamp
 from conformance.vectors import epsilon_observations, epsilon_request, epsilon_syntax_controls
 from independent.source_test import source as gamma_source
 
@@ -92,15 +92,15 @@ def main():
         if (directory / "compiler.gamma").read_bytes() != sources[name]:
             raise ValueError(f"{directory}: compiler source differs from checkout")
 
-    delta = (ROOT / "bootstrap/delta/to-gamma/distribution.gamma").read_bytes()
-    support = pack("bootstrap/delta/to-gamma/support/support.gamma.sources", work / "support.bin")
+    delta = pack_delta_compiler(work)
+    support = pack("bootstrap/delta/compiler/support/support.gamma.sources", work / "support.bin")
     customer = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
     request = delta_request(customer, support)
     inputs = (b"", b"A\x00B", bytes(range(256)))
     include_epsilon = args.epsilon or args.wire
     if include_epsilon:
         closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
-        entry = (ROOT / "tests/bootstrap/conformance/epsilon/evaluator_entry.delta").read_bytes()
+        entry = (ROOT / "bootstrap/epsilon/interpreter.delta").read_bytes()
         evaluator_request = delta_request(closure + entry, support)
     evaluator_products = {}
     receipts = {}

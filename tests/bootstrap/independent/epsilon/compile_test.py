@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import resource
 import struct
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "tests/bootstrap/conformance"))
 from vectors import ocreq_request
 
-COMPILER = ROOT / 'bootstrap/epsilon/to-delta'
+COMPILER = ROOT / 'bootstrap/epsilon/compiler'
 FIXTURES = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location('epsilon_composition', FIXTURES / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
@@ -119,11 +120,44 @@ def digit_scanner(base, boundary, program, observe, reference, compiler):
     return report
 
 
+def signature_source(base):
+    # Complete authored declarations in their original source order. The
+    # signature checker depends on layout, declaration resolution and lexing.
+    def members(filename, ranges):
+        source = (base / filename).read_bytes()
+        starts = {match[1].decode(): match.start() for match in re.finditer(
+            rb'^(?:machine|data) ([A-Za-z0-9_:]+)', source, re.MULTILINE)}
+        return b''.join(source[starts[first]:starts[after] if after else len(source)]
+                        for first, after in ranges)
+
+    scanner = 'OmegaLexScan::'
+    compiler = 'OmegaScalarCompiler::'
+    return b''.join([
+        members('representations.epsilon', [('AlphaTapeBuffer', None)]),
+        members('lexical_classification.epsilon', [('omega_is_whitespace', None)]),
+        members('lexer.epsilon', [(scanner + 'reset', scanner + 'scan_at')]),
+        members('scalar_compilation.epsilon', [
+            ('OmegaCheckedValueKind', compiler + 'record_internal'),
+            (compiler + 'resolve_machine', compiler + 'fold_expression'),
+            (compiler + 'primitive_type', compiler + 'value_cell'),
+            (compiler + 'check_signatures', compiler + 'compile'),
+            (compiler + 'resolve_data', compiler + 'case_value_type'),
+            (compiler + 'layout_data', compiler + 'check_place'),
+            (compiler + 'type_size', compiler + 'byte_index_result_type'),
+            (compiler + 'reference_signature', compiler + 'check_forward_reference'),
+        ]),
+        members('outcome.epsilon', [('OmegaOutcomeFrame', 'OmegaOutcomeFrame::write_u32')]),
+        members('source_set.epsilon', [('OmegaSourceSet::equal_name', 'OmegaSourceSet::identifier'),
+                                      ('OmegaSourceSet::unit_at', None)]),
+        members('declaration_resolution.epsilon', [(compiler + 'declaration_count', compiler + 'validate_imports')]),
+        (FIXTURES / 'signature_main.epsilon').read_bytes(),
+    ])
+
+
 def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE[:CONSOLE.index(b'data Main')]
-    driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
 
-    def program(source, name, entry=driver):
+    def program(source, name, entry=None):
         (work / f'{name}.epsilon').write_bytes(source)
         observation = observe(compiler, source)
         (work / f'{name}.observation').write_bytes(observation)
@@ -249,8 +283,17 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     expected = expected_exit + octets
     assert observe(executable) == reference(source, b'', 'literal-bytes-reference') == expected
     literal_report['output'] = identity(expected)
+    # A stored Unit result is valid. The same row with an explicit, unformed
+    # return type is refused before a signature can be retained.
+    source = signature_source(base)
+    executable, signature_report = program(source, 'compiler-signature')
+    expected = b'\0' + struct.pack('<i', 42) + bytes([1, 2, 0])
+    actual = observe(executable)
+    assert actual == expected == reference(source, b'', 'compiler-signature-reference')
+    signature_report['output'] = identity(actual)
     return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
-            'storage': storage_report, 'literal_bytes': literal_report, 'lexer_digits': digits}
+            'storage': storage_report, 'literal_bytes': literal_report, 'lexer_digits': digits,
+            'compiler_signature': signature_report}
 
 
 def run(work, vm, producer, realize, seconds):
@@ -302,6 +345,15 @@ def run(work, vm, producer, realize, seconds):
         report['compiler_image'] = identity(compiler.read_bytes())
         runtime = composition.runtime_source()
         report['target_runtime'] = identity(runtime)
+
+        source = CONSOLE + EMPTY_MAIN
+        generated = compile_epsilon(source, 'empty-entry')
+        empty_entry = compile_delta(composition.program_source(generated), 'empty-entry-target')
+        empty_observation = observe(empty_entry, b'unused')
+        interpreted = reference(source, b'unused', 'empty-entry-reference')
+        if empty_observation != bytes(5) or empty_observation != interpreted:
+            raise AssertionError(('empty Main::main', empty_observation, interpreted))
+        report['empty_entry'] = identity(empty_observation)
         report['stage'] = 'actual-lexical-customer'
         checkpoint()
         actual = (ROOT / 'bootstrap/omega/compiler/lexical_classification.epsilon').read_bytes()
@@ -407,9 +459,28 @@ def run(work, vm, producer, realize, seconds):
         predecessor = ROOT / 'build/independent-native-reference'
         alpha = predecessor / 'alpha-compiler'
         assert identity(alpha.read_bytes()) == report['enum_customer']['alpha_compiler_image']
+
+        def alpha_program(name, receipt):
+            tape = observe(alpha, receipt)
+            tape_path = work / f'{name}.alpha.tape'
+            tape_path.write_bytes(tape)
+            executable = work / f'{name}-alpha'
+            vm.stamp(tape_path, executable)
+            return executable, tape
+
+        def check_alpha(name, payload, expected):
+            receipt = (work / f'{name}.gamma').read_bytes()
+            executable, tape = alpha_program(name, receipt)
+            actual = observe(executable, payload)
+            (work / f'{name}.alpha.output').write_bytes(actual)
+            assert actual == expected, (name, actual.hex())
+            return {'alpha_compiler_exit': 0, 'alpha_compiler_output': identity(tape), 'alpha_tape': identity(tape)}
+
+        signature_output = (work / 'compiler-signature-reference.observation').read_bytes()
+        report['stored_customers']['compiler_signature'].update(check_alpha('compiler-signature', b'', signature_output))
         report['lexer_scan'] = scan_controls.run(
-            work, vm, composition, CONSOLE[:CONSOLE.index(b'data Main')], compiler, alpha,
-            observe, compile_delta, reference, identity, seconds)
+            work, composition, CONSOLE[:CONSOLE.index(b'data Main')], compiler,
+            observe, compile_delta, reference, identity, alpha_program, check_alpha)
         report.update(state='passed', stage='complete', refusal_controls=3, finished=time.time())
         checkpoint()
         return report

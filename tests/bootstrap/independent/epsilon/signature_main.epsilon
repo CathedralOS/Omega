@@ -1,0 +1,18 @@
+boundary trait Console {
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+    machine exit_process(return_code: i32) -> never;
+}
+data Main {
+    console: Console;
+    compiler: OmegaScalarCompiler;
+}
+machine Main::main(&mut self) {
+    self.compiler.parser.machine_items[0].state_count = 1;
+    self.console.write_byte(self.compiler.check_signatures("", 0));
+    self.console.write_byte(self.compiler.state_types[0]);
+    self.compiler.parser.machine_states[0].has_return_type = 1;
+    self.console.write_byte(self.compiler.check_signatures("", 0));
+    self.console.exit_process(42);
+}

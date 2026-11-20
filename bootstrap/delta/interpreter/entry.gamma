@@ -1,0 +1,59 @@
+(def $application () Int 1)
+
+; A direct execution request seals the source and its application stdin together.
+; The checker reads only the declared source extent. Input ropes see only stdin.
+(def source_length () Int
+  (+ (read 0) (+ (* 256 (read 1))
+    (+ (* 65536 (read 2)) (* 16777216 (read 3))))))
+
+(def source_read ((index Int)) Int
+  (read (+ 4 index)))
+
+(def main () Int
+  (if (lt (input) 4)
+    (publish_compiler_failure (compiler_failure 1 4 1 (input) 0 0))
+    (let length Int (source_length)
+      (if (lt 4194304 length)
+        (publish_compiler_failure (compiler_failure 2 4 1 0 4194304 length))
+        (if (lt (input) (+ 4 length))
+          (publish_compiler_failure (compiler_failure 1 4 1 (input) 0 0))
+          (let checked Int (di_check_source)
+            (if (eq (first checked) 0)
+              (di_run (second checked) (+ 4 length))
+              (publish_compiler_failure checked))))))))
+
+; The compiler discards the retained declaration nodes during lowering. Direct
+; execution keeps that table after the same grammar, resolution and type checks.
+(def di_check_source () Int
+  (let envelope Int (validate_source_envelope 0)
+    (if (first envelope) envelope
+      (let tokens Int (validate_source_tokens 0)
+        (if (first tokens) tokens
+          (let syntax Int (parse_source_syntax)
+            (if (first syntax) syntax
+              (let parsed Int (second syntax)
+                (let grammar Int (validate_program_syntax (first parsed) (second parsed))
+                  (if (first grammar) grammar
+                    (di_check_declarations (second grammar))))))))))))
+
+(def di_check_declarations ((program Int)) Int
+  (let collection Int (collect_global_identities program)
+    (if (first collection) collection
+      (let ((raw Int (second collection))
+            (resolution Int (resolve_collected_declarations program raw)))
+        (if (first resolution) resolution
+          (let ((globals Int (second resolution))
+                (bodies Int (check_program_types program globals)))
+            (if (first bodies) bodies
+              (let entry Int (validate_application_profile 1 globals)
+                (if (first entry) entry (compiler_complete raw))))))))))
+
+(def di_run ((globals Int) (start Int)) Int
+  (let length Int (- (input) start)
+    (if (lt 4194304 length) (pair 253 0)
+      (let ((main_row Int (second (find_main_metadata globals)))
+            (input_bytes Int (pair length (pair 3 start)))
+            (result Int (di_call (second (second main_row)) (pair input_bytes 0) globals))
+            (size Int (first result)))
+        (if (lt 4194304 size) (pair 254 0)
+          (di_publish result 0 size))))))

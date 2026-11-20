@@ -57,7 +57,7 @@ def main():
               '. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"; '
               'require_epsilon_evaluator_entry_receipt_identity "$1"', receipt)
         original = receipt.read_bytes()
-        adapter = (ROOT / "bootstrap/delta/to-gamma/support/adapter.gamma").read_bytes()
+        adapter = (ROOT / "bootstrap/delta/compiler/support/adapter.gamma").read_bytes()
         old = b"(lt 4194304 (input))"
         if adapter.count(old) != 1 or original.count(adapter) != 1:
             raise SystemExit("expected one bound input limit in the generated Delta adapter")

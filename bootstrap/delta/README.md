@@ -1,11 +1,16 @@
 # Delta
 
-The [Delta compiler](to-gamma/README.md) is written in Gamma. It translates a Delta program into Gamma source. All three outcomes use that compiler and its [runtime support](to-gamma/support/).
+Delta has two Gamma-written implementations. They share the source checker.
+The interpreter evaluates the checked Delta program. The compiler emits a
+Gamma program and leaves the choice of machine code to the Gamma backend.
 
-| How a Delta program runs | What consumes the emitted Gamma |
+| Run a Delta program | Construction |
 | --- | --- |
-| Interpret | The [Gamma interpreter](../gamma/interpreter/README.md) executes it. |
-| Compile to Alpha | The [Gamma-to-Alpha backend](../gamma/compiler/alpha/alpha_backend.gamma) produces a tape for the Alpha VM. |
-| Compile to native | The [Gamma-to-Linux backend](../gamma/compiler/linux_x86_64/native.gamma) produces a Linux x86-64 executable. |
+| Interpret | The [Delta interpreter](interpreter/) evaluates its expressions, calls and matches. |
+| Compile to Alpha | The [Delta compiler](compiler/) emits Gamma. The [Alpha backend](../gamma/compiler/alpha/) emits tape for the seed VM. |
+| Compile to Linux x86-64 | The same compiler emits Gamma. The [Linux backend](../gamma/compiler/linux_x86_64/) emits an executable. |
 
-For example, the byte-string doubling program emits one 3,082-byte Gamma program. The comparison exercises its three outcomes on empty input, embedded NUL and every byte value. The larger [Epsilon evaluator](../epsilon/interpreter/README.md) is another Delta program. [Language](LANGUAGE.md) · [Comparison and commands](../../wiki/development/bootstrap/gamma-hosts.md)
+Another tested composition runs the emitted Gamma on the [Gamma interpreter](../gamma/interpreter/).
+It exercises the compiler's translation and provides a comparison with direct
+Delta execution. The [Epsilon evaluator](../epsilon/interpreter/) is a Delta
+customer on both paths. [Language](LANGUAGE.md) · [Tested routes](../../wiki/development/bootstrap/README.md)

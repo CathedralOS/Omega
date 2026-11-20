@@ -17,7 +17,8 @@ so entry selection is bound by the route, not by an adapter-supplied spelling.
 The emitted tape halts Alpha with the selected machine's return value. The
 expected result is [42](../../conformance/omega/expected.txt).
 
-`--diagnostic` keeps the retired raw-source adapter
+The test-owned [execution driver](execution_driver.delta) frames the Epsilon
+source and sealed stdin for the interpreted Omega gate. `--diagnostic` keeps the retired raw-source adapter
 ([main.epsilon](../../conformance/omega/main.epsilon)) reachable for refusal coverage:
 `python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --diagnostic`.
 

@@ -1,111 +1,67 @@
-"""Explicit source composition; predecessor Delta remains the semantic producer.
-
-The target runtime is a closed leaf implementation from the common Epsilon
-source authority. It contains neither a parser nor an AST evaluator/dispatcher.
-No host extraction, transformation, or dead-code selection builds its text.
-"""
+"""Materialize the Delta sources declared by the Epsilon compiler."""
+from argparse import ArgumentParser
 from hashlib import sha256
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[4]
 EPSILON = ROOT / 'bootstrap/epsilon/interpreter'
-COMPILER = ROOT / 'bootstrap/epsilon/to-delta'
-COMPILER_MODULES = (
-    'emission.delta', 'text.delta', 'compilation.delta', 'locals.delta',
-    'binary.delta', 'expressions.delta', 'calls.delta', 'machines.delta',
-    'control.delta', 'enums.delta', 'enum_values.delta', 'enum_control.delta',
-    'storage_places.delta', 'storage_text.delta', 'storage_expressions.delta',
-    'storage_calls.delta', 'storage_machines.delta', 'storage_control.delta',
-    'storage_blocks.delta',
-)
-RUNTIME_MODULES = (
-    'representations/binary_operators.delta',
-    'representations/scalar_outcomes.delta',
-    'execution/scalars/operators.delta',
-)
+COMPILER = ROOT / 'bootstrap/epsilon/compiler'
 
 
-def epsilon_members():
+def interpreter_members(names, packed=None):
+    members = {}
+    offset = 0
     manifest = EPSILON / 'epsilon_compiler.delta.sources'
     for row in manifest.read_text().splitlines()[1:]:
-        _, _, length, digest, name = row.split()
-        yield int(length), digest, name
-
-
-def checker_source(packed_evaluator):
-    # The checker and the evaluator share ordered source files. Keep the whole
-    # checker members, using the bytes already admitted by the materializer.
-    selected = []
-    offset = 0
-    for length, digest, name in epsilon_members():
-        end = offset + length
-        member = packed_evaluator[offset:end]
-        if sha256(member).hexdigest() != digest:
-            raise ValueError(f'packed evaluator member differs from its manifest: {name}')
-        # Emitting a checked string literal uses the evaluator's byte decoder.
-        if name in ('source.delta', 'execution/views/strings.delta') or name.startswith(
-                ('representations/', 'lexical/', 'parsing/', 'checking/')):
-            selected.append(member)
+        _, _, size, digest, name = row.split()
+        path = "../interpreter/" + name
+        if packed is None and path not in names:
+            continue
+        end = offset + int(size)
+        source = (EPSILON / name).read_bytes() if packed is None else packed[offset:end]
+        if len(source) != int(size) or sha256(source).hexdigest() != digest:
+            raise ValueError(f'evaluator member differs from its manifest: {name}')
+        if path in names:
+            members[path] = source
         offset = end
-    if offset != len(packed_evaluator):
+    if packed is not None and len(packed) != offset:
         raise ValueError('packed evaluator length differs from its manifest')
-    return b''.join(selected)
+    return members
 
 
-def compiler_source(packed_evaluator):
-    return ((COMPILER / 'representations.delta').read_bytes()
-            + checker_source(packed_evaluator) + b'\n'
-            + b'\n'.join((COMPILER / name).read_bytes() for name in COMPILER_MODULES)
-            + b'\n' + (COMPILER / 'entry.delta').read_bytes())
+def compose(parts, *, packed=None, generated=None, driver=None):
+    names = parts.read_text().splitlines()
+    members = interpreter_members(set(names), packed)
+    chunks = []
+    for name in names:
+        if not name:
+            chunks.append(b'\n')
+        elif name == '@module':
+            chunks.append(generated)
+        elif name == '@entry':
+            if driver is not None:
+                chunks.append(driver)
+                break
+        elif name.startswith('../interpreter/'):
+            chunks.append(members[name])
+        else:
+            chunks.append((COMPILER / name).read_bytes())
+    return b''.join(chunks)
 
 
-STORAGE_MODULES = (
-    'checking/catalog/literal_values.delta',
-    'execution/storage/values.delta', 'execution/storage/fields.delta',
-    'execution/storage/arrays.delta', 'execution/storage/children.delta',
-    'execution/storage/places.delta', 'execution/storage/homes.delta',
-    'execution/storage/arrays/lookup.delta', 'execution/storage/arrays/updates.delta',
-    'execution/scalars/value_outcomes.delta', 'execution/console/input.delta',
-    'execution/views/backing.delta',
-    'execution/projections/field_values.delta',
-    'execution/projections/index_values.delta', 'execution/views/slice_values.delta',
-    'execution/storage/liveness.delta',
-)
+def compiler_source(packed_evaluator=None):
+    return compose(COMPILER / 'compiler.parts', packed=packed_evaluator)
 
 
-def runtime_declarations(runtime='pure'):
-    if runtime == 'pure':
-        names = RUNTIME_MODULES[:2]
-    elif runtime == 'storage':
-        names = [name for _, _, name in epsilon_members() if name.startswith('representations/')]
-    else:
+def program_source(generated, driver=None, runtime='pure'):
+    if runtime not in ('pure', 'storage'):
         raise ValueError(f'unknown compiler runtime {runtime!r}')
-    result = (b''.join((EPSILON / name).read_bytes() for name in names)
-              + (COMPILER / 'runtime/values.delta').read_bytes())
-    if runtime == 'storage':
-        result += (COMPILER / 'runtime/storage_values.delta').read_bytes()
-    return result
-
-
-def runtime_implementation(runtime='pure'):
-    result = ((EPSILON / RUNTIME_MODULES[2]).read_bytes()
-              + (COMPILER / 'runtime/scalars.delta').read_bytes() + b'\n')
-    if runtime == 'storage':
-        result += b''.join((EPSILON / name).read_bytes() for name in STORAGE_MODULES)
-        result += (COMPILER / 'runtime/storage.delta').read_bytes()
-    elif runtime != 'pure':
-        raise ValueError(f'unknown compiler runtime {runtime!r}')
-    return result
+    return compose(COMPILER / 'runtime' / f'{runtime}.parts', generated=generated, driver=driver)
 
 
 def runtime_source(runtime='pure'):
-    return runtime_declarations(runtime) + runtime_implementation(runtime)
-
-
-def program_source(generated, driver, runtime='pure'):
-    # The module owns nominal declarations before functions. Forward function
-    # references allow complete runtime implementation owners after the module.
-    return runtime_declarations(runtime) + generated + runtime_implementation(runtime) + driver
+    return program_source(b'', b'', runtime)
 
 
 def decode_module(observation):
@@ -113,3 +69,24 @@ def decode_module(observation):
         if observation.startswith(prefix):
             return observation[len(prefix):], runtime
     raise ValueError(f'compiler refused source: {observation[:80]!r}')
+
+
+def main():
+    parser = ArgumentParser(description=__doc__)
+    command = parser.add_subparsers(dest='command', required=True)
+    command.add_parser('compiler', help='write the Delta compiler source to stdout')
+    command.add_parser('program', help='read a compiler observation from stdin and write runnable Delta')
+    args = parser.parse_args()
+    if args.command == 'compiler':
+        source = compiler_source()
+    else:
+        try:
+            generated, runtime = decode_module(sys.stdin.buffer.read())
+        except ValueError as error:
+            parser.exit(1, str(error) + '\n')
+        source = program_source(generated, runtime=runtime)
+    sys.stdout.buffer.write(source)
+
+
+if __name__ == '__main__':
+    main()

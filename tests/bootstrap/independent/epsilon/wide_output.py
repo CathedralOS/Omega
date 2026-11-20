@@ -44,11 +44,12 @@ def header(length):
 
 
 def delta_root(repo):
-    current = repo / 'bootstrap/delta/to-gamma'
-    if current.is_dir():
-        return current
-    # The archived compiler revision in WIDE_OUTPUT.md predates language ownership.
-    return repo / 'bootstrap/interpreted/3_delta'
+    # This experiment also opens archived compiler checkouts.
+    for path in ('bootstrap/delta/compiler', 'bootstrap/delta/to-gamma',
+                 'bootstrap/interpreted/3_delta'):
+        if (repo / path / 'delta_compiler.composed').is_file():
+            return repo / path
+    raise FileNotFoundError(f'cannot locate the Delta compiler in {repo}')
 
 
 def stock_support(repo):
@@ -238,8 +239,13 @@ def frame(repo, observation, out):
         composer = repo / 'bootstrap/independent/epsilon/composition.py'
     composition = runpy.run_path(str(composer))
     module, runtime = composition['decode_module'](observation.read_bytes())
-    driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
-    target = composition['program_source'](module, driver, runtime)
+    if (repo / 'bootstrap/epsilon/compiler/compiler.parts').is_file():
+        target = composition['program_source'](module, runtime=runtime)
+    else:
+        # Archived materializers take an explicit driver. This experiment uses
+        # the same standard storage entry as the current compiler.
+        entry = Path(__file__).resolve().parents[4] / 'bootstrap/epsilon/compiler/runtime/main.delta'
+        target = composition['program_source'](module, entry.read_bytes(), runtime)
     (out / 'module.delta').write_bytes(module)
     (out / 'program.delta').write_bytes(target)
     support = stock_support(repo)

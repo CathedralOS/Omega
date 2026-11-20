@@ -1,8 +1,10 @@
 /* Build a Gamma compiler with its predecessors. Only those
    programs read source syntax. This driver moves bytes and checks exits. */
+#include <asm/stat.h>
 #include <asm/unistd.h>
 #include <linux/errno.h>
 #include <linux/fcntl.h>
+#include <linux/stat.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -217,31 +219,179 @@ static void compile_stage(const char *producer, const char *input,
     if (target_alpha) stamp(tape, image);
 }
 
-static int is_alpha_option(const char *argument) {
-    const char *option = "--alpha";
-    while (*option && *option == *argument) {
-        ++option;
-        ++argument;
+static int compare(const char *a, const char *b) {
+    while (*a && *a == *b) { ++a; ++b; }
+    return (unsigned char)*a - (unsigned char)*b;
+}
+
+static int regular_file(int dir, const char *path) {
+    int fd = checked(kernel(__NR_openat, dir, path,
+                            O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK), path);
+    struct stat stat;
+    checked(kernel(__NR_fstat, fd, &stat), path);
+    if (!S_ISREG(stat.st_mode)) fail(path);
+    return fd;
+}
+
+/* Open each member relative to the manifest directory, without traversing
+   symlinks. Restore its spelling so duplicate checks can use the same text. */
+static int member_file(int root, char *path) {
+    int parent = root;
+    char *part = path;
+    for (;;) {
+        char *end = part;
+        while (*end && *end != '/') {
+            if (*end < 33 || *end > 126 || *end == ':' || *end == '\\')
+                fail("invalid member path");
+            ++end;
+        }
+        int last = !*end;
+        *end = 0;
+        if (!*part || !compare(part, ".") || !compare(part, ".."))
+            fail("invalid member path");
+        if (last && (end - part <= 6 || compare(end - 6, ".gamma")))
+            fail("invalid member suffix");
+        int fd = last ? regular_file(parent, part) :
+            checked(kernel(__NR_openat, parent, part, O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC), part);
+        if (parent != root) close_file(parent);
+        if (last) return fd;
+        *end = '/';
+        part = end + 1;
+        parent = fd;
     }
-    return *option == *argument;
+}
+
+static int source_byte(unsigned char c) {
+    return c == 9 || c == 10 || c == 13 || (c >= 32 && c <= 126);
+}
+
+static void append_source(int fd, int out, uint64_t expected, int check_length) {
+    long n;
+    while ((n = read_some(fd, chunk, sizeof chunk)) != 0) {
+        if (check_length) {
+            if ((uint64_t)n > expected) fail("member length mismatch");
+            expected -= n;
+        }
+        for (long i = 0; i < n; ++i)
+            if (!source_byte(chunk[i])) fail("invalid Gamma source byte");
+        write_all(out, chunk, n);
+    }
+    if (check_length && expected) fail("member length mismatch");
+    close_file(fd);
+}
+
+static char *line(char **cursor) {
+    char *start = *cursor, *end = start;
+    while (*end && *end != '\n' && *end != '\r') ++end;
+    if (*end) {
+        int cr = *end == '\r';
+        *end++ = 0;
+        if (cr && *end == '\n') ++end;
+    }
+    *cursor = end;
+    return start;
+}
+
+static char *field(char **cursor) {
+    char *start = *cursor, *end = start;
+    while (*end && *end != ' ') ++end;
+    if (*end != ' ' || end == start) fail("invalid member row");
+    *end = 0;
+    *cursor = end + 1;
+    return start;
+}
+
+static void check_hex(const char *s) {
+    size_t i = 0;
+    for (; (s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f'); ++i) {}
+    if (s[i] || i != 64) fail("invalid member identity or digest");
+}
+
+static uint64_t decimal(const char *s) {
+    if (!*s || (*s == '0' && s[1])) fail("invalid member length");
+    uint64_t n = 0;
+    while (*s) {
+        unsigned digit = *s++ - '0';
+        if (digit > 9 || n > (UINT64_MAX - digit) / 10) fail("invalid member length");
+        n = n * 10 + digit;
+    }
+    return n;
+}
+
+static void pack_delta(void) {
+    operation = "Delta compiler source";
+    int dir = checked(kernel(__NR_openat, repository, "bootstrap/delta/compiler",
+                             O_DIRECTORY | O_CLOEXEC), "Delta compiler directory");
+    int members = checked(kernel(__NR_openat, dir, "implementation",
+                                 O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC), "implementation directory");
+    int manifest = regular_file(members, "implementation.gamma.sources");
+    size_t size = seek(manifest, 0, 2);
+    seek(manifest, 0, 0);
+
+    /* A valid row has at least 64 bytes of identity. Keep the input and one
+       pointer per possible row in a single allocation until exit. */
+    size_t slots = size / 64 + 1;
+    uintptr_t base = kernel(__NR_brk, 0);
+    uintptr_t end = base + slots * sizeof(char *) + size + 1;
+    if (end <= base || (uintptr_t)kernel(__NR_brk, end) != end) fail("manifest too large");
+    char **paths = (char **)base;
+    char *text = (char *)(paths + slots);
+    for (size_t got = 0; got < size;) {
+        long n = read_some(manifest, (unsigned char *)text + got, size - got);
+        if (!n) fail("truncated manifest");
+        got += n;
+    }
+    if (read_some(manifest, chunk, 1)) fail("manifest grew");
+    close_file(manifest);
+    for (size_t i = 0; i < size; ++i)
+        if (!source_byte(text[i])) fail("invalid manifest byte");
+    text[size] = 0;
+    if (compare(line(&text), "GammaSourceClosureV1") || !*text) fail("invalid Gamma manifest");
+
+    int output = create(partial);
+    append_source(regular_file(dir, "delta_compiler.gamma"), output, 0, 0);
+    size_t count = 0;
+    const char *previous = "";
+    while (*text) {
+        char *row = line(&text);
+        if (compare(field(&row), "member")) fail("invalid member row");
+        char *identity = field(&row);
+        check_hex(identity);
+        if (compare(previous, identity) >= 0) fail("member identities out of order");
+        previous = identity;
+        uint64_t length = decimal(field(&row));
+        check_hex(field(&row));
+        for (size_t i = 0; i < count; ++i)
+            if (!compare(paths[i], row)) fail("duplicate member path");
+        paths[count++] = row;
+        append_source(member_file(members, row), output, length, 1);
+    }
+    close_file(members);
+    close_file(dir);
+    finish(output, "program.gamma", 0);
 }
 
 int construct(long argc, const char *argv[]) {
     operation = "startup";
-    if (argc > 1 && is_alpha_option(argv[1])) {
+    if (argc > 1 && !compare(argv[1], "--alpha")) {
         target_alpha = 1;
         ++argv;
         --argc;
     }
-    if (argc < 3 || argc > 5)
-        fail("usage: bootstrap [--alpha] SOURCE_ROOT NEW_OUTPUT_DIRECTORY [GAMMA_SOURCE [PRODUCER_INPUT]]");
-    int customer = argc >= 4 ? open_input(AT_FDCWD, argv[3]) : -1;
-    int request = argc == 5 ? open_input(AT_FDCWD, argv[4]) : -1;
+    int delta = argc > 1 && !compare(argv[1], "--delta");
+    if (delta) { ++argv; --argc; }
+    long with_request = delta ? 4 : 5;
+    if (argc < 3 || argc > with_request)
+        fail("usage: bootstrap [--alpha] SOURCE_ROOT NEW_DIRECTORY [GAMMA_SOURCE [PRODUCER_INPUT]]"
+             " or bootstrap [--alpha] --delta SOURCE_ROOT NEW_DIRECTORY [PRODUCER_INPUT]");
+    int customer = !delta && argc >= 4 ? open_input(AT_FDCWD, argv[3]) : -1;
+    int request = argc == with_request ? open_input(AT_FDCWD, argv[argc-1]) : -1;
     repository = checked(kernel(__NR_openat, AT_FDCWD, argv[1],
                                 O_RDONLY | O_DIRECTORY | O_CLOEXEC), "cannot open source root");
     checked(kernel(__NR_mkdir, argv[2], 0700), "cannot create new output directory");
     checked(kernel(__NR_chdir, argv[2]), "cannot enter output directory");
 
+    if (delta) pack_delta();
     if (customer >= 0) snapshot_input(customer, "program.gamma");
     if (request >= 0) snapshot_input(request, "program.input");
 
@@ -264,9 +414,9 @@ int construct(long argc, const char *argv[]) {
     compile_stage("./gamma1", "compiler.gamma", "gamma2", "gamma2.tape");
     require_equal("gamma1", "gamma2");
     checked(kernel(__NR_rename, "gamma2", "gamma-compiler"), "cannot publish compiler");
-    if (argc >= 4)
+    if (delta || customer >= 0)
         compile_stage("./gamma-compiler", "program.gamma", "program", "program.tape");
-    if (argc == 5) {
+    if (request >= 0) {
         run("./program", open_input(AT_FDCWD, "program.input"), "producer.output", 0);
         compile_stage("./gamma-compiler", "producer.output", "successor", "successor.tape");
     }

@@ -1,0 +1,58 @@
+; Pure functions bridge into the shared effect outcome without changing store
+; or output. General receiver code therefore reuses the same I32/trap meaning.
+(def epsilon_compiled_from_pure ((outcome EpsilonCompiledOutcome)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match outcome
+    ((EpsilonCompiledScalar value) (epsilon_evaluator_integer value store output))
+    (EpsilonCompiledResultless (EpsilonEvaluatorResultless store output))
+    ((EpsilonCompiledTrap kind) (EpsilonEvaluatorTrap kind output))
+    ((EpsilonCompiledInternal offset) (EpsilonEvaluatorInternal offset))))
+
+(def epsilon_compiled_value_step ((outcome EpsilonEvaluatorOutcome) (offset Int)) EpsilonCompiledValueStep
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output) (EpsilonContinueValue value place store output))
+    ((EpsilonEvaluatorResultless store output) (EpsilonStopValue (EpsilonEvaluatorInternal offset)))
+    ((EpsilonEvaluatorExit code output) (EpsilonStopValue outcome))
+    ((EpsilonEvaluatorTrap kind output) (EpsilonStopValue outcome))
+    ((EpsilonEvaluatorInternal coordinate) (EpsilonStopValue outcome))))
+
+(def epsilon_compiled_scalar_step ((outcome EpsilonEvaluatorOutcome) (offset Int)) EpsilonCompiledScalarStep
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output)
+      (match value
+        ((EpsilonRuntimeInteger scalar) (EpsilonContinueScalar scalar store output))
+        ((EpsilonRuntimeAggregate typeValue children) (EpsilonStopScalar (EpsilonEvaluatorInternal offset)))
+        ((EpsilonRuntimeSumValue caseValue payload) (EpsilonStopScalar (EpsilonEvaluatorInternal offset)))
+        ((EpsilonRuntimeViewValue view) (EpsilonStopScalar (EpsilonEvaluatorInternal offset)))))
+    ((EpsilonEvaluatorResultless store output) (EpsilonStopScalar (EpsilonEvaluatorInternal offset)))
+    ((EpsilonEvaluatorExit code output) (EpsilonStopScalar outcome))
+    ((EpsilonEvaluatorTrap kind output) (EpsilonStopScalar outcome))
+    ((EpsilonEvaluatorInternal coordinate) (EpsilonStopScalar outcome))))
+
+(def epsilon_compiled_effect_step ((outcome EpsilonEvaluatorOutcome)) EpsilonCompiledEffectStep
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output) (EpsilonContinueEffect store output))
+    ((EpsilonEvaluatorResultless store output) (EpsilonContinueEffect store output))
+    ((EpsilonEvaluatorExit code output) (EpsilonStopEffect outcome))
+    ((EpsilonEvaluatorTrap kind output) (EpsilonStopEffect outcome))
+    ((EpsilonEvaluatorInternal offset) (EpsilonStopEffect outcome))))
+
+(def epsilon_compiled_write ((place EpsilonRuntimeOptionalPlace)
+  (value EpsilonRuntimeValue) (store EpsilonRuntimeStore) (output Bytes)
+  (offset Int)) EpsilonEvaluatorOutcome
+  (match place
+    (NoEpsilonRuntimePlace (EpsilonEvaluatorInternal offset))
+    ((SomeEpsilonRuntimePlace target)
+      (match (epsilon_runtime_write target value store)
+        ((EpsilonRuntimeStoreUpdated nextStore) (EpsilonEvaluatorResultless nextStore output))
+        ((EpsilonRuntimeStoreTrapped kind) (EpsilonEvaluatorTrap kind output))
+        (EpsilonRuntimeStoreInternal (EpsilonEvaluatorInternal offset))))))
+
+; Byte output has the same range obligation as U8 storage. That shared check
+; owns ByteRange; the intrinsic descriptor has no authored source coordinate.
+(def epsilon_compiled_write_byte ((value Int) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let status Int (epsilon_runtime_integer_store_status (EpsilonU8Type 0 0) value)
+    (if (eq status 0)
+      (EpsilonEvaluatorResultless store (bytes_concat output (bytes_single value)))
+      (if (eq status 5) (EpsilonEvaluatorTrap 5 output) (EpsilonEvaluatorInternal 0)))))

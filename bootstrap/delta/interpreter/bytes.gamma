@@ -1,0 +1,29 @@
+; The shared rope constructors use tags 0 (empty), 1 (byte), and 2 (concat).
+; Tag 3 here carries the absolute starting offset of the guest's sealed stdin.
+(def di_get ((bytes Int) (index Int)) Int
+  (if (lt index 0) (/ 1 0)
+    (if (lt index (first bytes))
+      (di_byte_at bytes index)
+      (/ 1 0))))
+
+(def di_byte_at ((bytes Int) (index Int)) Int
+  (let ((node Int (second bytes)) (tag Int (first node)) (value Int (second node)))
+    (if (eq tag 1) value
+      (if (eq tag 2)
+        (let ((left Int (first value)) (split Int (first left)))
+          (if (lt index split) (di_byte_at left index)
+            (di_byte_at (second value) (- index split))))
+        (if (eq tag 3) (read (+ value index)) (fail))))))
+
+(def di_publish ((bytes Int) (index Int) (end Int)) Int
+  (if (eq index end) (pair 0 1)
+    (let emitted Int (write (di_byte_at bytes index))
+      (di_publish bytes (+ index 1) end))))
+
+(def di_literal ((index Int) (end Int) (value Int)) Int
+  (if (eq index end) value
+    (let byte Int (source_read index)
+      (if (byte_literal_escape_marker byte)
+        (di_literal (+ index 2) end
+          ($dbc value ($dbs (byte_literal_escape_value (source_read (+ index 1))))))
+        (di_literal (+ index 1) end ($dbc value ($dbs byte)))))))
