@@ -51,6 +51,13 @@ Among those 18 completed routes, all twelve that compiled the guest produced
 identical Delta and Gamma source. All six Alpha targets emitted the same
 487,013-byte tape. All six Linux targets emitted the same 260,706-byte executable.
 
+One of the nine timed-out routes completed with a 900-second per-stage limit.
+With `--gamma interpret --delta native --epsilon interpret`, interpreted
+Gamma ran the Delta compiler in 743.55 seconds and the native Gamma backend
+in 555.79 seconds. Both the 726,601-byte evaluator source and the
+1,977,558-byte Linux executable matched the native-hosted build byte for byte.
+The Epsilon program then returned the same six bytes in 0.02 seconds.
+
 ## Tested threads through the matrix
 
 Read each row from left to right after the common Alpha and Beta steps.
