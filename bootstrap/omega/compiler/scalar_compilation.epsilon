@@ -20,6 +20,7 @@ data OmegaCheckedValueKind {
     case NullaryCase;
     case CaseLiteral;
     case ProjectedRead;
+    case WideLiteral;
     case NegativeI32Literal;
     case SignedComparison;
 }
@@ -123,6 +124,8 @@ data OmegaScalarCompiler {
     // disjoint regions. Source integers never manufacture reference authority.
     value_kinds: [OmegaCheckedValueKind; 16384];
     value_payloads: [i32; 16384];
+    // Only a WideLiteral uses a second word. Its low bits are never a complete bound.
+    wide_literal_highs: [i32; 16384];
     // Primitive codes retain carrier and policy: 1 bool, 2 Unit, 8 plain u8,
     // 32 plain u32, 33 plain i32, 64 plain u64, 288 Trapping u32, 320 Trapping u64,
     // 576 Wrapping u64. Compound codes below
@@ -203,6 +206,9 @@ data OmegaScalarCompiler {
     index_plans: [OmegaFixedIndexPlan; 16384];
     assignment_loan_base: i32;
     literal_value: i32;
+    literal_high: i32;
+    // 1 is a complete low word, 5 a full u64 needing its nonzero high word.
+    // 2 lies outside the subset, 3 exceeds the carrier, and 4 has a different carrier.
     literal_status: i32;
     // Every ordinary call in every state contributes an edge. State transfers
     // stay inside their owner machine. Refusing cycles therefore prevents a
@@ -971,55 +977,71 @@ machine OmegaScalarCompiler::scan_integer(&mut self, source: &[u8], row: OmegaEx
     state mismatched() { self.literal_status = 4; }
 }
 
-// Two 16-bit limbs keep decimal scanning inside Epsilon's checked i32
-// arithmetic. The successful payload is the exact low-word bit pattern;
-// Alpha emission zero-extends it, even when its i32 representation is negative.
+// Accumulate four base-65536 digits. Each multiplication fits Epsilon's i32.
+// The upper pair becomes Alpha's high word only for a full u64 destination.
 machine OmegaScalarCompiler::scan_scalar_literal(
     &mut self, source: &[u8], start: i32, end: i32, expected: i32
 ) {
     self.literal_status = 0;
-    transition true { true -> digit(start, 0, 0) }
-    state digit(cursor: i32, high: i32, low: i32) {
+    self.literal_high = 0;
+    transition true { true -> digit(start, 0, 0, 0, 0) }
+    state digit(cursor: i32, high: i32, midhigh: i32, midlow: i32, low: i32) {
         transition cursor < end {
-            true -> decimal(cursor, high, low, source[cursor] - 48)
-            _ -> finish(high, low)
+            true -> decimal(cursor, high, midhigh, midlow, low, source[cursor] - '0')
+            _ -> finish(high, midhigh, midlow, low)
         }
     }
-    state decimal(cursor: i32, high: i32, low: i32, value: i32) {
+    state decimal(cursor: i32, high: i32, midhigh: i32, midlow: i32, low: i32, value: i32) {
         transition (value >= 0) && (value <= 9) {
-            true -> accumulate(cursor, high, low * 10 + value)
+            true -> accumulate(cursor, high, midhigh, midlow, low * 10 + value)
             _ -> unsupported()
         }
     }
-    state accumulate(cursor: i32, high: i32, low: i32) {
-        let next: i32 = high * 10 + low / 65536;
-        transition next <= 65535 {
-            true -> digit(cursor + 1, next, low % 65536)
+    state accumulate(cursor: i32, high: i32, midhigh: i32, midlow: i32, low: i32) {
+        let second: i32 = midlow * 10 + low / 65536;
+        let third: i32 = midhigh * 10 + second / 65536;
+        let fourth: i32 = high * 10 + third / 65536;
+        transition fourth < 65536 {
+            true -> digit(cursor + 1, fourth, third % 65536, second % 65536, low % 65536)
             _ -> out_of_range()
         }
     }
-    state finish(high: i32, low: i32) {
-        transition (expected == 32) || (expected == 64) || ((expected == 33) && (high < 32768)) ||
-            ((expected == 8) && (high == 0) && (low < 256)) {
-            true -> encode(high, low)
+    state finish(high: i32, midhigh: i32, midlow: i32, low: i32) {
+        self.literal_value = omega_literal_word(midlow, low);
+        transition (high == 0) && (midhigh == 0) {
+            true -> low_word(midlow, low)
+            _ -> upper_word(high, midhigh)
+        }
+    }
+    state low_word(midlow: i32, low: i32) {
+        transition (expected == 32) || (expected == 64) ||
+            ((expected == 33) && (midlow < 32768)) ||
+            ((expected == 8) && (midlow == 0) && (low < 256)) {
+            true -> narrow()
             _ -> out_of_range()
         }
     }
-    state encode(high: i32, low: i32) {
-        transition high < 32768 {
-            true -> store(high * 65536 + low)
-            _ -> store((high - 65536) * 65536 + low)
-        }
-    }
-    state store(value: i32) { self.literal_value = value; self.literal_status = 1; }
-    state unsupported() { self.literal_status = 2; }
-    state out_of_range() {
+    state upper_word(high: i32, midhigh: i32) {
         transition expected == 64 {
-            true -> unsupported()
-            _ -> range_failure()
+            true -> wide(high, midhigh)
+            _ -> out_of_range()
         }
     }
-    state range_failure() { self.literal_status = 3; }
+    state wide(high: i32, midhigh: i32) {
+        self.literal_high = omega_literal_word(high, midhigh);
+        self.literal_status = 5;
+    }
+    state narrow() { self.literal_status = 1; }
+    state unsupported() { self.literal_status = 2; }
+    state out_of_range() { self.literal_status = 3; }
+}
+
+// Keep the bit pattern of the entire word even when its i32 representation is negative.
+machine omega_literal_word(high: i32, low: i32) -> i32 {
+    transition high < 32768 {
+        true -> return high * 65536 + low
+        _ -> return (high - 65536) * 65536 + low
+    }
 }
 
 // Lookup sees this state's parameters and only already completed local
@@ -1394,10 +1416,15 @@ machine OmegaScalarCompiler::check_value(
         self.scan_integer(source, row, expected);
         transition self.literal_status {
             1 -> retain(OmegaCheckedValueKind::Literal, self.literal_value)
+            5 -> wide_literal()
             2 -> unsupported(row.payload0)
             4 -> rejected(row.payload0)
             _ -> literal_range(row.payload0)
         }
+    }
+    state wide_literal() {
+        self.wide_literal_highs[expression] = self.literal_high;
+        transition true { true -> retain(OmegaCheckedValueKind::WideLiteral, self.literal_value) }
     }
     state literal_range(coordinate: i32) {
         self.record_reject(12, 4, coordinate);
@@ -2322,6 +2349,8 @@ machine OmegaScalarCompiler::emit_value_store(&mut self, cell: i32) -> i32 {
 machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     transition self.value_kinds[expression] {
         OmegaCheckedValueKind::Literal -> return self.tape.emit_imm(0, self.value_payloads[expression], 0)
+        OmegaCheckedValueKind::WideLiteral -> return self.tape.emit_imm(0,
+            self.value_payloads[expression], self.wide_literal_highs[expression])
         OmegaCheckedValueKind::NegativeI32Literal -> return self.tape.emit_imm(0, self.value_payloads[expression], -1)
         OmegaCheckedValueKind::NullaryCase -> return self.emit_case_value(expression)
         OmegaCheckedValueKind::CaseLiteral -> return self.emit_record_literal(expression)

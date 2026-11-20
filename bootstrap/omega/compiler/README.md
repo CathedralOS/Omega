@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current thirteen-member
-manifest materializes 25,809 lines / 985,918 bytes with SHA-256
-`e743f7ef6b09c922ff7801a7dd455eb64f27fdd08b05f5ed396b383dbd765500`.
+manifest materializes 25,838 lines / 987,393 bytes with SHA-256
+`c13f0a5e478b67c50518ea53e61422482921d3f947cb5830d3b4d3c6dd96ad59`.
 The manifest itself is 2,211 bytes, SHA-256
-`b2d2cd5323e93f31318d4a8ea58160295bec9ce8105680b5a6dcef339c248081`;
+`1ecb1c50a4fc2d03c48272c2c4f6eb75d89c0b55af263a0cd750cdf5f48db49d`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -226,7 +226,10 @@ retains that carrier through storage,
 calls, domain casts, and returns. A mismatched destination rejects at the
 literal. Other valid integer carriers retain their spelling in the parser and
 remain outside executable coverage. Signed decimal literals cover
-`-2147483648..2147483647`. Unsigned decimal values cover `0..4294967295`; larger `u64` values remain outside this range. For plain `u32` addition, the compiler tracks which bits may be set
+`-2147483648..2147483647`. The compiler accepts unsigned decimal literals through
+18446744073709551615 for `u64` and emits both words in one Alpha immediate.
+Narrow integer predicates and index bounds require the complete magnitude to
+fit their proof representation. For plain `u32` addition, the compiler tracks which bits may be set
 in each operand and admits disjoint masks. It admits multiplication by a value
 whose only possible values are zero and one power of two if shifting the other
 mask cannot discard a bit. These proofs apply to byte widening and immutable
