@@ -198,6 +198,7 @@ pub struct ClaimsPlan {
     pub call_transfers: BTreeMap<InvocationSite, Vec<ClaimTransfer>>,
     pub completion_receipts: BTreeMap<InvocationSite, Vec<CompletionReceipt>>,
     returned_claims: Vec<ReturnClaims>,
+    loan_completions: Vec<terminal_psi::LoanCompletion>,
     frontiers: BTreeMap<InvocationSite, Vec<ClaimLocation>>,
     unreachable: BTreeSet<InvocationSite>,
 }
@@ -210,6 +211,7 @@ impl ClaimsPlan {
     }
     pub fn install(&self, machine: &mut TerminalMachine) -> Result<(), Error> {
         machine.contract.entry_claims.clone_from(&self.entry_claims);
+        machine.loan_completions.clone_from(&self.loan_completions);
         machine
             .block_entry_claims
             .clone_from(&self.block_entry_claims);
@@ -412,6 +414,102 @@ fn publish_claims(contract: &mut MachineContract, cache: &mut Catalogues<'_>) ->
     Ok(())
 }
 
+/// A normal call can replace the contents of an exclusive argument. Bind the
+/// possible new claims to the exact region of the caller that it borrowed.
+fn prepare_loan_completions(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    cache: &mut Catalogues<'_>,
+    mode: Mode,
+    next: &mut u64,
+) -> Result<Vec<terminal_psi::LoanCompletion>, Error> {
+    let mut requests = Vec::new();
+    for operation in machine.operations() {
+        for argument in terminal_psi::call_structural_arguments(&operation.kind) {
+            if argument.access != StructuralAccess::MutableBorrow
+                || machine
+                    .structural_parameter(argument.place)
+                    .is_some_and(|p| p.access != StructuralAccess::Owned)
+            {
+                continue;
+            }
+            let root = machine
+                .structural_place_type(argument.place)
+                .ok_or(Error::malformed(
+                    "exclusive call argument has no storage type",
+                ))?;
+            if !crate::projection_stays_in_inline_storage(types.iter(), root, &argument.path) {
+                continue;
+            }
+            let Some(subject) =
+                crate::runtime_structural_path_tip(types.iter(), root, &argument.path)
+            else {
+                continue;
+            };
+            let children = cache.paths(subject.id)?;
+            if children.is_empty() {
+                continue;
+            }
+            let paths = children
+                .iter()
+                .map(|child| {
+                    let mut path = argument.path.clone();
+                    path.extend_from_slice(child);
+                    path
+                })
+                .collect::<Vec<_>>();
+            requests.push((
+                operation.id,
+                argument.place,
+                argument.path.clone(),
+                subject.multiplicity,
+                paths,
+            ));
+        }
+    }
+    requests.sort_by(|left, right| (left.0, left.1, &left.2).cmp(&(right.0, right.1, &right.2)));
+    if mode == Mode::Verify && machine.loan_completions.len() != requests.len() {
+        return Err(Error::malformed(
+            "exclusive call has an inexact loan completion roster",
+        ));
+    }
+    let mut completions = Vec::new();
+    for (i, (operation, place, path, multiplicity, paths)) in requests.into_iter().enumerate() {
+        let claims = if mode == Mode::Verify {
+            let row = &machine.loan_completions[i];
+            if row.operation != operation
+                || row.place != place
+                || row.path != path
+                || row.multiplicity != multiplicity
+            {
+                return Err(Error::malformed(
+                    "loan completion differs from the exclusive call argument",
+                ));
+            }
+            validate_bindings(&paths, &row.claims)?;
+            row.claims.clone()
+        } else {
+            paths
+                .into_iter()
+                .map(|path| {
+                    Ok(Binding {
+                        claim: fresh(next)?,
+                        path,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?
+        };
+        completions.push(terminal_psi::LoanCompletion {
+            operation,
+            place,
+            path,
+            multiplicity,
+            claims,
+        });
+    }
+    Ok(completions)
+}
+
 pub(super) struct Flow<'types> {
     mode: Mode,
     catalogues: Catalogues<'types>,
@@ -557,6 +655,53 @@ impl<'types> Flow<'types> {
         {
             return Err(Error::malformed("claim results repeat an operation"));
         }
+        let loan_completions =
+            prepare_loan_completions(machine, types, &mut cache, mode, &mut next)?;
+        if mode == Mode::Verify && !loan_completions.is_empty() {
+            // A handback creates caller-local names, even when the callee
+            // restores the same tag. Transport operations reuse names and
+            // therefore do not declare new identities here.
+            for operation in machine.operations() {
+                let Some(result) = operation.result.as_structural() else {
+                    continue;
+                };
+                match &operation.kind {
+                    Op::CallStructural { .. }
+                    | Op::CallStructuralWithScalarArguments { .. }
+                    | Op::CallMachine { .. }
+                    | Op::BoundaryCall { .. }
+                    | Op::CallDynamic { .. } => {
+                        assigned.extend(result.claims.iter().map(|binding| binding.claim));
+                    }
+                    Op::MoveStructuralField { source, .. }
+                        if machine.signature_structural_parameter(*source).is_some_and(
+                            |parameter| parameter.access == StructuralAccess::MutableBorrow,
+                        ) =>
+                    {
+                        assigned.extend(result.claims.iter().map(|binding| binding.claim));
+                    }
+                    Op::EstablishRecord { .. } | Op::EstablishStructuralCase { .. } => {
+                        assigned.extend(
+                            result
+                                .claims
+                                .iter()
+                                .filter(|binding| binding.path.is_empty())
+                                .map(|binding| binding.claim),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            if loan_completions
+                .iter()
+                .flat_map(|row| &row.claims)
+                .any(|binding| !assigned.insert(binding.claim))
+            {
+                return Err(Error::malformed(
+                    "loan completion reuses a declared claim identity",
+                ));
+            }
+        }
         let claim_ids = contract
             .entry_claims
             .iter()
@@ -566,6 +711,11 @@ impl<'types> Flow<'types> {
                 fresh_results
                     .iter()
                     .flat_map(|row| row.bindings.iter().map(|binding| binding.claim)),
+            )
+            .chain(
+                loan_completions
+                    .iter()
+                    .flat_map(|row| row.claims.iter().map(|binding| binding.claim)),
             )
             .collect();
         let mut state = ClaimsState::new(machine, claim_ids)?;
@@ -606,6 +756,7 @@ impl<'types> Flow<'types> {
                 catalogues: cache,
                 fresh_results,
                 plan: ClaimsPlan {
+                    loan_completions,
                     entry_claims: contract.entry_claims,
                     block_entry_claims: block_claims,
                     operation_results,
@@ -767,6 +918,27 @@ impl<'types> Flow<'types> {
                     self.plan.call_transfers.insert(site, transfers);
                 }
             }
+            let completions = &self.plan.loan_completions;
+            let first = completions.partition_point(|row| row.operation < operation.id);
+            for completion in completions[first..]
+                .iter()
+                .take_while(|row| row.operation == operation.id)
+            {
+                // Only the borrowed region changes hands. The ordinary loan and
+                // availability judgments still require an intact return.
+                state.take(&StructuralArgument {
+                    place: completion.place,
+                    path: completion.path.clone(),
+                    access: StructuralAccess::Owned,
+                })?;
+                for binding in &completion.claims {
+                    state.put(ClaimLocation {
+                        identity: binding.claim,
+                        place: completion.place,
+                        path: binding.path.clone(),
+                    })?;
+                }
+            }
             if let Some(result) = operation.result.as_structural() {
                 for binding in self.fresh_result(operation.id).into_iter().flatten() {
                     state.put(ClaimLocation {
@@ -814,6 +986,28 @@ impl<'types> Flow<'types> {
                     path,
                     field,
                 } => {
+                    if roots
+                        .get(super::index(source.get())?)
+                        .and_then(Option::as_ref)
+                        .is_some_and(|root| root.parameter && root.exclusive)
+                        && let Some(result) = operation.result.as_structural()
+                    {
+                        // A move through an exclusive input brings the selected
+                        // payload into this activation for the first time.
+                        let bindings = self.fresh_result(operation.id).unwrap_or_default().to_vec();
+                        validate_bindings(
+                            self.catalogues.paths(result.structural_type)?,
+                            &bindings,
+                        )?;
+                        for binding in bindings {
+                            state.put(ClaimLocation {
+                                identity: binding.claim,
+                                place: result.place,
+                                path: binding.path,
+                            })?;
+                        }
+                        return self.record_result(operation, state);
+                    }
                     let selected = if state.at(*source).next().is_some() {
                         Self::field_path(types, root_type(*source)?, path, *field)?
                     } else {
@@ -839,6 +1033,16 @@ impl<'types> Flow<'types> {
                     value,
                     ..
                 } => {
+                    if roots
+                        .get(super::index(destination.get())?)
+                        .and_then(Option::as_ref)
+                        .is_some_and(|root| root.parameter && root.exclusive)
+                    {
+                        // The checked store restores the caller's storage. Its
+                        // replacement claims leave this activation with it.
+                        state.take(value)?;
+                        return Ok(());
+                    }
                     if state.at(value.place).next().is_some() {
                         let selected =
                             Self::field_path(types, root_type(*destination)?, path, *field)?;
