@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 24,707 lines / 935,858 bytes with SHA-256
-`a6b3dea8b4438abd69b01d5a403835bf15c6165fde943a507f629e0085277f79`.
-The manifest itself is 2,037 bytes, SHA-256
-`17fac9250a57f7782635b9ee3b1baefd7dcf4cfd4fdfbb74d857e99fb296468a`;
+manifest materializes 24,811 lines / 940,833 bytes with SHA-256
+`0466e276d2f1efd2366370467b064467072ba9ce6f060d7767c1a177c0e724c8`.
+The manifest itself is 2,038 bytes, SHA-256
+`683caedea1e1a3ada0832779ac5ef64883db608cba306632afbab032525cbced`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -92,20 +92,23 @@ their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
 
 For multi-unit construction the compiler parses each whole file in a fresh
-syntax arena. Free machines with by-value scalar parameter and result types,
-including nested states, can share a declaration directory. A machine without
-a result completes with Unit. The directory retains names, public visibility,
-owner files and the ranges of machine, state and parameter rows. Each file's
-imports resolve against that directory before signature checking. The existing
-checker then computes every signature and allocates the parameters' permanent
-storage. The body pass checks and emits one file at a time and reuses its local
-expression and statement rows. A callee receives fresh addresses for its local
-values. The caller's live values keep theirs. Call cycles and effects are
-checked before publishing the tape.
+syntax arena. Free machines may take or return by-value scalars or records,
+and may contain nested states. A machine without a result completes with Unit.
+The declaration directory retains names, visibility, owner files and disjoint
+ranges for records, fields, machines, states and parameters.
 
-Nominal layouts, reference signatures, machine clauses and state-entry requirements
-still use the pooled checker after the per-file syntax pass. The single-unit
-public resource limits remain in force.
+Each file's imports resolve before signature or body checking. A record field
+retains the scalar type or nominal declaration resolved in its own file. The
+layout checker can then follow forward and nested records across files and
+detect a by-value cycle. Public interfaces are checked against their owner's
+imports. The compiler gives parameters permanent addresses. Bodies reuse
+local syntax rows and get fresh storage addresses, so a callee can use the
+same local row number while its caller's value remains live. Call cycles and
+effects are checked before publishing the tape.
+
+Sums, arrays, references, machine clauses and authored requirements still use
+the pooled checker after per-file parsing. The single-unit public resource
+limits remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
 Imports are file-local. Exact imports select declarations; namespace imports

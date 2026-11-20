@@ -147,13 +147,23 @@ little-endian words in table order.
 [Model preparation](https://github.com/CathedralOS/Omega/blob/3cd9e720719/wiki/development/bootstrap/README.md#L398-L410) ·
 [Test console](epsilon/console.epsilon) · [Single-unit parser control](epsilon/omega_parse_unit.epsilon)
 
-A first per-unit construction milestone is a declaration directory built
-from the source units. It needs each declaration's owner, path, visibility,
-signature and source range. A two-unit control can then resolve a forward
-call through an import after discarding the first unit's syntax rows, and
-reject the same import when its dependency edge is removed. The next pass
-could reparse a body with local syntax indexes and emit against global
-declaration labels. The two controls above measure only their own units.
+The compiler at `47b757867bb` indexes free scalar machines by file, resolves
+all imports, then checks and emits one file at a time against stable labels.
+The caller can release its syntax before processing a later dependency. A
+three-file forward call produces the same 43-byte Alpha tape as the pooled
+compiler and exits 42 on the seed. Removing the dependency edge, making the
+callee private or borrowing another file's import yields the original exact
+refusal. The actual wire codec and its caller use four scalar parameter homes
+across files and produce the same 1,607-byte tape, also exiting 42.
+[Directory controls](directory_names.py) · [Product wire control](product_wire.py)
+
+On the 3,994,887-byte construction packet
+`a0e745fd4cc419d7bdee25e8590d3898ef3285549efab14b76c62c19c68f26f6`,
+the per-unit parser passed the pooled unit-17 capacity limit and reached
+`ValueBinding::Unresolved` in unit 31, at absolute byte 700523. The result-arm
+change at `980fa9c6a6c` parses the complete original unit 31 and the
+payload-bearing result in unit 37. These measurements cover parsing. The
+whole package still needs type checking and executable construction.
 
 ## Running the compiled Omega constructor as Gamma on the seed
 
