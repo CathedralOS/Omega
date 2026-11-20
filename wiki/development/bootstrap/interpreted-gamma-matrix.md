@@ -136,3 +136,40 @@ This brings the total to 21 of 27 for this guest and the frozen `bootstrap/`
 Git tree `a0829d60b057e65aa9fef059dfbb4bd7362cad27`. Eighteen completed in
 the initial comparison. The separately rebuilt `interpret / native / interpret`
 route and the two routes joined above account for the other three.
+
+## Omega lexical byte classes on the original Gamma route
+
+The Omega compiler's `byte_classes.epsilon` ran over all 256 byte values
+through the `interpret / native / interpret` route. The 3,748-byte Epsilon
+customer includes the production classifiers, their `OmegaNumericBase` type
+and a console entry. Its SHA-256 was
+`f508abda2da975caec1aa6dc9d5823e4be9ccb8774d724fd59f41935d70bf9fd`.
+Stdin contained `00` through `ff` in order, SHA-256
+`40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880`.
+
+This execution reused the Epsilon evaluator built by original Gamma on the
+frozen bootstrap tree named above. Its 616,939-byte Delta closure had SHA-256
+`a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c`.
+The Gamma interpreter had run the Delta compiler on a 783,806-byte request,
+SHA-256 `5cac5fd208be1adc5f560da1312f3db26fc5b787e975e8f24a03dceefad89933`,
+to produce 726,601 Gamma bytes, SHA-256
+`1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af`.
+The same interpreter had run the Linux backend on a 769,047-byte request,
+SHA-256 `077bda40007b19ac8c8e8e02ec0aaffa6e5b20da635f425ad7f66bbd729eafe8`,
+to produce the 1,977,558-byte evaluator executable, SHA-256
+`36773be943484f3452a1e4fc81dd2875dd3c4e279339e8fbdacf54b48aea552c`.
+
+The measured guest invocation was fresh. Its 4,056-byte `EEREQ` included the
+closure digest, classifier source and all 256 input bytes, SHA-256
+`4848f270d9c9f21398762dce2b75bcbb4f4988e817d3974fa1ce01c7cd0a033f`.
+In 15.065 wall seconds the evaluator returned status zero and the expected
+3,077-byte observation, SHA-256
+`9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225`.
+The observation encodes guest exit 42 followed by twelve classification bytes
+for each input. This customer has its own results, separate from the stdin
+control's 21-of-27 count.
+
+To replay, use the frozen checkout's `epsilon_request` with the retained
+`epsilon.delta`, the classifier source and `bytes(range(256))`. Pass the
+resulting bytes on stdin to the retained `evaluator.elf` and compare the
+complete output to the expected digest above.
