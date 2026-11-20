@@ -107,6 +107,7 @@ machine Main::main(&mut self) {
         // Rebuild the first-case default after failed partial case censuses.
         self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first(),Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,140);
         self.source_sets();
+        self.named_terminal_values();
     }
 }
 
@@ -236,4 +237,12 @@ machine Main::payload_omissions(&mut self) {
     self.rejected_at("data M [copy]{case Empty;case P(a:u8,b:u8);}machine main()->u8{let p:M=M::P{..,..};42}", 79, 167);
     self.rejected_at("data M [copy]{case Empty;case P(a:u8,b:u8);}machine main()->u8{let p:M=M::P{..p};42}", 78, 168);
     self.rejected_at("data B [copy]{x:u8;y:u8;}data M [copy]{case P(b:B,z:u8);}machine main()->u8{let p:M=M::P{b:B{x:42},..};42}", 91, 169);
+}
+
+machine Main::named_terminal_values(&mut self) {
+    self.positive("machine select(take:bool, matched:u8, other:u8)->u8 { transition take { true -> matched, false -> other } } machine main()->u8 { transition select(true, 42, 7)==42 && select(false, 7, 42)==42 {true->pass(),_->fail()} machine pass()->u8{42} machine fail()->u8{7} }", 42, 171);
+    self.positive("data OverloadMatch [copy] { case None; case One(handle: u64 in Trapping); case Ambiguous; } machine choose(value:OverloadMatch, choose_value:bool)->OverloadMatch { transition choose_value { true -> value, false -> other() } machine other()->OverloadMatch { OverloadMatch::None } } machine observe(item:OverloadMatch)->u8 crashes Trap { transition item { OverloadMatch::One {handle as n} -> check(n), _ -> no() } machine check(n:u64 in Trapping)->u8 {transition n==42 {true->yes(),_->no()}} machine yes()->u8{42} machine no()->u8{7} } machine main()->u8 crashes Trap { let handle:u64 in Trapping=42 as u64 +Trapping; let val:OverloadMatch=OverloadMatch::One {handle:handle}; transition observe(choose(val,true))==42 && observe(choose(val,false))==7 {true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{7} }", 42, 172);
+    self.refusal("machine main()->u8{transition{_->missing}}", 1, 173);
+    self.refusal("machine main()->u8{let value:bool=true;transition{_->value}}", 1, 174);
+    self.refusal("machine main()->u8{let value:u8=42;transition{_->block value}}", 1, 175);
 }

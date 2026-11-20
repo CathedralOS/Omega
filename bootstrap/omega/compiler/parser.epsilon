@@ -4896,7 +4896,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.append_boolean_expression(value);
         self.transition_target_kind = OmegaTransitionTargetKind::Result;
         self.transition_result_expression = self.expression_result;
-        transition true { true -> retain_transition_statement() }
+        transition true { true -> retain_transition_statement(self.scan.next_cursor) }
     }
 
     state retain_transition_target_name() {
@@ -4928,8 +4928,41 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state transition_target_open_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftParen -> after_transition_target_open()
+            OmegaPunctuationKind::Comma -> transition_name_result()
+            OmegaPunctuationKind::RightBrace -> transition_name_result()
             _ -> incomplete_root()
         }
+    }
+
+    state transition_name_result() {
+        transition self.transition_acknowledgements {
+            0 -> transition_name_capacity()
+            _ -> invalid_acknowledgement()
+        }
+    }
+    state transition_name_capacity() {
+        transition self.member_count < 16384 {
+            true -> transition_name_expression_capacity()
+            _ -> resource_failure(OmegaParserResource::PathMembers, 16384, self.member_count + 1)
+        }
+    }
+    state transition_name_expression_capacity() {
+        transition self.expression_count < 16384 {
+            true -> retain_transition_name_result()
+            _ -> resource_failure(OmegaParserResource::Expressions, 16384, self.expression_count + 1)
+        }
+    }
+    state retain_transition_name_result() {
+        self.members[self.member_count].start = self.transition_target_start;
+        self.members[self.member_count].end = self.transition_target_end;
+        self.write_path_expression(self.member_count, 1, OmegaPathExpressionKind::Name, 0, 1);
+        self.member_count = self.member_count + 1;
+        self.transition_target_kind = OmegaTransitionTargetKind::Result;
+        self.transition_result_expression = self.expression_count;
+        self.expression_count = self.expression_count + 1;
+        self.transition_target_start = 0;
+        self.transition_target_end = 0;
+        transition true { true -> retain_transition_statement(self.scan.token_start) }
     }
 
     state after_transition_target_open() {
@@ -4939,10 +4972,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> begin_call_arguments() }
     }
 
-    state retain_transition_statement() {
+    state retain_transition_statement(resume_cursor: i32) {
         transition (self.statement_count < 16384) &&
             (self.transition_statement_count < 16384) {
-            true -> retain_transition_statement_bounded()
+            true -> retain_transition_statement_bounded(resume_cursor)
             _ -> resource_failure(
                 OmegaParserResource::Statements,
                 16384,
@@ -4951,7 +4984,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
-    state retain_transition_statement_bounded() {
+    state retain_transition_statement_bounded(resume_cursor: i32) {
         self.transition_statements[self.transition_statement_count].has_subject =
             self.transition_has_subject;
         self.transition_statements[self.transition_statement_count].subject =
@@ -5004,7 +5037,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             self.transition_statement_count;
         self.transition_statement_count = self.transition_statement_count + 1;
         self.statement_count = self.statement_count + 1;
-        self.cursor = self.scan.next_cursor;
+        self.cursor = resume_cursor;
         transition true { true -> scan_semantic(65) }
     }
 
@@ -6964,19 +6997,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state retain_path_expression_bounded() {
-        self.expressions[self.expression_count].kind = OmegaExpressionKind::Path;
-        self.expressions[self.expression_count].path_kind =
-            self.argument_path_kind;
-        self.expressions[self.expression_count].payload0 =
-            self.argument_first_path_member;
-        self.expressions[self.expression_count].payload1 =
-            self.argument_path_member_count;
-        self.expressions[self.expression_count].payload2 =
-            self.argument_starts_at_self;
-        self.expressions[self.expression_count].payload3 =
-            self.argument_name_member_count;
-        self.expressions[self.expression_count].payload4 = 0;
-        self.expressions[self.expression_count].payload5 = 0;
+        self.write_path_expression(self.argument_first_path_member, self.argument_path_member_count,
+            self.argument_path_kind, self.argument_starts_at_self, self.argument_name_member_count);
         transition self.expression_consumer {
             OmegaExpressionConsumer::CallArgument -> retain_call_argument_handle()
             OmegaExpressionConsumer::AssignmentValue -> retain_assignment_value_handle()
@@ -7196,7 +7218,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
     state finish_transition_arguments() {
         self.transition_first_argument = self.call_first_argument;
-        transition true { true -> retain_transition_statement() }
+        transition true { true -> retain_transition_statement(self.scan.next_cursor) }
     }
 
     state finish_call_statement_arguments() {
@@ -10368,6 +10390,20 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state internal_failure() {
         self.status = OmegaParserStatus::InternalFailure;
     }
+}
+
+machine OmegaParser::write_path_expression(
+    &mut self, first_member: i32, member_count: i32, kind: OmegaPathExpressionKind,
+    starts_at_self: i32, name_member_count: i32
+) {
+    self.expressions[self.expression_count].kind = OmegaExpressionKind::Path;
+    self.expressions[self.expression_count].path_kind = kind;
+    self.expressions[self.expression_count].payload0 = first_member;
+    self.expressions[self.expression_count].payload1 = member_count;
+    self.expressions[self.expression_count].payload2 = starts_at_self;
+    self.expressions[self.expression_count].payload3 = name_member_count;
+    self.expressions[self.expression_count].payload4 = 0;
+    self.expressions[self.expression_count].payload5 = 0;
 }
 
 // Both expression frames and direct transition results retain the same Boolean
