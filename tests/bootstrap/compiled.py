@@ -143,7 +143,11 @@ def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
 (def prefix_zz ((n Int)) Int (prefix_y n))
 (def prefix_y ((n Int)) Int (+ n 2))
 (def prefix_z ((n Int)) Int (prefix_zz n))"""
-    cases = [*GAMMA_CASES, ("forward calls with common prefixes", names, b"", (0, b"*"))]
+    lookalikes = """(def firsT ((p Int)) Int (second p))
+(def $applicatiox ((n Int)) Int (+ n 1))
+(def main () Int (firsT (pair 0 ($applicatiox 41))))"""
+    cases = [*GAMMA_CASES, ("forward calls with common prefixes", names, b"", (0, b"*")),
+             ("names differing at the last byte of a keyword", lookalikes, b"", (0, b"*"))]
     for label, text, payload, expected in cases:
         source = text.encode("ascii")
         actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
