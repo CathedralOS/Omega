@@ -175,6 +175,19 @@ fn invalid_byte_after_crlf() {
     });
 }
 #[test]
+fn truncated_utf8_after_multibyte_comment_text() {
+    // After CRLF, `//` and a complete two-byte scalar put the tail at byte column 5, not 4.
+    // Completing only the final scalar repairs the entire package.
+    check(Case {
+        stage: "L0",
+        producer: "lexer",
+        good: b"machine f()->bool{true}\r\n//\xc3\xa9\xe6\x97\xa5",
+        bad: b"machine f()->bool{true}\r\n//\xc3\xa9\xe6\x97",
+        occurrence: b"\xe6\x97",
+        reason: "source is not valid UTF-8",
+    });
+}
+#[test]
 fn missing_closing_brace_at_eof() {
     check(Case {
         stage: "L1",

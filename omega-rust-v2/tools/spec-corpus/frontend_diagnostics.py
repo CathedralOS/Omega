@@ -12,6 +12,7 @@ import reviewed_comparisons
 # Test name -> (first stopping layer, producer named in the CLI diagnostic).
 CLI_CASES = {
     "invalid_byte_after_crlf": ("L0", "lexer"),
+    "truncated_utf8_after_multibyte_comment_text": ("L0", "lexer"),
     "missing_closing_brace_at_eof": ("L1", "parser"),
     "unresolved_call_in_the_second_file": ("L2", "resolver"),
     "wrong_return_type_during_initial_typing": ("L3", "typer"),

@@ -2,6 +2,8 @@
 from pathlib import Path
 import re
 
+from diagnostic_fields import unescape
+
 
 FAMILIES = {
     "L0": ("lex_errors", "layers/00_bytes-to-tokens/src/errors/lex_error_kind.rs", "LexErrorKind"),
@@ -56,23 +58,39 @@ def measure(report, log):
             current = ""
         elif line.startswith("OMEGA_DIAGNOSTIC_KIND"):
             fields = line.split("\t")
-            if len(fields) != 7 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
+            if len(fields) != 6 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
                 errors.append(f"malformed diagnostic kind: {line}")
                 if len(fields) >= 3:
                     invalid.add((fields[1], fields[2]))
                 continue
-            _, stage, kind, file, start, end, reason = fields
+            _, stage, kind, actual_kind, expected_text, actual_text = fields
             if kind not in inventory.get(stage, {}):
                 errors.append(f"unknown diagnostic kind: {stage} {kind}")
                 continue
             binary = FAMILIES[stage][0]
             expected = f"tests/{binary}.rs", f"public_diagnostics_match_the_{binary}_inventory"
-            if ((target, current) != expected or not file or not start.isdecimal() or not end.isdecimal()
-                    or int(end) < int(start) or not reason or (stage, kind) in observations):
-                errors.append(f"misplaced, repeated or invalid diagnostic kind in {target}::{current}: {line}")
+            try:
+                if kind != actual_kind or expected_text != actual_text:
+                    raise ValueError("the observed kind or CLI diagnostic differs from the expected one")
+                if (stage, kind) == ("L1", "SourceTooLarge"):
+                    raise ValueError("parser index capacity has a direct boundary test")
+                if (target, current) != expected or (stage, kind) in observations:
+                    raise ValueError("misplaced or repeated observation")
+                producer = {"L0": "lexer", "L1": "parser"}[stage]
+                rendered = unescape(actual_text).decode("utf-8")
+                match = re.fullmatch(rf"([^:\n]+):([0-9]+):([0-9]+): {producer}: (.+) \(bytes ([0-9]+)\.\.([0-9]+)\)", rendered, re.S)
+                if not match:
+                    raise ValueError("invalid CLI diagnostic")
+                file, row, column, reason, start, end = match.groups()
+                row, column, start, end = map(int, (row, column, start, end))
+                if min(row, column) < 1 or end < start:
+                    raise ValueError("invalid diagnostic location")
+            except ValueError as exc:
+                errors.append(f"{target}::{current}: {stage} {kind}: {exc}")
                 invalid.add((stage, kind))
                 continue
-            observations[stage, kind] = expected, {"file": file, "byte_start": int(start), "byte_end": int(end), "reason": reason}
+            observations[stage, kind] = expected, {"file": file, "line": row, "byte_column": column,
+                                                   "byte_start": start, "byte_end": end, "reason": reason}
     for stage, rows in inventory.items():
         for kind, row in rows.items():
             if (stage, kind) in invalid:

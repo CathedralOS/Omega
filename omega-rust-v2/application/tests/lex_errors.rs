@@ -206,17 +206,8 @@ fn measure(
         ));
     }
 
-    // Evidence is parsed back out of the observed diagnostic, not copied from the expectation.
-    let (location, rest) = observed.split_once(": lexer: ").ok_or("no lexer producer")?;
-    let file = location.split(':').next().ok_or("no file")?;
-    let (reason, range) = rest.rsplit_once(" (bytes ").ok_or("no byte range")?;
-    let (observed_start, observed_end) = range
-        .strip_suffix(')')
-        .and_then(|r| r.split_once(".."))
-        .ok_or("malformed byte range")?;
-    Ok(format!(
-        "OMEGA_DIAGNOSTIC_KIND\tL0\t{observed_kind:?}\t{file}\t{observed_start}\t{observed_end}\t{reason}"
-    ))
+    let field = spec_corpus::diagnostic_field;
+    Ok(format!("OMEGA_DIAGNOSTIC_KIND\tL0\t{kind:?}\t{observed_kind:?}\t{}\t{}", field(&expected), field(observed)))
 }
 
 #[test]
