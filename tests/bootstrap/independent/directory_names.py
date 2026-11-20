@@ -42,6 +42,56 @@ def cases():
                            0, b"main", paths=["main.omg", "first/x.omg", "second/x.omg"])
     yield "dependency-directory", data, 42
 
+    # The installed core is identified by its role, independent of its package
+    # display name. Exercise the product declaration without a dependency edge.
+    ordering = (ROOT / "source/library/core/fence_ordering.omg").read_bytes()
+    order_reader = (
+        b"use omega\\language\\core\\FenceOrdering; machine main() -> u8 { "
+        b"let order: FenceOrdering = FenceOrdering::ReceivePublish; "
+        b"transition order { FenceOrdering::ReceivePublish -> pass(), _ -> fail() } "
+        b"machine pass() -> u8 { 42 } machine fail() -> u8 { 7 } }"
+    )
+    data, _, _, _ = encode([("app", 0), ("installed", 1)], [],
+                           [(0, order_reader), (1, ordering)], 0, b"main",
+                           paths=["main.omg", "fence_ordering.omg"])
+    yield "core-product-declaration", data, 42
+
+    core_import = b"use omega\\language\\core\\sub\\score; machine main() -> u8 { score() }"
+    core_call = b"machine main() -> u8 { omega\\language\\core\\sub\\score() }"
+    packages = [("app", 0), ("installed", 1), ("impostor", 0)]
+    paths = ["main.omg", "sub/x.omg", "language/core/sub/x.omg"]
+    for name, caller in [("core-import", core_import), ("core-qualified-call", core_call)]:
+        data, _, _, _ = encode(packages, [(0, 2, "omega")], [(0, caller), (1, score), (2, other)],
+                               0, b"main", paths=paths)
+        yield name, data, 42
+
+    local_alias = b"use alternate\\omega; " + core_call
+    data, _, _, _ = encode([("app", 0), ("installed", 1)], [],
+                           [(0, local_alias), (1, score), (0, other), (0, b"machine anchor() {}")],
+                           0, b"main", paths=["main.omg", "sub/x.omg",
+                                              "alternate/omega/language/core/sub/x.omg",
+                                              "alternate/omega/marker.omg"])
+    yield "core-before-local-namespace", data, 42
+
+    # A normal dependency alias starting with "omega" still selects ordinary std.
+    ordinary = b"use omega\\sub\\score; machine main() -> u8 { score() }"
+    data, _, _, _ = encode([("app", 0), ("library", 2)], [(0, 1, "omega")],
+                           [(0, ordinary), (1, score)], 0, b"main",
+                           paths=["main.omg", "sub/x.omg"])
+    yield "ordinary-omega-alias", data, 42
+
+    for name, role, path, caller, declaration, owner, edges in [
+        ("private-core-member", 1, "sub/x.omg", core_import, b"machine score() -> u8 { 42 }", 1, []),
+        ("core-name-without-role", 0, "sub/x.omg", core_import, score, 1, []),
+        ("local-core-impostor", 0, "omega/language/core/sub/x.omg", core_import, score, 0, []),
+        ("aliased-core-impostor", 0, "language/core/sub/x.omg", core_import, score, 1, [(0, 1, "omega")]),
+        ("ordinary-std-unmounted", 2, "sub/x.omg", core_import.replace(b"core", b"std"), score, 1, []),
+    ]:
+        data, _, _, rows = encode([("app", 0), ("omega_language_core", role)], edges,
+                                  [(0, caller), (owner, declaration)], 0, b"main",
+                                  paths=["main.omg", path])
+        yield name, data, struct.pack("<BII", 0, 1, rows[0][1])
+
     data, rows = packet([select, score], ["main.omg", "moved/x.omg"])
     yield "moved-declaration", data, struct.pack("<BII", 0, 1, rows[0][1])
     # The bootstrap compiler implements imports of free declarations. A static
