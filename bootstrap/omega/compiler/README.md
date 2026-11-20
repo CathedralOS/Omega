@@ -62,8 +62,7 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current thirteen-member
-manifest materializes 26,295 lines / 1,008,184 bytes with SHA-256
+The manifest materializes 26,295 lines / 1,008,184 bytes with SHA-256
 `48614901b52ff90314fb7cf2ed5066f223d7e459e54a398dc4de027ab8cf9aa5`.
 The manifest itself is 2,380 bytes, SHA-256
 `f073b9f190fe2c28851d49fb4497c4fef61443a04c7745f0b684e5d2c0aa89fe`;
@@ -100,8 +99,7 @@ and parameters.
 
 Each file's imports resolve before signature or body checking. Every record or
 case payload field retains the scalar type or nominal declaration resolved in
-its own file. The
-layout checker can then follow forward and nested records across files and
+its own file. The layout checker can then follow forward and nested records across files and
 detect a by-value cycle. Public interfaces are checked against their owner's
 imports. The compiler gives parameters permanent addresses. Bodies reuse
 local syntax rows and get fresh storage addresses, so a callee can use the
