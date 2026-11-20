@@ -1,4 +1,4 @@
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::ServiceId;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

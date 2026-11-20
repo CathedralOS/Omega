@@ -1681,7 +1681,7 @@ pub(crate) mod quotient_wire {
     use super::super::wire_fields::{Field, Id, Index, List, Text, U32, wire_enum, wire_record};
     use terminal_psi::quotients::QuotientPositionalRelation;
     use terminal_psi::quotients::QuotientRelationIdentity;
-    use terminal_psi::terminal_module::quotients::{
+    use terminal_psi::types::quotients::{
         TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
         TerminalQuotientOperation, TerminalQuotientRepresentation,
     };

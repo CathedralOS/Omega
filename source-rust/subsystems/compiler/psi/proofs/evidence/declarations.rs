@@ -1,5 +1,5 @@
 use crate::ValueDeclaration;
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{EvidenceTermId, MachineId, Proposition};
 
 /// A transparent scalar predicate, not evidence that its body holds.

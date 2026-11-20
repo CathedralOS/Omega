@@ -1,6 +1,6 @@
 pub(crate) mod places {
 
-    use crate::terminal_module::TerminalIdentityIndex;
+    use crate::TerminalIdentityIndex;
     use crate::{OperationKind, StructuralAccess};
     use semantic_vocabulary::{
         ObligationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
@@ -1361,7 +1361,7 @@ pub(crate) mod reference_origins {
     }
 }
 pub(crate) mod signatures {
-    use crate::terminal_module::TerminalIdentityIndex;
+    use crate::TerminalIdentityIndex;
     use crate::{
         StructuralAccess, StructuralMultiplicity, StructuralPathQualification,
         StructuralPathSegment,

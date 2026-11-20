@@ -1,4 +1,4 @@
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
 use semantic_vocabulary::OperationId;
 

@@ -1,5 +1,5 @@
 use crate::StructuralAccess;
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,5 +1,5 @@
 use crate::ClosedConformanceApplicationCommitment;
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{EvidenceTermId, MachineId, PropositionId, ScalarType};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

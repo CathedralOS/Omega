@@ -79,7 +79,7 @@ fn loads_module(file: &File, target: &str) -> bool {
                 if matches!(&value.value, Expr::Lit(expr)
                     if matches!(&expr.lit, Lit::Str(path) if path.value() == target)));
         }
-        format!("{}.rs", module.ident) == target
+        format!("{}.rs", module.ident) == target || format!("{}/mod.rs", module.ident) == target
     })
 }
 
@@ -118,6 +118,18 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
         ));
     }
     let program = read_module(&psi, "psi.rs")?;
+    for item in &program.items {
+        if let Item::Mod(module) = item {
+            let name = module.ident.to_string();
+            if module.attrs.iter().any(|attr| attr.path().is_ident("path"))
+                || (name != "exports" && field_type(&program, &name).is_none())
+            {
+                errors.push(format!(
+                    "{PSI}/psi.rs: declare field modules directly and let each field own its children, found {name}"
+                ));
+            }
+        }
+    }
     for entry in fs::read_dir(&psi).map_err(|err| format!("{PSI}: {err}"))? {
         let entry = entry.map_err(|err| format!("{PSI}: {err}"))?;
         let path = entry.path();
@@ -126,7 +138,8 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
         if path.is_dir()
             && !name.starts_with('.')
             && !matches!(name.as_ref(), "tests" | "target")
-            && field_type(&program, &name).is_none()
+            && (field_type(&program, &name).is_none()
+                || !loads_module(&program, &format!("{name}/mod.rs")))
         {
             errors.push(format!(
                 "{PSI}/{name}: a program record directory must name a public Psi field"
@@ -139,7 +152,12 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
         ));
     }
     for &(field, name, path) in GROUPS {
-        if !has_group(&program, field, name) || !loads_module(&program, path) {
+        let owner = format!("{field}/mod.rs");
+        let module = read_module(&psi, &owner)?;
+        if !has_group(&program, field, name)
+            || !loads_module(&program, &owner)
+            || !loads_module(&module, "declarations.rs")
+        {
             errors.push(format!(
                 "{PSI}/psi.rs: Psi.{field} must carry {name} from {path}"
             ));
@@ -150,12 +168,12 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
             ));
         }
     }
-    if !loads_module(&program, "machines/control_flow.rs") {
+    if !loads_module(&program, "machines/mod.rs") {
         errors.push(format!(
             "{PSI}/psi.rs: must load the machine control-flow module"
         ));
     }
-    let control = read_module(&psi, "machines/control_flow.rs")?;
+    let control = read_module(&psi, "machines/mod.rs")?;
     for (path, name, definition) in [
         (
             "machines/machine.rs",
@@ -176,9 +194,7 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
     ] {
         let module = path.strip_prefix("machines/").expect("machine module path");
         if !loads_module(&control, module) {
-            errors.push(format!(
-                "{PSI}/machines/control_flow.rs: must load {module}"
-            ));
+            errors.push(format!("{PSI}/machines/mod.rs: must load {module}"));
         }
         let syntax = read_module(&psi, path)?;
         if !definition.present(&syntax, name) {
@@ -198,14 +214,15 @@ mod tests {
     fn psi_groups_use_the_domain_record_type_and_its_declared_module() {
         let root = syn::parse_quote! {
             pub struct Psi { pub types: TypeDeclarations, pub proofs: Vec<Proof> }
-            #[path = "types/declarations.rs"] mod types_declarations;
+            pub mod types;
             mod selection { #[path = "proofs/declarations.rs"] mod proofs; }
         };
         assert!(field_type(&root, "types").is_some());
         assert!(field_type(&root, "codec").is_none());
         assert!(has_group(&root, "types", "TypeDeclarations"));
         assert!(!has_group(&root, "proofs", "ProgramProofs"));
-        assert!(loads_module(&root, "types/declarations.rs"));
+        assert!(loads_module(&root, "types/mod.rs"));
+        assert!(!loads_module(&root, "types/declarations.rs"));
         assert!(!loads_module(&root, "proofs/declarations.rs"));
     }
 

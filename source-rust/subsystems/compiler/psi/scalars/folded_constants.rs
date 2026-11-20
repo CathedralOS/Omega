@@ -1,4 +1,4 @@
-use super::{NominalDeclarationIdentity, TerminalIdentityIndex, TerminalModule};
+use crate::{NominalDeclarationIdentity, TerminalIdentityIndex, TerminalModule};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -8,7 +8,7 @@ use semantic_vocabulary::{
     MachineId, ScalarApplicationId, ScalarConditionRole, ScalarType, ValueId,
 };
 
-use super::{ProofDeclarationId, ScalarApplication, ScalarApplications};
+use crate::{ProofDeclarationId, ScalarApplication, ScalarApplications};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScalarConditionSubject {

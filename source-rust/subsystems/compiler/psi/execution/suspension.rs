@@ -1,6 +1,6 @@
 use crate::{
     StructuralAccess, StructuralArgument, StructuralPathSegment,
-    terminal_module::TerminalIdentityTable,
+    TerminalIdentityTable,
 };
 use arena::{Arena, Handle, HandleSpan};
 use language_core::CarryPolicy;

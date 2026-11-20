@@ -30,24 +30,24 @@ macro_rules! exclusive_borrow_pair_pattern {
 #[macro_export]
 macro_rules! borrowed_access_pair_pattern {
     () => {
-        $crate::ownership::StructuralAccess::SharedBorrow
-            | $crate::ownership::StructuralAccess::MutableBorrow
+        $crate::access::StructuralAccess::SharedBorrow
+            | $crate::access::StructuralAccess::MutableBorrow
     };
 }
 
 #[macro_export]
 macro_rules! mutating_access_pair_pattern {
     () => {
-        $crate::ownership::StructuralAccess::MutableBorrow
-            | $crate::ownership::StructuralAccess::Owned
+        $crate::access::StructuralAccess::MutableBorrow
+            | $crate::access::StructuralAccess::Owned
     };
 }
 
 #[macro_export]
 macro_rules! nonlinear_multiplicity_pair_pattern {
     () => {
-        $crate::ownership::StructuralMultiplicity::Affine
-            | $crate::ownership::StructuralMultiplicity::Unrestricted
+        $crate::access::StructuralMultiplicity::Affine
+            | $crate::access::StructuralMultiplicity::Unrestricted
     };
 }
 

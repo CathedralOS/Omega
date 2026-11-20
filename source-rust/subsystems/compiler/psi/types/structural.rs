@@ -349,7 +349,7 @@ pub(crate) mod domain_requirements {
 }
 pub(crate) mod qualifications {
     use crate::StructuralPathSegment;
-    use crate::terminal_module::TerminalIdentityIndex;
+    use crate::TerminalIdentityIndex;
     use semantic_vocabulary::{
         ContentAlgebra, ContentProjectionExpression, ContentProjectionIdentity,
         DomainSemanticId, StructuralDomainId, StructuralTypeId,
@@ -622,7 +622,7 @@ pub(crate) mod qualifications {
 }
 pub(crate) mod scalar_qualifications {
 
-    use crate::terminal_module::TerminalIdentityIndex;
+    use crate::TerminalIdentityIndex;
     use semantic_vocabulary::{
         DomainSemanticId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
         MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType, ValueId,
@@ -813,7 +813,7 @@ pub(crate) mod scalar_qualifications {
     }
 }
 pub(crate) mod structural {
-    use crate::terminal_module::TerminalIdentityIndex;
+    use crate::TerminalIdentityIndex;
     use language_core::BindingRelevance;
     use semantic_vocabulary::{
         IeeeFloatFormat, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
@@ -1429,10 +1429,10 @@ pub(crate) mod structural {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ByteSequenceCarrier {
         BorrowedView {
-            access: Option<crate::terminal_module::ownership::StructuralAccess>,
+            access: Option<crate::access::StructuralAccess>,
         },
         BoundedView {
-            access: Option<crate::terminal_module::ownership::StructuralAccess>,
+            access: Option<crate::access::StructuralAccess>,
             capacity: u64,
         },
         BoundedOwned {

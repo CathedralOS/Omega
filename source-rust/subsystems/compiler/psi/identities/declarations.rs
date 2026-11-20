@@ -1,4 +1,4 @@
-use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};
+use crate::{TerminalIdentityIndex, TerminalIdentityTable};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct NominalDeclarationIdentity(TerminalIdentityIndex);
 
@@ -173,7 +173,7 @@ impl CheckedMachineCapture {
 #[cfg(test)]
 mod tests {
     use super::NominalDeclarationIdentity;
-    use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTableBuilder};
+    use crate::{TerminalIdentityIndex, TerminalIdentityTableBuilder};
 
     #[test]
     fn nominal_identity_compares_content_in_each_owning_table() {

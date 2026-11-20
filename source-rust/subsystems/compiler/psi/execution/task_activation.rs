@@ -1,5 +1,5 @@
 use crate::{
-    LayoutApplicationId, StructuralTypeDeclaration, terminal_module::TerminalIdentityIndex,
+    LayoutApplicationId, StructuralTypeDeclaration, TerminalIdentityIndex,
 };
 use language_core::CarryPolicy;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};

@@ -1,4 +1,4 @@
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use crate::{
     StructuralAccess, StructuralDomainRequirement, StructuralMultiplicity,
     StructuralPathQualification,

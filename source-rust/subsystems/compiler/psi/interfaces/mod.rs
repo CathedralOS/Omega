@@ -3,13 +3,21 @@ Target-neutral boundary declarations, external provider contracts, runtime calla
 dispatch families, effect ceilings, and suspension/carry obligations in `TerminalModule`.
 */
 
+pub mod callback_application;
+pub mod callback_declarations;
+pub mod calling_policies;
+pub mod installed_interrupt;
+mod queries;
+pub mod service_schemas;
+
 mod application_demands;
 pub use application_demands::TerminalBoundaryApplicationDemands;
 
 pub(crate) mod applications;
+mod boundary_machines;
 pub(crate) mod conformances;
-#[path = "boundary_machines.rs"]
-pub(crate) mod declarations;
+mod declarations;
+pub use declarations::ProgramInterfaces;
 pub(crate) mod external_providers;
 pub use external_providers::{
     ExternalProviderConformance, ExternalProviderOwner, ExternalRequirementSchema,
@@ -17,8 +25,6 @@ pub use external_providers::{
 pub(crate) mod non_observation;
 pub(crate) mod numeric_intrinsics;
 pub use numeric_intrinsics::validate_numeric_intrinsic_signature;
-#[path = "../execution/dynamic_dispatch.rs"]
-pub(crate) mod dynamic_dispatch;
 pub(crate) mod providers;
 pub(crate) mod reach_applications;
 pub(crate) mod services;
@@ -27,15 +33,7 @@ pub use applications::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
     BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
 };
-pub use conformances::{
-    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
-    ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
-    DeclaredResultLifetime, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint,
-};
-pub use declarations::{
+pub use boundary_machines::{
     BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryLifetimeDependency,
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
     BoundaryReferenceDestination, BoundaryReferenceOutput, BoundaryStructuralResultDeclaration,
@@ -43,10 +41,13 @@ pub use declarations::{
     ProgramLocalRootIntroductionSchema, ScalarDomainRequirement, StructuralDomainRequirement,
     find_boundary_machine, program_local_root_introduction_compatibility_report_identity,
 };
-pub use dynamic_dispatch::{
-    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal, TerminalDynamicTable,
+pub use conformances::{
+    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
+    ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
+    DeclaredResultLifetime, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
 };
 pub use providers::{
     ProviderCandidateConformance, ProviderInstanceRequirements, ProviderParameterRefinement,

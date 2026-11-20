@@ -1,4 +1,4 @@
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use crate::{StructuralAccess, StructuralContentProjection, StructuralMultiplicity};
 use semantic_vocabulary::{DomainSemanticId, MachineId, OperationId};
 

@@ -1,4 +1,4 @@
-use super::{CheckedMachineDeclaration, TerminalIdentityIndex};
+use crate::{CheckedMachineDeclaration, TerminalIdentityIndex};
 use arena::Arena;
 use proof_applications::{
     ProofApplicationPlan, ProofApplications, ProofCallGraph,
@@ -13,7 +13,7 @@ pub enum ProofScopeDeclaration {
     Missing,
     Nominal(TerminalIdentityIndex),
     Callable(CheckedMachineDeclaration),
-    Operator(super::BoundaryOperatorRequirement),
+    Operator(crate::BoundaryOperatorRequirement),
     Unavailable(String),
 }
 
@@ -23,7 +23,7 @@ pub enum ProofCallableAssociation {
     Missing,
     Callable {
         declaration: ProofDeclarationId,
-        callable: super::TargetMachineCallable,
+        callable: crate::TargetMachineCallable,
     },
 }
 
@@ -95,7 +95,7 @@ pub struct ProofCheckedRecursiveCall {
 impl ProofApplicationScope {
     pub fn callable_declaration(
         &self,
-        callable: super::TargetMachineCallable,
+        callable: crate::TargetMachineCallable,
     ) -> Option<ProofDeclarationId> {
         self.callables.iter().find_map(|(_, row)| match row {
             ProofCallableAssociation::Callable {

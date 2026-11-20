@@ -1,4 +1,4 @@
-use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};
+use crate::{TerminalIdentityIndex, TerminalIdentityTable};
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

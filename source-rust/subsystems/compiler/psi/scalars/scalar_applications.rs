@@ -6,8 +6,8 @@ use crate::TargetMachineCallable;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScalarApplications {
     declarations: Arena<ScalarApplication>,
-    pub conditions: super::ScalarConditions,
-    pub proof_scope: super::ProofApplicationScope,
+    pub conditions: crate::ScalarConditions,
+    pub proof_scope: crate::ProofApplicationScope,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

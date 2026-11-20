@@ -1,5 +1,5 @@
 use crate::digest_encoder::DomainDigestEncoder;
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use psi_effect_contracts::{ConditionalCarryRequirement, ContractDependency};
 use semantic_vocabulary::{MachineId, ServiceId};
 

@@ -1,4 +1,4 @@
-use crate::terminal_module::TerminalIdentityIndex;
+use crate::TerminalIdentityIndex;
 use crate::{
     CrashRouteBucket, RetainedBorrowCustody, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, ValueDeclaration,
