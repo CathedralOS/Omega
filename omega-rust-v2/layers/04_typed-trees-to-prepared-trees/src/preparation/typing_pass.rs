@@ -125,7 +125,17 @@ pub fn prepare_typing_pass<'stage, 'text>(
     target: Option<&'stage TargetSemantics>,
     evidence: CheckedPreparationEvidence<'stage, 'text>,
 ) -> Result<PreparedPass, TypeError> {
-    evaluate_pass(progress, slots, target, evidence, &HashSet::new()).map_err(TypeError::from)
+    prepare_typing_pass_with_cause(progress, slots, target, evidence).map_err(TypeError::from)
+}
+
+/// Evaluate an individual pass with checked evidence and retain the rule that refused it.
+pub fn prepare_typing_pass_with_cause<'stage, 'text>(
+    progress: &'stage TypingProgress<'text>,
+    slots: &'stage [BoundarySlot],
+    target: Option<&'stage TargetSemantics>,
+    evidence: CheckedPreparationEvidence<'stage, 'text>,
+) -> Result<PreparedPass, PreparationRefusal> {
+    evaluate_pass(progress, slots, target, evidence, &HashSet::new())
 }
 
 pub(crate) fn evaluate_pass<'stage, 'text>(

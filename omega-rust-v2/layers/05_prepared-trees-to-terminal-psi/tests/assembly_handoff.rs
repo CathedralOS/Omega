@@ -235,8 +235,9 @@ fn preparation_cannot_mix_an_instruction_catalog_with_another_layout_target() {
         let round = PreparationRound::begin(&p, &[], Some(&other))
             .err()
             .expect("round must reject mismatch");
-        spec_corpus::observe_handoff!("open-target-and-selected-layout/refusal", assert_eq!(round.message, "assembly catalog and preparation selected different targets"));
-        assert_eq!(direct.message, round.message);
+        spec_corpus::observe_handoff!("open-target-and-selected-layout/refusal", assert_eq!(round.reason(), Some(omega_preparation::PreparationReason::AssemblyTargetMismatch)));
+        assert_eq!(direct.message, "assembly catalog and preparation selected different targets");
+        assert_eq!(round.diagnostic(), &direct);
     });
 }
 

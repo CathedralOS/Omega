@@ -261,7 +261,7 @@ fn refuse_with<'trees, 'text>(
     target: &'trees crate::TargetSemantics,
     evidence: CheckedPreparationEvidence<'trees, 'text>,
 ) -> PreparationRefusal {
-    match crate::preparation::typing_pass::evaluate_pass(progress, slots, Some(target), evidence, &Default::default()) {
+    match crate::prepare_typing_pass_with_cause(progress, slots, Some(target), evidence) {
         Ok(_) => panic!("the supplied provider evidence must be refused"),
         Err(refusal) => refusal,
     }

@@ -9,8 +9,8 @@ use omega_typer::SourcePackage;
 pub fn prepare_source_package_with_open_target<'text>(
     source: &SourcePackage<'text>,
     boundary_slots: &[omega_typed::BoundarySlot],
-) -> Result<PreparationProgress<'text>, TypeError> {
-    prepare_progress(source, boundary_slots, None, PreparationState::default(), None).map_err(TypeError::from)
+) -> Result<PreparationProgress<'text>, PreparationFailure> {
+    prepare_progress(source, boundary_slots, None, PreparationState::default(), None)
 }
 
 /// Prepare the static values demanded by one admitted source package.
@@ -31,8 +31,7 @@ pub fn prepare_source_package_diagnosed_with_inputs<'text>(
     target: Option<&TargetSemantics>,
 ) -> Result<PreparedTrees<'text>, PreparationFailure> {
     prepare_progress(source, boundary_slots, target, PreparationState::default(), None)?
-        .into_complete_or_demand()
-        .map_err(PreparationFailure::missing_target)
+        .into_complete()
 }
 
 /// Use the same Build-selected boundary slots in every typing pass, including

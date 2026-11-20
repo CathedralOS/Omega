@@ -4,7 +4,7 @@ L4 computes the values that typing and lowering need. It consumes L3's selected 
 
 ## Typing and target closure
 
-When preparation stops, its diagnosed entry point identifies the pass that refused the source. L3 can refuse during initial typing or after L4 returns a static value. For example, a computed array width can expose a mismatch only when L3 checks the resulting array type. Both passes retain the original type error and source span. [Failure phases](tests/preparation_failure_phases.rs)
+When preparation stops, its diagnosed entry point identifies the pass that refused the source. L3 can refuse during initial typing or after L4 returns a static value. For example, a computed array width can expose a mismatch only when L3 checks the resulting array type. Both passes retain the original type error and source span. A caller that steps through rounds, supplies a target later, or provides a resource grant receives the same phase and diagnostic. [Failure phases](tests/preparation_failure_phases.rs) · [Target closure](tests/target_layout.rs)
 
 Every refusal L4 renders carries its typed cause. An owned cause is one `PreparationReason`, and `PreparationReason::ALL` lists them all. The target contract's layout refusals and the shared integer primitive's refusals keep their owner's text and are marked as forwarded. Typing refusals have no preparation cause. Most reasons follow the admission prefix and may end with a call chain or recursive component. An unsupported floating operation and an assembly target mismatch are rendered without the prefix. [Reasons](src/reasons.rs) · [Observed reasons](tests/preparation_reasons.rs)
 

@@ -178,6 +178,12 @@ fn declared_preparation_reasons() {
 }
 
 #[test]
+fn a_ranked_body_requires_its_checked_termination_evidence() {
+    let source = "machine size(n:u64)->u64 terminates by n {n} const WIDTH:u64=size(3u64);";
+    admitted(source, PreparationReason::RankedBodyNeedsProof, "the selected ranked body requires a checked termination proof", "size(3u64)", "");
+}
+
+#[test]
 fn a_false_integer_precondition() {
     let source = "machine divide(n:u64,d:u64)->u64 requires d != 0 reaches none crashes none terminates {n / d}
                   const SIZE:u64=divide(12,0);

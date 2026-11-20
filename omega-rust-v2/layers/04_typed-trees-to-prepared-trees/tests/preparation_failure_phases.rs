@@ -52,11 +52,10 @@ fn diagnose_package(package: &SourcePackage<'_>) -> Result<(), PreparationFailur
         (Err(failure), Err(error)) => assert_eq!(failure.diagnostic(), &error, "legacy conversion changed the diagnostic"),
         (diagnosed, legacy) => panic!("diagnosed {diagnosed:?} and legacy {legacy:?} disagree"),
     }
-    // The round interface keeps its two typing outcomes: both phases arrive as `Typing`.
     let mut round = match PreparationRound::begin(package, &[], None) {
         Ok(round) => round,
         Err(error) => {
-            assert!(matches!(&diagnosed, Err(PreparationFailure::Typing(e)) if *e == error), "entry typing refused through the round: {error:?}");
+            assert_eq!(diagnosed.as_ref().unwrap_err(), &error);
             return diagnosed;
         }
     };
@@ -84,8 +83,8 @@ fn diagnose_package(package: &SourcePackage<'_>) -> Result<(), PreparationFailur
                 assert!(matches!(&diagnosed, Err(PreparationFailure::MissingTarget(e)) if &e.diagnostic == first), "open round: {first:?}");
                 return diagnosed;
             }
-            Err(PreparationAdvanceError::Typing(error)) => {
-                assert!(matches!(&diagnosed, Err(PreparationFailure::ResumedTyping(e)) if *e == error), "round retype: {error:?}");
+            Err(PreparationAdvanceError::Refused(error)) => {
+                assert_eq!(diagnosed.as_ref().unwrap_err(), &error);
                 return diagnosed;
             }
             Err(other) => panic!("unexpected advance failure {other:?}"),

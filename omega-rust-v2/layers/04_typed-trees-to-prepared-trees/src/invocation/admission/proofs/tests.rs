@@ -1,7 +1,6 @@
 use super::*;
 
-use crate::preparation::typing_pass::evaluate_pass;
-use crate::{CheckedPreparationEvidence, PreparationAnswers, PreparedPass, TargetSemantics, prepare_typing_pass};
+use crate::{CheckedPreparationEvidence, PreparationAnswers, PreparedPass, TargetSemantics, prepare_typing_pass, prepare_typing_pass_with_cause};
 use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::{BoundarySlot, RequirementSlot, SlotDirection, TypingProgress, resolve_source_package, type_source_package};
 
@@ -67,16 +66,14 @@ pub(super) fn range_in(
     (start, start + occurrence.len())
 }
 
-/// Present one receipt to the complete typing pass. `evaluate_pass` is the
-/// cause-preserving form of the public `prepare_typing_pass`; both receive an
-/// equal receipt and must reach the same decision and diagnostic.
+/// Both public pass interfaces must reach the same decision for equal evidence.
 pub(super) fn prepare_pass<'stage, 'text>(
     progress: &'stage TypingProgress<'text>,
     slots: &'stage [BoundarySlot],
     target: Option<&'stage TargetSemantics>,
     receipt: impl Fn() -> CheckedPreparationEvidence<'stage, 'text>,
 ) -> Result<PreparedPass, PreparationRefusal> {
-    let caused = evaluate_pass(progress, slots, target, receipt(), &HashSet::new());
+    let caused = prepare_typing_pass_with_cause(progress, slots, target, receipt());
     let public = prepare_typing_pass(progress, slots, target, receipt());
     match (&caused, &public) {
         (Err(refusal), Err(diagnostic)) => assert_eq!(&refusal.diagnostic, diagnostic, "the public typing pass renders another diagnostic"),

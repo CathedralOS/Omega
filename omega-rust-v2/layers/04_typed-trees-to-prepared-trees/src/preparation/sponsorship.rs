@@ -3,10 +3,9 @@
 //! are neither Psi operations nor a measurement of live Psi storage.
 
 use omega_typed::BoundarySlot;
-use omega_typed::TypeError;
 use omega_typer::SourcePackage;
 
-use crate::{CertifiedResources, PreparationGrant, PreparationResourceReceipt, PreparedTrees, TargetSemantics};
+use crate::{CertifiedResources, PreparationFailure, PreparationGrant, PreparationResourceReceipt, PreparedTrees, TargetSemantics};
 
 /// The checker owns construction. Tie the checked package and all selected
 /// inputs to the same immutable compilation, including target realizations.
@@ -24,7 +23,7 @@ pub enum SponsoredPreparationError {
     UnsupportedWorkSchedule(u32),
     InsufficientWork { required: u64, granted: u64 },
     InsufficientLiveCells { required: u64, granted: u64 },
-    Preparation(TypeError),
+    Preparation(PreparationFailure),
 }
 
 impl std::fmt::Display for SponsoredPreparationError {
@@ -40,7 +39,7 @@ impl std::fmt::Display for SponsoredPreparationError {
             Self::InsufficientLiveCells { required, granted } => {
                 write!(f, "preparation requires a live-cell ceiling of {required}, exceeding the grant of {granted}")
             }
-            Self::Preparation(error) => f.write_str(&error.message),
+            Self::Preparation(error) => f.write_str(&error.diagnostic().message),
         }
     }
 }
@@ -58,7 +57,6 @@ pub fn prepare_source_package_under_grant<'text>(
 ) -> Result<PreparedTrees<'text>, SponsoredPreparationError> {
     crate::PreparationRound::begin_under_grant(source, slots, target, grant, bound)?
         .finish_without_external_evidence()
-        .map_err(TypeError::from)
         .and_then(crate::PreparationProgress::into_complete)
         .map_err(SponsoredPreparationError::Preparation)
 }
@@ -197,11 +195,14 @@ mod tests {
         let omega_typer::TypingProgress::Complete(trees) = round.typing() else {
             panic!("the result type is already closed")
         };
-        assert!(
-            round
-                .evaluate(crate::CheckedPreparationEvidence::default())
-                .is_err()
-        );
+        let Err(SponsoredPreparationError::Preparation(PreparationFailure::Preparation(refusal))) =
+            prepare_source_package_under_grant(&source, &[], None, grant, Some(&bound))
+        else {
+            panic!("a resource grant alone cannot establish recursive termination");
+        };
+        assert_eq!(refusal.cause.reason(), Some(crate::PreparationReason::CyclicInvocation));
+        let round_refusal = round.evaluate_with_cause(crate::CheckedPreparationEvidence::default()).err().unwrap();
+        assert_eq!(refusal, round_refusal);
         let evidence = crate::invocation::termination::tests::countdown_evidence(trees);
         let evaluated = round.evaluate(evidence).unwrap();
         let crate::PreparationStep::Finished(crate::PreparationProgress::Complete(prepared)) = round.advance(evaluated).unwrap() else {
