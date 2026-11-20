@@ -88,6 +88,31 @@ def main():
             (work / f"{name}.stdin").write_bytes(request)
             if execute(runner, request, args.seconds) != (expected, b""):
                 raise SystemExit(f"{name}: expected exit {expected} with empty stdout")
+        service_dir = ROOT / "tests/bootstrap/independent/fixtures/service"
+        service_entry = (service_dir / "caller.omg").read_bytes()
+        marker = (service_dir / "ground.omg").read_bytes()
+        service_packages = packages + [("service", 0)]
+        edges = [(0, 1, "wire"), (0, 2, "service")]
+        for name, entry_source, service_source, expected in (
+            ("marker", service_entry, marker, 0),
+            ("excess-service", service_entry.replace(b"main() reaches Input", b"main() reaches Other"), marker, 247),
+            ("empty-service", service_entry.replace(b"main() reaches Input", b"main() reaches none"), marker, 247),
+            ("uninstalled-operation",
+             service_entry.replace(b"_ = u32_from_le_bytes(42, 0, 0, 0);", b"_ = Input::read();"),
+             marker.replace(b"Input {}", b"Input { machine read() -> u8 reaches Input crashes none; }"), 246),
+            ("unresolved-service", service_entry.replace(b"reaches Input", b"reaches Missing"), marker, 248),
+            ("ordinary-trait", service_entry, marker.replace(b"boundary trait", b"trait"), 248),
+            ("unapplied-service", service_entry, marker.replace(b"Input {}", b"Input<T> {}"), 248),
+            ("bare-reaches", service_entry.replace(b"reaches Input", b"reaches"), marker, 250),
+        ):
+            units = [(0, entry_source), (1, codec), (2, service_source)]
+            request, _, _, _ = encode(service_packages, edges, units, 0, b"main")
+            (work / f"{name}.stdin").write_bytes(request)
+            status, tape = execute(runner, request, args.seconds)
+            if status != expected or (status and tape):
+                raise SystemExit(f"{name}: expected compiler exit {expected}, got {status} with {len(tape)} bytes")
+            if not status:
+                check_tape(work, tape, args.seconds, name, 0)
         for name, expected in (("missing-edge", 248), ("trailing-byte", 253)):
             if execute(runner, inputs[name], args.seconds) != (expected, b""):
                 raise SystemExit(f"{name}: expected exit {expected} with empty stdout")

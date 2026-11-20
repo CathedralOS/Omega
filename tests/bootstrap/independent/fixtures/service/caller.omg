@@ -1,0 +1,11 @@
+use service\Input;
+use service\Other;
+use wire\u32_from_le_bytes;
+
+machine main() reaches Input crashes none { forward(); }
+
+machine forward() { decode(); }
+
+machine decode() reaches Input crashes none {
+    _ = u32_from_le_bytes(42, 0, 0, 0);
+}

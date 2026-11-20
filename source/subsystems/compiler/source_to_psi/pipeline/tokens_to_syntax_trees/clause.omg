@@ -499,30 +499,18 @@ crashes Trap
     // spelled `reaches none`: the word is consumed and the row keeps zero
     // members, which distinguishes it from omission. The following delimiter
     // belongs to the declaration or next clause, including on a transparent
-    // refinement member. The keyword with no value is still accepted here
-    // until this parser retires it alongside the reference parser.
+    // refinement member. An omitted service after the keyword is malformed.
     machine reached(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let empty_word: bool = at_word(parser, input, "none");
         transition empty_word {
             true -> reached_none(parser, input, owner),
-            _ -> reached_delimiter(parser, input, owner)
+            _ -> service(parser, input, owner)
         }
     }
 
     machine reached_none(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         take_current(parser, input);
         transition { _ -> reaches_end(parser, input, owner) }
-    }
-
-    machine reached_delimiter(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
-        let semicolon: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
-        let body: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
-        let result: bool = at_punctuation(parser, input, PunctuationKind::Arrow);
-        let clause: bool = at_clause_word(parser, input);
-        transition semicolon || body || result || clause {
-            true -> reaches_end(parser, input, owner),
-            _ -> service(parser, input, owner)
-        }
     }
 
     machine service(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {

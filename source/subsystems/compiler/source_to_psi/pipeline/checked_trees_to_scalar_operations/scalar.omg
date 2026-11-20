@@ -22,10 +22,12 @@ use representations\syntax_trees\MachineItem;
 use representations\syntax_trees\RootItem;
 use representations\syntax_trees\RootItemKind;
 use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TraitItem;
 use representations\syntax_trees\machine_item;
 use representations\syntax_trees\root_item;
 use representations\syntax_trees\syntax_trees_clause;
 use representations\syntax_trees\syntax_trees_data_item;
+use representations\syntax_trees\trait_item;
 use representations\typed_trees\TypeKind;
 use representations\typed_trees\TypeRow;
 use representations\typed_trees\Typing;
@@ -146,19 +148,32 @@ machine scalar_entry_result(row: TypeRow) -> bool
     machine no() -> bool { false }
 }
 
-// Checking already verified the machine's possible crash routes. Alpha has
-// an exact trap instruction, so that ceiling adds no calling convention.
+// A reach ceiling and a checked crash ceiling impose no parameters on an
+// Alpha call. Every body still goes through ordinary operation selection.
 machine scalar_machine_clauses(syntax: @SyntaxTrees, item: MachineItem) -> bool
 crashes Trap
 {
-    transition item.clause_count {
-        0 -> yes(),
-        1 -> single(syntax_trees_clause(syntax, item.first_clause)),
-        _ -> no()
+    transition { _ -> next(syntax, item.first_clause, item.first_clause + item.clause_count) }
+    machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+        transition index < end {
+            true -> check(syntax, index, end),
+            _ -> yes()
+        }
     }
-    machine single(clause: Clause) -> bool {
-        clause.kind == ClauseKind::CrashesNone
-            || (clause.kind == ClauseKind::Crashes && clause.cause == CrashCause::Trap)
+    machine check(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+        let clause: Clause = syntax_trees_clause(syntax, index);
+        transition clause.kind {
+            ClauseKind::CrashesNone -> next(syntax, index + 1, end),
+            ClauseKind::Reaches -> next(syntax, index + 1, end),
+            ClauseKind::Crashes -> crash_cause(syntax, index, end, clause.cause),
+            _ -> no()
+        }
+    }
+    machine crash_cause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, cause: CrashCause) -> bool {
+        transition cause {
+            CrashCause::Trap -> next(syntax, index + 1, end),
+            CrashCause::Abort -> no()
+        }
     }
     machine yes() -> bool { true }
     machine no() -> bool { false }
@@ -220,6 +235,15 @@ crashes Trap
             RootItemKind::Use -> roots(lowerer, syntax, resolution, typing, index + 1),
             RootItemKind::Machine -> roots(lowerer, syntax, resolution, typing, index + 1),
             RootItemKind::Data -> data_root(lowerer, syntax, resolution, typing, index, item),
+            RootItemKind::Trait -> marker_root(lowerer, syntax, resolution, typing, index, item),
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine marker_root(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, root: RootItem) {
+        let marker: TraitItem = trait_item(syntax, root.item_index);
+        transition marker.is_boundary && !marker.is_refinement && marker.generic_parameter_count == 0
+            && marker.machine_count == 0 && marker.parent_count == 0 && marker.contract_count == 0 {
+            true -> roots(lowerer, syntax, resolution, typing, index + 1),
             _ -> unsupported(lowerer)
         }
     }

@@ -22,7 +22,13 @@ The compiler's own source still uses retired whole-type domain casts and
 implicit domain qualification. Current Rust comparator diagnostics include
 missing explicit domain casts and overlapping call-argument borrows. The scalar
 lowerer admits parameterless entries returning Unit or unqualified `u8`.
-Compiling its own effectful entry also requires checked service bindings on Alpha.
+The resolver binds ground service names to package-scoped boundary trait
+identities. Checking compares a caller’s written ceiling with each callee’s
+published row, following inferred rows through the selected call graph.
+Parameterized services and rows with boundary parents still require further
+normalization. A memberless boundary trait and its checked reach row can
+appear in an Alpha program. Executing a boundary operation also requires its
+selected provider and the installed target environment.
 
 Implemented so far: source/span and token representations, a UTF-8-framed
 lexer that stores only semantic tokens, and a fail-closed whole-file parser

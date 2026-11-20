@@ -240,6 +240,7 @@ crashes Trap
     machine settle(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing) {
         settle_routes(checker, syntax);
         settle_termination(checker, syntax, resolution);
+        check_service_ceilings(checker, syntax, resolution);
         check_supply(checker, syntax, resolution, typing);
         project_slots(checker, syntax, typing);
     }
@@ -308,21 +309,36 @@ crashes Trap
 
     machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, routes: CrashRoutes) -> CrashRoutes {
         let clause: Clause = syntax_trees_clause(syntax, index);
-        let updated: CrashRoutes = declared_crash_clause(routes, clause);
+        let mut updated: CrashRoutes = routes;
+        declared_crash_clause(@mut updated, clause);
         transition { _ -> next(syntax, index + 1, end, updated) }
     }
 
     machine finished(routes: CrashRoutes) -> CrashRoutes { routes }
 }
 
-machine declared_crash_clause(routes: CrashRoutes, clause: Clause) -> CrashRoutes {
-    let cause: bool = clause.kind == ClauseKind::Crashes;
-    CrashRoutes {
-        declares_trap: routes.declares_trap || (cause && clause.cause == CrashCause::Trap),
-        declares_abort: routes.declares_abort || (cause && clause.cause == CrashCause::Abort),
-        inferred: routes.inferred && !cause && clause.kind != ClauseKind::CrashesNone,
-        trap: routes.trap, abort: routes.abort
+machine declared_crash_clause(routes: @mut CrashRoutes, clause: Clause) {
+    transition clause.kind {
+        ClauseKind::CrashesNone -> empty(routes),
+        ClauseKind::Crashes -> cause(routes, clause),
+        _ -> done()
     }
+    machine cause(routes: @mut CrashRoutes, clause: Clause) {
+        transition clause.cause {
+            CrashCause::Trap -> trap(routes),
+            CrashCause::Abort -> abort(routes)
+        }
+    }
+    machine empty(routes: @mut CrashRoutes) { routes.inferred = false; }
+    machine trap(routes: @mut CrashRoutes) {
+        routes.inferred = false;
+        routes.declares_trap = true;
+    }
+    machine abort(routes: @mut CrashRoutes) {
+        routes.inferred = false;
+        routes.declares_abort = true;
+    }
+    machine done() {}
 }
 
 // One machine: gather facts to a fixed point, then check every body,
