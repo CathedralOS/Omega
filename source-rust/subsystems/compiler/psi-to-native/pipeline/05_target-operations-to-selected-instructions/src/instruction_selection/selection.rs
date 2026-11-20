@@ -666,7 +666,7 @@ pub(crate) mod constraints {
 }
 pub(crate) mod construction {
     #[allow(unused_imports)]
-    pub(crate) use crate::instruction_selection::BoundExecutionPlan;
+    pub(crate) use crate::input::BoundExecutionPlan;
     #[allow(unused_imports)]
     pub(crate) use crate::instruction_selection::selection::model::SelectedInstructionError;
     pub(in crate::instruction_selection) use crate::instruction_selection::selection_scalar_graph as scalar_graph;
@@ -1369,7 +1369,7 @@ pub(crate) mod foreign_scalar_backings {
     }
 }
 pub(crate) mod identity {
-    use crate::instruction_selection::BoundExecutionPlan;
+    use crate::input::BoundExecutionPlan;
     use crate::instruction_selection::selection::model::SelectedInstructionValidationReceipt;
     use selected_instructions::SelectedInstructionPlan;
     use selected_instructions::selected_instruction_plan_identity;
@@ -1987,19 +1987,19 @@ pub use model::ValidatedSelectedInstructions;
 pub(crate) use selected_instructions::SelectedSelectionConstraints;
 
 #[allow(unused_imports)]
-pub(crate) use crate::instruction_selection::BoundExecutionPlan;
+pub(crate) use crate::input::BoundExecutionPlan;
 #[allow(unused_imports)]
 pub(crate) use construction::build_plan;
 
 /// Selection reads the prepared plan and the target's register environment.
 /// Nothing from the source module, the abstract program or the optimization
 /// unit is passed here; the plan carries what selection needs.
-pub(crate) fn select_instructions(
+pub(crate) fn select_bound_instructions(
     legalized: &BoundExecutionPlan<'_>,
-    constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let plan = build_plan(legalized, constraints, environment)?;
+    let constraints = super::register_constraints::selection_constraints(legalized, environment);
+    let plan = build_plan(legalized, &constraints, environment)?;
     let receipt = identity::receipt(&plan, legalized);
     Ok(ValidatedSelectedInstructions {
         plan: plan.into(),

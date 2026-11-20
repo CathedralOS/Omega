@@ -5,41 +5,23 @@ prepared. Stage 04 decides what must execute: concrete types, placements,
 proof identities and ownership evidence. This stage decides how the target's
 instructions and registers carry that out.
 
-[`stage_optimized_instruction_selection`](optimized.rs) takes a
-`SelectionInput`: the [`PreparedExecutionPlan`](../lib.rs)
-stage 04 published, the installations the driver bound to it, and the
-validated target register environment. It takes no source module, abstract
-program or optimization-unit table, and the crate cannot name them:
-`check-boundary` rejects a dependency on `abstract-operations` (which holds the
-optimization unit) or on the sealed module's codec. It returns the admitted
-selected program with its semantic, target, projection, work and constraint
-identities. Raw selected data or a detached content hash grants no authority.
+[`select_instructions`](../select_instructions.rs) consumes a prepared target
+body, its admitted entry and stack requirements. It binds the surviving
+installations to that body, selects instructions using the target register
+environment and returns the selected program and its receipt to stage 06.
 
-## Installations are bound, not looked up
+## Installations
 
-Preparation does not compile callbacks or size handler stacks; the driver does
-that after stage 04 and before this stage. It binds the admitted records once
-with `provider_admission::bind_installation_authority`, retaining a checked
-receipt for image publication. Selection reads the receipt's plain
-[`BoundInstallations`](../lib.rs)
-record: each installation's
-operands, table and entries, admission's answer for each arrival-token helper,
-the installed entry and the stack each handler needs. This stage takes that
-record, not admission's sealed types, so it does not depend on
-`provider-admission` and cannot reach the forms admission reads.
-`BoundExecutionPlan::bind` checks that the record, its installed entry and
-every stack requirement name the plan's program, target and entry, and
-refuses any that do not. Installation authority grants permission and
-deployment resources. It never supplies program meaning the plan lacks.
+The stage binds the interrupt and callback cohorts that survived target
+lowering. [Installation binding](../input.rs) checks the program, target and
+entry before the selector can use them. Each selected body retains the
+installations and private references used to build it.
 
-## Target setup is not a program stage
+## Target register environment
 
-The [register environment](../lib.rs)
-combines the native target, the ISA's physical model, instruction constraints,
-selected keys and the active register-reservation profile. Baseline and
-decoded/custom inputs each get their own structural and ISA checks. Selection
-receives the environment explicitly; it must not import ISA crates or build a
-supposedly equivalent one.
+The target supplies the register model, instruction constraints and register
+reservations. [Incoming register constraints](register_constraints.rs) connect
+each used parameter to the incoming register required by its calling convention.
 
 ## Ordinary selected control flow
 

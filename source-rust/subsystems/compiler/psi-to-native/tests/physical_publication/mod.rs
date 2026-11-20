@@ -294,8 +294,9 @@ fn reject_changed_entry_literal(
 /// proof record by stage 02's validator, and installations admitted for another program by the binding
 /// check in front of selection.
 fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId) {
-    use instruction_selection::{
-        BoundInstallations, InstallationBindingError, OptimizedSelectionPipelineError,
+    use instruction_selection::OptimizedSelectionPipelineError;
+    use instruction_selection::test_support::{
+        BoundInstallations, InstallationBindingError,
         select_instructions_for_plan,
     };
     use legalized_operations::PreparedExecutionPlan;
@@ -329,7 +330,7 @@ fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId
     let published = target.execution_plan();
     verify(published).expect("the published plan equals its independent derivation");
 
-    let authority = instruction_selection::installation_resources::InstallationRequirements {
+    let authority = instruction_selection::test_support::InstallationRequirements {
         interrupts: body.semantic_facts().admission.installed_interrupts(),
         callbacks: body.semantic_facts().admission.native_callbacks(),
         entry_execution: None,

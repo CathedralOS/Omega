@@ -137,7 +137,7 @@ pub(crate) fn prepare_physical_body(
     let body_error =
         |reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]);
     observation.enter(NativePipelineStage::InstructionSelection);
-    let selected = instruction_selection::stage_optimized_instruction_selection(
+    let selected = instruction_selection::select_instructions(
         instruction_selection::SelectionInput {
             body: target,
             entry_execution,
