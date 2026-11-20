@@ -1,3 +1,30 @@
+data LoanCell { value: u8; }
+data LoanPair { left: LoanCell; right: LoanCell; }
+
+machine fill_cells(left: @mut LoanCell, right: @mut LoanCell) {
+    transition { _ -> write(right, left) }
+    machine write(first: @mut LoanCell, second: @mut LoanCell) {
+        first.value = 41;
+        second.value = 42;
+    }
+}
+
+machine copy_cell(dst: @mut LoanCell, src: @LoanCell) {
+    dst.value = src.value;
+}
+
+machine both_forty_two(left: @LoanCell, right: @LoanCell) -> bool {
+    left.value == 42 && right.value == 42
+}
+
+machine disjoint_reference_parameters() -> bool {
+    let mut pair: LoanPair;
+    fill_cells(@mut pair.left, @mut pair.right);
+    let swapped: bool = pair.left.value == 42 && pair.right.value == 41;
+    copy_cell(@mut pair.right, @pair.left);
+    swapped && both_forty_two(@pair.left, @pair.left) && pair.right.value == 42
+}
+
 // An odd-sized byte array is copied with its enclosing record. Adjacent
 // elements and the field after the array must retain their own values.
 data ByteTail [copy] { bytes: [u8; 9]; after: u64; }
@@ -46,7 +73,7 @@ machine main() -> u8 {
     path.length = 255;
     let path_last: bool = module_path_append(@mut path, 73);
     let path_full: bool = module_path_append(@mut path, 99);
-    transition unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 && qualified_array_element_copy() == 42 && indexed_record_fields() == 42 && construction_byte_arena() == 42 {
+    transition disjoint_reference_parameters() && unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 && qualified_array_element_copy() == 42 && indexed_record_fields() == 42 && construction_byte_arena() == 42 {
         true -> yes(),
         _ -> no()
     }

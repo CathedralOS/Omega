@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 25,128 lines / 955,079 bytes with SHA-256
-`b33fd0b72610ce42c18964a642e560c39d1977832bb1b2862c1886b5b6df0282`.
+manifest materializes 25,115 lines / 954,332 bytes with SHA-256
+`e7732846c8caaf4b0159e4ffbfece75bf1a076e55e56e5647481ecb96bb0c987`.
 The manifest itself is 2,039 bytes, SHA-256
-`06015b23764ed2ae81c826c2092d7441fdb3339f1bc0fc350463fdf457a69299`;
+`b4026bdbb21387ec03d50e978546b9b340168cb50b8f212aed28fe69379ee28a`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -354,8 +354,9 @@ The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements in a reduced `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
-then returns `Incomplete` at the second reference parameter of
-`source_set_add`, at file byte 6,085. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+also accepts the three record references of `source_set_add`.
+It returns `Incomplete` at file byte 6,843, where a nested parameter shares
+the name of a sibling helper. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -375,10 +376,12 @@ selector evaluation and, for assignment, through the RHS. Whole-array overlap
 is conservative: this slice does not yet prove separate element loans disjoint.
 
 Shared and mutable record-reference parameters carry the original referent
-address. Calls support one reference parameter, explicit borrows of owned
-records or projected record fields, and projected reborrows. The checker tracks
-active argument loans by exact root and field range: overlapping access after
-an exclusive loan refuses, while disjoint fields remain usable. The referenced
+address. A caller can borrow several owned records or their projected fields
+in one call. The checker keeps earlier arguments' loans live while it checks
+later arguments. It permits two shared loans to the same field and an exclusive
+loan beside a disjoint sibling. Overlap with an exclusive loan refuses in
+either argument order, including when a nested transfer forwards one
+exclusive parameter twice. The referenced
 root cannot be rebound. Nested transfers may forward the enclosing invocation's
 original incoming reference as a bare matching parameter; its whole referent
 loan remains live while later arguments evaluate. A local-backed reference
