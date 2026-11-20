@@ -103,15 +103,15 @@ The positive program runs the production lexer’s byte classifier on all 256
 byte values and checks twelve answers per byte. Its twin passes an integer to
 a parameter requiring the numeric-base enum. **Both** means the route ran the
 positive and its frontend refused the twin at byte 2032. **Positive** records
-the successful execution alone. **Open** means this comparison has no
-completed positive receipt for that cell.
+the successful execution alone. **Refusal** records the exact rejection while
+the full positive is unfinished. **Open** has neither completed observation.
 
 | Gamma | Delta | Epsilon interpreter | Epsilon to Alpha | Epsilon to Linux |
 | --- | --- | --- | --- | --- |
 | Interpreter | Interpreter | Open | Open | Open |
 | Interpreter | Alpha | Both | Open | Open |
 | Interpreter | Linux | Both | Open | Open |
-| Alpha | Interpreter | Open | Both | Both |
+| Alpha | Interpreter | Refusal | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
 | Alpha | Linux | Both | Both | Both |
 | Linux | Interpreter | Both | Both | Both |
@@ -125,6 +125,20 @@ The 3,745-byte twin changed just the forwarding argument. The interpreter
 returned `02 12 f0 07 00 00`. Both compiler targets stopped at their shared
 frontend with the complete response `rejected 18 2032`. Each positive
 compiled target ran the generated guest. [Source and oracle](../../../tests/bootstrap/independent/epsilon/enum_test.py)
+
+For a quick review, start with the Linux Gamma row, which completed every
+pair. The Alpha-hosted Gamma compiler itself runs as a tape on the same VM
+as the seed. Those two Gamma compilers share a frontend. The
+original Beta-written Gamma interpreter gives a separate implementation of
+Gamma semantics, making its completed comparisons especially informative.
+[Gamma implementations and shared source](../../../bootstrap/gamma/README.md)
+
+On the four-byte control, the Alpha-hosted direct Delta interpreter running
+the Epsilon interpreter produced the expected 53 bytes in 267.92 CPU seconds.
+It also refused the full classifier’s wrong-base twin in 134.90 CPU
+seconds. The positive column above always requires all 256 inputs.
+Translating Delta to Gamma and running that Gamma on the original interpreter
+also completed the full pair. [Translated Delta receipts](interpreted-gamma-matrix.md#run-the-generated-evaluator-directly-on-gamma)
 
 With Gamma compiled to Alpha and Delta interpreted directly, both compiled
 Epsilon guests exited 42. The Alpha tape was 880,161 bytes and the Linux
@@ -145,6 +159,16 @@ The original Gamma interpreter also built the 2,204,117-byte Alpha evaluator
 from the sources in change #4593. All three Gamma hosts emitted the same tape.
 It ran the all-byte classifier and its wrong-base twin on the seed.
 [Three-host comparison](interpreted-gamma-matrix.md#original-gamma-builds-the-classifiers-alpha-evaluator)
+
+On the `93ad7259148` bootstrap tree, original Gamma also ran the Delta
+compiler on the complete Epsilon compiler, emitting 813,584 bytes of
+Gamma (`da44deee6b51…`) in 720.37 CPU seconds. On the linked
+classifier, the same Delta compiler emitted 170,803 bytes of Gamma
+(`99befce038db…`). The original interpreter then ran both Gamma backends,
+producing an 880,161-byte Alpha tape (`d260052ecef6…`) and a 468,679-byte
+Linux executable (`fc95d11d86c8…`). Both ran all 256 inputs. A complete
+row also requires the Epsilon compiler that produced the linked classifier
+and its observed refusal of the twin.
 
 To repeat the experiment with the pinned compiler sources, use a fresh
 checkout of the positive runner and select the two test files that added the
@@ -172,8 +196,42 @@ fragments. Select a case with `--case` and keep each case’s output directory.
 | `omega-wrong-offset` | Change the caller from `scan_at(source, offset)` to `scan_at(source, source)`. The frontend must report type error 18 at the call head. |
 | `omega-punctuation` | Scan each of 45 spellings at end of input and between letters. Emit the token’s extent and the spelling of the punctuation kind the scanner actually selected. |
 
+The frozen 58,127-byte lexer and its wrong-cursor twin have complete
+observations on **8 routes**. This measures the full scanner separately from
+the byte classifier above. The 465-byte positive observation has SHA-256
+`7d7a561d217ec1ce599a203fb8290b907c2582883c98dc71541c5bd0633f31aa`.
+For this source the interpreter returns `02 12 94 e2 00 00` and the compiler
+returns `rejected 18 58004`. A dash means this comparison has no result.
+
+| Gamma | Delta | Epsilon interpreter | Epsilon to Alpha | Epsilon to Linux |
+| --- | --- | --- | --- | --- |
+| Interpreter | Alpha | Both | — | — |
+| Interpreter | Linux | Both | — | — |
+| Alpha | Alpha | Both | — | Refusal |
+| Alpha | Linux | Both | Refusal | Refusal |
+| Linux | Alpha | Both | Refusal | Refusal |
+| Linux | Linux | Both | Both | Both |
+
+The two original-Gamma rows reused their previously constructed Alpha and
+Linux evaluators. Both returned the complete 311-byte punctuation observation, SHA-256
+`a59a295c5dbbaabad2dc98346265ed39109a4d2c63c621e6d870252676448c2a`.
+[Alpha producer](https://github.com/CathedralOS/Omega/pull/4628) · [Linux producer](https://github.com/CathedralOS/Omega/pull/4640) · [Public scanner observations](https://github.com/CathedralOS/Omega/pull/4645)
+
 [Public lexer cases](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py) ·
 [Punctuation observations](../../../tests/bootstrap/independent/epsilon/lexer_punctuation_main.epsilon)
+
+On the merged quoted scanner at `8f650128e09`, all three Epsilon choices
+also passed the 90 punctuation scans with Gamma and Delta compiled to
+Linux. The two compiler runs produced the same Delta module
+(`3ec1904bd969…`). Its 3,687,166-byte Alpha tape and 3,524,692-byte
+Linux executable both returned the interpreter’s 311 bytes.
+[Shared writer and executable comparison](https://github.com/CathedralOS/Omega/pull/4648)
+
+To reproduce the earlier numeric scanner, use the bootstrap at
+`8da0d6a9f82` and the route tests at `e478143a55b`. Select
+`--case omega-lexer` and `--case omega-wrong-offset` in separate runs.
+The two 58,127-byte sources have SHA-256 prefixes `09f682a2abdf` and
+`38425e9c5e2e`. Each takes the same 148-byte input.
 
 ## Tested threads through the matrix
 
@@ -223,6 +281,56 @@ The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.m
   [Function tests](../../../tests/bootstrap/independent/epsilon/compile_test.py)
 
 ## Whole Omega compiler
+
+### Current 305-unit product
+
+The Epsilon-written compiler with the quoted scanner and nested machine
+scopes occupies 899,660 bytes with its construction entry (SHA-256
+`2b30f2ed6238a98a885d7f86312e283d1742f443a1f6c72a410f81e1b5bc93de`).
+The complete 305-unit input at `950caad840a` with the two length-policy corrections occupies
+3,994,871 bytes (`f2a57db79ed0e90fd1bcacd9baa7df1e979094aa3e97cbd96bb04f7d7d65be65`).
+[Compiler source](https://github.com/CathedralOS/Omega/pull/4646) · [Product input](https://github.com/CathedralOS/Omega/pull/4627)
+
+| Run on the seed-built toolchain | Observed result |
+| --- | --- |
+| Same compiler library with the public OCREQ entry, Alpha and Linux Epsilon evaluators | Both compiled `machine main() -> u8 { 42 }` to the same 22-byte tape. It exited 42 on Alpha. Linux also reported a corrupted OCREQ identity at byte 3. |
+| Construction entry with a source view passed as its entry-unit number | The Linux Epsilon compiler returned `rejected 18 898277`. Its evaluator independently reported error 18 at the same call. |
+| Entire 305-unit product through the Linux Epsilon evaluator | The 4,894,583-byte sealed request exceeded the conformance input limit and returned host status 253. The construction profile accepted its extent. A same-size damaged header returned a 40-byte `EEOUT` refusal. The valid request reached the 1.5 GiB process guard with empty output. |
+
+An earlier complete 305-unit source-model run measured the effect of the
+two length-policy changes alone. Its first unsupported construct moved
+from byte 405,395 to byte 412,420, the nested helper at
+`expressions.omg:366:9`. The subsequent compiler change resolved nested
+machines by lexical scope. The seed-built evaluator then compiled the
+shadowing case to a 523-byte tape that exited 42 and rejected access to a
+sibling’s private helper at byte 154. [Complete input comparison](https://github.com/CathedralOS/Omega/pull/4627) · [Scope rules and controls](https://github.com/CathedralOS/Omega/pull/4644)
+
+<details>
+<summary>Reproduce the source-model inputs</summary>
+
+At `950caad840a`, run `python3 source/application/construction/construct.py --input product.bin`
+and pack `bootstrap/omega/compiler/omega_compiler.epsilon.sources` with
+`xtask source-closure`. Append `bootstrap/omega/construct_omega.epsilon`
+to the packed library. These commands reproduced both SHA-256 values above.
+The independent development model starts from `8092cfd9c0a`. In
+`parse_arm` and `probe_pattern_end`, change the integer-token predicate
+from `token.kind == "int"` to `token.kind in ("int", "char")`. The resulting
+file has SHA-256 `758286e8bfea3395414a673a0ba5228c761e94f06e88df7e0f5a889fc4a538c9`.
+Pass the compiler bytes and `product.bin` to its `observation` function.
+[Frozen model](https://github.com/CathedralOS/Omega/blob/8092cfd9c0a/tests/epsilon/refinement/model.py)
+
+</details>
+
+The public and construction entries exercise different inputs. On the public
+entry frozen at #4634, the construction-profile Linux Epsilon compiler
+also **compiled the 901,333-byte compiler program itself**. It emitted an
+18,263,962-byte Delta module, SHA-256
+`48f662488376b40d495ea747c152a87accc4aeca96ab652f12b3de0c3d912cfa`.
+The conformance compiler reached its 4 MiB output limit (status 254) on the
+same source. A bad final call produced type error 18 at byte 900,855 on
+both Alpha and Linux. [Public-entry receipts](source-audit.md#public-ocreq-on-alpha-and-linux) · [Construction replay](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
+
+### Earlier whole-compiler builds
 
 On the 852,096-byte compiler and construction entry, the Alpha-hosted and
 Linux-hosted Epsilon compilers emitted identical Delta. The compact Gamma

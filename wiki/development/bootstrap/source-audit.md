@@ -8,6 +8,51 @@ Three changes made a reviewer’s comparisons more direct. The Epsilon wire entr
 | [Gamma scanner and compiler, #4546](https://github.com/CathedralOS/Omega/pull/4546) | `(eq byte 40)` became `(eq byte '(')`. Syntax words are grouped by length, e.g. `(c_chars2 at 'i' 'f')`. The two source files fell from 33,737 to 31,662 bytes. | Both targets rebuilt themselves byte for byte. The Alpha compiler fell from 230,666 to 212,403 bytes and the Linux x86-64 compiler from 226,861 to 226,310. Both classifiers passed 137 spelling and near-miss inputs. |
 | [Epsilon keyword table, #4548](https://github.com/CathedralOS/Omega/pull/4548) | `epsilon_span_is_8 … 98 111 117 110 100 97 114 121` became `(EpsilonKeyword "boundary" 10 …)`. Packed evaluator source grew from 617,122 to 618,016 bytes. Its generated Gamma source grew from 726,582 to 729,482. | The chosen table takes 421 Gamma pairs per ordinary source view and allocates none per lookup. Both Epsilon compilers emitted the same 1,106,536-byte public lexer module. Its 23 cases returned the expected 465 bytes. |
 
+## Reading punctuation in the Omega scanner
+
+The scanner now reads a block-comment opener as `source[cursor] == '/'`
+followed by `source[cursor + 1] == '*'`. The previous code compared those
+bytes with 47 and 42. A 213-byte addition to the Delta parser sends quoted
+bytes through the existing integer-pattern checker. Writing both `'/'` and `47` in one transition
+reports a duplicate at the second arm. [Epsilon grammar](../../../bootstrap/epsilon/LANGUAGE.md) · [Scanner change](https://github.com/CathedralOS/Omega/pull/4646)
+
+| Public lexer measurement | Decimal bytes | Quoted bytes |
+| --- | ---: | ---: |
+| Authored scanner source | 44,647 bytes | 44,749 bytes |
+| Emitted Delta module | 1,061,558 bytes | 1,061,558 bytes |
+| Generated Alpha tape | 3,561,692 bytes | 3,561,692 bytes |
+| Generated Linux executable | 3,403,587 bytes | 3,403,587 bytes |
+
+The 104 edits cover 83 transition arms, 18 comparisons and three other
+operands. We aligned the two Epsilon sources token by token, decoded each
+quoted byte and checked it against the original integer. In the two emitted
+Delta modules, 15,370 numeric fields changed. Every change mapped an old
+source coordinate to the corresponding new one. All remaining generated
+text matched byte for byte.
+
+Both generated targets ran the rewritten public scanner on all 256 one-byte
+inputs. Their 5,125-byte observations matched the numeric scanner, including
+its lexical diagnostics. Passing the source view as the cursor produced
+type error 18 at the changed call, byte 58,106. [Route fixtures](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py) · [Parser and refusal controls](https://github.com/CathedralOS/Omega/pull/4643)
+
+## One byte-view writer for both Epsilon variants
+
+The 45-kind punctuation customer exposed a difference between Epsilon
+implementations. The interpreter printed every spelling. The compiler
+accepted the source types and then returned `unsupported 54517` at the
+`Console.write_line` declaration. The compiler now calls the interpreter’s
+existing view-output helper. Both generated targets printed the same 311
+bytes on 90 scans, including the extent and spelling of every selected
+punctuation kind. A bad slice retained the preceding output and trapped
+before writing a newline. [Compiler change and receipts](https://github.com/CathedralOS/Omega/pull/4648)
+
+Linking the shared helper also has a cost on programs that never call
+`write_line`. The existing storage customer emitted the same 98,638-byte
+module. Its linked Delta source grew by 2,015 bytes, the Linux executable
+by 7,776 bytes and the Alpha tape by 8,451 bytes. All four old and new
+executables returned exit 42 and byte `A` on input `02`.
+[Storage customer](../../../tests/bootstrap/independent/epsilon/storage_main.epsilon)
+
 ## Which routes agreed
 
 - **Four Gamma host and target pairs.** The #4546 Gamma compilers ran on Alpha and Linux and generated both targets. All four produced the same 726,582-byte Gamma source for the **#4542 Epsilon evaluator**. On either host the Alpha evaluator was 3,798,810 bytes and the Linux evaluator 1,985,896. Each passed five portable observations and two syntax refusals. [Host/target gate](../../../tests/bootstrap/gamma_host_matrix.py)
