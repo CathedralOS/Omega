@@ -579,7 +579,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             119 -> transition_pattern_alias_end()
             120 -> struct_literal_omission_end(1)
             121 -> struct_literal_omission_end(0)
-            122 -> indexed_member_name()
+            122 -> projection_field_name()
             123 -> boundary_trait_keyword()
             124 -> boundary_trait_name()
             125 -> boundary_trait_body()
@@ -7875,44 +7875,45 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state primary_expression_end_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Dot -> begin_indexed_member()
+            OmegaPunctuationKind::Dot -> begin_field_projection()
             OmegaPunctuationKind::LeftBracket ->
                 begin_completed_indexed_expression()
             _ -> primary_expression_end_consumer_punctuation()
         }
     }
 
-    state begin_indexed_member() {
+    state begin_field_projection() {
         transition self.expressions[self.expression_result].kind {
-            OmegaExpressionKind::Indexed -> scan_indexed_member()
-            OmegaExpressionKind::Projection -> indexed_member_depth()
+            OmegaExpressionKind::Indexed -> scan_projection_field()
+            OmegaExpressionKind::Call -> scan_projection_field()
+            OmegaExpressionKind::Projection -> projection_depth()
             _ -> incomplete_root()
         }
     }
-    state indexed_member_depth() {
+    state projection_depth() {
         transition self.expressions[self.expression_result].payload3 < 128 {
-            true -> scan_indexed_member()
+            true -> scan_projection_field()
             _ -> resource_failure(OmegaParserResource::ExpressionDepth, 128,
                 self.expressions[self.expression_result].payload3 + 1)
         }
     }
-    state scan_indexed_member() {
+    state scan_projection_field() {
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(122) }
     }
-    state indexed_member_name() {
+    state projection_field_name() {
         transition self.ordinary_name_token() {
-            1 -> indexed_member_capacity()
+            1 -> projection_capacity()
             _ -> path_expression_member_failure()
         }
     }
-    state indexed_member_capacity() {
+    state projection_capacity() {
         transition self.expression_count < 16384 {
-            true -> retain_indexed_member()
+            true -> retain_field_projection()
             _ -> resource_failure(OmegaParserResource::Expressions, 16384, self.expression_count + 1)
         }
     }
-    state retain_indexed_member() {
+    state retain_field_projection() {
         self.expressions[self.expression_count].kind = OmegaExpressionKind::Projection;
         self.expressions[self.expression_count].path_kind = OmegaPathExpressionKind::Member;
         self.expressions[self.expression_count].payload0 = self.expression_result;
