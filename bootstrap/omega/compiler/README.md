@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,007 lines / 1,041,314 bytes with SHA-256
-`6c07930f989493ea4d6cf8b963b62f2053e1d323c9acaf31e0cf32d5c32739a7`.
+The manifest materializes 27,016 lines / 1,041,786 bytes with SHA-256
+`9d231c46d1366d59cc8231ede287d4fd32858854f0ca844c89fba498f4965d14`.
 The manifest itself is 2,381 bytes, SHA-256
-`05c2c9e45932ac703b32827d3307f850e6805674ea991285e017a540fd4be8af`;
+`e6c9204fb27ba790d80a70ad20d35efd1bb947d849e051c2ebb385816ca74885`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -397,13 +397,17 @@ The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements of the production `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. It evaluates
 both capacity differences from `source_set_add` at the boundary and with an
-extra source byte or path byte. The complete
+extra source byte or path byte. The unit-count store from `source_set_add`
+uses the proved upper bound of its Trapping sum, including 511 + 1 at the
+capacity of 512. Alpha still performs the checked addition. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
 machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
-It checks the nested reader's `index < spelling.len` requirement and then
-reaches body checking in the earlier `source_set_add` machine. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+It checks the nested reader's `index < spelling.len` requirement. The full
+file passes the bodies of `source_set_add`, `add_package`, `add_dependency`
+and `store_name`. Its next coverage refusal identifies `source_set_byte_or_nul`
+at file byte 14,466. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
