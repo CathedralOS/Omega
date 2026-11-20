@@ -78,13 +78,36 @@ python3 tests/bootstrap/independent/epsilon/composition.py program \
 python3 tests/bootstrap/independent/product_wire.py "$work/wire"
 python3 tests/bootstrap/interpreted/delta/interpreter.py "$work/direct-wire" \
   --host linux --runner "$work/compiled/gamma-compiler" --profile construction \
-  --source "$work/omega.delta" --stdin "$work/wire/linked.stdin" --seconds 1200
+  --source "$work/omega.delta" --stdin "$work/wire/linked.stdin"
 ```
 
 The runner writes `guest.output` to the execution directory. A successful
 Omega construction begins with five zero bytes (Epsilon exit 0), followed by
 the complete Alpha tape. A constructor rejection has an Epsilon exit code
 in the four bytes following the observation tag.
+
+### Complete constructor on the 111-byte Omega package
+
+The construction-profile direct Delta interpreter at `1068e79a837` ran the complete
+Omega constructor compiled from the 909,531-byte Epsilon source at `bcf71f0bbfc`.
+Given the same 111-byte Omega package, it and the 54,882,761-byte Linux constructor
+returned identical 27-byte Epsilon observations. Each returned five zero bytes
+followed by the 22-byte Alpha tape. The seed ran the tape and exited 42 with empty
+stdout and stderr.
+
+| Physical execution | CPU seconds | Peak RSS (KiB) |
+| --- | ---: | ---: |
+| Check and interpret 17,272,866 bytes of linked Delta | 656.06 | 302,136 |
+| Run the compiled Linux constructor | 2.84 | 79,008 |
+
+The direct request contained a four-byte little-endian Delta length, the linked
+Delta program (SHA-256 `3fe7a0e0d34d0f473386185d73362b022be47223da707ce8b9b73151f750e76d`),
+and the named package. The complete request hashed to
+`92da76b5b800fc1d8a954e18eaf5719c0b4344b2722762916fdadf9279ebf8e1`.
+The Linux interpreter hashed to `541313339a4c95e5dfb54c227835ef20954555a220dfe432757f1b4d3c18133d`.
+Its run took 9,129 shared wall seconds, including scheduled pauses, with no wall limit.
+The resulting tape hashed to `25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`.
+[Named package and seed check](../../independent/WHOLE_REQUEST.md#compare-the-complete-omega-compiler-across-routes)
 
 Omit `--source` and `--stdin` to run the direct interpreter's control suite.
 The default conformance profile retains its 4 MiB source limit. The construction
