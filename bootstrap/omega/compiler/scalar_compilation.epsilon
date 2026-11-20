@@ -84,6 +84,7 @@ data OmegaFixedIndexPlan {
 }
 
 data OmegaScalarCompiler {
+    construction: OmegaConstructionDirectory;
     import_bindings: [OmegaImportBinding; 4096];
     query_path: OmegaNamePath;
     address_path: OmegaNamePath;
@@ -2757,7 +2758,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     self.loan_count = 0;
     self.layout_depth = 0;
     self.tape.initialize();
-    self.parser.parse_set(source);
+    self.prepare_construction(source, entry);
     transition self.parser.status {
         OmegaParserStatus::Complete -> check_roots()
         OmegaParserStatus::LexicalFailure -> lexical_reject()
@@ -2941,6 +2942,33 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         }
     }
     state public_interfaces() {
+        transition self.construction.active {
+            1 -> unit_imports(0)
+            _ -> check_interfaces()
+        }
+    }
+    // On the staged route the indexed signatures have scalar results and no
+    // parameters. Validate every file's imports before checking any body.
+    state unit_imports(unit: i32) {
+        transition unit < self.parser.sources.unit_count {
+            true -> unit_import_view(unit)
+            _ -> labels(0)
+        }
+    }
+    state unit_import_view(unit: i32) {
+        self.load_construction_unit(source, unit);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> unit_import_check(unit)
+            _ -> internal()
+        }
+    }
+    state unit_import_check(unit: i32) {
+        transition self.validate_imports(source) {
+            1 -> unit_imports(unit + 1)
+            _ -> return
+        }
+    }
+    state check_interfaces() {
         transition self.check_public_interfaces(source) {
             1 -> check_entry_bounds(0)
             _ -> return
@@ -2960,6 +2988,12 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
 
     state check_machine(index: i32) {
+        transition (self.construction.active == 1) && (index == self.construction.unit_end) {
+            true -> emit_machine(self.construction.unit_first)
+            _ -> next_machine(index)
+        }
+    }
+    state next_machine(index: i32) {
         transition index < self.parser.machine_count {
             true -> begin_states(index)
             _ -> check_entry()
@@ -3039,6 +3073,12 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
 
     state machine_types(index: i32) {
+        transition self.construction.active {
+            1 -> check_duplicate(index, 0)
+            _ -> check_signature(index)
+        }
+    }
+    state check_signature(index: i32) {
         transition self.check_signatures(source, index) {
             1 -> check_duplicate(index, 0)
             _ -> return
@@ -3053,10 +3093,8 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
 
     state compare_name(index: i32, previous: i32) {
-        let name: OmegaRelativeSpan = self.parser.members[
-            self.parser.machine_items[index].first_path_member];
-        let other: OmegaRelativeSpan = self.parser.members[
-            self.parser.machine_items[previous].first_path_member];
+        let name: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, index);
+        let other: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, previous);
         transition (self.same_module(source, self.parser.sources.unit_at(name.start),
             self.parser.sources.unit_at(other.start)) == 1) &&
             (self.span_equals(source, name.start, name.end, source[other.start..other.end]) == 1) {
@@ -3768,8 +3806,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
 
     state finish_machine(index: i32) {
-        let name: OmegaRelativeSpan = self.parser.members[
-            self.parser.machine_items[index].first_path_member];
+        let name: OmegaRelativeSpan = self.declaration_name(OmegaDeclarationKind::Machine, index);
         transition (self.parser.sources.unit_at(name.start) == self.entry_unit) &&
             (self.span_equals(source, name.start, name.end, entry) == 1) {
             true -> select(index)
@@ -3899,6 +3936,12 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state check_crash_bounds(index: i32) {
         transition index < self.parser.machine_count {
             true -> check_crash_bound(index)
+            _ -> checked_graph()
+        }
+    }
+    state checked_graph() {
+        transition self.construction.active {
+            1 -> finalize()
             _ -> labels(0)
         }
     }
@@ -3952,16 +3995,65 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
 
     state adapter() {
+        // A missing entry is diagnosed after all bodies have been checked.
+        transition self.selected_machine < 0 {
+            true -> start_unit(0)
+            _ -> emit_adapter()
+        }
+    }
+    state emit_adapter() {
         self.emission_resource = 12;
         transition (self.tape.emit_jump_label(19,
             self.machine_labels[self.selected_machine]) == 1) &&
             (self.tape.emit_r(0, 0) == 1) {
-            true -> emit_machine(0)
+            true -> adapter_ready()
             _ -> emission_failure()
+        }
+    }
+    state adapter_ready() {
+        transition self.construction.active {
+            1 -> start_unit(0)
+            _ -> emit_machine(0)
+        }
+    }
+    state start_unit(unit: i32) {
+        transition unit < self.parser.sources.unit_count {
+            true -> start_unit_bodies(unit)
+            _ -> check_entry()
+        }
+    }
+    state start_unit_bodies(unit: i32) {
+        self.load_construction_unit(source, unit);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> check_machine(self.construction.unit_first)
+            _ -> internal()
         }
     }
 
     state emit_machine(index: i32) {
+        transition (self.construction.active == 1) && (index == self.construction.unit_end) {
+            true -> release_unit_cells(0)
+            _ -> next_emitted_machine(index)
+        }
+    }
+    // Emitted instructions retain physical offsets. Local row numbers may be
+    // reused by the next file; its storage must not overwrite a live caller.
+    state release_unit_cells(index: i32) {
+        transition index < self.cell_count {
+            true -> release_unit_cell(index)
+            _ -> released_unit()
+        }
+    }
+    state release_unit_cell(index: i32) {
+        self.cell_sizes[self.cell_ids[index]] = 0;
+        transition true { true -> release_unit_cells(index + 1) }
+    }
+    state released_unit() {
+        self.cell_count = 0;
+        self.effect_count = 0;
+        transition true { true -> start_unit(self.parser.unit_index + 1) }
+    }
+    state next_emitted_machine(index: i32) {
         transition index < self.parser.machine_count {
             true -> emit_first_state(index)
             _ -> finalize()

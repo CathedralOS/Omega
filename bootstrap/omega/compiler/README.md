@@ -62,11 +62,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current ten-member
-manifest materializes 23,952 lines / 901,961 bytes with SHA-256
-`8c1001e306554226b2d4b7b924c9c69a9390849a3a625c6f362bb5d3350e0c69`.
-The manifest itself is 1,698 bytes, SHA-256
-`af1fb7ca2d960aef37d3cc9633adbe8e916825a9dcd4f3a6db2b5ddd4f898922`;
+The current eleven-member
+manifest materializes 24,212 lines / 912,956 bytes with SHA-256
+`925f2090395250734cbbbe4ae80a93362f21bda8f9e6c28ec7871d48f517b568`.
+The manifest itself is 1,867 bytes, SHA-256
+`21961e71b49f95f93015be7349e3334f2fcc13df69194760de8fa55c6a07dde5`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -90,6 +90,19 @@ parent directory component for name resolution and refuses a legacy `module`
 header. Files in one package directory share a namespace. Types and calls retain
 their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
+
+For multi-unit construction the compiler first parses each complete file in
+a fresh syntax arena. When all declarations are free, clause-free machines
+with scalar results or Unit, no parameters and no nested states, it retains
+their names, signatures and source ranges in declaration order. Imports
+resolve against that directory before any body is checked. The body pass
+checks and emits each file using the ordinary scalar checker and Alpha
+emitter, then releases its local syntax and storage identifiers. Emitted
+instructions keep their assigned storage addresses across a call. The
+global call graph and effect checks run before the compiler publishes the
+tape. Other declaration shapes still use the pooled checker after the syntax
+pass. The single-unit public resource limits remain in force.
+[Per-unit compilation](construction/units.epsilon)
 
 Imports are file-local. Exact imports select declarations; namespace imports
 bind a namespace without importing its ordinary machines as bare names.
