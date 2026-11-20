@@ -71,6 +71,7 @@ class Route:
         self.artifacts = {}
         self.shared = shared
         self.expect_rejection = expect_rejection
+        self.epsilon_interpreter = getattr(args, "epsilon_interpreter", "direct")
 
     def stage(self, description, action):
         self.steps.append((description, action))
@@ -178,11 +179,15 @@ class Route:
             "bootstrap/delta/compiler/support/support.gamma.sources", path))
         return path
 
+    @cached_property
+    def direct_delta_interpreter(self):
+        source = self.work / "interpreter.gamma"
+        self.stage("assemble the direct Delta interpreter", lambda: materialize(self.work, self.args.profile))
+        return self.on_gamma("delta-interpreter", source)
+
     def on_delta(self, name, source, mode):
         if mode == "interpret" and self.args.delta_interpreter == "direct":
-            interp = self.work / "interpreter.gamma"
-            self.stage("assemble the direct Delta interpreter", lambda: materialize(self.work, self.args.profile))
-            return self.on_gamma("delta-interpreter", interp).bind(source)
+            return self.direct_delta_interpreter.bind(source)
         compiler = self.delta_compiler
         support = self.support
         profile = 1 if self.args.profile == "conformance" else 2
@@ -192,6 +197,10 @@ class Route:
             return self.gamma_interpreter.bind(gamma)
         return self.image(name, mode, self.backend(mode), gamma)
 
+    @property
+    def evaluates_epsilon_source(self):
+        return self.args.epsilon == "interpret" and self.epsilon_interpreter == "direct"
+
     def select(self):
         self.prepare_gamma()
         closure = self.work / "epsilon.delta"
@@ -199,7 +208,7 @@ class Route:
             "bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", closure))
         guest = self.work / "subject.epsilon"
         stdin = self.work / "stdin.bin"
-        if self.args.epsilon == "interpret":
+        if self.evaluates_epsilon_source:
             entry = ROOT / "bootstrap/epsilon/interpreter.delta"
             source = self.file("evaluator.delta", "select the Epsilon interpreter",
                                lambda: closure.read_bytes() + entry.read_bytes())
@@ -237,7 +246,7 @@ class Route:
 
 
 def check_observation(route, expected, report):
-    compiler_response = route.expect_rejection and route.args.epsilon != "interpret"
+    compiler_response = route.expect_rejection and not route.evaluates_epsilon_source
     name = "compiler.response" if compiler_response else "guest.eeout"
     output = (route.work / name).read_bytes()
     if route.expect_rejection:
@@ -298,8 +307,11 @@ def execute_route(route, guest, stdin, expected, verbose):
     (work / "subject.epsilon").write_bytes(guest)
     (work / "stdin.bin").write_bytes(stdin)
     args = route.args
+    uses_delta_interpreter = (args.delta == "interpret" or
+                              (args.epsilon == "interpret" and route.epsilon_interpreter == "delta"))
     report = {"gamma": args.gamma, "delta": args.delta, "epsilon": args.epsilon, "profile": args.profile,
-              "delta_interpreter": args.delta_interpreter if args.delta == "interpret" else None,
+              "delta_interpreter": args.delta_interpreter if uses_delta_interpreter else None,
+              "epsilon_interpreter": route.epsilon_interpreter if args.epsilon == "interpret" else None,
               "source_sha256": sha256(guest).hexdigest(), "stdin_sha256": sha256(stdin).hexdigest(),
               "seconds_per_invocation": args.seconds, "stages": [], "artifacts": route.artifacts, "result": "running"}
     if expected is not None:
@@ -347,6 +359,8 @@ def main():
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
     parser.add_argument("--expect-observation", type=Path, metavar="FILE",
                         help="exact binary Epsilon exit, trap or source rejection for --source")
+    parser.add_argument("--epsilon-interpreter", choices=("direct", "delta"), default="direct",
+                        help="evaluate Epsilon source directly or compile it and interpret the resulting Delta")
     parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
                         help="interpret checked Delta directly or translate it to Gamma and interpret that source")
     parser.add_argument("--gamma-build", type=Path, help="reuse the selected Alpha or native cold build")
@@ -365,8 +379,11 @@ def main():
         parser.error("an output directory is required for execution")
     if args.stdin and not args.source:
         parser.error("--stdin requires --source")
-    if args.delta_interpreter == "gamma" and args.delta not in ("interpret", "all"):
-        parser.error("--delta-interpreter gamma requires --delta interpret or all")
+    if args.epsilon_interpreter == "delta" and args.epsilon not in ("interpret", "all"):
+        parser.error("--epsilon-interpreter delta requires --epsilon interpret or all")
+    if (args.delta_interpreter == "gamma" and args.delta not in ("interpret", "all")
+            and args.epsilon_interpreter != "delta"):
+        parser.error("--delta-interpreter gamma requires a Delta interpreter for the producer or guest")
     if args.gamma_build and args.gamma not in ("alpha", "native"):
         parser.error("--gamma-build requires --gamma alpha or --gamma native")
     root = (args.output or Path(".")).resolve()
@@ -441,6 +458,9 @@ def main():
                 detail = f"{report['stages'][-1]['stage']} {detail}"
             elif "rejection_code" in report:
                 detail = f"rejection {report['rejection_code']} at source byte {report['source_offset']}"
+            elif "omega-program.tape" in report["artifacts"]:
+                exit_code = report["artifacts"]["omega-program.tape"]["guest_exit"]
+                detail = f"Omega compiler exit {report['guest_exit']}, emitted Omega program exit {exit_code}"
             elif "guest_exit" in report:
                 detail = f"guest exit {report['guest_exit']}"
             print(f"{label}  {report['result']}  {detail}".rstrip(), flush=True)

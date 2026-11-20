@@ -25,7 +25,19 @@ single-route runs.
 Use `--plan` to inspect the stages without running them. The plan shows which
 compiler runs, where it runs, and which runtime handoff is required. Interpreted Delta defaults to the direct interpreter.
 Add `--delta-interpreter gamma` to translate Delta and interpret the emitted
-Gamma, as in the original interpreted route. [Route runner](../../../tests/bootstrap/route.py)
+Gamma, as in the original interpreted route. With `--epsilon interpret`,
+`--epsilon-interpreter delta` runs the Epsilon compiler on the selected
+Delta host, attaches the storage runtime to its output, and runs that program
+on the Delta interpreter. The optional `--delta-interpreter gamma` also
+applies to this last step. The tables below count the direct implementation
+when a rung is interpreted.
+
+At `770c184573c`, the Linux Epsilon compiler produced a 101,422-byte linked
+Delta program for the stdin control. The direct Delta interpreter ran it on
+`Z`. The alternate Delta translator produced 82,080 bytes of Gamma and the
+seed-built Gamma interpreter ran those bytes. Both returned `00 5a 00 00 00 5a`.
+The translated-Epsilon wrong-base case stopped at its compiler with
+`rejected 18 2032`. [Route runner](../../../tests/bootstrap/route.py)
 
 ### Check one layer on native hosts
 
