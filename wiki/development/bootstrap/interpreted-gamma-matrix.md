@@ -95,3 +95,43 @@ stamp_seed /tmp/gamma-stdin.tape "$OMEGA_PATH_ALPHA/$ALPHA_SEED" /tmp/gamma-stdi
 /tmp/gamma-stdin.vm < "$compiled/stdin.bin" > /tmp/alpha-stdin.eeout
 cmp /tmp/gamma-stdin.eeout /tmp/alpha-stdin.eeout
 ```
+
+## Direct Delta compiles the Epsilon program
+
+Two complete routes matched on the pinned stdin program with interpreted
+Gamma and direct Delta. The Gamma interpreter executed the 100,654-byte
+Delta interpreter, SHA-256
+`e0aaa160cff057c524b2f313df24ad4ee9d091f3872ea594f6028e781fdbdc72`.
+Its input was the 629,618-byte, Delta-written Epsilon compiler, SHA-256
+`b98b87f006d493066639af46a78d93e13904c1e04cf6ed2df5415f772ed15196`,
+followed by the 339-byte Epsilon program. Each source had its own four-byte
+little-endian length prefix. The complete 730,619-byte input to the reference
+executable had SHA-256
+`a520d687477929cbcca10d453777dbd4cf4974f4c4961672354bb70756d0e8b7`.
+
+In 3,692.730 wall seconds the interpreter emitted the 3,247-byte module
+`b440b5d18c3abc5d68e2e440211693f32a3bfda5a46ae470be61d7b9a1e60e1a`.
+Linking that output reproduced the exact 99,270-byte Delta source used in the
+[measured target builds](#replay-the-compiled-guest). Both routes reused
+that Delta-to-Gamma translation and its target image. Each image ran again
+on `Z` and returned process status zero.
+
+| Gamma / Delta / Epsilon | Guest bytes | Guest wall time |
+| --- | --- | ---: |
+| `interpret / interpret / alpha` | `00 5a 00 00 00 5a` | 0.841 s |
+| `interpret / interpret / native` | `00 5a 00 00 00 5a` | 0.003 s |
+
+To rebuild each route independently from the pinned checkout, run the
+following commands with fresh output paths. The measured routes shared their
+byte-identical stages across runs.
+
+```sh
+python3 tests/bootstrap/route.py /tmp/direct-to-alpha --gamma interpret --delta interpret --epsilon alpha --seconds 4500
+python3 tests/bootstrap/route.py /tmp/direct-to-linux --gamma interpret --delta interpret --epsilon native --seconds 4500
+cmp /tmp/direct-to-alpha/guest.eeout /tmp/direct-to-linux/guest.eeout
+```
+
+This brings the total to 21 of 27 for this guest and the frozen `bootstrap/`
+Git tree `a0829d60b057e65aa9fef059dfbb4bd7362cad27`. Eighteen completed in
+the initial comparison. The separately rebuilt `interpret / native / interpret`
+route and the two routes joined above account for the other three.
