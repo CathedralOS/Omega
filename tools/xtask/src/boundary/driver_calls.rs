@@ -27,10 +27,16 @@ fn operation_owner(relative: &str, name: &str) -> Option<&'static str> {
             .strip_prefix(source)
             .and_then(|path| path.strip_prefix('/'));
         let allowed = match name {
-            "judge_terminal_source" | "judge_source_roster" => {
-                matches!(module, Some("source_judgment.rs" | "stages.rs"))
+            "judge_source_roster" => false,
+            "judge_terminal_source" => {
+                matches!(
+                    module,
+                    Some("driver/judge_lowered_source.rs" | "test_support.rs")
+                )
             }
-            "prepare_lower_and_check" => matches!(module, Some("source_to_psi.rs" | "product.rs")),
+            "prepare_lower_and_check" => {
+                matches!(module, Some("driver.rs" | "driver/compile_product.rs"))
+            }
             _ => {
                 under(relative, &[source])
                     && !under(
@@ -45,7 +51,9 @@ fn operation_owner(relative: &str, name: &str) -> Option<&'static str> {
         let owner = relative.strip_prefix("source-rust/subsystems/compiler/psi-to-native/");
         return (!matches!(
             owner,
-            Some("psi_to_native.rs" | "driver/mod.rs" | "driver/request.rs" | "driver/inputs/mod.rs")
+            Some(
+                "psi_to_native.rs" | "driver/mod.rs" | "driver/request.rs" | "driver/inputs/mod.rs"
+            )
         ))
         .then_some("submit the published Psi program to the native driver");
     }
@@ -135,15 +143,40 @@ mod tests {
 
     #[test]
     fn compile_time_helpers_cannot_bypass_the_shared_source_judgment() {
-        let nested = "source-rust/subsystems/compiler/source-to-psi/compile_time/calls.rs";
+        let nested = "source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/calls.rs";
         assert!(operation_owner(nested, "judge_terminal_source").is_some());
         assert!(operation_owner(nested, "prepare_lower_and_check").is_some());
         assert!(
             operation_owner(
-                "source-rust/subsystems/compiler/source-to-psi/source_judgment.rs",
+                "source-rust/subsystems/compiler/source-to-psi/driver/judge_lowered_source.rs",
                 "judge_terminal_source"
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn only_the_product_driver_can_request_a_whole_product_judgment() {
+        let root = super::super::linear_pipeline::SOURCE_DRIVER;
+        for owner in ["driver.rs", "driver/compile_product.rs"] {
+            assert!(
+                operation_owner(&format!("{root}/{owner}"), "prepare_lower_and_check").is_none()
+            );
+        }
+        for other in [
+            "source_to_psi.rs",
+            "representations/publication.rs",
+            "test_support.rs",
+        ] {
+            assert!(
+                operation_owner(&format!("{root}/{other}"), "prepare_lower_and_check").is_some()
+            );
+        }
+        assert!(
+            operation_owner(&format!("{root}/test_support.rs"), "judge_terminal_source").is_none()
+        );
+        assert!(
+            operation_owner(&format!("{root}/test_support.rs"), "judge_source_roster").is_some()
         );
     }
 

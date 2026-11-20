@@ -1,7 +1,7 @@
 # Lexical scanning
 
 Start at [lexer.rs](lexer.rs). It turns loaded UTF-8 source into ordered token
-streams. The [streaming parser](../../parse_files.rs) calls
+streams. The [streaming parser](../../driver/parse_source_batch.rs) calls
 `lex_file` for each file and recycles token buffers between files.
 `lex(LoadedSources)` returns a complete token batch for consumers that retain it.
 The [source-files representation](../../representations/source-files/source_files.rs) carries the captured text, origin and scope.

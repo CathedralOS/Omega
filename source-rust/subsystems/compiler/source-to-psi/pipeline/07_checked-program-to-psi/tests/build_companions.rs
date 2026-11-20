@@ -4,10 +4,10 @@
 //! lowered-form checker judge it, and reads what production publishes.
 
 use source_provenance::DependencyScope;
-use source_compiler::declaration_selection::BuildSelectionRequest;
-use source_compiler::declaration_selection::RootBindingOperand;
+use source_compiler::representations::declaration_selection::BuildSelectionRequest;
+use source_compiler::representations::declaration_selection::RootBindingOperand;
 use source_compiler::CompileTimings;
-use source_compiler::production::{
+use checked_program_to_psi::production::{
     AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
     TerminalBuildQueryOperation, TerminalBuildRequestOperation, TerminalProductionCustody,
 };
@@ -55,11 +55,11 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
     semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()
 }
 
-fn typed(build: &str) -> source_compiler::source_state::TypedTrees {
+fn typed(build: &str) -> source_compiler::representations::source_state::TypedTrees {
     typed_with_prelude(build, PRELUDE)
 }
 
-fn typed_with_prelude(build: &str, prelude: &str) -> source_compiler::source_state::TypedTrees {
+fn typed_with_prelude(build: &str, prelude: &str) -> source_compiler::representations::source_state::TypedTrees {
     typed_with_external_binding(build, prelude, None)
 }
 
@@ -67,7 +67,7 @@ fn typed_with_external_binding(
     build: &str,
     prelude: &str,
     external_binding: Option<&str>,
-) -> source_compiler::source_state::TypedTrees {
+) -> source_compiler::representations::source_state::TypedTrees {
     typed_with_core_sources(build, prelude, external_binding, &[])
 }
 
@@ -76,8 +76,8 @@ fn typed_with_core_sources(
     prelude: &str,
     external_binding: Option<&str>,
     core: &[(&str, &str)],
-) -> source_compiler::source_state::TypedTrees {
-    let mut sources = source_compiler::source_inputs::SourceMap::default();
+) -> source_compiler::representations::source_state::TypedTrees {
+    let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
     let mut inputs = vec![
@@ -160,15 +160,15 @@ fn typed_with_core_sources(
             }
         }
     }
-    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax.unwrap());
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax.unwrap());
     request.sources = Some(Arc::new(sources));
     // The Build script sees the prelude's `Build` as the compiler binds it.
     request.top_level_bindings = vec![
-        source_compiler::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+        source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
     ];
     for (namespace, module) in [("Build", ids[2]), ("BuildProduct", ids[3])] {
         request.top_level_bindings.push(
-            source_compiler::source_symbols::SourceScopedTopLevelBinding::module_import(
+            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
                 ids[0], module, namespace, 0,
             ),
         );
@@ -176,14 +176,14 @@ fn typed_with_core_sources(
     if external_binding.is_some() {
         for name in ["ForeignBinding", "DllImport"] {
             request.top_level_bindings.push(
-                source_compiler::source_symbols::SourceScopedTopLevelBinding::new(
+                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(
                     ids[0], ids[4], name,
                 ),
             );
         }
     }
-    let resolved = source_compiler::resolution::resolve(request).unwrap();
-    source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
+    let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+    source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
 fn accepted(build: &str) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
@@ -198,14 +198,14 @@ fn accepted_for(
 }
 
 fn accepted_frontier(
-    typed: source_compiler::source_state::TypedTrees,
+    typed: source_compiler::representations::source_state::TypedTrees,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
     accepted_frontier_with_subjects(typed, publication, &[Some(package())])
 }
 
 fn accepted_frontier_with_subjects(
-    typed: source_compiler::source_state::TypedTrees,
+    typed: source_compiler::representations::source_state::TypedTrees,
     publication: terminal_codec::TerminalPublication,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
@@ -215,10 +215,10 @@ fn accepted_frontier_with_subjects(
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let frozen = source_compiler::preparation::prepare_typed_trees(typed, &[])?;
-    source_compiler::judge_terminal_source(
+    let frozen = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[])?;
+    source_compiler::test_support::judge_terminal_source(
         frozen,
-        source_compiler::lowering::Compilation {
+        source_compiler::test_support::lowering::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects,
@@ -569,7 +569,7 @@ machine build(builder: @mut Build) {
 fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
     use record_storage::{Record, RecordLimits, RecordWriter};
     use source_compiler::CompileTimings;
-use source_compiler::production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
+use checked_program_to_psi::production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
 
     let program = accepted_for(ONE_BINDING, terminal_codec::TerminalPublication::Portable)
         .unwrap()
@@ -600,12 +600,12 @@ use source_compiler::production::{TerminalBuildQueryCall, TerminalBuildRequestCa
         output.record(|output| {
             u64::from_le_bytes(*b"OMGBLD02").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
-            Arc::<[source_compiler::production::TerminalBuildBindingCall]>::from([]).write(output)?;
-            Arc::<[Arc<source_compiler::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
+            Arc::<[checked_program_to_psi::production::TerminalBuildBindingCall]>::from([]).write(output)?;
+            Arc::<[Arc<source_compiler::representations::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
             Arc::<[TerminalBuildQueryCall]>::from([]).write(output)?;
-            Arc::<[source_compiler::declaration_selection::NativeBindingFormation]>::from([]).write(output)?;
+            Arc::<[source_compiler::representations::declaration_selection::NativeBindingFormation]>::from([]).write(output)?;
             Arc::<[TerminalBuildRequestCall]>::from([request]).write(output)?;
-            Arc::<[source_compiler::production::TerminalBuildFilesystemCall]>::from([]).write(output)
+            Arc::<[checked_program_to_psi::production::TerminalBuildFilesystemCall]>::from([]).write(output)
         }).unwrap();
         let refused = record_storage::decode::<ProducedTerminalProgram>(
             &output.finish(),
@@ -753,7 +753,7 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
 
 fn published_native_locator(
     program: &ProducedTerminalProgram,
-) -> &source_compiler::production::TerminalBuildNativeLocator {
+) -> &checked_program_to_psi::production::TerminalBuildNativeLocator {
     program
         .build_bindings()
         .calls_for(program.view())
@@ -829,7 +829,7 @@ machine build(builder: @mut Build) {
 #[test]
 fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use language_core::build_protocol::SelectionProtocolOperation as Protocol;
-    use source_compiler::source_state::expression::ExpressionNode;
+    use source_compiler::representations::source_state::expression::ExpressionNode;
     let build = "machine build(builder: @mut Build) { Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
     let typed = || {
         typed_with_external_binding(
@@ -840,7 +840,7 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
             )),
         )
     };
-    let selections = |typed: &source_compiler::source_state::TypedTrees| {
+    let selections = |typed: &source_compiler::representations::source_state::TypedTrees| {
         typed
             .expression_table
             .expression_entries()
@@ -905,7 +905,7 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
         .unwrap()
         .clone();
     let replaced = edited.expression_table.insert_build_selection_call(
-        source_compiler::source_state::expression::BuildSelectionCall {
+        source_compiler::representations::source_state::expression::BuildSelectionCall {
             request,
             operation: Protocol::Select,
         },
@@ -928,7 +928,7 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
 
 #[test]
 fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
-    use source_compiler::production::TerminalBuildValueShape;
+    use checked_program_to_psi::production::TerminalBuildValueShape;
     let program = native_binding_program(
         r#"
 machine build(builder: @mut Build) {
@@ -1156,8 +1156,8 @@ machine build(builder: @mut Build) {{ Probe::send(Bytes {{ bytes: "{bytes}" }});
 
 #[test]
 fn a_case_value_pattern_cannot_discard_its_applied_type() {
-    use source_compiler::source_state::expression::{ExpressionNode, MatchPattern};
-    use source_compiler::source_state::types::TypeReferenceNode;
+    use source_compiler::representations::source_state::expression::{ExpressionNode, MatchPattern};
+    use source_compiler::representations::source_state::types::TypeReferenceNode;
     let mut typed = typed_with_external_binding(
         "machine build(builder: @mut Build) { Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
@@ -1182,10 +1182,10 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     };
     let case = path.symbol;
     let owner = typed.symbols.get(case).parent;
-    let type_name = source_compiler::source_state::name::Identifier::generated(
+    let type_name = source_compiler::representations::source_state::name::Identifier::generated(
         typed.symbols.name(owner).to_owned(),
     );
-    let case_name = source_compiler::source_state::name::Identifier::generated(
+    let case_name = source_compiler::representations::source_state::name::Identifier::generated(
         typed.symbols.name(case).to_owned(),
     );
     let plain = typed.type_reference_table.insert(TypeReferenceNode::Named {
@@ -1195,7 +1195,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     // Typing emits a destructuring arm here. At the checked frontier, a
     // value-pattern literal for the same case must preserve any application.
     let head = typed.expression_table.insert(ExpressionNode::StructLiteral(
-        source_compiler::source_state::expression::TableStructLiteral {
+        source_compiler::representations::source_state::expression::TableStructLiteral {
             zero_omitted_fields: false,
             application_type: plain,
             type_name: type_name.clone(),
@@ -1220,7 +1220,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
             base_symbol: owner,
             base_name: type_name,
             arguments: Default::default(),
-            lifetime_arguments: vec![source_compiler::source_state::name::Identifier::generated(
+            lifetime_arguments: vec![source_compiler::representations::source_state::name::Identifier::generated(
                 "foreign",
             )],
         });

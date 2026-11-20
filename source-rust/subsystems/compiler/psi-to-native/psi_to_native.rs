@@ -22,20 +22,15 @@ use diagnostics::Diagnostic;
 use provider_admission::current_terminal_authority_policy;
 use psi_entry_memory::PrivateEntryRamInitialization;
 use driver::request::NativeCompileRequest;
-use driver::inputs::scalars::ScalarInputs;
 use verified_optimization_input::RetainedTerminalArtifact;
 
-/// Integration tests can supply an already retained input to isolate admission or
-/// observe how often ordinary compilation enters a stage.
+/// Observe compiler stages and exercise foreign ABI adapter emission in integration tests.
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use crate::driver::{admit_runtime, compile};
     pub use crate::driver::runtime::foreign_adapters::compile_runtime_foreign_adapter;
     pub use crate::driver::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
-    pub use crate::driver::request::NativeCompileRequest;
-    pub use crate::driver::inputs::scalars::ScalarInputs;
 }
 
 /// The emitted image and the checks requested against its stage inputs.
@@ -121,9 +116,7 @@ impl NativeProgram {
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,
             image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
-            imports: &[],
-            components: &[],
-            scalars: ScalarInputs::Evaluate(&mut receipts),
+            scalar_receipts: &mut receipts,
         };
         let product = finish(terminal, request);
         accounting.extend(receipts);

@@ -107,7 +107,7 @@ impl PendingPackageImport {
 
 pub(crate) fn retain_module_import_bindings(
     storage: &SourceStorage,
-) -> Result<Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+) -> Result<Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     if storage.resolved_imports.is_empty() {
         return Ok(Vec::new());
     }
@@ -185,7 +185,7 @@ pub(crate) fn retain_module_import_bindings(
             continue;
         }
         bindings.push(
-            source_compiler::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                 occurrence.source,
                 declaration.source_id,
                 &occurrence.authored_path,
@@ -211,7 +211,7 @@ mod tests {
     use source_admission::SourceFile;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
-    use source_compiler::source_inputs::{SourceCatalogue, SourceMap};
+    use source_compiler::representations::source_inputs::{SourceCatalogue, SourceMap};
 
     fn file(path: &str, root: &str, text: &str) -> SourceFile {
         SourceFile {
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(
             retain_module_import_bindings(&storage).unwrap(),
             [
-                source_compiler::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                     importer,
                     current,
                     "dep::Thing",

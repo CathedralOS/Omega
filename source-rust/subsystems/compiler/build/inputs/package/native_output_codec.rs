@@ -9,9 +9,9 @@ use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use semantic_vocabulary::source_selections::NativeBindingProducer;
 use semantic_vocabulary::source_selections::ProductTarget;
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
-use source_compiler::declaration_selection::CapturedNativeIntent;
-use source_compiler::declaration_selection::NativeBindingSource;
-use source_compiler::product::native_binding_declarations::CapturedNativeDeclaration;
+use source_compiler::representations::declaration_selection::CapturedNativeIntent;
+use source_compiler::representations::declaration_selection::NativeBindingSource;
+use source_compiler::compile_product::native_binding_declarations::CapturedNativeDeclaration;
 use std::sync::Arc;
 
 fn number(output: &mut Vec<u8>, value: u64) {

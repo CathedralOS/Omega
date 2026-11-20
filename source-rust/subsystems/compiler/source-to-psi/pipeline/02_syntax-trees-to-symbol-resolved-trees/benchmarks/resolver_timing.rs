@@ -3,13 +3,13 @@
 mod frontend;
 
 use diagnostics::Diagnostic;
-use source_compiler::resolution::{
+use source_compiler::test_support::resolution::{
     DeferredResolvedFrontier, ExtensionRequest, ResolutionRequest, resolve, resolve_deferred,
     resolve_deferred_extension,
 };
-use source_compiler::source_inputs::SourceMap;
-use source_compiler::source_resolved::SymbolResolvedTrees;
-use source_compiler::source_symbols::SourceScopedTopLevelBinding;
+use source_compiler::representations::source_inputs::SourceMap;
+use symbol_resolved_trees::source_resolved::SymbolResolvedTrees;
+use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Write;
 use std::hash::{Hash, Hasher};
@@ -141,13 +141,13 @@ fn fingerprint(
             .hash(&mut hash);
     }
     for (_, expr) in trees.tables.bodies.expressions.iter_expressions() {
-        if let source_compiler::source_resolved::expression::ExpressionNode::Call(call) = expr {
+        if let symbol_resolved_trees::source_resolved::expression::ExpressionNode::Call(call) = expr {
             call.target.source_span().hash(&mut hash);
             call.target_symbol.hash(&mut hash);
         }
     }
     for (_, statement) in trees.tables.declarations.state_statements.iter() {
-        if let source_compiler::source_resolved::statement::Statement::Call(call) = statement {
+        if let symbol_resolved_trees::source_resolved::statement::Statement::Call(call) = statement {
             call.target.source_span().hash(&mut hash);
             call.target_symbol.hash(&mut hash);
         }

@@ -193,8 +193,7 @@ impl FinishedNativeImage {
     }
 }
 
-/// The root object and its runtime requirements advance together. Component images
-/// finish before their caller can borrow them for provider admission.
+/// The root object and its admitted runtime requirements advance together.
 pub struct ProgramImageInput {
     pub terminal: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub published: crate::PublishedFragmentObject,
@@ -205,10 +204,7 @@ pub struct ProgramImageInput {
 }
 
 impl ProgramImageInput {
-    pub fn emit(
-        self,
-        components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
-    ) -> Result<FinishedNativeImage, Vec<Diagnostic>> {
+    pub fn emit(self) -> Result<FinishedNativeImage, Vec<Diagnostic>> {
         let crate::PublishedFragmentObject { object, runtime } = self.published;
         if runtime.as_ref().is_some_and(|plan| {
             !plan.matches_image(
@@ -228,19 +224,6 @@ impl ProgramImageInput {
                 plan.map_adapters(crate::emit_runtime_adapter),
             )
         });
-        let runtime = match (runtime, components.is_empty()) {
-            (Some(runtime), false) => Some(
-                runtime
-                    .with_component_products(components)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-            ),
-            (None, false) => {
-                return Err(vec![Diagnostic::error(
-                    "component native production lost its admitted runtime companions",
-                )]);
-            }
-            (runtime, true) => runtime,
-        };
         crate::TerminalRuntimeProvisions::validate_root_object(&object, runtime.as_ref())
             .map_err(|reason| crate::native_artifact_error("runtime provisions", reason))?;
         let artifact = RequestedNativeArtifact::emit_admitted(

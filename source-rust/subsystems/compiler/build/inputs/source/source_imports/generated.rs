@@ -17,9 +17,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub struct GeneratedSourceExtension {
-    sources: Arc<source_compiler::source_inputs::SourceMap>,
+    sources: Arc<source_compiler::representations::source_inputs::SourceMap>,
     custody: Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
-    base_sources: Arc<source_compiler::source_inputs::SourceMap>,
+    base_sources: Arc<source_compiler::representations::source_inputs::SourceMap>,
 }
 
 impl GeneratedSourceExtension {
@@ -29,10 +29,10 @@ impl GeneratedSourceExtension {
 
     pub(crate) fn into_source_inputs(
         self,
-        base_sources: &Arc<source_compiler::source_inputs::SourceMap>,
+        base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
     ) -> Result<
         (
-            Arc<source_compiler::source_inputs::SourceMap>,
+            Arc<source_compiler::representations::source_inputs::SourceMap>,
             Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
         ),
         Vec<Diagnostic>,
@@ -47,11 +47,11 @@ impl GeneratedSourceExtension {
 }
 
 pub fn admit_generated_extension(
-    base_sources: &Arc<source_compiler::source_inputs::SourceMap>,
+    base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
     package_root: &Path,
     package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     generated_sources: &[build_output::PackageGeneratedSource],
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<GeneratedSourceExtension, Vec<Diagnostic>> {
     let mut sources = (**base_sources).clone();
     let mut retained = Vec::with_capacity(generated_sources.len());

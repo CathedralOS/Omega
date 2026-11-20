@@ -25,7 +25,7 @@ pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&crate::AnonymousSourceCapture>,
-    required_sources: &source_compiler::source_inputs::SourceMap,
+    required_sources: &source_compiler::representations::source_inputs::SourceMap,
     build_execution_profile: Option<target::TargetProfile>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<FilesystemSponsor>,

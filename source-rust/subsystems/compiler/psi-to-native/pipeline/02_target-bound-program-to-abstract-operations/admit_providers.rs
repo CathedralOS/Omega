@@ -1,7 +1,7 @@
 //! Check provider admission against the selected abstract program and its authorized Psi.
 use provider_admission::{
     AdmittedNativeProviders, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-    PreparedSourceEvaluatedBindings, ProviderAdmissionRequest, SourceEvaluatedImportSettlement,
+    PreparedSourceEvaluatedBindings, ProviderAdmissionRequest,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, admit_native_providers,
     prepare_source_evaluated_bindings, realization_error,
 };
@@ -19,7 +19,6 @@ pub struct RetainedNativeProviderInputs<'input> {
     pub optimization_selections:
         &'input optimization_selections::PostTerminalOptimizationSelections,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
-    pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
 }
 
 pub struct PreparedRetainedNativeProviders<'input> {
@@ -110,7 +109,7 @@ pub fn prepare_native_providers<'input>(
     let bindings = prepare_source_evaluated_bindings(
         inputs.execution.selection().plans(),
         inputs.execution.demands(),
-        inputs.imports,
+        &[],
         inputs.execution.selection().identities(),
     )?;
 

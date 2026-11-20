@@ -1,4 +1,4 @@
-//! Run stages 03 through 15 for application entries, component exports and private callables.
+//! Run stages 03 through 15 for application entries and private callables.
 //! Callers bind measured handlers between frame planning and instruction encoding.
 //! Validators can request the original stage inputs for independent replay.
 

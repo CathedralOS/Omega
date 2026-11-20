@@ -1,5 +1,6 @@
 //! Type references, their canonical identities and substitutions.
 
+pub mod data_applications;
 pub mod opaque_representations;
 pub mod type_identity;
 pub mod type_system;

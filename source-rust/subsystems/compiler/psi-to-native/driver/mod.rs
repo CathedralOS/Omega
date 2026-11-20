@@ -10,7 +10,6 @@ pub(crate) mod observations;
 pub(crate) mod request;
 pub(crate) mod runtime;
 
-use self::image::components;
 use self::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use self::request::NativeCompileRequest;
 use self::inputs::PreparedNativeCompilation;
@@ -28,7 +27,7 @@ use verified_optimization_input::{
     ValidatedNativeProgramEntrySettlement,
 };
 
-pub fn compile(
+pub(crate) fn compile(
     retained: &RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
 ) -> Result<
@@ -42,7 +41,7 @@ pub fn compile(
     }
 }
 
-pub fn admit_runtime(
+pub(crate) fn admit_runtime(
     retained: RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
 ) -> Result<
@@ -80,7 +79,6 @@ fn produce(
         execution,
         private_entry_ram,
         scalars,
-        components: prepared_components,
     } = prepared;
     let result = (|| {
         let artifact = retained.shared_artifact();
@@ -93,28 +91,13 @@ fn produce(
             proposal.target_profile(),
             NativePipelineUnit::Application,
         );
-        if stop == NativeProductionStop::RuntimeAdmission && !prepared_components.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "Terminal engine unavailable: this program binds independently produced components, which execute only as native images",
-            )]);
-        }
-        let emitted_components = components::emit_components(
-            prepared_components,
-            &request.terminal_authority_policy,
-            &request.terminal_authority_permission_policy,
-            request.retain_native_stage_inputs,
-        )?;
-        let components = emitted_components
-            .iter()
-            .map(components::EmittedComponent::admit_call)
-            .collect::<Result<Vec<_>, _>>()?;
         let input = {
             observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
             artifact_lowering::lower_native_execution(
                 proposal,
                 &execution,
                 &private_entry_ram,
-                scalars.as_deref().map(|completed| artifact_lowering::NativeScalarApplications { completed }),
+                scalars.as_ref().map(|completed| artifact_lowering::NativeScalarApplications { completed }),
             )
         }?;
         let prepared = {
@@ -125,12 +108,10 @@ fn produce(
                     optimization_selections: request.optimization_selections,
                     accepted_package_permissions: &request
                         .accepted_package_terminal_authority_permission_policy,
-                    imports: request.imports,
                 },
             )
         }?;
-        let mut native_settlements = prepared.program_settlements();
-        native_settlements.extend(components.iter().map(|component| component.settlement()));
+        let native_settlements = prepared.program_settlements();
         let admission = prepared.admission_request(
             &native_settlements,
             &request.terminal_authority_policy,
@@ -151,7 +132,7 @@ fn produce(
         let planning = image::plan_callables::NativeProgramPlanningRequest {
             proposal,
             execution: &execution,
-            scalar_applications: scalars.as_deref(),
+            scalar_applications: scalars.as_ref(),
             admission: &admission,
             optimization_selections: request.optimization_selections,
             budget: request::native_optimization_budget(),
@@ -164,21 +145,8 @@ fn produce(
             request.image_request,
             &observation,
         )?;
-        drop(components);
-        let mut component_products = Vec::with_capacity(emitted_components.len());
-        let mut component_originals = Vec::new();
-        for component in emitted_components {
-            let component = component.into_product()?;
-            if let Some(originals) = component.originals {
-                component_originals.push((*component.product.image().slot_commitment(), originals));
-            }
-            component_products.push(component.product);
-        }
-        let stage_replay = stage_replay
-            .with_components(component_originals)
-            .map_err(|error| vec![error])?;
         observation.enter(NativePipelineStage::ImageEmission);
-        let image = image.emit(component_products)?;
+        let image = image.emit()?;
         observation.complete();
         Ok(Produced::Image(image, stage_replay))
     })();

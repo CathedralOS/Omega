@@ -24,23 +24,18 @@ impl SymbolResolvedTrees {
         &self.tables.bodies.expressions
     }
 
-    /// A constructor can name its data type even when no annotation mentions it.
-    pub fn unresolved_type_names(&self) -> impl Iterator<Item = SourceSpan> + '_ {
-        let constructor_names =
-            self.expression_table()
-                .iter_expressions()
-                .filter_map(|(_, node)| {
-                    let expression::ExpressionNode::StructLiteral(literal) = node else {
-                        return None;
-                    };
-                    (!literal.type_symbol.is_valid() && literal.type_name.is_source_backed())
-                        .then(|| literal.type_name.source_span())
-                });
-        self.tables
-            .types
-            .references
-            .unresolved_source_names()
-            .chain(constructor_names)
+    /// Type operands retain their source coordinates at resolution. Constructors
+    /// carry their nominal lookup in the authored selection for the type name.
+    pub fn missing_type_names(&self) -> impl Iterator<Item = SourceSpan> + '_ {
+        use crate::declaration_selection::{
+            AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
+            AuthoredDeclarationSelectionTarget::LateBound,
+        };
+        let selections = self.authored_declaration_selections().iter().filter_map(|selection| {
+            (selection.target() == LateBound(CheckedStructLiteralType))
+                .then(|| selection.source_span())
+        });
+        self.tables.types.references.missing_names().iter().copied().chain(selections)
     }
 
     pub(crate) fn expression_table_mut(&mut self) -> &mut expression::ExpressionTable {

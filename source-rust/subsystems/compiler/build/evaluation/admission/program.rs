@@ -17,8 +17,8 @@ use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
-    pub(crate) prepared: std::sync::Arc<source_compiler::AcceptedTerminalSource>,
-    pub(crate) produced: std::sync::Arc<source_compiler::ProducedTerminalProgram>,
+    pub(crate) prepared: std::sync::Arc<source_compiler::publication::AcceptedTerminalSource>,
+    pub(crate) produced: std::sync::Arc<source_compiler::publication::ProducedTerminalProgram>,
     pub(crate) providers: super::provider_execution::BuildProviderPlans,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,

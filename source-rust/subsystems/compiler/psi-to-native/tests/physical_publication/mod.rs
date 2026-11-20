@@ -1094,7 +1094,7 @@ fn check_canonical_publication(
         coverage: Some(coverage),
         physical_originals: Default::default(),
     }
-    .emit(Vec::new())
+    .emit()
     .expect("emit native image with retained physical scope");
     let (requested, runtime) = requested.into_parts();
     assert!(

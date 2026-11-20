@@ -22,7 +22,7 @@ pub struct AnonymousSourceCapture {
     pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
     pub(crate) filesystem: source_capture::SourceFileSystem, // Captured virtual filesystem used during assembly.
     pub(crate) semantic_dependencies: Vec<[u8; 32]>, // Applicable `core` and toolchain-contract digests.
-    pub(crate) sources: Arc<source_compiler::source_inputs::SourceMap>, // Retained source map prior to owner binding.
+    pub(crate) sources: Arc<source_compiler::representations::source_inputs::SourceMap>, // Retained source map prior to owner binding.
     pub(crate) toolchain_contract_custody: crate::source::source_imports::ToolchainContractCustody, // Admitted toolchain contract roots.
 }
 
@@ -30,7 +30,7 @@ impl AnonymousSourceCapture {
     /// The unbound local acquisition whose source map this Build actually typed.
     pub fn acquired_for(
         &self,
-        program: &source_compiler::source_state::TypedTrees,
+        program: &source_compiler::representations::source_state::TypedTrees,
     ) -> Option<&crate::CapturedLocalSource> {
         let sources = program.symbols.source_map()?;
         if !Arc::ptr_eq(&sources, self.sources()) {
@@ -51,13 +51,13 @@ impl AnonymousSourceCapture {
         crate::source::source_snapshot::retained_source_input(&self.capture)
     }
 
-    pub fn sources(&self) -> &Arc<source_compiler::source_inputs::SourceMap> {
+    pub fn sources(&self) -> &Arc<source_compiler::representations::source_inputs::SourceMap> {
         &self.sources
     }
 
     pub fn complete_without_dependencies(
         self,
-    ) -> Result<Arc<source_compiler::source_inputs::SourceMap>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<Arc<source_compiler::representations::source_inputs::SourceMap>, Vec<diagnostics::Diagnostic>> {
         let identity = derive(&self.capture, self.semantic_dependencies)
             .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         let mut sources = Arc::unwrap_or_clone(self.sources);
@@ -68,10 +68,10 @@ impl AnonymousSourceCapture {
     }
 }
 
-impl source_compiler::compile_time::InvocationSourceConsent for AnonymousSourceCapture {
+impl source_compiler::compile_time_invocations::InvocationSourceConsent for AnonymousSourceCapture {
     fn allows_selection(
         &self,
-        sources: &Arc<source_compiler::source_inputs::SourceMap>,
+        sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
         requester: source_text::SourceSpan,
         declaration: source_text::SourceSpan,
         purpose: source_provenance::DependencyScope,
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn build_source_consent_keeps_the_actual_capture_purpose_and_root() {
-        use source_compiler::compile_time::InvocationSourceConsent;
+        use source_compiler::compile_time_invocations::InvocationSourceConsent;
         let root = PathBuf::from("/anonymous");
         let text = "machine local() {}";
         let tree = Arc::new(snapshot("build.omg", text.as_bytes()));
@@ -185,7 +185,7 @@ mod tests {
         filesystem
             .add_capture(root.clone(), Arc::clone(&tree))
             .unwrap();
-        let mut sources = source_compiler::source_inputs::SourceMap::default();
+        let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 root.join("build.omg"),
@@ -340,7 +340,7 @@ mod tests {
         let identity = derive(&snapshot("library.omg", b"public data Token {}"), []).unwrap();
         let supplied = PackageKeyIdentity::from_digest([23; 32]).unwrap();
         let root = PathBuf::from("/anonymous");
-        let mut sources = source_compiler::source_inputs::SourceMap::default();
+        let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
         for scope in [
             source_provenance::DependencyScope::Product,
             source_provenance::DependencyScope::Build,
@@ -417,7 +417,7 @@ mod tests {
     fn missing_foreign_provenance_rejects_without_partial_binding() {
         let owner = derive(&snapshot("library.omg", b"public data Token {}"), []).unwrap();
         let root = PathBuf::from("/anonymous");
-        let mut sources = source_compiler::source_inputs::SourceMap::default();
+        let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
         sources.add_with_metadata(
             root.join("library.omg"),
             String::new(),

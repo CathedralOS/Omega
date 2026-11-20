@@ -8,6 +8,8 @@ version.workspace = true
 path = "scope.rs"
 
 [dependencies]
+psi-target-layouts = { path = "../../../../psi-execution-inputs/target-layouts" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../../verification/provider-admission" }
 provider-correspondence = { path = "../../../verification/provider-correspondence" }
@@ -20,4 +22,3 @@ terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi-semantics" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../../representations/function-identity" }
-psi-target-layouts = { path = "../../../../psi-execution-inputs/target-layouts" }

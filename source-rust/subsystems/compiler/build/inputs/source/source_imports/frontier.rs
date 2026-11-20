@@ -15,7 +15,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceOrigin;
 use source_compiler::ParsedSourceBatch;
 use source_compiler::SourceSyntax;
-use source_compiler::source_inputs::SourceMap;
+use source_compiler::representations::source_inputs::SourceMap;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -47,7 +47,7 @@ pub(crate) struct RegisteredPackageRoot {
 impl SourceStorage {
     pub(crate) fn seal_product_owner(
         &mut self,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<Option<Vec<source_admission::LoadedSource>>, Vec<Diagnostic>> {
         let Some(capture) = self.retain_anonymous_owner(&[])? else {
             return Ok(None);
@@ -194,7 +194,7 @@ impl SourceStorage {
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         if package_inputs.is_some() && source_capture.is_some() {
             return Err(vec![Diagnostic::error(
@@ -342,7 +342,7 @@ impl SourceStorage {
 
     pub(crate) fn reselect_current_sources(
         &mut self,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<Vec<source_admission::LoadedSource>, Vec<Diagnostic>> {
         let primary_source = self.syntax_trees.primary_source();
         let previous = std::mem::replace(&mut self.sources, catalogue.begin_selection());
@@ -629,7 +629,7 @@ impl SourceStorage {
         contents: source_admission::SourceContents,
         origin_override: Option<SourceOrigin>,
         resolution_stratum: source_admission::SourceResolutionStratum,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<source_admission::LoadedSource, Vec<Diagnostic>> {
         let (package_root, package_identity, origin) =
             self.source_metadata(&contents.path, origin_override);
@@ -842,7 +842,7 @@ mod tests {
         let text: Arc<str> = Arc::from("public data Shared {} // retained bytes");
         let retained = Arc::downgrade(&text);
         let mut storage = SourceStorage::default();
-        let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+        let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
         let loaded = [DependencyScope::Build, DependencyScope::Product].map(|scope| {
             storage
                 .admit_source(
@@ -921,7 +921,7 @@ mod tests {
                 core.clone(),
                 source_capture::SourceFileSystem::new(),
             );
-            let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+            let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
             storage.sources = catalogue.begin_selection();
             let text: std::sync::Arc<str> = if substituted {
                 format!("{original}\n// different parsed source bytes\n").into()

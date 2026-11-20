@@ -10,3 +10,4 @@ pub(crate) mod callable_applications;
 pub(crate) mod calls_and_control_flow;
 pub(crate) mod private_callback_slots;
 pub mod source_call_occurrences;
+pub mod static_operand_binding;

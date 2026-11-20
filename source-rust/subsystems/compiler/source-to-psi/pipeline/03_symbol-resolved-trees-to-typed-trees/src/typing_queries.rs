@@ -1088,7 +1088,7 @@ pub(crate) fn defer_unbound_calls(
     let mut in_declarations = Vec::new();
     let mut closed_selections = Vec::new();
     let mut byte_domain_clauses;
-    let rows: Vec<(SymbolHandle, DeferredRequest, source_text::SourceSpan)>;
+    let rows: Vec<_>;
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
@@ -1123,7 +1123,7 @@ pub(crate) fn defer_unbound_calls(
                     in_expressions.push((
                         handle,
                         DeferredRequest::UndeclaredValueName,
-                        crate::source_symbols::UnresolvedName::Unserved,
+                        crate::source_symbols::UnresolvedName::NoVisibleDeclaration,
                     ));
                 }
                 continue;
@@ -1314,7 +1314,7 @@ pub(crate) fn defer_unbound_calls(
                 } else {
                     request
                 };
-                (declaration, request, source_span)
+                (declaration, request, source_span, bare)
             })
             .collect();
     }
@@ -1365,8 +1365,12 @@ pub(crate) fn defer_unbound_calls(
                 })?;
         }
     }
-    for (declaration, request, source_span) in rows {
-        program.record_deferred_refusal(declaration, request, source_span);
+    for (declaration, request, source_span, lookup) in rows {
+        if lookup == crate::source_symbols::UnresolvedName::NoVisibleDeclaration {
+            program.record_missing_name(declaration, request, source_span);
+        } else {
+            program.record_deferred_refusal(declaration, request, source_span);
+        }
     }
     Ok(())
 }
@@ -1952,7 +1956,7 @@ mod tests {
                     lifetime_arguments: Vec::new(),
                 })
         });
-        crate::data_applications::prepare_from(&mut program, 0)
+        typed_trees::data_applications::prepare_from(&mut program, 0)
             .expect("actual closed applications");
         let parameters = program
             .state_parameters

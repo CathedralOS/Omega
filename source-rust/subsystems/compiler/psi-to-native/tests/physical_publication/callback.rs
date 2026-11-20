@@ -742,7 +742,7 @@ fn check_callback_publication(retain_body_source: bool) {
         coverage: Some(coverage),
         physical_originals,
     }
-    .emit(Vec::new())
+    .emit()
     .expect("publish physical evidence over root and relocated private body");
     let (requested, runtime) = requested.into_parts();
     assert!(

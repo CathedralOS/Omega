@@ -118,15 +118,14 @@ rebuilt: an assignment's receiving type and a local home for an assigned
 parameter. Structural elaboration types an assignment and homes a binding from
 its own slots.
 
-The caller supplies typed trees and any Build-selected wire compatibility demands.
-Preparation returns the frozen trees after the last pass. An outstanding wire
-compatibility demand refuses preparation until a pass can serve it. [Product operand preparation](product_operands/mod.rs) builds the
-application of a provider choice whose slot or provider takes static
-arguments ([applications](product_operands/applications.rs)): it closes the
-request's operand graph with the static arguments of the generic helper that
-made the choice, and checks the resulting argument tuple against the
-declaration's parameters. It refuses a requirement applied to static
-arguments (a native binding's operand).
+Stage 04 accepts typed trees and Build-selected wire compatibility demands through
+`prepare_typed_trees`. It returns `PreparedTypedTrees` after all passes finish.
+An outstanding wire demand refuses preparation until a pass can serve it.
+
+The Product driver forms Build-selected operands against the authored typed
+declarations before specializing the program. Source calls and applied Product
+requirements share the same static argument binding and closed requirement header.
+[Product policy](../../driver/compile_product/product_policy.rs) · [Static operand binding](../../representations/typed-trees/callables/static_operand_binding/mod.rs)
 
 This stage sees the program together with the whole bundled library and
 does not know what an entry needs. So a pass that refuses refuses every

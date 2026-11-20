@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{PackageBuildHandoff, PackageCompilationInputs};
 use diagnostics::Diagnostic;
-use source_compiler::source_state::{FrozenTypedTrees, ProductSourceIdentity};
+use source_compiler::representations::source_state::{FrozenTypedTrees, ProductSourceIdentity};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub struct CheckedSourceCustody {
 impl BuildSourceCustody {
     pub fn package_build_handoff(
         &self,
-        program: &source_compiler::source_state::TypedTrees,
+        program: &source_compiler::representations::source_state::TypedTrees,
         inputs: &PackageCompilationInputs,
         target: target::TargetProfile,
         own_generated_sources: Vec<build_output::PackageGeneratedSource>,
@@ -66,10 +66,10 @@ impl BuildSourceCustody {
 
     pub fn admit_generated_extension<'inputs>(
         &mut self,
-        base_sources: &std::sync::Arc<source_compiler::source_inputs::SourceMap>,
+        base_sources: &std::sync::Arc<source_compiler::representations::source_inputs::SourceMap>,
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         generated_sources: &[build_output::PackageGeneratedSource],
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<
         Option<(
             crate::source::source_imports::GeneratedSourceExtension,
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn source_seal_binds_the_exact_frozen_owner_without_claiming_a_verdict() {
         let program = Arc::new(FrozenTypedTrees::from(
-            source_compiler::source_state::TypedTrees::default(),
+            source_compiler::representations::source_state::TypedTrees::default(),
         ));
         let other = Arc::new(program.as_ref().clone());
         let seal = build().seal(&program, None).unwrap();

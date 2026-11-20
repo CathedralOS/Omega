@@ -1,8 +1,8 @@
 # Build execution
 
-This directory runs a project’s authored Build. Package acquisition supplies its captured source and grants. The source compiler judges the selected Build invocation and publishes the program that will run. A prepared evaluation keeps that program, its source and its execution profile together. [Build source compilation](../../source-to-psi/build_invocation.rs) · [Evaluation entry](build_evaluation.rs)
+This directory runs a project’s authored Build. Package acquisition supplies its captured source and grants. The source compiler judges the selected Build invocation and publishes the program that will run. A prepared evaluation keeps that program, its source and its execution profile together. [Build source compilation](../../source-to-psi/driver/compile_build.rs) · [Evaluation entry](build_evaluation.rs)
 
-The interpreter runs one activation against those grants. Host calls can observe captured inputs, register dependencies, query Product declarations or request a provider. Project planning services each suspension and resumes the same activation. Normal return produces the configuration, binding requests, generated source and accounting for that execution. [Activation](activation.rs) · [Host bindings](host/bindings.rs) · [Planning](../planning/mod.rs)
+The interpreter runs one activation against those grants. Host calls can observe captured inputs, register dependencies, query Product declarations or request a provider. Project planning services each suspension and resumes the same activation. Normal return produces the configuration, binding requests, generated source and accounting for that execution. [Activation](activation.rs) · [Host bindings](host/bindings.rs) · [Planning](../project_build.rs)
 
 Build execution reads settings from the interpreter’s returned value. A project can request several deployment targets from the same returned Build. Planning keeps its package identity and uses its executed bindings when it opens each Product. [Settings decoder](../settings/settings.rs) · [Execution result](result/result.rs) · [Product requests](../planning/product.rs)
 

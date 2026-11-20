@@ -13,7 +13,7 @@ use std::sync::Arc;
 pub(super) fn append_default_build(
     storage: &mut SourceStorage,
     timings: &mut CompileTimings,
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<BuildSourceSelection, Vec<Diagnostic>> {
     let core = storage.core_capture().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -79,8 +79,8 @@ pub(super) fn append_build_prelude(
     routing: SourceRouting<'_>,
     build_source: Option<BuildSourceSelection>,
     timings: &mut CompileTimings,
-    catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
-) -> Result<Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
+) -> Result<Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     let Some(prelude) = crate::source::source_imports::prepare_build_prelude(
         storage,
         build_source.map(BuildSourceSelection::source_id),
@@ -100,7 +100,7 @@ pub(super) fn append_build_prelude(
     let mut bindings: Vec<_> = prelude
         .alias_for
         .map(|build_source| {
-            source_compiler::source_symbols::SourceScopedTopLevelBinding::new(
+            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(
                 build_source,
                 admitted.source_id,
                 "Build",
@@ -150,7 +150,7 @@ pub(super) fn append_build_prelude(
     {
         for &(namespace, declaration_source) in &namespaces {
             bindings.push(
-                source_compiler::source_symbols::SourceScopedTopLevelBinding::module_import(
+                source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
                     file.source_id,
                     declaration_source,
                     namespace,

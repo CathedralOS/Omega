@@ -55,7 +55,7 @@ fn measure() -> Result<(), String> {
     let mut fingerprint = DefaultHasher::new();
     for (source_index, source) in sources.iter().enumerate() {
         source.hash(&mut fingerprint);
-        let lexed = source_compiler::lexing::lex(loaded(source.clone()))
+        let lexed = source_compiler::test_support::lexing::lex(loaded(source.clone()))
             .map_err(|error| format!("{}: {}", arguments[source_index + 2], error.message))?;
         let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
         tokens.len().hash(&mut fingerprint);
@@ -75,13 +75,13 @@ fn measure() -> Result<(), String> {
     let start = Instant::now();
     for _ in 0..black_box(repeats) {
         for source in &sources {
-            let lexed = source_compiler::lexing::lex(loaded(black_box(source.clone())))
+            let lexed = source_compiler::test_support::lexing::lex(loaded(black_box(source.clone())))
                 .map_err(|error| error.message)?;
             let tokens = &lexed.sources.span_or_empty(lexed.batch)[0].tokens;
             checksum = checksum.wrapping_add(black_box(tokens.len()) as u64);
             black_box(tokens).as_slice();
             if parse {
-                let parsed = source_compiler::parsing::parse(&lexed, Default::default())
+                let parsed = source_compiler::test_support::parsing::parse(&lexed, Default::default())
                     .map_err(|error| error.message)?;
                 checksum = checksum
                     .wrapping_add(black_box(parsed.sources()[0].source().root_items.len()) as u64);

@@ -9,15 +9,15 @@ resolution and typing loop for deferred bodies. [Source driver](../source_to_psi
 
 | Operation | Input and output |
 | --- | --- |
-| [Lex and parse one file](../parse_files.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
+| [Lex and parse one file](../driver/parse_source_batch.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
 | [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/symbol_resolved_trees.rs). |
 | [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](../representations/typed-trees/typed_trees.rs). |
-| [Prepare typed source](04_typed-trees-to-prepared-typed-trees/prepare.rs) | After [compile-time evaluation](../compile_time.rs), the ordered passes produce the prepared trees that stage 05 accepts. |
+| [Prepare typed source](04_typed-trees-to-prepared-typed-trees/prepare.rs) | After [compile-time evaluation](../driver/compile_time_invocations.rs), the ordered passes produce the prepared trees that stage 05 accepts. |
 | [Lower to Terminal](05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/lowered_program.rs), including demanded generic bodies and witnesses. |
 | [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
 | [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [The source compiler](../source_to_psi.rs) binds those choices to the published artifact and deployment for [native admission](../../psi-to-native/driver/inputs/published_application.rs). |
 
-The [Product driver](../product.rs) coordinates the numbered stages. Its [constant evaluation](../compile_time/constants.rs) and [call evaluation](../compile_time/calls.rs) answer requests from source preparation and return to the waiting stage.
+The [Product driver](../driver/compile_product.rs) coordinates the numbered stages. Its [constant evaluation](../driver/compile_time_invocations/constants.rs) and [call evaluation](../driver/compile_time_invocations/calls.rs) answer requests from source preparation and return to the waiting stage.
 
 The Psi 03 trace identifies typing. The following
 notes describe these operations and their semantic contracts. Fixture names starting with `pass/` or `fail/` without a
@@ -594,7 +594,7 @@ Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
 scalar `f32`/`f64` declarations additionally support ordinary nested helper calls
 and Boolean-selected results while preserving format and exact bits. These
 floating values remain ineligible as generic/domain indices. The
-[initializer admission owner](../compile_time/constants/initializers.rs)
+[initializer admission owner](../driver/compile_time_invocations/constants/initializers.rs)
 checks concrete crash discharge before execution and repeats it during receiving
 replay. Closed type- and const-generic helper applications use ordinary checked
 specialization, including nested calls with integer, Boolean and floating results.
@@ -683,7 +683,7 @@ rejects undefined rational values even in unselected comparisons; typed operands
 still require ordinary peer landing. The former two-file
 `pass/modules/rational_boolean_indices` fixture covered fractional and decimal comparisons with their canonical Boolean results.
 Scalar `match` indices retain their complete source trees for the
-[typed evaluation owner](../compile_time.rs), including
+[typed evaluation owner](../driver/compile_time_invocations.rs), including
 coverage and unselected-arm admission. The former
 `pass/modules/match_constant_indices` fixture was their source check.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
@@ -729,7 +729,7 @@ Each rewritten application retains its original base/arguments at the exact use.
 Copies remap these origins; they are not new authored declarations or roots.
 Cloned attached methods retain the exact authored template and closed owner.
 Missing or ambiguous templates cannot acquire derivation custody.
-[Build-time evaluation](../compile_time.rs) owns the
+[Build-time evaluation](../driver/compile_time_invocations.rs) owns the
 single-use pre/post-typing continuation and its ordered const/layout/wire work;
 orchestration cannot recombine its retained rows or exchange its authority.
 
@@ -799,15 +799,11 @@ that separation. Nested evidence applications retain every non-lifetime slot;
 an expected binder supplies a compatibility target, not omitted arguments.
 Erased arrival/bundle subjects do not acquire runtime storage.
 
-Source-authored selections must preserve original lexical owners and exact
-conformance applications through any future copying or specialization. Generated
-fields and signatures cannot invent public exposure, visibility or supply. The
-old capture/finalization and checking owners are removed;
-[typed preparation](04_typed-trees-to-prepared-typed-trees/README.md) has no
-specialization pass yet, so those obligations are refused where a program
-demands them. Original template
-contracts and body selections remain obligations; package identity alone cannot
-replace the exact closed conformance owner.
+[Stage 04](04_typed-trees-to-prepared-typed-trees/prepare.rs) specializes static
+calls before preparing domains and record patterns. A specialized body keeps the
+template's lexical owner, its selected conformance applications and their
+obligations. Generated fields and signatures inherit only the exposure and supply
+authorized by those original selections.
 
 Resolution and typing keep the selections the source made. The lowered-form
 route must settle late calls, operators and evidence before it accepts a program. Public declaration contracts remain
