@@ -255,3 +255,41 @@ The same executable and stdin received the resulting 4,053-byte request,
 SHA-256 `ca6c411cbc9efdfcf0e614399af5d11dcaecb8242196c45ffe26fb36251667b1`.
 In 0.131 seconds the evaluator returned process status zero and refusal bytes
 `02 12 f0 07 00 00`, locating the wrong-typed argument at byte 2,032.
+
+## Original Gamma builds the classifier's Alpha evaluator
+
+On the bootstrap tree from change #4593,
+the freshly reconstructed Beta-written Gamma interpreter ran the 153,051-byte
+Delta compiler on the 620,128-byte Epsilon evaluator and its bound support.
+The 777,500-byte input had SHA-256 `6f25961168d5194389090bcef4fcddfdbdb4145d0c3a66e3a217653a60cc0907`.
+It produced 717,930 bytes of Gamma in 563.205 CPU seconds
+(4,435.791 elapsed), SHA-256 `fcbeef7424dcdee87986bd81a0cb1254031dabcc39f17d22a873e5d36746f048`. [Gamma interpreter change](https://github.com/CathedralOS/Omega/pull/4593)
+
+Three hosts ran the same 35,345-byte Gamma-to-Alpha compiler on that evaluator.
+Each produced the same 2,204,117-byte Alpha tape, SHA-256
+`b311cc23de0f34a018dcc62c35079a36a3ced038916198d4d1f5505f8b0f1e53`.
+
+| Gamma host for Alpha emission | CPU seconds | Elapsed seconds | Peak MiB |
+| --- | ---: | ---: | ---: |
+| Beta-written interpreter on Alpha | 784.047 | 6,574.399 | 227.5 |
+| Gamma compiler running on Alpha | 48.749 | 403.606 | 182.8 |
+| Gamma compiler running on Linux x86-64 | 7.869 | 54.205 | 182.5 |
+
+The original host read the emitter as Gamma source. The other two used a
+compiled emitter. To overlap the two long builds, Alpha emission began with an
+independently produced evaluator. The complete 753,279-byte input matched byte
+for byte when reconstructed from the fresh Delta result, SHA-256
+`ce4fbd4ffaa784c885eb67598fb0131c65eee6c94fecbdfa0c3c3e5d0b906e58`. The earlier
+`4a46aff75770` run reached its 4,500-second wall limit before producing a tape.
+
+The Alpha seed ran the freshly emitted tape on both classifier packets. The
+3,748-byte program processed all 256 byte values and returned exit 42 with
+3,072 output bytes (31.727 CPU seconds). Its complete 3,077-byte
+observation had SHA-256 `9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225`.
+The 3,745-byte wrong-base program returned `02 12 f0 07 00 00`, a type
+error at byte 2,032 (0.634 CPU seconds). Both observations matched
+the independent replay on the Linux-produced tape.
+
+Replay on `9e902e188371`, which has the same bootstrap tree, with
+`python3 tests/bootstrap/route.py NEW --gamma interpret --delta alpha --epsilon interpret --case omega-byte-classes --seconds 16300`.
+Use `omega-wrong-base` in a fresh directory for the paired refusal.
