@@ -75,7 +75,10 @@ fn specialized_call_results_match_the_owning_expression_and_arguments() {
     misaddressed.request.node = evaluation::node(source, source.rfind("width(N)").unwrap(), "width(N)", omega_parser::NodeKind::Call);
     let error = run(&[misaddressed]).unwrap_err();
     assert_eq!(error.span, value.request.expression.span);
-    assert_eq!(error.message, "evaluation result refers to an unknown static expression");
+    spec_corpus::observe_handoff!(
+        "matching-computed-index-results/refusal",
+        assert_eq!(error.message, "evaluation result refers to an unknown static expression")
+    );
     value.value = omega_typer::StaticValue::Integer(256.into());
     assert!(run(&[value]).unwrap_err().message.contains("exceeds u8"));
 }
@@ -137,19 +140,25 @@ fn specialization_uses_the_selected_trait_operation() {
             .contains("needs an admitted evaluation")
     );
     let stage = check(std::slice::from_ref(&value)).unwrap();
-    assert!(
-        stage
-            .calls
-            .iter()
-            .any(|c| c.machine.path == "Add::combine" && c.evidence.is_some() && c.use_site == omega_typer::CallUse::StaticArgument)
+    spec_corpus::observe_handoff!(
+        "dependent-applications/producer",
+        assert!(
+            stage
+                .calls
+                .iter()
+                .any(|c| c.machine.path == "Add::combine" && c.evidence.is_some() && c.use_site == omega_typer::CallUse::StaticArgument)
+        )
     );
     let mut wrong = value.clone();
     wrong.value = omega_typer::StaticValue::Integer(8.into());
-    assert!(
-        check(&[value, wrong])
-            .unwrap_err()
-            .message
-            .contains("conflicting evaluations")
+    spec_corpus::observe_handoff!(
+        "dependent-applications/refusal",
+        assert!(
+            check(&[value, wrong])
+                .unwrap_err()
+                .message
+                .contains("conflicting evaluations")
+        )
     );
 }
 #[test]
@@ -306,10 +315,23 @@ fn raw_stages_cannot_define_sealed_toolchain_operations() {
             tree: &tree,
         },
     };
-    let bare = omega_resolver::resolve_stage(&[input], &[]).unwrap();
+    let inputs = [input];
+    let bare = omega_resolver::resolve_stage(&inputs, &[]).unwrap();
+    let refusal = omega_toolchain::resolve_source_package(&inputs).expect_err("reserved package must be refused");
+    let kind = omega_resolver::NameErrorKind::ReservedPackageIdentity;
+    spec_corpus::assert_resolver_refusal!(
+        refusal,
+        kind,
+        omega_toolchain::TOOLCHAIN_PACKAGE,
+        "indexing/read.omg",
+        omega_lexer::SourceSpan::new(0, 0),
+        "package identity reserved for the toolchain"
+    );
     let error = omega_typer::type_stage(&bare).unwrap_err();
-    assert_eq!(error.file, "indexing/read.omg");
-    assert!(error.message.contains("reserved"));
+    assert_eq!(
+        (error.package, error.file, error.span, error.message),
+        (refusal.package, refusal.file, refusal.span, refusal.message)
+    );
 }
 
 /// Read the predicates at the declaration issued by L2. Every root must also have L3's
@@ -367,7 +389,7 @@ fn core_interfaces_supply_checked_types_without_adding_source_bodies() {
         .iter()
         .find(|s| s.machine == machine.machine)
         .unwrap();
-    assert!(std::sync::Arc::ptr_eq(machine, producer));
+    spec_corpus::observe_handoff!("typing-from-resolved-bindings/producer", assert!(std::sync::Arc::ptr_eq(machine, producer)));
     assert!(machine.has_guarantee && machine.terminates);
     assert_eq!(machine.pause.block, Some(false));
     assert_eq!(machine.crash_ceiling.as_deref(), Some([].as_slice()));
@@ -639,7 +661,10 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
         omega_typer::StaticValue::Bool(true),
     ] {
         let err = admit_value(T::Bool, value).unwrap_err();
-        assert_eq!(err.message, "specialized evaluation result does not match its carrier");
+        spec_corpus::observe_handoff!(
+            "generic-parameter-correspondence/refusal",
+            assert_eq!(err.message, "specialized evaluation result does not match its carrier")
+        );
         assert_eq!(err.span, site.span);
     }
     let parameter = T::Parameter {
@@ -650,8 +675,23 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
         let refusal = admit(open).expect_err(position);
         assert_eq!(refusal.message, "evaluation requires closed arguments", "{position}");
         assert_eq!(refusal.span, site.span, "{position}");
-        admit(closed).expect(position);
+        // These synthetic shapes isolate structural closure. Some have no valid source
+        // spelling, such as an integer value whose carrier was replaced with bool.
+        omega_typed::ClosedArguments::try_from(vec![closed]).expect(position);
     }
+    for closed in [T::Bool, T::Tuple(vec![T::Bool]), T::Array(Box::new(T::Bool), 4)] {
+        admit(closed).expect("a closed type argument can name an unused application");
+    }
+    let invalid_integer = T::StaticInteger {
+        carrier: Box::new(T::Bool),
+        value: 1.into(),
+    };
+    let refusal = admit(T::Tuple(vec![invalid_integer])).expect_err("integer with a Boolean carrier inside a closed tuple");
+    assert_eq!(
+        refusal.message,
+        "invalid evaluation argument 1 of probe: static integer 1 has non-integer carrier bool"
+    );
+    assert_eq!(refusal.span, site.span);
     // A formula remains deferred until evaluation materializes its static integer.
     let deferred = T::StaticFormula {
         term: IntegerIndex::Binder {

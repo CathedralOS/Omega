@@ -92,6 +92,17 @@ fn prepared_array_extents_and_neighboring_types_reach_owned_psi() {
         assert_eq!(select.result_type, Some(computed));
         assert_eq!(computed, named);
         assert_eq!(computed == literal, length == 3);
+        // The answer for the exact `width()` occurrence closes the Psi array identity.
+        spec_corpus::observe_handoff!(
+            "answered-occurrence-identity/consumer",
+            assert_eq!(
+                package.types.get(computed),
+                Some(&TypeShape::FixedArray {
+                    element: array_element(package, literal, 3),
+                    length
+                })
+            )
+        );
         for (array, count, width) in [(computed, length, 8), (literal, 3, 8), (wide, 3, 16)] {
             let element = array_element(package, array, count);
             assert_eq!(

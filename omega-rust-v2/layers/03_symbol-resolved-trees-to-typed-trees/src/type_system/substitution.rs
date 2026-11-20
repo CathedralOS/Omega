@@ -134,6 +134,9 @@ impl TypeInference for ValueType {
                 ..
             }
             | InvalidStatic(message) => return Err(message.clone()),
+            StaticInteger { carrier, value } if !matches!(carrier.as_ref(), Integer { .. }) => {
+                return Err(format!("static integer {value} has non-integer carrier {carrier}"));
+            }
             StaticInteger { carrier, value } if !carrier.contains_integer(value) => {
                 return Err(format!("static index {value} exceeds {carrier}"));
             }

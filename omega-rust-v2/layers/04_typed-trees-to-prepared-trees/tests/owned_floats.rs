@@ -198,7 +198,7 @@ fn arithmetic_nan_has_semantic_uses_but_no_determined_materialization() {
     else {
         panic!("unexpected component path: {:?}", failure.path)
     };
-    assert_eq!(case.path, "Choice::Some");
+    spec_corpus::observe_handoff!("frozen-scalar-and-aggregate-values/materialization", assert_eq!(case.path, "Choice::Some"));
     assert_eq!(record.path, "Entry");
     assert_eq!(failure.origin.span.slice(source.as_bytes()), Some(b"0.0f32/0.0f32".as_slice()));
 }

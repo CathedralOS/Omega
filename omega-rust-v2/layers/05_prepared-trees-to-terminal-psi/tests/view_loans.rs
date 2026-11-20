@@ -173,7 +173,10 @@ fn replacing_an_occupied_element_displaces_and_disposes_the_old_value_at_the_sam
     let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else {
         panic!("the displaced value needs a cleanup continuation");
     };
-    assert!(matches!(edge.cleanup.as_slice(), [CleanupAction::DiscardRoot(place)] if OperationResult::Structural(*place) == old));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/replaced-element-cleanup",
+        assert!(matches!(edge.cleanup.as_slice(), [CleanupAction::DiscardRoot(place)] if OperationResult::Structural(*place) == old)),
+    );
 }
 
 #[test]

@@ -42,7 +42,7 @@ fn lowering_can_distinguish_two_applications_of_the_same_field_recipe() {
                 )
             })
             .expect("the frozen stage retains each closed owner argument");
-        assert_eq!(selected.value, StaticValue::Bool(!arg));
+        spec_corpus::assert_handoff_eq!(format!("field-recipe/{arg}"), selected.value, StaticValue::Bool(!arg));
     }
 }
 
@@ -80,7 +80,7 @@ fn materialization_pairs_the_frozen_value_with_its_exact_selected_layout() {
     assert_eq!(&input.definition.declaration, decl);
     assert_eq!(input.value, &PreparedValue::Integer(7.into()));
     assert_eq!(input.layout.subject, byte);
-    assert_eq!(input.layout.plan.as_ref(), &[2]);
+    spec_corpus::assert_handoff_eq!("materialization/layout-plan", input.layout.plan.as_ref(), &[2]);
     let other = target_with_layout(ValueType::Bool, 1, 2);
     assert!(matches!(prepared.constant_for_materialization(decl, &other), Err(ConstantMaterializationError::MissingLayout(def)) if &def.declaration == decl));
 }
@@ -174,7 +174,7 @@ fn generic_returns_discharge_possible_loans_only_for_complete_owned_results() {
         panic!("expected a Sample record")
     };
     assert_eq!(owner.path, "Sample");
-    assert_eq!(fields[0].float(), Some(PreparedFloat::Binary32(0x3fc0_0000)));
+    spec_corpus::observe_handoff!("declared-field-order/consumer", assert_eq!(fields[0].float(), Some(PreparedFloat::Binary32(0x3fc0_0000))));
     assert_eq!(fields[1], PreparedValue::Bool(true));
 
     let borrowed = format!("{machines}\nconst BORROWED:@[u8]=relay::<@[u8]>(\"data\");");
@@ -192,7 +192,10 @@ fn generic_indexed_integer_operations_keep_their_selected_policy_and_width() {
         const WRAPPED:u13=sum::<13>(8191u13,1u13);";
     let package_under_test = package(source);
     let prepared = prepare_source_package(&package_under_test).unwrap();
-    assert_eq!(prepared.integer_constant(&prepared.typed().constants[0].declaration), Some(&0.into()));
+    spec_corpus::observe_handoff!(
+        "selected-operator-policy-and-width/consumer",
+        assert_eq!(prepared.integer_constant(&prepared.typed().constants[0].declaration), Some(&0.into()))
+    );
     assert!(
         prepared
             .typed()
@@ -315,9 +318,32 @@ fn fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field() 
             .declaration;
         assert_eq!(prepared.integer_constant(declaration), Some(&expected.into()));
     }
-    let refused = format!("{setup} const N:u8=pick(ITEMS,2u64);");
-    let error = prepare_source_package(&package(&refused)).unwrap_err();
-    assert!(error.message.contains("index < items.len"), "{}", error.message);
+    // L4 executes `items[i]` only through the selected core read whose
+    // precondition obligation L3 attached to the index node. Twin: the
+    // selector alone changes the frozen element or reaches that precondition.
+    let read = |index: u64| -> Result<num_bigint::BigInt, String> {
+        let program = format!("{setup} const N:u8=pick(ITEMS,{index}u64);");
+        let source = package(&program);
+        let prepared = prepare_source_package(&source).map_err(|error| error.message)?;
+        let declaration = &prepared
+            .typed()
+            .constants
+            .iter()
+            .find(|c| c.declaration.path == "N")
+            .unwrap()
+            .declaration;
+        let value = prepared.integer_constant(declaration).cloned().unwrap();
+        Ok(value)
+    };
+    let reads = [0, 1, 2].map(read);
+    spec_corpus::observe_handoff!(
+        "selected-element-read-precondition/consumer",
+        assert!(
+            matches!(&reads, [Ok(first), Ok(second), Err(refusal)]
+                if *first == num_bigint::BigInt::from(4) && *second == num_bigint::BigInt::from(9) && refusal.contains("selected array read requires index < items.len")),
+            "{reads:?}"
+        )
+    );
 }
 
 #[test]

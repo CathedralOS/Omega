@@ -63,7 +63,10 @@ pub(crate) fn check_name_visibility(
                 format!("local binding {} shadows a visible value binding", word.text),
             ));
         }
-        if name.role == NameRole::Qualifier && matches!(name.target, Symbol::DomainCandidates { .. }) {
+        // Parents found by integer family are selected with the domain that names them.
+        if name.role == NameRole::Qualifier
+            && matches!(&name.target, Symbol::DomainCandidates { candidates, .. } if !candidates.iter().any(|c| c.carrier_deferred))
+        {
             types
                 .selected_declaration(&name.target)
                 .map_err(|message| TypeError::at(units[name.node.file].file, name.node.node, message).with_span(name.span))?;

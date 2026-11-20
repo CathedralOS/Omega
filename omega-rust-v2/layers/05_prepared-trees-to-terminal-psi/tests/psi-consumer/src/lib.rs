@@ -179,3 +179,5 @@ pub use embedded_fields::{check_incoming_fields, check_constructed_field};
 
 mod parked_owner_borrows;
 pub use parked_owner_borrows::check_parked_owner_borrow;
+
+pub mod product_witness;

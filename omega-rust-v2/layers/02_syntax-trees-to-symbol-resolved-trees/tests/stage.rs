@@ -1,6 +1,28 @@
 use omega_lexer::lex;
 use omega_parser::parse_file;
-use omega_resolver::{Dependency, ParsedSource, StageSource, Symbol, resolve_stage};
+use omega_resolver::{Dependency, NameErrorKind, ParsedSource, StageSource, Symbol, resolve_stage};
+
+#[path = "support/diagnostic_kind.rs"]
+mod diagnostic_kind;
+use diagnostic_kind::assert_refusal;
+
+/// The bytes of the first `needle` inside the only occurrence of `context` in `text`.
+fn span_in(text: &str, context: &str, needle: &str) -> omega_lexer::SourceSpan {
+    let at = text
+        .find(context)
+        .unwrap_or_else(|| panic!("`{context}` is not in `{text}`"));
+    assert_eq!(text.rfind(context), Some(at), "`{context}` is not unique in `{text}`");
+    let start = at
+        + context
+            .find(needle)
+            .unwrap_or_else(|| panic!("`{needle}` is not in `{context}`"));
+    omega_lexer::SourceSpan::new(start, start + needle.len())
+}
+
+/// The bytes of the only occurrence of `needle` in `text`.
+fn span_of(text: &str, needle: &str) -> omega_lexer::SourceSpan {
+    span_in(text, needle, needle)
+}
 
 fn run<'text>(
     files: &[(&'text str, &'text str, &'text str)],
@@ -37,6 +59,16 @@ fn run<'text>(
 }
 
 #[test]
+fn declared_resolver_diagnostic_kinds() {
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        let kinds: Vec<_> = omega_resolver::NameErrorKind::ALL.iter()
+            .map(|kind| format!("{kind:?}={:?}", kind.origin()))
+            .collect();
+        println!("OMEGA_RESOLVER_INVENTORY\t{}", kinds.join(","));
+    }
+}
+
+#[test]
 fn self_binds_as_the_subject_only_in_the_declarations_own_predicates() {
     let source = concat!(
         "const self: u8 = 1; ",
@@ -62,7 +94,7 @@ fn self_binds_as_the_subject_only_in_the_declarations_own_predicates() {
     assert_eq!(uses.len(), expected_subjects.len());
     for ((target, offset), subject) in uses.into_iter().zip(expected_subjects) {
         if subject {
-            assert!(matches!(target, Symbol::Builtin(name) if name == "self"), "{offset}");
+            spec_corpus::observe_handoff!("predicate-subject/producer", assert!(matches!(target, Symbol::Builtin(name) if name == "self"), "{offset}"));
         } else {
             assert_eq!(target, &Symbol::Declaration(declaration.clone()), "{offset}");
         }
@@ -98,7 +130,7 @@ fn self_outside_a_subject_predicate_uses_ordinary_lookup() {
 fn a_predicate_pattern_cannot_rebind_self() {
     let source = "domain u8::Positive requires match self { self -> true };";
     let error = run(&[("app", "main.omg", source)], &[]).unwrap_err();
-    assert_eq!(error.message, "the predicate subject self cannot be rebound");
+    spec_corpus::observe_handoff!("predicate-subject/refusal", assert_eq!(error.message, "the predicate subject self cannot be rebound"));
     assert_eq!(error.span.get_start_offset(), source.rfind("self").unwrap());
 }
 
@@ -132,7 +164,7 @@ fn lexical_binding_uses_its_declaration_and_begins_after_its_initializer() {
             _ => None,
         })
         .collect();
-    assert_eq!(offsets, [text.find("count:").unwrap(), text.find("saved =").unwrap()]);
+    spec_corpus::assert_handoff_eq!("lexical-scope/binder-offsets", offsets, [text.find("count:").unwrap(), text.find("saved =").unwrap()]);
     assert!(run(&[("app", "main.omg", "machine f() { let x = x; x }")], &[]).is_err());
 }
 
@@ -224,7 +256,7 @@ fn cases_nested_data_and_attached_domains_share_the_owners_member_namespace() {
         "domain S::K; data S { data K {} }",
     ] {
         let error = run(&[("app", "members.omg", source)], &[]).unwrap_err();
-        assert_eq!(error.message, "duplicate member S::K", "{source}");
+        spec_corpus::observe_handoff!("type-and-value-names/refusal", assert_eq!(error.message, "duplicate member S::K", "{source}"));
         assert!(error.span.slice(source.as_bytes()).unwrap().ends_with(b"K"));
     }
     run(&[("app", "types.omg", "data S {case K;} data T {data K {}} domain T::Other;")], &[]).unwrap();
@@ -289,7 +321,7 @@ fn a_bare_case_spelling_does_not_hide_the_outer_type_its_payload_names() {
         .unwrap();
     assert_ne!(outer, case);
     let payload = source.find("c:Circle").unwrap() + "c:".len();
-    assert_eq!(target_at(&stage, source, payload, "Circle"), &Symbol::Declaration(outer.clone()));
+    spec_corpus::observe_handoff!("type-and-value-names/producer", assert_eq!(target_at(&stage, source, payload, "Circle"), &Symbol::Declaration(outer.clone())));
     let parameter = source.find("v:Circle").unwrap() + "v:".len();
     assert_eq!(target_at(&stage, source, parameter, "Circle"), &Symbol::Declaration(outer.clone()));
     let selection = source.find("Shape::Circle {").unwrap();
@@ -350,9 +382,14 @@ fn a_bare_case_spelling_does_not_hide_the_outer_type_its_payload_names() {
         &[edge],
     )
     .unwrap_err();
-    assert_eq!(error.message, "competing declarations: geometry\\a\\Circle, geometry\\b\\Circle");
-    let payload = caller.2.find("c:Circle").unwrap() + "c:".len();
-    assert_eq!(error.span, omega_lexer::SourceSpan::new(payload, payload + "Circle".len()));
+    assert_refusal(
+        &error,
+        NameErrorKind::CompetingDeclarations,
+        "app",
+        "main.omg",
+        span_in(caller.2, "c:Circle", "Circle"),
+        "competing declarations: geometry\\a\\Circle, geometry\\b\\Circle",
+    );
 }
 
 #[test]
@@ -389,7 +426,7 @@ fn overload_identity_renames_only_occurrences_bound_to_a_generic_parameter() {
         .filter(|id| id.path == "f")
         .collect();
     assert_eq!(declarations.len(), 2);
-    assert_eq!(declarations[0].operands, ["#TypeParam0", "Io :: T"]);
+    spec_corpus::observe_handoff!("overloads-and-operators/producer", assert_eq!(declarations[0].operands, ["#TypeParam0", "Io :: T"]));
     assert_eq!(declarations[1].operands, ["#TypeParam0", "Io :: U"]);
     let call = distinct.rfind("f(").unwrap();
     let usage = resolved
@@ -531,7 +568,7 @@ fn compiled_domains_keep_the_carrier_from_the_declaring_package() {
         .iter()
         .find(|e| e.id.path == "screen\\Point::Ready")
         .unwrap();
-    assert!(matches!(&parent.domain_carrier, Some(omega_resolver::DomainCarrier::Named(id)) if id.package == "geometry" && id.path == "Point"));
+    spec_corpus::observe_handoff!("exported-domain-carrier/producer", assert!(matches!(&parent.domain_carrier, Some(omega_resolver::DomainCarrier::Named(id)) if id.package == "geometry" && id.path == "Point")));
     let consumer = |text: &str, deps: &[Dependency<'_>]| {
         let tokens = lex(text.as_bytes()).unwrap();
         let tree = parse_file(text.as_bytes(), &tokens).unwrap();
@@ -567,16 +604,22 @@ fn compiled_domains_keep_the_carrier_from_the_declaring_package() {
         },
     ];
     let uses = consumer("use geom\\Point; use ui\\screen; machine f(p:Point in Point::Ready::Stable){}", &edges).unwrap();
-    assert!(
-        uses.iter()
-            .any(|id| id.package == "policy" && id.path == "screen\\Point::Ready::Stable")
+    spec_corpus::observe_handoff!(
+        "exported-domain-carrier/consumer",
+        assert!(
+            uses.iter()
+                .any(|id| id.package == "policy" && id.path == "screen\\Point::Ready::Stable")
+        )
     );
     assert!(consumer("data Point{} use ui\\screen; machine f(p:Point in Point::Ready){}", &edges).is_err());
-    assert_eq!(
-        consumer("use ui\\screen\\Point::Ready::Stable;", &edges[..1])
-            .unwrap_err()
-            .message,
-        "no authority to name carrier geometry\\Point"
+    spec_corpus::observe_handoff!(
+        "exported-domain-carrier/refusal",
+        assert_eq!(
+            consumer("use ui\\screen\\Point::Ready::Stable;", &edges[..1])
+                .unwrap_err()
+                .message,
+            "no authority to name carrier geometry\\Point"
+        )
     );
 }
 
@@ -612,8 +655,15 @@ fn selecting_a_child_domain_requires_visibility_of_its_carrier() {
         ];
         run(&files, &edges).unwrap();
         let error = run(&files, &edges[..2]).unwrap_err();
-        assert_eq!(error.message, "no authority to name carrier geometry\\Point");
-        assert_eq!(error.span.slice(source.as_bytes()), Some(&source.as_bytes()[4..source.len() - 1]));
+        // The whole import path, between `use ` and the final `;`.
+        assert_refusal(
+            &error,
+            NameErrorKind::CarrierWithoutAuthority,
+            "app",
+            "main.omg",
+            omega_lexer::SourceSpan::new(4, 4 + "lib\\".len() + name.len()),
+            "no authority to name carrier geometry\\Point",
+        );
     }
 }
 
@@ -671,7 +721,7 @@ fn applications_bind_the_same_base_and_keep_both_argument_expressions_for_later_
     let [(first, a), (second, b)] = applications.as_slice() else {
         panic!("expected two applications")
     };
-    assert_eq!(a.target, b.target);
+    spec_corpus::observe_handoff!("preserved-generic-arguments/producer", assert_eq!(a.target, b.target));
     let arguments = [first, second].map(|&section| {
         tree.file
             .span(tree.file.nodes[section].children[0])
@@ -712,33 +762,51 @@ fn assembly_vocabulary_is_explicit_and_block_transfers_bind_to_the_local_declara
         instructions: target.instructions,
         registers: &[],
     };
-    assert!(
-        resolve_stage_for_target(&files, &[], &missing_register)
-            .unwrap_err()
-            .message
-            .contains("register ecx")
+    assert_refusal(
+        &resolve_stage_for_target(&files, &[], &missing_register).unwrap_err(),
+        NameErrorKind::UnavailableTargetRegister,
+        "game",
+        "x.omg",
+        span_in(text, "registers ecx", "ecx"),
+        "unavailable target register ecx",
+    );
+    let missing_instruction = AssemblyVocabulary {
+        instructions: &["ret"],
+        registers: target.registers,
+    };
+    assert_refusal(
+        &resolve_stage_for_target(&files, &[], &missing_instruction).unwrap_err(),
+        NameErrorKind::UnavailableTargetInstruction,
+        "game",
+        "x.omg",
+        span_of(text, "mov"),
+        "unavailable target instruction mov",
     );
 }
 
 #[test]
 fn assembly_transfers_require_one_visible_local_continuation() {
-    for (text, message) in [
+    for (text, kind, message) in [
         (
             "asm machine entry { transition -> next; } asm machine next {}",
+            NameErrorKind::UnresolvedAssemblyBlock,
             "unresolved local assembly block next",
         ),
         (
             "asm machine entry { transition -> next; } asm machine other { asm machine next {} }",
+            NameErrorKind::UnresolvedAssemblyBlock,
             "unresolved local assembly block next",
         ),
         (
             "asm machine entry { transition -> next; asm machine next(x:u8) {} asm machine next(x:u16) {} }",
+            NameErrorKind::AmbiguousAssemblyBlock,
             "ambiguous local assembly block next",
         ),
     ] {
         let error = run(&[("app", "asm.omg", text)], &[]).unwrap_err();
-        assert_eq!(error.message, message);
-        assert_eq!(error.span.get_start_offset(), text.find("-> next").unwrap() + 3);
+        // `transition -> next` begins at byte 20 in every case, so the label is bytes 34..38.
+        assert_refusal(&error, kind, "app", "asm.omg", omega_lexer::SourceSpan::new(34, 38), message);
+        assert_eq!(span_in(text, "-> next", "next"), omega_lexer::SourceSpan::new(34, 38));
     }
     let text = "asm machine entry { transition -> first; asm machine first { transition -> next; } asm machine next {} }";
     let stage = run(&[("app", "asm.omg", text)], &[]).unwrap();
@@ -754,7 +822,7 @@ fn assembly_transfers_require_one_visible_local_continuation() {
             target => panic!("unexpected transfer {target:?}"),
         })
         .collect();
-    assert_eq!(labels, ["entry::first", "entry::next"]);
+    spec_corpus::observe_handoff!("assembly-symbols/producer", assert_eq!(labels, ["entry::first", "entry::next"]));
 }
 
 #[test]
@@ -833,8 +901,14 @@ fn machine_qualification_rejects_two_eligible_owners_before_searching_their_memb
         &[],
     )
     .unwrap_err();
-    assert_eq!(error.message, "ambiguous static root Output");
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"Output".as_slice()));
+    assert_refusal(
+        &error,
+        NameErrorKind::AmbiguousStaticRoot,
+        "app",
+        "main.omg",
+        span_in(source, "Output::play", "Output"),
+        "ambiguous static root Output",
+    );
 }
 
 #[test]
@@ -846,12 +920,19 @@ fn a_module_path_binds_its_imported_owner_before_looking_up_the_member() {
     ];
     let ambiguous = r"use left\audio; use right\audio; machine preview() { audio\play(); }";
     let error = run(&[("app", "main.omg", ambiguous), items[0], items[1]], &[]).unwrap_err();
-    assert_eq!(error.message, "competing module paths audio");
-    assert_eq!(error.span.slice(ambiguous.as_bytes()), Some(b"audio".as_slice()));
+    assert_refusal(
+        &error,
+        NameErrorKind::CompetingModulePaths,
+        "app",
+        "main.omg",
+        span_in(ambiguous, r"audio\play", "audio"),
+        "competing module paths audio",
+    );
 
     let missing = r"use right\audio; machine preview() { audio\play(); }";
     let error = run(&[("app", "main.omg", missing), items[1], items[2]], &[]).unwrap_err();
-    assert_eq!(error.message, r"unresolved name audio\play");
+    assert_eq!(error.message, r"unresolved name audio\play in imported module right\audio of package app");
+    assert_eq!(error.span.slice(missing.as_bytes()), Some(br"audio\play".as_slice()));
 }
 
 #[test]
@@ -1056,12 +1137,15 @@ fn admitted_dependencies_are_requester_local_and_never_transitive() {
         },
     ];
     let stage = run(&files, &edges).unwrap();
-    assert!(
-        stage
-            .trees()
-            .filter(|tree| tree.file.package == "lib")
-            .flat_map(|tree| tree.occurrences())
-            .any(|u| matches!(&u.target,Symbol::Declaration(id) if id.package=="core"))
+    spec_corpus::observe_handoff!(
+        "dependency-authority/producer",
+        assert!(
+            stage
+                .trees()
+                .filter(|tree| tree.file.package == "lib")
+                .flat_map(|tree| tree.occurrences())
+                .any(|u| matches!(&u.target,Symbol::Declaration(id) if id.package=="core"))
+        )
     );
     let bad = [
         ("app", "main.omg", "machine run() { core\\leaf() }"),
@@ -1144,10 +1228,18 @@ fn inherited_trait_rows_keep_the_declaring_owner() {
             .any(|u| matches!(&u.target,Symbol::StaticMember{binder,member} if binder.get_start_offset()==source.find("C: Child").unwrap() && member=="read"))
     );
     let id = |path| stage.declarations.iter().find(|id| id.path == path).unwrap();
-    assert_eq!(stage.trait_ancestors(id("Child")).collect::<Vec<_>>(), [("app", "Middle"), ("app", "Parent")]);
+    spec_corpus::observe_handoff!("trait-requirements/producer", assert_eq!(stage.trait_ancestors(id("Child")).collect::<Vec<_>>(), [("app", "Middle"), ("app", "Parent")]));
     assert_eq!(stage.trait_ancestors(id("Parent")).count(), 0);
     assert_eq!(stage.trait_ancestors(id("read_log")).count(), 0);
-    assert!(run(&[("app", "a.omg", "trait A: B {} trait B: A {}")], &[]).is_err());
+    // The cycle is reported on A, the first trait in identity order.
+    assert_refusal(
+        &run(&[("app", "a.omg", "trait A: B {} trait B: A {}")], &[]).unwrap_err(),
+        NameErrorKind::CyclicTraitInheritance,
+        "app",
+        "a.omg",
+        omega_lexer::SourceSpan::new(0, 13),
+        "cyclic trait inheritance",
+    );
     run(&[("app", "a.omg", "boundary trait B {} trait A: B {}")], &[]).unwrap();
     run(
         &[
@@ -1211,7 +1303,7 @@ fn ambiguous_domains_report_each_owner_carrier_and_exposing_import() {
         "app\\right\\Point::Ready",
         "app\\geom\\Point",
     ] {
-        assert!(error.message.contains(label), "{}", error.message);
+        spec_corpus::observe_handoff!("domain-declarations/refusal", assert!(error.message.contains(label), "{}", error.message));
     }
     for import in ["left", "right"] {
         let start = caller.find(import).unwrap();
@@ -1234,17 +1326,23 @@ fn annotated_binders_leave_their_equality_role_to_typing() {
 
 #[test]
 fn parameters_must_have_distinct_names_within_each_parameter_list() {
-    for (source, expected) in [
-        ("data View<'value,value>{body:@'value i32;}", "duplicate generic parameter value"),
-        ("machine f<T,T>(){}", "duplicate generic parameter T"),
-        ("machine f(x:u8,x:bool){}", "duplicate parameter x"),
+    // Each refusal names the second binder, at the pinned byte offset.
+    for (source, expected, second) in [
+        ("data View<'value,value>{body:@'value i32;}", "duplicate generic parameter value", 17),
+        ("machine f<T,T>(){}", "duplicate generic parameter T", 12),
+        ("machine f(x:u8,x:bool){}", "duplicate parameter x", 15),
     ] {
         let error = run(&[("app", "probe.omg", source)], &[]).unwrap_err();
-        assert_eq!(error.message, expected);
         let name = expected.split_whitespace().last().unwrap();
-        let first = source.find(name).unwrap();
-        let second = first + name.len() + source[first + name.len()..].find(name).unwrap();
-        assert_eq!(error.span.get_start_offset(), second);
+        assert_eq!(&source[second..second + name.len()], name);
+        assert_refusal(
+            &error,
+            NameErrorKind::DuplicateParameter,
+            "app",
+            "probe.omg",
+            omega_lexer::SourceSpan::new(second, second + name.len()),
+            expected,
+        );
     }
     run(&[("app", "probe.omg", "machine f<T>(x:T)->T{g(x) machine g<T>(x:T)->T{x}}")], &[]).unwrap();
 }
@@ -1308,9 +1406,12 @@ fn imported_alias_bounds_leave_both_visible_argument_names_at_the_call() {
         .find(|u| u.span.get_start_offset() == site)
         .unwrap()
         .target;
-    assert!(
-        matches!(target, Symbol::ScopedNames { context: omega_resolver::NameContext::GenericArgument, names } if matches!(names.as_slice(),
-        [Symbol::Binding { kind: omega_parser::NodeKind::KindedParam, .. }, Symbol::Declaration(decl)] if decl.path == "X"))
+    spec_corpus::observe_handoff!(
+        "generic-arguments/producer",
+        assert!(
+            matches!(target, Symbol::ScopedNames { context: omega_resolver::NameContext::GenericArgument, names } if matches!(names.as_slice(),
+            [Symbol::Binding { kind: omega_parser::NodeKind::KindedParam, .. }, Symbol::Declaration(decl)] if decl.path == "X"))
+        )
     );
     let call = stage
         .trees()
@@ -1370,19 +1471,18 @@ fn imported_overloads_come_only_from_the_requesters_selected_package() {
             ..edge
         };
         let error = run(&files, &[other_edge]).unwrap_err();
-        assert_eq!(
-            (error.package.as_str(), error.file.as_str(), error.message.as_str()),
-            ("app", "main.omg", "unavailable import dep\\math\\score")
+        assert_refusal(
+            &error,
+            NameErrorKind::UnavailableImport,
+            "app",
+            "main.omg",
+            span_of(imported, "dep\\math\\score"),
+            "unavailable import dep\\math\\score",
         );
-        assert_eq!(error.span.slice(imported.as_bytes()), Some("dep\\math\\score".as_bytes()));
 
         files[0].2 = bare;
         let error = run(&files, &[edge]).unwrap_err();
-        assert_eq!(
-            (error.package.as_str(), error.file.as_str(), error.message.as_str()),
-            ("app", "main.omg", "unresolved name score")
-        );
-        assert_eq!(error.span.slice(bare.as_bytes()), Some("score".as_bytes()));
+        assert_refusal(&error, NameErrorKind::UnresolvedName, "app", "main.omg", span_of(bare, "score"), "unresolved name score");
     }
 }
 
@@ -1547,7 +1647,8 @@ fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declar
         package: "core",
     }];
     let error = run(&files, &edges).unwrap_err();
-    assert_eq!(error.message, "unresolved name reflect\\field");
+    assert_eq!(error.message, "unresolved name reflect\\field in imported module language\\core\\reflect of package core");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(br"reflect\field".as_slice()));
     // Supply the query names separately so this checks ordinary resolution
     // independently of which primitives the toolchain ships.
     files.push((
@@ -1602,7 +1703,7 @@ fn published_import_exposes_the_exact_remote_domain() {
         .flat_map(|tree| tree.occurrences())
         .find(|u| u.span.slice(requester.as_bytes()) == Some(b"OnScreen"))
         .unwrap();
-    assert!(matches!(&usage.target,Symbol::Declaration(d) if d.package=="policy" && d.path=="screen\\Point::OnScreen"));
+    spec_corpus::observe_handoff!("domain-declarations/producer", assert!(matches!(&usage.target,Symbol::Declaration(d) if d.package=="policy" && d.path=="screen\\Point::OnScreen")));
     let error = run(&files, &[]).unwrap_err();
     assert_eq!(error.file, "main.omg");
     assert!(error.message.contains("ui_policy"), "{error:?}");
@@ -1805,7 +1906,7 @@ fn module_paths_reject_competing_directories_and_ignore_same_named_data() {
                     panic!("{caller}: `{text}` was accepted and selects {:?}", selected(&stage, caller, text, "dep\\item"))
                 });
             assert_eq!(error.file, caller);
-            assert_eq!(error.message, "competing module paths dep: package lib and app\\dep");
+            spec_corpus::observe_handoff!("dependency-authority/refusal", assert_eq!(error.message, "competing module paths dep: package lib and app\\dep"));
             assert_eq!(text.get(error.span.get_start_offset()..error.span.get_end_offset()), Some("dep\\item"));
             for (files, edges, expected) in [
                 (vec![library, ("app", caller, text)], vec![edge], "lib\\item"),
@@ -1863,20 +1964,19 @@ fn compiled_exports_cannot_replace_source_identity_or_duplicate_an_admitted_decl
         resolve_stage_with_exports(sources, &[], &Default::default(), &interface).map(|stage| stage.declarations.clone())
     };
     assert_eq!(check(&[], vec![export(NodeKind::Data)]).unwrap(), std::slice::from_ref(id));
-    for (sources, exports, reason) in [
-        (&files[..], vec![export(NodeKind::Data)], "source package collides with a compiled interface"),
+    use omega_resolver::NameErrorKind::{CompiledPackageCollision, DuplicateCompiledDeclaration, UnsupportedCompiledDeclaration};
+    for (sources, exports, kind, reason) in [
+        (&files[..], vec![export(NodeKind::Data)], CompiledPackageCollision, "source package collides with a compiled interface"),
         (
             &[][..],
             vec![export(NodeKind::Data), export(NodeKind::Data)],
+            DuplicateCompiledDeclaration,
             "duplicate declaration in compiled interface",
         ),
-        (&[][..], vec![export(NodeKind::Body)], "unsupported declaration in compiled interface"),
+        (&[][..], vec![export(NodeKind::Body)], UnsupportedCompiledDeclaration, "unsupported declaration in compiled interface"),
     ] {
         let error = check(sources, exports).unwrap_err();
-        assert_eq!(
-            (error.package.as_str(), error.file.as_str(), error.message.as_str()),
-            ("wire", "Packet", reason)
-        );
+        spec_corpus::assert_resolver_refusal!(error, kind, "wire", "Packet", omega_lexer::SourceSpan::new(0, 0), reason);
     }
 }
 
@@ -1959,10 +2059,13 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
     // `machine f::helper` outside `f` would add a helper to f's nested scope from
     // another file, and an owner that names nothing qualifies nothing.
     let caller = ("app", "main.omg", "machine f() { helper(1u32) }");
-    for (files, head, message) in [
+    // Each refusal is at the head of the declaring machine `machine <head>`, bytes 8..8+head.
+    for (files, file, head, kind, message) in [
         (
             vec![("app", "side.omg", "machine f::helper(v: u32) {}"), caller],
+            "side.omg",
             "f::helper",
+            NameErrorKind::IneligibleMachineOwner,
             "machine f cannot qualify a declaration outside its body",
         ),
         (
@@ -1970,29 +2073,40 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
                 ("app", "side.omg", "machine f::helper() {}"),
                 ("app", "main.omg", "machine f() { helper() machine helper() {} }"),
             ],
+            "side.omg",
             "f::helper",
+            NameErrorKind::IneligibleMachineOwner,
             "machine f cannot qualify a declaration outside its body",
         ),
         (
             vec![("app", "main.omg", "machine f::helper() {} machine g() { f::helper() }")],
+            "main.omg",
             "f::helper",
+            NameErrorKind::UnresolvedMachineOwner,
             "unresolved machine owner f",
         ),
         (
             vec![("app", "main.omg", "data Counter {} machine Counter::increment(x: Counter) {}")],
+            "main.omg",
             "Counter::increment",
+            NameErrorKind::IneligibleMachineOwner,
             "a data carrier cannot own a machine",
         ),
     ] {
         let error = run(&files, &[])
             .err()
             .unwrap_or_else(|| panic!("{files:?} was accepted"));
-        let text = files.iter().find(|f| f.1 == error.file).unwrap().2;
-        assert_eq!(
-            (text.get(error.span.get_start_offset()..error.span.get_end_offset()), error.message.as_str()),
-            (Some(head), message),
-            "{files:?}"
+        let text = files.iter().find(|f| f.1 == file).unwrap().2;
+        spec_corpus::observe_handoff!(
+            "visibility/refusal",
+            assert_eq!(
+                (text.get(error.span.get_start_offset()..error.span.get_end_offset()), error.message.as_str()),
+                (Some(head), message),
+                "{files:?}"
+            )
         );
+        let start = text.find(&format!("machine {head}")).unwrap() + "machine ".len();
+        assert_refusal(&error, kind, "app", file, omega_lexer::SourceSpan::new(start, start + head.len()), message);
     }
     // A named implementation, a domain and a module can each own a top-level machine.
     let module_source = "machine + combat\\sum(a:u32,b:u32)->u32 {a}";
@@ -2029,6 +2143,95 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
     }
 }
 
+/// An argument list on a qualified segment belongs to what that segment names in the
+/// requesting file. A domain that owns a static machine is reached only through its
+/// attachment, and a call qualifier owns arguments only as a trait or named implementation.
+/// A domain declared on an imported carrier spelling is visible in a sibling file that
+/// cannot name that carrier. Without the arguments each name resolves.
+#[test]
+fn an_applied_qualifier_that_selects_no_owner_reports_the_written_prefix() {
+    use omega_resolver::NameRole;
+    let point = ("app", "geometry/point.omg", "public data Point<T> {}");
+    let ready_text = "use geometry\\Point; domain Point::Ready; machine g(x: Point<u8> in Point<u8>::Ready) {}";
+    let ready = ("app", "ready.omg", ready_text);
+    let units = ("app", "units/km.omg", "public domain i32::Km; public machine Km::zero() {}");
+    // (other files, main.omg, context, refused prefix, unapplied main.omg, resolved spelling, resolved path)
+    for (others, text, context, prefix, control, spelling, path) in [
+        (
+            vec![],
+            "domain i32::Km; machine Km::zero() {} machine f() { Km::<1>::zero(); }",
+            "Km::<1>",
+            "Km",
+            "domain i32::Km; machine Km::zero() {} machine f() { Km::zero(); }",
+            "Km::zero",
+            "Km::zero",
+        ),
+        (
+            vec![units],
+            "machine f() { units\\Km::<1>::zero(); }",
+            "units\\Km::<1>",
+            "units\\Km",
+            "machine f() { units\\Km::zero(); }",
+            "units\\Km::zero",
+            "units\\Km::zero",
+        ),
+        (
+            vec![point, ready],
+            "machine f(x: geometry\\Point<u8> in Point<u8>::Ready) {}",
+            "in Point<u8>",
+            "Point",
+            "machine f(x: geometry\\Point<u8> in Point::Ready) {}",
+            "Point::Ready",
+            "Point::Ready",
+        ),
+    ] {
+        let mut files = others.clone();
+        files.push(("app", "main.omg", text));
+        let error = run(&files, &[]).unwrap_err();
+        assert_refusal(
+            &error,
+            NameErrorKind::UnresolvedApplicationOwner,
+            "app",
+            "main.omg",
+            span_in(text, context, prefix),
+            &format!("unresolved application owner {prefix}"),
+        );
+        let mut files = others;
+        files.push(("app", "main.omg", control));
+        let stage = run(&files, &[]).unwrap_or_else(|e| panic!("{control}: {e:?}"));
+        let tree = stage
+            .trees()
+            .find(|tree| tree.file.path == "main.omg")
+            .unwrap();
+        let reference = tree
+            .occurrences()
+            .find(|name| name.role == NameRole::Reference && name.span.slice(control.as_bytes()) == Some(spelling.as_bytes()))
+            .unwrap_or_else(|| panic!("{control}: no reference {spelling}"));
+        assert!(matches!(&reference.target, Symbol::Declaration(id) if id.path == path), "{control}: {reference:?}");
+    }
+    // Where the file can name the carrier, the same spelling owns its arguments.
+    let stage = run(&[point, ready], &[]).unwrap();
+    let tree = stage
+        .trees()
+        .find(|tree| tree.file.path == "ready.omg")
+        .unwrap();
+    let reference = tree
+        .occurrences()
+        .find(|name| name.role == NameRole::Reference && matches!(&name.target, Symbol::Declaration(id) if id.path == "Point::Ready"))
+        .unwrap();
+    let owners: Vec<_> = tree
+        .applications()
+        .filter(|(_, name)| name.node == reference.node)
+        .map(|(_, name)| name)
+        .collect();
+    let [owner] = owners.as_slice() else {
+        panic!("expected one owner of the carrier arguments: {owners:?}")
+    };
+    assert_eq!(owner.role, NameRole::Qualifier);
+    assert_eq!(owner.span, span_in(ready_text, "in Point<u8>", "Point"));
+    assert!(matches!(&owner.target, Symbol::Declaration(id) if id.path == "geometry\\Point" && id.kind == omega_syntax::NodeKind::Data));
+}
+
 #[test]
 fn importing_an_inherited_requirement_keeps_the_final_signature_owner() {
     let caller = "use views; use views\\Child::read; use views\\Child::read; machine copy(x:numbers\\Word)->numbers\\Word{x} Adapter satisfies Child { Child::read = copy; }";
@@ -2052,13 +2255,16 @@ fn importing_an_inherited_requirement_keeps_the_final_signature_owner() {
         .filter(|u| matches!(&u.target, Symbol::Declaration(id) if id == declaration))
         .map(|u| u.span.slice(caller.as_bytes()).unwrap())
         .collect();
-    assert_eq!(
-        selections,
-        [
-            b"views\\Child::read".as_slice(),
-            b"views\\Child::read",
-            b"Child::read"
-        ]
+    spec_corpus::observe_handoff!(
+        "visibility/producer",
+        assert_eq!(
+            selections,
+            [
+                b"views\\Child::read".as_slice(),
+                b"views\\Child::read",
+                b"Child::read"
+            ]
+        )
     );
 }
 
@@ -2105,19 +2311,30 @@ fn a_public_value_name_cannot_expose_a_private_traits_inherited_requirements() {
     };
     let library = "public trait Parent {machine read();} trait Child:Parent {} public machine Child() {}";
     let err = run(&[caller, ("lib", "lib.omg", library)], &[edge]).unwrap_err();
-    assert_eq!(err.message, "unavailable import dep\\Child::read");
-    assert_eq!(err.span.slice(caller.2.as_bytes()), Some(b"dep\\Child::read".as_slice()));
+    // `use ` is four bytes, so the import path is bytes 4..19.
+    assert_refusal(
+        &err,
+        NameErrorKind::UnavailableImport,
+        "app",
+        "main.omg",
+        omega_lexer::SourceSpan::new(4, 19),
+        "unavailable import dep\\Child::read",
+    );
 }
 
 #[test]
 fn declaration_qualifiers_report_the_name_that_cannot_select_an_owner() {
-    for (program, spelling, message) in [
-        ("trait Child:Owner {}", "Owner", "ambiguous trait Owner"),
-        ("domain Point::Ready;", "Point::Ready", "ambiguous carrier Point"),
-        ("machine Owner::run() {}", "Owner::run", "ambiguous machine owner Owner"),
+    for (program, spelling, kind, message) in [
+        ("trait Child:Owner {}", "Owner", NameErrorKind::AmbiguousParentTrait, "ambiguous trait Owner"),
+        ("trait Child:Absent {}", "Absent", NameErrorKind::UnresolvedParentTrait, "unresolved trait Absent"),
+        ("domain Point::Ready;", "Point::Ready", NameErrorKind::AmbiguousCarrier, "ambiguous carrier Point"),
+        // An unresolved carrier names only the carrier but reports the whole head.
+        ("domain Absent::Ready;", "Absent::Ready", NameErrorKind::UnresolvedName, "unresolved name Absent"),
+        ("machine Owner::run() {}", "Owner::run", NameErrorKind::AmbiguousMachineOwner, "ambiguous machine owner Owner"),
         (
             "const Count:u8=0; machine Count::run() {}",
             "Count::run",
+            NameErrorKind::IneligibleMachineOwner,
             "Count cannot qualify a machine declaration",
         ),
     ] {
@@ -2128,27 +2345,36 @@ fn declaration_qualifiers_report_the_name_that_cannot_select_an_owner() {
             ("app", "right/api.omg", "trait Owner {} data Point {}"),
         ];
         let err = run(&files, &[]).unwrap_err();
-        assert_eq!(err.message, message);
-        assert_eq!(err.span.slice(source.as_bytes()), Some(spelling.as_bytes()));
+        assert_refusal(&err, kind, "app", "main.omg", span_of(&source, spelling), message);
     }
 }
 
 #[test]
 fn conformance_rows_bind_only_machine_candidates() {
     let schema = "trait R { machine run(x:u8)->u8; }";
-    for (data, reason) in [
-        ("data D{} I satisfies D {}", "conformance requires a trait"),
-        ("I satisfies u8 {}", "conformance requires an exact trait"),
-        ("I satisfies @R { R::run = R::run; }", "missing conformance trait"),
+    // `context` is unique in the program and its first `spelling` is the refused occurrence.
+    for (data, context, spelling, kind, reason) in [
+        ("data D{} I satisfies D {}", "satisfies D", "D", NameErrorKind::ConformanceHeadNotTrait, "conformance requires a trait"),
+        ("I satisfies u8 {}", "satisfies u8", "u8", NameErrorKind::ConformanceHeadNotTrait, "conformance requires an exact trait"),
+        (
+            "I satisfies @R { R::run = R::run; }",
+            "{ R::run =",
+            "R::run",
+            NameErrorKind::ConformanceHeadNotTrait,
+            "missing conformance trait",
+        ),
         (
             "let mapping(x:u8):u8=x; I satisfies R { R::run = mapping; }",
+            "= mapping",
+            "mapping",
+            NameErrorKind::SelectionRowNotMachine,
             "a selection row must name a machine",
         ),
-        ("I satisfies R { R::run = true; }", "a selection row must name a machine"),
+        ("I satisfies R { R::run = true; }", "= true", "true", NameErrorKind::SelectionRowNotMachine, "a selection row must name a machine"),
     ] {
         let source = format!("{schema} {data}");
         let err = run(&[("app", "main.omg", &source)], &[]).unwrap_err();
-        assert_eq!(err.message, reason, "{data}");
+        assert_refusal(&err, kind, "app", "main.omg", span_in(&source, context, spelling), reason);
     }
     let mixed = format!("{schema} let mapping(x:u8):u8=x; machine mapping(x:u8)->u8 {{x}} I satisfies R {{ R::run = mapping; }}");
     let stage = run(&[("app", "main.omg", &mixed)], &[]).unwrap();
@@ -2210,8 +2436,15 @@ fn qualified_lookup_preserves_each_segments_scope() {
 fn a_trait_inheritance_cycle_identifies_the_trait_declaration() {
     let source = "machine A() {} trait A:B {} trait B:A {}";
     let err = run(&[("app", "cycle.omg", source)], &[]).unwrap_err();
-    assert_eq!(err.message, "cyclic trait inheritance");
-    assert_eq!(err.span.slice(source.as_bytes()), Some(b"trait A:B {}".as_slice()));
+    // `machine A() {} ` is fifteen bytes; the trait declaration A follows it.
+    assert_refusal(
+        &err,
+        NameErrorKind::CyclicTraitInheritance,
+        "app",
+        "cycle.omg",
+        omega_lexer::SourceSpan::new(15, 27),
+        "cyclic trait inheritance",
+    );
 }
 
 #[test]
@@ -2268,14 +2501,17 @@ fn a_compiled_trait_retains_its_identity_as_a_parent_and_a_call_qualifier() {
         .iter()
         .find(|e| e.id.path == "Middle")
         .unwrap();
-    assert_eq!(
-        middle.trait_parents.as_slice(),
-        [schema
-            .declarations
-            .iter()
-            .find(|id| id.path == "Parent")
-            .unwrap()
-            .clone()]
+    spec_corpus::observe_handoff!(
+        "exported-trait-ancestry/producer",
+        assert_eq!(
+            middle.trait_parents.as_slice(),
+            [schema
+                .declarations
+                .iter()
+                .find(|id| id.path == "Parent")
+                .unwrap()
+                .clone()]
+        )
     );
     let text = "trait Child:wire\\Middle {} machine f(){wire\\Middle::run();}";
     let tokens = lex(text.as_bytes()).unwrap();
@@ -2321,7 +2557,7 @@ fn a_compiled_trait_retains_its_identity_as_a_parent_and_a_call_qualifier() {
             .unwrap_err()
             .message
     };
-    assert_eq!(reject(&exports), "unknown parent trait in compiled interface");
+    spec_corpus::observe_handoff!("exported-trait-ancestry/refusal", assert_eq!(reject(&exports), "unknown parent trait in compiled interface"));
     let middle = exports
         .declarations
         .iter()
@@ -2460,9 +2696,9 @@ fn compiled_modules_and_lookup_results_survive_export_reordering() {
         assert_eq!(&from_source, expected);
     }
     interface.declarations.reverse();
-    assert_eq!(compiled, consume(client, &interface).unwrap());
+    spec_corpus::observe_handoff!("compiled-package-namespaces/consumer", assert_eq!(compiled, consume(client, &interface).unwrap()));
     assert_eq!(hidden_refusal, consume(hidden, &interface).unwrap_err());
-    assert_eq!(refusal, consume(competing, &interface).unwrap_err());
+    spec_corpus::observe_handoff!("compiled-package-namespaces/refusal", assert_eq!(refusal, consume(competing, &interface).unwrap_err()));
 }
 
 #[test]
@@ -2475,7 +2711,7 @@ fn an_interface_exports_public_declarations_with_their_defining_module() {
         .iter()
         .map(|export| export.id.path.as_str())
         .collect();
-    assert_eq!(paths, ["kit\\Box", "kit\\Box::value", "kit\\wrap"]);
+    spec_corpus::observe_handoff!("compiled-package-namespaces/producer", assert_eq!(paths, ["kit\\Box", "kit\\Box::value", "kit\\wrap"]));
     assert!(exports.declarations.iter().all(|export| export.module == "kit"));
     let imported = omega_resolver::resolve_stage_with_exports(&[], &[], &Default::default(), &exports).unwrap();
     assert_eq!(
@@ -2562,6 +2798,17 @@ fn qualified_machine_heads_retain_the_exact_owner_occurrence() {
     let module = qualifier_at("support\\helper");
     assert_eq!(module.span.slice(source.as_bytes()), Some(b"support".as_slice()));
     assert!(matches!(&module.target, Symbol::Module { package, path } if package == "app" && path == "support"));
+
+    let missing = source.replace(r"support\helper", r"absent\helper");
+    let error = run(&[("app", "main.omg", &missing), ("app", "support/marker.omg", "")], &[]).unwrap_err();
+    assert_refusal(
+        &error,
+        NameErrorKind::UnresolvedModuleOwner,
+        "app",
+        "main.omg",
+        span_of(&missing, r"absent\helper"),
+        "unresolved module owner absent",
+    );
 }
 
 #[test]

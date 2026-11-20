@@ -33,12 +33,16 @@ impl BodyTyper<'_, '_> {
         use_site: super::indexing::IndexUse,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
+        // Groups nest as deeply as L1 admits; see :ExpressionLayers.
         if source.nodes[node].kind == NodeKind::Paren {
-            let inner = self.unit.single_child(node)?;
+            let (inner, groups) = self.unit.grouped_operand(node)?;
             let value = self.index_move_place(inner, use_site)?;
-            self.set_origin(node, self.origin(inner));
-            self.places.insert(node, self.storage_place(inner));
-            self.record_expression(node, value.clone());
+            for group in groups.into_iter().rev() {
+                let inner = source.nodes[group].children[0];
+                self.set_origin(group, self.origin(inner));
+                self.places.insert(group, self.storage_place(inner));
+                self.record_expression(group, value.clone());
+            }
             return Ok(value);
         }
         let value = self.index_operand(node, None, use_site)?;

@@ -29,7 +29,10 @@ fn rebinding_an_array_local_preserves_its_earlier_copy() {
         panic!("expected three place versions")
     };
     for (copy, root) in [(initial, left), (saved, initial_place), (replaced, right)] {
-        assert_eq!(copy.kind, OperationKind::StructuralLeafCopy { source: root, path: vec![] });
+        spec_corpus::observe_handoff!(
+            psi "psi-output/whole-array-copy",
+            assert_eq!(copy.kind, OperationKind::StructuralLeafCopy { source: root, path: vec![] }),
+        );
         assert_ne!(copy.result, OperationResult::Structural(root));
     }
     assert_ne!(saved_place, current_place);
@@ -123,6 +126,42 @@ fn folding_row_length_keeps_the_index_obligation_even_when_no_row_exists() {
 }
 
 #[test]
+fn an_element_read_keeps_the_bounds_obligation_of_its_own_selector() {
+    // L5 lowers the read only when the index node carries the selected core
+    // read and its precondition. The twins differ only in the written selector.
+    for selected in ["i", "j"] {
+        let source = format!("machine f(items:[u8;4], i:u64, j:u64)->u8{{items[{selected}]}}");
+        let package = sources::lower(&[("select.omg", &source)]).unwrap();
+        let body = &package.machines[0].body;
+        let [
+            Parameter::Structural(items),
+            Parameter::Scalar(i),
+            Parameter::Scalar(j),
+        ] = body.parameters[..]
+        else {
+            panic!("expected the array and two selectors")
+        };
+        let [read] = body.operations.as_slice() else {
+            panic!("expected one checked element read")
+        };
+        let OperationKind::PrimitiveScalarRead { source: root, path } = &read.kind else {
+            panic!("expected an element read")
+        };
+        assert_eq!(*root, items);
+        let [segment] = path.as_slice() else { panic!("expected one bound") };
+        assert_eq!(body.diagnostics.bounds.len(), 1);
+        let clause = body.diagnostics.bounds[segment.obligation.get() - 1]
+            .span
+            .slice(source.as_bytes());
+        let selector = if selected == "i" { i } else { j };
+        spec_corpus::observe_handoff!(
+            "selected-element-read-precondition/consumer-2",
+            assert_eq!((segment.selector, clause), (selector, Some(selected.as_bytes())))
+        );
+    }
+}
+
+#[test]
 fn frozen_nested_arrays_retain_their_elements_and_order() {
     let source = "const A:[[u8;2];2]=[[4u8,9u8],[2u8,7u8]]; machine f()->[[u8;2];2]{A}";
     let package = sources::lower(&[("constant.omg", source)]).unwrap();
@@ -135,7 +174,7 @@ fn frozen_nested_arrays_retain_their_elements_and_order() {
         panic!("expected four scalars, two rows and a matrix")
     };
     for (op, value) in [(four, 4), (nine, 9), (two, 2), (seven, 7)] {
-        assert_eq!(op.kind, OperationKind::Constant(ScalarLiteral::Integer(value.into())));
+        spec_corpus::observe_handoff!("frozen-array-elements/consumer", assert_eq!(op.kind, OperationKind::Constant(ScalarLiteral::Integer(value.into()))));
     }
     for (row, a, b) in [(first, four, nine), (second, two, seven)] {
         let OperationKind::EstablishScalarArray { elements } = &row.kind else {
@@ -182,7 +221,10 @@ fn owned_byte_literals_lower_like_the_frozen_constant_of_the_same_bytes() {
             let source = format!("machine f()->[u8;{n}]{{{body_text}}}");
             let package = sources::lower(&[("literal.omg", source.as_str())]).unwrap();
             let body = &package.machines[0].body;
-            assert_eq!(body.operations, expected.operations, "{source}");
+            spec_corpus::observe_handoff!(
+                psi "psi-output/literal-array-operations",
+                assert_eq!(body.operations, expected.operations, "{source}"),
+            );
             assert_eq!(body.values, expected.values, "{source}");
             assert_eq!(package.types, frozen.types, "{source}");
             let (array, scalars) = body.operations.split_last().unwrap();

@@ -44,7 +44,55 @@ impl BodyTyper<'_, '_> {
         self.type_at_destination(node_index, expected.into(), false)
     }
 
+    // :ExpressionLayers. A valid run of parentheses can exhaust the command's stack
+    // if each group recurses into the whole expression typer. Carry destinations
+    // inward, then publish each wrapper's type and origin at its own source site.
     pub(super) fn type_at_destination(
+        &mut self,
+        node_index: usize,
+        destination: Destination<'_>,
+        machine_result: bool,
+    ) -> Result<ValueType, TypeError> {
+        use NodeKind::*;
+        let source_file = self.unit.file;
+        let mut layers = Vec::new();
+        let mut node = node_index;
+        let mut destination = destination;
+        let mut machine_result = machine_result;
+        loop {
+            match source_file.nodes[node].kind {
+                // A group is typed exactly as its operand.
+                Paren => {}
+                CallMarker => {
+                    let child = self.unit.single_child(node)?;
+                    if !matches!(source_file.nodes[child].kind, Call | CallMarker) {
+                        return Err(TypeError::at(source_file, node, "acknowledgement requires a call"));
+                    }
+                    machine_result = false;
+                }
+                // An operator operand has no destination of its own.
+                Unary => {
+                    destination = Destination::Unspecified;
+                    machine_result = false;
+                }
+                _ => break,
+            }
+            layers.push(node);
+            node = self.unit.single_child(node)?;
+        }
+        let mut value = self.type_operand_node(node, destination, machine_result)?;
+        for layer in layers.into_iter().rev() {
+            if source_file.nodes[layer].kind == Unary {
+                value = self.unary(layer, source_file.nodes[layer].children[0], value)?;
+            }
+            value = self.finish_expression(layer, value, None)?;
+        }
+        Ok(value)
+    }
+
+    /// Type one expression that is not a grouping, acknowledgement or prefix
+    /// operator layer; see :ExpressionLayers.
+    fn type_operand_node(
         &mut self,
         node_index: usize,
         destination: Destination<'_>,
@@ -57,135 +105,7 @@ impl BodyTyper<'_, '_> {
         let mut static_argument_slot = None;
         let value = match node.kind {
             PathExpression | PathType if node.kind == PathExpression || self.context == ExpressionContext::StaticArgument => {
-                let symbol = self.unit.name_in_role(node_index, false);
-                if !node.children.is_empty()
-                    && !matches!(symbol, Some(Symbol::Declaration(id)) if matches!(id.kind, MathLet | Case))
-                    && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core\\Squash")
-                {
-                    return Err(TypeError::unsupported(source_file, node_index));
-                }
-                match symbol {
-                    Some(Symbol::Binding {
-                        span,
-                        kind: ConstParam | KindedParam,
-                        ..
-                    }) => {
-                        let parameter = self
-                            .unit
-                            .parameters
-                            .get(span)
-                            .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
-                        if let ValueType::Parameter { owner, index } = parameter
-                            && !self.catalog.types.admits_runtime_index(owner, *index)
-                        {
-                            static_argument_slot = self
-                                .unit
-                                .specialization_owner(node_index)
-                                .and_then(|specialization| {
-                                    self.catalog
-                                        .types
-                                        .specialization_slot(specialization, owner, *index)
-                                });
-                        }
-                        self.catalog
-                            .types
-                            .parameter_carrier(parameter)
-                            .cloned()
-                            .ok_or_else(|| TypeError::unsupported(source_file, node_index))?
-                    }
-                    Some(Symbol::Binding { span, .. }) => {
-                        let ty = self
-                            .locals
-                            .get(span)
-                            .cloned()
-                            .ok_or_else(|| TypeError::at(source_file, node_index, "missing type of resolved binding"))?;
-                        if let Some(access) = self.borrowed_binding(node_index, span) {
-                            self.read_borrowed(node_index, &access, &ty)?;
-                        }
-                        ty
-                    }
-                    Some(Symbol::Builtin(name)) if name == "core\\Squash" => {
-                        let ValueType::Squash(source) = self.unit.annotation(node_index, &self.catalog.types)? else {
-                            return Err(TypeError::unsupported(source_file, node_index));
-                        };
-                        let level = ValueType::LevelOf(source.clone());
-                        self.record_obligation(
-                            node_index,
-                            ObligationKind::FormSquash {
-                                source: *source,
-                                level: level.clone(),
-                            },
-                        );
-                        ValueType::Universe {
-                            strict: true,
-                            level: Box::new(level),
-                        }
-                    }
-                    Some(Symbol::TargetRegister(name)) => self
-                        .catalog
-                        .assembly
-                        .and_then(|t| t.registers.get(name))
-                        .cloned()
-                        .ok_or_else(|| TypeError::at(source_file, node_index, format!("missing register type for {name}")))?,
-                    Some(Symbol::Builtin(name)) if matches!(name.as_str(), "result" | "self") => self
-                        .subject
-                        .clone()
-                        .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
-                    Some(Symbol::Declaration(id))
-                        if id.kind == Machine
-                            && let Some(wanted @ (ValueType::Function(..) | ValueType::FamilyApplication { .. } | ValueType::Squash(_))) = expected =>
-                    {
-                        self.mathematical_citation(node_index, id, wanted)?;
-                        wanted.clone()
-                    }
-                    Some(Symbol::Declaration(id)) if id.kind == Machine && matches!(expected, Some(ValueType::Callable(_))) => {
-                        let Some(ValueType::Callable(c)) = expected else { unreachable!() };
-                        self.refine_callable(
-                            node_index,
-                            c,
-                            None,
-                            &crate::MachineApplication {
-                                machine: Box::new(id.clone()),
-                                arguments: Vec::new(),
-                                enclosing_arguments: self.catalog.types.lexical_machine_arguments(id).collect(),
-                            },
-                        )?;
-                        ValueType::Callable(c.clone())
-                    }
-                    Some(Symbol::Declaration(id)) if id.kind == MathLet => {
-                        self.mathematical_application(node_index, node_index, Some(id), self.catalog.types.mathematical[id].clone(), &[], expected)?
-                    }
-                    Some(Symbol::Declaration(id)) if id.kind == Field => {
-                        let (owner, args) = self
-                            .subject
-                            .as_ref()
-                            .and_then(ValueType::nominal_parts)
-                            .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
-                        let field = id.path.rsplit([':', '\\']).next().unwrap_or(&id.path);
-                        self.catalog
-                            .fields
-                            .get(owner)
-                            .and_then(|fs| fs.get(field))
-                            .filter(|(_, field)| &field.declaration == id)
-                            .map(|(_, field)| self.catalog.types.apply_type_arguments(&field.ty, owner, args))
-                            .ok_or_else(|| TypeError::at(source_file, node_index, "field declaration does not belong to this subject"))?
-                    }
-                    Some(Symbol::Declaration(id)) if id.kind == Const => self.constant_reference(node_index, id)?,
-                    Some(Symbol::Declaration(id)) if id.kind == Case => {
-                        if !self.catalog.fields[id].ordered.is_empty() {
-                            return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
-                        }
-                        let carrier = self.case_type(node_index, id, expected)?;
-                        let owner = self.catalog.case_owner[id];
-                        if self.catalog.predicates.contains(owner) {
-                            self.record_obligation(node_index, ObligationKind::EstablishData(owner.clone()));
-                        }
-                        self.record_construction(node_index, owner, Some(id), &carrier, Vec::new());
-                        carrier
-                    }
-                    Some(Symbol::Builtin(name)) if matches!(name.as_str(), "true" | "false") => ValueType::Bool,
-                    _ => return Err(TypeError::unsupported(source_file, node_index)),
-                }
+                self.path_value(node_index, expected, &mut static_argument_slot)?
             }
             Literal if let Some(carrier) = self.owned_byte_literal(node_index, expected, machine_result)? => carrier,
             Literal => {
@@ -198,40 +118,6 @@ impl BodyTyper<'_, '_> {
                 }
             }
             Binary => return self.binary_chain(node_index),
-            Unary => {
-                let operand = self.unit.single_child(node_index)?;
-                let value = self.type_expression(operand)?;
-                let operand = self.call_operand(operand, value);
-                let token = self.unit.operator_token(node_index)?;
-                if let Some(ty) = self.declared_operator(node_index, token, std::slice::from_ref(&operand))? {
-                    ty
-                } else {
-                    let arg = operand.value;
-                    let ty = match (token, &arg) {
-                        ("!", ValueType::Bool) | ("~", ValueType::Integer { width: Some(_), .. } | ValueType::IndexedInteger { .. }) => arg.clone(),
-                        (
-                            "-",
-                            ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. } | ValueType::Float32 | ValueType::Float64,
-                        ) => arg.clone(),
-                        ("-", ValueType::Exact { value, fractional_origin }) => ValueType::Exact {
-                            value: -value,
-                            fractional_origin: *fractional_origin,
-                        },
-                        _ => return Err(TypeError::at(source_file, node_index, format!("no matching unary {token} for {arg}"))),
-                    };
-                    if token == "-" && matches!(arg, ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. }) {
-                        self.record_obligation(
-                            node_index,
-                            ObligationKind::OperationContract {
-                                token: token.into(),
-                                operands: vec![arg.clone()],
-                            },
-                        );
-                    }
-                    self.record_operator(node_index, token, vec![arg], &ty);
-                    ty
-                }
-            }
             Cast => self.cast(node_index, expected)?,
             Tuple => ValueType::Tuple(
                 node.children
@@ -254,49 +140,12 @@ impl BodyTyper<'_, '_> {
                 );
                 ty
             }
-            Paren => self.type_at_destination(self.unit.single_child(node_index)?, destination, machine_result)?,
-            CallMarker => {
-                let child = self.unit.single_child(node_index)?;
-                if !matches!(source_file.nodes[child].kind, Call | CallMarker) {
-                    return Err(TypeError::at(source_file, node_index, "acknowledgement requires a call"));
-                }
-                self.type_at_destination(child, destination, false)?
-            }
             Call => self.type_call(node_index, destination)?,
             Selection => crate::contracts::conformance::bind_expression(self.unit, self.catalog, node_index, self.output)?,
             RecordLiteral => self.record(node_index, expected, machine_result)?,
             Match => self.dispatch(node_index, destination, machine_result)?,
             Body => self.check_block(node_index, destination, machine_result)?,
-            ArrayLiteral => {
-                let mut pending_elements = Vec::new();
-                let element_destination = destination.array_element(node.children.len() as u64, &self.catalog.types.indices, &mut pending_elements);
-                let mut entries = Vec::new();
-                // Elements of an explicit array constructor are parts of the
-                // same owned result, so they share its byte-literal landing.
-                for &e in &node.children {
-                    entries.push((e, self.type_at_destination(e, element_destination, machine_result)?));
-                }
-                let element = element_destination.exact().cloned().or_else(|| {
-                    entries
-                        .iter()
-                        .find(|(_, ty)| !matches!(ty, ValueType::Exact { .. }))
-                        .map(|(_, ty)| ty.clone())
-                });
-                let Some(element) = element else {
-                    let indices = &self.catalog.types.indices;
-                    if let Some(pending) = element_destination.pending()
-                        && pending.permits(|element| entries.iter().all(|(_, value)| value.fits(element)))
-                    {
-                        pending.retain_demands(indices);
-                        return Err(indices.wait(source_file, node_index));
-                    }
-                    return Err(TypeError::at(source_file, node_index, "array literal needs an element type"));
-                };
-                for (e, t) in entries {
-                    self.check_destination(e, &t, &element)?;
-                }
-                ValueType::Array(Box::new(element), node.children.len() as u64)
-            }
+            ArrayLiteral => self.array_literal(node_index, destination, machine_result)?,
             Borrow => {
                 let place = self.unit.single_child(node_index)?;
                 self.check_place(
@@ -317,6 +166,19 @@ impl BodyTyper<'_, '_> {
             Index => self.index(node_index, None)?,
             _ => return Err(TypeError::unsupported(source_file, node_index)),
         };
+        self.finish_expression(node_index, value, static_argument_slot)
+    }
+
+    /// The checks and records every typed expression ends with.
+    pub(super) fn finish_expression(
+        &mut self,
+        node_index: usize,
+        value: ValueType,
+        static_argument_slot: Option<usize>,
+    ) -> Result<ValueType, TypeError> {
+        use NodeKind::*;
+        let source_file = self.unit.file;
+        let node = &source_file.nodes[node_index];
         if self.context == ExpressionContext::Execution && matches!(node.kind, Tuple | ArrayLiteral | RecordLiteral) {
             self.unit
                 .check_runtime_type(node_index, &value, &self.catalog.types)?;
@@ -353,5 +215,221 @@ impl BodyTyper<'_, '_> {
             .retain_demands_at(source_file.node_id(node_index), &value);
         self.record_expression_with_static_argument(node_index, value.clone(), static_argument_slot);
         Ok(value)
+    }
+
+    /// Apply a prefix operator to its already typed operand.
+    fn unary(
+        &mut self,
+        node_index: usize,
+        operand: usize,
+        value: ValueType,
+    ) -> Result<ValueType, TypeError> {
+        let source_file = self.unit.file;
+        let operand = self.call_operand(operand, value);
+        let token = self.unit.operator_token(node_index)?;
+        if let Some(ty) = self.declared_operator(node_index, token, std::slice::from_ref(&operand))? {
+            return Ok(ty);
+        }
+        let arg = operand.value;
+        let ty = match (token, &arg) {
+            ("!", ValueType::Bool) | ("~", ValueType::Integer { width: Some(_), .. } | ValueType::IndexedInteger { .. }) => arg.clone(),
+            ("-", ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. } | ValueType::Float32 | ValueType::Float64) => {
+                arg.clone()
+            }
+            ("-", ValueType::Exact { value, fractional_origin }) => ValueType::Exact {
+                value: -value,
+                fractional_origin: *fractional_origin,
+            },
+            _ => return Err(TypeError::at(source_file, node_index, format!("no matching unary {token} for {arg}"))),
+        };
+        if token == "-" && matches!(arg, ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. }) {
+            self.record_obligation(
+                node_index,
+                ObligationKind::OperationContract {
+                    token: token.into(),
+                    operands: vec![arg.clone()],
+                },
+            );
+        }
+        self.record_operator(node_index, token, vec![arg], &ty);
+        Ok(ty)
+    }
+
+    fn array_literal(
+        &mut self,
+        node_index: usize,
+        destination: Destination<'_>,
+        machine_result: bool,
+    ) -> Result<ValueType, TypeError> {
+        let source_file = self.unit.file;
+        let node = &source_file.nodes[node_index];
+        let mut pending_elements = Vec::new();
+        let element_destination = destination.array_element(node.children.len() as u64, &self.catalog.types.indices, &mut pending_elements);
+        let mut entries = Vec::new();
+        // Elements of an explicit array constructor are parts of the
+        // same owned result, so they share its byte-literal landing.
+        for &e in &node.children {
+            entries.push((e, self.type_at_destination(e, element_destination, machine_result)?));
+        }
+        let element = element_destination.exact().cloned().or_else(|| {
+            entries
+                .iter()
+                .find(|(_, ty)| !matches!(ty, ValueType::Exact { .. }))
+                .map(|(_, ty)| ty.clone())
+        });
+        let Some(element) = element else {
+            let indices = &self.catalog.types.indices;
+            if let Some(pending) = element_destination.pending()
+                && pending.permits(|element| entries.iter().all(|(_, value)| value.fits(element)))
+            {
+                pending.retain_demands(indices);
+                return Err(indices.wait(source_file, node_index));
+            }
+            return Err(TypeError::at(source_file, node_index, "array literal needs an element type"));
+        };
+        for (e, t) in entries {
+            self.check_destination(e, &t, &element)?;
+        }
+        Ok(ValueType::Array(Box::new(element), node.children.len() as u64))
+    }
+
+    fn path_value(
+        &mut self,
+        node_index: usize,
+        expected: Option<&ValueType>,
+        static_argument_slot: &mut Option<usize>,
+    ) -> Result<ValueType, TypeError> {
+        use NodeKind::*;
+        let source_file = self.unit.file;
+        let node = &source_file.nodes[node_index];
+        let symbol = self.unit.name_in_role(node_index, false);
+        if !node.children.is_empty()
+            && !matches!(symbol, Some(Symbol::Declaration(id)) if matches!(id.kind, MathLet | Case))
+            && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core\\Squash")
+        {
+            return Err(TypeError::unsupported(source_file, node_index));
+        }
+        Ok(match symbol {
+            Some(Symbol::Binding {
+                span,
+                kind: ConstParam | KindedParam,
+                ..
+            }) => {
+                let parameter = self
+                    .unit
+                    .parameters
+                    .get(span)
+                    .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
+                if let ValueType::Parameter { owner, index } = parameter
+                    && !self.catalog.types.admits_runtime_index(owner, *index)
+                {
+                    *static_argument_slot = self
+                        .unit
+                        .specialization_owner(node_index)
+                        .and_then(|specialization| {
+                            self.catalog
+                                .types
+                                .specialization_slot(specialization, owner, *index)
+                        });
+                }
+                self.catalog
+                    .types
+                    .parameter_carrier(parameter)
+                    .cloned()
+                    .ok_or_else(|| TypeError::unsupported(source_file, node_index))?
+            }
+            Some(Symbol::Binding { span, .. }) => {
+                let ty = self
+                    .locals
+                    .get(span)
+                    .cloned()
+                    .ok_or_else(|| TypeError::at(source_file, node_index, "missing type of resolved binding"))?;
+                if let Some(access) = self.borrowed_binding(node_index, span) {
+                    self.read_borrowed(node_index, &access, &ty)?;
+                }
+                ty
+            }
+            Some(Symbol::Builtin(name)) if name == "core\\Squash" => {
+                let ValueType::Squash(source) = self.unit.annotation(node_index, &self.catalog.types)? else {
+                    return Err(TypeError::unsupported(source_file, node_index));
+                };
+                let level = ValueType::LevelOf(source.clone());
+                self.record_obligation(
+                    node_index,
+                    ObligationKind::FormSquash {
+                        source: *source,
+                        level: level.clone(),
+                    },
+                );
+                ValueType::Universe {
+                    strict: true,
+                    level: Box::new(level),
+                }
+            }
+            Some(Symbol::TargetRegister(name)) => self
+                .catalog
+                .assembly
+                .and_then(|t| t.registers.get(name))
+                .cloned()
+                .ok_or_else(|| TypeError::at(source_file, node_index, format!("missing register type for {name}")))?,
+            Some(Symbol::Builtin(name)) if matches!(name.as_str(), "result" | "self") => self
+                .subject
+                .clone()
+                .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
+            Some(Symbol::Declaration(id))
+                if id.kind == Machine
+                    && let Some(wanted @ (ValueType::Function(..) | ValueType::FamilyApplication { .. } | ValueType::Squash(_))) = expected =>
+            {
+                self.mathematical_citation(node_index, id, wanted)?;
+                wanted.clone()
+            }
+            Some(Symbol::Declaration(id)) if id.kind == Machine && matches!(expected, Some(ValueType::Callable(_))) => {
+                let Some(ValueType::Callable(c)) = expected else { unreachable!() };
+                self.refine_callable(
+                    node_index,
+                    c,
+                    None,
+                    &crate::MachineApplication {
+                        machine: Box::new(id.clone()),
+                        arguments: Vec::new(),
+                        enclosing_arguments: self.catalog.types.lexical_machine_arguments(id).collect(),
+                    },
+                )?;
+                ValueType::Callable(c.clone())
+            }
+            Some(Symbol::Declaration(id)) if id.kind == MathLet => {
+                self.mathematical_application(node_index, node_index, Some(id), self.catalog.types.mathematical[id].clone(), &[], expected)?
+            }
+            Some(Symbol::Declaration(id)) if id.kind == Field => {
+                let (owner, args) = self
+                    .subject
+                    .as_ref()
+                    .and_then(ValueType::nominal_parts)
+                    .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
+                let field = id.path.rsplit([':', '\\']).next().unwrap_or(&id.path);
+                self.catalog
+                    .fields
+                    .get(owner)
+                    .and_then(|fs| fs.get(field))
+                    .filter(|(_, field)| &field.declaration == id)
+                    .map(|(_, field)| self.catalog.types.apply_type_arguments(&field.ty, owner, args))
+                    .ok_or_else(|| TypeError::at(source_file, node_index, "field declaration does not belong to this subject"))?
+            }
+            Some(Symbol::Declaration(id)) if id.kind == Const => self.constant_reference(node_index, id)?,
+            Some(Symbol::Declaration(id)) if id.kind == Case => {
+                if !self.catalog.fields[id].ordered.is_empty() {
+                    return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
+                }
+                let carrier = self.case_type(node_index, id, expected)?;
+                let owner = self.catalog.case_owner[id];
+                if self.catalog.predicates.contains(owner) {
+                    self.record_obligation(node_index, ObligationKind::EstablishData(owner.clone()));
+                }
+                self.record_construction(node_index, owner, Some(id), &carrier, Vec::new());
+                carrier
+            }
+            Some(Symbol::Builtin(name)) if matches!(name.as_str(), "true" | "false") => ValueType::Bool,
+            _ => return Err(TypeError::unsupported(source_file, node_index)),
+        })
     }
 }

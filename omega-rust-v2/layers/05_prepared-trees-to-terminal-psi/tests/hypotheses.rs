@@ -1,3 +1,5 @@
+#[path = "support/known_gap.rs"]
+mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -5,6 +7,7 @@ use MathematicalStep::{Apply as ApplyTerm, Declaration, FormProposition, Paramet
 use PredicateOperator::{GreaterThan, NotEqual};
 use PredicateStep::{Apply, Formal, HypothesisGuarantee, HypothesisParameter, Integer, MathematicalTerm};
 use omega_lowering::{MathematicalStep, PredicateOperator, PredicateStep, ScalarType, TheoremBinder, TypeExpression, TypeExpressionStep};
+use omega_typed::{ObligationKind, ValueType};
 
 const TRUST: &str = "boundary let trusted(value:u8):core\\Strict<0>;";
 const THEOREM: &str = "machine theorem<machine Step>(x:u8,z:u8) requires machine Step(y:u8) requires y != 0 ensures y > z; requires trusted(x) requires x != 0 ensures Step::ensures(x) {}";
@@ -128,11 +131,30 @@ fn hypothesis_evidence_never_becomes_executable_or_rebinds_its_subject() {
     // Citing the theorem from executable code acquires no runtime target.
     let theorem = THEOREM.replace("requires trusted(x) ", "");
     let cited = format!("{theorem} {LEMMA} machine run(x:u8){{theorem::<lemma>(x,x)}}");
-    let source = sources::resolve(&[("proof.omg", &cited)]);
-    let prepared = omega_preparation::prepare_source_package(&source).expect("the theorem citation reaches lowering");
-    let error = omega_lowering::lower_package(&prepared).unwrap_err();
+    let files = [("proof.omg", cited.as_str())];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).expect("the theorem citation reaches lowering");
+    // The supplied evidence reaches L5 at the citation. Psi has no erased proof application to receive it.
+    let supplied: Vec<_> = prepared
+        .typed()
+        .obligations
+        .iter()
+        .filter(|o| matches!(o.kind, ObligationKind::SupplyHypothesis { .. }))
+        .collect();
+    let [supply] = supplied.as_slice() else {
+        panic!("expected one supplied hypothesis, found {supplied:?}")
+    };
+    assert!(matches!(&supply.kind, ObligationKind::SupplyHypothesis { evidence: ValueType::ProofCitation(lemma), .. } if lemma.path == "lemma"));
+    let error = sources::lower_prepared(&prepared, &files).unwrap_err();
+    assert_eq!(error.site, supply.site, "the refusal stops at the supplied evidence");
     assert_eq!(error.message, "a logical theorem citation requires erased proof-application lowering");
     assert_eq!(error.site.span.slice(cited.as_bytes()), Some(b"theorem::<lemma>(x,x)".as_slice()));
+    known_gap::report(
+        "cite a theorem from executable code",
+        "The call site needs an erased proof application",
+        &cited,
+        &error,
+    );
 
     let resultful = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8)->u8 requires y != 0; requires x != 0 {}";
     let error = sources::lower(&[("proof.omg", resultful)]).unwrap_err();
@@ -143,6 +165,8 @@ fn hypothesis_evidence_never_becomes_executable_or_rebinds_its_subject() {
     assert_eq!(error.message, "a logical hypothesis must be supplied through its theorem's machine binder");
 
     let worked = THEOREM.replace("ensures Step::ensures(x) {}", "ensures Step::ensures(x) { let w = x; }");
-    let error = sources::lower(&[("proof.omg", &format!("{TRUST} {worked}"))]).unwrap_err();
+    let worked = format!("{TRUST} {worked}");
+    let error = sources::lower(&[("proof.omg", &worked)]).unwrap_err();
     assert_eq!(error.message, "a logical theorem body requires checked proof-term lowering");
+    known_gap::report("proof steps in a theorem body", "The theorem needs its checked proof term", &worked, &error);
 }

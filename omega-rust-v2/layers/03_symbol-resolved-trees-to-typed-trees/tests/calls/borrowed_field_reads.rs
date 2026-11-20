@@ -212,9 +212,9 @@ fn selecting_a_held_sum_case_applies_only_to_that_exact_holder_field() {
             }
         })
         .collect();
-    assert!(fields.contains(&"Choice::A::left") && fields.contains(&"Choice::B::left"));
+    spec_corpus::observe_handoff!("subject-and-field-identity-across-matches/producer", assert!(fields.contains(&"Choice::A::left") && fields.contains(&"Choice::B::left")));
     let wrong = src.replacen("move h.first.left", "move h.second.left", 1);
     let err = check(&[("held.omg", &wrong)]).unwrap_err();
-    assert_eq!(err.message, "Choice has no field left");
+    spec_corpus::observe_handoff!("subject-and-field-identity-across-matches/refusal", assert_eq!(err.message, "Choice has no field left"));
     assert_eq!(err.span.slice(wrong.as_bytes()), Some(b"h.second.left".as_slice()));
 }

@@ -20,7 +20,7 @@ impl ConstantEvaluation<'_, '_> {
                 && &landing.ty == carrier
             {
                 if landed.is_some_and(|previous| previous != &landing.value) {
-                    return Err("conflicting floating landings at one typed occurrence".into());
+                    return Err(PreparationReason::ConflictingFloatLandings.into());
                 }
                 landed = Some(&landing.value);
             }
@@ -122,16 +122,17 @@ impl ConstantEvaluation<'_, '_> {
         let site = origin(&self.tree(site)?, site.node);
         let target = self
             .target
-            .ok_or_else(|| EvaluationError::OpenTarget(crate::evaluation::refusal(&site, "the floating operation needs a selected target realization")))?;
+            .ok_or_else(|| EvaluationError::OpenTarget(crate::evaluation::refusal(&site, PreparationReason::FloatNeedsTargetRealization)))?;
         let realization = target.float_realization(format, operation).ok_or_else(|| {
-            EvaluationError::AtCall(omega_typed::TypeError::new(
-                &site.package,
-                &site.file,
-                site.span,
-                format!(
-                    "the selected target does not support this floating operation ({format:?} {operation:?} on {})",
-                    target.identity().profile
+            let reason = PreparationReason::UnsupportedFloatOperation;
+            EvaluationError::AtCall(PreparationRefusal::rendered(
+                omega_typed::TypeError::new(
+                    &site.package,
+                    &site.file,
+                    site.span,
+                    format!("{} ({format:?} {operation:?} on {})", reason.text(), target.identity().profile),
                 ),
+                reason,
             ))
         })?;
         let right = pop_float(execution)?;
@@ -230,7 +231,7 @@ impl ConstantEvaluation<'_, '_> {
         execution: &mut Execution<'_>,
     ) -> Result<(), EvaluationError> {
         let operand = execution.values.pop().ok_or(UNSUPPORTED_BODY)?;
-        let not_exact = "the floating carrier cast does not preserve the exact value";
+        let not_exact = PreparationReason::InexactFloatCast;
         let output = if let Some(format) = FloatFormat::for_type(carrier) {
             let value = match operand {
                 PreparedValue::Float { value, .. } => value.exactly_in(format),

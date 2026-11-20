@@ -30,13 +30,16 @@ fn machine_contract_visibility_keeps_nested_helpers_private() {
          }",
     )
     .unwrap();
-    assert_eq!(
-        package
-            .machines
-            .iter()
-            .map(|machine| (machine.declaration.path.as_str(), machine.contract.public))
-            .collect::<Vec<_>>(),
-        [("outer", true), ("outer::helper", false)]
+    spec_corpus::observe_handoff!(
+        psi "psi-output/helper-visibility",
+        assert_eq!(
+            package
+                .machines
+                .iter()
+                .map(|machine| (machine.declaration.path.as_str(), machine.contract.public))
+                .collect::<Vec<_>>(),
+            [("outer", true), ("outer::helper", false)]
+        ),
     );
 }
 
@@ -82,16 +85,19 @@ fn direct_calls_keep_the_selected_callee_and_evaluate_each_argument_once_in_orde
                 requirements: Vec::new(),
             },
         );
-        assert_eq!(
-            combination.kind,
-            OperationKind::Call {
-                callee: omega_lowering::CallTarget::Machine(machine(target).id),
-                arguments: vec![
-                    CallArgument::Scalar(scalar_result(first)),
-                    CallArgument::Scalar(scalar_result(second))
-                ],
-                requirements: Vec::new(),
-            },
+        spec_corpus::observe_handoff!(
+            psi "psi-output/call-operands",
+            assert_eq!(
+                combination.kind,
+                OperationKind::Call {
+                    callee: omega_lowering::CallTarget::Machine(machine(target).id),
+                    arguments: vec![
+                        CallArgument::Scalar(scalar_result(first)),
+                        CallArgument::Scalar(scalar_result(second))
+                    ],
+                    requirements: Vec::new(),
+                },
+            ),
         );
         assert_eq!(sole_return(entry), ReturnEdge::Scalar(scalar_result(combination)));
         let pseudo = machine("use_it").scalar_result.unwrap();
@@ -221,13 +227,16 @@ fn explicit_discard_evaluates_a_copyable_call_once_and_drops_only_its_result() {
     let [call] = body.operations.as_slice() else {
         panic!("expected exactly one evaluation of the discarded call");
     };
-    assert_eq!(
-        call.kind,
-        OperationKind::Call {
-            callee: omega_lowering::CallTarget::Machine(leaf.id),
-            arguments: vec![CallArgument::Scalar(x)],
-            requirements: Vec::new(),
-        }
+    spec_corpus::observe_handoff!(
+        psi "psi-output/discard-callee",
+        assert_eq!(
+            call.kind,
+            OperationKind::Call {
+                callee: omega_lowering::CallTarget::Machine(leaf.id),
+                arguments: vec![CallArgument::Scalar(x)],
+                requirements: Vec::new(),
+            }
+        ),
     );
     let dropped = scalar_result(call);
     assert_eq!(body.values[dropped.index()].origin, ValueOrigin::Operation(call.id));
@@ -271,24 +280,28 @@ fn explicit_discard_keeps_statement_order_operand_order_and_call_requirements() 
             }
         );
     }
-    assert_eq!(
-        inner.kind,
-        OperationKind::Call {
-            callee: omega_lowering::CallTarget::Machine(machine("leaf").id),
-            arguments: vec![CallArgument::Scalar(x)],
-            requirements: Vec::new(),
-        }
-    );
-    assert_eq!(
-        discarded.kind,
-        OperationKind::Call {
-            callee: omega_lowering::CallTarget::Machine(machine("checked").id),
-            arguments: vec![CallArgument::Scalar(scalar_result(inner))],
-            requirements: vec![CallRequirement {
-                site: CallSite::Operation(discarded.id),
-                clause: 0
-            }],
-        }
+    // L5 accepts a precondition record only at the call node L3 marked. The
+    // requirement belongs to the outer `checked` call, not the nested `leaf` call.
+    spec_corpus::observe_handoff!(
+        "call-precondition-obligations/consumer-2",
+        assert_eq!(
+            (&inner.kind, &discarded.kind),
+            (
+                &OperationKind::Call {
+                    callee: omega_lowering::CallTarget::Machine(machine("leaf").id),
+                    arguments: vec![CallArgument::Scalar(x)],
+                    requirements: Vec::new(),
+                },
+                &OperationKind::Call {
+                    callee: omega_lowering::CallTarget::Machine(machine("checked").id),
+                    arguments: vec![CallArgument::Scalar(scalar_result(inner))],
+                    requirements: vec![CallRequirement {
+                        site: CallSite::Operation(discarded.id),
+                        clause: 0
+                    }],
+                }
+            )
+        )
     );
     let dropped = scalar_result(discarded);
     assert_eq!(body.values[dropped.index()].origin, ValueOrigin::Operation(discarded.id));

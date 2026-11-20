@@ -209,8 +209,9 @@ impl BodyTyper<'_, '_> {
         requested: &Access,
     ) -> Result<(), TypeError> {
         match (self.storage_place(place).access, requested) {
-            (Access::Shared, Access::Write | Access::Mut) => Err(TypeError::at(self.unit.file, place, "place requires writable authority")),
-            (Access::Write, Access::Shared | Access::Mut) => Err(TypeError::at(self.unit.file, place, "cannot read through a write-only reference")),
+            (None, Access::Write | Access::Mut) => Err(TypeError::at(self.unit.file, place, "computed value does not name writable storage")),
+            (Some(Access::Shared), Access::Write | Access::Mut) => Err(TypeError::at(self.unit.file, place, "place requires writable authority")),
+            (Some(Access::Write), Access::Shared | Access::Mut) => Err(TypeError::at(self.unit.file, place, "cannot read through a write-only reference")),
             _ => Ok(()),
         }
     }
@@ -459,23 +460,53 @@ impl BodyTyper<'_, '_> {
     /// value is then a read out of borrowed storage.
     pub(super) fn project_fields(
         &mut self,
-        mut node_index: usize,
+        node_index: usize,
         access: &Access,
     ) -> Result<(ValueType, Option<Access>), TypeError> {
-        let destination = node_index;
         let source = self.unit.file;
         // Postfix selectors form arbitrarily long, left-nested trees in L1.
-        let mut selectors = Vec::new();
-        while source.nodes[node_index].kind == NodeKind::FieldAccess {
-            selectors.push(node_index);
-            node_index = self.unit.single_child(node_index)?;
+        // A grouped receiver, as in `((a.b).c).d`, is a place of its own:
+        // `place_operand` records the group, and the selectors above it start
+        // a fresh selection from it, whose inner part is selected with shared
+        // access. Both kinds of layer are walked here on a heap stack, each
+        // selector carrying the requested access and outermost node of its
+        // own selection; see :ExpressionLayers.
+        let mut layers = Vec::new();
+        let mut segment = (node_index, access);
+        let mut grouped = false;
+        let mut node = node_index;
+        loop {
+            match source.nodes[node].kind {
+                NodeKind::FieldAccess => {
+                    if grouped {
+                        segment = (node, &Access::Shared);
+                        grouped = false;
+                    }
+                    layers.push((node, Some(segment)));
+                }
+                NodeKind::Paren => {
+                    grouped = true;
+                    layers.push((node, None));
+                }
+                _ => break,
+            }
+            node = self.unit.single_child(node)?;
         }
-        let (mut ty, mut borrowed) = self.place_operand(node_index)?;
-        let mut origin = self.origin(node_index);
-        let mut place = self.storage_place(node_index);
-        let mut base = node_index;
-        let mut subject = if self.cases.is_empty() { None } else { self.fact_subject(node_index) };
-        for node_index in selectors.into_iter().rev() {
+        let (mut ty, mut borrowed) = self.place_operand(node)?;
+        let mut origin = self.origin(node);
+        let mut place = self.storage_place(node);
+        let mut base = node;
+        let mut subject = if self.cases.is_empty() { None } else { self.fact_subject(node) };
+        for (node_index, segment) in layers.into_iter().rev() {
+            let Some((destination, access)) = segment else {
+                self.set_origin(node_index, self.origin(source.nodes[node_index].children[0]));
+                self.record_expression(node_index, ty.clone());
+                origin = self.origin(node_index);
+                place = self.storage_place(node_index);
+                base = node_index;
+                subject = if self.cases.is_empty() { None } else { self.fact_subject(node_index) };
+                continue;
+            };
             let reference = ty.reference_parts();
             let through = reference.map(|(access, _)| access.clone());
             let receiver = match reference {
@@ -484,10 +515,11 @@ impl BodyTyper<'_, '_> {
                 }
                 Some((through, inner)) => {
                     // The field lives wherever the reference points.
-                    place.access = through
+                    let effective = through
                         .through(borrowed.as_ref())
                         .map_err(|m| TypeError::at(source, node_index, m))?;
-                    borrowed = Some(place.access.clone());
+                    place.access = Some(effective.clone());
+                    borrowed = Some(effective);
                     origin = origin.whole();
                     place.backing = origin.clone();
                     inner
@@ -510,7 +542,7 @@ impl BodyTyper<'_, '_> {
                 // Metadata describes the collection; it reads no element.
                 borrowed = None;
                 origin = Origin::Caller;
-                place.access = Access::Shared;
+                place.access = None;
             } else {
                 let Some((id, args)) = receiver.record_parts() else {
                     return Err(TypeError::at(source, node_index, format!("cannot select a field of {ty}")));

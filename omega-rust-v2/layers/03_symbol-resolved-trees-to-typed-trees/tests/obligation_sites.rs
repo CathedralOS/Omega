@@ -107,7 +107,7 @@ fn identical_calls_keep_the_precondition_on_the_overload_that_requires_it() {
             })
             .collect();
         if requires {
-            assert_eq!(preconditions, [selected]);
+            spec_corpus::observe_handoff!("obligations-at-the-source-operation/producer-2", assert_eq!(preconditions, [selected]));
         } else {
             assert!(preconditions.is_empty(), "the bool overload has no precondition");
         }
@@ -294,11 +294,9 @@ fn value_patterns_read_a_copy_through_a_reference_subject() {
         ("data V {r:@u8;} machine f(h:V)->u8 {match $h.r {0->1,_->0,}}", "$h.r", "u8"),
     ] {
         let stage = support::check(&[("handoff.omg", source), ("limits/values.omg", "const Z:u8=0;")]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
-        expect_at(
-            &stage,
-            source,
-            read_site,
-            |k| matches!(k, ObligationKind::CopyRead(ty) if ty.to_string()==copied),
+        spec_corpus::observe_handoff!(
+            "patterns-and-places/explicit-copy",
+            expect_at(&stage, source, read_site, |k| matches!(k, ObligationKind::CopyRead(ty) if ty.to_string()==copied))
         );
     }
     // A binder keeps the reference itself, so returning it forwards the loan.
@@ -320,8 +318,10 @@ fn value_patterns_read_a_copy_through_a_reference_subject() {
         ),
     ] {
         let error = support::check(&[("handoff.omg", source)]).unwrap_err();
-        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()), "{source}: {error:?}");
-        assert_eq!(error.message, message, "{source}");
+        spec_corpus::observe_handoff!(
+            "patterns-and-places/refusal",
+            assert_eq!((error.span.slice(source.as_bytes()), error.message.as_str()), (Some(site.as_bytes()), message), "{source}")
+        );
     }
     // An exact reference overload still wins over the by-value one.
     let source = "machine take(n:u8)->u8 {n} machine take(n:@u8)->u8 {0u8} machine f(v:@u8)->u8 {take(v)}";
@@ -471,7 +471,7 @@ fn exclusive_move_obligations_identify_the_evaluated_subject_and_field() {
         let (capture, path) = typed.place_path(taken);
         let (written, destination) = typed.place_path(file.node_id(store));
         let [step] = path.as_slice() else { panic!("{path:?}") };
-        assert_eq!(step.through, Some(Access::Mut));
+        spec_corpus::observe_handoff!("patterns-and-places/producer", assert_eq!(step.through, Some(Access::Mut)));
         assert!(matches!(&step.projection, Some(omega_typer::Projection::Field(id)) if id.path == format!("Holder::{field}")));
         assert_eq!(destination.len(), 1);
         assert_eq!(destination[0].projection, step.projection);

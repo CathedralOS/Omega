@@ -5,9 +5,11 @@
 
 mod indexed_source;
 mod model;
+mod name_error_kind;
 mod resolved_trees;
 
 pub use indexed_source::{IndexedSource, TreeNodeId};
+pub use name_error_kind::{NameErrorKind, NameErrorOrigin};
 pub use model::{
     CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, DomainCandidate, DomainCarrier, InterfaceExport, NameContext, NameError, NameRole,
     NameUse, OperatorDeclaration, ResolutionIndex, ResolvedStage, Symbol,

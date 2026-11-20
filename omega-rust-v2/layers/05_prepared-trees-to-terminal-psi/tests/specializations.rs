@@ -126,7 +126,9 @@ fn a_selected_suspending_callback_retains_both_closed_call_sites() {
     let text = "public data SuspendingTransform=machine(value:u32)->u32 suspends;
               public machine apply<const F:SuspendingTransform>(value:u32)->u32 suspends {suspend F(value)}
               public machine local(value:u32)->u32 suspends {value}
-              public machine example()->u32 suspends {suspend apply::<local>(42)}";
+              public machine remote(value:u32)->u32 suspends {value}
+              public machine example()->u32 suspends {suspend apply::<local>(42)}
+              public machine elsewhere()->u32 suspends {suspend apply::<remote>(42)}";
     let package = sources::lower(&[("pause.omg", text)]).unwrap();
     let machine = |name| {
         package
@@ -135,14 +137,12 @@ fn a_selected_suspending_callback_retains_both_closed_call_sites() {
             .find(|m| m.declaration.path == name)
             .unwrap()
     };
-    for (caller, callee) in [("example", "apply"), ("apply", "local")] {
-        let owner = machine(caller);
-        let target = machine(callee);
+    let by_id = |id: omega_lowering::MachineId| package.machines.iter().find(|m| m.id == id).unwrap();
+    // Each owner has exactly one suspending crossing, to the expected callee.
+    let crossing = |owner: &omega_lowering::LoweredMachine| {
         let [row] = owner.body.suspension_sites.as_slice() else {
             panic!("missing closed callback crossing")
         };
-        assert_eq!(row.callee, omega_lowering::CallTarget::Machine(target.id));
-        assert!(target.contract.realized_pause.suspend);
         assert!(
             owner
                 .body
@@ -151,7 +151,24 @@ fn a_selected_suspending_callback_retains_both_closed_call_sites() {
                 .any(|a| a.call == row.call && a.effects.suspend)
         );
         assert_eq!(psi_handoff_consumer::suspending_local_calls(&package, &owner.body), [row.call]);
+        let omega_lowering::CallTarget::Machine(callee) = row.callee else {
+            panic!("expected a local callee")
+        };
+        let target = by_id(callee);
+        assert!(target.contract.realized_pause.suspend);
+        target
+    };
+    // Two closed applications of `apply` select different callbacks. Each
+    // instance's callback invocation calls exactly the machine its application chose.
+    let mut instances = Vec::new();
+    for (caller, selected) in [("example", "local"), ("elsewhere", "remote")] {
+        let instance = crossing(machine(caller));
+        assert_eq!(instance.declaration.path, "apply");
+        let callback = crossing(instance);
+        spec_corpus::observe_handoff!("static-callback-selection/consumer", assert_eq!(callback.id, machine(selected).id));
+        instances.push(instance.id);
     }
+    assert_ne!(instances[0], instances[1]);
 }
 
 #[test]

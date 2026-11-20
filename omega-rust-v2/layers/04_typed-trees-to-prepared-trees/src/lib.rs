@@ -7,9 +7,13 @@
 //! lowering is defined in omega-prepared.
 #![forbid(unsafe_code)]
 
+#[cfg(test)]
+extern crate self as omega_preparation;
+
 mod evaluation;
 mod invocation;
 mod preparation;
+mod reasons;
 #[cfg(test)]
 #[path = "target_semantics/properties/tests.rs"]
 mod target_semantics_tests;
@@ -26,8 +30,13 @@ pub use omega_prepared::{
 };
 pub use omega_target_contract::{FloatFormat, FloatOperation, FloatRealization, FloatSemantics};
 pub use preparation::entry_points::{
-    prepare_source_package, prepare_source_package_for_target, prepare_source_package_with_boundary_slots, prepare_source_package_with_open_target,
+    prepare_source_package, prepare_source_package_diagnosed, prepare_source_package_diagnosed_with_inputs, prepare_source_package_for_target,
+    prepare_source_package_with_boundary_slots, prepare_source_package_with_open_target,
 };
 pub use preparation::sponsorship::{CheckedPreparationBound, SponsoredPreparationError, prepare_source_package_under_grant};
 pub use preparation::typing_pass::{CheckedPreparationEvidence, OpenTargetDemand, PreparationAnswers, PreparedPass, prepare_typing_pass};
-pub use preparation::{EvaluatedPreparationRound, OpenTargetPreparation, PreparationAdvanceError, PreparationProgress, PreparationRound, PreparationStep};
+pub use preparation::{
+    EvaluatedPreparationRound, OpenTargetPreparation, PreparationAdvanceError, PreparationFailure, PreparationProgress,
+    PreparationRound, PreparationStep,
+};
+pub use reasons::{PreparationReason, PreparationRefusal, RefusalCause};

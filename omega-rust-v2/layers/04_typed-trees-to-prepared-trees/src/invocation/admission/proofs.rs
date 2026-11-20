@@ -57,14 +57,14 @@ impl InvocationClaim<'_> {
         }
     }
 
-    fn refusal(self) -> &'static str {
+    fn refusal(self) -> PreparationReason {
         match self {
-            Self::Requires(_) => "the selected precondition requires a checked proof for the supplied arguments",
+            Self::Requires(_) => PreparationReason::PreconditionNeedsProof,
             Self::CrashDisproved { route, .. } => match route.cause {
-                CrashCause::Trap => "the selected Trap route requires a checked disproof for the supplied arguments",
-                CrashCause::Abort => "the selected Abort route requires a checked disproof for the supplied arguments",
+                CrashCause::Trap => PreparationReason::TrapRouteNeedsDisproof,
+                CrashCause::Abort => PreparationReason::AbortRouteNeedsDisproof,
             },
-            Self::Ensures(_) => "the selected postcondition requires a checked proof for the arguments and result",
+            Self::Ensures(_) => PreparationReason::PostconditionNeedsProof,
         }
     }
 }
@@ -150,7 +150,7 @@ impl ConstantEvaluation<'_, '_> {
             return Ok(());
         }
         if changed_target {
-            return Err("the checked invocation proof depends on a different target selection".into());
+            return Err(PreparationReason::InvocationProofTargetChanged.into());
         }
         Err(request.claim.refusal().into())
     }

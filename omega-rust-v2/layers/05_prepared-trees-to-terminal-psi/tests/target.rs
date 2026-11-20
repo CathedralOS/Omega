@@ -123,7 +123,10 @@ fn folded_extent_keeps_the_exact_target_plan_and_origin() {
 
     assert_eq!(replay_u64(closure, "test-target", 1), Ok(()));
     let competing_plan = capsule("test-target", 2, 8);
-    assert_eq!(replay_u64(closure, "test-target", 2), Err(observation));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/replay-wrong-plan",
+        assert_eq!(replay_u64(closure, "test-target", 2), Err(observation)),
+    );
     assert_eq!(replay_u64(closure, "other-target", 1), Err(observation));
     let competing = lower(FOLDED, &competing_plan);
     assert_eq!(length(&competing), 8);
@@ -132,6 +135,113 @@ fn folded_extent_keeps_the_exact_target_plan_and_origin() {
     let literal = lower("machine copy(arr:[u8; 8])->[u8; 8]{arr}", &selected);
     assert_eq!(length(&literal), 8);
     assert_eq!(literal.target_closure, None);
+}
+
+/// The constants each folded constant consumed, by path. A constant with no
+/// recorded inputs, or a package without a target closure, reads nothing.
+fn constant_reads(
+    package: &LoweredPackage,
+    name: &str,
+) -> Vec<String> {
+    let Some(closure) = package.target_closure.as_ref() else {
+        return Vec::new();
+    };
+    closure
+        .inputs()
+        .iter()
+        .find(|input| matches!(&input.origin, FoldedValueOrigin::Constant(id) if id.path == name))
+        .map(|input| {
+            input
+                .constants
+                .iter()
+                .map(|id| id.path.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_named_read_names_the_constant_it_consumed_even_when_both_values_agree() {
+    // Size and alignment are both 8, so only the dependency tells the two reads apart.
+    let target = capsule("test-target", 1, 8);
+    for read in ["EXTENT", "ALIGNMENT"] {
+        let source = format!(
+            "use omega\\language\\core;
+             const EXTENT:u64=core\\size_of::<u64>();
+             const ALIGNMENT:u64=core\\align_of::<u64>();
+             const ALIAS:u64={read};
+             machine copy(arr:[u8; ALIAS])->[u8; ALIAS]{{arr}}"
+        );
+        let lowered = lower(&source, &target);
+        assert_eq!(psi_handoff_consumer::array_parameter_length(&lowered, "copy"), Some(8));
+        spec_corpus::observe_handoff!("named-constant-reads/consumer", assert_eq!(constant_reads(&lowered, "ALIAS"), [read]));
+        let closure = lowered.target_closure.as_ref().unwrap();
+        assert!(
+            closure
+                .inputs()
+                .iter()
+                .any(|input| matches!(&input.origin, FoldedValueOrigin::StaticIndex { .. }) && input.constants.iter().any(|id| id.path == "ALIAS"))
+        );
+    }
+}
+
+#[test]
+fn a_discarded_constant_read_remains_an_input_of_the_constant_that_performed_it() {
+    // L4 evaluates `keep` while freezing KEPT. The discard leaves the value 8
+    // unchanged, so only the folded dependency records which constant it read.
+    let target = capsule("test-target", 1, 8);
+    let program = |body: &str| {
+        format!(
+            "use omega\\language\\core;
+             const EXTENT:u64=core\\size_of::<u64>();
+             const ALIGNMENT:u64=core\\align_of::<u64>();
+             machine keep(x:u64)->u64{{{body}}}
+             const KEPT:u64=keep(8u64);
+             machine copy(arr:[u8; KEPT])->[u8; KEPT]{{arr}}"
+        )
+    };
+    for read in ["EXTENT", "ALIGNMENT"] {
+        let lowered = lower(&program(&format!("_ = {read}; x")), &target);
+        assert_eq!(psi_handoff_consumer::array_parameter_length(&lowered, "copy"), Some(8));
+        spec_corpus::observe_handoff!("discarded-constant-reads/consumer", assert_eq!(constant_reads(&lowered, "KEPT"), [read]));
+    }
+    let without_discard = lower(&program("x"), &target);
+    assert_eq!(psi_handoff_consumer::array_parameter_length(&without_discard, "copy"), Some(8));
+    assert!(constant_reads(&without_discard, "KEPT").is_empty());
+}
+
+#[test]
+fn one_open_package_resumes_under_each_selected_layout() {
+    let tokens = omega_lexer::lex(FOLDED.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(FOLDED.as_bytes(), &tokens).unwrap();
+    let sources = [StageSource {
+        package: "app",
+        source: ParsedSource {
+            logical_path: "extent.omg",
+            text: FOLDED,
+            tokens: &tokens,
+            tree: &tree,
+        },
+    }];
+    let package = resolve_source_package(&sources).unwrap();
+    for (plan, size) in [(1, 8), (2, 16)] {
+        let selected = capsule("test-target", plan, size);
+        let progress = omega_preparation::prepare_source_package_with_open_target(&package, &[]).unwrap();
+        let omega_preparation::PreparationProgress::OpenTarget(open) = progress else {
+            panic!("the extent needs a selected target");
+        };
+        let resumed = lower_package(&open.close(&selected).unwrap()).unwrap();
+        assert_eq!(resumed, lower(FOLDED, &selected));
+        spec_corpus::observe_handoff!(
+            "open-target-and-selected-layout/consumer",
+            assert_eq!(psi_handoff_consumer::array_parameter_length(&resumed, "copy"), Some(size))
+        );
+        let closure = resumed.target_closure.as_ref().unwrap();
+        assert_eq!(closure.target(), selected.identity());
+        let subject = || omega_psi::FoldedSubject::Integer { signed: false, width: 64 };
+        assert_eq!(psi_handoff_consumer::replay_layout(closure, "test-target", plan, size, subject()), Ok(()));
+        assert!(psi_handoff_consumer::replay_layout(closure, "test-target", 3 - plan, size, subject()).is_err());
+    }
 }
 
 #[test]
@@ -179,7 +289,7 @@ fn equal_size_and_alignment_keep_their_own_dependencies_after_file_reorder() {
             let FoldedTargetObservation::Layout { projection, .. } = &closure.observations()[*index] else {
                 panic!("{name} must reference a layout projection");
             };
-            assert_eq!(*projection, expected, "{name} must reference its own query");
+            spec_corpus::observe_handoff!("target-observation-projection/consumer", assert_eq!(*projection, expected, "{name} must reference its own query"));
         }
     }
 }
@@ -225,7 +335,10 @@ fn folded_extent_preserves_an_unbounded_referent_identity() {
     let closure = package.target_closure.unwrap();
     assert_eq!(replay(&closure, true), Ok(()));
     let competing = target(false);
-    assert_eq!(replay(&closure, false), Err(&closure.observations()[0]));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/signed-referent-replay",
+        assert_eq!(replay(&closure, false), Err(&closure.observations()[0])),
+    );
 
     let competing_source = source.replace("@i", "@u");
     let competing_closure = lower(&competing_source, &competing).target_closure.unwrap();

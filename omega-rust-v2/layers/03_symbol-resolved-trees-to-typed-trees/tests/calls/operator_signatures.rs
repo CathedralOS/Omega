@@ -99,7 +99,7 @@ fn inferred_operator_home_distinguishes_inherited_and_independent_domains() {
         .keys()
         .find(|id| id.path == "u8::P::Child")
         .unwrap();
-    assert_eq!(binding.home.as_ref(), Some(child));
+    spec_corpus::observe_handoff!("overloads-and-operators/consumer", assert_eq!(binding.home.as_ref(), Some(child)));
     assert_eq!(binding.token, "+");
     assert_eq!(binding.site.file, "child.omg");
     let competing = "machine + add(x:u8 in P,y:u8 in Q)->u8 in P{x}";

@@ -19,6 +19,48 @@ fn typed(source: &str) -> TypingProgress<'_> {
     TypingProgress::Complete(type_source_package(&package).unwrap())
 }
 
+const PACKAGE: &str = "app";
+const FILE: &str = "callback.omg";
+const ADMISSION: &str = "static evaluation cannot admit this invocation: ";
+// Reason texts are written here independently of the reason inventory.
+const NEEDS_REFINEMENT: &str = "the exact static callback needs a checked refinement of its callable contract";
+const PRECONDITION_JUDGMENT: &str = "the callable bound's precondition needs a checked judgment for the supplied arguments";
+const GUARANTEE_JUDGMENT: &str = "the callable bound's guarantee needs a checked judgment for the arguments and result";
+const OUTSIDE_FRAGMENT: &str = "the exact static callback needs checked contract evidence outside the supported fragment";
+
+/// The byte range of the only occurrence of `text` in `source`.
+fn only(
+    source: &str,
+    text: &str,
+) -> (usize, usize) {
+    let start = source
+        .find(text)
+        .unwrap_or_else(|| panic!("{text:?} does not occur in the source"));
+    assert_eq!(source.rfind(text), Some(start), "{text:?} occurs more than once");
+    (start, start + text.len())
+}
+
+/// Run the typing pass with the supplied evidence and keep the typed cause.
+fn refused<'stage, 'text>(
+    progress: &'stage TypingProgress<'text>,
+    evidence: CheckedPreparationEvidence<'stage, 'text>,
+) -> PreparationRefusal {
+    match crate::preparation::typing_pass::evaluate_pass(progress, &[], None, evidence, &Default::default()) {
+        Ok(_) => panic!("the supplied callback evidence must be refused"),
+        Err(refusal) => refusal,
+    }
+}
+
+fn assert_callback_refusal(
+    refusal: &PreparationRefusal,
+    reason: PreparationReason,
+    source: &str,
+    occurrence: &str,
+    message: &str,
+) {
+    spec_corpus::assert_preparation_cause!(refusal, RefusalCause::Preparation(reason), PACKAGE, FILE, only(source, occurrence), message);
+}
+
 fn caller_at(
     trees: &TypedTrees<'_>,
     obligation: &TypingObligation,
@@ -105,11 +147,26 @@ fn a_checked_refinement_authorizes_only_its_exact_callable_binding() {
     let original = typed(source);
     let TypingProgress::Complete(trees) = &original else { unreachable!() };
     let evidence = || CheckedPreparationEvidence::default().with_callable_refinement(check_reflexivity(trees).unwrap());
-    let missing = prepare_typing_pass(&original, &[], None, CheckedPreparationEvidence::default()).unwrap_err();
-    assert!(missing.message.contains("needs a checked refinement"), "{}", missing.message);
+    // The refinement is checked while admitting the outer call, before any
+    // body runs, so the refusal is rendered at the constant's initializer.
+    let needs_refinement = format!("{ADMISSION}{NEEDS_REFINEMENT}");
+    let missing = refused(&original, CheckedPreparationEvidence::default());
+    assert_callback_refusal(
+        &missing,
+        PreparationReason::CallbackNeedsRefinement,
+        source,
+        "apply::<identity>(3u64)",
+        &needs_refinement,
+    );
     let unrelated = typed(source);
-    let wrong_pass = prepare_typing_pass(&unrelated, &[], None, evidence()).unwrap_err();
-    assert!(wrong_pass.message.contains("needs a checked refinement"), "{}", wrong_pass.message);
+    let wrong_pass = refused(&unrelated, evidence());
+    assert_callback_refusal(
+        &wrong_pass,
+        PreparationReason::CallbackNeedsRefinement,
+        source,
+        "apply::<identity>(3u64)",
+        &needs_refinement,
+    );
     let pass = prepare_typing_pass(&original, &[], None, evidence()).unwrap();
     let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
         panic!("expected a frozen callback result")
@@ -157,8 +214,16 @@ fn a_skipped_contract_call_uses_the_refinement_from_its_own_selection() {
                 .unwrap();
             CheckedPreparationEvidence::default().with_callable_refinement(check_reflexivity_at(trees, obligation).unwrap())
         };
-        let refused = prepare_typing_pass(&progress, &[], None, proof_at("other")).unwrap_err();
-        assert!(refused.message.contains("needs a checked refinement"), "{route}: {}", refused.message);
+        // Admitting the selected helper visits its skipped contract call, so the
+        // unrelated proof is refused at the outer invocation.
+        let refusal = refused(&progress, proof_at("other"));
+        assert_callback_refusal(
+            &refusal,
+            PreparationReason::CallbackNeedsRefinement,
+            &source,
+            "invoke::<helper>(3u64)",
+            &format!("{ADMISSION}{NEEDS_REFINEMENT}"),
+        );
         let pass = prepare_typing_pass(&progress, &[], None, proof_at(selecting_caller)).unwrap_or_else(|e| panic!("{route}: {}", e.message));
         let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
             panic!("expected a frozen result")
@@ -241,13 +306,13 @@ fn a_callable_bound_requires_its_own_checked_entry_at_the_actual_arguments() {
         }
     };
     for supplied in [evidence(), evidence().with_callable_use(certified_entry(2))] {
-        let error = prepare_typing_pass(&progress, &[], None, supplied).unwrap_err();
-        assert!(
-            error
-                .message
-                .contains("bound's precondition needs a checked judgment"),
-            "{}",
-            error.message
+        let refusal = refused(&progress, supplied);
+        assert_callback_refusal(
+            &refusal,
+            PreparationReason::CallablePreconditionNeedsJudgment,
+            source,
+            "F(n)",
+            &format!("{ADMISSION}{PRECONDITION_JUDGMENT}"),
         );
     }
     let pass = prepare_typing_pass(&progress, &[], None, evidence().with_callable_use(certified_entry(3))).unwrap();
@@ -339,15 +404,14 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
     // Both positive results satisfy the bound. Only the actual returned
     // value can reuse a judgment at this occurrence and these arguments.
     let other_result = PreparedValue::Integer(&body_result + 1u64);
-    let error = prepare_typing_pass(&progress, &[], None, evidence(other_result)).unwrap_err();
-    assert!(
-        error
-            .message
-            .contains("bound's guarantee needs a checked judgment"),
-        "{}",
-        error.message
+    let refusal = refused(&progress, evidence(other_result));
+    assert_callback_refusal(
+        &refusal,
+        PreparationReason::CallableGuaranteeNeedsJudgment,
+        source,
+        "F(n)",
+        &format!("{ADMISSION}{GUARANTEE_JUDGMENT}"),
     );
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"F(n)".as_slice()));
     let expected = PreparedValue::Integer(body_result);
     let pass = prepare_typing_pass(&progress, &[], None, evidence(expected.clone())).unwrap();
     let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
@@ -468,7 +532,16 @@ fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
     let error = evaluator
         .evaluate_value_request(constant("VALUE"), None)
         .unwrap_err();
-    assert!(matches!(error, EvaluationError::AtCall(error) if error.message.contains("bound's precondition needs a checked judgment")));
+    let EvaluationError::AtCall(refusal) = error else {
+        panic!("{error:?}")
+    };
+    assert_callback_refusal(
+        &refusal,
+        PreparationReason::CallablePreconditionNeedsJudgment,
+        source,
+        "F(n)",
+        &format!("{ADMISSION}{PRECONDITION_JUDGMENT}"),
+    );
     evaluator.callable_refinements.uses.push(CheckedCallableUse {
         trees,
         call,
@@ -491,9 +564,27 @@ fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
     assert!(
         matches!(
             error,
-            EvaluationError::Refused("the exact static callback needs a checked refinement of its callable contract")
+            EvaluationError::Refused(RefusalCause::Preparation(PreparationReason::CallbackNeedsRefinement))
         ),
         "{error:?}"
+    );
+    // Freezing renders the unproved OTHER selection at its own initializer.
+    // VALUE's checked judgments still admit VALUE.
+    let refusal = match evaluator.finish() {
+        Ok(_) => panic!("OTHER has no checked refinement"),
+        Err(refusal) => refusal,
+    };
+    let other = "const OTHER:u64=";
+    let (start, _) = only(source, other);
+    let initializer = "forward::<identity,identity>(3u64)";
+    assert_eq!(&source[start + other.len()..start + other.len() + initializer.len()], initializer);
+    spec_corpus::assert_preparation_cause!(
+        refusal,
+        RefusalCause::Preparation(PreparationReason::CallbackNeedsRefinement),
+        PACKAGE,
+        FILE,
+        (start + other.len(), start + other.len() + initializer.len()),
+        format!("{ADMISSION}{NEEDS_REFINEMENT}").as_str()
     );
 }
 
@@ -593,15 +684,16 @@ fn a_nested_callback_carries_checked_capture_refinement_to_its_own_use() {
     let error = evaluator
         .evaluate_value_request(&constant.initializer, None)
         .unwrap_err();
-    let EvaluationError::AtCall(error) = error else { panic!("{error:?}") };
-    assert!(
-        error
-            .message
-            .contains("bound's precondition needs a checked judgment"),
-        "{}",
-        error.message
+    let EvaluationError::AtCall(refusal) = error else {
+        panic!("{error:?}")
+    };
+    assert_callback_refusal(
+        &refusal,
+        PreparationReason::CallablePreconditionNeedsJudgment,
+        source,
+        "F(value)",
+        &format!("{ADMISSION}{PRECONDITION_JUDGMENT}"),
     );
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"F(value)".as_slice()));
     evaluator.callable_refinements.uses.push(CheckedCallableUse {
         trees,
         call: captured_call,
@@ -735,12 +827,59 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
     let error = evaluator
         .evaluate_value_request(constant("FOUR"), None)
         .unwrap_err();
-    assert!(matches!(error, EvaluationError::AtCall(error) if error.message.contains("needs a checked refinement")));
+    // The K=4 refinement is checked at the inner apply call, so the refusal
+    // carries the call chain from FOUR's initializer.
+    let EvaluationError::AtCall(refusal) = error else {
+        panic!("{error:?}")
+    };
+    assert_callback_refusal(
+        &refusal,
+        PreparationReason::CallbackNeedsRefinement,
+        source,
+        "apply::<K,leaf>(n)",
+        &format!("{ADMISSION}{NEEDS_REFINEMENT}\ncall chain: run -> apply"),
+    );
     // Refinement is valid under K=4 because the leaf accepts every input.
     // Its caller still cannot reuse the K=0 entry judgment.
     evaluator.callable_refinements.checked.push(refinement(&four));
     let error = evaluator
         .evaluate_value_request(constant("FOUR"), None)
         .unwrap_err();
-    assert!(matches!(error, EvaluationError::AtCall(error) if error.message.contains("bound's precondition needs a checked judgment")));
+    let EvaluationError::AtCall(refusal) = error else {
+        panic!("{error:?}")
+    };
+    assert_callback_refusal(
+        &refusal,
+        PreparationReason::CallablePreconditionNeedsJudgment,
+        source,
+        "F(n)",
+        &format!("{ADMISSION}{PRECONDITION_JUDGMENT}"),
+    );
+}
+
+#[test]
+fn a_public_callback_without_a_termination_promise_is_outside_the_fragment() {
+    let source = "public machine identity(n:u64)->u64 reaches none crashes none {n}
+                  data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
+                  const VALUE:u64=apply::<identity>(3u64);";
+    // The unrestricted bound needs no refinement. Admitting the selected
+    // exported body still requires its termination promise.
+    let progress = typed(source);
+    let refusal = refused(&progress, CheckedPreparationEvidence::default());
+    assert_callback_refusal(
+        &refusal,
+        PreparationReason::CallbackContractOutsideFragment,
+        source,
+        "apply::<identity>(3u64)",
+        &format!("{ADMISSION}{OUTSIDE_FRAGMENT}"),
+    );
+
+    let promised = source.replace("crashes none {n}", "crashes none terminates {n}");
+    let progress = typed(&promised);
+    let TypingProgress::Complete(trees) = &progress else { unreachable!() };
+    let pass = prepare_typing_pass(&progress, &[], None, CheckedPreparationEvidence::default()).unwrap();
+    let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
+        panic!("expected a frozen callback result")
+    };
+    assert_eq!(constants[&trees.constants[0].declaration], PreparedValue::Integer(3.into()));
 }

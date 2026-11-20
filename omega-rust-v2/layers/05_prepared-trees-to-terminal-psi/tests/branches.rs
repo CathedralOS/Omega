@@ -1,3 +1,5 @@
+#[path = "support/known_gap.rs"]
+mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -466,7 +468,10 @@ fn a_unit_guard_dispatch_rejoins_before_the_following_call() {
         assert!(next.arguments.is_empty() && next.structural_arguments.is_empty());
         next.target
     });
-    assert_eq!(joins[0], joins[1]);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/guard-join",
+        assert_eq!(joins[0], joins[1]),
+    );
     let join = &body.blocks[joins[0].get() - 1];
     assert!(join.scalar_parameters.is_empty() && join.structural_parameters.is_empty());
     let [call] = &body.operations[join.operations.clone()] else {
@@ -477,8 +482,10 @@ fn a_unit_guard_dispatch_rejoins_before_the_following_call() {
 
 #[test]
 fn value_pattern_dispatch_refuses_without_an_exact_lowered_comparison() {
-    let error = lower("machine choose(value: u8) -> u8 { match value {0u8 -> 1u8, _ -> 2u8,} }").unwrap_err();
-    assert!(error.message.contains("expected an exact Boolean pattern"), "{error}");
+    let source = "machine choose(value: u8) -> u8 { match value {0u8 -> 1u8, _ -> 2u8,} }";
+    let error = lower(source).unwrap_err();
+    assert_eq!(error.message, "expected an exact Boolean pattern: ValuePattern", "{error}");
+    known_gap::report("integer value pattern dispatch", "The match needs an exact comparison against the integer pattern", source, &error);
 }
 
 #[test]

@@ -1,4 +1,6 @@
 //! The declaring trait, requirement binders and implementation each retain their own identity.
+#[path = "support/known_gap.rs"]
+mod known_gap;
 #[path = "support/source.rs"]
 mod source;
 use omega_lowering::{
@@ -184,5 +186,6 @@ fn a_const_valued_implementation_binder_is_refused_at_the_selected_implementatio
         machine go(x:u8)->u8 { run::<Good>(x) }";
     let error = source::lower(&[("sized.omg", src)]).unwrap_err();
     assert_eq!(error.message, "selected implementation binders require a supported closed application");
+    known_gap::report("const binder on selected implementation", "The member call needs the selected implementation and static argument", src, &error);
     assert_eq!(error.site.file, "sized.omg");
 }

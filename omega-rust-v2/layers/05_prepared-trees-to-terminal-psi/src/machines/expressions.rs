@@ -653,9 +653,15 @@ impl Expressions<'_> {
                                 return Err(unsupported_node(file, node, "field read requires a structural receiver"));
                             };
                             drop(operands);
-                            OperationKind::ProjectedScalarRead {
-                                source: crate::ProjectedPlace { root, path },
+                            let site = site_at(file, node);
+                            let read = OperationKind::ProjectedScalarRead { source: crate::ProjectedPlace { root, path } };
+                            values.push(block.push_operation(output, read, site.clone()));
+                            // The projected scalar is independent once read. The expression owned
+                            // its temporary receiver, including any cleanup declared for its type.
+                            if super::ownership::owned(block.places[root.index()].ty, self.types, self.data) {
+                                super::ownership::dispose_temporary(self, block, flow, root, site)?;
                             }
+                            continue;
                         }
                         PendingOperation::FixedArrayRead(selectors) => {
                             let Some(OperationResult::Structural(source)) = operands.next() else {

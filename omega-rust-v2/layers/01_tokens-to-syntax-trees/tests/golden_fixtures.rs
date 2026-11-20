@@ -21,9 +21,12 @@ fn accept_fixtures_parse_to_their_expected_trees() {
         let syntax_tree = parse_file(source_bytes, &tokens)
             .map_err(|parse_error| format!("an accept fixture was rejected:\n{}", dump_parse_error(source_bytes, &parse_error)))?;
 
-        if let Some(problem) = describe_tree_problem(source_bytes, &tokens, &syntax_tree) {
-            return Err(format!("the tree is malformed: {problem}"));
-        }
+        spec_corpus::observe_handoff!(
+            "token-coverage-of-all-source-bytes/consumer",
+            if let Some(problem) = describe_tree_problem(source_bytes, &tokens, &syntax_tree) {
+                return Err(format!("the tree is malformed: {problem}"));
+            }
+        );
 
         Ok(dump_tree(source_bytes, &tokens, &syntax_tree))
     })

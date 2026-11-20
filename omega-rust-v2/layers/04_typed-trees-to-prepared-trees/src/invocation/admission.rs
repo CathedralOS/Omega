@@ -53,10 +53,10 @@ impl ConstantEvaluation<'_, '_> {
         });
         let supplied_slot = supplied.next();
         if supplied_slot.is_some() && (ambiguous_trait_scope || supplied.next().is_some()) {
-            return Err("the selected invocation has competing runtime boundary slots".into());
+            return Err(PreparationReason::CompetingBoundarySlots.into());
         }
         if typed_slot.is_some() && typed_slot != supplied_slot {
-            return Err("the selected runtime boundary slot cannot execute under different build selections".into());
+            return Err(PreparationReason::BoundarySlotSelectionsDiffer.into());
         }
         let selected_application = (!call.type_arguments.is_empty()
             || call
@@ -74,13 +74,13 @@ impl ConstantEvaluation<'_, '_> {
             || call.evidence.is_some()
             || &scope.instantiate(&call.result) != carrier
         {
-            return Err("the request does not select one ordinary static invocation".into());
+            return Err(PreparationReason::NotOneOrdinaryInvocation.into());
         }
 
         let &(contract_index, contract) = self
             .signatures()
             .get(&call.machine)
-            .ok_or("the selected declaration has no typed signature")?;
+            .ok_or(PreparationReason::DeclarationWithoutSignature)?;
         let mut callback_bindings = selected_application
             .as_deref()
             .map_or_else(Vec::new, |selected| Self::forward_callback_bindings(call, selected, scope));
@@ -104,7 +104,7 @@ impl ConstantEvaluation<'_, '_> {
             *self
                 .signatures()
                 .get(provider.implementation)
-                .ok_or("the checked provider has no typed signature")?
+                .ok_or(PreparationReason::ProviderWithoutSignature)?
         } else {
             (contract_index, contract)
         };
@@ -122,21 +122,21 @@ impl ConstantEvaluation<'_, '_> {
             .trees
             .trees()
             .nth(signature.node.file)
-            .ok_or("the selected declaration has no local body")?;
+            .ok_or(PreparationReason::DeclarationWithoutBody)?;
         let declaration = signature.node.node;
         let resolved = body_tree.resolved();
         let file = resolved.file;
         if resolved.declaration_at(declaration) != Some(&signature.machine) {
-            return Err("the selected declaration has no local body".into());
+            return Err(PreparationReason::DeclarationWithoutBody.into());
         }
         if resolved.is_exported(declaration) && !signature.terminates {
-            return Err("the selected public machine does not declare termination".into());
+            return Err(PreparationReason::PublicMachineWithoutTermination.into());
         }
         let effects = self
             .machine_effects(index)
-            .ok_or("the selected body has no complete typed effect row")?;
+            .ok_or(PreparationReason::BodyWithoutEffectRow)?;
         if !effects.reach.is_empty() || effects.fixed_pause.suspend || effects.fixed_pause.block {
-            return Err("the selected invocation is not effect-free during preparation".into());
+            return Err(PreparationReason::InvocationNotEffectFree.into());
         }
         if provider.is_some() {
             callback_bindings.clear();
@@ -155,7 +155,7 @@ impl ConstantEvaluation<'_, '_> {
             .child(declaration, NodeKind::Params)
             .map_or(&[][..], |list| file.nodes[list].children.as_slice());
         if signature.parameters.len() != call.operands.len() || parameters.len() != call.operands.len() {
-            return Err("the typed call and selected parameters disagree".into());
+            return Err(PreparationReason::CallParametersDisagree.into());
         }
         self.admit_termination(index, signature, call, scope, &body_tree, execution)?;
         let requirement = if let Some(provider) = provider {
@@ -210,7 +210,7 @@ impl ConstantEvaluation<'_, '_> {
                     .as_ref()
                     .map_or_else(|| declared.clone(), |applied| applied.instantiate(declared));
                 let value = match value {
-                    PreparedValue::Integer(value) => PreparedValue::Integer(fits(value, &carrier).ok_or("a closed argument is outside its selected carrier")?),
+                    PreparedValue::Integer(value) => PreparedValue::Integer(fits(value, &carrier).ok_or(PreparationReason::ArgumentOutsideCarrier)?),
                     other => other,
                 };
                 Ok(BindingValue {
@@ -287,9 +287,9 @@ impl ConstantEvaluation<'_, '_> {
             return Err(UNSUPPORTED_CONTRACT.into());
         }
         let reason = match result {
-            ValueType::Bool => "the selected Boolean precondition is false for the supplied arguments",
-            ValueType::Integer { .. } => "the selected integer precondition is false for the supplied arguments",
-            _ => "the selected precondition is false for the supplied arguments",
+            ValueType::Bool => PreparationReason::BooleanPreconditionFalse,
+            ValueType::Integer { .. } => PreparationReason::IntegerPreconditionFalse,
+            _ => PreparationReason::PreconditionFalse,
         };
         for clause in requirements {
             let [predicate] = *file.nodes[clause].children.as_slice() else {
@@ -345,7 +345,7 @@ impl ConstantEvaluation<'_, '_> {
                         && matches!(&obligation.kind,
                     ObligationKind::ProveGuarantee { machine, predicate } if machine == &signature.machine && predicate == &obligation.site)
                 })
-                .ok_or("the selected postcondition has no typed proposition")?;
+                .ok_or(PreparationReason::PostconditionWithoutProposition)?;
             let request = ProofRequest {
                 invocation,
                 claim: InvocationClaim::Ensures(obligation),
@@ -380,11 +380,11 @@ impl ConstantEvaluation<'_, '_> {
                 .filter(|route| route.contract == signature.site && route.cause == *cause)
                 .peekable();
             if routes.peek().is_none() {
-                return Err("the selected crash cause has no typed route".into());
+                return Err(PreparationReason::CrashCauseWithoutRoute.into());
             }
             let reason = match cause {
-                CrashCause::Trap => "the selected Trap route remains possible for the supplied arguments",
-                CrashCause::Abort => "the selected Abort route remains possible for the supplied arguments",
+                CrashCause::Trap => PreparationReason::TrapRoutePossible,
+                CrashCause::Abort => PreparationReason::AbortRoutePossible,
             };
             for route in routes {
                 let guard = if let Some(guard) = &route.guard {
@@ -397,7 +397,7 @@ impl ConstantEvaluation<'_, '_> {
                                 && obligation.node.file == signature.node.file
                                 && matches!(obligation.kind, ObligationKind::TotalCrashGuard)
                         })
-                        .ok_or("the selected crash guard has no typed predicate")?;
+                        .ok_or(PreparationReason::CrashGuardWithoutPredicate)?;
                     let request = ProofRequest {
                         invocation,
                         claim: InvocationClaim::CrashDisproved { route, guard: obligation },
@@ -429,12 +429,12 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<Step<'a>, EvaluationError> {
         let file = tree.resolved().file;
         if operand.node.file != file.node_id(0).file || operand.callable.is_some() {
-            return Err("the static call does not have a local scalar operand".into());
+            return Err(PreparationReason::NoLocalScalarOperand.into());
         }
         let step = if carrier == &ValueType::Bool || is_aggregate(carrier) || FloatFormat::for_type(carrier).is_some() {
             Step::Evaluate(operand.node, carrier.clone(), scope.clone())
         } else {
-            IntegerRange::for_type(carrier).ok_or("a selected parameter is outside the bounded integer fragment")?;
+            IntegerRange::for_type(carrier).ok_or(PreparationReason::ParameterOutsideIntegerFragment)?;
             if matches!(scope, Scope::Body(_) | Scope::Fact(_)) {
                 Step::Evaluate(operand.node, carrier.clone(), scope.clone())
             } else {

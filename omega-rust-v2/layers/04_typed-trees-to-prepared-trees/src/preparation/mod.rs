@@ -4,6 +4,7 @@ pub(crate) mod sponsorship;
 pub(crate) mod typing_pass;
 
 use crate::evaluation::refusal;
+use crate::reasons::{PreparationReason, PreparationRefusal, RefusalCause};
 use crate::{
     CheckedPreparationEvidence, OpenTargetDemand, PreparationAnswers, PreparationDependencies, PreparationResourceReceipt, PreparedPass, PreparedTrees,
     TargetObservation, TargetSemantics,
@@ -81,14 +82,19 @@ impl<'text> OpenTargetPreparation<'text> {
 
 impl<'text> PreparationProgress<'text> {
     fn into_complete(self) -> Result<PreparedTrees<'text>, TypeError> {
+        self.into_complete_or_demand()
+            .map_err(|demand| demand.diagnostic)
+    }
+
+    /// The first open demand is the target input whose absence stopped preparation.
+    fn into_complete_or_demand(self) -> Result<PreparedTrees<'text>, OpenTargetDemand> {
         match self {
             Self::Complete(prepared) => Ok(prepared),
             Self::OpenTarget(open) => Err(open
                 .demands
                 .into_iter()
                 .next()
-                .expect("open package has a target demand")
-                .diagnostic),
+                .expect("open package has a target demand")),
         }
     }
 }
@@ -125,12 +131,63 @@ fn prepare_progress<'text>(
     target: Option<&TargetSemantics>,
     state: PreparationState,
     initial: Option<TypingProgress<'text>>,
-) -> Result<PreparationProgress<'text>, TypeError> {
+) -> Result<PreparationProgress<'text>, PreparationFailure> {
     let progress = match initial {
         Some(progress) => progress,
-        None => state.type_package(source, boundary_slots)?,
+        None => state
+            .type_package(source, boundary_slots)
+            .map_err(PreparationFailure::Typing)?,
     };
-    PreparationRound::from_progress(source, boundary_slots, target, state, progress)?.finish_without_external_evidence()
+    PreparationRound::from_progress(source, boundary_slots, target, state, progress)
+        .map_err(PreparationFailure::Preparation)?
+        .finish_without_external_evidence()
+}
+
+/// Typing may refuse both before and after evaluation. Keep its diagnostic
+/// attached to the producer even when the caller requested a prepared package.
+/// `Typing` is the entry pass, before any static answer exists. `ResumedTyping`
+/// is a retype that consumed answers this layer evaluated, so L4 was reached
+/// even though L3 owns the refusal.
+#[derive(Debug)]
+pub enum PreparationFailure {
+    Typing(TypeError),
+    ResumedTyping(TypeError),
+    Preparation(PreparationRefusal),
+    MissingTarget(PreparationRefusal),
+}
+
+impl PreparationFailure {
+    pub fn diagnostic(&self) -> &TypeError {
+        match self {
+            Self::Typing(error) | Self::ResumedTyping(error) => error,
+            Self::Preparation(refusal) | Self::MissingTarget(refusal) => &refusal.diagnostic,
+        }
+    }
+
+    /// L3 owns typing refusals. L4 carries the cause for evaluation and target failures.
+    pub fn cause(&self) -> Option<RefusalCause> {
+        match self {
+            Self::Typing(_) | Self::ResumedTyping(_) => None,
+            Self::Preparation(refusal) | Self::MissingTarget(refusal) => Some(refusal.cause),
+        }
+    }
+
+    pub fn reason(&self) -> Option<PreparationReason> {
+        self.cause().and_then(RefusalCause::reason)
+    }
+
+    fn missing_target(demand: OpenTargetDemand) -> Self {
+        Self::MissingTarget(PreparationRefusal { diagnostic: demand.diagnostic, cause: demand.cause })
+    }
+}
+
+impl From<PreparationFailure> for TypeError {
+    fn from(failure: PreparationFailure) -> Self {
+        match failure {
+            PreparationFailure::Typing(error) | PreparationFailure::ResumedTyping(error) => error,
+            PreparationFailure::Preparation(refusal) | PreparationFailure::MissingTarget(refusal) => refusal.diagnostic,
+        }
+    }
 }
 
 /// One typing pass and the inputs under which its closed demands will run.
@@ -160,6 +217,7 @@ pub struct EvaluatedPreparationRound {
 pub enum PreparationAdvanceError {
     DifferentRound,
     Typing(TypeError),
+    Preparation(TypeError),
 }
 
 impl<'input, 'text> PreparationRound<'input, 'text> {
@@ -170,12 +228,14 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
     ) -> Result<Self, TypeError> {
         let state = PreparationState::default();
         let progress = state.type_package(source, slots)?;
-        Self::from_progress(source, slots, target, state, progress)
+        Self::from_progress(source, slots, target, state, progress).map_err(TypeError::from)
     }
 
-    fn finish_without_external_evidence(mut self) -> Result<PreparationProgress<'text>, TypeError> {
+    fn finish_without_external_evidence(mut self) -> Result<PreparationProgress<'text>, PreparationFailure> {
         loop {
-            let evaluated = self.evaluate(CheckedPreparationEvidence::default())?;
+            let evaluated = self
+                .evaluate_with_cause(CheckedPreparationEvidence::default())
+                .map_err(PreparationFailure::Preparation)?;
             match self.apply(evaluated.pass)? {
                 PreparationStep::Evaluate(next) => self = *next,
                 PreparationStep::Finished(product) => return Ok(product),
@@ -188,15 +248,14 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
         target: Option<&'input TargetSemantics>,
         state: PreparationState,
         progress: TypingProgress<'text>,
-    ) -> Result<Self, TypeError> {
+    ) -> Result<Self, PreparationRefusal> {
         if let (Some(catalog), Some(target)) = (source.assembly(), target)
             && &catalog.target != target.identity()
         {
-            return Err(TypeError::new(
-                String::new(),
-                String::new(),
-                omega_program_contracts::SourceSpan::new(0, 0),
-                "assembly catalog and preparation selected different targets",
+            let reason = PreparationReason::AssemblyTargetMismatch;
+            return Err(PreparationRefusal::rendered(
+                TypeError::new(String::new(), String::new(), omega_program_contracts::SourceSpan::new(0, 0), reason.text()),
+                reason,
             ));
         }
         Ok(Self {
@@ -217,6 +276,14 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
         &'stage self,
         evidence: CheckedPreparationEvidence<'stage, 'text>,
     ) -> Result<EvaluatedPreparationRound, TypeError> {
+        self.evaluate_with_cause(evidence).map_err(TypeError::from)
+    }
+
+    /// Evaluate as `evaluate` does and keep the typed cause of a refusal.
+    pub fn evaluate_with_cause<'stage>(
+        &'stage self,
+        evidence: CheckedPreparationEvidence<'stage, 'text>,
+    ) -> Result<EvaluatedPreparationRound, PreparationRefusal> {
         let pass = typing_pass::evaluate_pass(&self.progress, self.slots, self.target, evidence, &self.state.completed)?;
         Ok(EvaluatedPreparationRound {
             identity: self.identity.clone(),
@@ -233,14 +300,16 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
         if !Arc::ptr_eq(&self.identity, &evaluated.identity) {
             return Err(PreparationAdvanceError::DifferentRound);
         }
-        self.apply(evaluated.pass)
-            .map_err(PreparationAdvanceError::Typing)
+        self.apply(evaluated.pass).map_err(|error| match error {
+            PreparationFailure::Typing(e) | PreparationFailure::ResumedTyping(e) => PreparationAdvanceError::Typing(e),
+            PreparationFailure::Preparation(e) | PreparationFailure::MissingTarget(e) => PreparationAdvanceError::Preparation(e.diagnostic),
+        })
     }
 
     fn apply(
         self,
         pass: PreparedPass,
-    ) -> Result<PreparationStep<'input, 'text>, TypeError> {
+    ) -> Result<PreparationStep<'input, 'text>, PreparationFailure> {
         let Self {
             source,
             slots: boundary_slots,
@@ -280,7 +349,10 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                         .first()
                         .expect("pending typing has a demand")
                         .request();
-                    return Err(refusal(&request.expression, "typing did not advance after receiving the evaluation result"));
+                    return Err(PreparationFailure::Preparation(refusal(
+                        &request.expression,
+                        PreparationReason::TypingDidNotAdvance,
+                    )));
                 }
                 answers
             }
@@ -289,11 +361,12 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                     // A new target changes the subject of the certified bound. A sponsored
                     // closure starts under the grant and certificate for that target.
                     if state.resource_receipt.is_some() {
-                        return Err(demands
-                            .into_iter()
-                            .next()
-                            .expect("open package has a target demand")
-                            .diagnostic);
+                        return Err(PreparationFailure::missing_target(
+                            demands
+                                .into_iter()
+                                .next()
+                                .expect("open package has a target demand"),
+                        ));
                     }
                     return Ok(PreparationStep::Finished(PreparationProgress::OpenTarget(OpenTargetPreparation {
                         source: source.clone(),
@@ -316,13 +389,12 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                     .push(SpecializedIndexValue { request, arguments, value }),
             }
         }
-        let progress = state.type_package(source, boundary_slots)?;
-        Ok(PreparationStep::Evaluate(Box::new(Self::from_progress(
-            source,
-            boundary_slots,
-            target,
-            state,
-            progress,
-        )?)))
+        // This pass consumes answers evaluated above: a refusal here is resumed typing.
+        let progress = state
+            .type_package(source, boundary_slots)
+            .map_err(PreparationFailure::ResumedTyping)?;
+        Ok(PreparationStep::Evaluate(Box::new(
+            Self::from_progress(source, boundary_slots, target, state, progress).map_err(PreparationFailure::Preparation)?,
+        )))
     }
 }

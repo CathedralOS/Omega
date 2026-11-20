@@ -1,3 +1,5 @@
+#[path = "support/known_gap.rs"]
+mod known_gap;
 #[path = "support/source.rs"]
 mod source;
 
@@ -87,6 +89,7 @@ fn a_replaced_home_never_parks_with_its_first_descriptor() {
         let text = program(initial, latest, true);
         let err = source::lower(&[("replaced.omg", &text)]).unwrap_err();
         assert_eq!(err.message, UNTRACED);
+        known_gap::report(&format!("suspend after replacing {initial} with {latest}"), "The parked record needs the latest descriptor's origin", &text, &err);
         assert!(
             err.site
                 .span

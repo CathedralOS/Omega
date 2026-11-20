@@ -48,7 +48,7 @@ fn carrying_a_value_does_not_grant_access_to_its_fields() {
     ] {
         let error = type_carried_point(source, false).unwrap_err();
         assert_eq!(error.package, "app");
-        assert_eq!(error.message, "selecting geometry\\Point requires a direct dependency on geometry");
+        spec_corpus::observe_handoff!("authority-in-typed-member-selection/refusal", assert_eq!(error.message, "selecting geometry\\Point requires a direct dependency on geometry"));
         assert_eq!(error.span.slice(source.as_bytes()), Some(selection.as_bytes()));
         type_carried_point(source, true).unwrap();
     }

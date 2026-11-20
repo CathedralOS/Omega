@@ -21,6 +21,23 @@ fn block(
         .source_text
 }
 
+/// The refusal must point inside `region`, the first occurrence of that text in `source`.
+fn assert_span_within(
+    source: &str,
+    start: usize,
+    end: usize,
+    region: &str,
+) {
+    let at = source
+        .find(region)
+        .unwrap_or_else(|| panic!("missing region {region:?}"));
+    assert!(
+        at <= start && start < end && end <= at + region.len(),
+        "span {:?} lies outside {region:?}",
+        source.get(start..end)
+    );
+}
+
 #[test]
 fn published_cleanup_clauses_select_owned_hooks() {
     for (line, declarations, owner, clause) in [
@@ -57,7 +74,12 @@ fn cleanup_selection_checks_bounds_even_when_the_parameter_is_absent_from_the_ho
     assert_eq!(stage.cleanups[0].arguments[0].to_string(), "u8");
     let wrong = src.replace("dispose<u8>", "dispose<R>");
     let error = check(&[("cleanup.omg", &wrong)]).unwrap_err();
-    assert!(error.message.contains("does not satisfy Copy"), "{error:?}");
+    assert_eq!(error.file, "cleanup.omg");
+    assert_eq!(error.message, "type argument game\\R does not satisfy Copy for dispose");
+    // The refused argument is the one written in the cleanup clause, not the hook's binder.
+    let argument = wrong.find("dispose<R>").unwrap() + "dispose<".len();
+    assert_eq!(error.span.get_start_offset(), argument, "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"R".as_slice()));
 }
 
 #[test]
@@ -112,7 +134,7 @@ fn published_domain_casts_require_complete_accounting() {
                 .iter()
                 .find(|call| call.site.span.slice(source.as_bytes()) == Some(b"self < 100"))
                 .unwrap();
-            assert_eq!(call.machine.path, "Positive::less");
+            spec_corpus::observe_handoff!("predicate-subject/consumer", assert_eq!(call.machine.path, "Positive::less"));
             let reversed = source.replace("7 as +Positive +Positive::Small", "7 as +Positive::Small +Positive");
             check(&[("published.omg", &reversed)]).unwrap();
         }
@@ -214,6 +236,7 @@ fn published_range_views_preserve_bounds_and_authority() {
     let bad = commented.strip_prefix("// Rejected: ").unwrap();
     let source = format!("machine read(view:@mut [u8]) {{ {bad} }}");
     let error = check(&[("published.omg", &source)]).unwrap_err();
+    assert_eq!(error.file, "published.omg");
     assert!(error.message.starts_with("expected @mut [u8], found @[u8]"), "{error:?}");
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"view[2..4]".as_slice()));
 }
@@ -330,6 +353,7 @@ fn published_numeric_landings_do_not_mask_each_others_verdicts() {
     ] {
         let source = wrap(line);
         let error = check(&[("published.omg", &source)]).unwrap_err();
+        assert_eq!(error.file, "published.omg");
         assert!(error.message.contains(reason), "{error:?}");
         assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()));
     }
@@ -400,7 +424,8 @@ fn published_domain_predicate_reads_the_carriers_field() {
     .unwrap_err();
     assert_eq!(error.file, "predicate.omg");
     assert_eq!(error.span, comparison.site.span);
-    assert!(error.message.contains("no matching operator >"), "{error:?}");
+    // The healthy i32 field above selected the same comparison; only the field type changed.
+    assert!(error.message.starts_with("no matching operator > for bool and "), "{error:?}");
 }
 
 #[test]
@@ -430,7 +455,10 @@ fn published_domain_alias_normalizes_to_the_two_socket_domains() {
     let error = check(&[files[0], files[1], ("caller.omg", &incomplete)]).unwrap_err();
     assert_eq!(error.file, "caller.omg");
     assert_eq!(error.span.slice(incomplete.as_bytes()), Some(b"use_socket".as_slice()));
-    assert!(error.message.contains("no matching overload"), "{error:?}");
+    assert_eq!(
+        error.message,
+        "no matching overload for use_socket(game\\Socket in game\\Socket::Connected)"
+    );
 }
 
 #[test]
@@ -455,6 +483,8 @@ fn published_record_pattern_binds_the_version_only_in_its_arm() {
     let error = check(&[("definitions.omg", &wrong), ("pattern.omg", &body)]).unwrap_err();
     assert_eq!(error.file, "pattern.omg");
     assert_eq!(error.span.slice(body.as_bytes()), Some(b"accept".as_slice()));
+    // The arm-bound version keeps the u16 field type the changed parameter no longer accepts.
+    assert_eq!(error.message, "no matching overload for accept(u16)");
 }
 
 #[test]
@@ -544,6 +574,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
         ("invoke.omg", &wrong),
     ])
     .unwrap_err();
+    assert_eq!(err.file, "invoke.omg");
     assert_eq!(err.message, "expected @mut game\\Counter, found @game\\Counter");
 }
 
@@ -574,7 +605,12 @@ fn published_pause_markers_cover_each_required_effect() {
         let wrong = body.replace(proper, missing);
         let error = check(&[("defs.omg", defs), ("calls.omg", &wrong)]).unwrap_err();
         assert_eq!(error.file, "calls.omg");
-        assert!(error.message.contains(effect) && error.message.contains("acknowledgement"), "{error:?}");
+        assert_eq!(error.message, format!("call requires a {effect} acknowledgement"), "{missing}");
+        // The refused call is the one that lost its marker, not a neighbouring call.
+        let callee = missing.rsplit(' ').next().unwrap();
+        let site = error.span.slice(wrong.as_bytes()).unwrap();
+        assert!(site.windows(callee.len()).any(|w| w == callee.as_bytes()), "{error:?}");
+        assert_span_within(&wrong, error.span.get_start_offset(), error.span.get_end_offset(), &format!("{missing}()"));
     }
 }
 
@@ -601,7 +637,14 @@ fn published_sort_requirement_binds_each_calls_element_and_ordering() {
         ("calls.omg", &wrong),
     ])
     .unwrap_err();
+    assert_eq!(error.file, "calls.omg");
     assert_eq!(error.message, "selected evidence has the wrong trait application");
+    assert_span_within(
+        &wrong,
+        error.span.get_start_offset(),
+        error.span.get_end_offset(),
+        "Sorting::sort::<u8,WideOrder>(xs)",
+    );
 }
 
 #[test]
@@ -624,18 +667,25 @@ fn published_static_parameters_require_the_declared_argument_role() {
             .collect::<Vec<_>>(),
         ["sort", "install", "apply"]
     );
-    for (bad_defs, bad_call, reason) in [
+    for (bad_defs, bad_call, reason, region) in [
         (
             defs.replace(" satisfies HookProcedure::call {}", " {}"),
             caller.to_owned(),
-            "exact satisfaction edge",
+            "selected machine lacks the exact satisfaction edge",
+            "install::<handle>(slot)",
         ),
-        (defs.to_owned(), caller.replace("::<identity>", "::<handle>"), "signature"),
+        (
+            defs.to_owned(),
+            caller.replace("::<identity>", "::<handle>"),
+            "selected machine has incompatible callable signature",
+            "apply::<handle>(1)",
+        ),
         (
             defs.replace("ByteRank satisfies Ranked<u8>", "ByteRank satisfies Ranked<u16>")
                 .replace("before(a:u8,b:u8)", "before(a:u16,b:u16)"),
             caller.to_owned(),
-            "wrong trait application",
+            "selected evidence has the wrong trait application",
+            "sort::<u8,ByteRank>(xs)",
         ),
     ] {
         let error = check(&[
@@ -645,7 +695,8 @@ fn published_static_parameters_require_the_declared_argument_role() {
         ])
         .unwrap_err();
         assert_eq!(error.file, "caller.omg");
-        assert!(error.message.contains(reason), "{error:?}");
+        assert_eq!(error.message, reason, "{error:?}");
+        assert_span_within(&bad_call, error.span.get_start_offset(), error.span.get_end_offset(), region);
     }
 }
 
@@ -664,7 +715,7 @@ fn published_record_call_selects_the_shared_counter_field() {
     let wrong = decls.replace("machine value(counter: @Counter)", "machine value(counter: @mut Counter)");
     let error = check(&[("defs.omg", &wrong), ("observe.omg", &caller)]).unwrap_err();
     assert_eq!(error.file, "observe.omg");
-    assert!(error.message.contains("incompatible callable signature"));
+    assert_eq!(error.message, "selected machine has incompatible callable signature", "{error:?}");
 }
 
 #[test]
@@ -680,7 +731,7 @@ fn published_static_type_disjunction_reaches_typing() {
     assert_eq!(comparisons, 3);
     let shadow = source.replace("restrict<T>()", "restrict<T>(u32:u16)");
     let error = check(&[("clause.omg", &shadow)]).unwrap_err();
-    assert_eq!(error.message, "type equality mixes a type and a value");
+    spec_corpus::observe_handoff!("typing-from-resolved-bindings/refusal", assert_eq!(error.message, "type equality mixes a type and a value"));
     assert_eq!(error.span.slice(shadow.as_bytes()), Some(b"T == u32".as_slice()));
 }
 
@@ -688,10 +739,10 @@ fn published_static_type_disjunction_reaches_typing() {
 fn explicit_quantity_carrier_matches_the_subject_in_every_domain_position() {
     let declaration = block(DOMAINS, 1020);
     let defs = "data Unit=u8;";
-    for body in [
-        "machine f(x:u16 in u16::Quantity<1>) {}",
-        "machine f(x:u16){let y=x as +u16::Quantity<1>;}",
-        "machine f(x:u16)->bool{x in u16::Quantity::<1>}",
+    for (body, region) in [
+        ("machine f(x:u16 in u16::Quantity<1>) {}", "u16::Quantity<1>"),
+        ("machine f(x:u16){let y=x as +u16::Quantity<1>;}", "+u16::Quantity<1>"),
+        ("machine f(x:u16)->bool{x in u16::Quantity::<1>}", "u16::Quantity::<1>"),
     ] {
         check(&[
             ("defs.omg", defs),
@@ -706,7 +757,9 @@ fn explicit_quantity_carrier_matches_the_subject_in_every_domain_position() {
             ("use.omg", &wrong),
         ])
         .unwrap_err();
+        assert_eq!(error.file, "use.omg");
         assert_eq!(error.message, "domain qualifier names u16, found u8");
+        assert_span_within(&wrong, error.span.get_start_offset(), error.span.get_end_offset(), region);
     }
 }
 
@@ -740,22 +793,43 @@ fn domain_qualification_keeps_the_bound_carrier_and_indices_separate() {
     let good = "machine f(x:Packet<u32> in Length<2>) {}";
     check(&[("defs.omg", fixed), ("use.omg", good)]).unwrap();
     let wrong_qualifier = "machine f(x:Packet<u32> in Packet<u16>::Length<2>) {}";
-    assert!(
-        check(&[("defs.omg", fixed), ("use.omg", wrong_qualifier)])
-            .unwrap_err()
-            .message
-            .contains("domain qualifier names")
-    );
+    let error = check(&[("defs.omg", fixed), ("use.omg", wrong_qualifier)]).unwrap_err();
+    assert_eq!(error.file, "use.omg");
+    assert_eq!(error.message, "domain qualifier names game\\Packet<u16>, found game\\Packet<u32>");
+    assert_eq!(error.span.slice(wrong_qualifier.as_bytes()), Some(b"Packet<u16>::Length<2>".as_slice()));
     let wrong_carrier = good.replace("Packet<u32>", "Packet<u16>");
+    let error = check(&[("defs.omg", fixed), ("use.omg", &wrong_carrier)]).unwrap_err();
+    assert_eq!(error.file, "use.omg");
     assert!(
-        check(&[("defs.omg", fixed), ("use.omg", &wrong_carrier)])
-            .unwrap_err()
-            .message
-            .contains("belongs to")
+        error.message.starts_with("domain ")
+            && error
+                .message
+                .ends_with(" belongs to game\\Packet<u32>, found game\\Packet<u16>"),
+        "{error:?}"
+    );
+    assert_span_within(
+        &wrong_carrier,
+        error.span.get_start_offset(),
+        error.span.get_end_offset(),
+        "Packet<u16> in Length<2>",
     );
     let wrong = "machine f<U,V>(x:V in U::Level<2>) {}";
     let err = check(&[("definitions.omg", definitions), ("wrong.omg", wrong)]).unwrap_err();
-    assert!(err.message.contains("domain qualifier names"), "{err:?}");
+    assert_eq!(err.file, "wrong.omg");
+    assert_eq!(err.message, "domain qualifier names game\\f<parameter 0>, found game\\f<parameter 1>");
+    assert_eq!(err.span.slice(wrong.as_bytes()), Some(b"U::Level<2>".as_slice()));
+}
+
+#[test]
+fn a_nested_domain_checks_the_written_data_carriers_arguments() {
+    let declarations = "data Packet<T>{field:T;} domain<const N:u8> Packet<u32>::Length<N>; domain Packet<u32>::Length<2>::Pair;";
+    let good = "machine f(x:Packet<u32> in Packet<u32>::Length<2>::Pair){}";
+    check(&[("defs.omg", declarations), ("use.omg", good)]).unwrap();
+    let bad = good.replace("in Packet<u32>", "in Packet<u16>");
+    let refusal = check(&[("defs.omg", declarations), ("use.omg", &bad)]).unwrap_err();
+    assert_eq!(refusal.file, "use.omg");
+    assert_eq!(refusal.span.slice(bad.as_bytes()), Some(b"Packet<u16>::Length<2>::Pair".as_slice()));
+    assert_eq!(refusal.message, "domain qualifier names game\\Packet<u16>, found game\\Packet<u32>");
 }
 
 #[test]
@@ -789,10 +863,21 @@ fn an_annotated_domain_carrier_takes_its_role_from_its_bound() {
             assert_eq!(parameter.domains()[0].declaration.path, "T::Level");
         }
     }
-    let domain = ("domain.omg", "domain<const T:Byte> T::Level<T>;");
+    // A value-bound T cannot be the carrier: with no type named T in scope, the head's
+    // argument list has no type declaration to apply to. L2 resolved the head (check
+    // would panic otherwise), so this refusal is L3 carrier formation.
+    let source = "domain<const T:Byte> T::Level<T>;";
+    let domain = ("domain.omg", source);
     let invalid = check(&[aliases, domain]).unwrap_err();
-    assert!(invalid.message.contains("type"), "{invalid:?}");
+    assert_eq!(invalid.package, "game");
+    assert_eq!(invalid.file, "domain.omg");
+    assert_eq!(invalid.message, "expected a type declaration or type parameter");
+    assert_eq!(invalid.span.slice(source.as_bytes()), Some(b"T::Level<T>".as_slice()));
+    // Healthy controls in the same context: the same value binder indexes a concrete
+    // carrier, and the same head is admitted once a type named T is visible.
+    check(&[aliases, ("domain.omg", "domain<const T:Byte> u8::Level<T>;")]).unwrap();
     let shadow = ("shadow.omg", "data T {}");
+    check(&[aliases, domain, shadow]).unwrap();
     let caller = ("main.omg", "machine f(x:T in T::Level<2>) {}");
     let typed = check(&[aliases, domain, shadow, caller]).unwrap();
     assert!(matches!(typed.signatures[0].parameters[0].1.carrier(), ValueType::Nominal(id) if id.path == "T"));
@@ -808,11 +893,51 @@ fn a_bound_decides_which_visible_domain_applies_to_the_written_carrier() {
         "machine f() {let tagged=1 as +u16::Tag<2>;}",
     ] {
         let stage = check(&[("first.omg", source), ("last.omg", defs)]).unwrap();
-        assert!(
-            stage
-                .memberships
-                .iter()
-                .all(|m| m.domain.declaration.path == "u16::Tag")
+        let word = ValueType::Integer { signed: false, width: Some(16) };
+        let word_domains: Vec<_> = stage
+            .domain_carriers
+            .iter()
+            .filter(|(_, carrier)| **carrier == word)
+            .map(|(declaration, _)| declaration)
+            .collect();
+        let [word_domain] = word_domains.as_slice() else {
+            panic!("expected exactly one u16 domain, found {word_domains:?}")
+        };
+        assert_eq!(word_domain.path, "u16::Tag");
+        // Every typed use of the written domain: the membership test, the
+        // aliased parameter, or the binding that receives the cast result.
+        let applied: Vec<_> = stage
+            .memberships
+            .iter()
+            .map(|membership| &membership.domain)
+            .chain(
+                stage
+                    .signatures
+                    .iter()
+                    .filter(|signature| signature.machine.path == "f")
+                    .flat_map(|signature| signature.parameters.iter().flat_map(|(_, ty)| ty.domains())),
+            )
+            .chain(
+                stage
+                    .type_alias_targets
+                    .iter()
+                    .filter(|(alias, _)| alias.path == "Applied")
+                    .flat_map(|(_, ty)| ty.domains()),
+            )
+            .chain(
+                stage
+                    .expressions
+                    .iter()
+                    .filter(|expression| expression.site.span.slice(source.as_bytes()) == Some(b"tagged".as_slice()))
+                    .flat_map(|expression| expression.ty.domains()),
+            )
+            .collect();
+        spec_corpus::observe_handoff!(
+            "domain-declarations/consumer",
+            assert!(
+                !applied.is_empty() && applied.iter().all(|domain| &domain.declaration == *word_domain),
+                "{source}: {applied:?}"
+            )
         );
     }
     let both = "data T{} domain<T:core\\Type<0>,const N:u8> T::Tag<N>; domain<const N:u8> u16::Tag<N>;";
@@ -949,10 +1074,12 @@ fn a_child_preserves_the_exact_parent_application() {
         assert_eq!(parent.arguments[0].to_string(), index);
         assert!(matches!(&parent.arguments[0], ValueType::StaticInteger {carrier,..} if carrier.to_string()=="u8"));
     }
-    for annotation in ["u8 in Limit<7>::Pair", "Limit<7>::Nested<3>"] {
+    for (annotation, expected) in [("u8 in Limit<7>::Pair", 2), ("Limit<7>::Nested<3>", 3)] {
         let wrong = format!("use u8::Limit; machine f(x:{annotation}) {{}}");
         let error = check(&[("use.omg", &wrong), ("domains.omg", defs)]).unwrap_err();
-        assert!(error.message.contains("parent domain"), "{error:?}");
+        assert_eq!(error.file, "use.omg");
+        assert_eq!(error.message, format!("parent domain u8::Limit expects {expected}, found 7"), "{error:?}");
+        assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"7".as_slice()));
     }
 }
 
@@ -971,12 +1098,8 @@ fn aliases_share_their_targets_ownership_properties_across_files() {
     let wrong = alias.replace("[linear]", "[copy]");
     let error = check(&[("alias.omg", &wrong), ("owner.omg", owner)]).unwrap_err();
     assert_eq!(error.file, "alias.omg");
-    assert!(
-        error
-            .message
-            .contains("cannot change its target's multiplicity"),
-        "{error:?}"
-    );
+    assert_eq!(error.message, "a transparent alias cannot change its target's multiplicity", "{error:?}");
+    assert_span_within(&wrong, error.span.get_start_offset(), error.span.get_end_offset(), "data Resource [copy]=Item;");
 }
 #[test]
 fn case_discriminators_distinguish_complete_arms_from_payload_tests() {

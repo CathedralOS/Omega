@@ -1,5 +1,5 @@
 //! Bind a machine's qualifier once. A module qualifies its name without choosing an operator home.
-use super::{Catalog, Context, Entry, NameError, NameRole, NameUse, OperatorDeclaration, Symbol, callable};
+use super::{Catalog, Context, Entry, NameError, NameErrorKind, NameRole, NameUse, OperatorDeclaration, Symbol, callable};
 use crate::syntax::File;
 use omega_syntax::NodeKind;
 
@@ -30,7 +30,7 @@ impl Catalog<'_> {
             let head = *head;
             let path = super::module_child(&file.namespace, module);
             if !self.modules.contains(&(file.package.into(), path.clone())) {
-                return Err(file.error(file.span(head), format!("unresolved module owner {module}")));
+                return Err(file.error(NameErrorKind::UnresolvedModuleOwner, file.span(head), format!("unresolved module owner {module}")));
             }
             uses.push(super::usage(
                 file,
@@ -53,18 +53,22 @@ impl Catalog<'_> {
             slots.sort_unstable();
             slots.dedup();
             if slots.iter().any(|&i| self.entries[i].id.kind == Data) {
-                return Err(file.error(span, "a data carrier cannot own a machine"));
+                return Err(file.error(NameErrorKind::IneligibleMachineOwner, span, "a data carrier cannot own a machine"));
             }
             if slots.iter().any(|&i| callable(self.entries[i].id.kind)) {
-                return Err(file.error(span, format!("machine {name} cannot qualify a declaration outside its body")));
+                return Err(file.error(
+                    NameErrorKind::IneligibleMachineOwner,
+                    span,
+                    format!("machine {name} cannot qualify a declaration outside its body"),
+                ));
             }
             let symbol = match slots.as_slice() {
-                [] => return Err(file.error(span, format!("unresolved machine owner {name}"))),
+                [] => return Err(file.error(NameErrorKind::UnresolvedMachineOwner, span, format!("unresolved machine owner {name}"))),
                 [slot] if matches!(self.entries[*slot].id.kind, Domain | Trait | Conformance) => Symbol::Declaration(self.entries[*slot].id.clone()),
-                [_] => return Err(file.error(span, format!("{name} cannot qualify a machine declaration"))),
+                [_] => return Err(file.error(NameErrorKind::IneligibleMachineOwner, span, format!("{name} cannot qualify a machine declaration"))),
                 _ => self
                     .occurrence_symbol(file, ctx, span, &slots, &attachments)
-                    .map_err(|_| file.error(span, format!("ambiguous machine owner {name}")))?,
+                    .map_err(|_| file.error(NameErrorKind::AmbiguousMachineOwner, span, format!("ambiguous machine owner {name}")))?,
             };
             for slot in slots {
                 self.require_carrier(file, slot, head, span, visibility)?;

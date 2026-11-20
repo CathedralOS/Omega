@@ -126,7 +126,7 @@ fn select_place<'a>(
     let mut selected_type = None;
     loop {
         let site = site_at(tree, current);
-        // A field of a computed copyable record reads the result of that
+        // A field of a computed record reads the result of that
         // expression. Its calls, selections and bounds checks execute once.
         if usage == PlaceUse::ScalarRead
             && !fields.is_empty()
@@ -142,12 +142,8 @@ fn select_place<'a>(
                     _ => None,
                 })
                 .ok_or_else(|| LoweringError::new(&site, "field receiver has no result type"))?;
-            let id = expressions
-                .types
-                .id_for(ty)
-                .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-            if ty.nominal_parts().is_none() || super::ownership::owned(id, expressions.types, expressions.data) {
-                return Err(LoweringError::new(&site, "computed field receiver requires a copyable record"));
+            if ty.nominal_parts().is_none() {
+                return Err(LoweringError::new(&site, "computed field receiver requires a record"));
             }
             fields.reverse();
             return Ok((PlaceRoot::Expression(current, ty), fields, selected_type.expect("field has a selected type")));

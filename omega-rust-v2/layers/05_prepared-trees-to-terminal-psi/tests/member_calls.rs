@@ -1,6 +1,6 @@
 #[path = "support/source.rs"]
 mod source;
-use omega_lowering::{CallArgument, CallTarget, MemberRealization, OperationKind, StaticArgument};
+use omega_lowering::{CallTarget, MemberRealization, OperationKind, StaticArgument};
 
 #[test]
 fn boundary_demand_preserves_the_requirement_and_authored_argument_interleave() {
@@ -31,22 +31,19 @@ fn boundary_demand_preserves_the_requirement_and_authored_argument_interleave() 
             .find(|r| r.declaration == selection.requirement.declaration)
             .unwrap();
         assert_eq!(declaration.parameter_types, selection.parameters);
-        let [
-            omega_lowering::Parameter::Scalar(n),
-            omega_lowering::Parameter::Structural(bytes),
-            omega_lowering::Parameter::Scalar(last),
-        ] = run.body.parameters.as_slice()
-        else {
-            panic!("unexpected parameter lanes")
-        };
-        assert_eq!(
-            arguments,
-            &[
-                CallArgument::Scalar(*last),
-                CallArgument::CopyWhole(*bytes),
-                CallArgument::Scalar(*n)
-            ]
+        assert!(
+            matches!(
+                run.body.parameters.as_slice(),
+                [
+                    omega_lowering::Parameter::Scalar(_),
+                    omega_lowering::Parameter::Structural(_),
+                    omega_lowering::Parameter::Scalar(_)
+                ]
+            ),
+            "unexpected parameter lanes"
         );
+        // `negative_controls.rs` swaps the two equal-typed scalars and requires this witness to reject them.
+        psi_handoff_consumer::product_witness::call_reads_formals(&run.body, arguments, &[2, 1, 0]).unwrap();
     }
 }
 

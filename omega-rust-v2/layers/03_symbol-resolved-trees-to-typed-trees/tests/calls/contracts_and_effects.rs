@@ -189,19 +189,25 @@ fn cleanup_is_an_exact_owned_call_and_conflicting_domain_plans_reject() {
     assert_eq!(stage.cleanups.len(), 2);
     for hook in &stage.cleanups {
         assert_eq!(hook.site.span.slice(source.as_bytes()), Some(b"dropped by end".as_slice()));
-        assert!(
-            stage
-                .obligations
-                .iter()
-                .any(|o| o.site == hook.site && matches!(&o.kind, omega_typer::ObligationKind::CleanupContract(machine) if machine == &hook.machine))
+        spec_corpus::observe_handoff!(
+            "cleanup-selection/producer",
+            assert!(
+                stage
+                    .obligations
+                    .iter()
+                    .any(|o| o.site == hook.site && matches!(&o.kind, omega_typer::ObligationKind::CleanupContract(machine) if machine == &hook.machine))
+            )
         );
     }
     let conflicting = source.replace("::Live dropped by end", "::Live dropped by other") + " machine other(r:R){}";
-    assert!(
-        check(&[("resource.omg", &conflicting)])
-            .unwrap_err()
-            .message
-            .contains("conflicting cleanup")
+    spec_corpus::observe_handoff!(
+        "cleanup-selection/refusal",
+        assert!(
+            check(&[("resource.omg", &conflicting)])
+                .unwrap_err()
+                .message
+                .contains("conflicting cleanup")
+        )
     );
     let wrong = source.replace("end(r:R)", "end(r:@R)");
     assert!(
@@ -222,11 +228,14 @@ fn crash_causes_and_checked_arithmetic_keep_their_proof_sites() {
             .iter()
             .any(|e| e.machine.path == "risky" && e.crash_ceiling == Some(vec![omega_typer::CrashCause::Trap]))
     );
-    assert!(
-        stage
-            .obligations
-            .iter()
-            .any(|o| matches!(&o.kind,omega_typer::ObligationKind::CrashCoverage{machine,cause:omega_typer::CrashCause::Trap} if machine.path=="use_it"))
+    spec_corpus::observe_handoff!(
+        "obligations-at-the-source-operation/producer",
+        assert!(
+            stage
+                .obligations
+                .iter()
+                .any(|o| matches!(&o.kind,omega_typer::ObligationKind::CrashCoverage{machine,cause:omega_typer::CrashCause::Trap} if machine.path=="use_it"))
+        )
     );
     let conflicting = "machine wrong() crashes none crashes Abort{}";
     assert!(
@@ -330,9 +339,9 @@ fn admitted_ranking_views_check_the_subject_arguments_and_rank_bounds() {
         });
         if let Some((view, rank)) = selection {
             let witness = witnesses.next().unwrap();
-            assert_eq!(witness.node, file.node_id(node));
+            spec_corpus::observe_handoff!("ranking-witnesses/producer", assert_eq!(witness.node, file.node_id(node)));
             assert_eq!(witness.machine.path, machine);
-            assert_eq!(witness.view.path, view);
+            spec_corpus::observe_handoff!("access-plans-and-progress/producer", assert_eq!(witness.view.path, view));
             assert_eq!(witness.rank, rank);
         }
         assert!(witnesses.next().is_none());
@@ -393,7 +402,7 @@ fn admitted_ranking_views_check_the_subject_arguments_and_rank_bounds() {
         ("Down(flag)", "Down(x)", "expected bool"),
     ] {
         let error = run(&source.replace(original, replacement)).unwrap_err();
-        assert!(error.message.contains(message), "{error:?}");
+        spec_corpus::observe_handoff!("ranking-witnesses/refusal", assert!(error.message.contains(message), "{error:?}"));
     }
 }
 
@@ -556,11 +565,14 @@ fn governed_domains_require_the_admitted_policy_requirement() {
         && o.site.span.slice(code.as_bytes()) == Some(b"access Rule")
         && matches!(&o.kind, omega_typer::ObligationKind::EvaluateAccessPlan { domain,machine }
             if domain.path=="C::Locked" && machine.path=="Rule::plan")));
-    assert!(
-        run("OtherPolicy::plan")
-            .unwrap_err()
-            .message
-            .contains("does not supply")
+    spec_corpus::observe_handoff!(
+        "access-plans-and-progress/refusal",
+        assert!(
+            run("OtherPolicy::plan")
+                .unwrap_err()
+                .message
+                .contains("does not supply")
+        )
     );
     assert!(run("").unwrap_err().message.contains("requires the admitted"));
 }

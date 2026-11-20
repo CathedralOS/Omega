@@ -18,6 +18,8 @@ A return carries the identity of its scalar value or structural source place. Tw
 
 ## Operations and declarations
 
+A zero-initialized nominal local carries its selected record type into Psi. The establishment operation names its storage at the binding site. Discarding that local at return identifies the same storage. [Zero-value handoff](tests/obligation_outputs.rs)
+
 A folded integer such as `-1` or `1 - 2` supplies its typed value to both executable comparisons and contract predicates. A negated runtime operand still emits the arithmetic operation and its proof obligation.
 
 The current product also represents ordered integer operations, exact integer casts, Boolean branches and joins, local scalar assignments, and ordinary and terminal direct calls. A terminal call forwards completion. An ordinary call can produce a scalar or a fresh structural result place, or return unit. Scalar requirements and guarantees refer to the formal parameter or result. Each call identifies the requirements its actual operands must establish. A fixed-array read carries the root place, ordered selectors and a separate bounds obligation at each dimension. [Arithmetic](tests/arithmetic.rs) · [Branches](tests/branches.rs) · [Calls](tests/calls.rs) · [Contracts](tests/contracts.rs) · [Array access](tests/access.rs)

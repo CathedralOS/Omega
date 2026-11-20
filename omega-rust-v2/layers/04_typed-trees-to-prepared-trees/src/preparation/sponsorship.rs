@@ -58,6 +58,7 @@ pub fn prepare_source_package_under_grant<'text>(
 ) -> Result<PreparedTrees<'text>, SponsoredPreparationError> {
     crate::PreparationRound::begin_under_grant(source, slots, target, grant, bound)?
         .finish_without_external_evidence()
+        .map_err(TypeError::from)
         .and_then(crate::PreparationProgress::into_complete)
         .map_err(SponsoredPreparationError::Preparation)
 }
@@ -149,10 +150,13 @@ mod tests {
         let prepared = run(grant).unwrap();
         assert_eq!(prepared.integer_constant(&prepared.typed().constants[0].declaration), Some(&7.into()));
         assert_eq!(prepared.resource_receipt().unwrap().bound, bound.resources);
-        assert!(matches!(
-            run(PreparationGrant { work_budget: 15, ..grant }),
-            Err(SponsoredPreparationError::InsufficientWork { required: 16, granted: 15 })
-        ));
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/refusal",
+            assert!(matches!(
+                run(PreparationGrant { work_budget: 15, ..grant }),
+                Err(SponsoredPreparationError::InsufficientWork { required: 16, granted: 15 })
+            ))
+        );
         assert!(matches!(
             run(PreparationGrant { peak_live_cells: 3, ..grant }),
             Err(SponsoredPreparationError::InsufficientLiveCells { required: 4, granted: 3 })
@@ -204,9 +208,12 @@ mod tests {
             panic!("the sponsored countdown freezes its result");
         };
         assert_eq!(prepared.integer_constant(&prepared.typed().constants[0].declaration), Some(&7.into()));
-        assert_eq!(
-            prepared.resource_receipt().unwrap(),
-            &PreparationResourceReceipt { grant, bound: bound.resources }
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/producer",
+            assert_eq!(
+                prepared.resource_receipt().unwrap(),
+                &PreparationResourceReceipt { grant, bound: bound.resources }
+            )
         );
     }
 }

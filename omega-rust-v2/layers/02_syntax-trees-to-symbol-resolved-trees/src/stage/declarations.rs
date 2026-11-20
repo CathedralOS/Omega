@@ -1,4 +1,4 @@
-use super::{Context, DeclarationId, Entry, Index, Local, NameError, Symbol, builtin, callable, in_subject_predicate, qualify, usage};
+use super::{Context, DeclarationId, Entry, Index, Local, NameError, NameErrorKind, Symbol, builtin, callable, in_subject_predicate, qualify, usage};
 use crate::syntax::File;
 use omega_resolved::{DomainCarrier, NameRole, NameUse, ResolvedSignature, TreeBindings};
 use omega_syntax::NodeKind;
@@ -36,7 +36,11 @@ fn check_local_binding(
             if matches!(binding.kind, ConstParam | KindedParam) || matches!(prior.kind, ConstParam | KindedParam) {
                 shadowed_generics.push(usage(file, binding.node, NameRole::ShadowedGeneric, binding.span, prior.symbol()));
             } else {
-                return Err(file.error(binding.span, format!("local binding {name} shadows a visible value binding")));
+                return Err(file.error(
+                    NameErrorKind::ShadowedValueBinding,
+                    binding.span,
+                    format!("local binding {name} shadows a visible value binding"),
+                ));
             }
         }
     }
@@ -97,10 +101,14 @@ pub(super) fn index_file<'a>(
                 } else {
                     "parameter"
                 };
-                return Err(file.error(leaf.span, format!("duplicate {category} {}", leaf.text)));
+                return Err(file.error(NameErrorKind::DuplicateParameter, leaf.span, format!("duplicate {category} {}", leaf.text)));
             }
             if builtin(leaf.text) && matches!(node.kind, TypeParam | SomeParam) {
-                return Err(file.error(leaf.span, format!("builtin type {} cannot be redeclared", leaf.text)));
+                return Err(file.error(
+                    NameErrorKind::BuiltinTypeRedeclared,
+                    leaf.span,
+                    format!("builtin type {} cannot be redeclared", leaf.text),
+                ));
             }
             let owner = scope();
             add_local(&mut ctx, leaf, owner, node.end, file.nodes[owner].end, node.kind != Param)?;
@@ -118,7 +126,7 @@ pub(super) fn index_file<'a>(
             let leaf = node.words().next_back();
             if let Some(leaf) = leaf.filter(|l| l.text != "_" && !node.leaves.iter().any(|t| t.text == ":")) {
                 if leaf.text == "self" && in_subject_predicate(file, n) {
-                    return Err(file.error(leaf.span, "the predicate subject self cannot be rebound"));
+                    return Err(file.error(NameErrorKind::PredicateSubjectRebound, leaf.span, "the predicate subject self cannot be rebound"));
                 }
                 let owner = scope();
                 let (start, end) = if file.nodes[pattern_owner].kind == Let {
@@ -140,7 +148,7 @@ pub(super) fn index_file<'a>(
         let Some((head, name, span)) = file.declaration_name(n) else { continue };
         ctx.heads.extend(head);
         if matches!(node.kind, Data | Trait) && builtin(&name) {
-            return Err(file.error(span, format!("builtin type {name} cannot be redeclared")));
+            return Err(file.error(NameErrorKind::BuiltinTypeRedeclared, span, format!("builtin type {name} cannot be redeclared")));
         }
         let owner = file
             .ancestors(n)
@@ -221,7 +229,11 @@ pub(super) fn index_file<'a>(
                     .iter()
                     .find(|(leaf, _, _)| index.children.is_empty() && leaf.text == name)
                 else {
-                    return Err(file.error(file.span(arg), "domain head index must name one of its own binders"));
+                    return Err(file.error(
+                        NameErrorKind::DomainIndexNotOwnBinder,
+                        file.span(arg),
+                        "domain head index must name one of its own binders",
+                    ));
                 };
                 ctx.domain_indices.insert(
                     arg,
@@ -281,9 +293,9 @@ impl super::Catalog<'_> {
                     Some((number, node)) => {
                         let file = &self.files[number];
                         let (_, _, span) = file.declaration_name(node).expect("indexed member");
-                        file.error(span, message)
+                        file.error(NameErrorKind::DuplicateMember, span, message)
                     }
-                    None => NameError::new(&id.package, &id.path, super::SourceSpan::new(0, 0), message),
+                    None => NameError::new(NameErrorKind::DuplicateCompiledMember, &id.package, &id.path, super::SourceSpan::new(0, 0), message),
                 });
             }
         }

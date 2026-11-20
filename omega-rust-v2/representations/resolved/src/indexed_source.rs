@@ -1,4 +1,4 @@
-use crate::NameError;
+use crate::{NameError, NameErrorKind};
 use omega_syntax::IndexedSyntax;
 use omega_tokens::SourceSpan;
 
@@ -53,9 +53,10 @@ impl<'a> IndexedSource<'a> {
     }
     pub fn error(
         &self,
+        kind: NameErrorKind,
         span: SourceSpan,
         reason: impl Into<String>,
     ) -> NameError {
-        NameError::new(self.package, self.path, span, reason)
+        NameError::new(kind, self.package, self.path, span, reason)
     }
 }

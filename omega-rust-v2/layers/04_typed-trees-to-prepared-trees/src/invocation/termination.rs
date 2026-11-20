@@ -6,8 +6,8 @@ use omega_typed::{MachineApplication, MachineEffects, TypedTrees};
 use std::cell::OnceCell;
 use std::collections::{HashMap, VecDeque};
 
-const CYCLIC_INVOCATION: &str = "a cyclic static invocation requires a checked termination proof";
-const UNRESOLVED_CALLBACK_CLOSURE: &str = "the exact static callback has an unresolved call in its termination closure";
+const CYCLIC_INVOCATION: PreparationReason = PreparationReason::CyclicInvocation;
+const UNRESOLVED_CALLBACK_CLOSURE: PreparationReason = PreparationReason::UnresolvedCallbackClosure;
 
 #[derive(Default)]
 pub(crate) struct TerminationAdmission<'trees, 'text> {
@@ -463,7 +463,7 @@ impl ConstantEvaluation<'_, '_> {
             }
         }
         if changed_selection {
-            return Err("the checked termination proof depends on a different target selection".into());
+            return Err(PreparationReason::TerminationProofTargetChanged.into());
         }
         if wrong_edge {
             return Err(CYCLIC_INVOCATION.into());
@@ -472,7 +472,7 @@ impl ConstantEvaluation<'_, '_> {
             let cycle = graph.cycle_from(index);
             return Err(self.call_refusal(CYCLIC_INVOCATION, &execution.chain, &cycle));
         }
-        Err("the selected ranked body requires a checked termination proof".into())
+        Err(PreparationReason::RankedBodyNeedsProof.into())
     }
 
     fn local_call_graph(&self) -> &LocalCallGraph<'_> {

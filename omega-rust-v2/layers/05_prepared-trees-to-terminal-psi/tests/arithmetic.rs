@@ -4,6 +4,17 @@ mod sources;
 #[path = "support/returns.rs"]
 mod returns;
 use returns::sole_return;
+#[allow(dead_code)]
+#[path = "obligation_outputs/pipeline.rs"]
+mod pipeline;
+use omega_typed::{ObligationKind, ValueType};
+
+/// Receipt for the L5 readiness report, printed after the checks above it pass.
+fn observed(label: &str) {
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        println!("OMEGA_L5_ASSERT\t{label}");
+    }
+}
 
 use omega_lowering::{
     ArithmeticPolicy, BooleanPrimitive, IntegerObligation, IntegerOperation, IntegerPrimitive, LoweredPackage, OperationKind, OperationResult, Parameter,
@@ -65,12 +76,16 @@ fn nested_integer_operations_keep_evaluation_order_and_local_policy() {
     assert_eq!(sole_return(body), ReturnEdge::Scalar(scalar_result(exact)));
 }
 
+/// Each numeric operator carries one `OperationContract` naming its token and
+/// typed operand carriers at its occurrence. The Psi integer operation at that
+/// same site takes its primitive and policy from the token and its questions
+/// from the carriers: signed and unsigned division are twins in one package.
 #[test]
 fn integer_questions_distinguish_quotient_range_and_shift_count_policy() {
     use ArithmeticPolicy::{Exact, Saturating, Wrapping};
     use IntegerObligation::{NonzeroDivisor, QuotientFitsCarrier, ResultFitsCarrier, ShiftCountInRange};
     use IntegerPrimitive::{Divide, Remainder, ShiftLeft, ShiftRight};
-    let package = lower(
+    let lowered = pipeline::lower(
         "machine exact_divide(value: i8, divisor: i8) -> i8 { value / divisor }
          machine exact_remainder(value: i8, divisor: i8) -> i8 { value % divisor }
          machine exact_shift(value: u13, count: i8) -> u13 { value << count }
@@ -80,24 +95,72 @@ fn integer_questions_distinguish_quotient_range_and_shift_count_policy() {
          machine wrapping_remainder(value: i8, divisor: i8) -> i8 { value %% divisor }
          machine wrapping_shift(value: u13, count: i8) -> u13 { value <<% count }",
     );
+    let package = &lowered.package;
+    let (s8, n8, n13) = ((true, 8), (false, 8), (false, 13));
+    // (occurrence, token, typed operand carriers, primitive, policy, questions)
     let expected = [
-        (Divide, Exact, [NonzeroDivisor, QuotientFitsCarrier].as_slice()),
-        (Remainder, Exact, [NonzeroDivisor, QuotientFitsCarrier].as_slice()),
-        (ShiftLeft, Exact, [ShiftCountInRange, ResultFitsCarrier].as_slice()),
-        (ShiftRight, Saturating, [ShiftCountInRange].as_slice()),
-        (Divide, Exact, [NonzeroDivisor].as_slice()),
-        (Remainder, Exact, [NonzeroDivisor].as_slice()),
-        (Remainder, Wrapping, [NonzeroDivisor].as_slice()),
-        (ShiftLeft, Wrapping, [].as_slice()),
+        (
+            "value / divisor",
+            "/",
+            [s8, s8],
+            Divide,
+            Exact,
+            [NonzeroDivisor, QuotientFitsCarrier].as_slice(),
+        ),
+        (
+            "value % divisor",
+            "%",
+            [s8, s8],
+            Remainder,
+            Exact,
+            [NonzeroDivisor, QuotientFitsCarrier].as_slice(),
+        ),
+        (
+            "value << count",
+            "<<",
+            [n13, s8],
+            ShiftLeft,
+            Exact,
+            [ShiftCountInRange, ResultFitsCarrier].as_slice(),
+        ),
+        ("value >>| count", ">>|", [n13, s8], ShiftRight, Saturating, [ShiftCountInRange].as_slice()),
+        ("value / divisor", "/", [n8, n8], Divide, Exact, [NonzeroDivisor].as_slice()),
+        ("value % divisor", "%", [n8, n8], Remainder, Exact, [NonzeroDivisor].as_slice()),
+        ("value %% divisor", "%%", [s8, s8], Remainder, Wrapping, [NonzeroDivisor].as_slice()),
+        ("value <<% count", "<<%", [n13, s8], ShiftLeft, Wrapping, [].as_slice()),
     ];
+    let contracts = lowered.obligations("OperationContract");
+    assert_eq!(contracts.len(), expected.len(), "one formation question per numeric operator: {contracts:?}");
     assert_eq!(package.machines.len(), expected.len());
-    for (machine, (primitive, policy, obligations)) in package.machines.iter().zip(expected) {
+    for (machine, (occurrence, token, carriers, primitive, policy, obligations)) in package.machines.iter().zip(expected) {
         let [row] = machine.body.operations.as_slice() else {
             panic!("expected a single integer operation")
         };
+        let site = &machine.body.diagnostics.operations[row.id.index()];
+        assert_eq!(lowered.spelling(site), occurrence);
+        let [contract] = contracts.iter().filter(|o| &o.site == site).collect::<Vec<_>>()[..] else {
+            panic!("{occurrence}: expected one operation contract at the Psi operation")
+        };
+        assert_eq!(
+            contract.kind,
+            ObligationKind::OperationContract {
+                token: token.into(),
+                operands: carriers
+                    .map(|(signed, width)| ValueType::Integer { signed, width: Some(width) })
+                    .to_vec(),
+            },
+            "{occurrence}"
+        );
         let OperationKind::Integer { operation, operands } = &row.kind else {
             panic!("expected integer operation")
         };
+        for (operand, (signed, width)) in operands.iter().zip(carriers) {
+            assert_eq!(
+                package.types.get(machine.body.values[operand.index()].ty),
+                Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed, width })),
+                "{occurrence}"
+            );
+        }
         assert_eq!(
             *operation,
             IntegerOperation {
@@ -115,6 +178,7 @@ fn integer_questions_distinguish_quotient_range_and_shift_count_policy() {
                 .collect::<Vec<_>>()
         );
     }
+    observed("obligation-output/operation-contract");
 }
 
 #[test]
@@ -186,7 +250,10 @@ fn landed_exact_operator_supplies_its_signed_constant_to_the_comparison() {
         assert_eq!(constant.kind, OperationKind::Constant(ScalarLiteral::Integer(expected.into())), "{name}");
         let landed = scalar_result(constant);
         assert_eq!(package.types.get(body.values[landed.index()].ty), Some(&i8_type), "{name}");
-        assert_eq!(compare.kind, greater(vec![x, landed]), "{name}");
+        spec_corpus::observe_handoff!(
+            psi "psi-output/folded-comparison",
+            assert_eq!(compare.kind, greater(vec![x, landed]), "{name}"),
+        );
         assert_eq!(sole_return(body), ReturnEdge::Scalar(scalar_result(compare)), "{name}");
     }
 

@@ -143,9 +143,13 @@ fn the_admitted_semantics_and_exact_inputs_reach_psi_from_the_package_path() {
                 Some(&omega_psi::TypeShape::PrimitiveScalar(omega_psi::ScalarType::Boolean))
             );
         }
-        assert_eq!(
-            psi_handoff_consumer::assembly_branch(&machine.body, &machine.body.blocks[0]),
-            Some((flag, when_true.target, when_false.target))
+        // An independent reader follows the selected write and branch to the flag the catalog chose.
+        spec_corpus::observe_handoff!(
+            "mathematical-terms-and-assembly/consumer",
+            assert_eq!(
+                psi_handoff_consumer::assembly_branch(&machine.body, &machine.body.blocks[0]),
+                Some((flag, when_true.target, when_false.target))
+            )
         );
         assert_eq!((when_true.target.get(), when_false.target.get()), (2, 3));
         assert!(!when_true.requires_adjacency && when_false.requires_adjacency);
@@ -231,7 +235,7 @@ fn preparation_cannot_mix_an_instruction_catalog_with_another_layout_target() {
         let round = PreparationRound::begin(&p, &[], Some(&other))
             .err()
             .expect("round must reject mismatch");
-        assert_eq!(round.message, "assembly catalog and preparation selected different targets");
+        spec_corpus::observe_handoff!("open-target-and-selected-layout/refusal", assert_eq!(round.message, "assembly catalog and preparation selected different targets"));
         assert_eq!(direct.message, round.message);
     });
 }
@@ -281,7 +285,10 @@ fn a_direct_backedge_reuses_the_assembly_region_without_reinitializing_it() {
                 panic!("no loop edge")
             };
             assert_eq!(first.target, backedge.target);
-            assert!(first.requires_adjacency && !backedge.requires_adjacency);
+            spec_corpus::observe_handoff!(
+                psi "psi-output/assembly-backedge",
+                assert!(first.requires_adjacency && !backedge.requires_adjacency),
+            );
             let [setup, branch] = body.operations.as_slice() else {
                 panic!("expected one entry and one branch")
             };
@@ -326,7 +333,10 @@ fn separate_inline_assembly_regions_have_distinct_scratch_state() {
                     panic!("missing initialized register")
                 };
                 assert_eq!(register.name, "r0");
-                assert_eq!(parameter, &omega_lowering::Parameter::Scalar(*initializer));
+                spec_corpus::observe_handoff!(
+                    psi "psi-output/assembly-initializers",
+                    assert_eq!(parameter, &omega_lowering::Parameter::Scalar(*initializer)),
+                );
                 assert_eq!(region.clobbers.as_deref(), Some(&["r0".to_owned(), "z".to_owned()][..]));
                 let OperationKind::AssemblyInstruction(instruction) = &op.kind else {
                     panic!("missing instruction")

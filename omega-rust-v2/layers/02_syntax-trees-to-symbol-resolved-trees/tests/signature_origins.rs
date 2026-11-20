@@ -118,7 +118,7 @@ fn short_result_domains_bind_to_the_carriers_that_define_them() {
 fn reordering_and_qualifying_the_same_result_domains_keeps_one_identity() {
     let text = "domain u8::Ready; domain u8::Checked; machine read() -> u8 in Ready & Checked; machine read() -> u8 in u8::Checked & u8::Ready;";
     let error = run(&[("app", "main.omg", text)], &[]).unwrap_err();
-    assert_eq!(error.message, "duplicate declaration read");
+    spec_corpus::observe_handoff!("overloads-and-operators/refusal", assert_eq!(error.message, "duplicate declaration read"));
     assert_eq!(error.span.get_start_offset(), text.rfind("read").unwrap());
 }
 

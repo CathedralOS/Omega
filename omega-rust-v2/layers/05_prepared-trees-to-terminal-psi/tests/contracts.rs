@@ -1,3 +1,5 @@
+#[path = "support/known_gap.rs"]
+mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -97,6 +99,7 @@ fn unsupported_predicate_call_is_refused_at_its_occurrence() {
     let error = lower(source).unwrap_err();
     assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"predicate()".as_slice()));
     assert_eq!(error.message, "unsupported typed contract predicate record");
+    known_gap::report("call in a contract predicate", "The clause needs the predicate and its selected call", source, &error);
 }
 
 #[test]

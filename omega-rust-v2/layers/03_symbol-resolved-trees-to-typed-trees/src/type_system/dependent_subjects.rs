@@ -28,8 +28,10 @@ impl ResolvedSourceFile<'_> {
         version: Option<&Site>,
     ) -> Result<ValueType, TypeError> {
         let f = self.file;
-        if f.nodes[n].kind == NodeKind::Paren {
-            return self.mathematical_subject(self.single_child(n)?, expected, types, version);
+        // A group is its operand; groups nest as deeply as L1 admits.
+        let mut n = n;
+        while f.nodes[n].kind == NodeKind::Paren {
+            n = self.single_child(n)?;
         }
         if let Some(Symbol::Binding {
             binder_node,
@@ -86,16 +88,22 @@ impl ResolvedSourceFile<'_> {
         ty: &ValueType,
         version: Option<&Site>,
     ) -> ValueType {
-        if let Some(Symbol::Binding { span, .. }) = self.symbol(n) {
-            return ValueType::Subject {
-                declaration: self.binder_site(*span),
-                version: version.cloned(),
-            };
-        }
-        if self.file.nodes[n].kind == NodeKind::Paren
-            && let Ok(child) = self.single_child(n)
-        {
-            return self.term_subject(child, ty, version);
+        let mut n = n;
+        loop {
+            if let Some(Symbol::Binding { span, .. }) = self.symbol(n) {
+                return ValueType::Subject {
+                    declaration: self.binder_site(*span),
+                    version: version.cloned(),
+                };
+            }
+            // A group is its operand; groups nest as deeply as L1 admits.
+            if self.file.nodes[n].kind == NodeKind::Paren
+                && let Ok(child) = self.single_child(n)
+            {
+                n = child;
+                continue;
+            }
+            break;
         }
         if self.file.nodes[n].kind == NodeKind::Literal
             && let Ok((

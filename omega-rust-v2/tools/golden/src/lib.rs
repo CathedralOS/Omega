@@ -92,6 +92,15 @@ pub fn check_directory(
     input_extension: &str,
     produce_output: impl Fn(&[u8]) -> Result<String, String>,
 ) -> io::Result<GoldenReport> {
+    check_directory_named(fixture_directory, input_extension, |_, bytes| produce_output(bytes))
+}
+
+/// Supplies the fixture path when several inputs share one logical compiler filename.
+pub fn check_directory_named(
+    fixture_directory: &Path,
+    input_extension: &str,
+    produce_output: impl Fn(&Path, &[u8]) -> Result<String, String>,
+) -> io::Result<GoldenReport> {
     let should_bless =
         std::env::var_os(BLESS_ENVIRONMENT_VARIABLE).is_some_and(|value| value == "1");
     check_directory_with_policy(fixture_directory, input_extension, produce_output, should_bless)
@@ -100,7 +109,7 @@ pub fn check_directory(
 fn check_directory_with_policy(
     fixture_directory: &Path,
     input_extension: &str,
-    produce_output: impl Fn(&[u8]) -> Result<String, String>,
+    produce_output: impl Fn(&Path, &[u8]) -> Result<String, String>,
     should_bless: bool,
 ) -> io::Result<GoldenReport> {
     let mut report = GoldenReport::default();
@@ -110,7 +119,7 @@ fn check_directory_with_policy(
         let input_bytes = fs::read(&input_path)?;
         let expected_path = input_path.with_extension(EXPECTED_EXTENSION);
 
-        let actual_output = match produce_output(&input_bytes) {
+        let actual_output = match produce_output(&input_path, &input_bytes) {
             Ok(actual_output) => actual_output,
             Err(explanation) => {
                 report.failures.push(GoldenFailure {
@@ -132,7 +141,11 @@ fn check_directory_with_policy(
         }
 
         match fs::read(&expected_path) {
-            Ok(expected_bytes) if expected_bytes == actual_output.as_bytes() => {}
+            Ok(expected_bytes) if expected_bytes == actual_output.as_bytes() => {
+                if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+                    println!("OMEGA_GOLDEN_MATCH\t{}", input_path.display());
+                }
+            }
             Ok(expected_bytes) => {
                 let expected_output = String::from_utf8_lossy(&expected_bytes);
                 report.failures.push(GoldenFailure {
@@ -237,19 +250,19 @@ mod tests {
             b"refuse" => Err("wrong verdict".into()),
             _ => Ok(String::from_utf8(source.to_vec()).unwrap()),
         };
-        let report = check_directory_with_policy(&directory, "omg", output, false).unwrap();
+        let report = check_directory_with_policy(&directory, "omg", |_, bytes| output(bytes), false).unwrap();
         assert_eq!((report.case_count, report.blessed_count, report.failures.len()), (4, 0, 3));
         let details = report.describe_failures().unwrap();
         for reason in ["no expected file", "final line ending", "wrong verdict"] {
             assert!(details.contains(reason), "{details}");
         }
-        let blessed = check_directory_with_policy(&directory, "omg", output, true).unwrap();
+        let blessed = check_directory_with_policy(&directory, "omg", |_, bytes| output(bytes), true).unwrap();
         assert_eq!((blessed.case_count, blessed.blessed_count, blessed.failures.len()), (4, 2, 1));
         assert!(!directory.join("refused.expected").exists());
         assert_eq!(fs::read(directory.join("missing.expected")).unwrap(), b"new");
         assert_eq!(fs::read(directory.join("newline.expected")).unwrap(), b"line\n");
         fs::create_dir(directory.join("refused.expected")).unwrap();
-        assert!(check_directory_with_policy(&directory, "omg", |_| Ok(String::new()), false).is_err());
+        assert!(check_directory_with_policy(&directory, "omg", |_, _| Ok(String::new()), false).is_err());
         fs::remove_dir(directory.join("refused.expected")).unwrap();
         for file in fs::read_dir(&directory).unwrap() {
             fs::remove_file(file.unwrap().path()).unwrap();

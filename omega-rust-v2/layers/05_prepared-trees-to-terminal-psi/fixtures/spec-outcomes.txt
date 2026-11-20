@@ -24,7 +24,7 @@ language/patterns.md:50  L5 lowered inspect, targets_one_user | schemas Command,
 language/some_packages.md:15  L5 data templates Reader | aliases ReadInto
 language/state_contracts.md:74  L5 machine templates invoke
 language/state_contracts.md:88  L5 alias only WaitForValue
-layouts/recasts.md:18  L5 fragment only: unsupported Psi declaration: Let | let bits: u32 = 0x3F80_0000u32;
+layouts/recasts.md:18  L5 open gap: machine-wrapped fragment refused: local binding requires a supported copyable carrier | @bits as @f32
 proofs/contracts.md:826  L5 lowered area, get
 proofs/mathematical_bindings.md:199  L5 data templates Witness
 proofs/mathematical_bindings.md:263  L5 mathematical declarations choose

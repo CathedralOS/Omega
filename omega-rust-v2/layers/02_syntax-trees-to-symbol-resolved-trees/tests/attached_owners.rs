@@ -62,6 +62,51 @@ fn indexed_parent_keeps_its_argument_owner_when_the_carrier_is_omitted() {
     }
 }
 
+/// A builtin or bound carrier at the root of a domain path owns the arguments
+/// written on it, as the same carrier does when written alone. Typing decides
+/// whether that carrier accepts them, as for u<8> versus u8<1>.
+#[test]
+fn builtin_and_bound_carrier_roots_own_their_written_arguments() {
+    use omega_resolver::NameRole::{ApplicationPrefix, Qualifier, Reference};
+    let limit = "domain<const K:u8> u8::Limit<K>; domain u8::Limit<2>::Pair;";
+    for (text, root, argument, role) in [
+        ("machine f(x:u8<1>){}".to_owned(), "u8", "1", Reference),
+        ("domain u8::Ready; machine f(x:u8 in u8<1>::Ready){}".to_owned(), "u8", "1", Qualifier),
+        ("domain<T> T::Ready; machine f(x:u8 in u<8>::Ready){}".to_owned(), "u", "8", Qualifier),
+        ("domain<T> T::Ready; machine f(x:u8){ let y = x as +u<8>::Ready; }".to_owned(), "u", "8", Qualifier),
+        (format!("{limit} machine f(x:u8 in u8<1>::Limit<2>::Pair){{}}"), "u8", "1", ApplicationPrefix),
+        ("domain<T> T::Ready; machine f<T>(x:T in T<3>::Ready){}".to_owned(), "T", "3", Qualifier),
+    ] {
+        let stage = resolve(&[("app", "main.omg", &text)], &[], &Default::default()).unwrap_or_else(|error| panic!("{text}: {error:?}"));
+        let tree = stage.trees().next().unwrap();
+        let owners: Vec<_> = tree
+            .applications()
+            .filter(|(section, _)| {
+                matches!(tree.file.nodes[*section].children.as_slice(), [only] if tree.file.span(*only).slice(text.as_bytes()) == Some(argument.as_bytes()))
+            })
+            .collect();
+        let [(_, owner)] = owners.as_slice() else {
+            panic!("expected one owner of <{argument}> in {text}")
+        };
+        assert_eq!(owner.role, role, "{text}");
+        assert_eq!(owner.span.slice(text.as_bytes()), Some(root.as_bytes()), "{text}");
+        match &owner.target {
+            Symbol::Builtin(name) => assert_eq!(name, root, "{text}"),
+            Symbol::Binding { .. } => assert_eq!(root, "T", "{text}"),
+            other => panic!("{text}: unexpected owner {other:?}"),
+        }
+    }
+    // The parent's own arguments still belong to the parent declaration.
+    let text = format!("{limit} machine f(x:u8 in u8<1>::Limit<2>::Pair){{}}");
+    let stage = resolve(&[("app", "main.omg", &text)], &[], &Default::default()).unwrap();
+    let tree = stage.trees().next().unwrap();
+    assert!(tree.applications().any(|(section, owner)| {
+        tree.file.nodes[section].children.len() == 1
+            && tree.file.span(tree.file.nodes[section].children[0]).slice(text.as_bytes()) == Some(b"2".as_slice())
+            && matches!(&owner.target, Symbol::Declaration(id) if id.path == "u8::Limit")
+    }));
+}
+
 #[test]
 fn competing_attachments_report_details_in_identity_order() {
     let library = ("lib", "units/defs.omg", "public domain<Z> Z::Flag; public domain<A> A::Flag;");

@@ -383,7 +383,7 @@ fn an_explicit_discard_evaluates_and_drops_a_copy_value() {
         .dependencies()
         .inputs(&omega_preparation::PreparedValueOrigin::Constant(find("RECORD").clone()))
         .unwrap();
-    assert_eq!(inputs.constants.as_slice(), std::slice::from_ref(find("SEED")));
+    spec_corpus::observe_handoff!("discarded-constant-reads/producer", assert_eq!(inputs.constants.as_slice(), std::slice::from_ref(find("SEED"))));
 }
 
 #[test]
@@ -399,7 +399,7 @@ fn a_discarded_operand_still_refuses_its_failed_precondition() {
 
     let source = format!("{machines} const V:u8=caller(0u8);");
     let error = prepare(&source).unwrap_err();
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"divide(x)".as_slice()));
+    spec_corpus::observe_handoff!("discarded-constant-reads/refusal", assert_eq!(error.span.slice(source.as_bytes()), Some(b"divide(x)".as_slice())));
     assert_eq!(
         error.message,
         "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments\ncall chain: caller -> divide"
@@ -439,7 +439,7 @@ fn nested_fields_specialize_their_own_and_the_enclosing_boolean_binders() {
     ] {
         let source = source.replace("Outer<true>::Inner<false>", actuals);
         let error = prepare(&source).unwrap_err();
-        assert!(error.message.contains(&format!("found app\\Flag<{expected}>")), "{field}: {error:?}");
+        spec_corpus::observe_handoff!("owner-arguments-and-nested-constant-bindings/refusal", assert!(error.message.contains(&format!("found app\\Flag<{expected}>")), "{field}: {error:?}"));
     }
 }
 

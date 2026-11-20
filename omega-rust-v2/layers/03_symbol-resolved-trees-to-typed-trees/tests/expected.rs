@@ -21,7 +21,7 @@ fn typed_fixtures_match_handwritten_expectations() {
         ("prepared/accept", true, Some((7u8, 8u16))),
         ("prepared/reject", false, Some((255, 256))),
     ] {
-        let report = golden::check_directory(&root.join(directory), "omg", |bytes| {
+        let report = golden::check_directory_named(&root.join(directory), "omg", |_fixture, bytes| {
             let source = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
             let authored = |s: SourceSpan| std::str::from_utf8(s.slice(source.as_bytes()).unwrap()).unwrap();
             let mut lines = Vec::new();
@@ -58,6 +58,16 @@ fn typed_fixtures_match_handwritten_expectations() {
                 Err(e) if accepts => return Err(format!("unexpected refusal at {}: {}", authored(e.span), e.message)),
                 Ok(_) if !accepts => return Err("expected a typing refusal".into()),
                 Err(e) => {
+                    #[cfg(feature = "diagnostic-origins")]
+                    support::report_return(
+                        &e,
+                        &_fixture
+                            .strip_prefix(&root)
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .replace('\\', "/"),
+                    );
                     let position = LineIndex::new(bytes).get_position(e.span.get_start_offset());
                     lines.push(format!(
                         "refusal | {}:{} | {} | {}",

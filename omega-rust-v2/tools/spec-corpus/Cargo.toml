@@ -8,6 +8,8 @@ publish.workspace = true
 [features]
 parser = ["dep:omega-lexer", "dep:omega-parser"]
 readiness = ["parser", "dep:omega-resolver", "dep:omega-toolchain", "dep:omega-typer"]
+# Test tooling only: source inventory of explicit L3 TypeError call sites.
+typing-sites = ["dep:proc-macro2", "dep:quote", "dep:syn"]
 
 [dependencies]
 omega-lexer = { path = "../../layers/00_bytes-to-tokens", optional = true }
@@ -15,6 +17,9 @@ omega-parser = { path = "../../layers/01_tokens-to-syntax-trees", optional = tru
 omega-resolver = { path = "../../layers/02_syntax-trees-to-symbol-resolved-trees", optional = true }
 omega-toolchain = { path = "../../toolchain", optional = true }
 omega-typer = { path = "../../layers/03_symbol-resolved-trees-to-typed-trees", optional = true }
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"], optional = true }
+quote = { version = "1", default-features = false, optional = true }
+syn = { version = "2", default-features = false, features = ["full", "parsing", "printing", "visit"], optional = true }
 
 [[bin]]
 name = "parse_spec"
@@ -23,3 +28,7 @@ required-features = ["parser"]
 [[bin]]
 name = "published_readiness"
 required-features = ["readiness"]
+
+[[bin]]
+name = "typing_diagnostic_sites"
+required-features = ["typing-sites"]

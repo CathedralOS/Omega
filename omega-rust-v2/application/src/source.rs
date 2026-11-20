@@ -10,11 +10,22 @@ fn diagnostic(
     stage: &str,
     error: impl fmt::Display,
 ) -> String {
+    let path = path.to_string();
     let Some(bytes) = bytes else {
-        return error.to_string();
+        return if path.is_empty() {
+            format!("{stage}: {error}")
+        } else {
+            format!("{path}: {stage}: {error} (bytes {}..{})", span.get_start_offset(), span.get_end_offset())
+        };
     };
     let position = LineIndex::new(bytes).get_position(span.get_start_offset());
-    format!("{path}:{}:{}: {stage}: {error}", position.get_line(), position.get_column())
+    format!(
+        "{path}:{}:{}: {stage}: {error} (bytes {}..{})",
+        position.get_line(),
+        position.get_column(),
+        span.get_start_offset(),
+        span.get_end_offset()
+    )
 }
 
 pub(crate) fn parse_file(path: &Path) -> Result<(), String> {
@@ -29,8 +40,9 @@ struct ParsedFile {
 
 fn read_file(path: &Path) -> Result<ParsedFile, String> {
     let bytes = fs::read(path).map_err(|error| format!("{}: could not read source: {error}", path.display()))?;
-    let tokens = omega_lexer::lex(&bytes).map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "lexer", e))?;
-    let tree = omega_parser::parse_file(&bytes, &tokens).map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "parser", e))?;
+    let tokens = omega_lexer::lex(&bytes).map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "lexer", e.get_kind().get_message()))?;
+    let tree = omega_parser::parse_file(&bytes, &tokens)
+        .map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "parser", e.get_kind().get_message(e.get_expected())))?;
     Ok(ParsedFile { bytes, tokens, tree })
 }
 
@@ -41,25 +53,37 @@ pub(crate) enum Stage {
     Lower,
 }
 
+fn read_package_file(path: &Path) -> Result<(String, ParsedFile), String> {
+    use std::path::Component;
+    let mut components = Vec::new();
+    for part in path.components() {
+        match part {
+            Component::Normal(name) => components.push(
+                name.to_str()
+                    .ok_or_else(|| format!("{}: logical paths must be UTF-8", path.display()))?,
+            ),
+            Component::CurDir => {}
+            _ => return Err(format!("{}: expected a path within the current package", path.display())),
+        }
+    }
+    Ok((components.join("/"), read_file(path)?))
+}
+
 pub(crate) fn check_files(
     paths: &[std::ffi::OsString],
     stage: Stage,
 ) -> Result<(), String> {
-    use std::path::Component;
     let mut inputs = Vec::new();
+    let mut file_errors = Vec::new();
     for path in paths.iter().map(Path::new) {
-        let mut components = Vec::new();
-        for part in path.components() {
-            match part {
-                Component::Normal(name) => components.push(
-                    name.to_str()
-                        .ok_or_else(|| format!("{}: logical paths must be UTF-8", path.display()))?,
-                ),
-                Component::CurDir => {}
-                _ => return Err(format!("{}: expected a path within the current package", path.display())),
-            }
+        match read_package_file(path) {
+            Ok(input) => inputs.push(input),
+            Err(error) => file_errors.push(error),
         }
-        inputs.push((components.join("/"), read_file(path)?));
+    }
+    // Each file can be parsed independently. Resolution needs the complete package.
+    if !file_errors.is_empty() {
+        return Err(file_errors.join("\n"));
     }
     let mut sources = Vec::with_capacity(inputs.len());
     for (logical_path, file) in &inputs {
@@ -79,7 +103,14 @@ pub(crate) fn check_files(
             .iter()
             .find(|input| input.package == package && input.source.logical_path == path)
             .map(|input| input.source.text.as_bytes());
-        diagnostic(path, bytes, span, layer, message)
+        if bytes.is_none() && !package.is_empty() && path.is_empty() {
+            format!("{package}: {layer}: {message}")
+        } else if bytes.is_none() && !package.is_empty() {
+            let origin = format!("{package}/{path}");
+            diagnostic(origin, None, span, layer, message)
+        } else {
+            diagnostic(path, bytes, span, layer, message)
+        }
     };
     let resolved = omega_toolchain::resolve_source_package(&sources).map_err(|e| stage_error("resolver", &e.package, &e.file, e.span, e.message))?;
     match stage {
@@ -88,8 +119,17 @@ pub(crate) fn check_files(
             omega_typer::type_source_package(&resolved).map_err(|e| stage_error("typer", &e.package, &e.file, e.span, e.message))?;
         }
         Stage::Prepare | Stage::Lower => {
-            let prepared =
-                omega_preparation::prepare_source_package(&resolved).map_err(|e| stage_error("preparation", &e.package, &e.file, e.span, e.message))?;
+            use omega_preparation::PreparationFailure;
+            let prepared = omega_preparation::prepare_source_package_diagnosed(&resolved).map_err(|failure| {
+                let (stage, e) = match failure {
+                    PreparationFailure::Typing(e) => ("typer", e),
+                    // L3 owns the refusal, but only after L4 evaluated a demanded identity.
+                    PreparationFailure::ResumedTyping(e) => ("typer (after static evaluation)", e),
+                    PreparationFailure::Preparation(refusal) => ("preparation", refusal.diagnostic),
+                    PreparationFailure::MissingTarget(refusal) => ("preparation (target input)", refusal.diagnostic),
+                };
+                stage_error(stage, &e.package, &e.file, e.span, e.message)
+            })?;
             if matches!(stage, Stage::Lower) {
                 omega_lowering::lower_package(&prepared).map_err(|e| stage_error("lowering", &e.site.package, &e.site.file, e.site.span, e.message))?;
             }
@@ -106,7 +146,11 @@ mod tests {
     fn a_diagnostic_without_local_source_bytes_preserves_the_stage_message() {
         assert_eq!(
             diagnostic("", None, SourceSpan::new(0, 0), "resolver", "conflicting dependency aliases"),
-            "conflicting dependency aliases"
+            "resolver: conflicting dependency aliases"
+        );
+        assert_eq!(
+            diagnostic("library/types.omg", None, SourceSpan::new(7, 10), "typer", "unknown carrier"),
+            "library/types.omg: typer: unknown carrier (bytes 7..10)"
         );
     }
 }

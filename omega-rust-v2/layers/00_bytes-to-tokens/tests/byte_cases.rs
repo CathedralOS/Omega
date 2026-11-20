@@ -140,15 +140,18 @@ fn four_byte_character_outside_a_comment_reports_its_full_width() {
 
 #[test]
 fn non_ascii_is_allowed_in_comments_and_quoted_literals() {
-    expect_kinds(
-        "/* \u{65E5}\u{672C} */ \"\u{1F600}\" // \u{E9}".as_bytes(),
-        &[
-            TokenKind::BlockComment,
-            TokenKind::Whitespace,
-            TokenKind::Quoted,
-            TokenKind::Whitespace,
-            TokenKind::LineComment,
-        ],
+    spec_corpus::observe_handoff!(
+        "valid-utf-8/producer",
+        expect_kinds(
+            "/* \u{65E5}\u{672C} */ \"\u{1F600}\" // \u{E9}".as_bytes(),
+            &[
+                TokenKind::BlockComment,
+                TokenKind::Whitespace,
+                TokenKind::Quoted,
+                TokenKind::Whitespace,
+                TokenKind::LineComment,
+            ],
+        )
     );
 }
 
@@ -182,7 +185,7 @@ fn line_comment_with_crlf_keeps_the_carriage_return() {
 
 #[test]
 fn carriage_return_in_quoted_rejects() {
-    expect_error(b"\"a\rb\"", LexErrorKind::NewlineInQuoted, SourceSpan::new(2, 3));
+    spec_corpus::observe_handoff!("forbidden-quoted-escapes-and-line-breaks/refusal", expect_error(b"\"a\rb\"", LexErrorKind::NewlineInQuoted, SourceSpan::new(2, 3)));
 }
 
 #[test]
@@ -260,7 +263,7 @@ fn slash_star_slash_does_not_close_itself() {
 
 #[test]
 fn nul_byte_rejects() {
-    expect_error(b"a\0b", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2));
+    spec_corpus::observe_handoff!("unknown-ascii-characters/refusal-2", expect_error(b"a\0b", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2)));
 }
 
 #[test]
@@ -285,7 +288,7 @@ fn every_single_byte_has_its_lexical_verdict_and_span() {
         };
         match expected {
             Ok(kind) => expect_kinds(&source, &[kind]),
-            Err(error) => expect_error(&source, error, SourceSpan::new(0, 1)),
+            Err(error) => spec_corpus::observe_handoff!("unknown-ascii-characters/refusal", expect_error(&source, error, SourceSpan::new(0, 1))),
         }
     }
 }
@@ -304,7 +307,7 @@ fn every_two_byte_input_with_a_non_ascii_byte_obeys_utf8_error_precedence() {
                 Err(error) => {
                     let start = error.valid_up_to();
                     let end = error.error_len().map_or(bytes.len(), |length| start + length);
-                    expect_error(&bytes, LexErrorKind::InvalidUtf8, SourceSpan::new(start, end));
+                    spec_corpus::observe_handoff!("valid-utf-8/refusal", expect_error(&bytes, LexErrorKind::InvalidUtf8, SourceSpan::new(start, end)));
                 }
             }
         }

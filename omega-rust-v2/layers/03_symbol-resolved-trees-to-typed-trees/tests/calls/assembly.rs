@@ -32,7 +32,7 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
         },
     )
     .unwrap_err();
-    assert_eq!(unknown_register.span.slice(code.as_bytes()), Some(b"none".as_slice()));
+    spec_corpus::observe_handoff!("assembly-symbols/refusal", assert_eq!(unknown_register.span.slice(code.as_bytes()), Some(b"none".as_slice())));
     assert_eq!(unknown_register.message, "unavailable target register none");
     let byte = ValueType::Integer { width: Some(8), signed: false };
     use omega_typer::{
@@ -95,7 +95,7 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
                 .unwrap();
             assert_eq!(instruction.node, tree.file.node_id(node));
             assert_eq!(instruction.target, target.target);
-            assert!(matches!(instruction.operands.as_slice(), [TypedInstructionOperand::Register{ty:a,..},TypedInstructionOperand::Value{ty:b,..}] if a==&byte && b==&byte));
+            spec_corpus::observe_handoff!("assembly-symbols/consumer", assert!(matches!(instruction.operands.as_slice(), [TypedInstructionOperand::Register{ty:a,..},TypedInstructionOperand::Value{ty:b,..}] if a==&byte && b==&byte)));
             instruction.mnemonic.as_str()
         })
         .collect();
@@ -116,7 +116,7 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
     }
     target.registers.insert("none".into(), ValueType::Bool);
     let mismatch = type_stage_for_target(&resolved, &target).unwrap_err();
-    assert_eq!(mismatch.span.slice(code.as_bytes()), Some(b"n".as_slice()));
+    spec_corpus::observe_handoff!("mathematical-terms-and-assembly/refusal", assert_eq!(mismatch.span.slice(code.as_bytes()), Some(b"n".as_slice())));
     assert_eq!(mismatch.message, "expected bool, found u8");
     target.registers.insert("none".into(), byte.clone());
     target.registers.remove("scratch");
