@@ -1,0 +1,12 @@
+(data Value (Empty) (Fields Int Int Bytes))
+(def even ((n Int)) Int (if (eq n 0) 1 (odd (- n 1))))
+(def odd ((n Int)) Int (if (eq n 0) 0 (even (- n 1))))
+(def pick ((v Value)) Bytes
+  (match v
+    (Empty (bytes_single (/ 1 0)))
+    ((Fields a b tail) (bytes_concat (bytes_single (+ a b)) tail))))
+(def main ((stdin Bytes)) Bytes
+  (let length Int (bytes_length stdin)
+    (let suffix Bytes (if (lt 0 length) (bytes_single (bytes_get stdin (- length 1))) "")
+      (pick (Fields (- (* 6 7) 2) (+ (% 8 3) (even 100))
+        (bytes_concat suffix "\n\\\""))))))

@@ -1,0 +1,23 @@
+; Direct compiled parameters name homes; transfers retain values and the homes
+; of machine parameters. Neither list contains syntax or executable AST nodes.
+(data EpsilonCompiledHomes
+  (NoEpsilonCompiledHomes)
+  (MoreEpsilonCompiledHomes Int EpsilonCompiledHomes))
+
+(data EpsilonCompiledArguments
+  (NoEpsilonCompiledArguments)
+  (MoreEpsilonCompiledArguments EpsilonRuntimeValue EpsilonCompiledArguments))
+
+; At a generated continuation exactly one arm can advance. The stopped arm
+; carries the entire terminal outcome, including its original output prefix.
+(data EpsilonCompiledValueStep
+  (EpsilonContinueValue EpsilonRuntimeValue EpsilonRuntimeOptionalPlace EpsilonRuntimeStore Bytes)
+  (EpsilonStopValue EpsilonEvaluatorOutcome))
+
+(data EpsilonCompiledScalarStep
+  (EpsilonContinueScalar Int EpsilonRuntimeStore Bytes)
+  (EpsilonStopScalar EpsilonEvaluatorOutcome))
+
+(data EpsilonCompiledEffectStep
+  (EpsilonContinueEffect EpsilonRuntimeStore Bytes)
+  (EpsilonStopEffect EpsilonEvaluatorOutcome))

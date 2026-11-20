@@ -1,0 +1,54 @@
+; Shared effect fields stay named at their generated continuation boundary.
+(def epsilon_emit_stored_fields ((value Bytes) (place Bytes)
+  (store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_spaced (epsilon_emit_spaced value place) (epsilon_emit_spaced store output)))
+
+(def epsilon_emit_stored_alias_effects ((coordinate Int) (store Bytes)
+  (output Bytes) (continuation Bytes)) Bytes
+  (epsilon_emit_call "let" (epsilon_emit_spaced
+    (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate) "EpsilonRuntimeStore")
+    (epsilon_emit_spaced store (epsilon_emit_call "let" (epsilon_emit_spaced
+      (epsilon_emit_spaced (epsilon_emit_generated "output" coordinate) "Bytes")
+      (epsilon_emit_spaced output continuation)))))))
+
+(def epsilon_emit_stored_integer ((value Bytes) (store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_call "epsilon_evaluator_integer"
+    (epsilon_emit_spaced value (epsilon_emit_spaced store output))))
+
+(def epsilon_emit_stored_resultless ((store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorResultless" (epsilon_emit_spaced store output)))
+
+(def epsilon_emit_stored_internal ((offset Int)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorInternal" (epsilon_emit_decimal offset)))
+
+(def epsilon_emit_stored_trap ((kind Int) (output Bytes)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorTrap" (epsilon_emit_spaced (epsilon_emit_decimal kind) output)))
+
+(def epsilon_emit_stored_propagation () Bytes
+  "((EpsilonEvaluatorExit ep_exit ep_prefix) (EpsilonEvaluatorExit ep_exit ep_prefix))\n((EpsilonEvaluatorTrap ep_trap ep_prefix) (EpsilonEvaluatorTrap ep_trap ep_prefix))\n((EpsilonEvaluatorInternal ep_offset) (EpsilonEvaluatorInternal ep_offset))\n")
+
+(def epsilon_emit_stored_effect_names ((coordinate Int)) Bytes
+  (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate)))
+
+(def epsilon_emit_stored_value_then ((coordinate Int) (expression Bytes) (continuation Bytes)) Bytes
+  (let fields Bytes (epsilon_emit_spaced
+    (epsilon_emit_spaced (epsilon_emit_generated "value" coordinate) (epsilon_emit_generated "place" coordinate))
+    (epsilon_emit_stored_effect_names coordinate))
+    (epsilon_emit_match (epsilon_emit_call "epsilon_compiled_value_step"
+      (epsilon_emit_spaced expression (epsilon_emit_decimal coordinate)))
+      (bytes_concat (epsilon_emit_case (epsilon_emit_call "EpsilonContinueValue" fields) continuation)
+        "((EpsilonStopValue ep_terminal) ep_terminal)\n"))))
+
+(def epsilon_emit_stored_scalar_then ((coordinate Int) (expression Bytes) (continuation Bytes)) Bytes
+  (let fields Bytes (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate)
+    (epsilon_emit_stored_effect_names coordinate))
+    (epsilon_emit_match (epsilon_emit_call "epsilon_compiled_scalar_step"
+      (epsilon_emit_spaced expression (epsilon_emit_decimal coordinate)))
+      (bytes_concat (epsilon_emit_case (epsilon_emit_call "EpsilonContinueScalar" fields) continuation)
+        "((EpsilonStopScalar ep_terminal) ep_terminal)\n"))))
+
+(def epsilon_emit_stored_effect_then ((coordinate Int) (expression Bytes) (continuation Bytes)) Bytes
+  (epsilon_emit_match (epsilon_emit_call "epsilon_compiled_effect_step" expression)
+    (bytes_concat (epsilon_emit_case (epsilon_emit_call "EpsilonContinueEffect"
+      (epsilon_emit_stored_effect_names coordinate)) continuation)
+      "((EpsilonStopEffect ep_terminal) ep_terminal)\n")))

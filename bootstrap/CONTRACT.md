@@ -11,7 +11,7 @@ ordinary proof checking and safety semantics are unchanged.
 ## Variant construction routes
 
 Variants are peers, each with an explicit source route, seed, execution target,
-resource profile and completion evidence. The existing interpreted variant uses:
+resource profile and completion evidence. The original interpreted route uses the Delta compiler:
 
 ```text
 Alpha VM + admitted Beta compiler tape
@@ -24,8 +24,10 @@ Alpha VM + admitted Beta compiler tape
 ```
 
 Gamma evaluates the Delta compiler, whose output is Gamma source implementing
-the Epsilon evaluator. That evaluator interprets the bootstrap compiler. This
-route has no compiled bootstrap-compiler or Epsilon-evaluator tape. Its Alpha
+the Epsilon evaluator. That evaluator interprets the bootstrap compiler. An alternative
+runs the Delta-written Epsilon evaluator directly with the Gamma-written
+[Delta interpreter](delta/interpreter/), bypassing Gamma emission for this
+Delta program. The Epsilon program itself still runs in the Epsilon evaluator. Its Alpha
 serialization belongs to the Omega target. Alternative variants may compile
 intermediate languages, change stages or use other execution targets.
 

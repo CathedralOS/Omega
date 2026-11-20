@@ -38,7 +38,7 @@ different representation.
 
 [text.gamma](text.gamma) owns textual primitives. [support.gamma](support.gamma)
 binds the ordered support members of
-[`bootstrap/delta/to-gamma/support/`](../../support/README.md): the byte-rope runtime,
+[`bootstrap/delta/compiler/support/`](../../support/README.md): the byte-rope runtime,
 the `ConformanceBytesV1` runtime, and the generated `main` adapter are authored
 once as ordinary readable Gamma files and copied verbatim from the sealed
 input's bound support section. The pipeline's runtime selection - which member

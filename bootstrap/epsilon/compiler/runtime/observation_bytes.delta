@@ -1,0 +1,18 @@
+(def epsilon_compiled_u32 ((value Int)) Bytes
+  (bytes_concat
+    (bytes_concat (bytes_single (% value 256)) (bytes_single (% (/ value 256) 256)))
+    (bytes_concat (bytes_single (% (/ value 65536) 256))
+      (bytes_single (% (/ value 16777216) 256)))))
+
+; Internal contradictions remain the canonical EEOUT internal frame, never an
+; authored exit or trap. Ordinary exit/trap observation prefixes are unchanged.
+(def epsilon_compiled_internal_observation ((offset Int)) Bytes
+  (let magic Bytes (bytes_concat (bytes_single 255)
+    (bytes_concat "EEOUT" (bytes_concat (bytes_single 1) (bytes_single 0))))
+    (let classification Bytes (bytes_concat (bytes_single 3)
+      (bytes_concat (bytes_single 2) (bytes_concat (bytes_single 0) (bytes_single 0))))
+      (let coordinate Bytes (bytes_concat (epsilon_compiled_u32 offset) (epsilon_compiled_u32 0))
+        (let zero64 Bytes (bytes_concat (epsilon_compiled_u32 0) (epsilon_compiled_u32 0))
+          (bytes_concat magic (bytes_concat classification
+            (bytes_concat (epsilon_compiled_u32 1)
+              (bytes_concat coordinate (bytes_concat zero64 zero64))))))))))

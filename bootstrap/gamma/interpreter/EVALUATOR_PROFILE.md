@@ -257,7 +257,7 @@ stack margin) would have admitted about 2,274 contexts, but required a
 rebuilt evaluator tape, re-pinned
 identity records in this profile, `tools/bootstrap/gamma/evaluator_env.sh`,
 `tests/bootstrap/proofs/heap-boundary/evaluator.tsv`, and
-`bootstrap/delta/to-gamma/delta_compiler.composed`, re-derived exact/adjacent
+`bootstrap/delta/compiler/delta_compiler.composed`, re-derived exact/adjacent
 context and environment controls, a new subject for the Beta-encoding
 proof, and a permanent coupling of Delta's `parse_depth` to this profile's
 context cap — an over-depth Delta program would then surface as raw status

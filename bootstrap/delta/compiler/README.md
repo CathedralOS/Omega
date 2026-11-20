@@ -1,23 +1,15 @@
-# Delta functional language
+# Delta compiler
 
 Delta is the typed, pure functional rung above Gamma. It supplies nominal
 algebraic data, exhaustive pattern matching, checked signed integers, immutable
 bytes, forward and mutual recursion, and proper tail calls. It is deliberately
 small and exists to implement the Epsilon evaluator.
 
-[`../LANGUAGE.md`](../LANGUAGE.md) is normative. The canonical edge is:
-
-```text
-Gamma-authored staged Delta implementation -> canonical Gamma/Delta receipts
-	-> complete Delta edge
-```
-
-The selected compiler begins at [`delta_compiler.gamma`](delta_compiler.gamma),
-a Gamma-authored stage for finite arbitrary-field data, including recursive nominal fields and
-exhaustive matching through right-nested immutable pairs. The complete Delta
-edge remains open. [Selected validation](../../../_recycling/tests/delta/README.md) owns
-staged compiler behavior and conformance controls; there is no alternate
-concatenative compiler.
+[`../LANGUAGE.md`](../LANGUAGE.md) is normative. The [compiler entry](delta_compiler.gamma) takes a Delta source
+request, checks declarations and expression types, and emits Gamma source.
+The emitted program can run on the [Gamma interpreter](../../gamma/interpreter/)
+or be compiled with either [Gamma backend](../../gamma/compiler/).
+The [language stage](../README.md) lists the available implementations.
 
 The Delta compiler may know only Gamma, Delta, and its exact application
 profiles. It may not encode Alpha, parse Epsilon source itself,
@@ -426,45 +418,3 @@ Run `sh tests/bootstrap/interpreted/delta/staged-compiler/run.sh` for lowering a
 `sh tests/bootstrap/interpreted/delta/resource-boundary/run.sh` for authored resource boundaries,
 `sh tests/bootstrap/interpreted/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
 `sh tests/bootstrap/proofs/composed-artifact.sh` for composed identity and publication.
-
-## Measurements
-
-```text
-3,350-line / 147,840-byte canonical entry plus shared Gamma implementation
-7-line / 195-byte nullary-ADT Delta fixture
-  -> 3-line / 165-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 9
-7-line / 186-byte payload-ADT Delta fixture
-  -> 3-line / 230-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 9
-7-line / 187-byte recursive-ADT Delta fixture
-  -> 3-line / 425-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 3
-8-line / 221-byte two-field recursive List fixture
-  -> 3-line / 502-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 9
-24-line / 767-byte three-field recursive rope fixture
-  -> 7-line / 1,404-byte Gamma receipt
-  -> indexing produces byte 0x42; indexing empty traps
-7-line / 277-byte proper-tail List fixture
-  -> 4-line / 568-byte Gamma receipt
-  -> constructs and traverses 100,000 nodes through if, let, and match
-10-line / 379-byte typed Bytes fixture
-  -> 10-line / 1,184-byte Gamma receipt
-  -> all five builtins produce byte 0x42
-5-line / 209-byte skewed Bytes fixture
-  -> 9-line / 1,000-byte Gamma receipt
-  -> 100,000-node lookup produces byte 0x5a in bounded call context
-11-line / 397-byte forward/mutual nominal fixture
-  -> 3-line / 956-byte byte-identical Gamma receipt
-  -> all nullary, unary, and three-field constructor shapes produce byte 7
-946-line / 35,826-byte current Epsilon declaration prefix plus scalar entry
-  -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
-12,018-line / 612,210-byte current Epsilon source plus checking entry
-  -> measured 708,456-byte Gamma receipt
-  -> checking gate requires 70 exact judgments
-3,001-function / 66,266-byte scale fixture
-  -> 78,271-byte Gamma receipt
-  -> selected Gamma evaluation produces byte 199
-  -> transforms within the staged gate's unchanged 30-second watchdog
-```

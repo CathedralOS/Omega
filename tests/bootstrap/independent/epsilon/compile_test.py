@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "tests/bootstrap/conformance"))
 from vectors import ocreq_request
 
-COMPILER = ROOT / 'bootstrap/epsilon/to-delta'
+COMPILER = ROOT / 'bootstrap/epsilon/compiler'
 FIXTURES = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location('epsilon_composition', FIXTURES / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
@@ -121,9 +121,8 @@ def digit_scanner(base, boundary, program, observe, reference, compiler):
 
 def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE[:CONSOLE.index(b'data Main')]
-    driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
 
-    def program(source, name, entry=driver):
+    def program(source, name, entry=None):
         (work / f'{name}.epsilon').write_bytes(source)
         observation = observe(compiler, source)
         (work / f'{name}.observation').write_bytes(observation)
@@ -302,6 +301,15 @@ def run(work, vm, producer, realize, seconds):
         report['compiler_image'] = identity(compiler.read_bytes())
         runtime = composition.runtime_source()
         report['target_runtime'] = identity(runtime)
+
+        source = CONSOLE + EMPTY_MAIN
+        generated = compile_epsilon(source, 'empty-entry')
+        empty_entry = compile_delta(composition.program_source(generated), 'empty-entry-target')
+        empty_observation = observe(empty_entry, b'unused')
+        interpreted = reference(source, b'unused', 'empty-entry-reference')
+        if empty_observation != bytes(5) or empty_observation != interpreted:
+            raise AssertionError(('empty Main::main', empty_observation, interpreted))
+        report['empty_entry'] = identity(empty_observation)
         report['stage'] = 'actual-lexical-customer'
         checkpoint()
         actual = (ROOT / 'bootstrap/omega/compiler/lexical_classification.epsilon').read_bytes()

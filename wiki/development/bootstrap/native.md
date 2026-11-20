@@ -585,8 +585,9 @@ a 103,247,790-byte native executable. Alpha's production compiler returned
 249 with empty output for the same receipt. A separate diagnostic copy of its publisher
 reported 32,158,739 bytes of computed layout for that receipt. Alpha's
 stamped seed accepts 16,777,212 tape bytes. The same diagnostic measured the
-smaller string tape at exactly its published length. The gate retains both
-production compiler outcomes and executes any successfully published tape.
+smaller string tape at exactly its published length. A later Alpha backend
+fits both customers in the fixed seed. The gate now requires both tapes to
+execute and reproduce the same observations. [Public lexer on Alpha](compiled-alpha.md#run-the-public-omega-lexer-on-alpha)
 
 Run `python3 tests/bootstrap/independent/successor_test.py --compile-epsilon`
 from the repository root on Linux x86-64. `--reuse-constructed` reuses the

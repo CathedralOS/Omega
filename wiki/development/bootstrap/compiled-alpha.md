@@ -31,6 +31,54 @@ tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
 
 The native driver feeds the seed and each reconstructed compiler directly. [Linux construction and inputs](../../../tests/bootstrap/linux_x86_64/README.md)
 
+### Run the public Omega lexer on Alpha
+
+The public Omega lexer now fits in the audited Linux x86-64 Alpha seed. Two
+compiler changes can be measured independently on the same 58,733-byte
+Epsilon program. The Epsilon compiler shares the code that propagates exits,
+traps and internal failures. The Gamma Alpha backend shares the code that
+pushes and pops a value on its evaluation stack.
+
+| Epsilon emission | Gamma source bytes | Original Gamma backend | Compact Gamma backend |
+| --- | ---: | ---: | ---: |
+| Original | 2,827,892 | 32,158,739 bytes of calculated layout; refused | 15,449,892-byte tape |
+| Shared outcome handling | 1,594,506 | 15,120,299-byte tape | **7,342,855-byte tape** |
+
+Each published tape ran the original 148-byte batch and returned the expected
+465 bytes for all 23 cases. The observation includes Epsilon exit 42 and agrees
+with both the evaluator and the native executable. The smallest tape leaves
+9,434,357 bytes in the seed. [Lexer cases and expected bytes](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
+
+The old encoding repeated a 69-byte stack push at 209,820 sites and a
+32-byte pop at 179,121 sites. The Alpha backend now calls three leaf routines
+with nine-byte Alpha calls. One pushes the current word and its tag. The other
+two pop into the left or right operand register pair. The push still checks the
+frame bound before writing. Each routine returns before a source call, a tail
+jump or the next stack operation, so the maximum remains one temporary return
+address in addition to the active Gamma calls. Native code still inlines these operations.
+[Alpha assembler](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma)
+
+| Public lexer artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Original Gamma input to either backend | 2,827,892 | `fa5dedc6e8b95c533ae9208d0c9fcc7d07fc98b20c29c199ccd4f6efe2c4e0b7` |
+| Compact backend, original Epsilon emission | 15,449,892 | `983501625a9d9fe4458d0386ff0808ecfca172c0831e0ed9dbb65d963f1f4ddf` |
+| Gamma input with shared outcome handling | 1,594,506 | `267f3b49246d8593e9fc467bee36bc3b82715dedb3e3e397e7757e02234cd8d3` |
+| Original backend, shared Epsilon outcomes | 15,120,299 | `c0cf4b55c846f46910f32ed5061416e68b66916e4e500acc09c13496721c50d6` |
+| Compact backend, shared Epsilon outcomes | 7,342,855 | `f445ec71096c3be69d78a00aba2402130f196998248e977466865fcc924e5e30` |
+| Lexer output | 465 | `7d7a561d217ec1ce599a203fb8290b907c2582883c98dc71541c5bd0633f31aa` |
+
+Starting from the admitted Beta tape, the launcher constructed the 227,471-byte
+Gamma compiler tape and reproduced it twice (SHA-256
+`76d58ec432aa1f0d2e1c4471f5a99a7240ea900af672722bcde317f4e32cfca2`).
+It passed the 47 portable Gamma checks. At 131,072 active source calls the
+test published both expected bytes. One more call returned 250 with empty
+output. The 17-case string scanner also ran on Alpha in 4,025,521 tape bytes.
+
+To rebuild this customer from its Epsilon source and execute the lexer
+checks, run `python3 tests/bootstrap/independent/successor_test.py --compile-epsilon`.
+The route writes the public Gamma receipt, Alpha tape and observations under
+`build/independent-successors/compiled-epsilon/`.
+
 ### Compare a production request operation across evaluator hosts
 
 The [Request.clear test](../../../tests/bootstrap/independent/request_clear.py)

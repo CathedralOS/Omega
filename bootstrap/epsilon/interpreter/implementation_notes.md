@@ -36,7 +36,7 @@ its parser, checking, execution and independent-model migration remains under
 wrappers contain only their native AST value and no duplicated cursor or span.
 The closure deliberately still has no `main` of its own: the canonical
 evaluator `main` is the bound edge source
-[`tests/bootstrap/conformance/epsilon/evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta),
+[`bootstrap/epsilon/interpreter.delta`](../interpreter.delta),
 appended after the packed closure to form the canonical Delta subject. Its
 receipt, EREQ request envelope, canonical observation grammar, and EEOUT
 refusal frame are defined in [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) and

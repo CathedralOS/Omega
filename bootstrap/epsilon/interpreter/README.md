@@ -1,7 +1,9 @@
-# Epsilon rung
+# Epsilon interpreter
 
-This directory owns the Epsilon language, its Delta-written evaluator, and
-adjacent execution validation.
+The Delta modules in this directory check and execute Epsilon programs. The
+[entry](../interpreter.delta) receives the source and stdin and publishes the
+result. The [compiler](../compiler/) also uses the frontend to check source
+before it emits Delta.
 
 [`../LANGUAGE.md`](../LANGUAGE.md) is the normative Epsilon v1 contract.
 It is self-contained: a compiler, sample corpus, historical implementation, or
@@ -71,7 +73,7 @@ must then rebuild the same Omega compiler source reproducibly.
   realization.
   The canonical evaluator boundary and `main` are realized by
   [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): the packed closure plus the bound
-  [`evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta)
+  [`interpreter.delta`](../interpreter.delta)
   source compiles to the canonical receipt that consumes the EREQ envelope and
   publishes canonical observations or EEOUT refusal frames within the
   evaluator's current construct coverage. Complete-D composition and
@@ -126,7 +128,7 @@ Start at [`epsilon_compiler.delta`](epsilon_compiler.delta). Its
 distinguishes rejection from internal failure, and starts the checked entry
 invocation. This library entrance is the evaluator's semantic core, not the
 physical request boundary; the canonical `main` is
-[`evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta)
+[`interpreter.delta`](../interpreter.delta)
 and this file still exposes no artifact on its own.
 The [private execution driver](../../../_recycling/tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 preserves full `i32` exit codes, trap kinds and stdout prefixes, and rejection
@@ -180,7 +182,7 @@ the same translation unit.
 `mbx xtask source-closure` checks those
 rows, closed ASCII source bytes, canonical nonsymlink member paths, and exact
 source inventory, then concatenates bytes without separators. It does not parse
-or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
+or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_EVALUATOR_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
 The packed evaluator is 12,096 lines / 616,939 bytes, SHA-256
@@ -192,19 +194,12 @@ materialization and `tests/bootstrap/interpreted/epsilon-identity.sh` covers the
 A digest is an identity check on the bytes being evaluated, not a proof that
 the evaluator implements Epsilon.
 
-The canonical slice driver
-[`execution_driver.delta`](../drivers/execution_driver.delta)
-is 2,150 bytes, SHA-256
-`ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa`; every
-cross-rung consumer appends it after the packed evaluator to form the DCREQ
-subject. Compiling the bound evaluator, driver, and Delta support section
-through the bound Delta compiler reconstructs exactly one evaluator receipt:
-719,006 bytes, SHA-256
-`f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340`.
-`tools/bootstrap/epsilon/evaluator_env.sh` binds both identities, and
-`tests/bootstrap/interpreted/epsilon-identity.sh` covers the refusals and checks every
-consuming gate's record. The receipt identity is an obligation on the
-reconstructed bytes, not a proof that the evaluator implements Epsilon.
+The public entry appends [interpreter.delta](../interpreter.delta) to the
+packed evaluator. The Delta compiler produces a 726,601-byte Gamma program
+from that source. The [entry contract](EVALUATOR_ENTRY.md) gives its identity
+and request format. One [executable test](../../../tests/bootstrap/interpreted/omega-executable/README.md)
+appends its own diagnostic driver to exercise a private frame instead.
+
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.

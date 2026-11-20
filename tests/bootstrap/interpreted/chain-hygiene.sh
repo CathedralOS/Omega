@@ -85,6 +85,20 @@ do
 done
 expect_result accepted 'archive without bootstrap experiments'
 
+reject_list_member() {
+  listing=$FIXTURE_ROOT/bootstrap/$1
+  cp "$listing" "$FIXTURE_PARENT/original.list"
+  printf '%s\n' "$2" >> "$listing"
+  expect_result rejected "$3" "$1: $2"
+  mv "$FIXTURE_PARENT/original.list" "$listing"
+}
+
+reject_list_member delta/interpreter/sources.list \
+  ../../tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma \
+  'archive importing a Gamma test through the Delta interpreter list'
+reject_list_member epsilon/compiler/compiler.parts README.md \
+  'archive treating compiler documentation as Delta source'
+
 mkdir -p "$FIXTURE_ROOT/source/retired/empty" \
   "$FIXTURE_ROOT/bootstrap/retired/empty"
 expect_result accepted 'archive with empty owner directories'
@@ -117,6 +131,19 @@ done
 git -C "$FIXTURE_ROOT" init -q
 git -C "$FIXTURE_ROOT" add .
 expect_result accepted 'checkout with empty owner directories'
+reject_list_member epsilon/compiler/runtime/pure.parts runtime/absent.delta \
+  'checkout with a missing pure runtime member'
+fixture=../../../tests/bootstrap/interpreted/delta
+case "$(uname -s)" in
+  MINGW*|MSYS*) ;; # Git Bash can copy the directory when native symlinks are disabled.
+  *)
+    ln -s "$fixture" "$FIXTURE_ROOT/bootstrap/epsilon/compiler/fixture"
+    fixture=fixture ;;
+esac
+reject_list_member epsilon/compiler/runtime/storage.parts "$fixture/interpreter_values.delta" \
+  'checkout importing an external Delta test source'
+if [ "$fixture" = fixture ]; then rm "$FIXTURE_ROOT/bootstrap/epsilon/compiler/fixture"; fi
+
 touch "$FIXTURE_ROOT/source/retired/.DS_Store" \
   "$FIXTURE_ROOT/bootstrap/retired/.DS_Store"
 expect_result accepted 'checkout with ignored local artifacts'
@@ -139,10 +166,10 @@ do
   git -C "$FIXTURE_ROOT" rm -q --cached "$tree/retired/unexpected.source"
 done
 
-# The offline launcher consumes the same Delta compiler as the packed closure.
-printf 'x' >> "$FIXTURE_ROOT/bootstrap/delta/to-gamma/distribution.gamma"
-expect_result rejected 'changed offline Delta distribution' 'Delta compiler distribution'
-git -C "$FIXTURE_ROOT" checkout -- bootstrap/delta/to-gamma/distribution.gamma
+# The Epsilon interpreter entry is separately bound beside its implementation.
+printf 'x' >> "$FIXTURE_ROOT/bootstrap/epsilon/interpreter.delta"
+expect_result rejected 'changed Epsilon interpreter entry' 'interpreter.delta'
+git -C "$FIXTURE_ROOT" checkout -- bootstrap/epsilon/interpreter.delta
 
 # Gate-local prefix entries are bound subjects: corrupting one must fail the
 # chain gate even though every canonical compiler closure stays byte-exact.

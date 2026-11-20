@@ -6,7 +6,7 @@ profile. It satisfies the EPSILON-EVALUATOR entry obligation: one explicit
 profile, exact and adjacent refusals, every lower-chain resource refusal
 carried to the section-10 outer `Incomplete`, and no Epsilon observation on
 any resource or transport refusal. The private diagnostic adapter
-(`bootstrap/epsilon/drivers/execution_driver.delta`, profiled
+(`tests/bootstrap/interpreted/omega-executable/execution_driver.delta`, profiled
 in [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md)) is not this boundary; it
 remains the development transport only.
 
@@ -24,16 +24,14 @@ no observation can produce.
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
 | packed Epsilon evaluator closure | 616,939 | `a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c` |
-| canonical entry `evaluator_entry.delta` | 10,563 | `ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79` |
+| canonical entry `interpreter.delta` | 10,563 | `ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
 | canonical evaluator receipt | 726,601 | `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af` |
 
-The canonical entry source is
-[`tests/bootstrap/conformance/epsilon/evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta).
-The closure's source inventory owns every `.delta` file under
-`bootstrap/epsilon/interpreter/`, so the entry lives beside its boundary gate — the same
-placement the diagnostic driver uses — rather than inside the closure it wraps.
-The compiled Delta subject is exactly `packed closure bytes ++ entry bytes`;
+The entry embeds the digest of the evaluator's ordered library sources. To build
+the executable Delta subject, concatenate the packed library and
+[`bootstrap/epsilon/interpreter.delta`](../interpreter.delta) in that order. The
+entry sits beside the library directory so the digest covers exactly the library;
 compiling that subject with the bound Delta support section through the bound
 Delta compiler (`DCREQ`, profile 1, `ConformanceBytesV1`) reconstructs exactly
 the canonical receipt. `tools/bootstrap/epsilon/evaluator_env.sh` and

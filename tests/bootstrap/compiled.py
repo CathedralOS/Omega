@@ -74,10 +74,14 @@ def pack(manifest, output, prefix=None):
     return output.read_bytes()
 
 
+def pack_delta_compiler(work):
+    return pack("bootstrap/delta/compiler/implementation/implementation.gamma.sources",
+                work / "delta.gamma", "bootstrap/delta/compiler/delta_compiler.gamma")
+
+
 def customer(work, evaluator, producer, realize=stamp):
-    source = pack("bootstrap/delta/to-gamma/implementation/implementation.gamma.sources",
-                  work / "delta.gamma", "bootstrap/delta/to-gamma/delta_compiler.gamma")
-    support = pack("bootstrap/delta/to-gamma/support/support.gamma.sources", work / "support.bin")
+    source = pack_delta_compiler(work)
+    support = pack("bootstrap/delta/compiler/support/support.gamma.sources", work / "support.bin")
     started = time.monotonic()
     compiler = compile_program(work, source, "delta", compiler=producer, realize=realize)
     artifact = work / ("delta.tape" if realize is stamp else "delta.elf")
@@ -102,7 +106,7 @@ def customer(work, evaluator, producer, realize=stamp):
 
 def epsilon_customer(work, producer, realize=stamp):
     closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
-    subject = closure + (ROOT / "tests/bootstrap/conformance/epsilon/evaluator_entry.delta").read_bytes()
+    subject = closure + (ROOT / "bootstrap/epsilon/interpreter.delta").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + (work / "support.bin").read_bytes())
     (work / "epsilon-request.bin").write_bytes(request)

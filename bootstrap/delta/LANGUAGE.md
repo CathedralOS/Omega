@@ -1,9 +1,10 @@
 # Delta language
 
-Delta is the small, typed, pure definitional language used to implement the
-Epsilon evaluator. Its selected Gamma-authored implementation edge is currently
-open. Earlier concatenative compilers and bounded oracles supplied implementation
-evidence; none defines a second Delta language.
+Delta is the typed, pure language used to implement the Epsilon interpreter
+and compiler. Two Gamma programs implement Delta. The [interpreter](interpreter/)
+evaluates checked expressions, and the [compiler](compiler/) lowers them to
+Gamma. Both use the same syntax and type checker. Each implementation has
+its own execution limits.
 
 ## Source envelope
 
@@ -202,12 +203,12 @@ inferred from source, filenames, or ambient invocation state.
 
 The sealed input presented to the composed compiler artifact continues past
 the request's exact end with the bound support section: the packed members of
-[`to-gamma/support/support.gamma.sources`](to-gamma/support/support.gamma.sources) in manifest
+[`compiler/support/support.gamma.sources`](compiler/support/support.gamma.sources) in manifest
 order, under the `GammaComposedV2` composition contract
 (`bootstrap/gamma/interpreter/COMPOSED_ARTIFACT.md`). The members are the ordinary
 Gamma source the compiler copies into emitted programs - the byte-rope
 runtime, the `ConformanceBytesV1` adapter runtime, and the generated `main`
-adapter - each authored once under `to-gamma/support/` rather than re-encoded inside
+adapter - each authored once under `compiler/support/` rather than re-encoded inside
 the emitter. The compiler validates the complete section's presence during
 request admission and every member's exact bytes before any Delta-source
 phase; copying during publication is a byte-level walk of the sealed input,
@@ -395,7 +396,7 @@ at internal row 0 with zero limit/requested. This row identifies the singleton
 complete-program emission record, not the corrupt child or an authored source
 location. Positive signed count overflow in private metadata and late replay
 disagreement remain raw evaluator failures, not canonical DCOUT outcomes. The
-[selected producer's occurrence bound](to-gamma/implementation/emission/README.md#reachable-byte-count-bound)
+[selected producer's occurrence bound](compiler/implementation/emission/README.md#reachable-byte-count-bound)
 keeps admitted-source intermediate and complete emission counts below `2^62`;
 the private overflow case is not reachable through that producer. This is a
 source-level implementation argument, not a checked Delta refinement proof.
@@ -431,9 +432,9 @@ values, immutable pairs, and buffered output) belong to that program's
 execution: a generated application can still exhaust its evaluator or
 diverge, and that failure is never a compiler DCOUT case. The producer's
 execution storage is bounded by the
-[execution-storage audit](to-gamma/implementation/boundary/execution_storage.md), and
+[execution-storage audit](compiler/implementation/boundary/execution_storage.md), and
 its cumulative pair allocation is that audit's
-[remaining obligation](to-gamma/implementation/boundary/execution_storage.md#remaining-obligation):
+[remaining obligation](compiler/implementation/boundary/execution_storage.md#remaining-obligation):
 no general bound shows that every admitted composition fits the selected
 3,422,453,760-pair arena. The
 [measured worst-shape

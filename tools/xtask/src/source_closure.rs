@@ -735,19 +735,19 @@ mod tests {
                 None,
             ),
             (
-                "bootstrap/delta/to-gamma/implementation/implementation.gamma.sources",
+                "bootstrap/delta/compiler/implementation/implementation.gamma.sources",
                 151525,
                 "de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6",
-                Some("bootstrap/delta/to-gamma/delta_compiler.gamma"),
+                Some("bootstrap/delta/compiler/delta_compiler.gamma"),
             ),
             (
-                "bootstrap/delta/to-gamma/implementation/implementation.gamma.sources",
+                "bootstrap/delta/compiler/implementation/implementation.gamma.sources",
                 151292,
                 "4e82f36aa94a5cad71297687e2643982d88942bda4750c877fe8d633308fb720",
                 Some("tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma"),
             ),
             (
-                "bootstrap/delta/to-gamma/support/support.gamma.sources",
+                "bootstrap/delta/compiler/support/support.gamma.sources",
                 2998,
                 "cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255",
                 None,

@@ -10,8 +10,7 @@ tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma
 
 The command runs offline with an empty `PATH`. It needs Linux x86-64, space
 for the stage files, permission to execute programs in the new directory,
-and the virtual memory provision of the Alpha seed. The first compiler that
-can build Omega and the subsequent Omega self-build remain open.
+and the virtual memory provision of the Alpha seed.
 
 ### Build a supplied Gamma program in the same command
 
@@ -21,35 +20,36 @@ its bytes in `program.gamma` before constructing the compilers, then runs
 `program` executable. An invalid program leaves the rebuilt Gamma compiler
 available and returns the producer's failure status.
 
-A checkout carries the complete readable Delta compiler source as `bootstrap/delta/to-gamma/distribution.gamma`.
-It comprises the canonical entry followed by every implementation member in
-the existing manifest order. To construct the native Delta compiler, run
+### Build the Delta compiler from its source tree
+
+Use `--delta` to read the Delta compiler entry and the implementation manifest
+from the supplied source root. Each member path resolves relative to the
+manifest. The driver writes the entry and the members in the declared order
+with no separator. It saves the result as `program.gamma` and compiles it to
+`program`.
 
 ```sh
-tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-delta bootstrap/delta/to-gamma/distribution.gamma
+tests/bootstrap/linux_x86_64/bootstrap --delta . /tmp/omega-delta
 ```
 
-The executable is `/tmp/omega-delta/program`. With a previously constructed
-Gamma compiler, `gamma-compiler < bootstrap/delta/to-gamma/distribution.gamma > delta`
-emits the same bytes. The cold command reads the distributed file directly.
-
-Edit the canonical Delta entry and members in `bootstrap/delta/to-gamma/`. When
-those sources change, refresh the distribution from the repository root.
+The driver checks the manifest header and row format, strictly increasing
+identities, unique relative Gamma paths, regular member files, source text
+bytes and each member's declared length. It rejects symlinks in member paths.
+It checks the spelling of each digest. To verify the SHA-256 values and the
+full source inventory independently, materialize the same input and compare
+it with the driver's snapshot.
 
 ```sh
-mbx xtask source-closure bootstrap/delta/to-gamma/implementation/implementation.gamma.sources \
-    bootstrap/delta/to-gamma/distribution.gamma --prefix bootstrap/delta/to-gamma/delta_compiler.gamma
+mbx xtask source-closure bootstrap/delta/compiler/implementation/implementation.gamma.sources \
+    /tmp/audited-delta.gamma --prefix bootstrap/delta/compiler/delta_compiler.gamma
+cmp /tmp/audited-delta.gamma /tmp/omega-delta/program.gamma
 ```
 
-The Delta identity test reruns the existing materializer and compares its
-output with the distributed file byte for byte. This adds one readable copy of
-the compiler source to the checkout and keeps manifest parsing, inventory
-checks and hashing in distribution maintenance.
-[Delta source ownership](../../../bootstrap/delta/to-gamma/README.md#selected-staged-delta-compiler)
+[Delta source ownership](../../../bootstrap/delta/compiler/README.md)
 
 ### Compile Gamma source emitted by the supplied program
 
-A fourth argument supplies input to the native `program` built in the previous
+A final optional argument supplies input to the `program` built in the previous
 step. The driver saves the bytes in `program.input`, runs `program` on them,
 then gives its successful output to the rebuilt Gamma compiler. The output
 directory retains the intermediate bytes as `producer.output`. When Gamma
@@ -59,8 +59,7 @@ For example, the Delta compiler can emit the Gamma source for the Epsilon
 evaluator. This invocation takes its canonical Delta compilation request.
 
 ```sh
-tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-epsilon \
-    bootstrap/delta/to-gamma/distribution.gamma /path/to/epsilon-request.bin
+tests/bootstrap/linux_x86_64/bootstrap --delta . /tmp/omega-epsilon /path/to/epsilon-request.bin
 ```
 
 That request contains the 16-byte DCREQ header, the ordered Delta source of
@@ -76,11 +75,10 @@ contains the Gamma program, so its stdin starts at the sealed `EEREQ` header.
 
 Pass `--alpha` before the source root to run the same construction with
 the Gamma-to-Alpha backend. For example, build the Epsilon evaluator from
-the same distributed Gamma source and Delta request as above.
+the same Delta source tree and request as above.
 
 ```sh
-tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-epsilon-alpha \
-    bootstrap/delta/to-gamma/distribution.gamma /path/to/epsilon-request.bin
+tests/bootstrap/linux_x86_64/bootstrap --alpha --delta . /tmp/omega-epsilon-alpha /path/to/epsilon-request.bin
 ```
 
 The Gamma compiler source uses `gamma/compiler/alpha/alpha_backend.gamma`. The driver
@@ -128,14 +126,15 @@ any `stage.partial`. A fresh invocation requires its own new directory.
 ## Audit the native entry
 
 The Linux kernel, the checked-in driver, its embedded Alpha and Beta, and the
-five supplied source files are the inputs. Self-reconstruction checks the
-Beta bytes. The finite Beta audit and Alpha semantics explain what those
-bytes do. The driver source owns file I/O, process invocation, framing and
-comparison. A replacement driver can substitute stages, so its executable
-is also part of the native trust root.
+five supplied source files are the inputs for constructing the Gamma compiler.
+Self-reconstruction checks the Beta bytes. The finite Beta audit and Alpha
+semantics explain what those bytes do. The driver handles file I/O, process
+invocation, framing, byte comparisons and optional Delta manifest assembly.
+A replacement driver can substitute stages, so its executable is also part
+of the native trust root.
 [Alpha](../../../bootstrap/alpha/README.md) · [Beta audit](../../../bootstrap/beta/AUDIT.md) · [Gamma compiler](../../../wiki/development/bootstrap/native.md)
 
-The driver is freestanding C with an assembly entry for Linux system calls.
+The test launcher is freestanding C with an assembly entry for Linux system calls.
 For a source-to-binary comparison, run this command from the repository root
 using GCC 14.2.0 and GNU binutils 2.44. These development tools participate
 when reproducing the driver itself. The checked-in binary needs only the OS
@@ -156,3 +155,5 @@ against the audited seed, checks each static executable, compiles two changed
 Gamma programs, runs both on changed bytes and exercises malformed inputs.
 Run `python3 tests/bootstrap/linux-seed-construction.py` for native images and
 `python3 tests/bootstrap/linux-seed-construction.py --alpha` for Alpha tapes.
+Add `--delta` to either test command to exercise the canonical Delta source
+tree, malformed manifests, and compilation and execution of a Delta customer.

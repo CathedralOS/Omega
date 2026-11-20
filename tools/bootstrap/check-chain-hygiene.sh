@@ -58,8 +58,8 @@ for required in \
   "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_EPSILON" \
+  "$OMEGA_PATH_EPSILON_EVALUATOR" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
-  "$OMEGA_PATH_EPSILON/to-delta" \
   "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
@@ -99,10 +99,50 @@ printf '%s\n' "$xtask_usage" | grep -q 'gamma-invoke' ||
   fail "Gamma composed-artifact contract is absent"
 [ -f "$OMEGA_PATH_DELTA/LANGUAGE.md" ] || fail "Delta contract is absent"
 [ -f "$OMEGA_PATH_EPSILON/LANGUAGE.md" ] || fail "Epsilon contract is absent"
-[ -f "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" ] ||
+[ -f "$OMEGA_PATH_EPSILON_EVALUATOR_SOURCES" ] ||
   fail "Delta-written Epsilon evaluator source manifest is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" ] ||
   fail "Epsilon-written Omega D source manifest is absent"
+
+# These ordered lists assemble source across directories within one language.
+# Check the physical parent as well as the suffix so a link cannot import a
+# test fixture or a host file under an apparently local source name.
+check_source_list() (
+  owner=$1
+  base=$2
+  name=$3
+  list=$base/$name
+  suffix=$4
+  LC_ALL=C
+  export LC_ALL
+  owned_file() {
+    [ -f "$1" ] && [ ! -L "$1" ] || return 1
+    parent=$(CDPATH= cd -P -- "${1%/*}" && pwd -P) || return 1
+    case "$parent/" in "$owner/"*) return 0 ;; *) return 1 ;; esac
+  }
+
+  owned_file "$list" || fail "missing or misplaced source list: $list"
+  count=0
+  while IFS= read -r member || [ -n "$member" ]; do
+    case "$member" in
+      '') case "$name" in *.parts) continue ;; esac ;;
+      @module|@entry) case "$name" in runtime/*.parts) continue ;; esac ;;
+    esac
+    case "$member" in
+      /*|*\\*|*:*|*[![:graph:]]*) fail "invalid source list member in $list: $member" ;;
+      *."$suffix") ;;
+      *) fail "invalid source list member in $list: $member" ;;
+    esac
+    owned_file "$base/$member" || fail "missing or misplaced source list member in $list: $member"
+    count=$((count + 1))
+  done < "$list"
+  [ "$count" -gt 0 ] || fail "empty source list: $list"
+)
+
+check_source_list "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA" interpreter/sources.list gamma
+for list in compiler.parts runtime/pure.parts runtime/storage.parts; do
+  check_source_list "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_EPSILON_COMPILER" "$list" delta
+done
 
 for flat_rung in "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA"
 do
@@ -166,12 +206,12 @@ omega'
 
 tracked_compiler_sources=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
-  "$OMEGA_PATH_EPSILON_COMPILER" \
+  "$OMEGA_PATH_EPSILON_EVALUATOR" \
   -type f -name '*compiler.*' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
 expected_compiler_sources='bootstrap/beta/beta_compiler.beta
-bootstrap/delta/to-gamma/delta_compiler.gamma
+bootstrap/delta/compiler/delta_compiler.gamma
 bootstrap/epsilon/interpreter/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
@@ -188,11 +228,8 @@ sh "$OMEGA_REPO_ROOT/tools/rust_producer_omission.sh" ||
 # packed closure, and the composed record to the audited edge records, and
 # refuses before any consumer could pack a substituted manifest.
 require_delta_compiler_identity
-require_bound_identity "Delta compiler distribution" \
-  "$OMEGA_PATH_DELTA_COMPILER/distribution.gamma" \
-  "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256" \
-  "bootstrap/delta/to-gamma/README.md"
 require_epsilon_evaluator_identity
+require_epsilon_evaluator_entry_identity
 require_omega_compiler_identity
 
 # Gate-local prefix entries are bound subjects too: the staged-compiler
@@ -215,7 +252,7 @@ require_omega_executable_entries_identity
 
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
-  "$OMEGA_PATH_EPSILON_COMPILER" \
+  "$OMEGA_PATH_EPSILON_EVALUATOR" \
   -type f -name '*compiler*.tape' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | sort || true)
 expected_compiler_tapes='bootstrap/beta/beta_compiler_bytecode.tape'

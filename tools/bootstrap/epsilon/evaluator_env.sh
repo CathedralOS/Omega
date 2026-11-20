@@ -2,7 +2,7 @@
 # Materialize the canonical Delta-authored Epsilon evaluator closure.
 # Source tools/bootstrap/paths.sh first.
 
-[ -n "${OMEGA_PATH_EPSILON_COMPILER_SOURCES:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
+[ -n "${OMEGA_PATH_EPSILON_EVALUATOR_SOURCES:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
   echo "Epsilon evaluator: source tools/bootstrap/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
 }
@@ -22,40 +22,20 @@ EPSILON_EVALUATOR_MANIFEST_SHA256=d8e2b9c0ef64c1be8a2b5b1582a4bde4cdba7f5d790cf9
 EPSILON_EVALUATOR_PACKED_SIZE=616939
 EPSILON_EVALUATOR_PACKED_SHA256=a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c
 
-# Bound edge adapter and reconstructed obligation. The canonical execution
-# driver bootstrap/epsilon/drivers/execution_driver.delta is
-# the Delta adapter every cross-rung consumer appends after the packed
-# evaluator; compiling the bound evaluator plus this driver and the bound
-# Delta support section through the bound Delta compiler reconstructs exactly
-# one evaluator receipt, which those consumers then execute. The identical
-# pins in tests/bootstrap/interpreted/epsilon/interpreted-omega-experiment/{README.md,run.sh},
-# tests/bootstrap/interpreted/epsilon/array-storage/gate.py, and tests/bootstrap/interpreted/omega-*/gate.py are
-# records of this one obligation, not independent identities. A digest here is
-# an identity check on the driver or the reconstructed bytes; it is not a
-# proof of evaluation. Changing the driver or any bound input changes the
-# receipt and must update every record together.
+# The interpreted Omega executable gate appends its private driver to the
+# evaluator closure. These pins bind that diagnostic entry and its reconstructed
+# Gamma receipt. The canonical EEREQ entry below has a different contract.
 EPSILON_EXECUTION_DRIVER_SIZE=2150
 EPSILON_EXECUTION_DRIVER_SHA256=ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa
 EPSILON_EVALUATOR_RECEIPT_SIZE=719006
 EPSILON_EVALUATOR_RECEIPT_SHA256=f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340
 
-# Bound canonical section-11 entry and its reconstructed obligation. The
-# canonical evaluator entry tests/bootstrap/conformance/epsilon/evaluator_entry.delta
-# is the evaluator's real `main`: appended after the packed evaluator it forms
-# the Delta subject whose compilation through the bound Delta compiler and
-# support section reconstructs exactly one canonical evaluator receipt - the
-# artifact that consumes the EREQ envelope and publishes canonical
-# observations or EEOUT refusal frames
-# (bootstrap/epsilon/interpreter/EVALUATOR_ENTRY.md). The entry lives outside the
-# closure because the closure's source inventory owns every .delta file under
-# bootstrap/epsilon/interpreter/; it sits beside its boundary gate under the same
-# placement rule as the diagnostic driver. The identical pins in
-# tests/bootstrap/interpreted/epsilon/evaluator-entry/{README.md,run.sh} and
-# bootstrap/epsilon/interpreter/EVALUATOR_ENTRY.md are records of this one obligation,
-# not independent identities. A digest here is an identity check on the entry
-# source or the reconstructed bytes; it is not a proof of evaluation. Changing
-# the entry, the packed closure, the compiler, or the support section changes
-# the receipt and must update every record together.
+# Append bootstrap/epsilon/interpreter.delta to the packed interpreter source
+# and compile through Delta with its bound support. The resulting evaluator
+# accepts the EEREQ envelope and publishes observations or EEOUT refusals.
+# The entry sits beside the interpreter directory so its digest and the
+# interpreter manifest can each be checked independently.
+# See bootstrap/epsilon/interpreter/EVALUATOR_ENTRY.md.
 EPSILON_EVALUATOR_ENTRY_SIZE=10563
 EPSILON_EVALUATOR_ENTRY_SHA256=ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79
 EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE=726601
@@ -101,25 +81,20 @@ EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SHA256=24c2a9e1a391b91fe670f209108651751624
 # established and the check refuses rather than skipping.
 require_epsilon_evaluator_identity() {
   require_bound_identity "epsilon_compiler.delta.sources" \
-    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" \
+    "$OMEGA_PATH_EPSILON_EVALUATOR_SOURCES" \
     "$EPSILON_EVALUATOR_MANIFEST_SIZE" "$EPSILON_EVALUATOR_MANIFEST_SHA256" \
     "bootstrap/epsilon/interpreter/README.md" || return $?
-  require_packed_closure_identity "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" evaluator.delta \
+  require_packed_closure_identity "$OMEGA_PATH_EPSILON_EVALUATOR_SOURCES" evaluator.delta \
     "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256" \
     "bootstrap/epsilon/interpreter/README.md" "canonical Epsilon evaluator closure" "Epsilon source closure"
 }
 
-# require_epsilon_execution_driver_identity : the canonical slice driver
-# appended after the packed evaluator by every cross-rung consumer is the
-# bound file. The driver is a separate input to the DCREQ subject, so
-# consumers that frame evaluator+driver requests run this before compiling;
-# tests may call it directly. It is not part of the source closure and does
-# not run during materialization.
+# Check the interpreted Omega executable gate's private framing adapter.
 require_epsilon_execution_driver_identity() {
   require_bound_identity "execution_driver.delta" \
     "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" \
     "$EPSILON_EXECUTION_DRIVER_SIZE" "$EPSILON_EXECUTION_DRIVER_SHA256" \
-    "_recycling/tests/epsilon/interpreted-omega-experiment/README.md"
+    "tests/bootstrap/interpreted/omega-executable/README.md"
 }
 
 # require_epsilon_evaluator_receipt_identity RECEIPT : the receipt a caller
@@ -130,7 +105,7 @@ require_epsilon_execution_driver_identity() {
 require_epsilon_evaluator_receipt_identity() {
   require_bound_identity "Epsilon evaluator receipt" "$1" \
     "$EPSILON_EVALUATOR_RECEIPT_SIZE" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
-    "_recycling/tests/epsilon/interpreted-omega-experiment/README.md"
+    "tests/bootstrap/interpreted/omega-executable/README.md"
 }
 
 # require_epsilon_evaluator_entry_identity : the canonical section-11 entry
@@ -140,8 +115,8 @@ require_epsilon_evaluator_receipt_identity() {
 # tests may call it directly. It is not part of the source closure and does
 # not run during materialization.
 require_epsilon_evaluator_entry_identity() {
-  require_bound_identity "evaluator_entry.delta" \
-    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/tests/bootstrap/conformance/epsilon/evaluator_entry.delta}" \
+  require_bound_identity "interpreter.delta" \
+    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/bootstrap/epsilon/interpreter.delta}" \
     "$EPSILON_EVALUATOR_ENTRY_SIZE" "$EPSILON_EVALUATOR_ENTRY_SHA256" \
     "_recycling/tests/epsilon/evaluator-entry/README.md"
 }
@@ -259,5 +234,5 @@ materialize_epsilon_evaluator() {
   EPSILON_EVALUATOR_DEST=$1
   require_epsilon_evaluator_identity || return $?
   bootstrap_xtask source-closure \
-    "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" "$EPSILON_EVALUATOR_DEST"
+    "$OMEGA_PATH_EPSILON_EVALUATOR_SOURCES" "$EPSILON_EVALUATOR_DEST"
 }
