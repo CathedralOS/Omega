@@ -71,7 +71,7 @@ also needs the target’s selected provider and process-entry environment.
 
 ## Closed source-set input
 
-The current producer writes the little-endian u32 words `0, 1` followed by
+By default the producer writes the little-endian u32 words `0, 1` followed by
 package count, dependency count, unit count, entry unit, entry-name start,
 entry-name end and byte-buffer length. The following rows also use u32 words.
 
@@ -89,8 +89,38 @@ Renaming a file in the same directory preserves its declarations' names. A packe
 beginning with a nonzero package count uses the original three-word unit rows
 and places each unit in the package root. [Directory namespaces](../../../wiki/spec/language/modules.md#directory-namespaces)
 
-The current limits are 64 packages, 256 direct dependencies, 512
-units, a 4 MiB shared buffer for sources, paths and names, 128 KiB per unit,
+### Including authored Build sources
+
+Pass `--with-build-sources` to capture the Build files in the same request.
+Version 2 starts with `0, 2` and the seven version-1 header words. One
+additional word gives the number of Build files. The package, dependency and
+Product unit tables follow in the same order. Two more tables precede the
+shared byte buffer.
+
+| Table | Rows | Words in each row |
+|---|---|---|
+| Selected Build source | One per package, in requester order | Requester ordinal, Build file ordinal |
+| Build files | One per captured file | Supplying package, source start, source end, path start, path end |
+
+Build file ordinals index only the Build table. Paths use package-relative
+POSIX spelling. The constructor checks file ranges, unique supplier/path
+pairs and one selection per requester. A package selects its own root
+`build.omg`. A package whose captured inventory lacks that file selects
+`defaults/build.omg` from the unique core supplier. The requesting package
+remains the scope for this invocation of the default Build. All spans refer
+to the original bytes, including whitespace. Product coordinates stay stable
+when adding Build files to a given Product capture.
+
+The caller must supply a complete inventory and establish the trusted core
+identity. The two tables carry source provenance for subsequent checking.
+They do not establish a returned Build configuration, a physical process
+domain or stream handles. The Omega application exits 253 on malformed Build
+ownership and 246 on a valid inventory pending Build replay. Both paths write
+zero tape bytes. The public OCREQ protocol has its own acquisition and
+admission requirements. [Compiler request](../../../wiki/spec/build/compiler_request.md)
+
+The current limits are 64 packages, 256 direct dependencies, 512 Product
+units and 512 Build files, a 4 MiB shared buffer for sources, paths and names, 128 KiB per unit,
 and 256 bytes per directory namespace, package name or alias.
 These are resource limits, not language rules.
 

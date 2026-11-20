@@ -58,7 +58,7 @@ machine initial_amount(builder: @mut Build) -> i32 {{
 }}
 "
     );
-    check_project(name, &build, value, dependency_body, arguments)
+    check_project(name, &build, value, dependency_body, None, arguments)
 }
 
 fn check_project(
@@ -66,6 +66,7 @@ fn check_project(
     build: &str,
     value: i32,
     dependency_body: &str,
+    support: Option<&str>,
     arguments: &[&str],
 ) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
@@ -90,12 +91,17 @@ fn check_project(
     std::fs::write(
         root.join("dep/main.omg"),
         format!(
-            "public machine v() -> i32 {{ {value} }}
+            "public data Number {{ value: i32; }}
+public machine v() -> i32 {{ {value} }}
 machine hidden() -> i32 {{ 7 }}
 "
         ),
     )
     .expect("staged dependency source");
+    if let Some(support) = support {
+        std::fs::create_dir(root.join("support")).expect("Build helper directory");
+        std::fs::write(root.join("support/support.omg"), support).expect("Build helper source");
+    }
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(arguments)
         .current_dir(&root)
@@ -269,60 +275,135 @@ fn preparation_preserves_only_the_proved_range_of_a_local() {
 }
 
 #[test]
-fn a_nested_helper_can_run_before_a_wait_and_another_can_use_the_prepared_package() {
+fn build_helpers_are_checked_at_the_call_site_in_both_file_layouts() {
     let target = target::TargetProfile::host_if_supported()
         .unwrap()
         .target_name();
-    let build = format!(
-        r#"use kit;
+    let helpers = r"machine seven() -> i32 { read_count() }
+    machine read_count() -> i32 { kit\v() }";
+    for (layout, import, call, nested, support, file) in [
+        ("nested", "use kit;", "seven()", helpers, None, "build.omg:"),
+        (
+            "imported",
+            "use support;",
+            r"support\seven()",
+            "",
+            Some(format!("use kit;\npublic {helpers}")),
+            "support.omg:",
+        ),
+    ] {
+        let build = format!(
+            r#"{import}
 machine build(builder: @mut Build) suspends {{
     announce(builder);
     let mut request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
     dependency\with_alias(@mut request, "kit");
     let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let expected: i32 = 7;
     suspend Build::prepare_dependency(builder, registered);
-    finish(builder);
+    transition {call} == expected {{ true -> bind(builder), _ -> wrong(builder) }}
     machine announce(builder: @mut Build) {{ set_role(builder); }}
-    machine set_role(builder: @mut Build) {{ Build::application(builder, "nested"); }}
-    machine finish(builder: @mut Build) {{
-        let seven: i32 = kit\v();
-        Build::bind(builder, {target}\ProgramEntry, main);
-    }}
+    machine set_role(builder: @mut Build) {{ Build::application(builder, "staged"); }}
+    machine bind(builder: @mut Build) {{ Build::bind(builder, {target}\ProgramEntry, main); }}
+    machine wrong(builder: @mut Build) {{ Build::application(builder, "wrong"); }}
+    {nested}
 }}
 "#
-    );
-    let run =
-        |name, build: &str| check_project(name, build, 7, "", &["run", "--both", "build.omg"]);
-    let (ran, output) = run("nested-before-preparation", &build);
-    assert!(
-        ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
-        "{output}"
-    );
+        );
+        let run = |case: &str, build: &str, support: Option<&str>| {
+            check_project(
+                &format!("helpers-{layout}-{case}"),
+                build,
+                7,
+                "",
+                support,
+                &["run", "--both", "build.omg"],
+            )
+        };
+        let (ran, output) = run("after", &build, support.as_deref());
+        assert!(
+            ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+            "{layout}: {output}"
+        );
 
-    let early = build.replace(
-        "Build::application",
-        r"let early: i32 = kit\v(); Build::application",
-    );
-    let (ran, output) = run("nested-import-too-soon", &early);
-    assert!(
-        !ran && output.contains("no visible declaration in its source scope")
-            && output.contains("build::set_role")
-            && !output.contains("while resuming"),
-        "{output}"
-    );
+        let early = build.replace(
+            "set_role(builder);",
+            &format!("let early: i32 = {call}; set_role(builder);"),
+        );
+        let (ran, output) = run("before", &early, support.as_deref());
+        assert!(
+            !ran && output.contains("no visible declaration in its source scope")
+                && output.contains("read_count")
+                && output.contains(file)
+                && !output.contains("while resuming"),
+            "{layout}: {output}"
+        );
 
-    let unused = build.replace(
-        "    machine finish",
-        r"    machine unused() { let bad: i32 = missing\v(); }
-    machine finish",
-    );
-    let (ran, output) = run("unused-nested-checked-after-preparation", &unused);
-    assert!(
-        !ran && output.contains("no visible declaration in its source scope")
-            && output.contains("build::unused")
-            && output.contains("while resuming"),
-        "{output}"
-    );
+        // No call to the prepared package can make either type use available.
+        for (form, expression, diagnostic) in [
+            (
+                "annotation",
+                r"let item: kit\Number = kit\Number { value: 7 }; item.value",
+                "type without a symbol",
+            ),
+            (
+                "constructor",
+                r"(kit\Number { value: 7 }).value",
+                "member without a field symbol",
+            ),
+        ] {
+            let type_helper = |text: &str| text.replace(r"kit\v()", expression);
+            let type_support = support.as_deref().map(type_helper);
+            let (ran, output) = run(
+                &format!("{form}-after"),
+                &type_helper(&build),
+                type_support.as_deref(),
+            );
+            assert!(
+                ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+                "{layout} {form}: {output}"
+            );
+            let (ran, output) = run(
+                &format!("{form}-before"),
+                &type_helper(&early),
+                type_support.as_deref(),
+            );
+            assert!(
+                !ran && output.contains(diagnostic)
+                    && output.contains("read_count")
+                    && output.contains(file)
+                    && !output.contains("while resuming"),
+                "{layout} {form}: {output}"
+            );
+        }
+
+        for (case, unused, diagnostic) in [
+            (
+                "unused-name",
+                r"machine unused() { let bad: i32 = missing\v(); }",
+                "no visible declaration in its source scope",
+            ),
+            (
+                "unused-overflow",
+                "machine unused(n: u64) -> u64 { n + 1u64 }",
+                "may overflow `u64`",
+            ),
+        ] {
+            let declarations = format!("{helpers}\n    {unused}");
+            let invalid_build = build.replace(helpers, &declarations);
+            let invalid_support = support
+                .as_ref()
+                .map(|body| body.replace(helpers, &declarations));
+            let (ran, output) = run(case, &invalid_build, invalid_support.as_deref());
+            assert!(
+                !ran && output.contains(diagnostic)
+                    && output.contains("unused`")
+                    && output.contains(file)
+                    && output.contains("while resuming"),
+                "{layout}: {output}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -372,7 +453,8 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
 {helpers}
 "#
         );
-        let (ran, output) = check_project(name, &build, 7, "", &["run", "--both", "build.omg"]);
+        let (ran, output) =
+            check_project(name, &build, 7, "", None, &["run", "--both", "build.omg"]);
         assert_eq!(ran, accepted, "{output}");
         if accepted {
             assert!(
@@ -535,6 +617,7 @@ machine build(builder: @mut Build) suspends {{
         &build,
         7,
         "",
+        None,
         &["--check", "main.omg"],
     );
     assert!(ran, "{report}");

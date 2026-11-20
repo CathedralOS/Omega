@@ -218,19 +218,17 @@ fn evaluate<'trees, 'text>(
     trees: &'trees TypedTrees<'text>,
     evidence: Option<CheckedRecursiveComponent<'trees, 'text>>,
     slots: &'trees [omega_typer::BoundarySlot],
-) -> Result<PreparedValue, TypeError> {
+) -> Result<omega_typed::StaticValue, TypeError> {
     let mut evaluation = ConstantEvaluation::new(trees, slots);
     evaluation.termination.evidence = evidence.into_iter().collect();
-    evaluation
-        .evaluate(&trees.constants[0].initializer, None)
-        .map(|value| PreparedValue::from(&value))
+    evaluation.evaluate(&trees.constants[0].initializer, None)
 }
 
 #[test]
 fn consumes_only_evidence_for_the_exact_typed_body() {
     let trees = typed(COUNTDOWN, "app");
     let proof = || check_countdown(&trees).expect("the nonzero branch lowers the rank strictly");
-    assert_eq!(evaluate(&trees, Some(proof()), &[]).unwrap(), PreparedValue::Integer(7.into()));
+    assert_eq!(evaluate(&trees, Some(proof()), &[]).unwrap(), omega_typed::StaticValue::Integer(7.into()));
     assert!(
         evaluate(&trees, None, &[])
             .unwrap_err()
@@ -275,7 +273,7 @@ fn consumes_only_evidence_for_the_exact_typed_body() {
 fn requires_one_joint_proof_for_every_mutual_recursion_edge() {
     let trees = typed(MUTUAL_COUNTDOWN, "app");
     let proof = || check_mutual_countdown(&trees).expect("the round trip strictly lowers a natural number");
-    assert_eq!(evaluate(&trees, Some(proof()), &[]).unwrap(), PreparedValue::Integer(9.into()));
+    assert_eq!(evaluate(&trees, Some(proof()), &[]).unwrap(), omega_typed::StaticValue::Integer(9.into()));
 
     let mut missing_edge = proof();
     missing_edge.edges.pop();

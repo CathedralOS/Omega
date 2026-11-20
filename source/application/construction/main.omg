@@ -26,7 +26,11 @@ data ConstructionInput {
     entry_name_end: u32;
     buffer_length: u32;
     unit_row_words: u32;
-    rows: [u32; 3776];
+    has_build_sources: bool;
+    build_unit_count: u32;
+    // Three Product tables (3776), up to 64 two-word Build entry selections,
+    // and up to 512 five-word Build source rows.
+    rows: [u32; 6464];
     bytes: [u8; 4194304];
 }
 
@@ -59,6 +63,8 @@ machine read_word() -> u32 reaches ProcessExit + Console crashes Trap blocks {
 machine read_input(input: @mut ConstructionInput)
 reaches ProcessExit + Console crashes Trap blocks
 {
+    input.has_build_sources = false;
+    input.build_unit_count = 0;
     let first: u32 = block read_word();
     transition first {
         0 -> block version(input),
@@ -68,12 +74,17 @@ reaches ProcessExit + Console crashes Trap blocks
         let version_word: u32 = block read_word();
         transition version_word {
             1 -> block version_one(input),
+            2 -> block version_two(input),
             _ -> malformed()
         }
     }
     machine version_one(input: @mut ConstructionInput) {
         let packages_word: u32 = block read_word();
         transition { _ -> block header(input, packages_word, 5) }
+    }
+    machine version_two(input: @mut ConstructionInput) {
+        input.has_build_sources = true;
+        transition { _ -> block version_one(input) }
     }
     machine header(input: @mut ConstructionInput, packages_word: u32, unit_words: u32)
     requires unit_words <= 5
@@ -86,13 +97,36 @@ reaches ProcessExit + Console crashes Trap blocks
         input.entry_name_start = block read_word();
         input.entry_name_end = block read_word();
         input.buffer_length = block read_word();
+        transition input.has_build_sources {
+            true -> block build_count(input, unit_words),
+            _ -> block layout(input, unit_words, 0)
+        }
+    }
+    machine build_count(input: @mut ConstructionInput, unit_words: u32)
+    requires unit_words <= 5
+    {
+        input.build_unit_count = block read_word();
+        transition input.package_count <= 64 && input.build_unit_count > 0 && input.build_unit_count <= 512 {
+            true -> block build_layout(input, unit_words),
+            _ -> malformed()
+        }
+    }
+    machine build_layout(input: @mut ConstructionInput, unit_words: u32)
+    requires unit_words <= 5, input.package_count <= 64, input.build_unit_count <= 512
+    {
+        let extra: u64 = input.package_count as u64 * 2 + input.build_unit_count as u64 * 5;
+        transition { _ -> block layout(input, unit_words, extra) }
+    }
+    machine layout(input: @mut ConstructionInput, unit_words: u32, extra: u64)
+    requires unit_words <= 5, extra <= 2688
+    {
         let packages: u64 = input.package_count as u64;
         let edges: u64 = input.edge_count as u64;
         let units: u64 = input.unit_count as u64;
-        let row_count: u64 = packages * 3 + edges * 4 + units * unit_words as u64;
+        let row_count: u64 = packages * 3 + edges * 4 + units * unit_words as u64 + extra;
         transition input.package_count > 0 && input.package_count <= 64
             && input.edge_count <= 256
-            && row_count <= 3776
+            && row_count <= 6464
             && input.unit_count > 0 && input.unit_count <= 512
             && input.entry_unit < input.unit_count
             && input.buffer_length <= 4194304
@@ -104,13 +138,13 @@ reaches ProcessExit + Console crashes Trap blocks
         }
     }
     machine rows(input: @mut ConstructionInput, index: u64, count: u64) {
-        transition index < count && index < 3776 {
+        transition index < count && index < 6464 {
             true -> block row(input, index, count),
             _ -> block bytes(input, 0)
         }
     }
     machine row(input: @mut ConstructionInput, index: u64, count: u64)
-    requires index < 3776
+    requires index < 6464
     {
         input.rows[index] = block read_word();
         transition { _ -> block rows(input, index + 1, count) }
@@ -140,14 +174,14 @@ reaches ProcessExit + Console crashes Trap blocks
 // Metadata access never substitutes zero for an invalid coordinate. A bad
 // row, span, package index or role terminates before any tape is published.
 machine row_word(input: @ConstructionInput, index: u64) -> u32
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
-    transition index < 3776 {
+    transition index < 6464 {
         true -> word(input, index),
         _ -> invalid()
     }
     machine word(input: @ConstructionInput, index: u64) -> u32
-    requires index < 3776
+    requires index < 6464
     { input.rows[index] }
     machine invalid() -> u32 {
         ProcessExit::exit_process(253);
@@ -526,6 +560,7 @@ machine publish(compilation: @Compilation) reaches ProcessExit + Console crashes
 machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
     let mut input: ConstructionInput;
     block read_input(@mut input);
+    check_build_input(@input);
     let mut compilation: Compilation;
     omega_compiler\compilation_clear(@mut compilation);
     add_packages(@input, @mut compilation);

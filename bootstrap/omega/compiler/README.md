@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,899 lines / 1,037,153 bytes with SHA-256
-`e9ee8ddd4b122f927998d3a62460fd726408a73e13326c923f8417c80791d1e4`.
+The manifest materializes 27,258 lines / 1,053,362 bytes with SHA-256
+`c28d9252a6764acbab11b12f0ee1000bc48be4b9523fa75155c3f1e5802098cd`.
 The manifest itself is 2,381 bytes, SHA-256
-`bb88655300f57a008430ed9b33069d1cb6fc7f291539210c1f81d8aad913c37e`;
+`bb4f012df8907d74204dd3e075bb55d7bf450b28294a87a899c791c820748d24`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -101,6 +101,18 @@ coordinates and declared effect bounds survive the release of that file.
 A state body, its lexical scope, and its checked terminal instructions belong
 to the current file. Calls across files resolve a machine root; nested states
 remain visible through their lexical owner.
+
+A fixed-array literal uses the declared element type and count. Each initializer
+runs once in increasing index order. Byte elements occupy one byte, while word
+and copy-record elements use their checked stride. A policy-qualified element
+needs a value with that policy. The product loan checker uses one explicitly
+qualified zero to initialize both nine-element traversal arrays. An ordinary
+call can lend a local fixed array to a shared or exclusive scalar-array
+parameter. The callee indexes the caller's storage. Separately written types
+must agree on element type and extent, including across source files. Calls
+can forward an incoming loan, and a terminal state transfer can carry one of
+its owner's incoming loans. A fresh loan of a local at that transfer still
+receives an incomplete outcome.
 
 Each file's imports resolve before signature or body checking. Record and case
 payload fields retain the scalar type or nominal declaration resolved in their
@@ -196,8 +208,8 @@ Each machine owns the helpers declared after its executable body. Terminal
 transfers search the caller's children and then each enclosing declaration
 scope. Sibling branches may define different helpers with the same name.
 Parameters and locals belong to the individual invocation. A child receives
-an enclosing value through an explicit argument. The existing 4,096-state
-bound covers all declarations in a request.
+an enclosing value through an explicit argument. The parser admits up to
+4,096 state bodies per file. Construction can address 16,384 states across files.
 
 A terminal transfer naming a visible global is `Incomplete` in this same-owner
 subset; only an absent target is reported as missing.
@@ -311,9 +323,9 @@ An unentered nested helper contributes nothing to its owner's bound. Its own
 body must still satisfy its contract.
 
 The incoming-edge table reserves 49,152 rows with four 32-bit integers
-apiece, or 786,432 logical payload bytes. Three 4,096-entry integer arrays
-hold the incoming list heads, blocking states and work queue, totaling
-49,152 more logical bytes. Evaluator memory measurements include its
+apiece, or 786,432 logical payload bytes. Three 16,384-entry integer arrays
+hold incoming list heads, per-state effects and the work queue, totaling
+196,608 more logical bytes. Evaluator memory measurements include its
 representation of these tables and the rest of the compiler.
 
 Every call to a possibly blocking callee needs its own `block` acknowledgement,
@@ -396,13 +408,17 @@ The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements of the production `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. It evaluates
 both capacity differences from `source_set_add` at the boundary and with an
-extra source byte or path byte. The complete
+extra source byte or path byte. The unit-count store from `source_set_add`
+uses the proved upper bound of its Trapping sum, including 511 + 1 at the
+capacity of 512. Alpha still performs the checked addition. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
 machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
-It checks the nested reader's `index < spelling.len` requirement and then
-reaches body checking in the earlier `source_set_add` machine. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+It checks the nested reader's `index < spelling.len` requirement. The full
+file passes the bodies of `source_set_add`, `add_package`, `add_dependency`
+and `store_name`. Its next coverage refusal identifies `source_set_byte_or_nul`
+at file byte 14,466. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -556,7 +572,7 @@ assignments.
 The explicit slow [complete-D parser customer](../../../_recycling/tests/bootstrap/omega-parser/README.md)
 checks this manifested implementation through the lower chain. Sum-valued
 parser guards use Epsilon case transitions; scalar equality is not a sum test.
-One root table preserves source order for imports, data, machines, domains and boundary traits. Optionally
+One root table preserves source order for imports, data, machines, domains, ordinary traits and boundary traits. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from
 the retained statement slice. An optional leading target selector is
@@ -571,6 +587,12 @@ its borrowed subject. A declaration ending directly in `;` has zero predicates.
 The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
 proof obligations.
+
+A nongeneric ordinary `trait` retains each bodyless machine signature in
+its declaring trait's range. `ConsoleByteOperations` and
+`PosixConsoleRawOperations` in std use this form. The parser keeps ordinary
+traits in a separate table from boundary services. Executable construction
+reports incomplete coverage at an ordinary trait until its conformance is checked.
 
 A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,

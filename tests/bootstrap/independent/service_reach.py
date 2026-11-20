@@ -262,6 +262,54 @@ def byte_output_cases():
     yield trial('overflow-wide-hex', b'machine main()->u8{let x:u64=0x1_0000_0000_0000_0000u64;42}', (1, b'0x1'))
     yield trial('hex-carrier', b'machine main()->u8{0x2Au32}', (1, b'0x2A'))
 
+def build_scope_cases():
+    encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
+    packages = [('application', 0), ('library', 0), ('toolchain', 1)]
+    product = [(0, b'machine main()->u8{42}'), (1, b'public machine value()->u8{9}')]
+    paths = ['main.omg', 'nested/value.omg']
+    default = (ROOT / 'source/library/core/defaults/build.omg').read_bytes()
+    authored = b'machine build(builder:@mut Build){Build::application(builder,"application");}'
+    builds = [(2, 'defaults/build.omg', default), (0, 'build.omg', authored), (0, 'm/extra.omg', b'')]
+    selected = [(0, 1), (1, 0), (2, 0)]
+    wire, _, _, _ = encode(packages, [], product, 0, b'main', paths=paths,
+                          build_sources=builds, build_entries=selected)
+    buffer_length, = struct.unpack_from('<I', wire, 32)
+    arena = wire[-buffer_length:]
+    entries = 10 + 3 * len(packages) + 5 * len(product)
+    units = entries + 2 * len(packages)
+    malformed = b'\0' + struct.pack('<I', 3)
+
+    def word(index, new):
+        changed = bytearray(wire)
+        struct.pack_into('<I', changed, 4 * index, new)
+        return bytes(changed)
+
+    def pending(start):
+        return b'\0' + struct.pack('<II', 2, start)
+
+    yield 'scoped-authored-build', wire, pending(arena.index(authored))
+    for name, index, value in [
+        ('scoped-foreign-requester', entries, 1), ('scoped-dangling-entry', entries + 1, len(builds)),
+        ('scoped-foreign-build', units + 5, 1), ('scoped-shadowed-default', entries + 1, 0),
+        ('scoped-untrusted-default', 10 + 2 * 3 + 2, 0),
+        ('scoped-source-outside', units + 1, buffer_length + 1),
+        ('scoped-path-outside', units + 4, buffer_length + 1),
+    ]:
+        yield name, word(index, value), malformed
+    for name, replacement in [('scoped-traversal', b'./extra.omg'), ('scoped-nul', b'm/extra.om\0'),
+                              ('scoped-backslash', b'm\\extra.omg')]:
+        yield name, wire.replace(b'm/extra.omg', replacement), malformed
+    changed = bytearray(wire)
+    changed[4 * (units + 13):4 * (units + 15)] = wire[4 * (units + 8):4 * (units + 10)]
+    yield 'scoped-duplicate-path', bytes(changed), malformed
+    yield 'scoped-truncated', wire[:-1], malformed
+    yield 'scoped-trailing', wire + b'\0', malformed
+    fallback, _, _, _ = encode(packages, [], product, 0, b'main', paths=paths,
+                               build_sources=builds[:1], build_entries=[(requester, 0) for requester in range(3)])
+    size, = struct.unpack_from('<I', fallback, 32)
+    yield 'scoped-selected-default', fallback, pending(fallback[-size:].index(default))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path, help='new directory for input, results and Alpha tapes')
@@ -277,7 +325,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *build_scope_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")
@@ -317,7 +365,10 @@ def main():
         elif observed != expected:
             raise SystemExit(f'{name}: expected {expected.hex()}, got {observed[:32].hex()}')
         else:
-            print(f'{name}: refusal at byte {int.from_bytes(observed[5:], "little")}', flush=True)
+            if len(observed) == 5:
+                print(f'{name}: malformed framing', flush=True)
+            else:
+                print(f'{name}: refusal at byte {int.from_bytes(observed[5:], "little")}', flush=True)
 
 
 if __name__ == '__main__':

@@ -74,10 +74,11 @@ impl ConstantEvaluation<'_, '_> {
                 Ok(realized) => match selected {
                     None => selected = Some((proof, realized)),
                     Some((chosen, chosen_application)) => {
-                        // Both realizations already matched the target's unique plan for
-                        // this slot. The proof-local binding and application must agree too.
+                        // Target competition is refused before either proof can apply.
+                        // Fail closed if that one plan doesn't identify one local dispatch;
+                        // an inconsistent proof set grants no permission to execute the slot.
                         if chosen.binding != proof.binding || chosen_application != realized {
-                            return Err(PreparationReason::CompetingProviderRealizations.into());
+                            return Err(UNSELECTED_SLOT.into());
                         }
                     }
                 },

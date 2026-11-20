@@ -370,6 +370,12 @@ impl SourceContinuation {
         self.input.typing.typed()
     }
 
+    pub(crate) fn unresolved_type_names(
+        &self,
+    ) -> impl Iterator<Item = source_text::SourceSpan> + '_ {
+        self.input.typing.resolved().unresolved_type_names()
+    }
+
     pub fn rejoin_machine(
         &self,
         previous: &Self,

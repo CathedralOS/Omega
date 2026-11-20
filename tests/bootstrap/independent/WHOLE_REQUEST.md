@@ -69,7 +69,9 @@ input and can publish a generated module larger than 4 MiB.
 
 From the checkout that supplied `product.bin`, run the seed-built Epsilon
 constructor on the complete construction application. Supply a fresh output
-directory. Both subsequent compilations receive the same frozen bytes.
+directory. For a version-two packet, the verifier also reconstructs and
+compares the package-owned Build rows and their exact sources from the
+checkout. Both subsequent compilations receive the same frozen bytes.
 
 ```sh
 python3 tests/bootstrap/independent/whole_rebuild.py \

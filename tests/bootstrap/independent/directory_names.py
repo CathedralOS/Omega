@@ -17,12 +17,22 @@ def cases():
     constant = b"machine main() -> u8 { 42 }"
     score = b"public machine score() -> u8 { 42 }"
     other = b"public machine score() -> u8 { 7 }"
+    array_caller = b"use later\\read; machine main()->u8{let x:[u8;2]=[1,42];read(@x)}"
+    array_reader = b"public machine read(x:@[u8;2])->u8{x[1]}"
     cases_source = (ROOT / "tests/bootstrap/conformance/omega/payload_bindings.omg").read_bytes()
 
     def packet(sources, paths=None):
         data, _, _, rows = encode([("app", 0)], [], [(0, src) for src in sources],
                                   0, b"main", paths=paths)
         return data, rows
+
+    # A callee in another file owns its parameter's element type and count.
+    paths = ["main.omg", "later/api.omg"]
+    wire, _ = packet([array_caller, array_reader], paths)
+    yield "shared-array-forward", wire, 42
+    wire, rows = packet([array_caller, array_reader.replace(b"[u8;2]", b"[u8;3]")], paths)
+    borrow = rows[0][1] + array_caller.index(b"@x")
+    yield "shared-array-wrong-extent", wire, struct.pack("<BII", 0, 1, borrow)
 
     for name, sources, paths in [
         ("directory-import", [select, score, other], ["main.omg", "first/x.omg", "second/x.omg"]),

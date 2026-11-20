@@ -38,7 +38,7 @@ fn expect_kinds(
 
 #[test]
 fn invalid_utf8_rejects() {
-    expect_error(b"let a\xFF = 1;", LexErrorKind::InvalidUtf8, SourceSpan::new(5, 6));
+    spec_corpus::observe_handoff!("invalid-utf8/file", expect_error(b"let a\xFF = 1;", LexErrorKind::InvalidUtf8, SourceSpan::new(5, 6)));
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn all_four_whitespace_bytes_form_one_token() {
 
 #[test]
 fn crlf_line_endings_lex() {
-    expect_kinds(
+    spec_corpus::observe_handoff!("whitespace/crlf", expect_kinds(
         b"a\r\nb\r\n",
         &[
             TokenKind::Word,
@@ -106,12 +106,12 @@ fn crlf_line_endings_lex() {
             TokenKind::Word,
             TokenKind::Whitespace,
         ],
-    );
+    ));
 }
 
 #[test]
 fn form_feed_rejects() {
-    expect_error(b"a\x0Cb", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2));
+    spec_corpus::observe_handoff!("whitespace/form-feed", expect_error(b"a\x0Cb", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2)));
 }
 
 #[test]
@@ -122,13 +122,13 @@ fn vertical_tab_rejects() {
 #[test]
 fn no_break_space_rejects() {
     // U+00A0 is two bytes, C2 A0. The spec says Unicode whitespace other than the four ASCII bytes rejects.
-    expect_error("a\u{A0}b".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(1, 3));
+    spec_corpus::observe_handoff!("whitespace/no-break-space", expect_error("a\u{A0}b".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(1, 3)));
 }
 
 #[test]
 fn byte_order_mark_rejects() {
     // U+FEFF is three bytes. It is non-ASCII outside a comment or literal, so no special rule is needed.
-    expect_error("\u{FEFF}let".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(0, 3));
+    spec_corpus::observe_handoff!("whitespace/byte-order-mark", expect_error("\u{FEFF}let".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(0, 3)));
 }
 
 // R5

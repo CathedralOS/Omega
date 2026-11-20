@@ -303,6 +303,7 @@ data OmegaRootKind {
     case Domain;
     case Implementation;
     case BoundaryMachine;
+    case Trait;
 }
 
 data OmegaRootSyntax {
@@ -328,6 +329,18 @@ data OmegaDomainSyntax {
 data OmegaBoundaryTraitSyntax {
     name: OmegaRelativeSpan;
     boundary_keyword: OmegaRelativeSpan;
+    first_requirement: i32;
+    requirement_count: i32;
+    is_public: i32;
+    start: i32;
+    end: i32;
+}
+
+// An ordinary trait never enters the boundary-service directory. Its signatures
+// share the parser's requirement arena and retain their source-owned range.
+data OmegaTraitSyntax {
+    name: OmegaRelativeSpan;
+    keyword: OmegaRelativeSpan;
     first_requirement: i32;
     requirement_count: i32;
     is_public: i32;
@@ -718,6 +731,7 @@ data OmegaExpressionKind {
     case Membership;
     case Borrow;
     case Projection;
+    case ArrayLiteral;
 }
 
 data OmegaBinaryOperatorKind {
@@ -860,6 +874,8 @@ data OmegaStructLiteralSyntax {
 // Unary payload0 select their dedicated rows. Borrow uses payload0 for its
 // operand, payload1 for access (0 shared, 1 mutable, 2 write-only), and
 // payload2/payload3 for the complete operator span; payload4/payload5 are zero.
+// ArrayLiteral payload0/payload1 select ordered call_arguments; payload2 and
+// payload3 contain the complete bracket span.
 // Projection payload0 names the completed base; payload1/payload2 are the
 // member name span and payload3 bounds the postfix chain depth at 128.
 // Remaining words are reserved for richer nodes.
@@ -1032,13 +1048,14 @@ data OmegaParserResource {
     case Expressions;
 }
 
-// Parsing a call argument may enter another ordinary call. Save the enclosing
-// call's own header and pending-argument list, without retaining a host stack.
+// Calls and array literals both collect ordered expressions. Nested lists
+// preserve the enclosing header and pending elements in a bounded stack.
 data OmegaCallParseContext {
     case Statement;
     case Expression;
     case PromotedExpression;
     case TransitionTarget;
+    case ArrayLiteral;
 }
 
 data OmegaCallParseFrame {
@@ -1114,10 +1131,15 @@ data OmegaParser {
     domain_count: i32;
     // Each trait is one root. Each requirement name consumes a path member.
     boundary_traits: [OmegaBoundaryTraitSyntax; 4096];
+    ordinary_traits: [OmegaTraitSyntax; 4096];
+    ordinary_trait_count: i32;
+    // Both trait kinds publish one distinct root, after the whole body closes.
+    pending_trait: OmegaTraitSyntax;
+    pending_trait_is_boundary: i32;
     boundary_requirements: [OmegaBoundaryRequirementSyntax; 16384];
     boundary_trait_count: i32;
     boundary_requirement_count: i32;
-    in_boundary_trait: i32;
+    in_trait: i32;
     implementations: [OmegaImplementationSyntax; 4096];
     // Every owned machine consumes a state row. Inline implementation
     // members form a contiguous range. A boundary root names one ordinal.

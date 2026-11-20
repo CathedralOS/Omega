@@ -33,26 +33,6 @@ pub fn contains(
         && requested)
 }
 
-/// A Build prefix owns the declarations whose resolved parent chain includes its entry.
-pub fn nested_in(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-    entry: source_text::SourceSpan,
-) -> bool {
-    let nodes = program.symbols.symbols().nodes();
-    if !nodes.is_valid(symbol) {
-        return false;
-    }
-    let mut owner = program.symbols.get(symbol).parent;
-    while nodes.is_valid(owner) {
-        if program.symbols.symbol_source_span(owner) == Some(entry) {
-            return true;
-        }
-        owner = program.symbols.get(owner).parent;
-    }
-    false
-}
-
 /// Locate the selected Build machine in the receiving package's admitted Build sources.
 pub fn rejoin_build_activation(
     program: &TypedTrees,

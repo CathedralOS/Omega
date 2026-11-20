@@ -37,8 +37,43 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def encode(packages, edges, units, entry_unit, entry_name, *, paths=None):
-    """Shared explicit row contract; source-unit contents are never changed."""
+def validate_build_sources(packages, sources, entries):
+    if len(sources) > 512 or len(entries) != len(packages):
+        raise ValueError('expected one Build entry selection per package and at most 512 Build units')
+    keys = set()
+    core = [i for i, (_, role) in enumerate(packages) if role == 1]
+    for supplier, path, _ in sources:
+        if not 0 <= supplier < len(packages):
+            raise ValueError('Build source has no owning package')
+        if any(part in ('', '.', '..') for part in path.split('/')) or '\\' in path or '\x00' in path:
+            raise ValueError('invalid package-relative Build source path')
+        if (supplier, path) in keys:
+            raise ValueError('duplicate package-relative Build source')
+        keys.add((supplier, path))
+    for index, (requester, source) in enumerate(entries):
+        if requester != index or not 0 <= source < len(sources):
+            raise ValueError('missing, duplicate or invalid package Build entry selection')
+        supplier, path, _ = sources[source]
+        if (supplier, path) == (requester, 'build.omg'):
+            continue
+        if core != [supplier] or path != 'defaults/build.omg' or (requester, 'build.omg') in keys:
+            raise ValueError('Build entry is neither its package root nor the selected core default')
+
+
+def encode(packages, edges, units, entry_unit, entry_name, *, paths=None,
+           build_sources=None, build_entries=None):
+    """Return the wire and the three original Product metadata tables."""
+    return _encode(packages, edges, units, entry_unit, entry_name, paths,
+                   build_sources, build_entries)[:4]
+
+
+def _encode(packages, edges, units, entry_unit, entry_name, paths, build_sources, build_entries):
+    if (build_sources is None) != (build_entries is None):
+        raise ValueError('Build files and entry selections must be supplied together')
+    if build_sources is not None:
+        if paths is None:
+            raise ValueError('the scoped Build frame requires Product unit paths')
+        validate_build_sources(packages, build_sources, build_entries)
     buffer = bytearray()
 
     def retain(data):
@@ -55,22 +90,30 @@ def encode(packages, edges, units, entry_unit, entry_name, *, paths=None):
         # Keep source coordinates independent of the lengths of the filenames.
         unit_rows = [(*row, *retain(path.encode('utf-8')))
                      for row, path in zip(unit_rows, paths, strict=True)]
+    build_rows = []
+    if build_sources is not None:
+        build_rows = [(supplier, *retain(data), *retain(path.encode('utf-8')))
+                      for supplier, path, data in build_sources]
     if len(package_rows) > 64 or len(edge_rows) > 256 or len(unit_rows) > 512:
         raise ValueError('constructor row capacity exceeded')
     if len(buffer) > 4194304:
         raise ValueError('constructor byte capacity exceeded')
     words = ([] if paths is None else [0, 1]) + [len(package_rows), len(edge_rows), len(unit_rows), entry_unit,
              entry_start, entry_end, len(buffer)]
-    for rows in (package_rows, edge_rows, unit_rows):
+    if build_sources is not None:
+        words[1] = 2
+        words.append(len(build_rows))
+    for rows in (package_rows, edge_rows, unit_rows, build_entries or (), build_rows):
         for row in rows:
             words.extend(row)
     wire = struct.pack('<' + 'I' * len(words), *words) + buffer
-    return wire, package_rows, edge_rows, unit_rows
+    return wire, package_rows, edge_rows, unit_rows, build_rows
 
 
-def compiler_input():
+def compiler_input(with_build_sources=False):
     sources = []
     declarations = []
+    build_sources = []
     for package, (_, directory, role) in enumerate(PACKAGES):
         base = ROOT / directory
         if not base.is_dir():
@@ -85,17 +128,29 @@ def compiler_input():
                 continue
             data = path.read_bytes()
             if path in build_inputs:
+                build_sources.append((package, relative.as_posix(), data))
                 declarations.append({'path': path.relative_to(ROOT).as_posix(),
                                      'sha256': digest(data)})
                 continue
             sources.append((package, path.relative_to(ROOT).as_posix(), data))
     paths = [path for _, path, _ in sources]
     entry_unit = paths.index(ENTRY)
-    wire, packages, edges, units = encode(
+    build_entries = []
+    if with_build_sources:
+        roots = {(supplier, path): index for index, (supplier, path, _) in enumerate(build_sources)}
+        default = next((roots.get((i, 'defaults/build.omg')) for i, (_, _, role) in enumerate(PACKAGES)
+                        if role == 1), None)
+        for requester in range(len(PACKAGES)):
+            source = roots.get((requester, 'build.omg'), default)
+            if source is None:
+                raise ValueError('package has neither its own Build nor a captured core default')
+            build_entries.append((requester, source))
+    wire, packages, edges, units, build_rows = _encode(
         [(name, role) for name, _, role in PACKAGES], EDGES,
         [(package, data) for package, _, data in sources], entry_unit, ENTRY_NAME,
-        paths=[Path(path).relative_to(PACKAGES[package][1]).as_posix()
-               for package, path, _ in sources])
+        [Path(path).relative_to(PACKAGES[package][1]).as_posix()
+         for package, path, _ in sources],
+        build_sources if with_build_sources else None, build_entries if with_build_sources else None)
     manifest = {
         'contract': 'closed-source-set construction; not OCREQ admission',
         'target': 'Alpha', 'entry_unit': entry_unit, 'entry_name': ENTRY_NAME.decode(),
@@ -110,6 +165,13 @@ def compiler_input():
                    'sha256': digest(data)}
                   for index, ((package, path, data), row) in enumerate(zip(sources, units))],
     }
+    if with_build_sources:
+        manifest['closed_set_version'] = 2
+        manifest['build_entries'] = build_entries
+        manifest['build_units'] = [
+            {'id': index, 'supplier': supplier, 'path': path, 'sha256': digest(data),
+             'source_start': row[1], 'source_end': row[2], 'path_start': row[3], 'path_end': row[4]}
+            for index, ((supplier, path, data), row) in enumerate(zip(build_sources, build_rows, strict=True))]
     return wire, manifest
 
 
@@ -139,6 +201,8 @@ def stamp_constructor(tape, executable):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, default=ROOT / 'build/omega-construction/input.bin')
+    parser.add_argument('--with-build-sources', action='store_true',
+                        help='include package-owned Build sources and entry selections in a closed-set v2 input')
     producers = parser.add_mutually_exclusive_group()
     producers.add_argument('--compiler', type=Path, help='executable Omega constructor that writes raw tape')
     producers.add_argument('--epsilon-compiler', type=Path,
@@ -152,7 +216,7 @@ def main():
                  producer, args.output]
         if len({path.resolve() for path in paths}) != len(paths):
             parser.error('the constructor, input, manifests and output need distinct paths')
-    wire, manifest = compiler_input()
+    wire, manifest = compiler_input(with_build_sources=args.with_build_sources)
     args.input.parent.mkdir(parents=True, exist_ok=True)
     args.input.write_bytes(wire)
     manifest_path = args.input.with_suffix('.json')
@@ -178,7 +242,7 @@ def main():
     else:
         producer_kind = 'alpha-tape' if args.compiler_tape else 'executable'
         tape, outcome = result.stdout, {}
-    current, _ = compiler_input()
+    current, _ = compiler_input(with_build_sources=args.with_build_sources)
     unchanged = current == wire and digest(compiler.read_bytes()) == compiler_sha
     accepted = result.returncode == 0 and bool(tape) and unchanged
     receipt = {'compiler': str(compiler), 'compiler_kind': producer_kind, 'compiler_sha256': compiler_sha,

@@ -73,15 +73,14 @@ fn aliased_constant_records_cannot_freeze_another_initializers_value() {
             panic!("expected frozen constants")
         };
         let TypingProgress::Complete(trees) = progress else { unreachable!() };
-        for (name, value) in [("OTHER", 17), ("BYTE", 42), ("READ", 42)] {
-            let id = &trees
-                .constants
-                .iter()
-                .find(|c| c.declaration.path == name)
-                .unwrap()
-                .declaration;
-            assert_eq!(constants[id], PreparedValue::Integer(value.into()));
-        }
+        let values = ["OTHER", "BYTE", "READ"].map(|name| {
+            let constant = trees.constants.iter().find(|c| c.declaration.path == name).unwrap();
+            &constants[&constant.declaration]
+        });
+        spec_corpus::observe_handoff!(
+            "named-constant-initializers/producer",
+            assert_eq!(values, [17, 42, 42].map(|n| PreparedValue::Integer(n.into())).each_ref()),
+        );
 
         // Change only an ID; both requests and their landings still agree.
         let resolved = trees.resolved().clone();

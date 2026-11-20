@@ -272,12 +272,15 @@ fn a_specialized_request_waits_for_its_selected_overload() {
     // The overload now selected for two advertises a possible trap. Its
     // literal result cannot narrow that ceiling to satisfy Size.
     let risky = source.replace("Flag<true>)->u64{", "Flag<true>)->u64 crashes Trap {");
-    refused(
-        prepare_source_package_diagnosed(&resolve(&risky)).unwrap_err(),
-        PreparationReason::ForwardedCallbackNeedsRefinement,
-        &risky,
-        "F()",
-        "the exact static callback needs checked refinement of its callable contract",
+    spec_corpus::observe_handoff!(
+        "closed-callback-crash-bound/consumer",
+        refused(
+            prepare_source_package_diagnosed(&resolve(&risky)).unwrap_err(),
+            PreparationReason::ForwardedCallbackNeedsRefinement,
+            &risky,
+            "F()",
+            "the exact static callback needs checked refinement of its callable contract",
+        )
     );
 }
 
@@ -298,7 +301,10 @@ fn a_literal_callback_computes_the_field_type_but_cannot_supply_its_own_refineme
         .iter()
         .find(|expr| expr.site.span.slice(source.as_bytes()) == Some(b"w.x"))
         .unwrap();
-    assert_eq!(projection.ty, ValueType::Integer { signed: false, width: Some(2) });
+    spec_corpus::observe_handoff!(
+        "specialized-callback-field/producer",
+        assert_eq!(projection.ty, ValueType::Integer { signed: false, width: Some(2) }),
+    );
     for restricted in [
         source.replace("two()->u64{", "two()->u64 requires false {"),
         source.replace("->u64 reaches", "->u64 requires true reaches"),
@@ -352,6 +358,8 @@ fn a_bare_initializer_cannot_execute_another_owners_callback_recipe() {
 
 #[test]
 fn the_same_field_recipe_can_run_for_one_nested_selection_while_another_waits() {
+    use omega_preparation::{PreparationProgress, PreparationStep};
+
     let source = "data Flag<const B:bool>[copy]{}
         machine enabled()->bool{true}
         machine pick(x:Flag<true>)->u64{2u64}
@@ -359,54 +367,65 @@ fn the_same_field_recipe_can_run_for_one_nested_selection_while_another_waits() 
         data Size=machine()->u64 reaches none crashes none;
         machine two()->u64{pick(Flag::<enabled()>{})}
         machine five()->u64{5u64}
-        machine relay<const G:Size>()->u64{G()}
-        data Word<const F:Size>{x:u<F()>;}
-        machine slow(x:Word<relay::<two>>){}
-        machine fast(x:Word<relay::<five>>){}";
-    let package = resolve(source);
-    let round = PreparationRound::begin(&package, &[], None).unwrap();
-    let TypingProgress::Pending(pending) = round.typing() else {
-        panic!("expected separate width demands")
-    };
-    let leaf = |arguments: &[ValueType]| {
-        let [ValueType::MachineSelection(relay)] = arguments else {
-            panic!("{arguments:?}")
+        machine relay<const H:Size>()->u64{H()}
+        data Word<const F:Size,const G:Size>{x:u<F()>;}
+        machine first(x:Word<relay::<two>,five>){}
+        machine second(x:Word<relay::<five>,two>){}
+        machine third(x:Word<relay::<five>,five>){}";
+    for (slot, widths) in [("F()", [2, 5, 5]), ("G()", [5, 2, 5])] {
+        let source = source.replace("x:u<F()>", &format!("x:u<{slot}>"));
+        let package = resolve(&source);
+        let mut round = PreparationRound::begin(&package, &[], None).unwrap();
+        let TypingProgress::Pending(pending) = round.typing() else {
+            panic!("expected separate width demands")
         };
-        assert_eq!(relay.machine.path, "relay");
-        let [ValueType::MachineSelection(leaf)] = relay.arguments.as_slice() else {
-            panic!("{relay:?}")
+        let ready: Vec<_> = pending
+            .demands()
+            .iter()
+            .filter_map(|d| match d {
+                StaticValueDemand::Specialized { request, arguments } => Some((request.clone(), arguments.clone())),
+                StaticValueDemand::Closed(_) => None,
+            })
+            .collect();
+        let [(request, a), (other_request, b)] = ready.as_slice() else { panic!("expected the two unblocked tuples") };
+        assert_eq!(request, other_request);
+        assert_ne!(a, b);
+        assert_eq!(request.expression.span.slice(source.as_bytes()), Some(slot.as_bytes()));
+        let prepared = loop {
+            let answers = round.evaluate(Default::default()).unwrap();
+            match round.advance(answers).unwrap() {
+                PreparationStep::Evaluate(next) => round = *next,
+                PreparationStep::Finished(PreparationProgress::Complete(prepared)) => break prepared,
+                PreparationStep::Finished(PreparationProgress::OpenTarget(_)) => panic!("callback widths are target-independent"),
+            }
         };
-        leaf.machine.path.to_string()
-    };
-    let ready: Vec<_> = pending
-        .demands()
-        .iter()
-        .filter_map(|d| match d {
-            StaticValueDemand::Specialized { arguments, .. } => Some(leaf(arguments)),
-            StaticValueDemand::Closed(_) => None,
-        })
-        .collect();
-    assert_eq!(ready, ["five"]);
-    let prepared = prepare_source_package_diagnosed(&package).unwrap();
-    let [a, b] = prepared.specialized_indices() else {
-        panic!("expected two field widths")
-    };
-    assert_eq!(a.request, b.request);
-    for (name, width) in [("five", 5), ("two", 2)] {
-        let answer = [a, b]
-            .into_iter()
-            .find(|answer| leaf(&answer.arguments) == name)
-            .unwrap();
-        assert_eq!(answer.value, omega_typed::StaticValue::Integer(width.into()));
+        let trees = prepared.typed();
+        let answers = prepared.specialized_indices();
+        assert_eq!(answers.len(), 3);
+        for (name, width) in ["first", "second", "third"].into_iter().zip(widths) {
+            let signature = trees.signatures.iter().find(|s| s.machine.path == name).unwrap();
+            let (_, arguments) = signature.parameters[0].1.nominal_parts().unwrap();
+            // Both tuples yielding five were ready on the first pass. Even the
+            // delayed answer must retain that request, not just its source text.
+            assert_eq!([a.as_slice(), b.as_slice()].contains(&arguments), width == 5);
+            let answer = answers.iter().find(|a| &a.request == request && a.arguments == arguments);
+            spec_corpus::observe_handoff!(
+                "closed-callback-readiness/consumer",
+                assert_eq!(answer.map(|a| &a.value), Some(&omega_typed::StaticValue::Integer(width.into())), "{name}: {slot}")
+            );
+        }
     }
 
-    // Admitting relay cannot launder the precondition of its captured G.
+    // Admitting relay cannot launder the precondition of its captured H.
     let restricted = source.replace("five()->u64{", "five()->u64 requires false {");
-    refused(
-        prepare_source_package_diagnosed(&resolve(&restricted)).unwrap_err(),
-        PreparationReason::CallbackNeedsRefinement,
-        &restricted,
-        "F()",
-        "the exact static callback needs a checked refinement of its callable contract",
+    spec_corpus::observe_handoff!(
+        "closed-callback-readiness/captured-refusal",
+        refused(
+            prepare_source_package_diagnosed(&resolve(&restricted)).unwrap_err(),
+            PreparationReason::CallbackNeedsRefinement,
+            &restricted,
+            "F()",
+            "the exact static callback needs a checked refinement of its callable contract",
+        )
     );
 }

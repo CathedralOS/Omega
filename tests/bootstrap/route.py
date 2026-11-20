@@ -322,8 +322,9 @@ def execute_route(route, guest, stdin, expected, verbose):
         with log as stream, redirect_stdout(stream):
             for description, action in route.steps:
                 print(description, flush=True)
-                stage = {"stage": description}
+                stage = {"stage": description, "completed": False}
                 report["stages"].append(stage)
+                save_report(work, report)
                 start = time.monotonic()
                 try:
                     action()
