@@ -76,7 +76,8 @@ own these Reject results (tag 1, zero limit/requested):
 
 Whole-source byte validation precedes token validation. Token validation skips
 comments and accepts only parentheses, ASCII identifiers, single-byte arithmetic
-operators, and signed decimal integers. A complete decimal spelling is checked
+operators, signed decimal integers, quoted ASCII integers and byte strings.
+A complete decimal spelling is checked
 before its range: an oversized digit prefix followed by a nondigit is malformed
 syntax, not an out-of-range integer. The first failing token wins before any
 global collection, but a forbidden source byte anywhere wins in the earlier

@@ -16,7 +16,7 @@
   (let ((start Int (syntax_start node))
         (after Int (syntax_after node))
         (byte Int (source_read start))
-        (valid Int (if (eq byte '"') 1
+        (valid Int (if (literal_quote byte) 1
           (if (is_digit byte)
             1
             (if (if (eq byte 45) (lt (+ start 1) after) 0)

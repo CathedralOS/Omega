@@ -44,11 +44,12 @@
   (let ((start Int (syntax_start node)) (end Int (syntax_after node))
         (byte Int (source_read start)))
     (if (eq byte '"') (di_literal (+ start 1) (- end 1) ($dbe))
-      (if (eq byte '-') (di_decimal (+ start 1) end 1 0)
-        (if (is_digit byte) (di_decimal start end 0 0)
-          (if (is_upper byte)
-            (pair (constructor_metadata_tag (di_lookup (global_constructors globals) node)) 0)
-            (di_find_local locals start end)))))))
+      (if (character_quote byte) (character_literal_value start)
+        (if (eq byte '-') (di_decimal (+ start 1) end 1 0)
+          (if (is_digit byte) (di_decimal start end 0 0)
+            (if (is_upper byte)
+              (pair (constructor_metadata_tag (di_lookup (global_constructors globals) node)) 0)
+              (di_find_local locals start end))))))))
 
 ; Evaluate and save each operand once in source order. Binding and application
 ; consume the resulting ordered value spine under the authored arity.

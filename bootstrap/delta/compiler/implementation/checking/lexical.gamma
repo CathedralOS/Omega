@@ -53,22 +53,20 @@
       (lexical_decimal_digits_valid start end))))
 
 ; Identifier starts take the single-scan path above. Remaining tokens are
-; parentheses, arithmetic operators, or signed decimals. Bare '-' is an
+; parentheses, quoted literals, arithmetic operators, or signed decimals. Bare '-' is an
 ; operator token. Decimal spelling still completes before range checking.
 ; Zero admits the token; nonzero is the owned rejection code at its start.
 (def source_token_rejection_code ((start Int) (end Int)) Int
   (let byte Int (source_read start)
     (if (if (eq byte 40) 1 (eq byte 41))
       0
-      (if (eq byte '"')
-        (if (byte_literal_valid start end) 0 4)
+      (if (literal_quote byte)
+        (if end (if (literal_boundary end) 0 4) 4)
         (if (operator_arity_plus_one start end)
-        0
-        (if (lexical_integer_spelling_valid start end)
-          (if (integer_literal_valid start end)
-            0
-            5)
-          4))))))
+          0
+          (if (lexical_integer_spelling_valid start end)
+            (if (integer_literal_valid start end) 0 5)
+            4))))))
 
 ; One alphabet and binary arity classification shared by checking and emission.
 (def operator_arity_plus_one ((start Int) (end Int)) Int
