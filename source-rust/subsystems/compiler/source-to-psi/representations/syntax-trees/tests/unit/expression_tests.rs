@@ -113,7 +113,7 @@ fn match_arms_preserve_order_source_and_nonnumeric_values() {
     assert_eq!(table.match_arms(arms)[0].source_span, source_span);
     assert_eq!(
         syntax.display_expression_name(expression),
-        "match true { false => \"first\", _ => \"fallback\" }"
+        "match true { false -> \"first\", _ -> \"fallback\" }"
     );
 }
 

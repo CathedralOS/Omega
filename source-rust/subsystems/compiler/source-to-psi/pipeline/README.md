@@ -10,7 +10,7 @@ resolution and typing loop for deferred bodies. [Source driver](../source_to_psi
 | Operation | Input and output |
 | --- | --- |
 | [Lex and parse one file](01_tokens-to-syntax-trees/streaming.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
-| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/src/lib.rs). |
+| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/symbol_resolved_trees.rs). |
 | [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](../representations/typed-trees/src/lib.rs). |
 | [Prepare typed source](04_typed-trees-to-prepared-typed-trees/prepare.rs) | After [compile-time evaluation](../compile_time.rs), the ordered passes produce the prepared trees that stage 05 accepts. |
 | [Lower to Terminal](05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/src/compilation.rs), including demanded generic bodies and witnesses. |
