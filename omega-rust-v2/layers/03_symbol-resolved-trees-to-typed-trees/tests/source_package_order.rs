@@ -40,7 +40,7 @@ fn type_package<'text>(
     let result = type_source_package(&resolved);
     #[cfg(feature = "diagnostic-origins")]
     if let Err(error) = &result {
-        diagnostic_origin::report_return(error, "");
+        diagnostic_origin::report_return(error, "", None);
     }
     result
 }

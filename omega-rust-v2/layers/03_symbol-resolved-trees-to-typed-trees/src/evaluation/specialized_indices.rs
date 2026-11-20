@@ -1,11 +1,13 @@
 //! An open static operation keeps its resolved syntax and the owner's exact arguments.
 //! L4 supplies values for closed substitutions that require general evaluation.
-use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use super::static_value::StaticValueCarrier;
+use crate::declarations::{declaration_catalog::DeclarationCatalog, resolved_source_file::ResolvedSourceFile};
 use crate::type_error::SourceTypeError;
-use crate::type_system::substitution::TypeInference;
-use crate::type_system::type_catalog::TypeCatalog;
+use crate::type_relations::TypeRelations;
+use crate::type_system::{substitution::TypeInference, type_catalog::TypeCatalog};
 use crate::{SpecializedIndexValue, StaticValue, StaticValueRequest, TypeError, ValueType};
 use omega_resolved::DeclarationId;
+use omega_syntax::NodeKind;
 use omega_typed::{ClosedArguments, StaticTemplate, SyntaxKey};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -47,19 +49,20 @@ impl IndexSpecializations {
             ..Self::default()
         };
         for receipt in receipts {
-            let fail = |message: &str| TypeError::for_site(&receipt.request.expression, message);
+            let site = &receipt.request.expression;
             let n = receipt.request.node.node;
             let unit = units
                 .get(receipt.request.node.file)
                 .filter(|u| u.file.package == receipt.request.expression.package && u.file.path == receipt.request.expression.file)
-                .ok_or_else(|| fail("evaluation result refers to an unadmitted file"))?;
+                .ok_or_else(|| TypeError::for_site(site, "evaluation result refers to an unadmitted file"))?;
             if n >= unit.file.nodes.len() || unit.file.span(n) != receipt.request.expression.span {
-                return Err(fail("evaluation result refers to an unknown static expression"));
+                return Err(TypeError::for_site(site, "evaluation result refers to an unknown static expression"));
             }
             let owner = unit
                 .specialization_owner(n)
-                .ok_or_else(|| fail("evaluation result has no owning declaration"))?;
-            let arguments = ClosedArguments::try_from(receipt.arguments.clone()).map_err(|_| fail("evaluation requires closed arguments"))?;
+                .ok_or_else(|| TypeError::for_site(site, "evaluation result has no owning declaration"))?;
+            let arguments =
+                ClosedArguments::try_from(receipt.arguments.clone()).map_err(|_| TypeError::for_site(site, "evaluation requires closed arguments"))?;
             let entry = prepared
                 .values
                 .entry((syntax_key(unit, n, owner), receipt.request.carrier.clone()))
@@ -68,17 +71,17 @@ impl IndexSpecializations {
                 .insert(arguments, receipt.value.clone())
                 .is_some_and(|v| v != receipt.value)
             {
-                return Err(fail("conflicting evaluations of the same specialized expression"));
+                return Err(TypeError::for_site(site, "conflicting evaluations of the same specialized expression"));
             }
         }
         Ok(prepared)
     }
-    /// A receipt's owner tuple concatenates the formals of every specialization scope, outermost first.
-    /// Each closed argument at an integer or Boolean static binder must be a value of that binder's carrier,
-    /// as `raw_bound_argument` would form it for a written application. The tuple need not be one this pass uses.
+    /// Each receipt binds the owner's parameters from outermost to innermost.
+    /// A stored result may be reused on another pass, so even unused tuples need
+    /// valid arguments. Specialize each binder's carrier before checking its value.
     pub(super) fn check_receipt_arguments(
         units: &[ResolvedSourceFile<'_>],
-        types: &TypeCatalog<'_>,
+        catalog: &DeclarationCatalog<'_>,
         receipt: &SpecializedIndexValue,
     ) -> Result<(), TypeError> {
         let request = &receipt.request;
@@ -86,22 +89,80 @@ impl IndexSpecializations {
             .get(request.node.file)
             .and_then(|unit| unit.specialization_owner(request.node.node))
             .ok_or_else(|| TypeError::for_site(&request.expression, "evaluation result has no owning declaration"))?;
-        let slots = types
-            .specialization_scopes(owner)
-            .flat_map(|scope| (0..types.arity(scope)).map(move |index| (scope, index)));
-        for ((scope, index), argument) in slots.zip(&receipt.arguments) {
-            argument.validate_closed_indices().map_err(|reason| {
-                TypeError::for_site(
-                    &request.expression,
-                    format!("invalid evaluation argument {} of {}: {reason}", index + 1, scope.path),
-                )
-            })?;
-            if !matches_scalar_binder(types, scope, index, argument) {
-                return Err(TypeError::for_site(
-                    &request.expression,
-                    "specialized evaluation argument does not match its owner's static parameter",
-                ));
+        Self::check_owner_arguments(catalog, request, owner, &receipt.arguments)
+    }
+
+    fn check_owner_arguments(
+        catalog: &DeclarationCatalog<'_>,
+        request: &StaticValueRequest,
+        owner: &DeclarationId,
+        mut rest: &[ValueType],
+    ) -> Result<(), TypeError> {
+        let types = &catalog.types;
+        let mut scopes = Vec::new();
+        for scope in types.specialization_scopes(owner) {
+            let (arguments, remaining) = rest
+                .split_at_checked(types.arity(scope))
+                .ok_or_else(|| TypeError::for_site(&request.expression, "specialized type argument has the wrong number of arguments"))?;
+            rest = remaining;
+            scopes.push((scope, arguments));
+            if !types.generics[scope].equations.is_empty() {
+                types
+                    .solve_arguments(scope, arguments.to_vec())
+                    .map_err(|reason| TypeError::for_site(&request.expression, reason))?;
             }
+            for (index, argument) in arguments.iter().enumerate() {
+                argument.validate_closed_indices().map_err(|reason| {
+                    TypeError::for_site(
+                        &request.expression,
+                        format!("invalid evaluation argument {} of {}: {reason}", index + 1, scope.path),
+                    )
+                })?;
+                let parameter = &types.generics[scope].parameters[index];
+                let bound = types.bound(scope, index);
+                if parameter.kind == NodeKind::TypeParam || matches!(bound, Some(ValueType::Universe { .. })) {
+                    if !is_type_argument(argument, catalog, request)? {
+                        return Err(TypeError::for_site(
+                            &request.expression,
+                            "specialized evaluation argument does not match its owner's type parameter",
+                        ));
+                    }
+                    types
+                        .validate_bound(scope, index, argument)
+                        .map_err(|reason| TypeError::for_site(&request.expression, reason))?;
+                }
+                let Some(bound) = bound else { continue };
+                let carrier = scopes
+                    .iter()
+                    .fold(bound.clone(), |ty, (owner, args)| ty.substitute(owner, args));
+                if matches!(carrier, ValueType::Universe { .. }) {
+                    TypeCatalog::check_universe_member(argument, &carrier).map_err(|reason| TypeError::for_site(&request.expression, reason))?;
+                }
+                let valid = match carrier.carrier() {
+                    ValueType::Integer { .. } => match argument {
+                        ValueType::StaticInteger { carrier: actual, value } => {
+                            actual.carrier() == carrier.carrier() && carrier.carrier().contains_integer(value)
+                        }
+                        ValueType::Subject { .. } | ValueType::BoundSubject(_) => types.admits_runtime_index(scope, index),
+                        _ => false,
+                    },
+                    _ if carrier.supports_closed_snapshot() => matches!(argument, ValueType::StaticValue { carrier: actual, value }
+                        if actual.carrier() == carrier.carrier() && value.matches_carrier(&carrier, catalog)),
+                    _ => true,
+                };
+                if !valid {
+                    return Err(TypeError::for_site(
+                        &request.expression,
+                        "specialized evaluation argument does not match its owner's static parameter",
+                    ));
+                }
+            }
+        }
+        if !rest.is_empty() {
+            return Err(TypeError::for_site(
+                &request.expression,
+                "specialized type argument has the wrong number of arguments",
+            ));
         }
         Ok(())
     }
@@ -123,26 +184,46 @@ impl IndexSpecializations {
     }
 }
 
-/// Only integer and Boolean binder carriers are checked. Other binder kinds pass unchanged.
-fn matches_scalar_binder(
-    types: &TypeCatalog<'_>,
-    scope: &DeclarationId,
-    index: usize,
+/// Closed types include dependent families and erased mathematical types. A
+/// closed value, callback selection or proof is an argument of another kind.
+fn is_type_argument(
     argument: &ValueType,
-) -> bool {
-    let Some(bound) = types.bound(scope, index) else {
-        return true;
-    };
-    match bound.carrier() {
-        ValueType::Integer { .. } => match argument {
-            ValueType::StaticInteger { carrier, value } => carrier.carrier() == bound.carrier() && bound.carrier().contains_integer(value),
-            ValueType::Subject { .. } | ValueType::BoundSubject(_) => types.admits_runtime_index(scope, index),
-            _ => false,
-        },
-        ValueType::Bool => matches!(
-            argument,
-            ValueType::StaticValue { carrier, value: StaticValue::Bool(_) } if carrier.carrier() == &ValueType::Bool
-        ),
-        _ => true,
-    }
+    catalog: &DeclarationCatalog<'_>,
+    request: &StaticValueRequest,
+) -> Result<bool, TypeError> {
+    use ValueType::*;
+    let valid = |ty: &ValueType| is_type_argument(ty, catalog, request);
+    Ok(match argument.carrier() {
+        Tuple(items) => {
+            for item in items {
+                if !valid(item)? {
+                    return Ok(false);
+                }
+            }
+            true
+        }
+        Function(input, output) => valid(input)? && valid(output)?,
+        Reference(_, item) | Slice(item) | Squash(item) | Array(item, _) | IndexedArray(item, _) | AtLifetime(item, _) => valid(item)?,
+        Nominal(id) | Applied(id, _) => {
+            if !catalog.types.scopes.contains_key(id.as_ref()) {
+                return Ok(false);
+            }
+            let (_, args) = argument.carrier().nominal_parts().unwrap();
+            IndexSpecializations::check_owner_arguments(catalog, request, id, args)?;
+            true
+        }
+        Bool
+        | Integer { .. }
+        | IndexedInteger { .. }
+        | Address
+        | Float32
+        | Float64
+        | Witness { .. }
+        | Callable(_)
+        | Evidence(_)
+        | LevelKind
+        | Universe { .. }
+        | FamilyApplication { .. } => true,
+        _ => false,
+    })
 }

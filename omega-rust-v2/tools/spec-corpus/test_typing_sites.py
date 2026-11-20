@@ -48,6 +48,26 @@ class TypingSitesTests(unittest.TestCase):
         rendered = "\n".join(details(inventory, Path.cwd()))
         self.assertIn(f"Returned “expected callable” to `{target}::callable`", rendered)
 
+    def test_exact_api_credit_requires_a_passing_test_and_the_independent_expected_tuple(self):
+        target, name = "tests/specialization_receipts.rs", "check"
+        actual = f"OMEGA_TYPING_RETURN_CHECKED\t\t{SOURCE}/a.rs\t2\t5\trefused\tapp\tmain.omg\t4\t8\t3\tbad"
+        expected = "app\tmain.omg\t4\t8\tbad"
+        for record, status, exact in [(actual + "\t" + expected, "ok", True),
+                                      (actual + "\t" + expected, "FAILED", False),
+                                      (actual.replace("_CHECKED", ""), "ok", False),
+                                      (actual, "ok", False)] + [
+                (actual + "\t" + expected.replace(before, after), "ok", False)
+                for before, after in [("app", "other"), ("main.omg", "other.omg"), ("4", "3"), ("8", "7"), ("bad", "err")]]:
+            with self.subTest(record=record, status=status):
+                report = {"measurement_errors": [], "suites": {"L3": {"tests": [{"target": target, "test": name, "status": status}]}}}
+                inventory = parse(_tsv("a.rs\t2\t5\tf\tfor_site\tliteral\tbad"))
+                record_return(report, "L3", target, (target, name), record)
+                attach_witnesses(inventory, report)
+                row = inventory["rows"][0]
+                self.assertEqual(row.get("api_checks", {}), {"bad": [target + "::" + name]} if exact else {})
+                self.assertNotIn("package_tests", row)
+                self.assertEqual(bool(report["measurement_errors"]), "_CHECKED" in record and status == "ok" and not exact)
+
     def test_another_tree_cannot_supply_a_witness_for_the_same_relative_file(self):
         root = Path(__file__).absolute().parents[2]
         for path, valid in [(f"{SOURCE}/a.rs", True), ((root / SOURCE / "a.rs").as_posix(), True),

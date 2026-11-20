@@ -11,6 +11,10 @@
 //! The tests assert the package, file, byte range and full reason separately.
 //! Every case uses a public entry point. No internal boundary is needed.
 
+#[cfg(feature = "diagnostic-origins")]
+#[path = "support/diagnostic_origin.rs"]
+mod diagnostic_origin;
+
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, IndexedSource, ParsedSource, StageSource, SymbolResolvedTrees, TreeNodeId};
@@ -202,6 +206,8 @@ fn assert_refusal(
     assert_eq!(error.span.get_start_offset(), start, "start byte for {reason:?}");
     assert_eq!(error.span.get_end_offset(), end, "end byte for {reason:?}");
     assert!(!error.waiting_for_static_value(), "{reason:?} is a refusal, not a wait");
+    #[cfg(feature = "diagnostic-origins")]
+    diagnostic_origin::report_return(&error, "", Some((package, file, start, end, reason)));
 }
 
 fn first_range() -> (usize, usize) {
@@ -693,4 +699,149 @@ fn specialization_receipt_boolean_and_integer_scopes_keep_their_own_carriers() {
             assert_argument_refusal(&names, &valid, &forged, MIXED_PATH, range, ARGUMENT_MISMATCH);
         }
     });
+}
+
+#[test]
+fn a_specialized_result_preserves_the_outer_type_argument_kind() {
+    let source = "machine size(b:u64)->u64{b} data Outer<T>{data Inner<const B:u64>{v:i<size(B)>;}} machine consume(x:Outer<u64>::Inner<2>){}";
+    with_file(NESTED_PATH, source, |files| {
+        let (request, arguments) = demanded(files, source, "size(B)").remove(0);
+        assert_eq!(arguments, [u64_type(), static_u64(2)]);
+        let valid = SpecializedIndexValue {
+            request,
+            arguments,
+            value: StaticValue::Integer(2.into()),
+        };
+        let package = resolve_source_package(files).unwrap();
+        let resume = |receipts: &[SpecializedIndexValue]| {
+            type_source_package_for_preparation(
+                &package,
+                &TypingEnvironment {
+                    specialized_indices: receipts,
+                    ..Default::default()
+                },
+            )
+        };
+        assert!(matches!(resume(std::slice::from_ref(&valid)).unwrap(), TypingProgress::Complete(_)));
+        let alternate = with_arguments(&valid, vec![ValueType::Bool, static_u64(2)]);
+        assert!(matches!(resume(&[valid.clone(), alternate]).unwrap(), TypingProgress::Complete(_)));
+        for wrong in [static_u64(7), ValueType::Tuple(vec![static_u64(7)])] {
+            let invalid = with_arguments(&valid, vec![wrong, static_u64(2)]);
+            for receipts in [[valid.clone(), invalid.clone()], [invalid, valid.clone()]] {
+                assert_refusal(
+                    resume(&receipts).map(drop),
+                    PACKAGE,
+                    NESTED_PATH,
+                    range_of(source, "size(B)"),
+                    "specialized evaluation argument does not match its owner's type parameter",
+                );
+            }
+        }
+    });
+}
+
+/// First L4 supplies the aggregate literal. L3 then requests size(B) with that
+/// value in the outer-to-inner argument tuple. A second tuple with a malformed
+/// payload must be rejected even when the first one already satisfies the call.
+fn check_aggregate_argument(
+    source: &str,
+    initializer: &str,
+    supply: impl FnOnce(&ValueType) -> StaticValue,
+    forge: impl FnOnce(&mut [ValueType]),
+) {
+    with_file(NESTED_PATH, source, |files| {
+        let package = resolve_source_package(files).unwrap();
+        let resume = |closed: &[(StaticValueRequest, StaticValue)], specialized: &[SpecializedIndexValue]| {
+            type_source_package_for_preparation(
+                &package,
+                &TypingEnvironment {
+                    evaluated_indices: closed,
+                    specialized_indices: specialized,
+                    ..Default::default()
+                },
+            )
+        };
+        let TypingProgress::Pending(first) = resume(&[], &[]).unwrap() else {
+            panic!("expected a closed aggregate demand")
+        };
+        let [omega_typer::StaticValueDemand::Closed(aggregate)] = first.demands() else {
+            panic!("{:?}", first.demands())
+        };
+        assert_eq!(aggregate.expression.span.slice(source.as_bytes()), Some(initializer.as_bytes()));
+        let closed = [(aggregate.clone(), supply(&aggregate.carrier))];
+        let TypingProgress::Pending(next) = resume(&closed, &[]).unwrap() else {
+            panic!("expected a specialized size demand")
+        };
+        let [omega_typer::StaticValueDemand::Specialized { request, arguments }] = next.demands() else {
+            panic!("{:?}", next.demands())
+        };
+        let valid = SpecializedIndexValue {
+            request: request.clone(),
+            arguments: arguments.clone(),
+            value: StaticValue::Integer(2.into()),
+        };
+        assert!(matches!(resume(&closed, std::slice::from_ref(&valid)).unwrap(), TypingProgress::Complete(_)));
+        let mut forged = valid.clone();
+        forge(&mut forged.arguments);
+        for receipts in [[valid.clone(), forged.clone()], [forged, valid]] {
+            assert_refusal(
+                resume(&closed, &receipts).map(drop),
+                PACKAGE,
+                NESTED_PATH,
+                range_of(source, "size(B)"),
+                ARGUMENT_MISMATCH,
+            );
+        }
+    });
+}
+
+#[test]
+fn a_specialized_result_checks_the_payload_of_an_array_argument() {
+    let source = "machine size(b:u64)->u64{b} data Outer<const A:[u8;2]>{data Inner<const B:u64>{v:i<size(B)>;}}
+                  machine consume(x:Outer<[1u8,2u8]>::Inner<2>){}";
+    check_aggregate_argument(
+        source,
+        "[1u8,2u8]",
+        |_| StaticValue::Array([StaticValue::Integer(1.into()), StaticValue::Integer(2.into())].into()),
+        |arguments| {
+            let ValueType::StaticValue {
+                value: StaticValue::Array(values),
+                ..
+            } = &mut arguments[0]
+            else {
+                panic!("expected a closed array")
+            };
+            std::sync::Arc::make_mut(values)[1] = StaticValue::Bool(true);
+        },
+    );
+}
+
+#[test]
+fn a_specialized_result_checks_the_instantiated_field_type_of_a_record_argument() {
+    let source = "machine size(b:u64)->u64{b} data Packet<T [copy]> [copy]{item:T;}
+                  data Outer<T [copy]>{data Inner<const P:Packet<T>,const B:u64>{v:i<size(B)>;}}
+                  machine consume(x:Outer<u8>::Inner<Packet::<u8>{item:3u8},2>){}";
+    check_aggregate_argument(
+        source,
+        "Packet::<u8>{item:3u8}",
+        |carrier| {
+            let (owner, args) = carrier.nominal_parts().unwrap();
+            assert_eq!(owner.path, "Packet");
+            assert_eq!(args, [u8_type()]);
+            StaticValue::Record {
+                owner: owner.clone(),
+                fields: [StaticValue::Integer(3.into())].into(),
+            }
+        },
+        |arguments| {
+            let ValueType::StaticValue {
+                value: StaticValue::Record { fields, .. },
+                ..
+            } = &mut arguments[1]
+            else {
+                panic!("expected Packet<u8>")
+            };
+            std::sync::Arc::make_mut(fields)[0] = StaticValue::Bool(true);
+        },
+    );
 }
