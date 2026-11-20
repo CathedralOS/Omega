@@ -225,6 +225,55 @@ in 393.973 seconds. These cover guest exit 42 and twelve classifications for
 each of the eight supplied bytes. On the full 256-byte stdin this route
 reached its 6,600-second wall bound before publishing an observation.
 
+## Running the translated Epsilon compiler on the original Gamma interpreter
+
+On `8da0d6a9f82`, `--delta-interpreter gamma` translates the Delta-written
+Epsilon compiler to Gamma and runs that source on the selected Gamma host.
+The Beta-written interpreter on Alpha, executable SHA-256
+`7f781f2ad3fe2b2985ad6d8392053a151a8ad5e9f538b058e42d6eae06fc6781`,
+read the 813,584-byte compiler, SHA-256
+`da44deee6b511e9328507a000c77b6258367af4c31ce1544ac84703b425b620c`,
+with the Epsilon customer on guest stdin. Each input below consists of a
+four-byte little-endian compiler length, the compiler and the named customer.
+
+| Customer | Complete interpreter input SHA-256 | Compiler output | CPU / elapsed seconds |
+| --- | --- | --- | ---: |
+| `omega-byte-classes` | `c83d09ecd745b3cc6719529a02242fbddb8b6f6fd323b2b3671de1a1e7bb2d54` | 65,013-byte Delta module, SHA-256 `bd1d5bd47e663ecf27518374302e276913543fa67bc47479439dce60c0376314` | 332.85 / 3,580.71 |
+| `omega-wrong-base` | `35959384a94471903dbf77a5110d142534937e390791b4452225fd795bd3c72a` | 16 ASCII bytes `rejected 18 2032` | 15.08 / 126.55 |
+
+These executions consumed an Epsilon compiler produced independently on a compiled
+Gamma host. The separate original-Gamma translation uses a 787,193-byte input
+with SHA-256 `4e15a439ff582761befc975f907d1d24f360cf1b4315f2ac77709f67be31bd0b`.
+The measurements below begin with the 813,584-byte compiler. The optional
+translated-Delta interpreter is separate from the default 27 selections.
+
+Linking the emitted module with the Epsilon runtime reproduced the complete
+317,906-byte original-Gamma request for translating the linked guest, SHA-256
+`0ca3591ff322757b015632cc040b0f2a0eeb136a322e19edbf320efd46f3e996`.
+The interpreter produced 170,803 Gamma bytes, SHA-256
+`99befce038db962823e7f37ef242c2ebe1f543adb73b1ab892c35298740afbd6`.
+The same host ran both final backends. Both ready-to-run programs received
+all 256 byte values in order and returned the expected 3,077 bytes,
+SHA-256 `9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225`,
+encoding guest exit 42 and twelve classifications per byte.
+
+| Target | Complete backend input SHA-256 | Output bytes and SHA-256 |
+| --- | --- | --- |
+| Alpha tape | `5fb9425c89d0576b7cba169d1339d4879fe018a5f886f4a3736fe52020bc52dc` | 880,161, `d260052ecef6d2c08f6e70c7698c582f22d7ac30ddfd4cc306c1ddc72046a6a5` |
+| Linux x86-64 | `e527de12ecdadd009674ba6de540c5aeee31705d97078a44d444fa211eb9527e` | 468,679, `fc95d11d86c87961bd463f804b4471f21d2e9ff8b155fdad820fdc9b7408496c` |
+
+To reproduce an entire selection, run the following from `8da0d6a9f82`, with a
+fresh directory per target. Replace `alpha` with `native` for Linux. For
+the refusal on this revision, copy the generated `subject.epsilon`, replace
+the single `omega_digit_in_base(value, selected)` call with
+`omega_digit_in_base(value, value)`, and pass that file with `--source`
+in place of `--case omega-byte-classes`.
+
+```sh
+python3 tests/bootstrap/route.py NEW --gamma interpret --delta interpret \
+  --delta-interpreter gamma --epsilon alpha --case omega-byte-classes --seconds 16300
+```
+
 ## Omega lexical byte classes on the original Gamma route
 
 The Omega compiler's `byte_classes.epsilon` ran over all 256 byte values
