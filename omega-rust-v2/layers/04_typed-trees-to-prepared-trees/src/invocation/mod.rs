@@ -22,6 +22,14 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
+fn matches_source_occurrence(source: &omega_resolved::IndexedSource<'_>, node: TreeNodeId, site: &omega_typed::Site) -> bool {
+    node.file == source.ordinal()
+        && node.node < source.nodes.len()
+        && source.package == site.package
+        && source.path == site.file
+        && source.span(node.node) == site.span
+}
+
 #[derive(Debug)]
 pub(super) enum EvaluationError {
     Refused(RefusalCause, Option<TreeNodeId>),
@@ -304,8 +312,7 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<PreparedValue, EvaluationError> {
         let tree = self.tree(request.node)?;
         let source = tree.resolved().file;
-        let site = &request.expression;
-        if source.package != site.package || source.path != site.file || source.span(request.node.node) != site.span {
+        if !matches_source_occurrence(source, request.node, &request.expression) {
             return Err(PreparationReason::RequestSiteMismatch.into());
         }
         let (owner_arguments, owner_scopes) = match owner_arguments {

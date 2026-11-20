@@ -126,9 +126,13 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
     """A Rust site can be reached by many tests. Only the package twins check the complete CLI diagnostic."""
     sites = {(r["path"], r["line"], r["column"]): r for r in inventory["rows"]}
 
+    workspace = Path(__file__).absolute().parents[2]
+    roots = (Path(SOURCE), workspace / SOURCE, workspace.resolve() / SOURCE)
+
     def find_site(origin, name, phase):
-        _, separator, path = ("/" + origin["path"]).rpartition(f"/{SOURCE}/")
-        site = sites.get((path, origin["line"], origin["column"])) if separator else None
+        origin_path = Path(origin["path"])
+        path = next((origin_path.relative_to(root).as_posix() for root in roots if origin_path.is_relative_to(root)), None)
+        site = sites.get((path, origin["line"], origin["column"]))
         if site is None:
             inventory["errors"].append(f"{name}: returned diagnostic originated outside the inventory at {origin['path']}:{origin['line']}:{origin['column']}")
         elif site["class"] in {"unclassified", "malformed"} or (site["class"] == "pending") != (phase == "pending"):

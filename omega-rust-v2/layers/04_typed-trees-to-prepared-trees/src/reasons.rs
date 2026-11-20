@@ -109,6 +109,8 @@ preparation_reasons! {
     RequestWithoutTypedFile => "the evaluation request has no typed source file",
     /// The source file exists but does not contain the requested expression node.
     RequestWithoutTypedNode => "the evaluation request has no expression at the selected node",
+    /// The operand node and its published source occurrence disagree.
+    OperandSiteMismatch => "the call operand selects a different source occurrence",
     /// The request names an existing expression at a different source occurrence.
     RequestSiteMismatch => "the evaluation request selects a different source occurrence",
     /// A pattern selects no supported owned value.

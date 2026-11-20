@@ -376,6 +376,8 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
         direction: SlotDirection::EnvironmentToProgram,
         ..slot.clone()
     };
+    let rejected = refuse(&progress, &[slot.clone(), inbound.clone()], &capsule, vec![check()]);
+    assert_provider_refusal(&rejected, PreparationReason::CompetingBoundarySlots, "the selected invocation has competing runtime boundary slots", SOURCE, "Reading::read()");
     let rejected = refuse(&progress, std::slice::from_ref(&inbound), &capsule, vec![check()]);
     assert_provider_refusal(
         &rejected,

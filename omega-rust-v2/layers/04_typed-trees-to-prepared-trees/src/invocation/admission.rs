@@ -431,6 +431,9 @@ impl ConstantEvaluation<'_, '_> {
         if operand.node.file != file.node_id(0).file || operand.callable.is_some() {
             return Err(PreparationReason::NoLocalScalarOperand.into());
         }
+        if !matches_source_occurrence(file, operand.node, &operand.site) {
+            return Err(PreparationReason::OperandSiteMismatch.into());
+        }
         let step = if carrier == &ValueType::Bool || is_aggregate(carrier) || FloatFormat::for_type(carrier).is_some() {
             Step::Evaluate(operand.node, carrier.clone(), scope.clone())
         } else {
