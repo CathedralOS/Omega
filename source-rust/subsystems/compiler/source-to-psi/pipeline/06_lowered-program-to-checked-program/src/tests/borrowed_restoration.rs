@@ -925,3 +925,96 @@ fn a_dead_borrowed_block_address_still_owes_its_missing_field() {
     };
     assert!(owes_restoration, "{refused:?}");
 }
+
+#[test]
+fn replacing_a_borrowed_sum_returns_only_the_new_tags_claims() {
+    let source = r#"
+data Token [linear] { value: u64; }
+data Choice { case Left(token: Token); case Right(token: Token); }
+data Boxed { marker: u64; choice: Choice; }
+machine read(token: Token) -> u64 { let { value } = move token; value }
+machine take(choice: Choice) -> u64 {
+    transition choice {
+        Choice::Left { token } -> read(token),
+        Choice::Right { token } -> read(token)
+    }
+}
+machine repair(choice: @mut Choice) {
+    let old: Choice = move choice;
+    let value: u64 = take(old);
+    choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };
+}
+machine build_entry() crashes Trap {
+    let mut boxed: Boxed = Boxed { marker: 19u64, choice: Choice::Left { token: Token { value: 41u64 } } };
+    repair(@mut boxed.choice);
+    let marker: u64 = boxed.marker;
+    let result: u64 = take(boxed.choice);
+    transition marker == 19u64 && result == 42u64 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    let verdict = super::build_purpose::judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    let module = &accepted.elaboration.module;
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| !machine.loan_completions.is_empty())
+        .expect("the caller needs a new claim for each possible tag");
+    let [completion] = caller.loan_completions.as_slice() else {
+        panic!("expected one repaired field");
+    };
+    assert_eq!(completion.claims.len(), 2);
+    assert_eq!(completion.path.len(), 1);
+    let old_claim = caller
+        .operations()
+        .filter_map(|operation| operation.result.as_structural())
+        .flat_map(|result| &result.claims)
+        .find(|claim| claim.path.is_empty())
+        .unwrap()
+        .claim;
+    for mutation in 0..3 {
+        let mut forged = module.clone();
+        let changed = forged
+            .machines
+            .iter_mut()
+            .find(|row| row.id == caller.id)
+            .unwrap();
+        match mutation {
+            0 => changed.loan_completions.clear(),
+            1 => changed.loan_completions[0].path.clear(),
+            _ => changed.loan_completions[0].claims[0].claim = old_claim,
+        }
+        let error = terminal_semantics::plain_affine::verify_claims_in(&forged, caller.id)
+            .expect_err("receiving must reconstruct the exact field and its new claims");
+        assert!(
+            format!("{error:?}").contains("loan completion"),
+            "{error:?}"
+        );
+    }
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance.invoke(&mut terminal_work::WorkMeter::with_budget(10_000));
+    assert!(
+        matches!(
+            status,
+            Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            ))
+        ),
+        "{status:?}"
+    );
+    let missing = source.replace(
+        "choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };",
+        "",
+    );
+    let rejected = super::build_purpose::judge_build(&missing).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unestablished, .. } if unestablished.iter().any(|row| row.detail.contains("a replacement must be stored"))),
+        "{rejected:?}"
+    );
+}
