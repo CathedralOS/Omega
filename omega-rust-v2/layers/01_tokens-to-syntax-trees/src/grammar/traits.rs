@@ -33,6 +33,7 @@ impl SyntaxParser<'_> {
             self.parse_type(TypePosition::Plain)?;
         }
 
+        self.refuse_separator_before_body()?;
         self.expect(Punctuation::LeftBrace, "`{`")?;
 
         while !self.at(Punctuation::RightBrace) {

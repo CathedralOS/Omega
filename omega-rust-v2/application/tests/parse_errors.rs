@@ -1,5 +1,8 @@
 //! The parser reject fixtures pin the first diagnostic. A focused edit to each fixture must prepare successfully.
 //! Each package includes the helper machines its fixture calls.
+#[path = "support/diagnostic_occurrence.rs"]
+mod diagnostic_occurrence;
+
 use omega_parser::{ParseError, ParseErrorKind, parse_file};
 use std::{
     fs,
@@ -124,7 +127,7 @@ fn expected(
     actual: &ParseError,
     file: &str,
     dump: &str,
-) -> Result<String, String> {
+) -> Result<(String, std::ops::Range<usize>), String> {
     let mut lines = dump.lines();
     let prefix = format!("error {kind:?} at ");
     let (location, span) = lines
@@ -144,7 +147,10 @@ fn expected(
     if actual.get_kind() != kind || actual_range != span || actual.get_expected() != phrase || actual.get_kind().get_message(actual.get_expected()) != reason {
         return Err(format!("expected {kind:?} ({phrase}) at {span}: {reason}; parser returned {actual:?}"));
     }
-    Ok(format!("{file}:{location}: parser: {reason} (bytes {span})\n"))
+    let (start, end) = span.split_once("..").ok_or("invalid golden range")?;
+    let start = start.parse().map_err(|_| "invalid golden start")?;
+    let end = end.parse().map_err(|_| "invalid golden end")?;
+    Ok((format!("{file}:{location}: parser: {reason} (bytes {span})\n"), start..end))
 }
 
 fn omega(
@@ -157,17 +163,6 @@ fn omega(
         .args(["source", action, "support.omg", file])
         .output()
         .map_err(|error| format!("could not run omega source {action}: {error}"))
-}
-
-/// Splits `file:line:column: producer: reason (bytes start..end)` into its observed parts.
-fn split_rendered(rendered: &str) -> Option<(&str, &str, &str, &str, &str)> {
-    let (file, rest) = rendered.split_once(':')?;
-    let (_line, rest) = rest.split_once(':')?;
-    let (_column, rest) = rest.split_once(": ")?;
-    let (producer, rest) = rest.split_once(": ")?;
-    let (reason, span) = rest.rsplit_once(" (bytes ")?;
-    let (start, end) = span.strip_suffix(')')?.split_once("..")?;
-    Some((file, producer, reason, start, end))
 }
 
 fn measure(
@@ -184,8 +179,14 @@ fn measure(
     let good = (case.twin)(&bad)?;
     let file = format!("{}.omg", case.fixture);
     let tokens = omega_lexer::lex(bad.as_bytes()).map_err(|error| format!("negative twin stopped in the lexer: {error}"))?;
-    let refusal = parse_file(bad.as_bytes(), &tokens).err().ok_or("negative twin parsed")?;
-    let expected = expected(kind, &refusal, &file, &read("expected")?)?;
+    let refusal = parse_file(bad.as_bytes(), &tokens)
+        .err()
+        .ok_or("negative twin parsed")?;
+    let (expected, range) = expected(kind, &refusal, &file, &read("expected")?)?;
+    let spelling = bad
+        .as_bytes()
+        .get(range.clone())
+        .ok_or("golden range outside reject fixture")?;
     let path = directory.join(&file);
     let write = |text: &str| fs::write(&path, text).map_err(|error| format!("could not write {}: {error}", path.display()));
 
@@ -213,12 +214,22 @@ fn measure(
             String::from_utf8_lossy(&lowered.stderr)
         ));
     }
-    let (file, producer, reason, start, end) = split_rendered(rendered.trim_end()).ok_or_else(|| format!("unparsable diagnostic {rendered:?}"))?;
-    if producer != "parser" {
-        return Err(format!("first producer is {producer:?}, not the parser"));
-    }
     let observed = refusal.get_kind();
-    Ok(format!("OMEGA_DIAGNOSTIC_KIND\tL1\t{observed:?}\t{file}\t{start}\t{end}\t{reason}"))
+    let field = spec_corpus::diagnostic_field;
+    Ok(format!(
+        "OMEGA_DIAGNOSTIC_KIND\tL1\t{kind:?}\t{observed:?}\t{}\t{}\t{}",
+        field(
+            expected
+                .strip_suffix('\n')
+                .ok_or("golden diagnostic has no line terminator")?
+        ),
+        field(
+            rendered
+                .strip_suffix('\n')
+                .ok_or("parser diagnostic has no line terminator")?
+        ),
+        diagnostic_occurrence::fields(&file, bad.as_bytes(), range.start, spelling),
+    ))
 }
 
 #[test]

@@ -74,6 +74,31 @@ fn malformed_selection_rows_refuse_the_first_missing_part() {
 }
 
 #[test]
+fn trait_body_separator_is_diagnosed_only_after_a_complete_header() {
+    use omega_parser::ParseErrorKind::{SeparatorBeforeBody, UnexpectedToken};
+
+    for header in ["trait T", "trait U = T"] {
+        let good = format!("{header} {{}}");
+        let bytes = good.as_bytes();
+        parse_file(bytes, &lex(bytes).unwrap()).expect(&good);
+    }
+
+    for (prefix, token, rest, kind, expected) in [
+        ("trait T ", ",", " {}", SeparatorBeforeBody, "`{`"),
+        ("trait U = T ", ";", " {}", SeparatorBeforeBody, "`{`"),
+        ("trait U = ", ",", " {}", UnexpectedToken, "a type"),
+        ("trait T ", ";", "", UnexpectedToken, "`{`"),
+    ] {
+        let source = format!("{prefix}{token}{rest}");
+        let bytes = source.as_bytes();
+        let error = parse_file(bytes, &lex(bytes).unwrap()).expect_err(&source);
+        assert_eq!((error.get_kind(), error.get_expected()), (kind, expected), "{source}");
+        assert_eq!(error.get_span().get_start_offset(), prefix.len(), "{source}");
+        assert_eq!(error.get_span().slice(bytes), Some(token.as_bytes()), "{source}");
+    }
+}
+
+#[test]
 fn bracketed_generic_arguments_have_the_same_shape_in_types_and_expressions() {
     // One bare name inside brackets denotes a slice type. A comma, a call,
     // or parentheses around that same name selects an array of values.
@@ -102,4 +127,62 @@ fn bracketed_generic_arguments_have_the_same_shape_in_types_and_expressions() {
             assert!(dump.contains(&expected), "{source}\nexpected:\n{expected}\nactual:\n{dump}");
         }
     }
+}
+
+#[test]
+fn dangling_selection_path_reports_the_first_fixable_occurrence() {
+    use omega_parser::NodeKind;
+    use omega_parser::ParseErrorKind::{UnexpectedEnd, UnexpectedToken};
+
+    let header = "trait Trait { machine slot(); machine other(); }\nmachine Ops::target() {}\nImpl satisfies Trait {\n";
+    let first = "    Trait::slot = Ops::;\n";
+    let first_fixed = "    Trait::slot = Ops::target;\n";
+    let later = "    Trait::other = ;\n";
+    let later_fixed = "    Trait::other = Ops::target;\n";
+    let mut observations = Vec::new();
+    for source in [
+        format!("{header}{first}{later}}}\n"),
+        format!("{header}{first_fixed}{later}}}\n"),
+        format!("{header}{first}{later_fixed}}}\n"),
+        format!("{header}{}", first.trim_end_matches(";\n")),
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        let error = parse_file(source.as_bytes(), &tokens).expect_err(&source);
+        let span = error.get_span();
+        observations.push((error.get_kind(), error.get_expected(), span.get_start_offset()..span.get_end_offset()));
+    }
+
+    let source = format!("{header}{first_fixed}{later_fixed}}}\n");
+    let tokens = lex(source.as_bytes()).unwrap();
+    let tree = parse_file(source.as_bytes(), &tokens).expect("repairing both rows should parse");
+    let indexed = tree.index(&source, &tokens).unwrap();
+    let rows: Vec<_> = indexed
+        .nodes
+        .iter()
+        .filter(|node| node.kind == NodeKind::SelectionRow)
+        .map(|row| {
+            row.children
+                .iter()
+                .map(|&child| {
+                    assert_eq!(indexed.nodes[child].kind, NodeKind::Path);
+                    let span = indexed.span(child);
+                    &source[span.get_start_offset()..span.get_end_offset()]
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert_eq!(rows, [["Trait::slot", "Ops::target"], ["Trait::other", "Ops::target"]]);
+
+    spec_corpus::observe_handoff!(
+        "syntax-trait-conformance/first-malformed-selection",
+        assert_eq!(
+            observations,
+            [
+                (UnexpectedToken, "a name after `::`", 120..121),
+                (UnexpectedToken, "a name", 147..148),
+                (UnexpectedToken, "a name after `::`", 120..121),
+                (UnexpectedEnd, "a name after `::`", 120..120),
+            ]
+        )
+    );
 }

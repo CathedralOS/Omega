@@ -39,17 +39,25 @@ crashes Trap
         true -> append(emitter, value, offset),
         _ -> full(emitter)
     }
-    machine append(emitter: @mut AlphaEmitter, value: u8, offset: u64) {
+    machine append(emitter: @mut AlphaEmitter, value: u8, offset: u64)
+    requires offset < 2097152
+    {
         transition emitter.layout {
             true -> advance(emitter, offset),
             _ -> write(emitter, value, offset)
         }
     }
-    machine write(emitter: @mut AlphaEmitter, value: u8, offset: u64) {
+    machine write(emitter: @mut AlphaEmitter, value: u8, offset: u64)
+    requires offset < 2097152
+    {
         emitter.bytes[offset] = value;
         transition { _ -> advance(emitter, offset) }
     }
-    machine advance(emitter: @mut AlphaEmitter, offset: u64) { emitter.length = offset + 1; }
+    machine advance(emitter: @mut AlphaEmitter, offset: u64)
+    requires offset < 2097152
+    {
+        emitter.length = offset + 1;
+    }
     machine full(emitter: @mut AlphaEmitter) { emitter.complete = false; }
 }
 

@@ -1,0 +1,24 @@
+// The harness supplies the product's holds_references machine. Observe its
+// original handle, the initial offset, and both borrowed buffer addresses.
+public data SyntaxTrees [copy] { marker: u8; }
+public data Typing [copy] { marker: u8; }
+
+machine walk_reference_types(syntax: @SyntaxTrees, typing: @Typing,
+    handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9]) -> bool
+{
+    let initial: u64 in Trapping = handles[0];
+    offsets[0] = 1 as +Trapping;
+    let still: u64 in Trapping = handles[0];
+    let last: u64 in Trapping = offsets[8];
+    transition ((initial as -Trapping) == 42) && ((still as -Trapping) == 42) && ((last as -Trapping) == 0) {
+        true -> true,
+        _ -> false
+    }
+}
+
+machine main() -> u8 crashes Trap {
+    let syntax: SyntaxTrees;
+    let typing: Typing;
+    let result: bool = holds_references(@syntax, @typing, 42 as +Trapping);
+    transition result { true -> 42, _ -> 1 }
+}

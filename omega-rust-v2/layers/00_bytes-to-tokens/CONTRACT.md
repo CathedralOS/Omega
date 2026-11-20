@@ -49,6 +49,13 @@ comparison in `tests/byte_cases.rs`, not a fixture.
 | R16 | There is no `>>` token. Two adjacent `>` are two tokens. | Spec: expressions ("no `>>` token is added") | `punctuation` | — |
 | R17 | Any other ASCII character rejects. | Implied by R3, R4, R15 | — | `unknown_character_vertical_tab`, `unknown_character_question`, `unknown_character_backtick`, `byte_cases::nul_byte_rejects` |
 
+For R12–R13, report raw CR or LF at that byte (CR first in CRLF), including
+when it interrupts an escape whose prefix is still valid. An already invalid
+escape is reported before a later break. Without an earlier error, EOF in the
+body or immediately after a backslash reports an unterminated literal from its
+opening quote through EOF; incomplete `\x` at EOF is an invalid hex escape at
+`\x`, just as when a closing quote interrupts its digits.
+
 ### Punctuation vocabulary (R15)
 
     +   +%  +|  +!  +=          -   -%  -|  -!  -=  ->

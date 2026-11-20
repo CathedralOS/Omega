@@ -24,6 +24,8 @@ class DiagnosticKindTests(unittest.TestCase):
             self.assertTrue(states["ResumedTyping"]["verified"])
             self.assertFalse(states["NewPhase"]["verified"])
             self.assertIn("preparation failure NewPhase: no producer and CLI comparison registered", report["measurement_errors"])
+            report["reviewed_comparisons"][comparison] = None
+            self.assertFalse(frontend_diagnostics.preparation_phases(report)["ResumedTyping"]["verified"])
             report["reviewed_comparisons"].clear()
             self.assertFalse(frontend_diagnostics.preparation_phases(report)["ResumedTyping"]["verified"])
             report["reviewed_comparisons"][comparison] = "asserted"
@@ -44,26 +46,84 @@ class DiagnosticKindTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         evidence.kinds(declaration, "PreparationFailure", payload=frontend_diagnostics.PREPARATION_PAYLOADS)
 
-    def measure(self, log):
+    def measure(self, log, stage="L0", kind="InvalidUtf8"):
         report = {"measurement_errors": [], "suites": {"L1": {"tests": []}}}
-        with patch.dict(evidence.FAMILIES, {"L0": ("lex_errors", "", "")}, clear=True), patch.object(evidence, "kinds", return_value={"InvalidUtf8"}):
-            row = evidence.measure(report, log)["L0"]["InvalidUtf8"]
+        with patch.dict(evidence.FAMILIES, {stage: evidence.FAMILIES[stage]}, clear=True), patch.object(evidence, "kinds", return_value={kind}):
+            row = evidence.measure(report, log)[stage][kind]
         return row["state"], report["measurement_errors"]
 
     def test_missing_failed_or_misattributed_diagnostic_never_gets_credit(self):
         name = "public_diagnostics_match_the_lex_errors_inventory"
-        receipt = "OMEGA_DIAGNOSTIC_KIND\tL0\tInvalidUtf8\tbad.omg\t4\t5\tsource is not valid UTF-8"
+        diagnostic = "bad.omg:1:5: lexer: source is not valid UTF-8 (bytes 4..5)"
+        receipt = f"OMEGA_DIAGNOSTIC_KIND\tL0\tInvalidUtf8\tInvalidUtf8\t{diagnostic}\t{diagnostic}\tbad.omg\tabcd%FF\t4\t%FF"
         log = f"Running tests/lex_errors.rs (binary)\ntest {name} ... ok\n---- {name} stdout ----\n{receipt}"
         self.assertEqual(self.measure(log), ("CLI verified", []))
         self.assertEqual(self.measure(log.replace(" ... ok", " ... FAILED")), ("matched in a failed test", []))
         for broken in (log.replace(receipt, ""), log.replace("tests/lex_errors", "tests/unrelated"),
-                       log + "\n" + receipt, log + "\n" + receipt.replace("\t5\t", "\t1\t"),
+                       log + "\n" + receipt, log + "\n" + receipt.replace("4..5", "4..1"),
                        log + "\n" + receipt.rsplit("\t", 1)[0],
-                       log.replace("OMEGA_DIAGNOSTIC_KIND", "OMEGA_DIAGNOSTIC_KIND_BAD"), log.replace("\t5\t", "\t1\t")):
+                       log.replace("OMEGA_DIAGNOSTIC_KIND", "OMEGA_DIAGNOSTIC_KIND_BAD"), log.replace("4..5", "4..1")):
             with self.subTest(broken=broken):
                 state, errors = self.measure(broken)
                 self.assertTrue(errors)
                 self.assertEqual(state, "unobserved")
+
+    def test_a_swapped_kind_or_rendered_diagnostic_loses_credit_in_a_passing_suite(self):
+        for stage, binary, producer in [("L0", "lex_errors", "lexer"), ("L1", "parse_errors", "parser")]:
+            test = f"public_diagnostics_match_the_{binary}_inventory"
+            header = f"Running tests/{binary}.rs (binary)\ntest {test} ... ok\n---- {test} stdout ----\n"
+            first = f"case.omg:1:2: {producer}: first failure (bytes 1..2)"
+            second = f"case.omg:2:3: {producer}: second failure (bytes 8..9)"
+            with patch.dict(evidence.FAMILIES, {stage: (binary, "", "")}, clear=True), patch.object(evidence, "kinds", return_value={"First", "Second"}):
+                for actual_kind, actual in [("Second", first), ("First", second), ("First", first.replace("1:2:", "2:2:"))]:
+                    with self.subTest(stage=stage, actual_kind=actual_kind, actual=actual):
+                        log = header + f"OMEGA_DIAGNOSTIC_KIND\t{stage}\tFirst\t{actual_kind}\t{first}\t{actual}\tcase.omg\txy\t1\ty\n"
+                        log += f"OMEGA_DIAGNOSTIC_KIND\t{stage}\tSecond\tSecond\t{second}\t{second}\tcase.omg\t12345%0Axy?\t8\t?"
+                        report = {"measurement_errors": []}
+                        rows = evidence.measure(report, log)[stage]
+                        self.assertEqual(rows["First"]["state"], "unobserved")
+                        self.assertEqual(rows["Second"]["state"], "CLI verified")
+                        self.assertTrue(report["measurement_errors"])
+
+    def test_matching_strings_do_not_prove_a_source_occurrence(self):
+        name = "public_diagnostics_match_the_lex_errors_inventory"
+        header = f"Running tests/lex_errors.rs (binary)\ntest {name} ... ok\n---- {name} stdout ----\n"
+        # The second '?' follows CRLF, a two-byte character, a literal % and an invalid byte.
+        source = "?%0D%0A%C3%A9%25%FF?"
+
+        def log(location="2:5", span="7..8", source=source, offset="7", spelling="?", file="case.omg"):
+            diagnostic = f"case.omg:{location}: lexer: reason (bytes {span})"
+            return header + "\t".join(["OMEGA_DIAGNOSTIC_KIND", "L0", "InvalidUtf8", "InvalidUtf8",
+                                       diagnostic, diagnostic, file, source, offset, spelling])
+
+        for valid in [log(), log("1:3", "2..3", offset="2", spelling="%0A")]:
+            self.assertEqual(self.measure(valid), ("CLI verified", []))
+        for broken in [log(span="7..9"), log("2:7", "9..9", offset="9", spelling=""),
+                       log("1:1", "0..1"), log(span="7..7", spelling=""), log(spelling="!"),
+                       log(location="3:5"), log(location="2:4"), log(offset="+7"), log(file="other.omg"),
+                       log(source=source.replace("%FF", "%FG")), log(spelling="%"), log(spelling="?\vbad"),
+                       log().rsplit("\t", 4)[0]]:
+            with self.subTest(broken=broken):
+                state, errors = self.measure(broken)
+                self.assertEqual(state, "unobserved")
+                self.assertTrue(errors)
+
+    def test_parser_empty_spelling_is_valid_at_the_selected_eof_only(self):
+        name = "public_diagnostics_match_the_parse_errors_inventory"
+        header = f"Running tests/parse_errors.rs (binary)\ntest {name} ... ok\n---- {name} stdout ----\n"
+        text = "f.omg:2:1: parser: expected `}` (bytes 15..15)"
+        receipt = f"OMEGA_DIAGNOSTIC_KIND\tL1\tUnexpectedEnd\tUnexpectedEnd\t{text}\t{text}\tf.omg\tmachine f() {{%0D%0A\t15\t"
+
+        def measure(record):
+            return self.measure(header + record, "L1", "UnexpectedEnd")
+
+        self.assertEqual(measure(receipt), ("CLI verified", []))
+        for broken in (receipt.replace("..15", "..16"), receipt.replace("15..15", "14..14"),
+                       receipt.replace("2:1:", "1:1:"), receipt.replace("%0A\t", "%0Ax\t"), receipt.rstrip("\t")):
+            with self.subTest(broken=broken):
+                state, errors = measure(broken)
+                self.assertEqual(state, "unobserved")
+                self.assertTrue(errors)
 
     def test_index_capacity_has_separate_direct_evidence(self):
         parser_test = {"target": "unittests src/lib.rs", "test": evidence.INDEX_TEST, "status": "ok"}

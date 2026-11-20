@@ -72,6 +72,8 @@ class Route:
         self.shared = shared
         self.expect_rejection = expect_rejection
         self.epsilon_interpreter = getattr(args, "epsilon_interpreter", "direct")
+        self.omega_exit = (42 if getattr(args, "case", None) == "omega-constructor"
+                           else getattr(args, "expect_omega_exit", None))
 
     def stage(self, description, action):
         self.steps.append((description, action))
@@ -231,8 +233,8 @@ class Route:
             self.run("guest.eeout", "run the compiled Epsilon program with stdin.bin", program,
                      stdin.read_bytes, terminal=True)
 
-        if getattr(self.args, "case", None) == "omega-constructor":
-            self.stage("run the constructed Omega program on the Alpha seed and require exit 42",
+        if self.omega_exit is not None:
+            self.stage(f"run the constructed Omega program on the Alpha seed and require exit {self.omega_exit}",
                        self.check_omega_program)
 
     def check_omega_program(self):
@@ -240,9 +242,9 @@ class Route:
         if output[:5] != bytes(5):
             raise ValueError(f"Omega constructor did not return exit 0: {output[:9].hex()}")
         tape = output[5:]
-        check_tape(self.work, tape, self.args.seconds, name="omega-program", expected=42)
+        check_tape(self.work, tape, self.args.seconds, name="omega-program", expected=self.omega_exit)
         self.artifacts["omega-program.tape"] = {"bytes": len(tape), "sha256": sha256(tape).hexdigest(),
-                                               "guest_exit": 42}
+                                               "guest_exit": self.omega_exit}
 
 
 def check_observation(route, expected, report):
@@ -316,6 +318,8 @@ def execute_route(route, guest, stdin, expected, verbose):
               "seconds_per_invocation": args.seconds, "stages": [], "artifacts": route.artifacts, "result": "running"}
     if expected is not None:
         report["expected_observation_sha256"] = sha256(expected).hexdigest()
+    if route.omega_exit is not None:
+        report["expected_omega_exit"] = route.omega_exit
     status = 0
     try:
         log = nullcontext(sys.stdout) if verbose else (work / "stages.log").open("w")
@@ -360,6 +364,8 @@ def main():
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
     parser.add_argument("--expect-observation", type=Path, metavar="FILE",
                         help="exact binary Epsilon exit, trap or source rejection for --source")
+    parser.add_argument("--expect-omega-exit", type=int, metavar="STATUS",
+                        help="run the Alpha tape emitted by --source and require this host exit status and empty streams")
     parser.add_argument("--epsilon-interpreter", choices=("direct", "delta"), default="direct",
                         help="evaluate Epsilon source directly or compile it and interpret the resulting Delta")
     parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
@@ -370,12 +376,16 @@ def main():
     parser.add_argument("--reuse-from", action="append", default=[], type=Path, metavar="DIR",
                         help="reuse intermediate invocations recorded in an earlier route or matrix directory")
     parser.add_argument("--profile", choices=("conformance", "construction"),
-                        help="Delta byte limits (default: construction for omega-constructor, otherwise conformance)")
+                        help="Delta limits (default: construction for emitted Omega programs, otherwise conformance)")
     add_invocation_budget(parser)
     parser.add_argument("--plan", action="store_true", help="print the stages without building or running them")
     args = parser.parse_args()
+    if args.expect_omega_exit is not None:
+        if not args.source or not 0 <= args.expect_omega_exit <= 255:
+            parser.error("--expect-omega-exit requires --source and a host exit status from 0 to 255")
     if args.profile is None:
-        args.profile = "construction" if args.case == "omega-constructor" else "conformance"
+        checks_omega_program = args.case == "omega-constructor" or args.expect_omega_exit is not None
+        args.profile = "construction" if checks_omega_program else "conformance"
     if not args.output and not args.plan:
         parser.error("an output directory is required for execution")
     if args.stdin and not args.source:
@@ -402,6 +412,8 @@ def main():
             expect_rejection = observation_kind(expected) == "reject"
         except (OSError, ValueError) as error:
             parser.error(str(error))
+        if args.expect_omega_exit is not None and (len(expected) <= 5 or expected[:5] != bytes(5)):
+            parser.error("--expect-omega-exit requires an expected constructor observation with exit 0 and a tape")
     try:
         shared = prior_invocations(args.reuse_from) if args.reuse_from or args.reuse_stages else None
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:

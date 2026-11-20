@@ -55,3 +55,21 @@ fn an_operand_list_still_needs_an_operand_between_commas() {
         assert_eq!(&source[span.get_start_offset()..span.get_end_offset()], offending_token, "{source}");
     }
 }
+
+#[test]
+fn a_clobber_separator_needs_a_register_name() {
+    for (header, body) in [("asm machine f clobbers ", "{}"), ("machine f() { asm clobbers ", "{} }")] {
+        let valid = format!("{header}rax, rbx {body}");
+        parse_file(valid.as_bytes(), &lex(valid.as_bytes()).unwrap()).unwrap();
+        let invalid = valid.replace("rbx", "7");
+        let error = parse_file(invalid.as_bytes(), &lex(invalid.as_bytes()).unwrap()).unwrap_err();
+        assert_eq!(error.get_kind(), omega_parser::ParseErrorKind::UnexpectedToken);
+        assert_eq!(error.get_expected(), "a register name");
+        assert_eq!(error.get_span().slice(invalid.as_bytes()), Some(b"7".as_slice()));
+
+        let comma_before_body = valid.replace("rbx ", "");
+        let error = parse_file(comma_before_body.as_bytes(), &lex(comma_before_body.as_bytes()).unwrap()).unwrap_err();
+        assert_eq!(error.get_kind(), omega_parser::ParseErrorKind::SeparatorBeforeBody);
+        assert_eq!(error.get_span().slice(comma_before_body.as_bytes()), Some(b",".as_slice()));
+    }
+}

@@ -894,6 +894,9 @@ impl Catalog<'_> {
             queries.clear();
         }
         if !preferred.is_empty() || !queries.is_empty() {
+            // Several imports can expose the same declaration. Consumers select by its slot.
+            preferred.sort_unstable();
+            preferred.dedup();
             return Ok(NameMatches { slots: preferred, queries });
         }
         if !local.slots.is_empty() || rest.is_none() {

@@ -19,16 +19,26 @@ pub(crate) fn read_escape(escape_bytes: &[u8]) -> Result<(u8, usize), QuotedEsca
         b'\\' => Ok((b'\\', 2)),
         b'"' => Ok((b'"', 2)),
         b'x' => {
-            let high_digit_value = escape_bytes.get(2).copied().and_then(get_hex_digit_value);
-            let low_digit_value = escape_bytes.get(3).copied().and_then(get_hex_digit_value);
+            // Check in source order: a bad first digit wins over a later line break.
+            let high_digit_value = read_hex_escape_digit(escape_bytes, 2)?;
+            let low_digit_value = read_hex_escape_digit(escape_bytes, 3)?;
 
-            match (high_digit_value, low_digit_value) {
-                (Some(high_digit_value), Some(low_digit_value)) => Ok(((high_digit_value << 4) | low_digit_value, 4)),
-                _ => Err(QuotedEscapeError::InvalidHex),
-            }
+            Ok(((high_digit_value << 4) | low_digit_value, 4))
         }
         b'u' => Err(QuotedEscapeError::Codepoint),
+        b'\n' | b'\r' => Err(QuotedEscapeError::LineBreak { offset: 1 }),
         _ => Err(QuotedEscapeError::Unknown),
+    }
+}
+
+fn read_hex_escape_digit(
+    escape_bytes: &[u8],
+    offset: usize,
+) -> Result<u8, QuotedEscapeError> {
+    match escape_bytes.get(offset).copied() {
+        Some(b'\n' | b'\r') => Err(QuotedEscapeError::LineBreak { offset }),
+        Some(digit) => get_hex_digit_value(digit).ok_or(QuotedEscapeError::InvalidHex),
+        None => Err(QuotedEscapeError::InvalidHex),
     }
 }
 

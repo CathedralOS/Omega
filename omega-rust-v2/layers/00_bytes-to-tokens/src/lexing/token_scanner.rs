@@ -142,12 +142,7 @@ impl<'source> TokenScanner<'source> {
                     return Ok((TokenKind::Quoted, self.scan_offset));
                 }
                 // The spec rejects raw line breaks so a literal's bytes do not depend on checkout line endings.
-                b'\n' | b'\r' => {
-                    return Err(LexError::new(
-                        LexErrorKind::NewlineInQuoted,
-                        SourceSpan::new(self.scan_offset, self.scan_offset + 1),
-                    ));
-                }
+                b'\n' | b'\r' => return Err(Self::newline_in_quoted(self.scan_offset)),
                 b'\\' => match read_escape(&self.source_bytes[self.scan_offset..]) {
                     Ok((_, spelled_byte_count)) => self.scan_offset += spelled_byte_count,
                     Err(quoted_escape_error) => {
@@ -157,6 +152,10 @@ impl<'source> TokenScanner<'source> {
                 _ => self.scan_offset += 1,
             }
         }
+    }
+
+    fn newline_in_quoted(offset: usize) -> LexError {
+        LexError::new(LexErrorKind::NewlineInQuoted, SourceSpan::new(offset, offset + 1))
     }
 
     fn unterminated_quoted(
@@ -176,6 +175,7 @@ impl<'source> TokenScanner<'source> {
 
         match quoted_escape_error {
             QuotedEscapeError::EndOfSource => self.unterminated_quoted(token_start),
+            QuotedEscapeError::LineBreak { offset } => Self::newline_in_quoted(backslash_offset + offset),
             QuotedEscapeError::Codepoint => LexError::new(LexErrorKind::CodepointEscape, SourceSpan::new(backslash_offset, backslash_offset + 2)),
             // We point at `\x` only. The two bytes after it may be anything, including half a character.
             QuotedEscapeError::InvalidHex => LexError::new(LexErrorKind::InvalidHexEscape, SourceSpan::new(backslash_offset, backslash_offset + 2)),

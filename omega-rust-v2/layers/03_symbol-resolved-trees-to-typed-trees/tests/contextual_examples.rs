@@ -40,31 +40,54 @@ fn assert_span_within(
 
 #[test]
 fn published_cleanup_clauses_select_owned_hooks() {
-    for (line, declarations, owner, clause) in [
-        (
-            435,
-            "data Guard {} machine release_guard(g:Guard) {}",
-            "Guard::Held",
-            "dropped by release_guard",
-        ),
-        (443, "machine release_guard<T>(g:Guard<T>) {}", "Guard", "dropped by release_guard<T>"),
-    ] {
-        let example = block(DOMAINS, line);
-        let files = [("declarations.omg", declarations), ("published.omg", &example)];
-        let stage = check(&files).unwrap();
-        let [selection] = stage.cleanups.as_slice() else {
-            panic!("expected the published cleanup selection")
-        };
-        assert_eq!(selection.owner.path, owner);
-        assert_eq!(selection.machine.path, "release_guard");
-        assert_eq!(selection.site.file, "published.omg");
-        assert_eq!(selection.site.span.slice(example.as_bytes()), Some(clause.as_bytes()));
-        let borrowed = declarations.replace("g:Guard", "g:@Guard");
-        let error = check(&[("declarations.omg", &borrowed), files[1]]).unwrap_err();
-        assert_eq!(error.file, "published.omg");
-        assert_eq!(error.span.slice(example.as_bytes()), Some(clause.as_bytes()));
-        assert!(error.message.contains("must consume exactly one owned carrier"), "{error:?}");
-    }
+    spec_corpus::observe_handoff!("product/l3", {
+        for (line, declarations, owner, clause) in [
+            (
+                435,
+                "data Guard {} machine release_guard(g:Guard) {}",
+                "Guard::Held",
+                "dropped by release_guard",
+            ),
+            (443, "machine release_guard<T>(g:Guard<T>) {}", "Guard", "dropped by release_guard<T>"),
+        ] {
+            let example = block(DOMAINS, line);
+            let files = [("declarations.omg", declarations), ("published.omg", &example)];
+            let stage = check(&files).unwrap();
+            let [selection] = stage.cleanups.as_slice() else {
+                panic!("expected the published cleanup selection")
+            };
+            assert_eq!(selection.owner.path, owner);
+            assert_eq!(selection.owner.package, "game");
+            assert_eq!(selection.machine.path, "release_guard");
+            assert_eq!(selection.machine.package, "game");
+            assert_eq!(selection.site.file, "published.omg");
+            assert_eq!(selection.site.span.slice(example.as_bytes()), Some(clause.as_bytes()));
+
+            let signature = stage.signatures.iter().find(|sig| sig.machine == selection.machine).unwrap();
+            assert_eq!(signature.site.file, "declarations.omg");
+            let [(_, receiver)] = signature.parameters.as_slice() else {
+                panic!("expected exactly one cleanup parameter")
+            };
+            let guard = stage.record_fields.keys().find(|id| id.package == "game" && id.path == "Guard").unwrap();
+            let formal = |owner: &omega_resolved::DeclarationId| ValueType::Parameter { owner: Box::new(owner.clone()), index: 0 };
+            let (arguments, expected_receiver) = if owner == "Guard" {
+                assert_eq!(&selection.owner, guard);
+                // The clause applies Guard's T to a hook whose signature uses its own T.
+                (vec![formal(guard)], ValueType::Applied(Box::new(guard.clone()), vec![formal(&signature.machine)]))
+            } else {
+                (vec![], ValueType::Nominal(Box::new(guard.clone())))
+            };
+            assert_eq!(selection.arguments, arguments);
+            assert_eq!(receiver, &expected_receiver);
+            assert_eq!(signature.result, ValueType::NoResult);
+
+            let borrowed = declarations.replace("g:Guard", "g:@Guard");
+            let error = check(&[("declarations.omg", &borrowed), files[1]]).unwrap_err();
+            assert_eq!(error.file, "published.omg");
+            assert_eq!(error.span.slice(example.as_bytes()), Some(clause.as_bytes()));
+            assert!(error.message.contains("must consume exactly one owned carrier"), "{error:?}");
+        }
+    });
 }
 
 #[test]

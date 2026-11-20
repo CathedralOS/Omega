@@ -175,15 +175,38 @@ pub struct IndexedSyntax<'a> {
 }
 impl SyntaxTree {
     /// Borrow spellings from the source and index this tree in preorder.
-    /// Returns None if its events or token spans cannot be mapped to the supplied inputs.
+    /// Returns None if the tokens do not cover the source or the tree does not consume each meaningful token in order.
     pub fn index<'a>(
         &self,
         source: &'a str,
         lexed: &[Token],
     ) -> Option<IndexedSyntax<'a>> {
+        let indices = self.get_meaningful_token_indices();
+        let mut tokens = Vec::with_capacity(indices.len().min(lexed.len()));
+        let mut byte_end = 0;
+        for (index, token) in lexed.iter().enumerate() {
+            let span = token.get_span();
+            let start = span.get_start_offset();
+            let end = span.get_end_offset();
+            if start != byte_end || start >= end {
+                return None;
+            }
+            let text = source.get(start..end)?;
+            byte_end = end;
+            let kind = token.get_kind();
+            if !kind.is_trivia() {
+                if *indices.get(tokens.len())? as usize != index {
+                    return None;
+                }
+                tokens.push(Leaf { text, span, kind });
+            }
+        }
+        if byte_end != source.len() || tokens.len() != indices.len() {
+            return None;
+        }
+
         let mut nodes: Vec<Node<'a>> = Vec::new();
-        let mut tokens = Vec::new();
-        let mut token_indices = self.get_meaningful_token_indices().iter();
+        let mut consumed = 0;
         let mut stack = Vec::<usize>::new();
         for event in self.get_events() {
             match *event {
@@ -199,31 +222,24 @@ impl SyntaxTree {
                         end: 0,
                         children: vec![],
                         leaves: vec![],
-                        first_token: tokens.len(),
+                        first_token: consumed,
                         end_token: 0,
                     });
                     stack.push(index);
                 }
                 TreeEvent::Token => {
-                    let token = token_indices.next().and_then(|&i| lexed.get(i as usize))?;
-                    let span = token.get_span();
-                    let text = source.get(span.get_start_offset()..span.get_end_offset())?;
-                    let leaf = Leaf {
-                        text,
-                        span,
-                        kind: token.get_kind(),
-                    };
+                    let leaf = *tokens.get(consumed)?;
                     nodes[*stack.last()?].leaves.push(leaf);
-                    tokens.push(leaf);
+                    consumed += 1;
                 }
                 TreeEvent::Close => {
                     let index = stack.pop()?;
                     nodes[index].end = nodes.len();
-                    nodes[index].end_token = tokens.len();
+                    nodes[index].end_token = consumed;
                 }
             }
         }
-        (stack.is_empty() && token_indices.next().is_none()).then_some(IndexedSyntax { source, nodes, tokens })
+        (stack.is_empty() && consumed == tokens.len() && nodes.first()?.end == nodes.len()).then_some(IndexedSyntax { source, nodes, tokens })
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

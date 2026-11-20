@@ -93,28 +93,14 @@ fn a_skipped_callback_still_requires_non_suspending_selected_effects() {
                 const VALUE:bool = choose::<ready>(false);";
     let prepared = prepare_source_package(&resolve(code)).unwrap();
     assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration), Some(&PreparedValue::Bool(false)));
-    // Twin: both selections satisfy the same suspending `Readiness` bound and
-    // the skipped branch never runs. Only the selected callback's own pause
-    // effect, specialized at the call, decides whether the constant can freeze.
-    let outcome = |callback: &str| -> Result<PreparedValue, String> {
-        let selected = code.replace("choose::<ready>", &format!("choose::<{callback}>"));
-        let package = resolve(&selected);
-        let prepared = prepare_source_package(&package).map_err(|error| error.message)?;
-        let value = prepared
-            .constant(&prepared.typed().constants[0].declaration)
-            .cloned()
-            .unwrap();
-        Ok(value)
-    };
-    let outcomes = [outcome("ready"), outcome("parked")];
-    spec_corpus::observe_handoff!(
-        "selected-callback-effects/consumer",
-        assert!(
-            matches!(&outcomes, [Ok(PreparedValue::Bool(false)), Err(refusal)]
-                if refusal.contains("fact or static argument requires an effect-free computation")),
-            "{outcomes:?}"
-        )
-    );
+    // This source twin is refused by typing. It cannot witness L4's
+    // admission of a callback from a supplied typed effect row.
+    use omega_preparation::PreparationFailure::{ResumedTyping, Typing};
+    let selected = code.replace("choose::<ready>", "choose::<parked>");
+    let failure = omega_preparation::prepare_source_package_diagnosed(&resolve(&selected)).unwrap_err();
+    let (Typing(error) | ResumedTyping(error)) = failure else { panic!("expected a typing refusal") };
+    assert_eq!(error.message, "fact or static argument requires an effect-free computation");
+    assert_eq!(error.span.slice(selected.as_bytes()), Some(b"choose::<parked>(false)".as_slice()));
 }
 
 #[test]
@@ -162,6 +148,16 @@ fn a_skipped_fact_call_checks_termination_of_its_exact_callback() {
                 machine helper(value:bool)->bool {value && guarded(value)}
                 machine invoke<const K:BoolStep>(input:bool)->bool {K(input)}
                 const VALUE:bool=invoke::<helper>(false);";
+    // The original callback signature admits every service reach. The generic predicate
+    // promises an empty ceiling, so typing must refuse it before preparation can check termination.
+    let failure = omega_preparation::prepare_source_package_diagnosed(&resolve(code)).unwrap_err();
+    let omega_preparation::PreparationFailure::Typing(error) = failure else { panic!("expected initial typing refusal") };
+    assert_eq!(error.reason(), Some(omega_typed::CallbackEffectError::OpenReachUnderCeiling.into()));
+    assert_eq!(error.span.slice(code.as_bytes()), Some(b"F(value)".as_slice()));
+
+    // Bound both termination twins to the reach already promised by the predicate.
+    let bounded = code.replace("data BoolStep=machine(input:bool)->bool;", "data BoolStep=machine(input:bool)->bool reaches none;");
+    let code = bounded.as_str();
     let prepared = prepare_source_package(&resolve(code)).unwrap();
     assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration), Some(&PreparedValue::Bool(false)));
 

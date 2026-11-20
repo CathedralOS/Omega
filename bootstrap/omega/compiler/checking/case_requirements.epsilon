@@ -1,0 +1,265 @@
+// A constrained sum admits the listed cases after their payload layout is known.
+// Each alternative names one resolved case of the declaration being checked.
+// Every case must occur once. The supported payload interval includes zero,
+// which also validates zero-initialized fields and the first default case.
+machine OmegaScalarCompiler::check_case_requirement(&mut self, source: &[u8], declaration: i32) -> i32 {
+    let item: OmegaDataSyntax = self.parser.data_items[declaration];
+    transition item.requirement_count {
+        0 -> return 1
+        1 -> owner()
+        _ -> return 0
+    }
+    state owner() {
+        transition self.select_construction_unit(source, self.construction.types[declaration].unit) {
+            1 -> requirement(self.parser.data_items[declaration])
+            _ -> return 0
+        }
+    }
+    state requirement(item: OmegaDataSyntax) {
+        transition true { true -> reset(item.first_case, item.first_case + item.case_count,
+            self.parser.requirements[item.first_requirement].expression) }
+    }
+    state reset(slot: i32, limit: i32, expression: i32) {
+        transition slot < limit {
+            true -> clear(slot, limit, expression)
+            _ -> branches(expression)
+        }
+    }
+    state clear(slot: i32, limit: i32, expression: i32) {
+        self.case_coverage[slot] = 0;
+        transition true { true -> reset(slot + 1, limit, expression) }
+    }
+    state branches(expression: i32) {
+        transition self.check_case_alternative(source, declaration, expression) {
+            1 -> covered(self.parser.data_items[declaration].first_case,
+                self.parser.data_items[declaration].first_case + self.parser.data_items[declaration].case_count)
+            _ -> return 0
+        }
+    }
+    state covered(slot: i32, limit: i32) {
+        transition slot < limit {
+            true -> required(slot, limit)
+            _ -> return 1
+        }
+    }
+    state required(slot: i32, limit: i32) {
+        transition self.case_coverage[slot] { 1 -> covered(slot + 1, limit) _ -> return 0 }
+    }
+}
+
+machine OmegaScalarCompiler::check_case_alternative(
+    &mut self, source: &[u8], declaration: i32, expression: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind {
+        OmegaExpressionKind::Membership -> tag(expression, -1)
+        OmegaExpressionKind::Binary -> binary(self.parser.binary_expressions[row.payload0])
+        _ -> return 0
+    }
+    state binary(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Or -> alternatives(row)
+            OmegaBinaryOperatorKind::And -> tag(row.left, row.right)
+            _ -> return 0
+        }
+    }
+    state alternatives(row: OmegaBinaryExpressionSyntax) {
+        return (self.check_case_alternative(source, declaration, row.left) == 1) &&
+            (self.check_case_alternative(source, declaration, row.right) == 1);
+    }
+    state tag(membership: i32, restriction: i32) {
+        let slot: i32 = self.required_case(source, declaration, self.parser.expressions[membership]);
+        transition slot >= 0 {
+            true -> unique(slot, restriction)
+            _ -> return 0
+        }
+    }
+    state unique(slot: i32, restriction: i32) {
+        transition self.case_coverage[slot] == 0 {
+            true -> mark(slot, restriction)
+            _ -> return 0
+        }
+    }
+    state mark(slot: i32, restriction: i32) {
+        self.case_coverage[slot] = 1;
+        transition restriction >= 0 {
+            true -> return self.check_case_interval(source, slot, self.parser.expressions[restriction])
+            _ -> return 1
+        }
+    }
+}
+
+machine OmegaScalarCompiler::required_case(
+    &mut self, source: &[u8], declaration: i32, row: OmegaExpressionSyntax
+) -> i32 {
+    transition row.kind {
+        OmegaExpressionKind::Membership -> subject(self.parser.expressions[row.payload0])
+        _ -> return -1
+    }
+    state subject(value: OmegaExpressionSyntax) {
+        transition value.kind {
+            OmegaExpressionKind::Path -> self_value(value)
+            _ -> return -1
+        }
+    }
+    state self_value(value: OmegaExpressionSyntax) {
+        transition value.path_kind {
+            OmegaPathExpressionKind::SelfValue -> carrier()
+            _ -> return -1
+        }
+    }
+    state carrier() {
+        transition row.payload2 == 2 {
+            true -> name(self.parser.members[row.payload1], self.parser.members[row.payload1 + 1])
+            _ -> return -1
+        }
+    }
+    state name(owner: OmegaRelativeSpan, tag: OmegaRelativeSpan) {
+        transition self.resolve_data(source, owner.start, owner.end) == declaration {
+            true -> return self.resolve_case(source, declaration, tag.start, tag.end)
+            _ -> return -1
+        }
+    }
+}
+
+// The supported interval is spelled self.field >= 0 && self.field <= high.
+// Resolve the field separately on both sides under this particular case.
+machine OmegaScalarCompiler::check_case_interval(
+    &mut self, source: &[u8], slot: i32, predicate: OmegaExpressionSyntax
+) -> i32 {
+    transition predicate.kind {
+        OmegaExpressionKind::Binary -> conjunction(self.parser.binary_expressions[predicate.payload0])
+        _ -> return 0
+    }
+    state conjunction(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::And -> floor_field(
+                self.case_endpoint_field(source, slot, self.parser.expressions[row.left], 1),
+                self.case_endpoint_field(source, slot, self.parser.expressions[row.right], 0))
+            _ -> return 0
+        }
+    }
+    state floor_field(low: i32, high: i32) {
+        transition (low >= 16384) && (low == high) && (self.field_types[low] == 33) {
+            true -> ceiling(low, self.parser.binary_expressions[predicate.payload0])
+            _ -> return 0
+        }
+    }
+    state ceiling(field: i32, conjunction: OmegaBinaryExpressionSyntax) {
+        let bound: OmegaBinaryExpressionSyntax = self.parser.binary_expressions[self.parser.expressions[conjunction.right].payload0];
+        self.scan_integer(source, self.parser.expressions[bound.right], 33);
+        transition (self.literal_status == 1) && (self.literal_value >= 0) {
+            true -> retain(field, self.literal_value)
+            _ -> return 0
+        }
+    }
+    state retain(field: i32, maximum: i32) { self.field_upper_bounds[field] = maximum; return 1; }
+}
+
+machine OmegaScalarCompiler::case_endpoint_field(
+    &mut self, source: &[u8], slot: i32, predicate: OmegaExpressionSyntax, lower: i32
+) -> i32 {
+    transition predicate.kind {
+        OmegaExpressionKind::Binary -> relation(self.parser.binary_expressions[predicate.payload0])
+        _ -> return -1
+    }
+    state relation(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::GreaterEqual -> direction(row, 1)
+            OmegaBinaryOperatorKind::LessEqual -> direction(row, 0)
+            _ -> return -1
+        }
+    }
+    state direction(row: OmegaBinaryExpressionSyntax, direction: i32) {
+        transition lower == direction {
+            true -> literal(self.parser.expressions[row.left], self.parser.expressions[row.right])
+            _ -> return -1
+        }
+    }
+    state literal(left: OmegaExpressionSyntax, right: OmegaExpressionSyntax) {
+        transition right.kind {
+            OmegaExpressionKind::Integer -> limit(left, right)
+            _ -> return -1
+        }
+    }
+    state limit(left: OmegaExpressionSyntax, right: OmegaExpressionSyntax) {
+        self.scan_integer(source, right, 33);
+        transition (self.literal_status == 1) && (self.literal_value >= 0) &&
+            ((lower == 0) || (self.literal_value == 0)) {
+            true -> path(left)
+            _ -> return -1
+        }
+    }
+    state path(left: OmegaExpressionSyntax) {
+        transition left.kind {
+            OmegaExpressionKind::Path -> member(left)
+            _ -> return -1
+        }
+    }
+    state member(left: OmegaExpressionSyntax) {
+        transition (left.payload2 == 1) && (left.payload1 == 2) {
+            true -> field(self.parser.members[left.payload0 + 1])
+            _ -> return -1
+        }
+    }
+    state field(name: OmegaRelativeSpan) {
+        return self.resolve_payload_field(source, slot, name.start, name.end);
+    }
+}
+
+machine OmegaScalarCompiler::inhabited_sum(&mut self, kind: i32) -> i32 {
+    transition (kind >= 100000) && (kind - 100000 < self.parser.data_count) {
+        true -> sum(kind - 100000)
+        _ -> return 0
+    }
+    state sum(declaration: i32) {
+        return (self.data_colors[declaration] == 2) && (self.parser.data_items[declaration].case_count > 0);
+    }
+}
+
+// A terminal case transition may observe an affine local without copying it.
+// Ordinary by-value reads still require copy. Only the selected case's copy
+// payload is captured for the outgoing target.
+machine OmegaScalarCompiler::check_case_subject(
+    &mut self, source: &[u8], owner: i32, state_index: i32, before: i32, subject: i32, kind: i32
+) -> i32 {
+    transition self.type_copy(source, kind) {
+        1 -> value()
+        _ -> affine(self.parser.expressions[subject])
+    }
+    state affine(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Path -> path(row)
+            _ -> value()
+        }
+    }
+    state path(row: OmegaExpressionSyntax) {
+        transition (row.payload1 == 1) && (row.payload2 == 0) && (row.payload3 == 1) {
+            true -> place()
+            _ -> value()
+        }
+    }
+    state place() {
+        transition self.check_place(source, state_index, before, subject) {
+            1 -> local()
+            _ -> return 0
+        }
+    }
+    state local() {
+        transition (self.place_types[subject] == kind) && (self.place_roots[subject] >= 16384) &&
+            (self.place_roots[subject] < 32768) && (self.place_fields[subject] < 0) {
+            true -> available()
+            _ -> value()
+        }
+    }
+    state available() {
+        transition self.place_available(source, subject, 0) { 1 -> retain() _ -> return 0 }
+    }
+    state retain() {
+        self.value_states[subject] = state_index;
+        self.value_befores[subject] = before;
+        self.value_kinds[subject] = OmegaCheckedValueKind::Place;
+        return self.require_cell(source, 49152 + subject, kind);
+    }
+    state value() { return self.check_value(source, owner, state_index, before, subject, kind); }
+}

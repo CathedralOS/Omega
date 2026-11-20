@@ -17,10 +17,10 @@
 # bytes being materialized are the bound ones; it is not a proof that D
 # implements Omega. Changing a member or the manifest invalidates the
 # dependent evidence and must update every record.
-OMEGA_COMPILER_MANIFEST_SIZE=2381
-OMEGA_COMPILER_MANIFEST_SHA256=93d82cf6e93cd0fce495cca51b6120fd92a494909504b6908ab5aecf3d1a741d
-OMEGA_COMPILER_PACKED_SIZE=1059201
-OMEGA_COMPILER_PACKED_SHA256=b1163bf78def1a9a090b8082e883481507049d0e1ff2d8f07865046bbe762091
+OMEGA_COMPILER_MANIFEST_SIZE=2905
+OMEGA_COMPILER_MANIFEST_SHA256=6e555f03e40fb7f58e2c97d0fa276ef6b3d334a3ecdcc7b39fcac55c139e674f
+OMEGA_COMPILER_PACKED_SIZE=1111653
+OMEGA_COMPILER_PACKED_SHA256=aee1d083b0cc9d2f6f61b5319a5a6c0372251709880c25c3a5bfc094588e6bd7
 
 # Bound gate-local entries packed on top of the bound member bytes. Each
 # omega-* gate appends its own customer entry after the packed D closure —

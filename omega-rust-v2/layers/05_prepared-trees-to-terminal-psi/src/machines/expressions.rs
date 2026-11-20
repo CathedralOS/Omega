@@ -318,7 +318,7 @@ impl Expressions<'_> {
                 let result = self.lower(operand, formal, body, flow)?;
                 arguments.push(self.call_value_argument(result, body, &site_at(file, operand))?);
             }
-            return Ok((runtime.callee, arguments, 0, Default::default()));
+            return Ok((runtime.callee, arguments, 0, runtime.acknowledgements));
         }
         let call = super::calls::select_direct_call(self.tree, self.signature, call_node, carrier, self.types, self.callees)?;
         if self.callees.may_park(call.callee) && crate::lowering::types::uses_structural_place(carrier) {
@@ -757,7 +757,7 @@ impl Expressions<'_> {
                             borrowed: runtime.operands.iter().map(|_| None).collect(),
                             callee: runtime.callee,
                             requirement_count: 0,
-                            pause: Default::default(),
+                            pause: runtime.acknowledgements,
                         },
                         arity: runtime.operands.len(),
                     });
