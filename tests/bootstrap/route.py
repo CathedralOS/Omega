@@ -102,7 +102,7 @@ class Route:
             record = self.publish(path, data)
             record.update(producer_sha256=key[0], request_sha256=key[1])
             if previous is not None:
-                record["reused_from"] = str(original.relative_to(self.work.parent))
+                record["reused_from"] = os.path.relpath(original, self.work.parent)
             elif cache is not None:
                 cache[key] = path, record["sha256"]
 
@@ -248,6 +248,33 @@ def check_observation(route, expected, report):
         report["result"] = "matched" if expected is not None else "observed"
 
 
+def prior_invocations(directories):
+    shared = {}
+    for directory in directories:
+        row = directory / "result.json"
+        reports = [row] if row.is_file() else sorted(directory.glob("*/result.json"))
+        if not reports:
+            raise ValueError(f"{directory}: no route receipts")
+        for path in reports:
+            for name, record in json.loads(path.read_text())["artifacts"].items():
+                if name in ("guest.eeout", "compiler.response") or "producer_sha256" not in record:
+                    continue
+                if not name or Path(name).name != name or name in (".", ".."):
+                    raise ValueError(f"{path}: invalid artifact name {name!r}")
+                key = record["producer_sha256"], record["request_sha256"]
+                digest = record["sha256"]
+                original, previous_digest = shared.setdefault(key, (path.parent / name, digest))
+                if previous_digest != digest:
+                    raise ValueError(f"identical invocation has different outputs at {original} and {path.parent / name}")
+    return shared
+
+
+def save_report(work, report):
+    pending = work / "result.json.tmp"
+    pending.write_text(json.dumps(report, indent=2) + "\n")
+    pending.replace(work / "result.json")
+
+
 def execute_route(route, guest, stdin, expected, verbose):
     work = route.work
     work.mkdir(parents=True, exist_ok=False)
@@ -257,7 +284,7 @@ def execute_route(route, guest, stdin, expected, verbose):
     report = {"gamma": args.gamma, "delta": args.delta, "epsilon": args.epsilon, "profile": args.profile,
               "delta_interpreter": args.delta_interpreter if args.delta == "interpret" else None,
               "source_sha256": sha256(guest).hexdigest(), "stdin_sha256": sha256(stdin).hexdigest(),
-              "seconds_per_invocation": args.seconds, "stages": [], "artifacts": route.artifacts}
+              "seconds_per_invocation": args.seconds, "stages": [], "artifacts": route.artifacts, "result": "running"}
     if expected is not None:
         report["expected_observation_sha256"] = sha256(expected).hexdigest()
     status = 0
@@ -274,6 +301,7 @@ def execute_route(route, guest, stdin, expected, verbose):
                     stage["completed"] = True
                 finally:
                     stage["elapsed_seconds"] = round(time.monotonic() - start, 3)
+                save_report(work, report)
         check_observation(route, expected, report)
     except CompileRefusal as error:
         status = 1
@@ -286,7 +314,7 @@ def execute_route(route, guest, stdin, expected, verbose):
         report.update(result="failed", detail=str(error))
     if report["stages"] and report["stages"][0].get("completed"):
         report["gamma_host_sha256"] = sha256(route.host.image.read_bytes()).hexdigest()
-    (work / "result.json").write_text(json.dumps(report, indent=2) + "\n")
+    save_report(work, report)
     return status, report
 
 
@@ -307,6 +335,8 @@ def main():
     parser.add_argument("--gamma-build", type=Path, help="reuse the selected Alpha or native cold build")
     parser.add_argument("--reuse-stages", action="store_true",
                         help="share intermediate outputs of identical invocations within this matrix")
+    parser.add_argument("--reuse-from", action="append", default=[], type=Path, metavar="DIR",
+                        help="reuse intermediate invocations recorded in an earlier route or matrix directory")
     parser.add_argument("--profile", choices=("conformance", "construction"), default="conformance")
     add_invocation_budget(parser)
     parser.add_argument("--plan", action="store_true", help="print the stages without building or running them")
@@ -334,6 +364,10 @@ def main():
             expect_rejection = observation_kind(expected) == "reject"
         except (OSError, ValueError) as error:
             parser.error(str(error))
+    try:
+        shared = prior_invocations(args.reuse_from) if args.reuse_from or args.reuse_stages else None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        parser.error(f"invalid stage receipts: {error}")
     if not args.plan:
         if root.exists():
             parser.error(f"output already exists: {root}")
@@ -360,7 +394,6 @@ def main():
         headers = ["Epsilon " + mode for mode in axes[2]]
         print("Gamma      Delta      " + " ".join(f"{header:18}" for header in headers).rstrip(), flush=True)
     cells = []
-    shared = {} if args.reuse_stages else None
     for gamma, delta, epsilon in product(*axes):
         label = f"{gamma}-{delta}-{epsilon}"
         row = argparse.Namespace(**vars(args))

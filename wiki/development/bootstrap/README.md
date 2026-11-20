@@ -77,6 +77,14 @@ Every row runs its final invocation, including calls that check the expected
 compiler rejection. Omit the flag to rebuild each row’s intermediate artifacts
 independently.
 
+To continue a long run in a fresh output directory, pass `--reuse-from DIR`
+with a previous row or matrix directory you trust. You can repeat it for
+several runs. Each finished stage updates its row's `result.json` atomically,
+so it survives interruption of a later stage. The runner matches the complete
+producer and request digests and checks the saved output digest. It records
+where each reused artifact came from. Final guest executions and expected
+refusals run again. Without either reuse option each row does its own work.
+
 Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
 supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
 `--gamma native`. The runner checks its compiler source and fixed-point
