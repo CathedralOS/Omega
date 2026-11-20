@@ -453,7 +453,7 @@ def omega_utf8_customer(work, timeout, batch=None):
     # Each refusal batch runs positives before and after the refusals on the same compiler.
     expected_batches = (
         (42,),
-        (42, -4, -4, -4, 42, 42, 42),
+        (42, -4, -4, -4, 42, 42, 42, 42, -4),
         (42, -4, -4),
         (42, -4, 59),
         (42, 43, 44, 59),

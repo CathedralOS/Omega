@@ -100,8 +100,8 @@ def main():
     require_identity("Delta compiler", delta_compiler, 152411,
                      "cfa4f2a6f75352d819a83486169bd517ab48ecf90246c561e47a809309ccc25f")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 1100094,
-                     "1dab363258e66e27efbeb404f694a280c3083a6ac621302bd322c9f2b518b064")
+    require_identity("D", compiler, 1101819,
+                     "4f4d949e02a0ff5bf1477ee2751dc4565a5899cca9b78a78e77c4faa8483e32f")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
