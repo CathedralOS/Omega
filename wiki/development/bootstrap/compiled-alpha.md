@@ -87,6 +87,78 @@ checks, run `python3 tests/bootstrap/independent/successor_test.py --compile-eps
 The route writes the public Gamma receipt, Alpha tape and observations under
 `build/independent-successors/compiled-epsilon/`.
 
+### Can the whole Omega constructor fit in Alpha?
+
+The 27,177,694-byte Gamma constructor (SHA-256
+`b2160c526041d7d695bbe133f0ef4cb9d3b2f403a5cf901e0b9cd625e5f9454f`)
+exceeds the audited seed’s **16,777,212-byte tape limit** with the Alpha
+backend at `43e334bc2b0`. Its 245,493 `pair` expressions alone need
+**35,350,992 bytes**. Each expression emits 117 bytes to check the heap,
+store both tagged operands and return a tagged pair, plus three nine-byte
+stack-helper calls. The Linux-hosted Alpha compiler produced 750 bytes for
+`(def main () Int 0)` and 923 for `(def main () Int (pair 0 0))`. The
+173-byte difference includes one extra 29-byte literal. [Alpha backend](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma)
+
+To reproduce the lower bound on that exact Gamma file, count the expression
+heads after removing comments. This artifact contains no quoted character
+literals after comment removal.
+
+```sh
+python3 - "$OMEGA_GAMMA" <<'PYCODE'
+import pathlib, re, sys
+source = re.sub(rb";[^\n]*", b"", pathlib.Path(sys.argv[1]).read_bytes())
+assert b"'" not in source
+pairs = len(re.findall(rb"\(\s*pair(?=[\s)])", source))
+print(pairs, pairs * 144)
+PYCODE
+```
+
+Counting all emitted instruction widths across 7,768 definitions gives a
+**calculated layout of 125,445,123 bytes**. The same accounting matched
+published customer, Delta and Epsilon tapes of 16,422, 638,297 and
+3,798,810 bytes. The production backend checks the limit before publication.
+On the audited Linux seed, a padded tape of exactly 16,777,212 bytes exited
+42. Changing only its length word to 16,777,213 triggered `SIGILL` before
+its first instruction, with empty output. [Seed loader](../../../bootstrap/alpha/alpha_x64_linux.s)
+
+The Linux-native compiler built from that same Gamma source accepted an
+828-byte linked Omega request. Its 1,607-byte Alpha product
+(`f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`)
+ran on the audited seed and exited 42 with empty output.
+
+### Sharing Alpha pair allocation
+
+The Alpha backend emits the 117-byte allocation body once, followed by a
+one-byte return. Each `pair` site now calls the body for nine bytes. It
+still pops the right operand, pops the left operand and pushes the result
+at the call site, so the allocation and stack helpers each use one return
+address. A tape with `N` pair expressions changes by `118 - 108 × N` bytes.
+
+| Gamma program | Pair sites | Old tape bytes | New tape bytes |
+| --- | ---: | ---: | ---: |
+| Delta compiler | 260 | 638,297 | 610,335 |
+| Epsilon evaluator | 2,492 | 3,798,810 | 3,529,792 |
+| Public Omega lexer (original Gamma input above) | 27,626 | 15,449,892 | 12,466,402 |
+
+The smaller public lexer tape (SHA-256
+`37a9e1d5cfa497496f6fbfb70437ef93abd1ffd43d4063b74f14a42c87fab92f`)
+ran all 23 cases on the audited seed and reproduced the same 465 bytes.
+
+For the frozen whole constructor above, the calculated layout falls from
+125,445,123 to **98,931,997 bytes**. A lower bound needs just two expression
+counts from the same source. Its 245,493 `pair` sites cost 36 bytes each
+and its 221,110 `second` sites cost 63 bytes each. Together they require
+22,767,678 bytes before their operands, already above the seed limit.
+
+Three cold Gamma compiler generations produced the same 208,153-byte
+Alpha tape (SHA-256
+`4bf3d6225a5bb8639ae773ed53ac022762915ddccdcd94a9ecb25dd15ef4673d`).
+The Linux-hosted emitter reproduced those bytes. The resulting compiler
+passed 34 Gamma observations and rejected 16 invalid programs. Pair
+allocation at the last admitted call frame succeeded. One additional
+frame returned 250 and discarded the buffered output. The Epsilon
+evaluator matched seven wire observations, including stdin and guest traps.
+
 ### Compare a production request operation across evaluator hosts
 
 The [Request.clear test](../../../tests/bootstrap/independent/request_clear.py)

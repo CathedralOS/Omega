@@ -125,10 +125,10 @@ def compile_program(work, source, name="subject", *, compiler, realize=stamp):
 
 def call_depth_controls(work, compiler, seconds, realize=stamp):
     # Main and the initial dive occupy two of the 131,072 Gamma frames.
-    # At the last admitted frame a primitive calls the shared stack helpers.
+    # The last admitted frame executes arithmetic and allocates and projects a pair.
     depth_source = b"""
 (def $application () Int 1)
-(def dive ((n Int)) Int (if n (+ 0 (dive (- n 1))) (* 6 7)))
+(def dive ((n Int)) Int (if n (+ 0 (dive (- n 1))) (first (pair (* 6 7) 7))))
 (def main () Int
   (let ((prefix Int (write 88)) (result Int (dive (+ 131070 (read 0))))
         (sent Int (write result))) (pair 0 1)))
