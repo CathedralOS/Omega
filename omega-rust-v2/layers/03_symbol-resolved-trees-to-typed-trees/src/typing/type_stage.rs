@@ -4,7 +4,7 @@ use crate::contracts::{access_policies, callback_bounds, cleanup, logical_hypoth
 use crate::contracts::{effect_propagation::ExecutionCalls, guarded_calls};
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::operator_declarations::{index_operator_declarations, trait_operator_tokens};
-use crate::declarations::resolved_sources::{check_domain_visibility, check_static_qualifiers, index_resolved_sources};
+use crate::declarations::resolved_sources::{check_name_visibility, check_static_qualifiers, index_resolved_sources};
 use crate::declarations::{constants, mathematical_signatures};
 use crate::evaluation::check_static_indices::{IndexEvaluations, check_static_indices};
 use crate::expressions::check_bodies::check_bodies;
@@ -68,7 +68,7 @@ pub(crate) fn check_stage<'a>(
     catalog.types.trait_operator_tokens.extend(trait_tokens);
     catalog.types.literal_constants.collect(&units);
     index_type_definitions(&mut units, &mut catalog.types, output)?;
-    check_domain_visibility(resolved, &units, &catalog.types)?;
+    check_name_visibility(resolved, &units, &catalog.types)?;
     for unit in &units {
         unit.index_static_equations(&mut catalog.types)?;
     }

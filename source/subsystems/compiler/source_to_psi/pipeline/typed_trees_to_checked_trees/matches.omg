@@ -184,7 +184,7 @@ crashes Trap
     machine arm(syntax: @SyntaxTrees, expression: Expression, offset: u64 in Trapping, valued: bool) -> u64 in Trapping {
         let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
         let value: Expression = syntax_trees_expression(syntax, arm.target);
-        transition valued || arm.kind == ArmPatternKind::Wildcard {
+        transition valued || arm.kind == ArmPatternKind::Wildcard || arm.kind == ArmPatternKind::Binder {
             true -> at(value.first_row),
             _ -> pattern(syntax, arm)
         }

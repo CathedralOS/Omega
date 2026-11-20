@@ -8,13 +8,30 @@ use syntax_trees::expression::{
 };
 use syntax_trees::identifier::Identifier;
 
+pub(crate) fn bare_binding(trees: &SyntaxTrees, head: ExpressionHandle) -> Option<Identifier> {
+    if !head.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Name {
+        members,
+        application: None,
+    } = trees.expressions.expression(head)
+    else {
+        return None;
+    };
+    let [name] = trees.expressions.identifier_path_members(*members) else {
+        return None;
+    };
+    Some(name.clone())
+}
+
 type SubjectCopies = Vec<(Handle<MatchSubjectCapture>, Handle<MatchSubjectCapture>)>;
 
 #[derive(Clone)]
 pub(crate) struct DestructureBinding {
     pub(crate) component: language_core::PatternComponent,
     pub(crate) binding: Identifier,
-    pub(crate) member: Identifier,
+    pub(crate) member: Option<Identifier>,
     pub(crate) case_variant: Option<Identifier>,
 }
 
@@ -60,8 +77,10 @@ fn rewrite_expression(
                             .expressions
                             .match_fields(pattern.fields)
                             .to_vec();
+                        let whole = bare_binding(syntax_trees, pattern.subject_binding);
                         let visible = fields.iter().filter(|outer| {
-                            !pattern_fields.iter().any(|inner| matches!(&inner.action, MatchFieldAction::Bind(binding) if binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees)))
+                            !whole.as_ref().is_some_and(|inner| inner.as_str(syntax_trees) == outer.binding.as_str(syntax_trees))
+                                && !pattern_fields.iter().any(|inner| matches!(&inner.action, MatchFieldAction::Bind(binding) if binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees)))
                                 && !syntax_trees.statements.outcome_proof_selectors(pattern.proof_selectors).iter().any(|selector| selector.binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees))
                         }).cloned().collect::<Vec<_>>();
                         for field in &mut pattern_fields {
@@ -208,23 +227,26 @@ fn rewrite_expression(
                 .then(|| single_destructured_field_name(syntax_trees, path.to_owned(), fields))
                 .flatten()
             {
-                if component == language_core::PatternComponent::Case {
-                    // This is another view of the dispatch's saved value,
-                    // never a field read or another evaluation of its source.
-                    let ExpressionNode::SavedSubject(mut saved) =
-                        *syntax_trees.expressions.expression(subject)
-                    else {
-                        unreachable!("destructure aliases are produced from a saved subject")
-                    };
-                    saved.component = component;
-                    ExpressionNode::SavedSubject(saved)
-                } else {
-                    ExpressionNode::Member(TableMemberExpression {
-                        receiver: subject,
-                        access_source_span: Default::default(),
-                        member: field,
-                        case_variant,
-                    })
+                match (field, component) {
+                    (Some(member), language_core::PatternComponent::Fields) => {
+                        ExpressionNode::Member(TableMemberExpression {
+                            receiver: subject,
+                            access_source_span: Default::default(),
+                            member,
+                            case_variant,
+                        })
+                    }
+                    (_, component) => {
+                        // Both the whole binding and its case view reuse the
+                        // dispatch capture. Neither evaluates the subject again.
+                        let ExpressionNode::SavedSubject(mut saved) =
+                            *syntax_trees.expressions.expression(subject)
+                        else {
+                            unreachable!("pattern aliases are produced from a saved subject")
+                        };
+                        saved.component = component;
+                        ExpressionNode::SavedSubject(saved)
+                    }
                 }
             } else {
                 ExpressionNode::Name {
@@ -323,7 +345,7 @@ fn single_destructured_field_name(
     path: HandleSpan<Identifier>,
     fields: &[DestructureBinding],
 ) -> Option<(
-    Identifier,
+    Option<Identifier>,
     Option<Identifier>,
     language_core::PatternComponent,
 )> {

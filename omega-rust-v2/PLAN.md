@@ -341,7 +341,7 @@ When L3 selects a field or operator on a value returned through another
 package, it checks the requesting package's authority to select the owner.
 L3 also checks the visibility of the overload selected in a public contract.
 Private ranking witnesses stay in the implementation. In a subject arm an
-ordinary bare name binds the matched value. A qualified constant tests its
+ordinary bare name binds the matched value and must be fresh among visible local values. A qualified constant tests its
 value. L2 publishes the binding or declaration, and L3 checks coverage.
 [Package boundaries](../wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
 

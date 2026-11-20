@@ -1097,6 +1097,9 @@ pub(crate) mod statement {
             let patterns = resolved_statements(lowerer.source_trees)
                 .transition_patterns(transition.patterns)
                 .iter()
+                // A whole-subject binding has already become a reference to
+                // the saved dispatch value. Its optional guard is on the edge.
+                .filter(|pattern| !pattern.pattern.subject_binding.is_valid())
                 .map(|pattern| {
                     crate::typing::expressions::expression::table::lower_transition_pattern(
                         lowerer.source_trees,

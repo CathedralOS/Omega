@@ -123,7 +123,7 @@ fn ranking_order_resolves_to_its_declaration_and_bound_to_its_parameter() {
 
 #[test]
 fn lexical_binding_uses_its_declaration_and_begins_after_its_initializer() {
-    let text = "machine f(x: u32) -> u32 { let x = x; x }";
+    let text = "machine read_count(count: u32) -> u32 { let saved = count; saved }";
     let stage = run(&[("app", "main.omg", text)], &[]).unwrap();
     let offsets: Vec<_> = stage
         .uses()
@@ -132,7 +132,7 @@ fn lexical_binding_uses_its_declaration_and_begins_after_its_initializer() {
             _ => None,
         })
         .collect();
-    assert_eq!(offsets, [text.find("x:").unwrap(), text.find("x =").unwrap()]);
+    assert_eq!(offsets, [text.find("count:").unwrap(), text.find("saved =").unwrap()]);
     assert!(run(&[("app", "main.omg", "machine f() { let x = x; x }")], &[]).is_err());
 }
 
@@ -1250,27 +1250,43 @@ fn parameters_must_have_distinct_names_within_each_parameter_list() {
 }
 
 #[test]
-fn a_shadowing_initializer_reads_the_previous_binding_and_the_tail_reads_the_new_one() {
-    for name in ["index", "value", "item"] {
-        let source = format!("machine f({name}:u8)->u8{{let {name}={name}; {name}}}");
-        let sites: Vec<_> = source.match_indices(name).map(|(offset, _)| offset).collect();
-        let stage = run(&[("app", "scope.omg", &source)], &[]).unwrap();
-        for (use_at, declared_at) in [(sites[2], sites[0]), (sites[3], sites[1])] {
-            let target = &stage
-                .uses()
-                .find(|u| u.span.get_start_offset() == use_at)
-                .unwrap()
-                .target;
-            assert!(
-                matches!(target, Symbol::Binding { span, .. } if span.get_start_offset() == declared_at),
-                "{source}: {target:?}"
-            );
-        }
-        let outside = format!("machine f(x:u8)->u8{{match x {{{name} -> {name}, _ -> {name}}}}}");
-        let error = run(&[("app", "scope.omg", &outside)], &[]).unwrap_err();
-        assert_eq!(error.message, format!("unresolved name {name}"));
-        assert_eq!(error.span.get_start_offset(), outside.rfind(name).unwrap());
+fn a_new_local_cannot_hide_a_visible_value_binding() {
+    for marked in [
+        "machine write(port:i32) { let |port:i32=5; }",
+        "machine write(port:i32) { let |port=port; }",
+        "machine write() { let port=1; let |port=2; }",
+        "machine check(received:u32,port:u32) -> bool { match received { |port -> true } }",
+        "machine check(received:u32) -> bool { let port=80; transition received { |port -> true } }",
+        "machine check(port:u32) { match port { _ -> { let |port=42; } } }",
+        "machine check(port:u32) { match port { other -> match other { |other -> 0 } } }",
+        "machine check(port:u32) { match (port,port) { (value,|value) -> 0 } }",
+        "data Pair { left:u32; right:u32; } machine read(pair:Pair) { let Pair {left as port,right as |port}=pair; }",
+        "data Header { port:u32; } machine read(header:Header,port:u32) { let Header {|port}=header; }",
+    ] {
+        let at = marked.find('|').unwrap();
+        let source = marked.replace('|', "");
+        let error = run(&[("app", "scope.omg", &source)], &[]).unwrap_err();
+        assert_eq!(error.span.get_start_offset(), at, "{marked}: {error:?}");
+        assert!(error.message.contains("shadows a visible value binding"), "{marked}: {error:?}");
     }
+}
+
+#[test]
+fn disjoint_bindings_and_value_patterns_keep_their_own_scopes() {
+    for source in [
+        "machine read(code:u32)->u32 { match code { 0 -> { let port=1; port }, _ -> { let port=2; port } } }",
+        "machine read(code:u32)->u32 { match code { port -> port, port -> port } }",
+        "machine read(code:u32)->u32 { let port=match code { port -> port }; port }",
+        "machine read(code:u32)->u32 { let port=2; inner(port) machine inner(port:u32)->u32 { port } }",
+        "const port:u32=5; machine read(code:u32)->u32 { match code { port -> port } }",
+        "machine read(ready:bool)->u32 { match { ready -> 1, _ -> 0 } }",
+    ] {
+        run(&[("app", "scope.omg", source)], &[]).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+    let outside = "machine read(code:u32)->u32 { match code { port -> port, _ -> port } }";
+    let error = run(&[("app", "scope.omg", outside)], &[]).unwrap_err();
+    assert_eq!(error.message, "unresolved name port");
+    assert_eq!(error.span.get_start_offset(), outside.rfind("port").unwrap());
 }
 
 #[test]
@@ -1891,9 +1907,6 @@ fn a_bare_subject_arm_binds_even_when_a_constant_has_the_same_name() {
     for text in [
         "machine f(v: u32) -> u32 { match v { x -> x } }",
         "machine f(v: u32) -> u32 { transition v { x -> x } }",
-        "machine f(x: u32, v: u32) -> u32 { match v { x -> x, _ -> 0 } }",
-        "machine f(v: u32) -> u32 { let x = 3; match v { x -> x, _ -> 0 } }",
-        "machine f<const x: u32>(v: u32) -> u32 { match v { x -> x, _ -> 0 } }",
     ] {
         let pattern = text.find("{ x ->").unwrap() + 2;
         let binder = format!("BindingPattern@{pattern}");

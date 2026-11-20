@@ -254,7 +254,7 @@ impl ConstantEvaluation<'_, '_> {
             site: body,
             statement: 0,
             carrier: result.clone(),
-            bindings: arguments.clone(),
+            scope: Scope::Body(arguments.clone()),
         });
         self.schedule_entry_contract(invocation, &tree, &arguments, &result, execution)?;
         if let Some((invocation, tree, bindings)) = &requirement {

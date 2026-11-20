@@ -47,9 +47,11 @@ machine forward(value: Inventory) -> Inventory {
 }
 ```
 
-A helper can read a visible package constant such as `port` even if its
-caller has a parameter named `port`. Enclosing generic parameters also stay
-in scope as compile-time context.
+Both machines can name their parameter `value` because each sees only its
+own runtime bindings. A helper can likewise read a visible package constant
+`port` even if its caller has a parameter named `port`. An enclosing
+`const port: u32` generic parameter stays visible inside the helper, so
+declaring a local `port` there is an error.
 
 ## A call returns; a transition arm finishes
 

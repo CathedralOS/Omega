@@ -164,6 +164,7 @@ public data TypeDiagnosticCode [copy] {
     case ImplicitAttenuation;
     case MissingPatternField;
     case DuplicatePatternField;
+    case UnsupportedPatternSubject;
 }
 
 public data TypeDiagnostic [copy] {

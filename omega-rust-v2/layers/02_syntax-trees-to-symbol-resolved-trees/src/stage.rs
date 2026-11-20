@@ -94,6 +94,7 @@ struct Context<'a> {
     heads: BTreeSet<usize>,
     entries: BTreeMap<usize, usize>,
     locals: HashMap<&'a str, Vec<Local>>,
+    shadowed_generics: Vec<NameUse>,
     domain_indices: HashMap<usize, Symbol>,
     signature_names: Vec<(usize, usize)>,
     patterns: BTreeMap<usize, SourceSpan>,
@@ -464,7 +465,8 @@ pub fn resolve_stage_with_exports<'text>(
             operator_declarations.push(binding);
         }
     }
-    for ((file, context), tree) in files.iter().zip(contexts).zip(&mut bindings) {
+    for ((file, mut context), tree) in files.iter().zip(contexts).zip(&mut bindings) {
+        tree.uses.append(&mut context.shadowed_generics);
         catalog.bind_nodes(file, &context, 0..file.nodes.len(), tree, &mut carrier_visibility)?;
         tree.definitions = context.entries;
         tree.patterns = context.patterns;

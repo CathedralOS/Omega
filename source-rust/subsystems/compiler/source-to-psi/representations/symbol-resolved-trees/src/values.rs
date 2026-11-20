@@ -2401,6 +2401,8 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
     pub struct TableDestructurePattern {
+        /// The authored identifier binding the whole subject of an irrefutable arm.
+        pub subject_binding: ExpressionHandle,
         pub application_type: Handle<crate::source_resolved::types::TypeReference>,
         pub head: ExpressionHandle,
         pub fields: HandleSpan<TableMatchField>,

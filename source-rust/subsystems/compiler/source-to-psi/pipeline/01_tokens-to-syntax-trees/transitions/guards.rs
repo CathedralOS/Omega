@@ -133,8 +133,12 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
     if !components.iter().any(|component| {
         component
             .tokens
-            .iter()
-            .any(|token| token.punctuation() == Some(PunctuationKind::LeftBrace))
+            .first()
+            .is_some_and(|token| token.kind == tokens::TokenKind::Identifier)
+            || component
+                .tokens
+                .iter()
+                .any(|token| token.punctuation() == Some(PunctuationKind::LeftBrace))
     }) {
         return Ok(None);
     }
@@ -364,6 +368,66 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
+    if path.count() == 1
+        && after_path.tokens.is_empty()
+        && pattern_input
+            .tokens
+            .first()
+            .is_some_and(|token| token.kind == tokens::TokenKind::Identifier)
+        && !pattern_input.at_contextual("_")
+        && !pattern_input.at_contextual("true")
+        && !pattern_input.at_contextual("false")
+    {
+        let binding = syntax_trees.expressions.identifier_path_members(path)[0].clone();
+        let name = syntax_trees.expressions.insert(ExpressionNode::Name {
+            members: path,
+            application: None,
+        });
+        syntax_trees
+            .expressions
+            .set_source_span(name, binding.source_span());
+        let capture = syntax_trees.expressions.insert_transition_subject(subject);
+        let saved = syntax_trees
+            .expressions
+            .insert(ExpressionNode::SavedSubject(
+                syntax_trees::expression::TableSavedSubject {
+                    component: Default::default(),
+                    capture,
+                    pattern_head: Default::default(),
+                },
+            ));
+        let fields = vec![DestructureBinding {
+            binding,
+            member: None,
+            component: Default::default(),
+            case_variant: None,
+        }];
+        let guard = if let Some(input) = guard_input {
+            let (guard, rest) =
+                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            if !rest.tokens.is_empty() {
+                return Err(rest.error_here("expected transition pattern guard"));
+            }
+            rewrite_destructure_guard_expression(syntax_trees, guard, saved, &fields)
+        } else {
+            Default::default()
+        };
+        return Ok(Some((
+            DispatchPattern {
+                capture,
+                pattern: MatchPattern::Destructure(TableDestructurePattern {
+                    subject_binding: name,
+                    guard,
+                    has_rest: true,
+                    ..Default::default()
+                }),
+            },
+            DestructureBindings {
+                subject: saved,
+                fields,
+            },
+        )));
+    }
     if !after_path.at_punctuation(PunctuationKind::LeftBrace) {
         if guard_input.is_some() {
             return Err(after_path
@@ -407,7 +471,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             binding.map(|binding| DestructureBinding {
                 component,
                 binding,
-                member,
+                member: Some(member),
                 case_variant: None,
             })
         })
@@ -431,6 +495,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         DispatchPattern {
             capture,
             pattern: MatchPattern::Destructure(TableDestructurePattern {
+                subject_binding: Default::default(),
                 application_type: Default::default(),
                 head,
                 fields: syntax_trees

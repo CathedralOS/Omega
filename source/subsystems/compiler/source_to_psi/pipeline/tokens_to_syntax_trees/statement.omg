@@ -521,8 +521,8 @@ crashes Trap
         }
     }
 
-    // A subjectless block's arms are guards; a subject's arms are case paths
-    // or literal patterns.
+    // A subjectless block's arms are guards. With a subject, a bare name
+    // binds while a path or literal selects a value.
     machine arm_classify(
         parser: @mut Parser,
         input: @TokenStream,
@@ -547,9 +547,17 @@ crashes Trap
         kind: ExpressionKind
     ) {
         transition kind {
-            ExpressionKind::Name -> case_pattern(parser, input, unsupported, subject, pattern),
+            ExpressionKind::Name -> named_pattern(parser, input, unsupported, subject, pattern),
             ExpressionKind::Path -> case_pattern(parser, input, unsupported, subject, pattern),
             _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0, 0)
+        }
+    }
+
+    machine named_pattern(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping) {
+        let braced: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition braced {
+            true -> case_pattern(parser, input, unsupported, subject, pattern),
+            _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Binder, pattern, 0, 0)
         }
     }
 

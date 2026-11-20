@@ -81,6 +81,8 @@ pub enum NameRole {
     Definition,
     /// A lexical binder shares a qualifier spelling with another visible static root.
     CompetingStaticRoot,
+    /// An overlapping local has this spelling. Typing determines whether a generic binder occupies the value namespace.
+    ShadowedGeneric,
     Register,
 }
 

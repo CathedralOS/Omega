@@ -42,12 +42,27 @@ pub(crate) fn check_static_qualifiers(
     Ok(())
 }
 
-pub(crate) fn check_domain_visibility(
+/// A generic binder's normalized kind determines which namespace its name occupies.
+pub(crate) fn check_name_visibility(
     resolved: &SymbolResolvedTrees<'_>,
     units: &[ResolvedSourceFile<'_>],
     types: &TypeCatalog<'_>,
 ) -> Result<(), TypeError> {
     for name in resolved.uses() {
+        let unit = &units[name.node.file];
+        let node = name.node.node;
+        if name.role == NameRole::ShadowedGeneric && !unit.universe_binders.contains(&node) && !unit.names_type(&name.target) {
+            let word = unit.file.nodes[node]
+                .words()
+                .find(|word| word.span == name.span)
+                .expect("shadowed binding occurrence names the new identifier");
+            return Err(TypeError::new(
+                unit.file.package,
+                unit.file.path,
+                name.span,
+                format!("local binding {} shadows a visible value binding", word.text),
+            ));
+        }
         if name.role == NameRole::Qualifier && matches!(name.target, Symbol::DomainCandidates { .. }) {
             types
                 .selected_declaration(&name.target)

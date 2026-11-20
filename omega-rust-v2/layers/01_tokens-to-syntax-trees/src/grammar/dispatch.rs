@@ -80,13 +80,19 @@ impl SyntaxParser<'_> {
         Ok(self.close(dispatch, kind))
     }
 
-    /// `pattern '->' expression`
+    /// `pattern '->' (expression | body)`
     fn parse_arm(&mut self) -> Parsed {
         let arm = self.open();
 
         self.parse_pattern()?;
         self.expect(Punctuation::Arrow, "`->`")?;
-        self.parse_expression(ExpressionContext::FULL)?;
+
+        if self.at(Punctuation::LeftBrace) {
+            self.parse_body()?;
+        } else {
+            self.parse_expression(ExpressionContext::FULL)?;
+        }
+
         self.close(arm, NodeKind::Arm);
 
         Ok(())

@@ -1,9 +1,48 @@
-use super::{Context, DeclarationId, Entry, Index, Local, NameError, Symbol, builtin, callable, in_subject_predicate, qualify};
+use super::{Context, DeclarationId, Entry, Index, Local, NameError, Symbol, builtin, callable, in_subject_predicate, qualify, usage};
 use crate::syntax::File;
-use omega_resolved::{DomainCarrier, NameRole, ResolvedSignature, TreeBindings};
+use omega_resolved::{DomainCarrier, NameRole, NameUse, ResolvedSignature, TreeBindings};
 use omega_syntax::NodeKind;
 use omega_syntax::SyntaxLeaf as Leaf;
 use std::collections::{HashMap, HashSet};
+
+fn check_local_binding(
+    file: &File<'_>,
+    name: &str,
+    binding: &Local,
+    locals: &[Local],
+    active: &mut Vec<usize>,
+    shadowed_generics: &mut Vec<NameUse>,
+) -> Result<(), NameError> {
+    use NodeKind::{AsmMachine, BindingPattern, ConstParam, FieldPattern, KindedParam, Machine, MachineParam, Param};
+    if !matches!(binding.kind, Param | ConstParam | KindedParam | MachineParam | BindingPattern | FieldPattern) {
+        return Ok(());
+    }
+    active.retain(|&i| locals[i].end > binding.node);
+    if matches!(file.nodes[binding.owner].kind, Machine | AsmMachine) {
+        for &i in active.iter().rev() {
+            let prior = &locals[i];
+            if prior.owner != binding.owner && !prior.static_binding {
+                continue;
+            }
+            // A let starts after its initializer. Components of one pattern are
+            // introduced together, even when the arm or block ends immediately.
+            let simultaneous = prior.start == binding.start
+                && matches!(prior.kind, BindingPattern | FieldPattern)
+                && matches!(binding.kind, BindingPattern | FieldPattern)
+                && file.pattern_owner(prior.node) == file.pattern_owner(binding.node);
+            if prior.start > binding.node && !simultaneous {
+                continue;
+            }
+            if matches!(binding.kind, ConstParam | KindedParam) || matches!(prior.kind, ConstParam | KindedParam) {
+                shadowed_generics.push(usage(file, binding.node, NameRole::ShadowedGeneric, binding.span, prior.symbol()));
+            } else {
+                return Err(file.error(binding.span, format!("local binding {name} shadows a visible value binding")));
+            }
+        }
+    }
+    active.push(locals.len());
+    Ok(())
+}
 
 pub(super) fn index_file<'a>(
     file: &File<'a>,
@@ -13,6 +52,7 @@ pub(super) fn index_file<'a>(
     use NodeKind::*;
     let mut ctx = Context::default();
     let mut parameter_names = HashSet::new();
+    let mut active_by_name: HashMap<&str, Vec<usize>> = HashMap::new();
     for (n, node) in file.nodes.iter().enumerate() {
         let scope = || {
             file.ancestors(n)
@@ -24,9 +64,9 @@ pub(super) fn index_file<'a>(
                 })
                 .unwrap_or(0)
         };
-        let add_local = |ctx: &mut Context<'a>, leaf: Leaf<'a>, owner, start, end, static_binding| {
+        let mut add_local = |ctx: &mut Context<'a>, leaf: Leaf<'a>, owner, start, end, static_binding| {
             let locals = ctx.locals.entry(leaf.text).or_default();
-            locals.push(Local {
+            let binding = Local {
                 node: n,
                 kind: node.kind,
                 span: leaf.span,
@@ -34,7 +74,17 @@ pub(super) fn index_file<'a>(
                 start,
                 end,
                 static_binding,
-            });
+            };
+            check_local_binding(
+                file,
+                leaf.text,
+                &binding,
+                locals,
+                active_by_name.entry(leaf.text).or_default(),
+                &mut ctx.shadowed_generics,
+            )?;
+            locals.push(binding);
+            Ok::<(), NameError>(())
         };
         if let Some(leaf) = node.binder_name() {
             if let Some(list) = node.parent
@@ -53,7 +103,7 @@ pub(super) fn index_file<'a>(
                 return Err(file.error(leaf.span, format!("builtin type {} cannot be redeclared", leaf.text)));
             }
             let owner = scope();
-            add_local(&mut ctx, leaf, owner, node.end, file.nodes[owner].end, node.kind != Param);
+            add_local(&mut ctx, leaf, owner, node.end, file.nodes[owner].end, node.kind != Param)?;
             continue;
         }
         if matches!(node.kind, BindingPattern | FieldPattern) {
@@ -83,7 +133,7 @@ pub(super) fn index_file<'a>(
                     (result, file.nodes[pattern_owner].end)
                 };
                 ctx.patterns.insert(n, leaf.span);
-                add_local(&mut ctx, leaf, owner, start, end, false);
+                add_local(&mut ctx, leaf, owner, start, end, false)?;
             }
             continue;
         }

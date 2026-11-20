@@ -1368,7 +1368,7 @@ crashes Trap
 machine checker_arm_start(syntax: @SyntaxTrees, arm: TransitionArm) -> u64 in Trapping
 crashes Trap
 {
-    transition arm.kind == ArmPatternKind::Wildcard {
+    transition arm.kind == ArmPatternKind::Wildcard || arm.kind == ArmPatternKind::Binder {
         true -> at(syntax, arm.target),
         _ -> at(syntax, arm.pattern)
     }

@@ -290,6 +290,43 @@ fn selected_scalar_blocks_bind_local_values_and_take_only_the_matching_arm() {
 }
 
 #[test]
+fn block_arms_keep_their_locals_and_return_the_selected_result() {
+    let source = "machine port(local:bool)->u8 {
+            let first:u8=match local {
+                true -> {let port:u8=1; port},
+                false -> {let port:u8=2; port},
+            };
+            let mut extra:u8=0;
+            match local {true -> {extra=3;}, false -> {}};
+            transition local {
+                true -> {let port:u8=4; first +% port +% extra},
+                false -> {let port:u8=5; first +% port +% extra},
+            }
+        }
+        machine copy_port(port:u8)->u8 {port}
+        machine allowed(value:bool)->bool reaches none crashes none terminates {value}
+        machine guarded(value:bool)->u8 requires match value {
+            true -> {let ready:bool=true; allowed(ready)}, false -> false,
+        } {6}
+        const FACT:u8=guarded(true);
+        const INITIAL:u8=match true {true -> {let port:u8=9; copy_port(port)}, false -> 0};
+        const LOCAL:u8=port(true);
+        const REMOTE:u8=port(false);";
+    let prepared = prepare(source).unwrap();
+    assert_eq!(prepared.typed().constants.len(), 4);
+    for constant in &prepared.typed().constants {
+        let expected = match constant.declaration.path.as_str() {
+            "FACT" => 6u8,
+            "INITIAL" => 9u8,
+            "LOCAL" => 8u8,
+            "REMOTE" => 7u8,
+            other => panic!("unexpected constant {other}"),
+        };
+        assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Integer(expected.into())));
+    }
+}
+
+#[test]
 fn compound_integer_calls_are_equivalent_to_their_literal_result() {
     let machines = "data Width<const N:u8>{}
                     machine one(x:u8)->u8 requires x != 0 {x / x}

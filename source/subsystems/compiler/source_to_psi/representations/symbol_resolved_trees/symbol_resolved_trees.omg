@@ -121,6 +121,8 @@ public data ValueBinding [copy] {
     // independently of the enclosing machine's result type.
     case ContractReturnedValue(contract: u64 in Trapping);
     case Overloads(representative: u64 in Trapping, candidates: VisibleOverloads);
+    // A bare pattern and its uses name the same evaluated expression.
+    case MatchedSubject(subject: u64 in Trapping);
 }
 
 // A candidate is a machine handle plus one; zero ends the family. Every call
@@ -278,6 +280,7 @@ public data ResolveDiagnosticCode [copy] {
     case MeasureForm;
     // A lexicographic component naming no field of the measure's owner.
     case UnknownMeasureComponent;
+    case DuplicateLocalBinding;
 }
 
 public data ResolveDiagnostic [copy] {

@@ -799,6 +799,7 @@ impl SyntaxCopy<'_> {
                 .cloned(),
         );
         TableDestructurePattern {
+            subject_binding: self.copy_expression_handle(other, pattern.subject_binding),
             application_type: self.copy_type_reference_handle(other, pattern.application_type),
             head,
             fields,

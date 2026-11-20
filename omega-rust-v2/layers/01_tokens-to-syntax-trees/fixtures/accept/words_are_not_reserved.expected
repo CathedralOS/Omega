@@ -77,13 +77,6 @@ File
         '='
         PathExpression 'move'
         ';'
-      Let
-        'let'
-        'mut'
-        BindingPattern 'mut'
-        '='
-        PathExpression 'mut'
-        ';'
       Assign
         PathExpression 'data'
         '='
@@ -148,6 +141,31 @@ File
         ';'
       Tail
         PathExpression 'suspend'
+      '}'
+  Machine
+    'machine'
+    Path 'mutable_name'
+    Params
+      '('
+      Param
+        'move'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Let
+        'let'
+        'mut'
+        BindingPattern 'mut'
+        '='
+        PathExpression 'move'
+        ';'
+      Tail
+        PathExpression 'mut'
       '}'
   Data
     'data'

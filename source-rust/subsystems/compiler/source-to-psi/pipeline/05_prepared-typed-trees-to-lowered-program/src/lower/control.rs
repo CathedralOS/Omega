@@ -667,7 +667,15 @@ impl Lowering<'_> {
         mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
-            return self.scalar_match(subject, subject_type, arms, default, finish);
+            let tested = continuing!(self.scalar(subject));
+            if let Some(capture) = capture {
+                self.scalar_subjects.push((capture, tested));
+            }
+            let result = self.scalar_match(tested, subject_type, arms, default, finish);
+            if capture.is_some() {
+                self.scalar_subjects.pop();
+            }
+            return result;
         }
         let cases = arms
             .iter()
@@ -850,7 +858,7 @@ impl Lowering<'_> {
     /// caller's ordinary value-arrival or invocation-completion owner.
     fn scalar_match(
         &mut self,
-        subject: &Expression,
+        tested: ValueId,
         subject_type: ScalarType,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
@@ -859,7 +867,6 @@ impl Lowering<'_> {
         let Some(default) = default else {
             return Err(self.internal("a scalar match without a default arm"));
         };
-        let tested = continuing!(self.scalar(subject));
         let mut decided_in = None;
         for (selector, value) in arms {
             let Selector::Value(pattern) = selector else {

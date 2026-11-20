@@ -625,6 +625,12 @@ pub(crate) mod expression {
                                     resolved::expression::MatchPattern::Wildcard => {
                                         typed::expression::MatchPattern::Wildcard
                                     }
+                                    resolved::expression::MatchPattern::Destructure(pattern)
+                                        if pattern.subject_binding.is_valid()
+                                            && !pattern.guard.is_valid() =>
+                                    {
+                                        typed::expression::MatchPattern::Wildcard
+                                    }
                                     resolved::expression::MatchPattern::Destructure(pattern) => {
                                         typed::expression::MatchPattern::Destructure(
                                             self.lower_destructure_pattern(pattern, capture, None)?,

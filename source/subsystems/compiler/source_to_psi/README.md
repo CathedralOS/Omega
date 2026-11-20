@@ -321,7 +321,13 @@ names a data declaration or `Type::Case`, and a value path a case, an owned
 constant or an
 owned machine; a terminal value target binds as any value, as do a
 value-position match's subject, value patterns and values, and an unknown name
-rejects. A pattern field renamed `field as name` binds as `name`, and a waived
+rejects. A bare dispatch pattern binds the already-evaluated subject in that
+arm's guard and target. Local values and parameters, including visible value
+generics, reserve their spelling within their scope. Sibling arms and separate
+runtime machine scopes can reuse names. The current typing stage supports
+whole-subject bindings of integer, Boolean and fixed float types. Aggregate
+moves and reference provenance still need a whole-pattern storage binding.
+A pattern field renamed `field as name` binds as `name`, and a waived
 `field as _` binds nothing. A membership `value in Type::Case` binds the case
 whose implied domain it names; `value in Carrier::Name` binds the domain the
 carrier type selects, and a bare `value in Name` the one visible domain of

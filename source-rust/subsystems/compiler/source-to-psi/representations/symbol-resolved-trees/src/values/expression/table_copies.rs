@@ -466,6 +466,7 @@ impl ExpressionTable {
             .to_vec();
         let proof_selectors = self.insert_match_proof_selectors(selectors);
         super::TableDestructurePattern {
+            subject_binding: self.copy_graph(source, pattern.subject_binding, copies),
             application_type: pattern.application_type,
             head,
             fields,

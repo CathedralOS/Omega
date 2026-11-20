@@ -420,6 +420,11 @@ mod routing {
                         expression_table.match_field_mut(handle).field_symbol = symbol;
                     }
                     assign_expr!(retained.pattern.condition);
+                    if retained.pattern.subject_binding.is_valid()
+                        && !retained.pattern.guard.is_valid()
+                    {
+                        continue;
+                    }
                     let mut scalar_value = false;
                     let test = if selected.is_valid()
                         && matches!(

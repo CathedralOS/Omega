@@ -78,6 +78,9 @@ public data Checker {
     // Statement trees use scratch above every retained dispatch subject.
     // Their evaluated values survive guards and targets without replay.
     retained_values: u64 in Trapping;
+    // A transition target or guard evaluates in a different tree frame.
+    bound_subject: u64 in Trapping;
+    bound_value: Value;
     // Monotone through one machine's walks, including branch restoration.
     // A nonempty call write frame advances it; proof-only nested trees and
     // bookkeeping copies do not. Replay requires unchanged storage.
@@ -444,6 +447,8 @@ public machine prepare_body(checker: @mut Checker, item: MachineItem, index: u64
     checker.replay = false;
     checker.write_epoch = 0;
     checker.retained_values = 0;
+    checker.bound_subject = 0;
+    checker.bound_value = value_unknown();
     checker.substituting = false;
     checker.returning = false;
     checker.subjecting = false;

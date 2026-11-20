@@ -319,3 +319,37 @@ machine build_entry() { let v: u64 = check(3u64, 8u64, 8u64); }
         "{verdict:?}"
     );
 }
+
+#[test]
+fn bare_subject_bindings_return_the_dispatch_value() {
+    for body in [
+        "match 37u32 { observed -> observed }",
+        "transition 37u32 { observed -> observed }",
+    ] {
+        let source = format!("machine build_entry() -> u32 {{ {body} }}");
+        let verdict = judge_build(&source).unwrap();
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("{source}: {verdict:?}");
+        };
+        let publication = accepted.publish_invocation().unwrap();
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+            .unwrap();
+        assert!(
+            matches!(
+                status,
+                terminal_interpreter::TerminalExecutionStatus::Complete(
+                    terminal_interpreter::TerminalExecutionResult::Scalar(
+                        terminal_interpreter::TerminalScalarValue::Integer {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(37),
+                            ..
+                        }
+                    )
+                )
+            ),
+            "{source}: {status:?}"
+        );
+    }
+}

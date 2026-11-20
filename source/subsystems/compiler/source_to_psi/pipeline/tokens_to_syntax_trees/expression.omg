@@ -709,13 +709,13 @@ crashes Trap
         transition { _ -> match_arrow(parser, input, frame, ArmPatternKind::Wildcard, 0) }
     }
 
-    // A name or path is a case pattern; any other value pattern a literal.
+    // A bare name binds; a qualified path may name a case or constant.
     machine match_pattern_end(parser: @mut Parser, input: @TokenStream, frame: ExpressionFrame) {
         let pattern: u64 in Trapping = pop_operand(parser);
         let expression: Expression = syntax_trees_expression(@parser.output, pattern);
-        let named: bool = names_declaration(expression.kind);
-        transition named {
-            true -> match_arrow(parser, input, frame, ArmPatternKind::Case, pattern),
+        transition expression.kind {
+            ExpressionKind::Name -> match_arrow(parser, input, frame, ArmPatternKind::Binder, pattern),
+            ExpressionKind::Path -> match_arrow(parser, input, frame, ArmPatternKind::Case, pattern),
             _ -> match_arrow(parser, input, frame, ArmPatternKind::Literal, pattern)
         }
     }

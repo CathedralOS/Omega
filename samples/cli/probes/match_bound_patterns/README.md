@@ -1,13 +1,6 @@
-# match bound patterns
+# Matching floating-point values
 
-Compile-scope probe. Imports `omega::language::core::float_operations`.
-
-- Runtime values as match patterns: `match pair.left { first -> 7,
-  second -> 9, _ -> 11 }` — parameters used AS patterns compare the
-  subject against bound values, on field projections and computed
-  f32/f64 subjects.
-
-Compile-checked only (no ProcessExit provider):
+This compile-only sample compares record fields and a computed sum with two runtime parameters. The first equal value selects `7` or `9`, and the fallback selects `11`. The subjectless `transition` spells out each equality. A bare name in a subject pattern would introduce an arm-local binding.
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/match_bound_patterns/main.omg

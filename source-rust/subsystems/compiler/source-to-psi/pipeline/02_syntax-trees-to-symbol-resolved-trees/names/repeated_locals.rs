@@ -1,33 +1,22 @@
-/*
-    Refuse a `let` or a pattern binding that reuses a name its body already
-    declares.
+//! A local value binding must have a fresh name among the value bindings
+//! visible at its declaration. Each machine starts with its own parameters
+//! and visible static values. A state gains locals in statement order.
+//! Match and transition arms extend that scope with their subject, field,
+//! and proof bindings. Ending an arm removes those names before its sibling.
+//! Arm uses have already become references to the saved dispatch subject;
+//! the patterns retain the authored names and their diagnostic spans.
 
-    A name is declared at most once among a machine's parameters and the
-    locals of its own body, and pattern bindings within one arm follow the
-    same rule (`wiki/spec/language/state_contracts.md`, "Bindings").
-    This is where each binder gets its identity, so the rule is applied
-    here, once, for both checkers: a body that breaks it never reaches
-    typing. Parameters and `let` locals are compared by the name their
-    declaration gave their symbol.
-
-    Match and transition arm bindings get no symbol: the parser rewrites
-    each use into a projection of the subject and checks only repeats
-    inside one arm. Their names survive in the pattern fields and outcome
-    proof selectors, so this pass walks each state's statements and
-    expressions and compares every arm binding with the parameters, the
-    locals declared before that statement, and the bindings of the arms
-    enclosing it. Different arms of one match may reuse a name.
-*/
-
+use super::scopes::DeclarationTypeScopes;
 use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_resolved::data::TypeParameterKind;
 use crate::source_resolved::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, MatchFieldAction, MatchPattern,
     TableDestructurePattern,
 };
+use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::statement::{Statement, TransitionGuard, TransitionTarget};
+use crate::source_resolved::types::TypeReference;
 use diagnostics::Diagnostic;
-use source_text::SourceSpan;
-use symbols::SymbolHandle;
 
 pub(super) fn reject_repeated_local_names(
     program: &SymbolResolvedTrees,
@@ -36,74 +25,114 @@ pub(super) fn reject_repeated_local_names(
     let declarations = &program.tables.declarations;
     let expressions = &program.tables.bodies.expressions;
     let mut diagnostics = Vec::new();
-    for (_, state) in declarations.machine_states.iter() {
-        if !state.symbol.is_valid() {
+    let inherited = DeclarationTypeScopes::of(program)?;
+    for definition in program.machines.iter() {
+        if !definition.symbol.is_valid() {
             continue;
         }
-        let machine = symbols.name(symbols.get(state.symbol).parent);
-        let state_name = symbols.name(state.symbol);
-        let parameters: Vec<SymbolHandle> = declarations
-            .state_parameters
-            .span_or_empty(state.parameters)
-            .iter()
-            .map(|parameter| parameter.symbol)
-            .filter(|symbol| symbol.is_valid())
-            .collect();
-        let mut arms = ArmBindings {
-            expressions,
-            declared: parameters
+        let machine = symbols.name(definition.symbol);
+        let mut visible = super::scopes::declaration_type_scope(
+            program.machine_type_parameters(definition),
+            inherited.parameters(definition.symbol),
+        );
+        if definition.attached_data_symbol.is_valid()
+            && let Some(data) = program
+                .data_definitions
                 .iter()
-                .map(|parameter| symbols.name(*parameter).to_owned())
-                .collect(),
-            machine,
-            state_name,
-            diagnostics: &mut diagnostics,
-        };
-        let mut locals: Vec<SymbolHandle> = Vec::new();
-        for statement in declarations
-            .state_statements
-            .span_or_empty(state.construction_statement_span())
+                .find(|data| data.symbol == definition.attached_data_symbol)
         {
-            arms.statement(statement);
-            let Statement::LocalData(local) = statement else {
-                continue;
-            };
-            if !local.role.is_runtime_binding() || !local.symbol.is_valid() {
+            visible = super::scopes::declaration_type_scope(
+                &visible,
+                program.data_type_parameters(data.type_parameters),
+            );
+        }
+        let static_values: Vec<_> = visible
+            .iter()
+            .filter_map(|binder| {
+                let (TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference }) = &binder.kind
+                else {
+                    return None;
+                };
+                let mut reference = type_reference;
+                while let TypeReference::AliasUse { expansion, .. } = reference {
+                    reference = expansion;
+                }
+                if let TypeReference::Generic(generic) = reference
+                    && generic.base_symbol.is_valid()
+                    && symbols
+                        .universe_sort_for_symbol(generic.base_symbol)
+                        .is_some()
+                {
+                    return None;
+                }
+                Some(binder.name.as_str().to_owned())
+            })
+            .collect();
+        for &state_handle in program.machine_state_handles(definition.states) {
+            let state = program.machine_state(state_handle);
+            if !state.symbol.is_valid() {
                 continue;
             }
-            let name = symbols.name(local.symbol);
-            let rule = if parameters
-                .iter()
-                .any(|parameter| symbols.name(*parameter) == name)
+            let state_name = symbols.name(state.symbol);
+            let mut declared = static_values.clone();
+            for parameter in declarations
+                .state_parameters
+                .span_or_empty(state.parameters)
             {
-                Some("conflicts with an existing name")
-            } else if locals.iter().any(|earlier| symbols.name(*earlier) == name) {
-                Some("duplicate")
-            } else {
-                None
+                if !parameter.symbol.is_valid() {
+                    continue;
+                }
+                let name = symbols.name(parameter.symbol);
+                if static_values.iter().any(|earlier| earlier == name) {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "parameter `{name}` conflicts with an existing name: a static value with this name is still visible"
+                        ))
+                        .with_source_span(parameter.name.source_span()),
+                    );
+                }
+                declared.push(name.to_owned());
+            }
+            let parameter_count = declared.len();
+            let mut arms = ArmBindings {
+                expressions,
+                declared,
+                machine,
+                state_name,
+                diagnostics: &mut diagnostics,
             };
-            locals.push(local.symbol);
-            arms.declared.push(name.to_owned());
-            let Some(rule) = rule else {
-                continue;
-            };
-            let message = if rule == "duplicate" {
-                format!(
-                    "machine `{machine}` state `{state_name}` has duplicate local data `{name}`: \
-                         a local name is declared at most once in a machine body"
-                )
-            } else {
-                format!(
-                    "machine `{machine}` state `{state_name}` local data `{name}` conflicts \
-                         with an existing name: parameters and locals share one namespace"
-                )
-            };
-            let diagnostic = Diagnostic::error(message);
-            arms.diagnostics
-                .push(match symbols.symbol_source_span(local.symbol) {
-                    Some(span) => diagnostic.with_source_span(span),
-                    None => diagnostic,
-                });
+            for statement in declarations
+                .state_statements
+                .span_or_empty(state.construction_statement_span())
+            {
+                arms.statement(statement);
+                let Statement::LocalData(local) = statement else {
+                    continue;
+                };
+                if !local.role.is_runtime_binding() || !local.symbol.is_valid() {
+                    continue;
+                }
+                let name = symbols.name(local.symbol);
+                let shadowed = arms.declared.iter().position(|earlier| earlier == name);
+                arms.declared.push(name.to_owned());
+                if let Some(position) = shadowed {
+                    let message = if position < parameter_count {
+                        format!(
+                            "machine `{machine}` state `{state_name}` local data `{name}` conflicts \
+                             with an existing name: a parameter with this name is still visible"
+                        )
+                    } else {
+                        format!(
+                            "machine `{machine}` state `{state_name}` has duplicate local data `{name}`: \
+                             an earlier local with this name is still visible"
+                        )
+                    };
+                    arms.diagnostics.push(
+                        Diagnostic::error(message).with_source_span(local.name.source_span()),
+                    );
+                }
+            }
         }
     }
     if diagnostics.is_empty() {
@@ -154,9 +183,9 @@ impl ArmBindings<'_> {
                     transition
                         .proof_selectors
                         .iter()
-                        .map(|selector| selector.binding.as_str().to_owned()),
+                        .map(|selector| selector.binding.clone()),
                 );
-                self.bind(names, transition.source_span);
+                self.bind(names);
                 // The resolved guard already joins each pattern's
                 // condition with the authored guard.
                 if let TransitionGuard::When(guard) = &transition.guard {
@@ -200,9 +229,9 @@ impl ArmBindings<'_> {
                                 expressions
                                     .match_proof_selectors(pattern.proof_selectors)
                                     .iter()
-                                    .map(|selector| selector.binding.as_str().to_owned()),
+                                    .map(|selector| selector.binding.clone()),
                             );
-                            self.bind(names, arm.source_span);
+                            self.bind(names);
                             self.expression(pattern.condition);
                         }
                         MatchPattern::Wildcard => {}
@@ -255,34 +284,45 @@ impl ArmBindings<'_> {
         }
     }
 
-    fn field_bindings(&self, pattern: &TableDestructurePattern) -> Vec<String> {
-        self.expressions
-            .match_fields(pattern.fields)
-            .iter()
-            .filter_map(|field| match &field.action {
-                MatchFieldAction::Bind(binding) => Some(binding.as_str().to_owned()),
-                MatchFieldAction::Equal(_) | MatchFieldAction::Waive => None,
-            })
+    fn field_bindings(&self, pattern: &TableDestructurePattern) -> Vec<DiagnosticName> {
+        let whole = pattern
+            .subject_binding
+            .is_valid()
+            .then(|| self.expressions.name_path_node(pattern.subject_binding))
+            .flatten()
+            .and_then(|path| self.expressions.name_path_members(path.members).first())
+            .cloned();
+        whole
+            .into_iter()
+            .chain(
+                self.expressions
+                    .match_fields(pattern.fields)
+                    .iter()
+                    .filter_map(|field| match &field.action {
+                        MatchFieldAction::Bind(binding) => Some(binding.clone()),
+                        MatchFieldAction::Equal(_) | MatchFieldAction::Waive => None,
+                    }),
+            )
             .collect()
     }
 
     /// Refuse each of one arm's bindings whose name is already in scope,
     /// then bring them into scope for the arm's body. Repeats inside one
     /// arm were refused by the parser.
-    fn bind(&mut self, names: Vec<String>, arm: SourceSpan) {
-        for name in names {
-            if self.declared.contains(&name) {
+    fn bind(&mut self, names: Vec<DiagnosticName>) {
+        for binding in names {
+            let name = binding.as_str();
+            if self.declared.iter().any(|bound| bound == name) {
                 let (machine, state_name) = (self.machine, self.state_name);
                 self.diagnostics.push(
                     Diagnostic::error(format!(
                         "machine `{machine}` state `{state_name}` pattern binding `{name}` \
-                             conflicts with an existing name: parameters, locals and the \
-                             bindings of one arm share one namespace"
+                             conflicts with an existing name in the visible value scope"
                     ))
-                    .with_source_span(arm),
+                    .with_source_span(binding.source_span()),
                 );
             }
-            self.declared.push(name);
+            self.declared.push(name.to_owned());
         }
     }
 }

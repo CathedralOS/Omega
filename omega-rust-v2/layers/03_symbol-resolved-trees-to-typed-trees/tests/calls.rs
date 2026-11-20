@@ -34,8 +34,8 @@ fn selects_by_operand_and_checks_the_selected_result() {
 }
 
 #[test]
-fn follows_nominal_field_types_through_nested_calls_and_shadowing() {
-    let code = "data Flag { value: bool; } machine take(x: bool) -> bool { x } machine f(x: Flag) -> bool { let x = x.value; take(take(x)) }";
+fn follows_nominal_field_types_through_nested_calls() {
+    let code = "data Flag { value: bool; } machine take(x: bool) -> bool { x } machine f(flag: Flag) -> bool { let value = flag.value; take(take(value)) }";
     let stage = check(&[("main.omg", code)]).unwrap();
     assert_eq!(stage.calls.len(), 2);
     assert!(stage.calls.iter().all(|c| c.result == ValueType::Bool));

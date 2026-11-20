@@ -6,14 +6,23 @@ impl ConstantEvaluation<'_, '_> {
         site: TreeNodeId,
         statement: usize,
         carrier: ValueType,
-        bindings: Rc<CallBindings>,
+        scope: Scope<'a>,
         execution: &mut Execution<'a>,
     ) -> Result<(), EvaluationError> {
         let tree = self.tree(site)?;
         let file = tree.resolved().file;
         let statements = &file.nodes[site.node].children;
-        let &node = statements.get(statement).ok_or(UNSUPPORTED_BODY)?;
-        let scope = Scope::Body(bindings.clone());
+        let Some(&node) = statements
+            .get(statement)
+            .filter(|&&node| file.nodes[node].kind != NodeKind::Machine)
+        else {
+            return if carrier == ValueType::NoResult {
+                Ok(())
+            } else {
+                Err(UNSUPPORTED_BODY.into())
+            };
+        };
+        let bindings = scope.bindings();
         match file.nodes[node].kind {
             // The parser allows only nested declarations after a tail or transition;
             // they run only when called.
@@ -27,6 +36,20 @@ impl ConstantEvaluation<'_, '_> {
             }
             NodeKind::Transition => {
                 self.schedule_dispatch(&tree, node, &carrier, scope, execution)?;
+            }
+            NodeKind::ExpressionStatement => {
+                let [expression] = *file.nodes[node].children.as_slice() else {
+                    return Err(UNSUPPORTED_BODY.into());
+                };
+                execution.steps.extend([
+                    Step::Block {
+                        site,
+                        statement: statement + 1,
+                        carrier,
+                        scope: scope.clone(),
+                    },
+                    Step::Evaluate(file.node_id(expression), ValueType::NoResult, scope),
+                ]);
             }
             NodeKind::Let => {
                 if !file.nodes[node].leaves.iter().any(|leaf| leaf.text == "=")
@@ -58,12 +81,12 @@ impl ConstantEvaluation<'_, '_> {
                         site,
                         statement: statement + 1,
                         carrier,
-                        bindings: bindings.clone(),
+                        scope: scope.clone(),
                     },
                     Step::Bind {
                         binder,
                         carrier: local_carrier.clone(),
-                        bindings,
+                        bindings: bindings.clone(),
                         writable,
                     },
                     Step::Evaluate(file.node_id(initializer), local_carrier, scope),
@@ -104,9 +127,12 @@ impl ConstantEvaluation<'_, '_> {
                         site,
                         statement: statement + 1,
                         carrier,
+                        scope: scope.clone(),
+                    },
+                    Step::Store {
+                        local,
                         bindings: bindings.clone(),
                     },
-                    Step::Store { local, bindings },
                     Step::Evaluate(file.node_id(right), place_carrier, scope),
                 ]);
             }
@@ -129,7 +155,7 @@ impl ConstantEvaluation<'_, '_> {
                         site,
                         statement: statement + 1,
                         carrier,
-                        bindings,
+                        scope: scope.clone(),
                     },
                     Step::Discard,
                     Step::Evaluate(file.node_id(operand), operand_carrier, scope),
@@ -199,7 +225,8 @@ impl ConstantEvaluation<'_, '_> {
             else {
                 continue;
             };
-            if !values.is_empty() {
+            let block = file.nodes[expression].kind == NodeKind::Body;
+            if block || !values.is_empty() {
                 let bindings = scope.bindings();
                 execution.steps.push(Step::RestoreBindings {
                     count: bindings.values.borrow().len(),
@@ -207,9 +234,17 @@ impl ConstantEvaluation<'_, '_> {
                 });
                 bindings.values.borrow_mut().extend(values);
             }
-            execution
-                .steps
-                .push(Step::Evaluate(file.node_id(expression), carrier, scope));
+            let result = file.node_id(expression);
+            execution.steps.push(if block {
+                Step::Block {
+                    site: result,
+                    statement: 0,
+                    carrier,
+                    scope,
+                }
+            } else {
+                Step::Evaluate(result, carrier, scope)
+            });
             return Ok(());
         }
         Err(UNSUPPORTED_BODY.into())

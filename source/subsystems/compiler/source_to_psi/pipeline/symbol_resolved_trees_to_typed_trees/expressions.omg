@@ -311,6 +311,7 @@ crashes Trap
         ValueBinding::Local { statement } -> local(typer, syntax, statement),
         ValueBinding::Parameter { parameter } -> parameter(typer, syntax, parameter),
         ValueBinding::PatternBinder { field } -> binder(typer, field),
+        ValueBinding::MatchedSubject { subject as saved } -> saved_subject(typer, syntax, index, saved),
         ValueBinding::DataCase { item, data_case } -> data_case(typer, syntax, index, item, data_case),
         ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter),
         ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant),
@@ -320,6 +321,37 @@ crashes Trap
         ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain),
         ValueBinding::DataSubject { item } -> data_subject(typer, syntax, index, item),
         _ -> absent()
+    }
+
+    // The scalar route can retain a selected value directly. Aggregate moves
+    // and reference provenance require storage for the whole pattern binding.
+    machine saved_subject(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, saved: u64 in Trapping) -> u64 in Trapping {
+        let handle: u64 in Trapping = typing_expression_type(@typer.output, saved);
+        let integer: bool = integer_type(typer, handle);
+        let floating: bool = float_like(typer, handle);
+        let row: TypeRow = type_table_row(@typer.output.types, handle);
+        let boolean: bool = row.kind == TypeKind::Builtin && row.builtin == BuiltinType::Bool;
+        transition handle == typer.output.anonymous {
+            true -> anonymous_subject(typer, index, saved, handle),
+            _ -> fixed_subject(typer, syntax, index, handle, integer || (floating && handle != typer.output.anonymous_float) || boolean)
+        }
+    }
+    machine anonymous_subject(typer: @mut Typer, index: u64 in Trapping, saved: u64 in Trapping, handle: u64 in Trapping) -> u64 in Trapping {
+        let value: Rational = rational(@typer.output, saved);
+        let origin: u64 in Trapping = typing_fractional_origin(@typer.output, saved);
+        set_rational(@mut typer.output, index, value, origin);
+        transition { _ -> handle }
+    }
+    machine fixed_subject(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, handle: u64 in Trapping, supported: bool) -> u64 in Trapping {
+        transition supported {
+            true -> handle,
+            _ -> unsupported_subject(typer, syntax, index)
+        }
+    }
+    machine unsupported_subject(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = syntax_trees_expression(syntax, index);
+        typing_reject(@mut typer.output, TypeDiagnosticCode::UnsupportedPatternSubject, expression.source_span);
+        transition { _ -> absent() }
     }
 
     // `self` in a data default-domain predicate is that declaration applied to

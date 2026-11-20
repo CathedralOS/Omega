@@ -374,6 +374,7 @@ crashes Trap
     transition arm.kind {
         ArmPatternKind::Guard -> guard(typer, sources, syntax, resolution, arm),
         ArmPatternKind::Wildcard -> done(),
+        ArmPatternKind::Binder -> type_tree(typer, sources, syntax, resolution, arm.pattern),
         ArmPatternKind::Literal -> head(typer, sources, syntax, resolution, arm, subject_type),
         ArmPatternKind::Case -> head(typer, sources, syntax, resolution, arm, subject_type)
     }

@@ -85,3 +85,56 @@ fn different_arms_of_one_match_may_reuse_a_binding_name() {
              match b { Reading::Sample { value } -> value + first,  Reading::Idle -> first } }",
     );
 }
+
+#[test]
+fn visible_value_binders_reject_local_shadowing() {
+    for source in [
+        "machine pick(current: u32, sample: u32) -> u32 { match sample { current -> current, _ -> 0u32 } }",
+        "machine pick(sample: u32) -> u32 { let current: u32 = 1u32; match sample { current -> current, _ -> 0u32 } }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { match sample { current -> current, _ -> 0u32 } }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { let current: u32 = sample; current }",
+        "machine pick<const current: u32>(current: u32) -> u32 { current }",
+        "machine pick(current: u32, sample: u32) -> u32 { transition sample { current -> current, _ -> 0u32 } }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { transition (sample, sample) { (current, _) -> current, _ -> 0u32 } }",
+        "machine pick(sample: u32) -> u32 { match sample { current -> match sample { current -> current } } }",
+        "data Reading { value: u32; } machine pick<const current: u32>(reading: Reading) -> u32 { match reading { Reading { value as current } -> current } }",
+    ] {
+        let errors = resolve_result(source).expect_err(source);
+        assert!(
+            errors.iter().any(|error| error.message.contains("current")
+                && error.message.contains("conflicts with an existing name")),
+            "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn fresh_subject_patterns_bind_the_value_without_testing_equality() {
+    for source in [
+        "const current: u32 = 12u32; machine pick(sample: u32) -> u32 { match sample { current -> current } }",
+        "machine pick<T>(sample: u32) -> u32 { match sample { T -> T } }",
+        "machine pick(sample: u32) -> u32 { match sample { current if current == 0u32 -> current, current -> current } }",
+        "machine pick(sample: u32) -> u32 { transition (sample, sample) { (current, _) -> current, (_, current) -> current } }",
+    ] {
+        let program =
+            resolve_result(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+        assert!(
+            program
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .any(|(_, node)| matches!(
+                    node,
+                    crate::source_resolved::expression::ExpressionNode::SavedSubject(_)
+                )),
+            "{source}"
+        );
+    }
+    accepts(
+        "machine pick(current: u32) -> u32 { next(current) machine next(current: u32) -> u32 { current } }",
+    );
+    accepts("machine pick<T>(sample: u32) -> u32 { let T: u32 = sample; T }");
+    accepts(r"machine pick<const T: core\Type<0>>(sample: u32) -> u32 { let T: u32 = sample; T }");
+    accepts("machine pick(ready: bool) -> u32 { transition { ready -> 1u32, _ -> 0u32 } }");
+}
