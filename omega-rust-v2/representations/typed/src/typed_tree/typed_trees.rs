@@ -191,6 +191,10 @@ impl<'a> TypedTree<'a> {
         self.forest.semantics_at(self.resolved.file.node_id(node))
     }
 
+    pub fn declaration_selection(&self, node: usize) -> Option<&crate::DeclarationSelection> {
+        self.forest.declaration_selections.get(&self.resolved.file.node_id(node))
+    }
+
     pub fn construction(
         &self,
         node: usize,

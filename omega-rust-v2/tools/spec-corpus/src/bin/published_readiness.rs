@@ -287,20 +287,26 @@ fn reflection() -> bool {
                     .filter(|tree| tree.file.path == "selector.omg")
                     .flat_map(|tree| tree.occurrences())
                     .any(|u| matches!(&u.target,Symbol::Declaration(id) if id.path==path));
-                let applied = path != "Buffer::used"
-                    || n.trees()
-                        .filter(|tree| tree.file.path == "selector.omg")
-                        .any(|tree| {
-                            tree.applications().any(|(section, name)| {
-                                matches!(&name.target,Symbol::Declaration(id) if id.path=="Buffer")
-                                    && tree.file.nodes[section]
-                                        .children
-                                        .iter()
-                                        .any(|&arg| tree.file.span(arg).slice(source.as_bytes()) == Some(b"u32"))
-                            })
-                        });
-                let typed=s.expressions.iter().any(|e|e.site.file=="selector.omg" && e.site.span.slice(source.as_bytes())==Some(selector.as_bytes()) && matches!(&e.ty,ValueType::Nominal(id)|ValueType::Applied(id,_) if id.package=="@omega/toolchain" && id.path==format!("language\\core\\reflect\\{kind}")));
-                selected && applied && typed
+                let expression = s.expressions.iter().find(|e| e.site.file == "selector.omg"
+                    && e.site.span.slice(source.as_bytes()) == Some(selector.as_bytes()));
+                let Some(expression) = expression else { return false };
+                let descriptor_type = matches!(&expression.ty, ValueType::Applied(id, lifetimes)
+                    if id.package == "@omega/toolchain" && id.path == format!("language\\core\\reflect\\{kind}") && lifetimes.len() == 1);
+                use omega_typer::DeclarationSelection::*;
+                let exact = match (path, s.declaration_selections.get(&expression.node)) {
+                    ("Controller::status", Some(Field { owner: ValueType::Nominal(owner), field, field_type, position: 0, case: None })) =>
+                        owner.package == "example" && owner.path == "Controller" && field.path == path && matches!(field_type, ValueType::Integer { signed: false, width: Some(8) }),
+                    ("Buffer::used", Some(Field { owner: ValueType::Applied(owner, args), field, field_type, position: 0, case: None })) =>
+                        owner.package == "example" && owner.path == "Buffer" && field.path == path
+                            && args.as_slice() == std::slice::from_ref(field_type) && matches!(field_type, ValueType::Integer { signed: false, width: Some(32) }),
+                    (_, Some(Machine(application))) if path == "Controller\\update" =>
+                        application.machine.package == "example" && application.machine.path == path && application.arguments.is_empty(),
+                    (_, Some(Requirement { owner, application })) if path == "ControllerWriter::write" =>
+                        owner.path == "ControllerWriter" && application.machine.path == path
+                            && application.enclosing_arguments.iter().any(|(scope, args)| scope == owner && args.is_empty()),
+                    _ => false,
+                };
+                selected && descriptor_type && exact && s.calls.iter().all(|call| call.node != expression.node)
             }),
         );
         let (from, to, reason) = if kind == "FieldInfo" {

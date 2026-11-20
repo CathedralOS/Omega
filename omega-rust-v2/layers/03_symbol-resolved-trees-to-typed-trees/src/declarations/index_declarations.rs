@@ -19,6 +19,15 @@ impl<'a> ResolvedSourceFile<'a> {
         use NodeKind::*;
         let source = self.file;
         let items = &mut catalog.declarations;
+        // A field can be selected while another field in its schema is waiting
+        // for static evaluation. Preserve the owner so the query can wait too.
+        for (node, shape) in self.tree.declaration_nodes().filter(|(_, id)| matches!(id.kind, Data | Case)) {
+            let members = source.nodes[node].children.iter().copied()
+                .filter(|&child| matches!(source.nodes[child].kind, Field | CaseField));
+            for (position, member) in members.enumerate() {
+                items.field_positions.insert(self.declaration(member)?, (shape, position));
+            }
+        }
         'declarations: for (node_index, id) in self.tree.declaration_nodes() {
             if catalog.types.indices.declaration_is_pending(id) {
                 continue;
@@ -69,7 +78,11 @@ impl<'a> ResolvedSourceFile<'a> {
                                 .entry(id)
                                 .or_default()
                                 .push(trait_refinements::read(self, &catalog.types, id, part)?),
-                            Machine => requirements.push(self.declaration(part)?),
+                            Machine => {
+                                let requirement = self.declaration(part)?;
+                                items.requirement_owners.insert(requirement, id);
+                                requirements.push(requirement);
+                            }
                             _ => return Err(TypeError::unsupported(source, part)),
                         }
                     }

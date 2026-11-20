@@ -22,6 +22,25 @@ impl TypedField {
     }
 }
 
+/// A declaration query describes a member of these typed trees. The identities
+/// refer to this admitted package revision, including its field schemas and
+/// machine contracts. They grant no permission to read a field or call a machine.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DeclarationSelection {
+    Field {
+        owner: ValueType,
+        case: Option<DeclarationId>,
+        field: DeclarationId,
+        position: usize,
+        field_type: ValueType,
+    },
+    Machine(crate::MachineApplication),
+    Requirement {
+        owner: DeclarationId,
+        application: crate::MachineApplication,
+    },
+}
+
 /// A construction selects one data declaration and, for a sum, one exact case.
 /// Initializers stay in evaluation order, with each field's declaration-order slot.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -88,6 +107,8 @@ pub struct TypedStage {
     /// The normalized constituents of each domain alias, including their arguments.
     pub domain_alias_members: std::collections::HashMap<DeclarationId, Vec<crate::DomainApplication>>,
     pub static_data_shapes: std::collections::HashMap<ValueType, StaticDataShape>,
+    /// The field or callable each reflection expression describes in this forest.
+    pub declaration_selections: std::collections::BTreeMap<TreeNodeId, DeclarationSelection>,
     pub(crate) constructions: std::collections::BTreeMap<TreeNodeId, TypedConstruction>,
     pub(crate) owned_byte_literals: std::collections::BTreeMap<TreeNodeId, Arc<[u8]>>,
     pub signatures: Vec<Arc<TypedSignature>>,

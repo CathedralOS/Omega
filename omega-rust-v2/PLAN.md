@@ -168,8 +168,7 @@ selection at its binding expression. The existential package example infers one
 `File` witness for the stored reference and callback and rejects a callback over
 `Socket`. The bundled reflection module exports the symbolic queries `field` and `callable`.
 L2 binds all four published selector operands and retains the type argument in
-`Buffer::<u32>::used`. L3 rejects all four swapped queries at their operands. The four
-valid examples still stop in L3 because it cannot yet construct their descriptors.
+`Buffer::<u32>::used`. L3 publishes the instantiated field type and declaration-order position, or the selected concrete machine or trait requirement and its arguments. The four published queries have typed selections, and the four swapped queries report the wrong kind at the operand. Freezing the selected description into retained storage remains open in L4.
 [L2 contract](layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) · [L3 contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md)
 
 ### The `omega` application

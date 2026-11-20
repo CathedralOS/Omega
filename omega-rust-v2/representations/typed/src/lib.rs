@@ -52,7 +52,7 @@ pub use typed_tree::storage::package_construction::PackageConstruction;
 pub use typed_tree::typed_expression::{TypedExpression, TypedNumericLanding};
 pub use typed_tree::typed_instruction::{TypedInstruction,TypedInstructionOperand,TypedAssemblyRegion};
 pub use typed_tree::typed_operation::TypedOperation;
-pub use typed_tree::typed_stage::{FieldInitializer, StaticDataShape, TypedConstant, TypedConstruction, TypedField, TypedStage};
+pub use typed_tree::typed_stage::{DeclarationSelection, FieldInitializer, StaticDataShape, TypedConstant, TypedConstruction, TypedField, TypedStage};
 pub use typed_tree::typed_trees::{NodeSemantics, TypedTree, TypedTrees};
 pub use typed_tree::value_type::ValueType;
 pub use typing::assembly_types::{AssemblyTypes,InstructionVariant};
