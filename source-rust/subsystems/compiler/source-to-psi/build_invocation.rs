@@ -147,6 +147,7 @@ fn prepare_stage(
 ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
     let prepare = |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
         let stage = plan.project(&mut request.syntax.trees, use_frame, facts)?;
+        request.syntax.partial_build_entry = stage.next_index().map(|_| entry);
         let source = request.prepare(&mut CompileTimings::default())?;
         Ok((source, stage))
     };
@@ -166,8 +167,13 @@ fn prepare_stage(
             use crate::source_state::deferred_refusals::DeferredRequest;
             let typed = source.typed();
             typed.deferred_refusals.iter().any(|row| {
-                typed.symbols.symbol_source_span(row.declaration) == Some(entry)
+                (typed.symbols.symbol_source_span(row.declaration) == Some(entry)
                     && after_wait(row.source_span)
+                    || crate::source_state::source_subjects::nested_in(
+                        typed,
+                        row.declaration,
+                        entry,
+                    ))
                     && matches!(
                         row.request,
                         DeferredRequest::UndeclaredCallName

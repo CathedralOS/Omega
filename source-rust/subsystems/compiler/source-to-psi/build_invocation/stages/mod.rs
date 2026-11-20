@@ -75,7 +75,6 @@ pub(super) struct EntryPlan {
     statements: Vec<StatementHandle>,
     homes: Vec<usize>,
     stage: BuildStage,
-    nested_calls: Vec<(usize, syntax_trees::identifier::Identifier)>,
     incoming: Option<usize>,
     first_statement: usize,
     earliest: usize,
@@ -105,12 +104,11 @@ impl EntryPlan {
                 preparation(syntax, statement).map(|site| (position, site))
             })
             .unzip();
-        let lexical_uses::LexicalPlan { cuts, nested_calls } = if positions.is_empty() {
+        let mut cuts = if positions.is_empty() {
             Default::default()
         } else {
-            lexical_uses::program_ends(syntax, &machine, &statements, &positions)?
+            lexical_uses::program_ends(syntax, &statements, &positions)?
         };
-        let mut cuts = cuts;
         if !excluded_homes.is_empty() {
             cuts.retain(|cut| {
                 cut.bindings
@@ -161,7 +159,6 @@ impl EntryPlan {
             statements,
             homes,
             stage,
-            nested_calls,
             incoming,
             first_statement,
             earliest,
@@ -241,16 +238,6 @@ impl EntryPlan {
             stage.saved_homes.dedup();
         }
         let end = outgoing.map_or(self.statements.len(), |cut| cut.end + 1);
-        if stage.next_index().is_some() {
-            let diagnostics: Vec<_> = self.nested_calls.iter()
-                .filter(|(pos, _)| (self.first_statement..end).contains(pos))
-                .map(|(_, name)| Diagnostic::error(format!(
-                    "not supported yet: a Build statement before `Build::prepare_dependency` that names `{}`, a nested machine checked with the final Build stage", name.as_str(syntax)
-                )).with_source_span(name.source_span())).collect();
-            if !diagnostics.is_empty() {
-                return Err(diagnostics);
-            }
-        }
         let span = syntax.items.state(self.state).statements;
         let offset = u32::try_from(self.first_statement).expect("statement offset fits its span");
         let count =
@@ -260,9 +247,6 @@ impl EntryPlan {
         let mut declaration = self.machine.clone();
         if !self.homes.is_empty() {
             frame::project(syntax, self, &stage, &mut declaration, facts)?;
-        }
-        if stage.next_index().is_some() {
-            declaration.nested_machines = arena::HandleSpan::empty();
         }
         syntax
             .items

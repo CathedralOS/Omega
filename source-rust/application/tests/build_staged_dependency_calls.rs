@@ -269,6 +269,63 @@ fn preparation_preserves_only_the_proved_range_of_a_local() {
 }
 
 #[test]
+fn a_nested_helper_can_run_before_a_wait_and_another_can_use_the_prepared_package() {
+    let target = target::TargetProfile::host_if_supported()
+        .unwrap()
+        .target_name();
+    let build = format!(
+        r#"use kit;
+machine build(builder: @mut Build) suspends {{
+    announce(builder);
+    let mut request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    suspend Build::prepare_dependency(builder, registered);
+    finish(builder);
+    machine announce(builder: @mut Build) {{ set_role(builder); }}
+    machine set_role(builder: @mut Build) {{ Build::application(builder, "nested"); }}
+    machine finish(builder: @mut Build) {{
+        let seven: i32 = kit\v();
+        Build::bind(builder, {target}\ProgramEntry, main);
+    }}
+}}
+"#
+    );
+    let run =
+        |name, build: &str| check_project(name, build, 7, "", &["run", "--both", "build.omg"]);
+    let (ran, output) = run("nested-before-preparation", &build);
+    assert!(
+        ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+        "{output}"
+    );
+
+    let early = build.replace(
+        "Build::application",
+        r"let early: i32 = kit\v(); Build::application",
+    );
+    let (ran, output) = run("nested-import-too-soon", &early);
+    assert!(
+        !ran && output.contains("no visible declaration in its source scope")
+            && output.contains("build::set_role")
+            && !output.contains("while resuming"),
+        "{output}"
+    );
+
+    let unused = build.replace(
+        "    machine finish",
+        r"    machine unused() { let bad: i32 = missing\v(); }
+    machine finish",
+    );
+    let (ran, output) = run("unused-nested-checked-after-preparation", &unused);
+    assert!(
+        !ran && output.contains("no visible declaration in its source scope")
+            && output.contains("build::unused")
+            && output.contains("while resuming"),
+        "{output}"
+    );
+}
+
+#[test]
 fn resumed_calls_use_proved_relations_between_the_captured_locals() {
     let helpers = "machine next(n: i32) -> i32 requires n <= 9 ensures result > n { n + 1 }
 machine require_related(a: i32, b: i32, larger: i32, flag: bool, second: bool, enabled: bool)
