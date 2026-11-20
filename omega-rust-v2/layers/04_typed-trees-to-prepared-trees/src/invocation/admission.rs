@@ -104,7 +104,7 @@ impl ConstantEvaluation<'_, '_> {
             *self
                 .signatures()
                 .get(provider.implementation)
-                .ok_or(PreparationReason::ProviderWithoutSignature)?
+                .ok_or(PreparationReason::DeclarationWithoutSignature)?
         } else {
             (contract_index, contract)
         };

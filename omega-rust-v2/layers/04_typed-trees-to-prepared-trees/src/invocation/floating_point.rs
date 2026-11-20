@@ -41,7 +41,7 @@ impl ConstantEvaluation<'_, '_> {
             execution
                 .steps
                 .push(Step::Invoke(file.node_id(node), carrier.clone(), scope.clone()));
-        } else if let Some(value) = self.constant_reference(tree, node, carrier)? {
+        } else if let Some(value) = self.constant_reference(tree, node, carrier, scope)? {
             execution.values.push(value.clone());
         } else if self.schedule_float_cast(tree, node, carrier, scope, execution)? {
             // The cast schedules its operand using the selected source carrier.

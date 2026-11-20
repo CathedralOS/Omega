@@ -361,13 +361,20 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
     let changed_source = SOURCE.replace("7u64", "8u64");
     let (changed, changed_slot) = typed(&changed_source, SlotDirection::ProgramToProvider);
     let changed_proof = check_literal_provider(frozen_trees(&changed), &changed_slot, &target).unwrap();
-    assert_ne!(
-        observations,
-        [TargetObservation::SelectedRealization {
-            target: target.clone(),
-            realization: changed_proof.realization.clone()
-        }]
-    );
+    let other_plan = changed_proof.realization;
+    assert_ne!(check().realization.selected_plan, other_plan.selected_plan);
+    // Two independently checked plans can target the same slot. The target
+    // owner refuses the second one before L4 can see a competing selection.
+    for (first, second) in [(check().realization, other_plan.clone()), (other_plan, check().realization)] {
+        let singleton = crate::TargetSemantics::new(target.clone(), [], [])
+            .unwrap()
+            .with_selected_realizations([first])
+            .unwrap();
+        assert!(matches!(
+            singleton.with_selected_realizations([second]),
+            Err(crate::TargetSemanticsError::DuplicateRealizationSelection)
+        ));
+    }
     // A proof checked against another typing pass is not a candidate here.
     let rejected = refuse(&changed, std::slice::from_ref(&changed_slot), &capsule, vec![check()]);
     assert_provider_refusal(&rejected, PreparationReason::UnselectedBoundarySlot, UNSELECTED, &changed_source, "Reading::read()");
@@ -386,6 +393,43 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
         SOURCE,
         "Reading::read()",
     );
+}
+
+#[test]
+fn missing_implementation_signature_prevents_certification_and_replay() {
+    let (progress, slot) = typed(SOURCE, SlotDirection::ProgramToProvider);
+    let target = TargetIdentity {
+        profile: "windows_x86_64".into(),
+        semantics_version: 1,
+        realization: Arc::from(&b"probe target"[..]),
+    };
+    let check = || check_literal_provider(frozen_trees(&progress), &slot, &target).unwrap();
+    let proof = check();
+    let capsule = crate::TargetSemantics::new(target.clone(), [], [])
+        .unwrap()
+        .with_selected_realizations([proof.realization.clone()])
+        .unwrap();
+    let pass = evaluate(&progress, &slot, &capsule, Some(check())).unwrap();
+    let PreparationAnswers::Frozen { constants, .. } = pass.answers else { panic!("expected frozen constants") };
+    for constant in &frozen_trees(&progress).constants {
+        assert_eq!(constants[&constant.declaration], PreparedValue::Integer(7.into()));
+    }
+
+    let (other, same_slot) = typed(SOURCE, SlotDirection::ProgramToProvider);
+    assert_eq!(slot, same_slot);
+    let TypingProgress::Complete(other) = other else { panic!("expected complete forest") };
+    let resolved = other.resolved().clone();
+    let mut facts = other.into_facts();
+    let first_local = facts.obligations.iter().take_while(|o| o.site.package != "app").count();
+    let before = facts.signatures.len();
+    facts.signatures.retain(|signature| signature.machine != proof.binding.implementation);
+    assert_eq!(before - facts.signatures.len(), 1);
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+    assert!(check_literal_provider(frozen_trees(&changed), &same_slot, &target).is_none());
+    // Neither the unchanged target plan nor the original check authorizes
+    // looking up the implementation in a different pass.
+    let refused = refuse(&changed, std::slice::from_ref(&same_slot), &capsule, vec![proof]);
+    assert_provider_refusal(&refused, PreparationReason::UnselectedBoundarySlot, UNSELECTED, SOURCE, "Reading::read()");
 }
 
 #[test]
@@ -455,6 +499,7 @@ fn only_an_exact_applicable_provider_proof_authorizes_the_slot() {
         realization: selection.clone(),
     }];
     for checked in [
+        vec![check(), check()],
         vec![wrong_plan(), check()],
         vec![check(), wrong_plan()],
         vec![stale_dependency(), wrong_plan(), check()],
@@ -677,7 +722,10 @@ fn provider_evidence_is_bound_to_the_exact_closed_application() {
                 .fold(CheckedPreparationEvidence::default(), CheckedPreparationEvidence::with_provider),
         )
     };
-    let prepared = prepare(vec![prove(0), prove(1)]).unwrap();
+    // At the same source node, A and B have distinct closed applications.
+    // Interleave independently checked duplicates: each agrees with its own
+    // realization, and neither competes with the other application's proofs.
+    let prepared = prepare(vec![prove(1), prove(0), prove(1), prove(0)]).unwrap();
     let PreparationAnswers::Frozen { constants, .. } = prepared.answers else {
         panic!("both checked provider applications freeze their values")
     };

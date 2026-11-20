@@ -148,8 +148,6 @@ preparation_reasons! {
     NotOneOrdinaryInvocation => "the request does not select one ordinary static invocation",
     /// The selected declaration has no typed signature.
     DeclarationWithoutSignature => "the selected declaration has no typed signature",
-    /// The checked provider has no typed signature.
-    ProviderWithoutSignature => "the checked provider has no typed signature",
     /// The selected declaration has no local body.
     DeclarationWithoutBody => "the selected declaration has no local body",
     /// An exported machine without a termination promise is invoked.
@@ -198,8 +196,6 @@ preparation_reasons! {
     InvocationProofTargetChanged => "the checked invocation proof depends on a different target selection",
 
     // Providers.
-    /// Checked providers select different realizations for one slot.
-    CompetingProviderRealizations => "checked providers select competing realizations for the runtime boundary slot",
     /// The provider does not certify the selected conformance binding.
     ProviderConformanceMismatch => "the checked provider does not certify the selected conformance binding",
     /// The provider does not match the selected target plan.
@@ -300,8 +296,6 @@ preparation_reasons! {
     ByteLiteralTypeMismatch => "the selected byte literal has a different array type",
     /// An array value has no supported initializer.
     ArrayWithoutInitializer => "the selected array value has no supported initializer",
-    /// An omitted field has no supported zero value.
-    OmittedFieldWithoutZero => "the omitted field has no supported owned zero value",
     /// An omitted field's zero value needs proof of the data predicate.
     OmittedFieldZeroNeedsProof => "the omitted field's zero value requires proof of the data predicate",
 }

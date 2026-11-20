@@ -1,6 +1,6 @@
 use crate::evaluation::constant_evaluation::ConstantEvaluation;
 use crate::evaluation::integer_arithmetic::IntegerRange;
-use crate::invocation::{EvaluationError, UNSUPPORTED_BODY};
+use crate::invocation::{EvaluationError, Scope, UNSUPPORTED_BODY};
 use crate::reasons::PreparationReason;
 use crate::{PreparedValue, TargetObservation};
 use omega_resolved::DeclarationId;
@@ -190,16 +190,9 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
             .static_data_shapes
             .get(carrier)
             .ok_or(UNSUPPORTED_BODY)?;
-        let fields = match &construction.case {
-            Some(case) => shape
-                .cases
-                .iter()
-                .find(|(declared, _)| declared == case)
-                .map(|(_, payload)| payload),
-            None if shape.cases.is_empty() => Some(&shape.fields),
-            None => None,
-        }
-        .ok_or_else(|| EvaluationError::from(PreparationReason::CaseOutsideCarrier).at_node(tree.resolved().file.node_id(node)))?;
+        let fields = shape
+            .active_fields(construction.case.as_ref())
+            .ok_or_else(|| EvaluationError::from(PreparationReason::CaseOutsideCarrier).at_node(tree.resolved().file.node_id(node)))?;
         let establishment = construction_obligation(tree, node, owner, admits_return)?;
         if shape.requires_establishment != establishment.is_some() {
             return Err(NEEDS_CONSTRUCTION_PROOF.into());
@@ -374,6 +367,7 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
         tree: &TypedTree<'_>,
         node: usize,
         carrier: &ValueType,
+        scope: &Scope<'_>,
     ) -> Result<Option<&PreparedValue>, EvaluationError> {
         let reference = tree.resolved().file.node_id(node);
         let at_read = |reason: PreparationReason| EvaluationError::Refused(reason.into(), Some(reference));
@@ -398,7 +392,11 @@ impl<'trees> ConstantEvaluation<'trees, '_> {
             .definitions
             .get(id)
             .ok_or_else(|| at_read(PreparationReason::ConstantWithoutInitializer))?;
-        if &definition.initializer.carrier != carrier {
+        if &definition.initializer.carrier != carrier
+            || tree.semantics_at(node).any(|record| {
+                matches!(record, NodeSemantics::Expression(expression) if scope.instantiate(&expression.ty) != *carrier)
+            })
+        {
             return Err(at_read(PreparationReason::ConstantCarrierMismatch));
         }
         self.values

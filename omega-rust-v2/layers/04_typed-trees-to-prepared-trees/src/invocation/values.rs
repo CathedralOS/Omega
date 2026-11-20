@@ -1,5 +1,5 @@
 use super::*;
-use crate::evaluation::floating_point::FloatFormatEvaluation;
+use crate::PreparedFloat;
 use omega_typed::Projection;
 
 impl ConstantEvaluation<'_, '_> {
@@ -66,15 +66,13 @@ impl ConstantEvaluation<'_, '_> {
             let mismatch = || EvaluationError::from(PreparationReason::OwnedFieldMismatch).at_node(read.site);
             let shape = self.trees.static_data_shapes.get(receiver).ok_or_else(mismatch)?;
             let (owner, _) = receiver.nominal_parts().ok_or_else(mismatch)?;
-            let (declaration, fields, carriers) = match current {
-                PreparedValue::Record { owner: actual, fields } if actual == owner && shape.cases.is_empty() => (owner, fields, &shape.fields),
-                PreparedValue::Sum { owner: actual, case, fields } if actual == owner => {
-                    let (_, payload) = shape.cases.iter().find(|(id, _)| id == case).ok_or_else(mismatch)?;
-                    (case, fields, payload)
-                }
+            let (case, fields) = match current {
+                PreparedValue::Record { owner: actual, fields } if actual == owner => (None, fields),
+                PreparedValue::Sum { owner: actual, case, fields } if actual == owner => (Some(case), fields),
                 _ => return Err(mismatch()),
             };
-            let slot = self.owned_field_position(declaration, &read.field).map_err(|error| error.at_node(read.site))?;
+            let carriers = shape.active_fields(case).ok_or_else(mismatch)?;
+            let slot = self.owned_field_position(case.unwrap_or(owner), &read.field).map_err(|error| error.at_node(read.site))?;
             if carriers.get(slot) != Some(&read.result) {
                 return Err(mismatch());
             }
@@ -119,21 +117,23 @@ impl ConstantEvaluation<'_, '_> {
                 .push(Step::Invoke(file.node_id(node), carrier.clone(), scope.clone()));
             return Ok(());
         }
-        if let Some(value) = self.constant_reference(tree, node, carrier)? {
+        if let Some(value) = self.constant_reference(tree, node, carrier, scope)? {
             execution.values.push(value.clone());
             return Ok(());
         }
-        if let Some(argument) = self.specialized_argument(tree, node, carrier, scope)? {
+        let bound = if let Some(argument) = self.specialized_argument(tree, node, carrier, scope)? {
             let ValueType::StaticValue { value, carrier: actual } = argument else {
-                return Err(UNSUPPORTED_ARGUMENT.into());
+                return Err(EvaluationError::from(UNSUPPORTED_ARGUMENT).at_node(file.node_id(node)));
             };
             if actual.as_ref() != carrier {
-                return Err(UNSUPPORTED_ARGUMENT.into());
+                return Err(EvaluationError::from(UNSUPPORTED_ARGUMENT).at_node(file.node_id(node)));
             }
-            execution.values.push(PreparedValue::from(value));
-            return Ok(());
-        }
-        if let Some(value) = scope.binding(tree, node, carrier) {
+            Some(PreparedValue::from_static_argument(value, carrier, &self.trees.static_data_shapes)
+                .ok_or_else(|| EvaluationError::from(PreparationReason::ArgumentOutsideCarrier).at_node(file.node_id(node)))?)
+        } else {
+            scope.binding(tree, node, carrier)
+        };
+        if let Some(value) = bound {
             if tree.semantics_at(node).any(|record| match record {
                 NodeSemantics::Expression(_) => false,
                 NodeSemantics::Obligation(o) => !self.admits_owned_return(scope, &o.kind, carrier),
@@ -237,17 +237,14 @@ impl ConstantEvaluation<'_, '_> {
         carrier: &ValueType,
         execution: &mut Execution<'_>,
     ) -> Result<(), EvaluationError> {
-        let unsupported = PreparationReason::OmittedFieldWithoutZero;
+        // The scheduler admits the complete type before selecting omitted slots.
+        // Recursion below only follows fields of that same immutable shape.
         let value = match carrier {
             ValueType::Bool => PreparedValue::Bool(false),
-            ValueType::Float32 | ValueType::Float64 => {
-                let format = FloatFormat::for_type(carrier).ok_or(unsupported)?;
-                let value = format.land_exact_integer(BigInt::ZERO).ok_or(unsupported)?;
-                PreparedValue::Float {
-                    value,
-                    origin: floating_point::origin(&self.tree(site)?, site.node),
-                }
-            }
+            ValueType::Float32 | ValueType::Float64 => PreparedValue::Float {
+                value: if *carrier == ValueType::Float32 { PreparedFloat::Binary32(0) } else { PreparedFloat::Binary64(0) },
+                origin: floating_point::origin(&self.tree(site)?, site.node),
+            },
             ty if IntegerRange::for_type(ty).is_some() => PreparedValue::Integer(BigInt::ZERO),
             ValueType::Tuple(elements) => {
                 execution.steps.push(Step::FinishTuple(elements.len()));
@@ -269,7 +266,7 @@ impl ConstantEvaluation<'_, '_> {
                 return Ok(());
             }
             ValueType::Nominal(owner) | ValueType::Applied(owner, _) => {
-                let shape = self.trees.static_data_shapes.get(carrier).ok_or(unsupported)?;
+                let shape = self.trees.static_data_shapes.get(carrier).ok_or(PreparationReason::ConstantTypeWithoutFieldShape)?;
                 if shape.requires_establishment {
                     return Err(PreparationReason::OmittedFieldZeroNeedsProof.into());
                 }
@@ -291,7 +288,7 @@ impl ConstantEvaluation<'_, '_> {
                 );
                 return Ok(());
             }
-            _ => return Err(unsupported.into()),
+            _ => return Err(PreparationReason::ConstantTypeOutsideFragment.into()),
         };
         execution.values.push(value);
         Ok(())
@@ -385,7 +382,7 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<(), EvaluationError> {
         let file = tree.resolved().file;
         let node = file.ungroup(node);
-        if let Some(value) = self.constant_reference(tree, node, &ValueType::Bool)? {
+        if let Some(value) = self.constant_reference(tree, node, &ValueType::Bool, scope)? {
             let PreparedValue::Bool(_) = value else {
                 return Err(UNSUPPORTED_CONTRACT.into());
             };
@@ -530,7 +527,7 @@ impl ConstantEvaluation<'_, '_> {
                 _ => return Err(UNSUPPORTED_BODY.into()),
             }
         }
-        if let Some(value) = self.constant_reference(tree, node, carrier)? {
+        if let Some(value) = self.constant_reference(tree, node, carrier, scope)? {
             let PreparedValue::Integer(value) = value else {
                 return Err(UNSUPPORTED_BODY.into());
             };
