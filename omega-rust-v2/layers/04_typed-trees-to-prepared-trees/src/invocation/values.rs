@@ -92,9 +92,12 @@ impl ConstantEvaluation<'_, '_> {
         scope: &Scope<'a>,
         execution: &mut Execution<'a>,
     ) -> Result<(), EvaluationError> {
-        self.admit_owned_value(carrier, execution)?;
         let file = tree.resolved().file;
         let node = file.ungroup(node);
+        if tree.declaration_selection(node).is_some() {
+            return Err(EvaluationError::from(PreparationReason::DescriptorStorageUnavailable).at_node(file.node_id(node)));
+        }
+        self.admit_owned_value(carrier, execution)?;
         if selected_call(tree, node, scope.call_use())?.is_some() || file.nodes[node].kind == NodeKind::Call {
             execution
                 .steps

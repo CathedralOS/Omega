@@ -1,3 +1,7 @@
+#[cfg(feature = "diagnostic-origins")]
+#[path = "support/diagnostic_origin.rs"]
+mod diagnostic_origin;
+
 use omega_lexer::SourceSpan;
 use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::{NodeSemantics, TypeError, TypedTrees, ValueType, resolve_source_package, type_source_package};
@@ -33,7 +37,12 @@ fn type_package<'text>(
     });
     let resolved = resolve_source_package(&sources).expect("all three files resolve, including the negative twins");
     drop(parsed);
-    type_source_package(&resolved)
+    let result = type_source_package(&resolved);
+    #[cfg(feature = "diagnostic-origins")]
+    if let Err(error) = &result {
+        diagnostic_origin::report_return(error, "");
+    }
+    result
 }
 
 #[test]
@@ -364,4 +373,94 @@ fn collection_metadata_nodes_record_the_selected_operation() {
         tree.semantics_at(record)
             .all(|record| !matches!(record, NodeSemantics::Operation(_)))
     );
+}
+
+#[test]
+fn reflected_members_preserve_their_application_and_callable_role() {
+    use omega_typer::DeclarationSelection;
+    let declarations = "data Buffer<T>{unused:bool; used:T;} trait Writer{machine write();} machine update(){}";
+    let source = r"use omega\language\core\reflect;
+        machine inspect(){let f=reflect\field(Buffer::<u32>::used);
+            let calls=[reflect\callable(update),reflect\callable(Writer::write)];}";
+    let trees = type_package(declarations, source, FILE_ORDERS[0]).unwrap();
+    for order in FILE_ORDERS.iter().skip(1) {
+        let reordered = type_package(declarations, source, *order).unwrap();
+        assert_eq!(trees.declaration_selections, reordered.declaration_selections);
+    }
+    assert_eq!(trees.declaration_selections.len(), 3);
+    let mut selections = trees.declaration_selections.values();
+    let Some(DeclarationSelection::Field { owner: ValueType::Applied(owner, args), field, field_type, position: 1, case: None }) = selections.next()
+        else { panic!("expected the second field of Buffer<u32>") };
+    assert_eq!(owner.path, "Buffer");
+    assert_eq!(field.path, "Buffer::used");
+    assert_eq!(args.as_slice(), [ValueType::Integer { signed: false, width: Some(32) }]);
+    assert_eq!(field_type, &args[0]);
+    assert!(matches!(selections.next(), Some(DeclarationSelection::Machine(m)) if m.machine.path == "update"));
+    assert!(matches!(selections.next(), Some(DeclarationSelection::Requirement { owner, application })
+        if owner.path == "Writer" && application.machine.path == "Writer::write"));
+}
+
+#[test]
+fn reflection_reports_the_invalid_generic_application_at_its_selector() {
+    let defs = "data Buffer<T>{used:T;} machine keep<T>(value:T)->T{value}";
+    for (query, site, reason) in [
+        (r"reflect\field(Buffer::used)", "Buffer::used", "Buffer expects 1 type arguments, found 0"),
+        (r"reflect\callable(keep)", "keep", "keep expects 1 machine arguments, found 0"),
+        (r"reflect\field(Buffer::<u32>::used::<u8>)", "Buffer::<u32>::used::<u8>", "type arguments do not belong to the selected carrier"),
+    ] {
+        let source = format!(r"use omega\language\core\reflect; machine inspect(){{let x={query};}}");
+        let error = type_package(defs, &source, FILE_ORDERS[0]).unwrap_err();
+        assert_eq!(error.message, reason);
+        assert_eq!(error.file, "view.omg");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()));
+    }
+}
+
+#[test]
+fn reflected_callable_keeps_receiver_and_member_arguments_and_its_result_lifetime() {
+    use omega_typer::DeclarationSelection;
+    let defs = "trait Writer<T>{machine write<U>(a:T,b:U);}";
+    let source = r"use omega\language\core\reflect;
+        machine describe<'r>()->reflect\CallableInfo<'r>{reflect\callable(Writer::<u32>::write::<bool>)}";
+    let trees = type_package(defs, source, FILE_ORDERS[0]).unwrap();
+    let (&node, selection) = trees.declaration_selections.first_key_value().unwrap();
+    let DeclarationSelection::Requirement { owner, application } = selection else {panic!("expected a trait requirement")};
+    assert_eq!(application.arguments, [ValueType::Bool]);
+    assert_eq!(application.enclosing_arguments, [(owner.clone(), vec![ValueType::Integer { signed: false, width: Some(32) }])]);
+    let describe = trees.signatures.iter().find(|s| s.machine.path == "describe").unwrap();
+    assert!(trees.expressions.iter().any(|e| e.node == node && e.ty == describe.result));
+}
+
+#[test]
+fn reflection_preserves_a_case_fields_owner_and_position() {
+    use omega_typer::DeclarationSelection;
+    let defs = "data Choice<T>{case Empty; case Some(flag:bool,value:T);}";
+    let source = r"use omega\language\core\reflect; machine inspect(){let field=reflect\field(Choice::<u8>::Some::value);}";
+    let trees = type_package(defs, source, FILE_ORDERS[0]).unwrap();
+    let Some(DeclarationSelection::Field { case: Some(case), field, position: 1, field_type, owner: ValueType::Applied(owner, args) }) =
+        trees.declaration_selections.values().next() else { panic!("expected a case field") };
+    assert_eq!(case.path, "Choice::Some");
+    assert_eq!(field.path, "Choice::Some::value");
+    assert_eq!(owner.path, "Choice");
+    assert_eq!(args.as_slice(), std::slice::from_ref(field_type));
+    assert_eq!(field_type, &ValueType::Integer { signed: false, width: Some(8) });
+}
+
+#[test]
+fn reflected_requirement_checks_callback_arguments_against_the_applied_trait() {
+    let defs = "data Filter<T> = machine(value:T)->bool;
+        trait Writer<T>{machine write<const Accept:Filter<T>>();}
+        machine matching(value:u32)->bool{true} machine wrong(value:bool)->bool{true}";
+    let selector = r"reflect\callable(Writer::<u32>::write::<matching>)";
+    let source = format!(r"use omega\language\core\reflect; machine describe(){{let descriptor={selector};}}");
+    let result = type_package(defs, &source, FILE_ORDERS[0]).unwrap();
+    let Some(omega_typer::DeclarationSelection::Requirement { application, .. }) = result.declaration_selections.values().next() else {
+        panic!("expected an applied trait requirement");
+    };
+    assert!(matches!(application.arguments.as_slice(), [ValueType::MachineSelection(callback)] if callback.machine.path == "matching"));
+    let wrong = source.replace("matching", "wrong");
+    let error = type_package(defs, &wrong, FILE_ORDERS[0]).unwrap_err();
+    assert_eq!(error.file, "view.omg");
+    assert_eq!(error.message, "selected machine has incompatible callable signature");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"Writer::<u32>::write::<wrong>".as_slice()));
 }

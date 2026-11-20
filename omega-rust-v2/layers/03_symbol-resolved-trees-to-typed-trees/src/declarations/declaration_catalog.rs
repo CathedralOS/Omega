@@ -81,6 +81,8 @@ pub(crate) struct DeclaredItems<'a> {
     pub(crate) ranking_views: std::borrow::Cow<'a, [RankingView]>,
     pub(crate) access_plan_requirement: Option<&'a DeclarationId>,
     pub(crate) signatures: HashMap<&'a DeclarationId, Arc<TypedSignature>>,
+    pub(crate) field_positions: HashMap<&'a DeclarationId, (&'a DeclarationId, usize)>,
+    pub(crate) requirement_owners: HashMap<&'a DeclarationId, &'a DeclarationId>,
     pub(crate) fields: HashMap<&'a DeclarationId, RecordFields<'a>>,
     pub(crate) cases: HashMap<&'a DeclarationId, Vec<&'a DeclarationId>>,
     pub(crate) schema_numbering: HashMap<&'a DeclarationId, Arc<omega_program_contracts::SchemaNumbering>>,

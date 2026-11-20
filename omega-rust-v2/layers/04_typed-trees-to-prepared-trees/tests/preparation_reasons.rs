@@ -571,3 +571,14 @@ fn a_precondition_on_an_array_result_rejects_the_false_call() {
         "the selected precondition is false for the supplied arguments", (start, start + "pair(0u8)".len()),
         "static evaluation cannot admit this invocation: the selected precondition is false for the supplied arguments"));
 }
+
+#[test]
+fn freezing_a_description_identifies_the_selected_query() {
+    let source = r"use omega\language\core\reflect; machine update(){} const META=reflect\callable(update);";
+    let query = r"reflect\callable(update)";
+    let start = source.find(query).unwrap();
+    assert_refusal(source, None, owned(Phase::Preparation, PreparationReason::DescriptorStorageUnavailable,
+        "freezing a reflected declaration requires descriptor storage",
+        (start, start + query.len()),
+        "static evaluation cannot admit this invocation: freezing a reflected declaration requires descriptor storage"));
+}
