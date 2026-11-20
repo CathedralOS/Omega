@@ -304,12 +304,6 @@ pub(super) fn prepare_and_judge(
         providers: provider_inputs,
     });
 
-    // Build invocations belong to another checked context. Join their
-    // costs only after Product's own materialization receipts have been
-    // authenticated against this source; they prove no Product value.
-    let mut source_completion_accounting =
-        pass.inputs.build_accounting.cloned().unwrap_or_default();
-    source_completion_accounting.append(pass.accounting.clone());
     let publication = judge_lowered_source::SourcePublication::judge(
         program.clone(),
         roster,
@@ -317,7 +311,6 @@ pub(super) fn prepare_and_judge(
     )?;
     Ok(JudgedSource {
         program: Arc::clone(&program),
-        source_completion_accounting,
         publication: Arc::new(publication),
         provider_defaults,
     })

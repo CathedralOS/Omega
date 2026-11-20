@@ -89,8 +89,6 @@ pub struct ProductSourceInputs<'a> {
 
 pub(crate) struct CompletedProductSource {
     pub program: Arc<crate::source_state::FrozenTypedTrees>,
-    // Keep the joined Build and Product evaluation receipts with the checked program.
-    _source_completion_accounting: crate::compile_time_invocations::SourceCompletionAccounting,
     pub grants: Vec<symbols::root_grants::AuthoredRootGrant>,
     pub declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
     pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
@@ -231,9 +229,18 @@ pub(crate) fn prepare_lower_and_check(
             }
         }
     }
+    // Layout retries can materialize additional Product receipts. Check the final
+    // charges and the originating Build's charges in their own evaluation contexts.
+    pass.accounting
+        .validate_charges()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    if let Some(build_accounting) = pass.inputs.build_accounting {
+        build_accounting
+            .validate_charges()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    }
     Ok(CompletedProductSource {
         program: judged.program,
-        _source_completion_accounting: judged.source_completion_accounting,
         terminal_publication: judged.publication,
         deployments: pass
             .inputs
@@ -267,7 +274,6 @@ struct ProductSourcePass<'a, 'f> {
 
 struct JudgedSource {
     program: Arc<crate::source_state::FrozenTypedTrees>,
-    source_completion_accounting: crate::compile_time_invocations::SourceCompletionAccounting,
     publication: Arc<judge_lowered_source::SourcePublication>,
     provider_defaults: Vec<provider_choice_inputs::TargetProviderDefaults>,
 }

@@ -1,7 +1,7 @@
 //! Root service audits come from the Build events that actually ran. Each
 //! event names an original Build occurrence and an exact visible boundary
-//! declaration. The portable declaration anchor lets review rejoin it in
-//! the accepted Product source.
+//! declaration. Admission checks that each executed audit can be retained
+//! as a declaration in the accepted Product source.
 
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
@@ -11,7 +11,6 @@ use typed_trees_to_prepared_typed_trees::WireCompatibilityDemand;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
 use diagnostics::Diagnostic;
-pub use source_declarations::source_selections::ServiceAuditRegistration;
 use source_declarations::source_selections::{
     AssumedBindingContract, TestGroupRegistration, TestGroupService,
 };
@@ -19,7 +18,6 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 
 pub struct AdmittedProductDeclarations {
-    pub service_audits: Vec<ServiceAuditRegistration>,
     pub assumed_bindings: Vec<AssumedBindingContract>,
     pub wire_demands: Vec<WireCompatibilityDemand>,
     pub test_groups: Vec<TestGroupRegistration>,
@@ -61,10 +59,9 @@ pub fn admit(
         )]);
     }
     let formations = AuthoredFormations::new(typed, formations)?;
-    let service_audits = admit_service_audits(typed, activation, executed, &formations)?;
+    validate_service_audits(typed, activation, executed, &formations)?;
     let test_groups = admit_test_groups(typed, activation, executed, &formations)?;
     Ok(AdmittedProductDeclarations {
-        service_audits,
         assumed_bindings: Vec::new(),
         wire_demands: Vec::new(),
         test_groups,
@@ -204,18 +201,18 @@ impl<'request> AuthoredFormations<'request> {
     }
 }
 
-fn admit_service_audits(
+fn validate_service_audits(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     executed: &[ExecutedProductSelection],
     formations: &AuthoredFormations<'_>,
-) -> Result<Vec<ServiceAuditRegistration>, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     let mut audits = executed
         .iter()
         .filter(|event| event.request.operation == BuildOperation::ServiceAudit)
         .peekable();
     if formations.of(BuildOperation::ServiceAudit).next().is_none() && audits.peek().is_none() {
-        return Ok(Vec::new());
+        return Ok(());
     }
     let declarations = ProductDeclarationLookup::new(typed, &[ProductOperandRole::BoundarySubject]);
     // Every authored audit names a real boundary service, whether or not the
@@ -231,15 +228,11 @@ fn admit_service_audits(
     }
     services.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     services.dedup();
-    services
-        .into_iter()
-        .map(|symbol| {
-            Ok(ServiceAuditRegistration {
-                declaration: crate::source_symbols::retain_declaration(&typed.symbols, symbol)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-            })
-        })
-        .collect()
+    for symbol in services {
+        crate::source_symbols::retain_declaration(&typed.symbols, symbol)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    }
+    Ok(())
 }
 
 /*

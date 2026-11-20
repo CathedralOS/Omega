@@ -7,16 +7,12 @@ use crate::compile_product::source_targets::{
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use crate::source_state::{FrozenTypedTrees, ProductSourceIdentity};
 use diagnostics::Diagnostic;
-use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
-use symbols::SymbolHandle;
 
 #[derive(Debug, Clone)]
 pub struct SelectedProgramEntryContractSource {
     owner: ProductSourceIdentity,
     source: source_text::SourceId,
-    schema: SymbolHandle,
-    custody: DeclarationCustody,
     application: TraitApplicationEnvironment,
 }
 
@@ -31,12 +27,6 @@ impl SelectedProgramEntryContractSource {
     }
     pub const fn source(&self) -> source_text::SourceId {
         self.source
-    }
-    pub const fn schema(&self) -> SymbolHandle {
-        self.schema
-    }
-    pub const fn custody(&self) -> DeclarationCustody {
-        self.custody
     }
     pub fn application(&self) -> &TraitApplicationEnvironment {
         &self.application
@@ -117,18 +107,11 @@ pub fn select_program_entry_contract(
             "selected entry contract source does not declare one exact boundary schema".into(),
         ));
     };
-    let custody = match selection {
-        EntryContractSource::Bundled => DeclarationCustody::ToolchainContract,
-        EntryContractSource::Package(owner) => DeclarationCustody::Package(owner),
-        EntryContractSource::Unavailable => unreachable!("unavailable source refused above"),
-    };
     let application = AppliedTraitScope::abstract_scope(schema);
     let environment = application.environment();
     Ok(SelectedProgramEntryContractSource {
         owner: ProductSourceIdentity::new(typed),
         source: file.source_id,
-        schema: schema.symbol,
-        custody,
         application: environment,
     })
 }
