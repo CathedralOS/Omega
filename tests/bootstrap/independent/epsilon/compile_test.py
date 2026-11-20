@@ -288,6 +288,24 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     live = source[:offset] + source[offset:].replace(b'Marker::Set', b'tag', 1)
     executable, _ = program(live, 'stored-free-argument')
     assert observe(executable, b'\2') == reference(live, b'\2', 'stored-free-reference') == b'\1\10'
+    # The first trap owns the output prefix. A skipped right operand must leave
+    # the receiver untouched, and an ordinary name must read its current home.
+    source = boundary + (FIXTURES / 'stored_binary_operands.epsilon').read_bytes()
+    executable, operand_report = program(source, 'stored-binary-operands')
+    operand_report['cases'] = []
+    for mode, expected in enumerate([
+        b'\0' + struct.pack('<i', 42) + bytes([65, 2, 41, 66, 1, 1]),
+        b'\x01\x02T',    # left division by zero precedes the call that writes A
+        b'\x01\x02TA',   # the left call writes A before division by a literal zero
+        b'\x01\x07T',    # invalid left Boolean precedes its right call
+    ]):
+        argument = bytes([mode])
+        native = observe(executable, argument)
+        interpreted = reference(source, argument, f'stored-binary-reference-{mode}')
+        if native != expected or interpreted != expected:
+            raise ValueError((mode, native, interpreted, expected))
+        operand_report['cases'].append(identity(native))
+
     digits = digit_scanner(base, boundary, program, observe, reference, compiler)
     # Echo all decoded octets from one source literal, crossing each control,
     # delimiter and non-ASCII byte as data in the generated Delta program.
@@ -309,7 +327,8 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     assert actual == expected == reference(source, b'', 'compiler-signature-reference')
     signature_report['output'] = identity(actual)
     return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
-            'storage': storage_report, 'literal_bytes': literal_report, 'lexer_digits': digits,
+            'storage': storage_report, 'binary_operands': operand_report,
+            'literal_bytes': literal_report, 'lexer_digits': digits,
             'compiler_signature': signature_report}
 
 

@@ -1,0 +1,42 @@
+data Main { console: Console; count: i32; }
+machine Main::mark(&mut self) -> i32 {
+    self.count = self.count + 1;
+    self.console.write_byte(65);
+    return self.count;
+}
+machine Main::main(&mut self) {
+    let mode: i32 = self.console.read_byte();
+    transition mode {
+        0 -> normal()
+        1 -> fail_left()
+        2 -> fail_right()
+        _ -> bad_boolean()
+    }
+    state normal() {
+        let value: i32 = 0;
+        value = 40;
+        self.console.write_byte(self.mark() + (1));
+        self.console.write_byte((1) + value);
+        self.console.write_byte(('A') + 1);
+        let no: i32 = false && self.mark();
+        let yes: i32 = true || self.mark();
+        self.console.write_byte(no + yes);
+        self.console.write_byte(self.count);
+        self.console.exit_process(42);
+    }
+    state fail_left() {
+        self.console.write_byte(84);
+        self.console.write_byte((10 / 0) + self.mark());
+        self.console.exit_process(99);
+    }
+    state fail_right() {
+        self.console.write_byte(84);
+        self.console.write_byte(self.mark() / (0));
+        self.console.exit_process(99);
+    }
+    state bad_boolean() {
+        self.console.write_byte(84);
+        self.console.write_byte((2) && self.mark());
+        self.console.exit_process(99);
+    }
+}
