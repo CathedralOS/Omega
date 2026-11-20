@@ -27,10 +27,12 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
     let console = "Build::select_provider::<Console, AlphaConsole>(builder, alpha_bootstrap);";
     assert_eq!(standard.matches(exit).count(), 1);
     assert_eq!(standard.matches(console).count(), 1);
+    let selected_console = ("Console", "AlphaConsole", "configure_console");
+    let selected_exit = ("ProcessExit", "NativeProcessExit", "configure_process_exit");
     for (source, expected) in [
-        (standard.as_str(), vec!["AlphaConsole", "NativeProcessExit"]),
-        (&standard.replace(exit, ""), vec!["AlphaConsole"]),
-        (&standard.replace(console, ""), vec!["NativeProcessExit"]),
+        (standard.as_str(), vec![selected_console, selected_exit]),
+        (&standard.replace(exit, ""), vec![selected_console]),
+        (&standard.replace(console, ""), vec![selected_exit]),
     ] {
         let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
             "std-alpha-service-selections",
@@ -66,8 +68,12 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
                     panic!("provider selection needs its service and provider");
                 };
                 if matches!(service.path.as_str(), "Console" | "ProcessExit") {
-                    assert!(event.selecting_machine.is_some());
-                    alpha.push(provider.path.as_str());
+                    let span = event
+                        .selecting_machine
+                        .expect("provider selection author")
+                        .span;
+                    let author = &source[span.start..span.end];
+                    alpha.push((service.path.as_str(), provider.path.as_str(), author));
                 }
             }
         }
