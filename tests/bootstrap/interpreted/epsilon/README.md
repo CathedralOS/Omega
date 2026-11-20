@@ -20,9 +20,11 @@ python3 tests/bootstrap/interpreted/epsilon/portable.py /tmp/omega-interpreted \
 
 The default `language` profile checks the language's accepted Console spelling,
 exit, stdin, trap and framing behavior. `syntax-controls` checks refusal of
-each invalid `@` spelling. `historical-at` compares the original inputs with
-their original expectations, including the three Console examples that the
-grammar refuses. [Portable cases](../../conformance/README.md)
+each invalid `@` spelling. `--profile envelope` checks all eight EEREQ header
+identity bytes and all 32 closure digest bytes, plus the first reported failure
+when one request has multiple faults. `historical-at` compares the original
+inputs with their original expectations, including the three Console examples
+that the grammar refuses. [Portable cases](../../conformance/README.md)
 
 `--receipt` skips Delta compilation and prints the reused file. For comparisons,
 record which route constructed that file. Reuse still checks its bound
