@@ -481,7 +481,7 @@ machine classify_keyword(lexer: @mut Lexer) {
 
 machine lex_identifier(lexer: @mut Lexer) {
     lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     let first: DecodedScalar = decode_scalar(@lexer.source, lexer.cursor);
     lexer.cursor = lexer.cursor + first.width;
     transition { _ -> continue_scan(lexer) }
@@ -529,7 +529,7 @@ machine lex_identifier(lexer: @mut Lexer) {
 
 machine lex_whitespace(lexer: @mut Lexer) {
     lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     transition { _ -> scan(lexer) }
 
     machine scan(lexer: @mut Lexer) {
@@ -647,7 +647,7 @@ machine lex_block_comment(lexer: @mut Lexer) {
 
     machine unterminated(lexer: @mut Lexer) {
         let start: u64 in Trapping = lexer.token_start;
-        let end: u64 in Trapping = lexer.source.length as u64 in Trapping;
+        let end: u64 in Trapping = lexer.source.length as +Trapping;
         lexer_reject(lexer, LexDiagnosticCode::UnterminatedBlockComment, start, end);
     }
 }
@@ -673,7 +673,7 @@ machine copy_source_to_decoded(lexer: @mut Lexer, start: u64 in Trapping, end: u
 
 machine lex_cooked_string(lexer: @mut Lexer) {
     lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     lexer.cursor = lexer.cursor + 1;
     transition { _ -> scan(lexer) }
 
@@ -725,7 +725,7 @@ machine lex_cooked_string(lexer: @mut Lexer) {
 
     machine escape_byte(lexer: @mut Lexer, escape_start: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-        let escape: u32 in Trapping = source_byte as u32 in Trapping;
+        let escape: u32 in Trapping = source_byte as u32 +Trapping;
         transition escape {
             34 -> escaped_quote(lexer),
             92 -> escaped_slash(lexer),
@@ -792,10 +792,10 @@ machine lex_cooked_string(lexer: @mut Lexer) {
         push_token(lexer, TokenKind::StringLiteral);
     }
 
-    machine unterminated(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as u64 in Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringLiteral, start, end); }
-    machine unterminated_escape(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as u64 in Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringEscape, start, end); }
+    machine unterminated(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringLiteral, start, end); }
+    machine unterminated_escape(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringEscape, start, end); }
     machine unsupported_escape(lexer: @mut Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.cursor + 1; lexer_reject(lexer, LexDiagnosticCode::UnsupportedEscape, escape_start, end); }
-    machine hex_unterminated(lexer: @mut Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.source.length as u64 in Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedHexEscape, escape_start, end); }
+    machine hex_unterminated(lexer: @mut Lexer, escape_start: u64 in Trapping) { let end: u64 in Trapping = lexer.source.length as +Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedHexEscape, escape_start, end); }
     machine hex_invalid_first(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.cursor + 1; let end: u64 in Trapping = lexer.cursor + 2; lexer_reject(lexer, LexDiagnosticCode::InvalidHexEscapeDigit, start, end); }
     machine hex_invalid_second(lexer: @mut Lexer) { let start: u64 in Trapping = lexer.cursor + 2; let end: u64 in Trapping = lexer.cursor + 3; lexer_reject(lexer, LexDiagnosticCode::InvalidHexEscapeDigit, start, end); }
     machine outside_profile_escape(lexer: @mut Lexer, escape_start: u64 in Trapping) {
@@ -899,7 +899,7 @@ machine consume_digits(lexer: @mut Lexer, base: NumericBase) -> bool {
     }
     machine byte(lexer: @mut Lexer, base: NumericBase, saw_digit: bool) -> bool {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-        let current: u32 in Trapping = source_byte as u32 in Trapping;
+        let current: u32 in Trapping = source_byte as u32 +Trapping;
         transition current == 95 {
             true -> underscore(lexer, base, saw_digit),
             _ -> digit(lexer, base, saw_digit, current)
@@ -976,7 +976,7 @@ machine dot_starts_float(lexer: @mut Lexer) -> bool {
 
 machine lex_number(lexer: @mut Lexer) {
     lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     lexer.literal_magnitude = 0;
     lexer.literal_exact = true;
     let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
@@ -993,7 +993,7 @@ machine lex_number(lexer: @mut Lexer) {
 
     machine integer_begin(lexer: @mut Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-        let first: u32 in Trapping = source_byte as u32 in Trapping;
+        let first: u32 in Trapping = source_byte as u32 +Trapping;
         lexer.cursor = lexer.cursor + 1;
         lexer.literal_magnitude = ((source_byte as u64) as +Wrapping) - 48;
         transition first == 48 {
@@ -1011,7 +1011,7 @@ machine lex_number(lexer: @mut Lexer) {
 
     machine prefix(lexer: @mut Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-        let marker: u32 in Trapping = source_byte as u32 in Trapping;
+        let marker: u32 in Trapping = source_byte as u32 +Trapping;
         transition marker == 98 || marker == 66 {
             true -> based_digits(lexer, NumericBase::Binary),
             _ -> octal_check(lexer, marker)
@@ -1065,7 +1065,7 @@ machine lex_number(lexer: @mut Lexer) {
     }
     machine exponent_byte(lexer: @mut Lexer, is_float: bool) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-        let marker: u32 in Trapping = source_byte as u32 in Trapping;
+        let marker: u32 in Trapping = source_byte as u32 +Trapping;
         transition marker == 101 || marker == 69 {
             true -> exponent_begin(lexer),
             _ -> no_exponent(lexer, is_float)
@@ -1083,7 +1083,7 @@ machine lex_number(lexer: @mut Lexer) {
     }
     machine exponent_sign(lexer: @mut Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-        let sign: u32 in Trapping = source_byte as u32 in Trapping;
+        let sign: u32 in Trapping = source_byte as u32 +Trapping;
         transition sign == 43 || sign == 45 { true -> exponent_sign_consume(lexer), _ -> exponent_digits(lexer) }
     }
     machine exponent_sign_consume(lexer: @mut Lexer) { lexer.cursor = lexer.cursor + 1; transition { _ -> exponent_digits(lexer) } }
@@ -1124,9 +1124,9 @@ machine lex_number(lexer: @mut Lexer) {
 // bounds the span an unsupported scalar rejects.
 machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
     lexer.token_start = lexer.cursor;
-    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.decoded_start = lexer.output.decoded_length as +Trapping;
     let first_byte: u8 = source_unit_byte_or_nul(@lexer.source, lexer.cursor);
-    let byte0: u32 in Trapping = first_byte as u32 in Trapping;
+    let byte0: u32 in Trapping = first_byte as u32 +Trapping;
     let index1: u64 in Trapping = lexer.cursor + 1;
     let index2: u64 in Trapping = lexer.cursor + 2;
     transition index1 < lexer.source.length { true -> second(lexer, scalar_width, byte0, index1, index2), _ -> classify(lexer, scalar_width, byte0, 4294967295, 4294967295) }
@@ -1138,7 +1138,7 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
         index2: u64 in Trapping
     ) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1);
-        let byte1: u32 in Trapping = source_byte as u32 in Trapping;
+        let byte1: u32 in Trapping = source_byte as u32 +Trapping;
         transition index2 < lexer.source.length { true -> third(lexer, scalar_width, byte0, byte1, index2), _ -> classify(lexer, scalar_width, byte0, byte1, 4294967295) }
     }
     machine third(
@@ -1149,7 +1149,7 @@ machine lex_punctuation(lexer: @mut Lexer, scalar_width: u64 in Trapping) {
         index2: u64 in Trapping
     ) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index2);
-        let byte2: u32 in Trapping = source_byte as u32 in Trapping;
+        let byte2: u32 in Trapping = source_byte as u32 +Trapping;
         transition { _ -> classify(lexer, scalar_width, byte0, byte1, byte2) }
     }
 
@@ -1366,7 +1366,7 @@ machine lex_next(lexer: @mut Lexer) {
     machine line_comment_bound(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 47 && index1 < lexer.source.length { true -> comment_second(lexer, scalar, width, index1), _ -> raw_check(lexer, scalar, width) } }
     machine comment_second(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1);
-        let second: u32 in Trapping = source_byte as u32 in Trapping;
+        let second: u32 in Trapping = source_byte as u32 +Trapping;
         transition second == 47 { true -> line_comment(lexer), _ -> block_comment_check(lexer, scalar, width, second) }
     }
     machine line_comment(lexer: @mut Lexer) { lex_line_comment(lexer); }
@@ -1390,7 +1390,7 @@ machine lex_next(lexer: @mut Lexer) {
     machine identifier(lexer: @mut Lexer) { lex_identifier(lexer); }
     machine number_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> number(lexer), _ -> leading_dot_check(lexer, scalar, width) } }
     machine leading_dot_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 46 && index1 < lexer.source.length { true -> leading_dot_second(lexer, scalar, width, index1), _ -> string_check(lexer, scalar, width) } }
-    machine leading_dot_second(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) { let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1); let second: u32 in Trapping = source_byte as u32 in Trapping; transition second >= 48 && second <= 57 { true -> number(lexer), _ -> string_check(lexer, scalar, width) } }
+    machine leading_dot_second(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) { let source_byte: u8 = source_unit_byte_or_nul(@lexer.source, index1); let second: u32 in Trapping = source_byte as u32 +Trapping; transition second >= 48 && second <= 57 { true -> number(lexer), _ -> string_check(lexer, scalar, width) } }
     machine number(lexer: @mut Lexer) { lex_number(lexer); }
     machine string_check(lexer: @mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar == 34 { true -> string(lexer), _ -> punctuation(lexer, width) } }
     machine string(lexer: @mut Lexer) { lex_cooked_string(lexer); }
