@@ -2,6 +2,8 @@
 //! L4's public input contract, including refusals a valid source cannot produce.
 #[path = "support/typed_packages.rs"]
 mod typed_packages;
+#[path = "typed_input_diagnostics/providers.rs"]
+mod providers;
 
 use omega_preparation::{
     CheckedPreparationEvidence, PreparationAnswers, PreparationReason, PreparedValue, RefusalCause,

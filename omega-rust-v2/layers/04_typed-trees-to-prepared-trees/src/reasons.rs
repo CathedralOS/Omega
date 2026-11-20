@@ -49,6 +49,10 @@ preparation_reasons! {
     NoCanonicalIndexIdentity => "the prepared value has no canonical static index identity",
     /// A named constant read has no typed initializer in this pass.
     ConstantWithoutInitializer => "the selected constant has no local typed initializer",
+    /// A typed initializer selects an expression other than its declaration's RHS.
+    ConstantInitializerDeclarationMismatch => "the selected expression is not the initializer of this constant declaration",
+    /// The pass contains more than one initializer record for the same declaration.
+    DuplicateConstantInitializer => "the constant declaration has more than one typed initializer record",
     /// Named constant initializers read each other in a cycle.
     CyclicConstantInitializer => "cyclic constant initializer",
     /// A constant reference selects more than one declaration.

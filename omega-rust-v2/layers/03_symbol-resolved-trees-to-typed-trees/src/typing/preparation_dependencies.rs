@@ -1,11 +1,15 @@
 //! Unfinished checks block consumers of their types, bodies, and contracts.
 //! A static expression can still be ready inside an unfinished declaration.
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_error::SourceTypeError;
+use crate::type_system::type_catalog::TypeCatalog;
 use crate::{InvocationTarget, ObligationKind, StaticValueDemand, TypeError, TypedStage, ValueType};
 use omega_resolved::{DeclarationId, Symbol, SymbolResolvedTrees, TreeNodeId};
 use omega_syntax::NodeKind;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, hash_map::Entry};
+
+mod selected_inputs;
 
 #[derive(Default)]
 pub(crate) struct PreparationDependencies<'a> {
@@ -225,18 +229,49 @@ impl<'a> PreparationDependencies<'a> {
     pub(super) fn ready_demands(
         &self,
         mut demands: Vec<StaticValueDemand>,
+        units: &[ResolvedSourceFile<'_>],
+        types: &TypeCatalog<'_>,
+        output: &TypedStage,
     ) -> Result<Vec<StaticValueDemand>, TypeError> {
+        let mut selected = None;
+        let mut slots_by_node = HashMap::new();
+        for demand in &demands {
+            let StaticValueDemand::Specialized { request, arguments } = demand else { continue };
+            if !self.node_is_ready(request.node) || !arguments.iter().any(|arg| matches!(arg, ValueType::MachineSelection(_))) {
+                continue;
+            }
+            let Entry::Vacant(entry) = slots_by_node.entry(request.node) else { continue };
+            let used = selected.get_or_insert_with(|| selected_inputs::SelectedInputs::collect(output));
+            let unit = &units[request.node.file];
+            let owner = unit
+                .specialization_owner(request.node.node)
+                .ok_or_else(|| TypeError::for_site(&request.expression, "the specialized static expression has no owning declaration"))?;
+            let slots: HashSet<_> = used
+                .expression_slots(request.node, unit.file.nodes[request.node.node].end)
+                .filter_map(|(binder, index)| types.specialization_slot(owner, binder, index))
+                .collect();
+            entry.insert(slots);
+        }
+        // Identity keeps the complete tuple. Availability depends on which
+        // slots this particular recipe calls, in this particular application.
+        let ready = |demand: &StaticValueDemand| {
+            self.node_is_ready(demand.request().node)
+                && match (demand, &selected) {
+                    (StaticValueDemand::Specialized { request, arguments }, Some(used)) => slots_by_node
+                        .get(&request.node)
+                        .is_none_or(|slots| slots.iter().all(|&slot| used.ready(&arguments[slot], self))),
+                    _ => true,
+                }
+        };
         if let Some(first) = demands.first()
-            && demands
-                .iter()
-                .all(|demand| !self.node_is_ready(demand.request().node))
+            && !demands.iter().any(ready)
         {
             return Err(TypeError::for_site(
                 &first.request().expression,
                 "static evaluation is blocked by a typing dependency cycle",
             ));
         }
-        demands.retain(|demand| self.node_is_ready(demand.request().node));
+        demands.retain(ready);
         Ok(demands)
     }
 }

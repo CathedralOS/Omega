@@ -133,7 +133,7 @@ impl ConstantEvaluation<'_, '_> {
         project_callback_bindings(
             callback_parameters(&template.machine, &template.type_arguments, &template.enclosing_arguments),
             |owner, index| selected.generic_argument(owner, index),
-            scope.application().map(CallbackArguments::Call),
+            CallbackArguments::from_scope(scope),
             &scope.bindings().callback_bindings,
         )
     }
@@ -149,7 +149,7 @@ impl ConstantEvaluation<'_, '_> {
         let (selection, binding) = self.checked_callback_binding(
             obligation,
             caller,
-            scope.application().map(CallbackArguments::Call),
+            CallbackArguments::from_scope(scope),
             &scope.bindings().callback_bindings,
         )?;
         self.admit_callback_body(&selection, &binding.captured, execution)?;
@@ -184,7 +184,7 @@ impl ConstantEvaluation<'_, '_> {
             .signatures()
             .get(selection.machine.as_ref())
             .ok_or(PreparationReason::CallbackWithoutSignature)?;
-        admit_callback_contract(contract, parent, &selection, signature)?;
+        self.admit_callback_contract(contract, parent, &selection, signature)?;
         let bound = close(&ValueType::Callable(contract.clone()));
         self.check_callback_refinement(obligation, caller, &bound, &selection, signature)?;
         Ok((
@@ -260,7 +260,7 @@ impl ConstantEvaluation<'_, '_> {
                 .signatures()
                 .get(selection.machine.as_ref())
                 .ok_or(PreparationReason::CallbackWithoutSignature)?;
-            admit_callback_contract(contract, application, &selection, signature)?;
+            self.admit_callback_contract(contract, application, &selection, signature)?;
             self.admit_bound_callback(bindings, owner, *index, application, contract, signature)?;
         }
         Ok((selection, captured))
@@ -287,17 +287,17 @@ impl ConstantEvaluation<'_, '_> {
         let InvocationTarget::StaticParameter { owner, index } = &call.entry else {
             return Err(PreparationReason::InexactCallbackSelection.into());
         };
-        let caller = scope
-            .application()
-            .ok_or(PreparationReason::CallbackWithoutCallerApplication)?;
-        let (selection, captured) = selected_callback(&call.entry, Some(CallbackArguments::Call(caller)), &scope.bindings().callback_bindings)?;
+        // The producer orders each specialized demand after its selected
+        // bodies. Its owner tuple supplies arguments, never a proof identity.
+        let arguments = CallbackArguments::from_scope(scope).ok_or(PreparationReason::CallbackWithoutCallerApplication)?;
+        let (selection, captured) = selected_callback(&call.entry, Some(arguments), &scope.bindings().callback_bindings)?;
         let signature = self.admit_callback_body(&selection, &captured, execution)?;
-        admit_callback_contract(&call.contract, Some(CallbackArguments::Call(caller)), &selection, signature)?;
+        self.admit_callback_contract(&call.contract, Some(arguments), &selection, signature)?;
         self.admit_bound_callback(
             &scope.bindings().callback_bindings,
             owner,
             *index,
-            Some(CallbackArguments::Call(caller)),
+            Some(arguments),
             &call.contract,
             signature,
         )?;
@@ -306,6 +306,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         let application = callback_application(&selection, call, signature, scope);
         if call.contract.requires || call.contract.has_guarantee {
+            let caller = scope.application().ok_or(PreparationReason::CallbackNeedsRefinement)?;
             execution.steps.push(Step::EnterCheckedCallback {
                 request: CallableUse {
                     site,
@@ -682,16 +683,27 @@ fn callback_entries(effects: &MachineEffects) -> impl Iterator<Item = Invocation
 
 #[derive(Clone, Copy)]
 enum CallbackArguments<'a> {
+    Initializer(InitializerArguments<'a>),
     Call(&'a TypedCall),
     Selection(&'a MachineApplication),
 }
 
 impl<'a> CallbackArguments<'a> {
+    fn from_scope(scope: &'a Scope<'_>) -> Option<Self> {
+        match scope {
+            Scope::Initializer { owner_scopes, owner_arguments, .. } if !owner_scopes.is_empty() => {
+                Some(Self::Initializer(InitializerArguments { scopes: owner_scopes, values: owner_arguments }))
+            }
+            _ => scope.application().map(Self::Call),
+        }
+    }
+
     fn instantiate(
         self,
         value: &ValueType,
     ) -> ValueType {
         match self {
+            Self::Initializer(scope) => scope.instantiate(value),
             Self::Call(call) => call.instantiate(value),
             Self::Selection(selection) => selection.instantiate(value),
         }
@@ -703,6 +715,7 @@ impl<'a> CallbackArguments<'a> {
         index: usize,
     ) -> Option<&'a ValueType> {
         match self {
+            Self::Initializer(arguments) => arguments.bindings().find(|(binder, _)| *binder == owner).and_then(|(_, values)| values.get(index)),
             Self::Call(call) => call.generic_argument(owner, index),
             Self::Selection(selection) => machine_argument(selection, owner, index),
         }
@@ -819,29 +832,33 @@ fn selected_callback(
     }
 }
 
-fn admit_callback_contract(
-    contract: &CallableType,
-    application: Option<CallbackArguments<'_>>,
-    selection: &MachineApplication,
-    signature: &TypedSignature,
-) -> Result<(), EvaluationError> {
-    let instantiate = |value: &ValueType| application.map_or_else(|| value.clone(), |applied| applied.instantiate(value));
-    if contract.requirement.is_some()
-        || contract.crash_ceiling.as_ref().is_some_and(|ceiling| {
-            signature
-                .crash_ceiling
-                .as_ref()
-                .is_none_or(|causes| causes.iter().any(|cause| !ceiling.contains(cause)))
-        })
-        || instantiate(&contract.result) != selection.instantiate(&signature.result)
-        || !contract.parameters.iter().map(instantiate).eq(signature
-            .parameters
-            .iter()
-            .map(|(_, parameter)| selection.instantiate(parameter)))
-    {
-        return Err(PreparationReason::ForwardedCallbackNeedsRefinement.into());
+impl ConstantEvaluation<'_, '_> {
+    fn admit_callback_contract(
+        &self,
+        contract: &CallableType,
+        application: Option<CallbackArguments<'_>>,
+        selection: &MachineApplication,
+        signature: &TypedSignature,
+    ) -> Result<(), EvaluationError> {
+        let instantiate = |value: &ValueType| application.map_or_else(|| value.clone(), |applied| applied.instantiate(value));
+        let exceeds_crash_bound = |ceiling: &[omega_typed::CrashCause]| {
+            // An authored ceiling is never narrowed by a body summary. Only
+            // the producer can publish an inferred row when it is omitted.
+            let published = signature.crash_ceiling.as_ref().or_else(|| {
+                let &(index, _) = self.signatures().get(selection.machine.as_ref())?;
+                self.machine_effects(index)?.crash_ceiling.as_ref()
+            });
+            published.is_none_or(|causes| causes.iter().any(|cause| !ceiling.contains(cause)))
+        };
+        if contract.requirement.is_some()
+            || contract.crash_ceiling.as_deref().is_some_and(exceeds_crash_bound)
+            || instantiate(&contract.result) != selection.instantiate(&signature.result)
+            || !contract.parameters.iter().map(instantiate).eq(signature.parameters.iter().map(|(_, parameter)| selection.instantiate(parameter)))
+        {
+            return Err(PreparationReason::ForwardedCallbackNeedsRefinement.into());
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]

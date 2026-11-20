@@ -1,7 +1,10 @@
 use num_bigint::BigInt;
 use omega_preparation::{PreparedTrees, prepare_source_package};
 use omega_resolver::{ParsedSource, StageSource};
-use omega_typer::{TypeError, ValueType, resolve_source_package};
+use omega_typer::{SourcePackage, TypeError, ValueType, resolve_source_package};
+
+#[path = "integer_constants/selected_rule.rs"]
+mod selected_rule;
 
 const WIDTH: &str = "machine width(n:u8)->u8 reaches none crashes none terminates {n +% 1}";
 const BYTE: ValueType = ValueType::Integer { signed: false, width: Some(8) };
@@ -11,6 +14,10 @@ fn prepare(source: &str) -> Result<PreparedTrees<'_>, TypeError> {
 }
 
 fn prepare_files<'text, const N: usize>(files: [(&'text str, &'text str); N]) -> Result<PreparedTrees<'text>, TypeError> {
+    prepare_source_package(&source_package(files))
+}
+
+fn source_package<'text, const N: usize>(files: [(&'text str, &'text str); N]) -> SourcePackage<'text> {
     let parsed = files.map(|(path, source)| {
         let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
         let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
@@ -25,8 +32,7 @@ fn prepare_files<'text, const N: usize>(files: [(&'text str, &'text str); N]) ->
             tree,
         },
     });
-    let package = resolve_source_package(&sources).unwrap();
-    prepare_source_package(&package)
+    resolve_source_package(&sources).unwrap()
 }
 
 fn assert_integer_constant(

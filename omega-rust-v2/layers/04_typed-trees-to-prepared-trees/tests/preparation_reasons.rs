@@ -16,6 +16,11 @@ use omega_preparation::{
 use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::{AssemblyTypes, SourcePackage, resolve_source_package, resolve_source_package_with_assembly};
 
+#[path = "preparation_reasons/cycle_site.rs"]
+mod cycle_site;
+#[path = "preparation_reasons/unsupported.rs"]
+mod unsupported;
+
 const PACKAGE: &str = "app";
 const FILE: &str = "main.omg";
 const ADMISSION: &str = "static evaluation cannot admit this invocation: ";
