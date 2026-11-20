@@ -142,8 +142,10 @@ mod tests {
                 .start();
             (name, declaration, parameter)
         });
-        let mut program = TypedTrees::default();
-        program.symbols = symbols.finish();
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
         let argument = program.type_reference_table.insert(TypeReferenceNode::Unit);
         for (name, declaration, parameter) in declarations {
             let index_is_missing = name == "MissingIndex";
