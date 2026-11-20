@@ -68,6 +68,32 @@ def run(delta, gamma, work, full_output):
         binary.chmod(0o700)
         return binary, receipt
 
+    # A checked single-constructor type carries its product directly. Put one
+    # inside a tagged sum and destructure both shapes on the same call path.
+    records = b'''(data Byte (ByteValue Int))
+(data Record (Fields Byte Bytes))
+(data Choice (Absent) (Present Record))
+(def unpack ((r Record)) Bytes
+  (match r ((Fields b suffix)
+    (match b ((ByteValue n) (bytes_concat (bytes_single n) suffix))))))
+(def main ((s Bytes)) Bytes
+  (match (Present (Fields (ByteValue 42) s))
+    ((Present r) (unpack r)) (Absent "unused")))
+'''
+    program, _ = build(1, records, 'records')
+    check(execute(program, b'\x00\xff'), b'*\x00\xff', 'nested records in a tagged sum')
+    # Exhaustiveness does not allow dropping evaluation of the scrutinee.
+    unused = b'''(data Byte (ByteValue Int))
+(def main ((s Bytes)) Bytes (match (ByteValue (/ 1 0)) ((ByteValue unused) s)))'''
+    program, _ = build(1, unused, 'unused-record')
+    check(execute(program, b'x', 249), b'', 'unused record field still traps')
+    nominal = b'''(data Left (L Int))
+(data Right (R Int))
+(def accept ((x Left)) Int (match x ((L n) n)))
+(def main ((s Bytes)) Bytes (bytes_single (accept (R 42))))'''
+    check(execute(delta, request(1, nominal), 1),
+          failure(1, 1, 15, nominal.index(b'(R 42)')), 'distinct one-field record types')
+
     # Both profiles publish the same shared value. Each copy has 1,024 empty
     # prefixes, so logical length and the number of visited nodes differ.
     wrapped = Path(__file__).with_name('shared_empty_rope.delta').read_bytes()

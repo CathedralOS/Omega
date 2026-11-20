@@ -26,7 +26,7 @@ no observation can produce.
 | packed Epsilon evaluator closure | 615,652 | `691122629a7f47ab7a929289a1ec33aae27577b9a955b874c06a8fe444e86ab2` |
 | canonical entry `interpreter.delta` | 6,359 | `bb5cbcde90d66cf4e54057815d4953a1e8d2452f918cab122ebb116393b10869` |
 | Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
-| canonical evaluator receipt | 720,000 | `ed3be84e6c9c540f3ee1bc5179268d033168063a547babcebc68ac055bb49543` |
+| canonical evaluator receipt | 700,335 | `b2e5836d46ba4d5c7c745803ed10a368d26cdca5834a376c47a5c37faccb9d5a` |
 
 The entry embeds the digest of the evaluator's ordered library sources. To build
 the executable Delta subject, concatenate the packed library and
@@ -47,7 +47,7 @@ The edge consumes one Gamma evaluator request whose sealed input is the
 complete EREQ envelope:
 
 ```text
-0..4    little-endian u32 receipt length = 720,000
+0..4    little-endian u32 receipt length = 700,335
 4..     exact canonical receipt bytes
 ...     sealed input = the EREQ v1 envelope:
 

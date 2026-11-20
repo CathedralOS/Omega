@@ -1,10 +1,11 @@
 (def lowering_constructor
   ((name Int) (count Int) (arguments Int) (globals Int)) Int
   (let ((metadata Int (require_constructor_metadata (syntax_start name) (syntax_after name) globals))
+        (owner Int (constructor_metadata_type metadata))
         (tag Int (gamma_integer (- (constructor_metadata_tag metadata) 1))))
-    (if (type_metadata_has_payload (constructor_metadata_type metadata))
-      (gamma_pair tag
-        (if (eq count 0) (gamma_integer 0) (lowering_product count arguments)))
+    (if (type_metadata_has_payload owner)
+      (let product Int (if count (lowering_product count arguments) (gamma_integer 0))
+        (if (eq (type_metadata_constructor_count owner) 1) product (gamma_pair tag product)))
       tag)))
 
 ; The right-nested product is explicit Gamma structure, not an opaque emission

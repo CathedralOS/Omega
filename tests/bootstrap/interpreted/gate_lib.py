@@ -69,5 +69,5 @@ def require_rung_identities(directory, adapter):
 
 
 def require_receipt_identity(receipt):
-    require_identity("Epsilon execution receipt", receipt, 712603,
-                     "0155e1ae30f168f955c1e23e0c69017215cbf53f8eb2ea990bbd454da631fbc2")
+    require_identity("Epsilon execution receipt", receipt, 692938,
+                     "cc781abb4ea5bfd276afd316223215bf4b0054ee4ed7b825a85c6fc213b1fb90")
