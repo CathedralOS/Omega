@@ -2348,6 +2348,10 @@ machine OmegaScalarCompiler::check_transition_target(
         OmegaTransitionTargetKind::Result -> return self.check_value(source, owner, state_index,
             before, row.result_expression, self.state_types[state_index])
         OmegaTransitionTargetKind::Machine -> target(row)
+        OmegaTransitionTargetKind::Terminal -> unit(row.target.start)
+    }
+    state unit(coordinate: i32) {
+        transition self.state_types[state_index] == 2 { true -> return 1 _ -> reject(coordinate) }
     }
     state target(row: OmegaTransitionStatementSyntax) {
         let target: i32 = self.resolve_state(source, state_index, row.target.start, row.target.end);
@@ -2690,11 +2694,19 @@ machine OmegaScalarCompiler::emit_arguments(
     }
 }
 
+machine OmegaScalarCompiler::emit_unit_return(&mut self) -> i32 {
+    transition (self.tape.emit_imm(0, 0, 0) == 1) && (self.tape.emit_ret() == 1) {
+        true -> return 1
+        _ -> return 0
+    }
+}
+
 machine OmegaScalarCompiler::emit_transition_target(&mut self, row_index: i32) -> i32 {
     let row: OmegaTransitionStatementSyntax = self.parser.transition_statements[row_index];
     transition row.target_kind {
         OmegaTransitionTargetKind::Result -> result(row.result_expression)
         OmegaTransitionTargetKind::Machine -> target(row, self.transition_targets[row_index])
+        OmegaTransitionTargetKind::Terminal -> return self.emit_unit_return()
     }
     state result(expression: i32) {
         transition (self.emit_value(expression) == 1) && (self.tape.emit_ret() == 1) {
@@ -4661,8 +4673,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state emit_unit_terminal(index: i32, state_index: i32) {
-        transition (self.tape.emit_imm(0, 0, 0) == 1) && (self.tape.emit_ret() == 1) {
-            true -> emit_state(index, state_index + 1)
+        transition self.emit_unit_return() {
+            1 -> emit_state(index, state_index + 1)
             _ -> emission_failure()
         }
     }

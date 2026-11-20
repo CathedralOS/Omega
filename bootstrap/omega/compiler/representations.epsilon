@@ -671,6 +671,7 @@ data OmegaTransitionPatternFieldSyntax {
 data OmegaTransitionTargetKind {
     case Machine;
     case Result;
+    case Terminal;
 }
 
 // The first transition slice retains zero or one subject and expands every arm
