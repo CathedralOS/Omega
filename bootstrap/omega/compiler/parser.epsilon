@@ -4662,13 +4662,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state transition_arm_integer() {
-        transition self.scan.numeric_base {
-            OmegaNumericBase::Decimal -> transition_arm_decimal_integer()
-            _ -> incomplete_root()
-        }
-    }
-
-    state transition_arm_decimal_integer() {
         transition (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) &&
             (self.scan.numeric_has_exponent == 0) {
