@@ -277,31 +277,7 @@ impl Program<'_> {
         } else {
             self.declared_service(context, owner)?
         };
-        if !crate::lowering::reach::has_authored_ceiling(typed, context, declared.symbol)? {
-            return Err(services::unavailable(
-                context,
-                "boundary requirement has an open service ceiling; write reaches",
-            ));
-        }
-        let clauses = typed
-            .signature_contracts
-            .span(declared.contracts)
-            .ok_or_else(|| {
-                services::unavailable(context, "boundary requirement has a stale clause span")
-            })?;
-        if !declared.declares_no_crash_route
-            && !clauses.iter().any(|clause| {
-                matches!(
-                    clause.kind,
-                    crate::source_state::signature::SignatureContractKind::Crashes { .. }
-                )
-            })
-        {
-            return Err(services::unavailable(
-                context,
-                "boundary requirement has an open crash ceiling; write crashes",
-            ));
-        }
+        self.require_closed_callable(context, declared, "boundary requirement")?;
         let envelope = self.signature_envelope(context, declared)?;
         let declaration = crate::lowering::declare::boundary_source(
             self.typed,

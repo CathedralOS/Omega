@@ -101,6 +101,45 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    /// Runtime storage and boundary requirements both publish a closed contract.
+    pub(super) fn require_closed_callable(
+        &self,
+        machine: MachineId,
+        declared: &crate::source_state::signature::StateSignature,
+        position: &str,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let clauses = typed
+            .signature_contracts
+            .span(declared.contracts)
+            .ok_or_else(|| unavailable(machine, "callable has a stale contract span"))?;
+        let site = SourceOrigin::of(
+            typed
+                .symbols
+                .symbol_provenance_source_span(declared.symbol)
+                .unwrap_or_default(),
+        );
+        if !crate::lowering::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
+            return Err(crate::lowering::reject(
+                machine,
+                site,
+                format!("{position} has an open service ceiling; write reaches"),
+            ));
+        }
+        if !declared.declares_no_crash_route
+            && !clauses
+                .iter()
+                .any(|clause| matches!(clause.kind, SignatureContractKind::Crashes { .. }))
+        {
+            return Err(crate::lowering::reject(
+                machine,
+                site,
+                format!("{position} has an open crash ceiling; write crashes"),
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn callable_type(
         &mut self,
         machine: MachineId,
@@ -133,27 +172,8 @@ impl<'t> Program<'t> {
                 "runtime callable has open static parameters",
             ));
         }
-        if !crate::lowering::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
-            return Err(unavailable(
-                machine,
-                "runtime callable has an open service ceiling; write reaches",
-            ));
-        }
+        self.require_closed_callable(machine, declared, "runtime callable")?;
         let envelope = self.signature_envelope(machine, declared)?;
-        let clauses = typed
-            .signature_contracts
-            .span(declared.contracts)
-            .ok_or_else(|| unavailable(machine, "runtime callable has a foreign contract span"))?;
-        if !declared.declares_no_crash_route
-            && !clauses
-                .iter()
-                .any(|clause| matches!(clause.kind, SignatureContractKind::Crashes { .. }))
-        {
-            return Err(unavailable(
-                machine,
-                "runtime callable has an open crash ceiling; write crashes",
-            ));
-        }
         self.callables.resolving.push(source);
         let signature = self.runtime_callable_signature(machine, declared);
         self.callables.resolving.pop();
