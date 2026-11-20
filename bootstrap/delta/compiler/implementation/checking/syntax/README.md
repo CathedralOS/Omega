@@ -29,7 +29,10 @@ not consume one Gamma return context per source nesting level during parsing.
 
 ## Syntax storage
 
-[storage.gamma](storage.gamma) owns the 114,294,752-byte syntax provision.
+The parser and grammar share 114,294,752 syntax bytes in the ordinary profile.
+The ConstructionBytesV1 compiler allows 1,073,741,824 bytes. The full frozen
+Omega compiler's emitted Delta program requires 650,801,080 bytes for the
+parser alone. [Provision](storage.gamma) · [Measured program](../../../../../../tests/bootstrap/independent/epsilon/WIDE_OUTPUT.md)
 This producer charges its actual syntax objects at the selected Gamma
 evaluator's 40 bytes per immutable pair. It does not charge a historical
 32-byte typed-syntax row for a differently represented S-expression node.
@@ -61,9 +64,9 @@ current child. Successful declaration outcomes carry the updated scalar usage
 into the next declaration, so completed work does not reset the ledger.
 
 An over-limit request produces halt/tag 2, resource code 7, source coordinate
-space 1, the coordinate above, limit 114,294,752, and the exact cumulative
+space 1, the coordinate above, the active profile’s byte limit, and the exact cumulative
 bytes requested for the complete group. At 40-byte granularity, literal
-equality with the limit is impossible; its last 32 bytes cannot hold a pair.
+equality with the limit is impossible; the ordinary limit leaves 32 bytes and the construction limit leaves 24 bytes.
 Requested bytes are not rounded down or replaced with `limit + 1`.
 All counts derive from admitted source extents or fixed object shapes, and
 their products and sums fit Gamma's signed scalar range.

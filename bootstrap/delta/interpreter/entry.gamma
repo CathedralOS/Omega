@@ -9,6 +9,9 @@
 (def source_read ((index Int)) Int
   (read (+ 4 index)))
 
+; Direct execution shares the ordinary checker and its syntax budget.
+(def compilation_profile () Int 1)
+
 (def main () Int
   (if (lt (input) 4)
     (publish_compiler_failure (compiler_failure 1 4 1 (input) 0 0))

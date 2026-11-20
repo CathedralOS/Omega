@@ -22,6 +22,33 @@ The compiler validates all functions and branches before buffered publication.
 The public [Gamma semantics](../../../bootstrap/gamma/LANGUAGE.md) and existing
 compiler's explicit accepted subset govern both realizations.
 
+## Delta syntax for the emitted Omega compiler
+
+The Epsilon compiler emitted a complete 18,365,364-byte Delta program with
+its storage runtime and entry (SHA-256
+`f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab`).
+It contains 7,774 top-level forms, 468,044 lists and 1,172,126 atoms.
+Applying the parser's production allocation ledger gives 384,199,320 bytes
+for balanced parsing. Grammar then allocates from the same budget.
+[Syntax representation and charges](../../../bootstrap/delta/compiler/implementation/checking/syntax/README.md)
+
+The ConstructionBytesV1 Delta compiler now provisions 1 GiB for syntax. On
+this program it completed grammar, resolution, type checking and lowering.
+With the earlier 16,777,212-byte Gamma output limit, its emission preflight
+returned code 12 in emitted-payload space and requested 26,398,215 bytes.
+[Emission preflight](../../../bootstrap/delta/compiler/implementation/pipeline.gamma)
+
+The frozen 4,107,257-byte Omega signature-checking program
+(`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`) takes
+90,118,000 parser bytes. Its original 114,294,752-byte syntax provision ran out
+during grammar at byte 3,132,226. With the construction provision the compiler
+published 5,819,889 bytes of Gamma (SHA-256
+`5bfd4417a851ca411730364a88935511494847cd8a80392e110ec895273a1e11`).
+[Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)
+
+To exercise the last complete parser frame and the next frame in each profile,
+run `python3 tests/bootstrap/independent/delta_syntax.py DELTA_EXECUTABLE PACKED_SUPPORT`.
+
 ## Construction and acceptance
 
 On Linux x86-64, build the native Gamma compiler in a new output directory:
