@@ -76,12 +76,21 @@ class RouteTests(unittest.TestCase):
             r = Route(args, source)
             r.host = Program(Path(sys.executable))
             script = b'print("stage")'
+
+            def check_start():
+                checkpoint = json.loads((source / "result.json").read_text())
+                self.assertEqual(checkpoint["stages"], [{"stage": "first", "completed": False}])
+                self.assertEqual(prior_invocations([source.parent]), {})
+
+            r.stage("first", check_start)
             r.run("module.out", "build", r.host, lambda: script)
 
             # A killed process cannot replace its last durable intermediate receipt.
             def interrupt():
                 checkpoint = json.loads((source / "result.json").read_text())
                 self.assertEqual(checkpoint["result"], "running")
+                self.assertEqual(checkpoint["stages"][-1], {"stage": "interrupted", "completed": False})
+                self.assertTrue(all(stage["completed"] for stage in checkpoint["stages"][:-1]))
                 self.assertEqual(list(checkpoint["artifacts"]), ["module.out"])
                 raise KeyboardInterrupt
 
