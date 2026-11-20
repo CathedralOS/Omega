@@ -1,9 +1,10 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::declaration_bodies;
+use crate::type_error::SourceTypeError;
 use crate::{TypeError, TypedStage};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 pub(crate) fn infer<'a>(
@@ -40,7 +41,7 @@ pub(crate) fn infer<'a>(
                 Ok(value) => {
                     catalog.constants.insert(id, value);
                 }
-                Err(error) if error.waiting_for_static_value => catalog.types.indices.defer_constant(id),
+                Err(error) if error.waiting_for_static_value() => catalog.types.indices.defer_constant(id),
                 Err(error) => return Err(error),
             }
             Ok(())

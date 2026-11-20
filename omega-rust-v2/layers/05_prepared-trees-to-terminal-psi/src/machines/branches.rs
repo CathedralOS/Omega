@@ -1,0 +1,567 @@
+use crate::lowering::applied_tree::LoweringTree;
+use std::collections::VecDeque;
+
+use omega_resolved::{IndexedSource, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::{NodeSemantics, Site, ValueType};
+
+use super::body::{MachineBodyValues, check_container, next_id, site_at, unsupported_node};
+use super::expressions::Expressions;
+use crate::{BlockId, EdgeId, LoweringError, MachineBody, OperationResult, Place, PlaceId, PlaceOrigin, ReturnEdge, TypeId, ValueId, ValueOrigin};
+
+use crate::{BlockTerminator, BranchBlock, CallArgument, SuccessorEdge};
+
+#[derive(Clone, Copy)]
+pub(crate) struct BooleanArm {
+    pattern: usize,
+    pub(crate) expression: usize,
+    sense: Option<bool>,
+}
+
+/// Reserves identities before emitting edges that name them. Only the active
+/// block can receive operations; opening another block starts a new range.
+pub(crate) struct BlockFlow {
+    reserved: usize,
+    active: BlockId,
+    operation_start: usize,
+    parameter: Option<crate::Parameter>,
+}
+
+impl BlockFlow {
+    pub(super) fn active_range(
+        &self,
+        end: usize,
+    ) -> (BlockId, std::ops::Range<usize>) {
+        (self.active, self.operation_start..end)
+    }
+
+    pub(crate) fn entry() -> Self {
+        Self {
+            reserved: 1,
+            active: BlockId(next_id(0)),
+            operation_start: 0,
+            parameter: None,
+        }
+    }
+
+    pub(crate) fn reserve(&mut self) -> BlockId {
+        let id = BlockId(next_id(self.reserved));
+        self.reserved += 1;
+        id
+    }
+
+    pub(crate) fn open(
+        &mut self,
+        body: &MachineBody,
+        id: BlockId,
+        parameter: Option<crate::Parameter>,
+    ) {
+        self.active = id;
+        self.operation_start = body.operations.len();
+        self.parameter = parameter;
+    }
+
+    pub(super) fn close(
+        &self,
+        body: &mut MachineBody,
+        terminator: BlockTerminator,
+    ) {
+        body.blocks.push(BranchBlock {
+            id: self.active,
+            scalar_parameters: match self.parameter {
+                Some(crate::Parameter::Scalar(value)) => vec![value],
+                _ => Vec::new(),
+            },
+            structural_parameters: match self.parameter {
+                Some(crate::Parameter::Structural(place)) => vec![place],
+                _ => Vec::new(),
+            },
+            operations: self.operation_start..body.operations.len(),
+            terminator,
+        });
+    }
+
+    pub(crate) fn begin_short_circuit(
+        &mut self,
+        body: &mut MachineBody,
+        left: ValueId,
+        evaluate_right_when: bool,
+        right_site: Site,
+        skipped_site: Site,
+    ) -> BlockId {
+        let right = self.reserve();
+        let join = self.reserve();
+        let evaluated = successor(body, right, Vec::new(), right_site);
+        let skipped = successor(body, join, vec![left], skipped_site);
+        let (when_true, when_false) = if evaluate_right_when { (evaluated, skipped) } else { (skipped, evaluated) };
+        self.close(
+            body,
+            BlockTerminator::Conditional {
+                condition: left,
+                when_true,
+                when_false,
+            },
+        );
+        self.open(body, right, None);
+        join
+    }
+
+    pub(crate) fn jump_with_result(
+        &self,
+        body: &mut MachineBody,
+        join: BlockId,
+        argument: Option<CallArgument>,
+        site: Site,
+    ) {
+        let mut edge = successor(body, join, Vec::new(), site);
+        match argument {
+            Some(CallArgument::Scalar(value)) => edge.arguments.push(value),
+            Some(input @ (CallArgument::CopyWhole(_) | CallArgument::MoveWhole(_))) => edge.structural_arguments.push(input),
+            Some(CallArgument::Borrow { .. }) => unreachable!("borrowed call arguments are scoped to a call"),
+            None => {}
+        }
+        self.close(body, BlockTerminator::Jump(edge));
+    }
+
+    pub(crate) fn change_scalar_qualification(
+        &mut self,
+        body: &mut MachineBody,
+        source: ValueId,
+        target_type: TypeId,
+        direction: crate::QualificationDirection,
+        site: Site,
+    ) -> ValueId {
+        let target = self.reserve();
+        let mut edge = successor(body, target, vec![source], site);
+        edge.scalar_qualification_changes
+            .push(crate::ScalarQualificationChange { argument_index: 0, direction });
+        self.close(body, BlockTerminator::Jump(edge));
+        self.open_scalar_join(body, target, target_type)
+    }
+
+    pub(crate) fn open_scalar_join(
+        &mut self,
+        body: &mut MachineBody,
+        join: BlockId,
+        ty: TypeId,
+    ) -> ValueId {
+        let result = body.push_value(ty, ValueOrigin::BlockParameter(join));
+        self.open(body, join, Some(crate::Parameter::Scalar(result)));
+        result
+    }
+
+    pub(crate) fn open_structural_join(
+        &mut self,
+        body: &mut MachineBody,
+        join: BlockId,
+        ty: TypeId,
+    ) -> PlaceId {
+        let place = PlaceId(next_id(body.places.len()));
+        body.places.push(Place {
+            ty,
+            origin: PlaceOrigin::BlockParameter(join),
+        });
+        self.open(body, join, Some(crate::Parameter::Structural(place)));
+        place
+    }
+
+    pub(crate) fn finish(
+        self,
+        body: &mut MachineBody,
+    ) {
+        debug_assert_eq!(self.reserved, body.blocks.len());
+        body.blocks.sort_unstable_by_key(|block| block.id.get());
+        debug_assert!(
+            body.blocks
+                .iter()
+                .enumerate()
+                .all(|(index, block)| block.id.get() == index + 1)
+        );
+    }
+}
+
+struct PendingArm {
+    block: BlockId,
+    expression: usize,
+    terminal_call: bool,
+}
+
+pub(crate) fn lower_tail_dispatch(
+    expressions: &Expressions<'_>,
+    root: usize,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+    result_type: Option<TypeId>,
+) -> Result<(), LoweringError> {
+    let tree = expressions.tree;
+    let file = tree.resolved().file;
+    let mut pending = VecDeque::new();
+    enqueue_dispatch(expressions, root, body, flow, &mut pending)?;
+    while let Some(arm) = pending.pop_front() {
+        let ungrouped = file.ungroup(arm.expression);
+        flow.open(body, arm.block, None);
+        if file.nodes[ungrouped].kind == NodeKind::Match {
+            enqueue_dispatch(expressions, arm.expression, body, flow, &mut pending)?;
+            continue;
+        }
+        if let Some(completion) = super::external_exit::recognized(expressions, arm.expression) {
+            super::external_exit::lower(expressions, arm.expression, completion, body, flow)?;
+            continue;
+        }
+        if arm.terminal_call
+            && (matches!(file.nodes[ungrouped].kind, NodeKind::Call | NodeKind::CallMarker)
+                || tree
+                    .semantics_at(ungrouped)
+                    .any(|record| matches!(record, NodeSemantics::Call(_))))
+        {
+            let (callee, arguments, requirement_count, pause) = expressions.lower_terminal_call(arm.expression, body, flow)?;
+            let id = push_edge_site(body, site_at(file, arm.expression));
+            super::calls::record_acknowledgement(body, crate::CallSite::Edge(id), pause);
+            let requirements = crate::declarations::contracts::call_requirements(crate::CallSite::Edge(id), requirement_count);
+            flow.close(
+                body,
+                BlockTerminator::TerminalCall {
+                    id,
+                    callee,
+                    arguments,
+                    requirements,
+                    cleanup: Vec::new(),
+                },
+            );
+            continue;
+        }
+        let value = expressions.lower(arm.expression, &expressions.signature.result, body, flow)?;
+        emit_return_block(body, flow, Some(value), result_type, site_at(file, arm.expression))?;
+    }
+    Ok(())
+}
+
+fn enqueue_dispatch(
+    expressions: &Expressions<'_>,
+    expression: usize,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+    pending: &mut VecDeque<PendingArm>,
+) -> Result<(), LoweringError> {
+    let tree = expressions.tree;
+    let file = tree.resolved().file;
+    let mut dispatch = expression;
+    loop {
+        match (file.nodes[dispatch].kind, file.nodes[dispatch].children.as_slice()) {
+            (NodeKind::Paren, [inner]) => {
+                check_match_result(tree, dispatch, &expressions.signature.result, &expressions.signature.machine)?;
+                dispatch = *inner;
+            }
+            (NodeKind::Match, _) => {
+                check_match_result(tree, dispatch, &expressions.signature.result, &expressions.signature.machine)?;
+                break;
+            }
+            (NodeKind::Transition, _) => {
+                check_container(tree, dispatch)?;
+                break;
+            }
+            _ => return Err(unsupported_node(file, dispatch, "expected a terminal Boolean dispatch")),
+        }
+    }
+    let targets = if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
+        targets
+    } else if has_guards(file, dispatch) {
+        lower_guards(expressions, dispatch, body, flow)?
+    } else {
+        let (subject, arms) = boolean_dispatch(tree, dispatch)?;
+        let condition = lower_condition(expressions, subject, body, flow)?;
+        split_boolean(body, flow, file, condition, &arms)
+            .into_iter()
+            .zip(arms)
+            .map(|(target, arm)| (target, arm.expression))
+            .collect()
+    };
+    let terminal_call = file.nodes[dispatch].kind == NodeKind::Transition;
+    for (block, expression) in targets {
+        pending.push_back(PendingArm {
+            block,
+            expression,
+            terminal_call,
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn has_guards(
+    file: &IndexedSource<'_>,
+    node: usize,
+) -> bool {
+    file.nodes[node]
+        .children
+        .first()
+        .is_some_and(|&first| file.nodes[first].kind == NodeKind::Arm)
+}
+
+pub(crate) fn lower_guards(
+    expressions: &Expressions<'_>,
+    node: usize,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<Vec<(BlockId, usize)>, LoweringError> {
+    let tree = expressions.tree;
+    let file = tree.resolved().file;
+    let arms = &file.nodes[node].children;
+    let mut targets = Vec::with_capacity(arms.len());
+    let mut guards = Vec::with_capacity(arms.len());
+    for &arm in arms {
+        check_container(tree, arm)?;
+        let [pattern, expression] = *file.nodes[arm].children.as_slice() else {
+            return Err(unsupported_node(file, arm, "guard arm requires a condition and a result"));
+        };
+        let mut guard = pattern;
+        while let (NodeKind::ParenPattern, [inner]) = (file.nodes[guard].kind, file.nodes[guard].children.as_slice()) {
+            check_container(tree, guard)?;
+            guard = *inner;
+        }
+        guards.push(guard);
+        targets.push((flow.reserve(), expression));
+    }
+    let unconditional = |guard: usize| {
+        file.nodes[guard].kind == NodeKind::WildcardPattern
+            || (file.nodes[guard].kind == NodeKind::BindingPattern && matches!(tree.resolved().symbol(guard), Some(Symbol::Builtin(name)) if name == "true"))
+    };
+    let Some((&fallback, conditions)) = guards.split_last() else {
+        return Err(unsupported_node(file, node, "guard dispatch has no arms"));
+    };
+    if !unconditional(fallback) {
+        return Err(unsupported_node(file, fallback, "guard dispatch lacks a final unconditional arm"));
+    }
+    check_container(tree, fallback)?;
+    let fallback_target = targets[conditions.len()].0;
+    if conditions.is_empty() {
+        let edge = successor(body, fallback_target, Vec::new(), site_at(file, fallback));
+        flow.close(body, BlockTerminator::Jump(edge));
+    }
+    for (index, &guard) in conditions.iter().enumerate() {
+        if unconditional(guard) {
+            return Err(unsupported_node(file, guard, "unconditional guard must be the last arm"));
+        }
+        let condition = match (file.nodes[guard].kind, file.nodes[guard].children.as_slice()) {
+            (NodeKind::ValuePattern, [expr]) => {
+                check_container(tree, guard)?;
+                lower_condition(expressions, *expr, body, flow)?
+            }
+            (NodeKind::BindingPattern, []) => expressions.lower_named_guard(guard, body)?,
+            _ => return Err(unsupported_node(file, guard, "unsupported guard condition")),
+        };
+        let final_test = index + 1 == conditions.len();
+        let next = if final_test { fallback_target } else { flow.reserve() };
+        let matched = successor(body, targets[index].0, Vec::new(), site_at(file, guard));
+        let failed = successor(body, next, Vec::new(), site_at(file, guards[index + 1]));
+        flow.close(
+            body,
+            BlockTerminator::Conditional {
+                condition,
+                when_true: matched,
+                when_false: failed,
+            },
+        );
+        if !final_test {
+            flow.open(body, next, None);
+        }
+    }
+    Ok(targets)
+}
+
+fn lower_condition(
+    expressions: &Expressions<'_>,
+    subject: usize,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<ValueId, LoweringError> {
+    if let OperationResult::Scalar(condition) = expressions.lower(subject, &ValueType::Bool, body, flow)? {
+        Ok(condition)
+    } else {
+        Err(unsupported_node(
+            expressions.tree.resolved().file,
+            subject,
+            "Boolean dispatch requires a scalar subject",
+        ))
+    }
+}
+
+pub(crate) fn split_boolean(
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+    file: &IndexedSource<'_>,
+    condition: ValueId,
+    arms: &[BooleanArm],
+) -> Vec<BlockId> {
+    let mut targets = Vec::with_capacity(arms.len());
+    let mut edge_to = |arm: &BooleanArm| {
+        let target = flow.reserve();
+        targets.push(target);
+        successor(body, target, Vec::new(), site_at(file, arm.pattern))
+    };
+    let terminator = match arms {
+        [arm] => BlockTerminator::Jump(edge_to(arm)),
+        [first, second] => {
+            let first_edge = edge_to(first);
+            let second_edge = edge_to(second);
+            let (when_true, when_false) = if first.sense == Some(true) {
+                (first_edge, second_edge)
+            } else {
+                (second_edge, first_edge)
+            };
+            BlockTerminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            }
+        }
+        _ => unreachable!("boolean_dispatch only admits one or two arms"),
+    };
+    flow.close(body, terminator);
+    targets
+}
+
+pub(crate) fn check_match_result(
+    tree: &LoweringTree<'_>,
+    node: usize,
+    carrier: &ValueType,
+    machine: &omega_resolved::DeclarationId,
+) -> Result<(), LoweringError> {
+    let mut typed = false;
+    let file = tree.resolved().file;
+    for record in tree.semantics_at(node) {
+        match record {
+            NodeSemantics::Expression(expression) if &expression.ty == carrier && expression.static_argument_slot.is_none() => typed = true,
+            NodeSemantics::Obligation(o)
+                if crate::lowering::types::is_reference_descriptor(carrier)
+                    && matches!(&o.kind,omega_typed::ObligationKind::ReturnBorrow{machine:owner} if owner==machine) => {}
+            _ => return Err(unsupported_node(file, node, "unsupported typed match record")),
+        }
+    }
+    if typed {
+        Ok(())
+    } else {
+        Err(unsupported_node(file, node, "match has no compatible typed result"))
+    }
+}
+
+pub(crate) fn boolean_dispatch(
+    tree: &LoweringTree<'_>,
+    node: usize,
+) -> Result<(usize, Vec<BooleanArm>), LoweringError> {
+    let file = tree.resolved().file;
+    let Some((&subject, arms)) = file.nodes[node]
+        .children
+        .split_first()
+        .filter(|(subject, _)| file.nodes[**subject].kind != NodeKind::Arm)
+    else {
+        return Err(unsupported_node(file, node, "Boolean dispatch requires an explicit subject"));
+    };
+    let mut selected = Vec::with_capacity(arms.len().min(2));
+    for &arm in arms {
+        let [pattern, expression] = *file.nodes[arm].children.as_slice() else {
+            return Err(unsupported_node(file, arm, "dispatch arm requires one pattern and one result"));
+        };
+        check_container(tree, arm)?;
+        let sense = boolean_pattern(tree, pattern)?;
+        selected.push(BooleanArm { pattern, expression, sense });
+    }
+    match selected.as_slice() {
+        [BooleanArm { sense: None, .. }] => Ok((subject, selected)),
+        [BooleanArm { sense: Some(first), .. }, second] if second.sense != Some(*first) => Ok((subject, selected)),
+        _ => Err(unsupported_node(file, node, "dispatch needs two distinct Boolean alternatives or one wildcard")),
+    }
+}
+
+fn boolean_pattern(
+    tree: &LoweringTree<'_>,
+    mut pattern: usize,
+) -> Result<Option<bool>, LoweringError> {
+    let resolved = tree.resolved();
+    let file = resolved.file;
+    loop {
+        check_container(tree, pattern)?;
+        let node = &file.nodes[pattern];
+        match (node.kind, node.children.as_slice()) {
+            (NodeKind::ParenPattern, [inner]) => pattern = *inner,
+            (NodeKind::WildcardPattern, []) => return Ok(None),
+            (NodeKind::BindingPattern, []) => {
+                if let Some(Symbol::Builtin(name)) = resolved.symbol(pattern)
+                    && matches!(name.as_str(), "true" | "false")
+                {
+                    return Ok(Some(name == "true"));
+                }
+                break;
+            }
+            _ => break,
+        }
+    }
+    Err(unsupported_node(file, pattern, "expected an exact Boolean pattern"))
+}
+
+pub(super) fn successor(
+    body: &mut MachineBody,
+    target: BlockId,
+    arguments: Vec<ValueId>,
+    site: Site,
+) -> SuccessorEdge {
+    SuccessorEdge {
+        selected_case: None,
+        requires_adjacency: false,
+        id: push_edge_site(body, site),
+        target,
+        arguments,
+        scalar_qualification_changes: Vec::new(),
+        structural_arguments: Vec::new(),
+        cleanup: Vec::new(),
+    }
+}
+
+fn push_edge_site(
+    body: &mut MachineBody,
+    site: Site,
+) -> EdgeId {
+    let id = EdgeId(next_id(body.diagnostics.edges.len()));
+    body.diagnostics.edges.push(site);
+    id
+}
+
+pub(crate) fn emit_return_block(
+    body: &mut MachineBody,
+    flow: &BlockFlow,
+    value: Option<OperationResult>,
+    result_type: Option<TypeId>,
+    site: Site,
+) -> Result<(), LoweringError> {
+    let result = match (value, result_type) {
+        (None | Some(OperationResult::Unit), None) => ReturnEdge::Unit,
+        (Some(OperationResult::Scalar(value)), Some(ty)) if body.values[value.index()].ty == ty => ReturnEdge::Scalar(value),
+        (Some(OperationResult::Structural(source)), Some(ty)) if body.places[source.index()].ty == ty => {
+            let result = if let Some(index) = body
+                .places
+                .iter()
+                .position(|place| place.origin == PlaceOrigin::Result)
+            {
+                PlaceId(next_id(index))
+            } else {
+                let id = PlaceId(next_id(body.places.len()));
+                body.places.push(Place {
+                    ty,
+                    origin: PlaceOrigin::Result,
+                });
+                id
+            };
+            ReturnEdge::Structural { source, result }
+        }
+        _ => return Err(LoweringError::new(&site, "return edge does not match the machine's result carrier")),
+    };
+    let id = push_edge_site(body, site);
+    flow.close(
+        body,
+        BlockTerminator::Return {
+            id,
+            result,
+            cleanup: Vec::new(),
+        },
+    );
+    Ok(())
+}

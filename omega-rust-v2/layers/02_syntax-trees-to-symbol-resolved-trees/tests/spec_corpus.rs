@@ -1,12 +1,10 @@
 use omega_lexer::lex;
 use omega_parser::{FragmentKind, parse_fragment};
 use omega_resolver::{ParsedSource, StageSource, resolve_stage};
-use std::path::Path;
 
 #[test]
 fn spec_fragments_have_reviewed_resolution_outcomes() {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let examples = spec_corpus::extract_omega_examples(&spec).unwrap();
+    let examples = spec_corpus::published_examples().unwrap();
     let mut outcomes = String::new();
     for example in examples {
         let label = example.get_label();

@@ -172,8 +172,8 @@ fn structural_callbacks_retain_the_actual_and_expected_contracts() {
     let source = "machine local(n:u8)->u8 {n} machine invoke<const F:machine(v:u8)->u8>(n:u8)->u8 {F(n)} machine direct(n:u8)->u8 {invoke::<local>(n)} machine adapt(g:machine(actual:u8)->u8 reaches none crashes none) {let f:machine(formal:u8)->u8 reaches none crashes none=g;}";
     let stage = support::check(&[("handoff.omg", source)]).unwrap();
     expect_at(&stage, source, "invoke::<local>(n)", |k| {
-        matches!(k,ObligationKind::RefineCallable{contract,machine,..}
-        if machine.path=="local" && spelling(&contract.contract,source)=="machine(v:u8)->u8" && contract.result.to_string()=="u8")
+        matches!(k,ObligationKind::RefineCallable{contract,selection,..}
+        if selection.machine.path=="local" && spelling(&contract.contract,source)=="machine(v:u8)->u8" && contract.result.to_string()=="u8")
     });
     expect_at(&stage, source, "g", |k| {
         matches!(k,ObligationKind::RefineCallableValue{source:from,destination:to}
@@ -491,6 +491,59 @@ fn exclusive_move_obligations_identify_the_evaluated_subject_and_field() {
                 .iter()
                 .all(|o| !matches!(o.kind, ObligationKind::RestoreBorrowed { .. })),
             "{body}"
+        );
+    }
+}
+
+#[test]
+fn moving_out_of_an_exclusive_element_view_selects_the_exclusive_element_and_owes_its_restoration() {
+    let source = "data Cell{v:u8;} machine edit(p:@mut [Cell],i:u64){let old=move p[i]; p[i]=move old;}";
+    let resolved = support::resolve_packages(&[("game", "handoff.omg", source)], &[]);
+    let typed = omega_typer::type_stage(&resolved).unwrap();
+    let tree = typed.trees().next().unwrap();
+    let file = tree.resolved().file;
+    let restores: Vec<_> = typed
+        .obligations
+        .iter()
+        .filter_map(|o| match &o.kind {
+            ObligationKind::RestoreBorrowed { place, ty } => Some((*place, ty)),
+            _ => None,
+        })
+        .collect();
+    let [(taken, ty)] = restores.as_slice() else {
+        panic!("expected exactly one restoration debt");
+    };
+    assert_eq!(ty.to_string(), "game\\Cell");
+    assert_eq!(file.span(taken.node).slice(source.as_bytes()), Some(b"p[i]".as_slice()));
+    let (capture, path) = typed.place_path(*taken);
+    let [step] = path.as_slice() else {
+        panic!("one element selection below the view");
+    };
+    assert_eq!(step.through, Some(Access::Mut));
+    assert!(matches!(&step.projection, Some(omega_typer::Projection::Index(_))));
+    assert_eq!(file.span(capture.node).slice(source.as_bytes()), Some(b"p".as_slice()));
+    let stage = support::check(&[("handoff.omg", source)]).unwrap();
+    let selected: Vec<_> = stage
+        .collection_accesses
+        .iter()
+        .map(|a| a.machine.path.as_str())
+        .collect();
+    assert_eq!(selected, ["indexing\\element_mut", "indexing\\element_mut"]);
+    // Shared views and copy elements keep their ordinary indexed reads.
+    let shared = "data Cell{v:u8;} machine f(p:@[Cell],i:u64)->Cell{move p[i]}";
+    assert!(
+        support::check(&[("handoff.omg", shared)])
+            .unwrap_err()
+            .message
+            .contains("copy element")
+    );
+    let copied = "data Cell [copy] {v:u8;} machine f(p:@mut [Cell],i:u64)->Cell{move p[i]}";
+    if let Ok(stage) = support::check(&[("handoff.omg", copied)]) {
+        assert!(
+            stage
+                .obligations
+                .iter()
+                .all(|o| !matches!(o.kind, ObligationKind::RestoreBorrowed { .. }))
         );
     }
 }

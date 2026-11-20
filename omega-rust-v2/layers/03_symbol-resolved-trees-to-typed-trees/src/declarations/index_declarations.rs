@@ -3,10 +3,12 @@ use crate::contracts::effect_clauses;
 use crate::contracts::trait_refinements;
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::type_system::overload_identity::same_operands;
-use crate::{DomainApplication, Site, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use crate::type_error::SourceTypeError;
+use crate::type_system::overload_identity::same_signature;
+use crate::{DomainApplication, TypeError, ValueType};
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 impl<'a> ResolvedSourceFile<'a> {
     pub(crate) fn index_declarations(
@@ -105,10 +107,13 @@ impl<'a> ResolvedSourceFile<'a> {
                         items.cases.entry(parent).or_default().push(id);
                         items.case_owner.insert(id, parent);
                     }
+                    if let Some(numbers) = super::schema_numbering::member_scope(source, node_index)? {
+                        items.schema_numbering.insert(id, std::sync::Arc::new(numbers));
+                    }
                     let fields = items.fields.entry(id).or_default();
                     for &field in &node.children {
                         match source.nodes[field].kind {
-                            GenericParams | StableNumber | Case | Data | DroppedBy => continue,
+                            GenericParams | StableNumber | RetiredNumber | Case | Data | DroppedBy => continue,
                             Requires => {
                                 items.predicates.insert(id);
                                 continue;
@@ -127,7 +132,7 @@ impl<'a> ResolvedSourceFile<'a> {
                         }
                         fields.insert(
                             self.declaration(field)?,
-                            Site::at(source, field),
+                            site_at(source, field),
                             annotation.ok_or_else(|| TypeError::unsupported(source, field))?,
                         );
                     }
@@ -157,13 +162,14 @@ impl<'a> ResolvedSourceFile<'a> {
                     let result = source
                         .result_annotation(node_index)
                         .map_or(Ok(ValueType::NoResult), |ty| self.annotation(ty, &catalog.types))?;
+                    let site = site_at(source, node_index);
                     let family = catalog.overloads.entry((&id.package, &id.path)).or_default();
                     for &previous in family
                         .iter()
                         .filter(|previous| previous.enclosing_machine == id.enclosing_machine)
                     {
                         let signature = &items.signatures[previous];
-                        if signature.result.domains() == result.domains() && same_operands(&params, id, &signature.parameters, previous) {
+                        if same_signature(&params, id, &site, &result, signature) {
                             return Err(TypeError::at(source, node_index, format!("duplicate typed operand signature for {}", id.path)));
                         }
                     }
@@ -179,9 +185,10 @@ impl<'a> ResolvedSourceFile<'a> {
                     items.signatures.insert(
                         id,
                         std::sync::Arc::new(TypedSignature {
+                            operator: None,
                             node: source.node_id(node_index),
                             machine: id.clone(),
-                            site: Site::at(source, node_index),
+                            site,
                             parameters: params,
                             result,
                             multiplicity_bounds: catalog.types.generics[id]
@@ -195,7 +202,7 @@ impl<'a> ResolvedSourceFile<'a> {
                             requires: source.child(node_index, Requires).is_some() || source.child(node_index, Hypothesis).is_some(),
                             terminates: source.child(node_index, Terminates).is_some(),
                             crash_ceiling: effect_clauses::crashes(self, node_index)?,
-                            pause: crate::DeclaredPauseBounds::read(self, node_index)?,
+                            pause: crate::contracts::effect_clauses::read_pause_bounds(self, node_index)?,
                             reach: effect_clauses::reach(self, &catalog.types, node_index)?,
                         }),
                     );

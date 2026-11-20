@@ -6,6 +6,9 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+omega-typed = { path = "../representations/typed" }
+omega-target-contract = { path = "../contracts/target" }
 omega-lexer = { path = "../layers/00_bytes-to-tokens" }
 omega-parser = { path = "../layers/01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../layers/02_syntax-trees-to-symbol-resolved-trees" }
+omega-program-contracts = { path = "../contracts/program" }

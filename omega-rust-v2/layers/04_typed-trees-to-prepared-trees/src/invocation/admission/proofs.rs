@@ -1,6 +1,6 @@
 use super::*;
 use crate::TargetObservation;
-use omega_typer::{CrashRoute, TypedTrees, TypingObligation};
+use omega_typed::{CrashRoute, TypedTrees, TypingObligation};
 
 #[derive(Default)]
 pub(crate) struct InvocationProofs<'trees, 'text> {
@@ -114,8 +114,8 @@ impl ConstantEvaluation<'_, '_> {
         arguments: &CallBindings,
         stack: &[PreparedValue],
     ) -> Result<(), EvaluationError> {
-        let application = arguments.1.as_deref();
-        let arguments = arguments.0.borrow();
+        let application = arguments.application.as_deref();
+        let arguments = arguments.values.borrow();
         // The first bindings are immutable contract inputs. A body can append
         // and mutate its own locals without changing these entry bindings.
         let parameter_count = request.invocation.signature.parameters.len();

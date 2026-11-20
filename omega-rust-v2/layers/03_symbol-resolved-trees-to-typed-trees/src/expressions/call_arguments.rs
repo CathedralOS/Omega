@@ -1,9 +1,14 @@
 use super::destination::Destination;
 use crate::evaluation::check_static_indices::IndexEvaluations;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
+use crate::type_error::SourceTypeError;
+use crate::type_relations::CallableContract;
+use crate::type_system::dependent_subjects::DependentSubjects;
+use crate::type_system::substitution::TypeInference;
 use crate::{Access, ObligationKind, Site, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 /// The operand's storage version is captured when it is evaluated. A later
 /// argument may call a machine that changes the current version.
@@ -176,7 +181,7 @@ impl BodyTyper<'_, '_> {
                 site,
                 ObligationKind::Borrow {
                     access: access.clone(),
-                    place: Site::at(source, node),
+                    place: site_at(source, node),
                 },
             );
             return Ok(());
@@ -190,7 +195,7 @@ impl BodyTyper<'_, '_> {
     pub(super) fn apply_machine(
         &mut self,
         node: usize,
-        target: SelectedMachine<'_>,
+        mut target: SelectedMachine<'_>,
         operands: &[CallOperand],
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
@@ -200,6 +205,9 @@ impl BodyTyper<'_, '_> {
             node
         };
         let signature = &self.catalog.signatures[target.machine];
+        target
+            .enclosing
+            .extend(self.catalog.types.lexical_machine_arguments(target.machine));
         self.validate_call_bindings(node, callee, target.machine, target.explicit_arguments, &target.arguments, &target.enclosing)?;
         let instantiate =
             |ty: &ValueType, applied: &[crate::AppliedOperand]| ty.at_machine_application(target.machine, &target.arguments, &target.enclosing, applied);
@@ -228,7 +236,7 @@ impl BodyTyper<'_, '_> {
             };
             applied.push(crate::AppliedOperand {
                 node: source.node_id(op.node),
-                site: Site::at(source, op.node),
+                site: site_at(source, op.node),
                 parameter,
                 subject,
                 callable: matches!(op.value, ValueType::Callable(_)).then(|| self.invocation_target(op.node)),
@@ -241,21 +249,11 @@ impl BodyTyper<'_, '_> {
         let use_site = self.record_call_use(node);
         let layout_query = (target.machine.package == omega_toolchain::TOOLCHAIN_PACKAGE)
             .then(|| omega_toolchain::core_interface().layout_query(target.machine))
-            .flatten()
-            .map(|projection| crate::TypedLayoutQuery {
-                projection,
-                specialization_scopes: self
-                    .unit
-                    .specialization_owner(node)
-                    .into_iter()
-                    .flat_map(|owner| self.catalog.types.specialization_scopes(owner))
-                    .map(|owner| (owner.clone(), self.catalog.types.arity(owner)))
-                    .collect(),
-            });
-        self.output.calls.push(crate::TypedCall {
+            .flatten();
+        let call = crate::TypedCall {
             node: source.node_id(node),
             use_site,
-            site: Site::at(source, node),
+            site: site_at(source, node),
             machine: target.machine.clone(),
             result: result.clone(),
             operands: applied,
@@ -265,7 +263,11 @@ impl BodyTyper<'_, '_> {
             evidence: target.evidence,
             acknowledgements: crate::contracts::effect_clauses::markers(self.unit, node)?,
             layout_query,
-        });
+        };
+        if let Some(completion) = crate::contracts::process_exit::external_completion(&call)? {
+            self.output.external_completions.push(completion);
+        }
+        self.output.calls.push(call);
         Ok(result)
     }
 
@@ -273,7 +275,7 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
         callee: usize,
-        id: &omega_resolver::DeclarationId,
+        id: &omega_resolved::DeclarationId,
         explicit_arguments: &[usize],
         bindings: &[ValueType],
         enclosing: &[(DeclarationId, Vec<ValueType>)],
@@ -401,7 +403,8 @@ impl BodyTyper<'_, '_> {
                 && let ValueType::Callable(c) = instantiate(formal)
             {
                 match ty {
-                    ValueType::MachineSelection(machine, arguments) => {
+                    ValueType::MachineSelection(application) => {
+                        let machine = &application.machine;
                         let selection = explicit_arguments
                             .get(index)
                             .map(|&argument| source_file.ungroup(argument));
@@ -411,10 +414,10 @@ impl BodyTyper<'_, '_> {
                             selection.unwrap_or(callee),
                             machine,
                             selected_arguments,
-                            arguments,
-                            &[],
+                            &application.arguments,
+                            &application.enclosing_arguments,
                         )?;
-                        self.refine_callable(node_index, &c, machine, arguments)?;
+                        self.refine_callable(node_index, &c, Some((id.clone(), index)), application)?;
                     }
                     ValueType::Parameter { .. }
                         if let Some(ValueType::Callable(actual)) = self.catalog.types.parameter_carrier(ty)

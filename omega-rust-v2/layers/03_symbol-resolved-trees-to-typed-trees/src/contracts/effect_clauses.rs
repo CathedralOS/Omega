@@ -1,43 +1,43 @@
 //! Read the declared service, pause and crash bounds at their source clauses so inference can compare them with the behavior of checked bodies.
 
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{DeclaredPauseBounds, PauseEffects, ServiceApplication, TypeError};
-use omega_parser::{NodeKind, PauseFlag};
-use omega_resolver::Symbol;
+use omega_resolved::Symbol;
+use omega_syntax::{NodeKind, PauseFlag};
 
 fn has_published_bounds(
     unit: &ResolvedSourceFile<'_>,
     n: usize,
 ) -> bool {
     let nodes = &unit.file.nodes;
-    nodes[n].has_public_modifier()
-        || nodes[n]
-            .parent
-            .is_some_and(|p| nodes[p].kind == NodeKind::Trait && nodes[p].has_boundary_modifier())
+    if let Some(trait_node) = nodes[n].parent.filter(|&p| nodes[p].kind == NodeKind::Trait) {
+        nodes[trait_node].has_boundary_modifier()
+    } else {
+        unit.is_exported(n)
+    }
 }
 
-impl DeclaredPauseBounds {
-    pub(crate) fn read(
-        unit: &ResolvedSourceFile<'_>,
-        n: usize,
-    ) -> Result<Self, TypeError> {
-        let f = unit.file;
-        let published = has_published_bounds(unit, n);
-        let flag = |kind| -> Result<Option<bool>, TypeError> {
-            let Some(c) = f.child(n, kind) else {
-                return Ok(published.then_some(false));
-            };
-            let written = f.nodes[c]
-                .pause_flag()
-                .ok_or_else(|| TypeError::unsupported(f, c))?;
-            Ok(Some(written != PauseFlag::Explicit(false)))
+pub(crate) fn read_pause_bounds(
+    unit: &ResolvedSourceFile<'_>,
+    n: usize,
+) -> Result<DeclaredPauseBounds, TypeError> {
+    let f = unit.file;
+    let published = has_published_bounds(unit, n);
+    let flag = |kind| -> Result<Option<bool>, TypeError> {
+        let Some(c) = f.child(n, kind) else {
+            return Ok(published.then_some(false));
         };
-        Ok(Self {
-            suspend: flag(NodeKind::Suspends)?,
-            block: flag(NodeKind::Blocks)?,
-        })
-    }
+        let written = f.nodes[c]
+            .pause_flag()
+            .ok_or_else(|| TypeError::unsupported(f, c))?;
+        Ok(Some(written != PauseFlag::Explicit(false)))
+    };
+    Ok(DeclaredPauseBounds {
+        suspend: flag(NodeKind::Suspends)?,
+        block: flag(NodeKind::Blocks)?,
+    })
 }
 pub(crate) fn crashes(
     unit: &ResolvedSourceFile<'_>,

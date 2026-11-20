@@ -2,15 +2,19 @@ use super::destination::Destination;
 use crate::evaluation::numeric_literals;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::expressions::storage_origin::Origin;
-use crate::{ObligationKind, Site, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
+use crate::type_system::substitution::TypeInference;
+use crate::{ObligationKind, TypeError, ValueType};
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn constant_reference(
         &mut self,
         node: usize,
-        declaration: &omega_resolver::DeclarationId,
+        declaration: &omega_resolved::DeclarationId,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         if self.catalog.types.indices.constant_is_pending(declaration) {
@@ -22,8 +26,7 @@ impl BodyTyper<'_, '_> {
             .get(declaration)
             .ok_or_else(|| TypeError::unsupported(source, node))?;
         self.output
-            .constant_references
-            .push((source.node_id(node), declaration.clone()));
+            .record_constant_reference(source.node_id(node), declaration.clone());
         Ok(ty.clone())
     }
 
@@ -137,7 +140,16 @@ impl BodyTyper<'_, '_> {
                     }
                     Some(Symbol::Declaration(id)) if id.kind == Machine && matches!(expected, Some(ValueType::Callable(_))) => {
                         let Some(ValueType::Callable(c)) = expected else { unreachable!() };
-                        self.refine_callable(node_index, c, id, &[])?;
+                        self.refine_callable(
+                            node_index,
+                            c,
+                            None,
+                            &crate::MachineApplication {
+                                machine: Box::new(id.clone()),
+                                arguments: Vec::new(),
+                                enclosing_arguments: self.catalog.types.lexical_machine_arguments(id).collect(),
+                            },
+                        )?;
                         ValueType::Callable(c.clone())
                     }
                     Some(Symbol::Declaration(id)) if id.kind == MathLet => {
@@ -229,14 +241,14 @@ impl BodyTyper<'_, '_> {
             ),
             Move => {
                 let place = self.unit.single_child(node_index)?;
-                let ty = self.type_expression(place)?;
+                let ty = self.moved_operand(place)?;
                 if ty == ValueType::NoResult {
                     return Err(TypeError::at(source_file, node_index, "move requires a value"));
                 }
                 self.record_obligation(
                     node_index,
                     ObligationKind::Move {
-                        place: Site::at(source_file, place),
+                        place: site_at(source_file, place),
                         ty: ty.clone(),
                     },
                 );
@@ -252,15 +264,17 @@ impl BodyTyper<'_, '_> {
             }
             Call => self.type_call(node_index, destination)?,
             Selection => crate::contracts::conformance::bind_expression(self.unit, self.catalog, node_index, self.output)?,
-            RecordLiteral => self.record(node_index, expected)?,
+            RecordLiteral => self.record(node_index, expected, machine_result)?,
             Match => self.dispatch(node_index, destination, machine_result)?,
             Body => self.check_block(node_index, destination, machine_result)?,
             ArrayLiteral => {
                 let mut pending_elements = Vec::new();
                 let element_destination = destination.array_element(node.children.len() as u64, &self.catalog.types.indices, &mut pending_elements);
                 let mut entries = Vec::new();
+                // Elements of an explicit array constructor are parts of the
+                // same owned result, so they share its byte-literal landing.
                 for &e in &node.children {
-                    entries.push((e, self.type_at_destination(e, element_destination, false)?));
+                    entries.push((e, self.type_at_destination(e, element_destination, machine_result)?));
                 }
                 let element = element_destination.exact().cloned().or_else(|| {
                     entries

@@ -3,8 +3,9 @@
 use super::type_catalog::TypeCatalog;
 use crate::TypeError;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, NameContext, Symbol};
+use crate::type_error::SourceTypeError;
+use omega_resolved::{DeclarationId, NameContext, Symbol};
+use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy)]

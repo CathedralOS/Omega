@@ -1,12 +1,10 @@
 use omega_lexer::lex;
 use omega_parser::{FragmentKind, parse_fragment};
 use omega_resolver::{ParsedSource, StageSource, resolve_stage};
-use std::path::Path;
 
 #[test]
 fn spec_fragments_have_reviewed_typing_outcomes() {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let examples = spec_corpus::extract_omega_examples(&spec).unwrap();
+    let examples = spec_corpus::published_examples().unwrap();
     let mut outcomes = String::new();
     let resolved = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt");
     assert_eq!(examples.len(), resolved.lines().count());
@@ -60,8 +58,7 @@ mod support;
 
 #[test]
 fn the_published_vector_operator_selects_the_same_machine_as_a_named_call() {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let example = spec_corpus::extract_omega_examples(&spec)
+    let example = spec_corpus::published_examples()
         .unwrap()
         .into_iter()
         .find(|example| example.get_label() == "language/expressions.md:157")
@@ -110,8 +107,7 @@ fn the_published_vector_operator_selects_the_same_machine_as_a_named_call() {
 
 #[test]
 fn the_published_command_pattern_requires_both_operation_cases() {
-    let mut examples = Vec::new();
-    spec_corpus::extract_examples_from_markdown("language/patterns.md", include_str!("../../../wiki/spec/language/patterns.md"), &mut examples);
+    let examples = spec_corpus::published_chapter("language/patterns.md").unwrap();
     let example_at = |line| {
         examples
             .iter()

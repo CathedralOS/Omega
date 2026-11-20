@@ -28,7 +28,11 @@ pub fn check_origins(
         definitions.eq(stage.declarations.iter()),
         "source declarations differ from their defining trees"
     );
-    for tree in stage.trees() {
+    assert_eq!(stage.trees().len(), sources.len());
+    let shared_stage = stage.clone();
+    for (ordinal, (tree, shared_tree)) in stage.trees().zip(shared_stage.trees()).enumerate() {
+        assert_eq!(tree.file.node_id(0).file, ordinal);
+        assert!(std::ptr::eq(tree.file, shared_tree.file));
         for usage in tree.occurrences() {
             assert_eq!(usage.node, tree.file.node_id(usage.node.node));
             valid_span(tree.file.package, tree.file.path, usage.span);

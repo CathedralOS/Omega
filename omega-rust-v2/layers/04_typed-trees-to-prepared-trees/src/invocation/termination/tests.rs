@@ -157,7 +157,7 @@ fn countdown<'trees>(
     let [subject, decrement] = *file.nodes[next].children.as_slice() else {
         return None;
     };
-    if selected_arithmetic(&tree, next, &WORD, None).ok()? != ("-", WORD)
+    if selected_arithmetic(&tree, next, &WORD, ValueType::clone).ok()? != ("-", WORD)
         || !binds_parameter(subject)
         || landed_value(&tree, decrement, &WORD).ok()?? != 1.into()
     {
@@ -509,12 +509,12 @@ fn a_recursive_return_keeps_the_enclosing_activation_active() {
 
     execution.values.push(PreparedValue::Integer(0.into()));
     evaluation
-        .enter_call(call, signature, None, None, &mut execution)
+        .enter_call(call, signature, None, None, Rc::default(), &mut execution)
         .unwrap();
     let outer_steps = execution.steps.len();
     execution.values.push(PreparedValue::Integer(0.into()));
     evaluation
-        .enter_call(call, signature, None, None, &mut execution)
+        .enter_call(call, signature, None, None, Rc::default(), &mut execution)
         .unwrap();
     while execution.steps.len() > outer_steps {
         let step = execution.steps.pop().unwrap();
@@ -568,8 +568,8 @@ fn evidence_for_a_body_edge_does_not_authorize_a_distinct_call_in_an_argument() 
     let index = evaluation.signatures()[&signature.machine].0;
     evaluation.termination.evidence.push(evidence);
     let mut execution = Execution::default();
-    execution.active.insert(signature.node);
-    let body = Scope::Body(Rc::new(CallBindings(RefCell::new(vec![]), None)));
+    execution.active.enter(signature.node, None);
+    let body = Scope::Body(Rc::new(CallBindings::default()));
     evaluation
         .admit_termination(index, signature, call, &body, &tree, &execution)
         .unwrap();

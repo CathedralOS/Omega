@@ -1,11 +1,12 @@
 //! One body owns its local types, write authority and current storage version. Checking an expression records its type and obligations in the stage product.
+use omega_typed::site_at;
 
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::place_facts;
 use crate::expressions::storage_origin::{Origin, StoragePlace};
 use crate::{ObligationKind, Site, TypedStage, TypingObligation, ValueType};
-use omega_lexer::SourceSpan;
+use omega_tokens::SourceSpan;
 use std::collections::{HashMap, HashSet};
 
 /// The enclosing construct decides how its expressions may be used. Crash guards and
@@ -26,7 +27,7 @@ pub(super) struct BodyTyper<'a, 'stage> {
     pub(super) writable: HashSet<SourceSpan>,
     pub(super) output: &'a mut TypedStage,
     pub(super) subject: Option<ValueType>,
-    pub(super) caller: Option<omega_resolver::DeclarationId>,
+    pub(super) caller: Option<omega_resolved::DeclarationId>,
     /// Origins of the values bindings hold; absent means `Origin::Caller`.
     pub(super) binding_origins: HashMap<SourceSpan, Origin>,
     /// Bindings that name a field of borrowed storage in place.
@@ -36,7 +37,7 @@ pub(super) struct BodyTyper<'a, 'stage> {
     /// Backing storage and access established when selecting each place.
     pub(super) places: HashMap<usize, StoragePlace>,
     pub(super) version: Option<Site>,
-    pub(super) cases: HashMap<place_facts::Subject, omega_resolver::DeclarationId>,
+    pub(super) cases: HashMap<place_facts::Subject, omega_resolved::DeclarationId>,
 }
 
 impl<'a, 'stage> BodyTyper<'a, 'stage> {
@@ -72,7 +73,7 @@ impl BodyTyper<'_, '_> {
             ExpressionContext::Proof | ExpressionContext::ContractValue => crate::CallUse::Fact,
             ExpressionContext::StaticArgument => crate::CallUse::StaticArgument,
             ExpressionContext::Execution => {
-                self.version = Some(Site::at(self.unit.file, node_index));
+                self.version = Some(site_at(self.unit.file, node_index));
                 self.cases.clear();
                 crate::CallUse::Execution
             }
@@ -104,7 +105,7 @@ impl BodyTyper<'_, '_> {
     ) {
         self.output.obligations.push(TypingObligation {
             node: self.unit.file.node_id(node_index),
-            site: Site::at(self.unit.file, node_index),
+            site: site_at(self.unit.file, node_index),
             kind,
         });
     }

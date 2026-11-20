@@ -1,8 +1,9 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::{TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
 
 pub(crate) fn resolve_callback_bounds<'a>(
     units: &[ResolvedSourceFile<'a>],

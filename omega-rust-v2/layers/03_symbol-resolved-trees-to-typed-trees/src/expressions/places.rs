@@ -1,9 +1,12 @@
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::Origin;
-use crate::type_system::domains;
-use crate::{Access, ObligationKind, Site, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::StoredReference;
+use crate::type_relations::TypeRelations;
+use crate::{Access, ObligationKind, TypeError, ValueType};
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 use std::collections::HashSet;
 
 pub(super) enum PlaceUse {
@@ -23,7 +26,7 @@ impl BodyTyper<'_, '_> {
         let base = source.node_id(source.ungroup(base));
         let node = source.node_id(node);
         if node != base {
-            self.output.place_steps.insert(
+            self.output.record_place_step(
                 node,
                 crate::PlaceStep {
                     base,
@@ -149,7 +152,7 @@ impl BodyTyper<'_, '_> {
                 }
             }
         }
-        let target = domains::qualified(carrier, result);
+        let target = omega_typed::qualified(carrier, result);
         self.record_operator(node_index, "as", vec![source], &target);
         Ok(target)
     }
@@ -192,7 +195,7 @@ impl BodyTyper<'_, '_> {
                     site,
                     ObligationKind::Borrow {
                         access: access.clone(),
-                        place: Site::at(source, place),
+                        place: site_at(source, place),
                     },
                 );
                 ValueType::Reference(access, Box::new(ty))
@@ -221,7 +224,7 @@ impl BodyTyper<'_, '_> {
         };
         let (place, ty) = self.check_place(place, PlaceUse::Assignment)?;
         let value = self.type_expression_with_expected_type(right_type, Some(&ty))?;
-        self.version = Some(Site::at(source, node_index));
+        self.version = Some(site_at(source, node_index));
         self.cases.clear();
         self.check_destination(right_type, &value, &ty)?;
         self.store_origin(place, self.origin(right_type));
@@ -230,7 +233,7 @@ impl BodyTyper<'_, '_> {
     pub(super) fn case_type(
         &self,
         node_index: usize,
-        case: &omega_resolver::DeclarationId,
+        case: &omega_resolved::DeclarationId,
         expected: Option<&ValueType>,
     ) -> Result<ValueType, TypeError> {
         let owner = self.catalog.case_owner[case];
@@ -252,10 +255,13 @@ impl BodyTyper<'_, '_> {
             .cloned()
             .ok_or_else(|| TypeError::at(self.unit.file, node_index, "generic case needs its carrier application"))
     }
+    /// Field initializers of a constructed machine result, including a case
+    /// payload, are parts of that owned result.
     pub(super) fn record(
         &mut self,
         node_index: usize,
         expected: Option<&ValueType>,
+        machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         let (head, inits) = source.nodes[node_index]
@@ -346,7 +352,7 @@ impl BodyTyper<'_, '_> {
                     package_hint = self.package_field_hint(expr, &target, owner, &mut witnesses)?;
                     package_hint.as_ref()
                 };
-                (expr, self.type_expression_with_expected_type(expr, hint)?)
+                (expr, self.type_at_destination(expr, hint.into(), machine_result)?)
             };
             if !witnesses.is_empty() {
                 super::existential_records::infer_witnesses(&target, &value, owner, &mut witnesses)
@@ -410,7 +416,7 @@ impl BodyTyper<'_, '_> {
                 return Err(TypeError::at(source, node_index, "package witness must be sized"));
             }
             self.output.packages.push(crate::PackageConstruction {
-                site: Site::at(source, node_index),
+                site: site_at(source, node_index),
                 carrier: ty.clone(),
                 witnesses,
             });
@@ -422,12 +428,12 @@ impl BodyTyper<'_, '_> {
     pub(super) fn record_construction(
         &mut self,
         node: usize,
-        owner: &omega_resolver::DeclarationId,
-        case: Option<&omega_resolver::DeclarationId>,
+        owner: &omega_resolved::DeclarationId,
+        case: Option<&omega_resolved::DeclarationId>,
         carrier: &ValueType,
         initializers: Vec<crate::FieldInitializer>,
     ) {
-        self.output.constructions.insert(
+        self.output.record_construction(
             self.unit.file.node_id(node),
             crate::TypedConstruction {
                 owner: owner.clone(),
@@ -468,10 +474,7 @@ impl BodyTyper<'_, '_> {
         let mut origin = self.origin(node_index);
         let mut place = self.storage_place(node_index);
         let mut base = node_index;
-        let mut case = self
-            .fact_subject(node_index)
-            .and_then(|s| self.cases.get(&s))
-            .cloned();
+        let mut subject = if self.cases.is_empty() { None } else { self.fact_subject(node_index) };
         for node_index in selectors.into_iter().rev() {
             let reference = ty.reference_parts();
             let through = reference.map(|(access, _)| access.clone());
@@ -503,6 +506,7 @@ impl BodyTyper<'_, '_> {
                 };
                 self.record_operator(node_index, operation, vec![ty], &metadata_type);
                 ty = metadata_type;
+                subject = None;
                 // Metadata describes the collection; it reads no element.
                 borrowed = None;
                 origin = Origin::Caller;
@@ -512,8 +516,7 @@ impl BodyTyper<'_, '_> {
                     return Err(TypeError::at(source, node_index, format!("cannot select a field of {ty}")));
                 };
                 self.unit.require_selection_authority(node_index, id)?;
-                let shape = case.take();
-                let shape = shape.as_ref().unwrap_or(id);
+                let shape = subject.as_ref().and_then(|s| self.cases.get(s)).unwrap_or(id);
                 let (position, declared) = self
                     .catalog
                     .fields
@@ -522,6 +525,9 @@ impl BodyTyper<'_, '_> {
                     .ok_or_else(|| TypeError::at(source, node_index, format!("{} has no field {}", id.path, field)))?;
                 self.unit
                     .require_selection_authority(node_index, &declared.declaration)?;
+                if let Some(subject) = &mut subject {
+                    subject.fields.push(declared.declaration.clone());
+                }
                 origin = origin.component(position);
                 ty = self
                     .catalog

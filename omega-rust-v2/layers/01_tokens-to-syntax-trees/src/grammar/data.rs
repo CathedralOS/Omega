@@ -1,11 +1,11 @@
 //! `data` declarations: records, sums, aliases, and the attributes they carry.
 
+use crate::NodeKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 impl SyntaxParser<'_> {
     /// `visibility? 'data' word generic_params? attributes? dropped_by?
@@ -62,6 +62,10 @@ impl SyntaxParser<'_> {
             return self.parse_data();
         }
 
+        if self.at_retirement() {
+            self.parse_retirement()?;
+            return self.expect(Punctuation::Semicolon, "`;`");
+        }
         let member = self.open();
 
         if self.at(Punctuation::Hash) {
@@ -74,7 +78,11 @@ impl SyntaxParser<'_> {
 
             if self.eat(Punctuation::LeftParenthesis) {
                 while !self.at(Punctuation::RightParenthesis) {
-                    self.parse_case_field()?;
+                    if self.at_retirement() {
+                        self.parse_retirement()?;
+                    } else {
+                        self.parse_case_field()?;
+                    }
 
                     if !self.eat(Punctuation::Comma) {
                         break;
@@ -124,6 +132,18 @@ impl SyntaxParser<'_> {
         self.parse_type_in(TypePosition::Plain)?;
         self.close(case_field, NodeKind::CaseField);
 
+        Ok(())
+    }
+
+    fn at_retirement(&self) -> bool {
+        self.at_keyword("retired") && self.nth_at(1, Punctuation::Hash)
+    }
+
+    fn parse_retirement(&mut self) -> Parsed {
+        let retired = self.open();
+        self.bump();
+        self.parse_stable_number()?;
+        self.close(retired, NodeKind::RetiredNumber);
         Ok(())
     }
 

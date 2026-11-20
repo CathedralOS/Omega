@@ -1,6 +1,6 @@
 # How L3 checks place access and runtime callable types
 
-A new parser node can change what storage a program writes or hide a callable inside another type. L3 makes both decisions explicitly for every variant of the parser's [NodeKind](../01_tokens-to-syntax-trees/src/tree/node_kind.rs). Adding a variant makes the typer fail to compile until both matches handle it.
+A new parser node can change what storage a program writes or hide a callable inside another type. L3 makes both decisions explicitly for every variant of the syntax product's [NodeKind](../../representations/syntax/src/node_kind.rs). Adding a variant makes the typer fail to compile until both matches handle it.
 
 ## Place access
 

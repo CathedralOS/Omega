@@ -1,0 +1,184 @@
+#[path = "support/source.rs"]
+mod sources;
+use omega_lowering::{PredicateOperator, PredicateStep, ScalarType, TypeShape};
+
+#[test]
+fn requirement_reach_names_the_declared_service_independently_of_its_owner() {
+    let text = "boundary trait Radio<T> {} boundary trait MotorControl {
+        machine set_speed(speed:u32) reaches Radio<u8> crashes none;
+        machine stop() reaches MotorControl crashes none;
+    }";
+    let package = sources::lower(&[("motor.omg", text)]).unwrap();
+    assert!(package.machines.is_empty());
+    let motor = package
+        .traits
+        .iter()
+        .find(|t| t.declaration.path == "MotorControl")
+        .unwrap();
+    assert!(motor.boundary);
+    let speed = motor
+        .requirements
+        .iter()
+        .find(|r| r.declaration.path.ends_with("set_speed"))
+        .unwrap();
+    let [radio] = speed.reach.as_deref().unwrap() else {
+        panic!("expected the applied Radio service")
+    };
+    assert_eq!(radio.declaration.path, "Radio");
+    assert_eq!(
+        radio.arguments[0].0,
+        [omega_lowering::TypeExpressionStep::Scalar(
+            ScalarType::Integer { signed: false, width: 8 }
+        )]
+    );
+    assert_eq!(speed.crash_ceiling.as_deref(), Some(&[][..]));
+    assert_eq!(
+        package.types.get(speed.parameter_types[0].carrier()),
+        Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 32 }))
+    );
+    let stop = motor
+        .requirements
+        .iter()
+        .find(|r| r.declaration.path.ends_with("stop"))
+        .unwrap();
+    assert_eq!(stop.reach.as_ref().unwrap()[0].declaration, motor.declaration);
+}
+
+#[test]
+fn a_runtime_index_has_its_own_carrier_and_contract_slot() {
+    let text = "trait ByteScanner { machine scan<Width:u32>(limit:u32)->u64 requires Width == 16 || Width == limit; }";
+    let package = sources::lower(&[("scan.omg", text)]).unwrap();
+    let scan = &package.traits[0].requirements[0];
+    assert_eq!(scan.reach, None);
+    assert_eq!(scan.crash_ceiling, None);
+    assert_eq!(scan.parameter_types, [omega_lowering::ParameterType::Scalar(scan.value_indices[0])]);
+    use PredicateStep::{Apply, Formal, Integer, ValueIndex};
+    assert_eq!(
+        scan.requires[0].predicate,
+        [
+            ValueIndex(0),
+            Integer(16.into()),
+            Apply(PredicateOperator::Equal),
+            ValueIndex(0),
+            Formal(0),
+            Apply(PredicateOperator::Equal),
+            Apply(PredicateOperator::Or)
+        ]
+    );
+}
+
+#[test]
+fn shared_byte_fields_retain_their_region_slots_while_sharing_a_storage_type() {
+    let text = "data Pair<'first,'second> { left:@'second [u8]; right:@'first [u8]; }";
+    let package = sources::lower(&[("pair.omg", text)]).unwrap();
+    let pair = &package.data[0];
+    assert_eq!(pair.lifetime_count, 2);
+    let [left, right] = pair.fields.as_slice() else {
+        panic!("expected both fields")
+    };
+    assert_eq!((left.lifetime, right.lifetime), (Some(1), Some(0)));
+    assert_eq!(left.carrier, right.carrier);
+    assert_eq!(package.types.get(left.carrier), Some(&TypeShape::SharedByteView));
+}
+
+#[test]
+fn finite_index_alternatives_keep_their_correlations_when_normalized() {
+    use omega_lowering::ScalarLiteral::Integer;
+    let text = "trait Scan { machine go<X:u8,Y:u8>() requires (X == 3 && Y == 9) || (Y == 4 && X == 7) || (Y == 9 && X == 3); }";
+    let package = sources::lower(&[("rows.omg", text)]).unwrap();
+    let rows = package.traits[0].requirements[0].family.as_ref().unwrap();
+    assert_eq!(
+        *rows,
+        [
+            vec![Integer(3.into()), Integer(9.into())],
+            vec![Integer(7.into()), Integer(4.into())]
+        ]
+    );
+}
+
+#[test]
+fn indexed_record_default_domain_names_the_stored_field_and_runtime_limit() {
+    use omega_lowering::PredicateStep::{Apply, Field, SelfValue, ValueIndex};
+    let text = "data Index<Limit:u32> requires value < Limit { value:u32; }";
+    let package = sources::lower(&[("index.omg", text)]).unwrap();
+    let schema = &package.data[0];
+    let field = &schema.fields[0];
+    assert_eq!(schema.value_indices, [field.carrier]);
+    assert_eq!(
+        schema.requires[0].predicate,
+        [
+            SelfValue,
+            Field(field.declaration.clone()),
+            ValueIndex(0),
+            Apply(PredicateOperator::LessThan)
+        ]
+    );
+}
+
+#[test]
+fn case_constraints_compare_the_declared_type_parameter_for_each_case() {
+    use PredicateStep::{Apply, IsCase, SelfValue, TypesEqual};
+    use omega_lowering::{TypeExpression, TypeExpressionStep as Term};
+    let source = "data Value<T> requires ((self in Value::Integer) && T == i32) || ((self in Value::Boolean) && T == bool) { case Integer(value:i32); case Boolean(value:bool); }";
+    let package = sources::lower(&[("value.omg", source)]).unwrap();
+    let value = &package.data_templates[0];
+    let parameter = TypeExpression(vec![Term::GenericParameter {
+        owner: value.declaration.clone(),
+        index: 0,
+    }]);
+    let integer = TypeExpression(vec![Term::Scalar(ScalarType::Integer { signed: true, width: 32 })]);
+    let boolean = TypeExpression(vec![Term::Scalar(ScalarType::Boolean)]);
+    assert_eq!(value.cases.len(), 2);
+    assert_eq!(value.cases[0].fields[0].ty, integer);
+    assert_eq!(value.cases[1].fields[0].ty, boolean);
+    assert_eq!(
+        value.requires[0].predicate,
+        [
+            SelfValue,
+            IsCase(value.cases[0].declaration.clone()),
+            TypesEqual {
+                left: parameter.clone(),
+                right: integer
+            },
+            Apply(PredicateOperator::And),
+            SelfValue,
+            IsCase(value.cases[1].declaration.clone()),
+            TypesEqual {
+                left: parameter,
+                right: boolean
+            },
+            Apply(PredicateOperator::And),
+            Apply(PredicateOperator::Or),
+        ]
+    );
+}
+
+#[test]
+fn a_guarded_crash_is_published_as_its_route_not_an_unconditional_ceiling() {
+    use PredicateStep::{Apply, Formal, Integer};
+    let src = "trait Service { machine read(x:u8, y:u8) crashes Trap y == 0; }";
+    let package = sources::lower(&[("route.omg", src)]).unwrap();
+    let read = &package.traits[0].requirements[0];
+    assert_eq!(read.crash_ceiling.as_deref(), Some(&[omega_lowering::CrashCause::Trap][..]));
+    let [route] = read.crash_routes.as_slice() else {
+        panic!("expected one published route")
+    };
+    assert_eq!(route.cause, omega_lowering::CrashCause::Trap);
+    assert_eq!(route.site.span.slice(src.as_bytes()), Some(b"crashes Trap y == 0".as_slice()));
+    let guard = route.guard.as_ref().expect("the guard stays on its route");
+    assert_eq!(guard.site.span.slice(src.as_bytes()), Some(b"y == 0".as_slice()));
+    assert_eq!(guard.predicate, [Formal(1), Integer(0.into()), Apply(PredicateOperator::Equal)]);
+    // The other formal is a different entry identity.
+    let other = sources::lower(&[("route.omg", &src.replace("y == 0", "x == 0"))]).unwrap();
+    let guard = other.traits[0].requirements[0].crash_routes[0]
+        .guard
+        .as_ref()
+        .unwrap();
+    assert_eq!(guard.predicate, [Formal(0), Integer(0.into()), Apply(PredicateOperator::Equal)]);
+    // An unconditional route is Truth, not a missing guard of the same cause.
+    let plain = sources::lower(&[("route.omg", &src.replace(" y == 0", ""))]).unwrap();
+    let [route] = plain.traits[0].requirements[0].crash_routes.as_slice() else {
+        panic!("expected one unconditional route")
+    };
+    assert_eq!((route.cause, route.guard.as_ref()), (omega_lowering::CrashCause::Trap, None));
+}

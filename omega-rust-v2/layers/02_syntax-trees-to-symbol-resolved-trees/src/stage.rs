@@ -2,14 +2,17 @@
 mod declarations;
 mod lookup;
 mod machine_headers;
-mod model;
 mod occurrences;
 
 use crate::syntax::File;
+use crate::{AssemblyVocabulary, Dependency, StageSource};
 use declarations::index_file;
-pub use model::*;
-use omega_lexer::SourceSpan;
-use omega_parser::NodeKind;
+use omega_resolved::{
+    CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, DomainCandidate, DomainCarrier, InterfaceExport, NameContext, NameError, NameRole,
+    NameUse, OperatorDeclaration, ResolutionIndex, ResolvedStage, Symbol, SymbolResolvedTrees, TreeBindings, is_builtin_type_name as builtin,
+};
+use omega_syntax::NodeKind;
+use omega_tokens::SourceSpan;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 fn qualify(
@@ -24,30 +27,6 @@ fn module_child(
 ) -> String {
     if module.is_empty() { name.into() } else { format!("{module}\\{name}") }
 }
-
-pub fn builtin(name: &str) -> bool {
-    matches!(
-        name,
-        "core\\Level"
-            | "core\\Type"
-            | "core\\Strict"
-            | "core\\Squash"
-            | "bool"
-            | "addr"
-            | "f32"
-            | "f64"
-            | "Slice"
-            | "SyscallResult"
-            | "Terminal"
-            | "UInt"
-            | "Int"
-            | "AtomicBool"
-            | "AtomicU32"
-            | "AtomicU64"
-    ) || name
-        .strip_prefix(['i', 'u'])
-        .is_some_and(|s| s.bytes().all(|b| b.is_ascii_digit()))
-}
 fn identifier(name: &str) -> bool {
     let mut bytes = name.bytes();
     bytes
@@ -57,6 +36,26 @@ fn identifier(name: &str) -> bool {
 }
 fn callable(kind: NodeKind) -> bool {
     matches!(kind, NodeKind::Machine | NodeKind::AsmMachine | NodeKind::MathLet)
+}
+
+fn in_subject_predicate(
+    file: &File<'_>,
+    node: usize,
+) -> bool {
+    use NodeKind::*;
+    for ancestor in file.ancestors(node) {
+        let syntax = &file.nodes[ancestor];
+        match syntax.kind {
+            Requires => {
+                return syntax
+                    .parent
+                    .is_some_and(|owner| matches!(file.nodes[owner].kind, Data | Domain));
+            }
+            Data | Domain | Machine | AsmMachine | MathLet | MachineType | FunctionType | Hypothesis => return false,
+            _ => {}
+        }
+    }
+    false
 }
 
 struct Entry {
@@ -97,6 +96,7 @@ struct Context<'a> {
     locals: HashMap<&'a str, Vec<Local>>,
     domain_indices: HashMap<usize, Symbol>,
     signature_names: Vec<(usize, usize)>,
+    patterns: BTreeMap<usize, SourceSpan>,
     imports: Vec<Import>,
     by_alias: BTreeMap<String, Vec<usize>>,
     open_modules: BTreeSet<(String, String)>,
@@ -107,7 +107,7 @@ struct Context<'a> {
 pub fn resolve_stage<'text>(
     sources: &[StageSource<'text, '_>],
     dependencies: &[Dependency<'_>],
-) -> Result<crate::SymbolResolvedTrees<'text>, NameError> {
+) -> Result<SymbolResolvedTrees<'text>, NameError> {
     resolve_stage_for_target(sources, dependencies, &AssemblyVocabulary::default())
 }
 
@@ -115,24 +115,8 @@ pub fn resolve_stage_for_target<'text>(
     sources: &[StageSource<'text, '_>],
     dependencies: &[Dependency<'_>],
     assembly: &AssemblyVocabulary<'_>,
-) -> Result<crate::SymbolResolvedTrees<'text>, NameError> {
+) -> Result<SymbolResolvedTrees<'text>, NameError> {
     resolve_stage_with_exports(sources, dependencies, assembly, &CompiledInterface::default())
-}
-
-/// Names bound in the defining package retain their declaration identities across admission.
-pub struct InterfaceExport {
-    pub id: DeclarationId,
-    pub module: String,
-    pub trait_parents: Vec<DeclarationId>,
-    pub domain_carrier: Option<DomainCarrier>,
-}
-
-/// The namespaces and the public declarations supplied by compiled source packages.
-/// A directory remains importable when none of its declarations are public.
-#[derive(Default)]
-pub struct CompiledInterface {
-    pub modules: BTreeSet<(String, String)>,
-    pub declarations: Vec<InterfaceExport>,
 }
 
 pub fn resolve_stage_with_exports<'text>(
@@ -140,16 +124,14 @@ pub fn resolve_stage_with_exports<'text>(
     dependencies: &[Dependency<'_>],
     assembly: &AssemblyVocabulary<'_>,
     interface: &CompiledInterface,
-) -> Result<crate::SymbolResolvedTrees<'text>, NameError> {
+) -> Result<SymbolResolvedTrees<'text>, NameError> {
     let mut ordered_sources: Vec<_> = sources.iter().collect();
     ordered_sources.sort_by_key(|source| (source.package, source.source.logical_path));
-    let mut files: Vec<_> = ordered_sources
+    let files: Vec<_> = ordered_sources
         .into_iter()
-        .map(File::read)
+        .enumerate()
+        .map(|(ordinal, input)| super::syntax::index_source(ordinal, input))
         .collect::<Result<_, _>>()?;
-    for (ordinal, file) in files.iter_mut().enumerate() {
-        file.ordinal = ordinal;
-    }
     let mut entries = Vec::new();
     let mut index = Index::new();
     let mut contexts = Vec::new();
@@ -330,26 +312,11 @@ pub fn resolve_stage_with_exports<'text>(
         let name = std::sync::Arc::make_mut(&mut entries[i].id.name);
         name.signature_owners = signature_owners;
         name.enclosing_machine = enclosing;
-        let entry = &entries[i];
-        let key = (entry.id.package.clone(), entry.id.path.clone());
-        if index[&key]
-            .iter()
-            .copied()
-            .take_while(|&other| other < i)
-            .any(|other| entries[other].id == entry.id)
-        {
-            let (file_number, node) = entry.source.expect("source declaration");
-            let file = &files[file_number];
-            let name = file.child(node, NodeKind::Path).unwrap_or(node);
-            return Err(file.error(file.span(name), format!("duplicate declaration {}", entry.id.path)));
-        }
     }
-    let mut bindings: Vec<_> = files
-        .iter()
-        .map(|_| crate::resolved_trees::TreeBindings::default())
-        .collect();
+    let mut bindings: Vec<_> = files.iter().map(|_| TreeBindings::default()).collect();
     let mut operator_declarations = Vec::new();
     let mut carrier_visibility = Vec::new();
+    let mut nested_carriers = Vec::new();
     let entries = &catalog.entries;
     for (slot, entry) in entries
         .iter()
@@ -389,6 +356,11 @@ pub fn resolve_stage_with_exports<'text>(
             if owners.any(|i| Some(i) != first) {
                 return Err(file.error(file.span(head), format!("ambiguous carrier {carrier}")));
             }
+            if let Some(owner) = first
+                && entries[owner].lexical_owner.is_some()
+            {
+                nested_carriers.push((slot, owner));
+            }
             match (binder, first) {
                 (Some(local), Some(owner)) => {
                     let params = file.nodes[local.node].parent.expect("domain parameter list");
@@ -415,9 +387,70 @@ pub fn resolve_stage_with_exports<'text>(
             .push(slot);
     }
     for (file, ctx) in files.iter().zip(&mut contexts) {
-        catalog.bind_imports(file, ctx, &mut bindings[file.ordinal].uses, &mut carrier_visibility)?;
+        catalog.index_visible_domains(file, ctx);
     }
-    for entry in entries[..source_count].iter().filter(|e| callable(e.id.kind)) {
+    // Resolve binder occurrences while the catalog still addresses declarations by slot.
+    // Imports and body references receive the completed overload identities below.
+    let mut signatures = Vec::new();
+    let mut signature_error = None;
+    for (slot, entry) in catalog.entries[..source_count].iter().enumerate() {
+        let (file_number, node) = entry.source.expect("source declaration");
+        let file = &files[file_number];
+        if callable(entry.id.kind) {
+            match catalog.resolve_signature(file, &contexts[file_number], node) {
+                Ok((operands, signature)) => signatures.push((slot, operands, signature)),
+                Err(error) => {
+                    signature_error.get_or_insert(error);
+                }
+            }
+        }
+    }
+    let entries = &mut catalog.entries;
+    for (slot, operands, signature) in signatures {
+        let name = std::sync::Arc::make_mut(&mut entries[slot].id.name);
+        name.operands = operands;
+        name.resolved_signature = Some(signature);
+    }
+    for i in 0..source_count {
+        if let Some(owner) = entries[i].lexical_owner {
+            let (file_number, _) = entries[i].source.expect("source declaration");
+            let enclosing = entries[contexts[file_number].entries[&owner]].id.clone();
+            std::sync::Arc::make_mut(&mut entries[i].id.name).enclosing_machine = Some(enclosing);
+        }
+        let entry = &entries[i];
+        let key = (entry.id.package.clone(), entry.id.path.clone());
+        if index[&key]
+            .iter()
+            .copied()
+            .take_while(|&other| other < i)
+            .any(|other| entries[other].id == entry.id)
+        {
+            let (file_number, node) = entry.source.expect("source declaration");
+            let file = &files[file_number];
+            let name = file.child(node, NodeKind::Path).unwrap_or(node);
+            return Err(file.error(file.span(name), format!("duplicate declaration {}", entry.id.path)));
+        }
+    }
+    // An attached domain can name data nested in a generic machine. Keep the
+    // carrier tied to that declaration when its enclosing identity is finalized.
+    for (domain, owner) in nested_carriers {
+        match catalog
+            .carriers
+            .get_mut(&domain)
+            .expect("indexed domain carrier")
+        {
+            DomainCarrier::Named(id) | DomainCarrier::Bound { alternative: id, .. } => *id = entries[owner].id.clone(),
+            _ => unreachable!("only named carriers refer to a declaration slot"),
+        }
+    }
+    catalog.check_member_names(&exports, source_count)?;
+    for (file, ctx) in files.iter().zip(&contexts) {
+        catalog.bind_imports(file, ctx, &mut bindings[file.ordinal()].uses, &mut carrier_visibility)?;
+    }
+    for entry in catalog.entries[..source_count]
+        .iter()
+        .filter(|e| callable(e.id.kind))
+    {
         let (file_number, node) = entry.source.expect("source declaration");
         let file = &files[file_number];
         if let Some(binding) = catalog.machine_header(
@@ -432,8 +465,14 @@ pub fn resolve_stage_with_exports<'text>(
         }
     }
     for ((file, context), tree) in files.iter().zip(contexts).zip(&mut bindings) {
-        catalog.bind(file, &context, tree, &mut carrier_visibility)?;
+        catalog.bind_nodes(file, &context, 0..file.nodes.len(), tree, &mut carrier_visibility)?;
         tree.definitions = context.entries;
+        tree.patterns = context.patterns;
+    }
+    // Whole-file binding reports an invalid program in source order. Never
+    // publish a provisional signature if its independent name lookup failed.
+    if let Some(error) = signature_error {
+        return Err(error);
     }
     let trait_parents = catalog.trait_parents;
     let mut direct_dependencies = BTreeMap::<String, BTreeSet<String>>::new();
@@ -443,29 +482,28 @@ pub fn resolve_stage_with_exports<'text>(
             .or_default()
             .insert(package.into());
     }
-    let resolution = ResolvedStage {
+    let declarations = catalog
+        .entries
+        .into_iter()
+        .enumerate()
+        .map(|(slot, entry)| {
+            if let Some((file, _)) = entry.source
+                && entry.public
+                && entry.lexical_owner.is_none()
+            {
+                bindings[file].exports.push(slot);
+            }
+            entry.id
+        })
+        .collect();
+    let index = ResolutionIndex {
         direct_dependencies,
         trait_parents,
         direct_trait_parents,
         domain_carriers: catalog.carriers,
-        declarations: catalog
-            .entries
-            .into_iter()
-            .enumerate()
-            .map(|(slot, entry)| {
-                if let Some((file, _)) = entry.source
-                    && entry.public
-                    && entry.lexical_owner.is_none()
-                {
-                    bindings[file].exports.push(slot);
-                }
-                entry.id
-            })
-            .collect(),
-        operator_declarations,
-        carrier_visibility,
     };
-    Ok(crate::SymbolResolvedTrees::new(files, bindings, resolution))
+    let resolution = ResolvedStage::new(index, declarations, carrier_visibility, operator_declarations);
+    Ok(SymbolResolvedTrees::new(files.into_iter().zip(bindings).collect(), resolution))
 }
 struct Catalog<'a> {
     entries: Vec<Entry>,
@@ -479,17 +517,6 @@ struct Catalog<'a> {
     assembly: &'a AssemblyVocabulary<'a>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DomainCarrier {
-    Builtin(String),
-    Named(DeclarationId),
-    /// A bound decides whether an annotated binder or its visible named alternative supplies the carrier.
-    Bound {
-        position: usize,
-        alternative: DeclarationId,
-    },
-    Generic,
-}
 fn usage(
     file: &File<'_>,
     node: usize,

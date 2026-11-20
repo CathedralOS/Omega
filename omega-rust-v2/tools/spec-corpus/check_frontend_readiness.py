@@ -27,7 +27,7 @@ STAGE_TESTS = {
     ),
     "language/generics.md:636": ("published_static_parameters_require_the_declared_argument_role",),
     "language/machine_values.md:17": ("published_record_call_selects_the_shared_counter_field",),
-    "language/modules.md:102": ("published_import_exposes_the_exact_remote_domain",),
+    "language/modules.md:117": ("published_import_exposes_the_exact_remote_domain",),
 }
 PRODUCT_CASES = (
     "language/conformances.md:204",

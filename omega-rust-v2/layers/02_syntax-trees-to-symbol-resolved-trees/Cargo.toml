@@ -6,8 +6,11 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-omega-lexer = { path = "../00_bytes-to-tokens" }
-omega-parser = { path = "../01_tokens-to-syntax-trees" }
+omega-resolved = { path = "../../representations/resolved" }
+omega-syntax = { path = "../../representations/syntax" }
+omega-tokens = { path = "../../representations/tokens" }
 
 [dev-dependencies]
+omega-lexer = { path = "../00_bytes-to-tokens" }
+omega-parser = { path = "../01_tokens-to-syntax-trees" }
 spec-corpus = { path = "../../tools/spec-corpus" }

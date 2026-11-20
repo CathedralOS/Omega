@@ -1,7 +1,8 @@
-use super::{Context, DeclarationId, Entry, Index, Local, NameError, Symbol, builtin, callable, qualify};
+use super::{Context, DeclarationId, Entry, Index, Local, NameError, Symbol, builtin, callable, in_subject_predicate, qualify};
 use crate::syntax::File;
-use omega_parser::NodeKind;
-use omega_parser::SyntaxLeaf as Leaf;
+use omega_resolved::{DomainCarrier, NameRole, ResolvedSignature, TreeBindings};
+use omega_syntax::NodeKind;
+use omega_syntax::SyntaxLeaf as Leaf;
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn index_file<'a>(
@@ -59,13 +60,16 @@ pub(super) fn index_file<'a>(
             let pattern_owner = file.pattern_owner(n);
             if node.kind == BindingPattern
                 && file.nodes[pattern_owner].kind == Arm
-                && (!file.arm_has_subject(pattern_owner) || matches!(node.path().as_str(), "true" | "false"))
+                && (!crate::syntax::arm_has_subject(file, pattern_owner) || matches!(node.path().as_str(), "true" | "false"))
             {
                 // A subjectless guard reads its condition. Boolean patterns test a literal.
                 continue;
             }
             let leaf = node.words().next_back();
             if let Some(leaf) = leaf.filter(|l| l.text != "_" && !node.leaves.iter().any(|t| t.text == ":")) {
+                if leaf.text == "self" && in_subject_predicate(file, n) {
+                    return Err(file.error(leaf.span, "the predicate subject self cannot be rebound"));
+                }
                 let owner = scope();
                 let (start, end) = if file.nodes[pattern_owner].kind == Let {
                     let body = file.nodes[pattern_owner].parent.unwrap_or(owner);
@@ -78,6 +82,7 @@ pub(super) fn index_file<'a>(
                         .unwrap_or(file.nodes[pattern_owner].end);
                     (result, file.nodes[pattern_owner].end)
                 };
+                ctx.patterns.insert(n, leaf.span);
                 add_local(&mut ctx, leaf, owner, start, end, false);
             }
             continue;
@@ -114,24 +119,10 @@ pub(super) fn index_file<'a>(
             );
             &file.tokens[syntax.first_token..syntax.end_token]
         };
-        let mut binder_ids = HashMap::new();
         let mut operands = Vec::new();
         if callable(node.kind) {
             for (_, ty) in file.parameters(n) {
-                let words: Vec<_> = tokens_for(ty)
-                    .iter()
-                    .map(|t| {
-                        if let Some((name, _, kind)) = generic_parameters
-                            .iter()
-                            .find(|(name, _, _)| name.text == t.text)
-                        {
-                            let next = binder_ids.len();
-                            format!("#{kind:?}{}", binder_ids.entry(name.text).or_insert(next))
-                        } else {
-                            t.text.to_owned()
-                        }
-                    })
-                    .collect();
+                let words: Vec<_> = tokens_for(ty).iter().map(|t| t.text).collect();
                 operands.push(words.join(" "));
             }
         }
@@ -160,6 +151,7 @@ pub(super) fn index_file<'a>(
                 operands,
                 result_domains,
                 signature_owners: vec![],
+                resolved_signature: None,
                 enclosing_machine: None,
             }),
         };
@@ -193,10 +185,244 @@ pub(super) fn index_file<'a>(
         }
         entries.push(Entry {
             id,
-            source: Some((file.ordinal, n)),
+            source: Some((file.ordinal(), n)),
             public,
             lexical_owner,
         });
     }
     Ok(ctx)
+}
+
+impl super::Catalog<'_> {
+    /// Cases, nested data and attached domains share a name within their declaring owner.
+    pub(super) fn check_member_names(
+        &self,
+        exports: &[&super::InterfaceExport],
+        source_count: usize,
+    ) -> Result<(), NameError> {
+        let module = |slot: usize| match self.entries[slot].source {
+            Some((file, _)) => self.files[file].namespace.as_str(),
+            None => exports[slot - source_count].module.as_str(),
+        };
+        for slots in self.index.values().filter(|slots| slots.len() > 1) {
+            for (position, &slot) in slots.iter().enumerate() {
+                let entry = &self.entries[slot];
+                let id = &entry.id;
+                let Some((parent_path, _)) = id.path.rsplit_once("::") else { continue };
+                if parent_path == module(slot) {
+                    continue;
+                }
+                let member = |slot: usize| match self.entries[slot].id.kind {
+                    NodeKind::Case | NodeKind::Data => true,
+                    NodeKind::Domain => matches!(self.carriers.get(&slot), Some(DomainCarrier::Named(parent))
+                        if parent.package == id.package && parent.path == parent_path && parent.enclosing_machine == id.enclosing_machine),
+                    _ => false,
+                };
+                if !member(slot)
+                    || !slots[..position].iter().any(|&other| {
+                        let previous = &self.entries[other].id;
+                        previous.kind != id.kind && previous.enclosing_machine == id.enclosing_machine && module(other) == module(slot) && member(other)
+                    })
+                {
+                    continue;
+                }
+                let message = format!("duplicate member {}", id.path);
+                return Err(match entry.source {
+                    Some((number, node)) => {
+                        let file = &self.files[number];
+                        let (_, _, span) = file.declaration_name(node).expect("indexed member");
+                        file.error(span, message)
+                    }
+                    None => NameError::new(&id.package, &id.path, super::SourceSpan::new(0, 0), message),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn resolve_signature(
+        &self,
+        file: &File<'_>,
+        context: &Context<'_>,
+        machine: usize,
+    ) -> Result<(Vec<String>, ResolvedSignature), NameError> {
+        let operands: Vec<_> = file.parameters(machine).map(|(_, ty)| ty).collect();
+        let result = file
+            .result_annotation(machine)
+            .filter(|&node| file.nodes[node].kind == NodeKind::QualifiedType && file.child(machine, NodeKind::OperatorToken).is_none());
+        let result_domains = result.map_or(&[][..], |node| &file.nodes[node].children[1..]);
+        let mut bindings = TreeBindings::default();
+        let signature_nodes = operands
+            .iter()
+            .copied()
+            .chain(result)
+            .flat_map(|node| node..file.nodes[node].end);
+        self.bind_nodes(file, context, signature_nodes, &mut bindings, &mut Vec::new())?;
+
+        let parameters: Vec<_> = file.generic_parameters(machine).collect();
+        let runtime_parameters = file
+            .child(machine, NodeKind::Params)
+            .map_or(&[][..], |node| file.nodes[node].children.as_slice());
+        let mut binders = HashMap::new();
+        let mut bound_names = HashMap::new();
+        let mut names: Vec<_> = bindings
+            .uses
+            .iter()
+            .filter(|name| matches!(name.role, NameRole::Reference | NameRole::Qualifier | NameRole::ApplicationPrefix))
+            .collect();
+        names.sort_by_key(|name| (name.node.node, name.span.get_end_offset()));
+        names.dedup_by_key(|name| (name.node.node, name.span.get_end_offset()));
+        let mut previous_segment = None;
+        let mut implicit_subjects = HashMap::new();
+        for name in names {
+            let end = name.span.get_end_offset();
+            let start = previous_segment
+                .replace((name.node.node, end))
+                .filter(|&(node, _)| node == name.node.node)
+                .map_or(0, |(_, end)| end);
+            let node = &file.nodes[name.node.node];
+            let target = match &name.target {
+                Symbol::StaticMember { binder, .. } => {
+                    let first = node.words().next().expect("qualified static member");
+                    let parameter = parameters.iter().find(|(leaf, _, _)| leaf.span == *binder);
+                    if let Some(&(_, binder, kind)) = parameter {
+                        binders.insert(first.span, (binder, kind));
+                    }
+                    continue;
+                }
+                symbol => symbol,
+            };
+            if let [Symbol::Binding { binder_node, .. }] = target.visible_names()
+                && let Some(&(_, binder, kind)) = parameters.iter().find(|(_, node, _)| node == binder_node)
+            {
+                binders.insert(name.span, (binder, kind));
+            }
+            let runtime_position = target.visible_names().iter().find_map(|symbol| {
+                if let Symbol::Binding {
+                    binder_node,
+                    kind: NodeKind::Param,
+                    ..
+                } = symbol
+                {
+                    runtime_parameters
+                        .iter()
+                        .position(|parameter| parameter == binder_node)
+                } else {
+                    None
+                }
+            });
+            let referenced = target
+                .visible_names()
+                .iter()
+                .flat_map(|symbol| {
+                    let deferred = match symbol {
+                        Symbol::DomainCandidates { candidates, .. } => candidates.as_slice(),
+                        _ => &[],
+                    };
+                    symbol
+                        .declaration_candidates()
+                        .iter()
+                        .chain(deferred.iter().map(|candidate| &candidate.declaration))
+                })
+                .filter(|id| callable(id.kind) || matches!(id.kind, NodeKind::Const | NodeKind::Data | NodeKind::Domain | NodeKind::Trait));
+            let mut origins = Vec::new();
+            for id in referenced {
+                origins.push((id.kind, id.package.as_str(), id.path.as_str()));
+                if name.role == NameRole::Reference
+                    && id.kind == NodeKind::Domain
+                    && file.nodes[name.node.node].words().count() == 1
+                    && let Some(parent) = node
+                        .parent
+                        .filter(|&parent| file.nodes[parent].kind == NodeKind::QualifiedType)
+                    && let [subject, domains @ ..] = file.nodes[parent].children.as_slice()
+                    && domains.contains(&name.node.node)
+                    && self.index[&(id.package.clone(), id.path.clone())]
+                        .iter()
+                        .any(|slot| {
+                            self.entries[*slot].id == *id && matches!(self.carriers.get(slot), Some(DomainCarrier::Generic | DomainCarrier::Bound { .. }))
+                        })
+                {
+                    implicit_subjects.insert(name.span, *subject);
+                }
+            }
+            origins.sort_unstable();
+            origins.dedup();
+            if origins.is_empty() && runtime_position.is_none() {
+                continue;
+            }
+            let last = node
+                .words()
+                .take_while(|word| word.span.get_end_offset() <= end)
+                .last()
+                .expect("declaration reference");
+            // Keep each applied segment and its arguments, replacing its
+            // lookup spelling with the declaration bound at that segment.
+            if matches!(target, Symbol::Declaration(_)) {
+                for leaf in &node.leaves {
+                    if leaf.span.get_start_offset() >= start && leaf.span.get_end_offset() <= last.span.get_start_offset() {
+                        bound_names.insert(leaf.span, None);
+                    }
+                }
+            }
+            // A runtime subject refers to its operand position. Generic binders
+            // can be renamed by first use, but swapping runtime operands can
+            // change the meaning of a named domain or dependent type.
+            let replacement = match runtime_position {
+                Some(position) if origins.is_empty() => format!("#operand{position}"),
+                Some(position) => format!("#operand{position}#declarations{origins:?}"),
+                None => format!("#declarations{origins:?}"),
+            };
+            bound_names.insert(last.span, Some(replacement));
+        }
+
+        // Number generic binders by first use across the operands. Result-only
+        // binders use declaration order so rearranging domain conjuncts cannot rename them.
+        let mut positions = HashMap::new();
+        let shape = |part: usize, resolved: bool, positions: &mut HashMap<usize, usize>| {
+            let syntax = &file.nodes[part];
+            let mut ranges = vec![(syntax.first_token, syntax.end_token, None)];
+            let mut words = Vec::new();
+            'ranges: while let Some((start, end, next_name)) = ranges.pop() {
+                for (index, token) in file.tokens[start..end].iter().enumerate() {
+                    if resolved && let Some(replacement) = bound_names.get(&token.span) {
+                        if let Some(&subject) = implicit_subjects.get(&token.span) {
+                            // Supply the same carrier tokens that an explicit
+                            // qualifier would contribute before the domain name.
+                            let subject = &file.nodes[subject];
+                            ranges.push((start + index + 1, end, next_name));
+                            ranges.push((subject.first_token, subject.end_token, replacement.as_deref()));
+                            continue 'ranges;
+                        }
+                        words.extend(replacement.iter().cloned());
+                    } else if let Some(&(binder, kind)) = binders.get(&token.span) {
+                        let next = positions.len();
+                        words.push(format!("#{kind:?}{}", positions.entry(binder).or_insert(next)));
+                    } else {
+                        words.push(token.text.to_owned());
+                    }
+                }
+                words.extend(next_name.map(str::to_owned));
+            }
+            words.join(" ")
+        };
+        let authored_operands: Vec<_> = operands
+            .iter()
+            .map(|&node| shape(node, false, &mut positions))
+            .collect();
+        let operands = operands
+            .iter()
+            .map(|&node| shape(node, true, &mut positions))
+            .collect();
+        for (_, node, _) in parameters {
+            let next = positions.len();
+            positions.entry(node).or_insert(next);
+        }
+        let mut result_domains: Vec<_> = result_domains
+            .iter()
+            .map(|&domain| shape(domain, true, &mut positions))
+            .collect();
+        result_domains.sort_unstable();
+        result_domains.dedup();
+        Ok((authored_operands, ResolvedSignature { operands, result_domains }))
+    }
 }

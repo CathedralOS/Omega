@@ -3,7 +3,6 @@
 mod support;
 
 use omega_lexer::lex;
-use std::path::Path;
 use support::dump_error;
 
 /// Every example in the spec must lex, tile its source, and have self-delimiting tokens.
@@ -13,8 +12,7 @@ use support::dump_error;
 /// be silenced by skipping the example.
 #[test]
 fn every_spec_example_lexes() {
-    let spec_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let spec_examples = spec_corpus::extract_omega_examples(&spec_directory).expect("Expected wiki/spec to be readable.");
+    let spec_examples = spec_corpus::published_examples().expect("Expected wiki/spec to be readable.");
 
     assert!(
         spec_examples.len() >= 100,

@@ -27,7 +27,7 @@ pub fn standard_library() -> &'static TypedTrees<'static> {
 
 impl CheckedLibrary {
     fn check(
-        resolved: &'static omega_resolver::SymbolResolvedTrees<'static>,
+        resolved: &'static omega_resolved::SymbolResolvedTrees<'static>,
         core: Option<&'static CoreInterface>,
     ) -> Result<Self, crate::TypeError> {
         let mut facts = TypedStage::default();

@@ -262,3 +262,77 @@ fn slash_star_slash_does_not_close_itself() {
 fn nul_byte_rejects() {
     expect_error(b"a\0b", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2));
 }
+
+#[test]
+fn every_single_byte_has_its_lexical_verdict_and_span() {
+    use omega_lexer::{IntegerRadix, Punctuation};
+    for byte in u8::MIN..=u8::MAX {
+        let source = [byte];
+        let expected = match byte {
+            b' ' | b'\t' | b'\r' | b'\n' => Ok(TokenKind::Whitespace),
+            b'_' | b'a'..=b'z' | b'A'..=b'Z' => Ok(TokenKind::Word),
+            b'0'..=b'9' => Ok(TokenKind::Integer {
+                radix: IntegerRadix::Decimal,
+                suffix_start_offset: 1,
+            }),
+            b'"' => Err(LexErrorKind::UnterminatedQuoted),
+            128..=255 => Err(LexErrorKind::InvalidUtf8),
+            _ => Punctuation::ORDERED_SPELLINGS
+                .iter()
+                .find(|(spelling, _)| spelling.as_bytes() == source)
+                .map(|(_, kind)| TokenKind::Punctuation(*kind))
+                .ok_or(LexErrorKind::UnknownCharacter),
+        };
+        match expected {
+            Ok(kind) => expect_kinds(&source, &[kind]),
+            Err(error) => expect_error(&source, error, SourceSpan::new(0, 1)),
+        }
+    }
+}
+
+#[test]
+fn every_two_byte_input_with_a_non_ascii_byte_obeys_utf8_error_precedence() {
+    for first in u8::MIN..=u8::MAX {
+        for second in u8::MIN..=u8::MAX {
+            if first.is_ascii() && second.is_ascii() {
+                continue;
+            }
+            let bytes = [first, second];
+            match std::str::from_utf8(&bytes) {
+                // Every valid non-ASCII source of this length is one two-byte character.
+                Ok(_) => expect_error(&bytes, LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(0, 2)),
+                Err(error) => {
+                    let start = error.valid_up_to();
+                    let end = error.error_len().map_or(bytes.len(), |length| start + length);
+                    expect_error(&bytes, LexErrorKind::InvalidUtf8, SourceSpan::new(start, end));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn token_names_and_trivia_flags_cover_the_public_vocabulary() {
+    let tokens = lex(b" //line\n/*block*/word+0\"quoted\"1.0").unwrap();
+    let labels: Vec<_> = tokens
+        .iter()
+        .map(|token| {
+            let kind = token.get_kind();
+            (kind.get_name(), kind.is_trivia())
+        })
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            ("Whitespace", true),
+            ("LineComment", true),
+            ("Whitespace", true),
+            ("BlockComment", true),
+            ("Word", false),
+            ("Punctuation", false),
+            ("Integer", false),
+            ("Quoted", false),
+            ("Float", false)
+        ]
+    );
+}

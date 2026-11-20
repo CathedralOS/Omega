@@ -1,8 +1,10 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
+use crate::type_system::dependent_subjects::DependentSubjects;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
-use omega_parser::{MathBinding, NodeKind};
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::{MathBinding, NodeKind};
 use std::collections::HashMap;
 
 pub(crate) fn index_interfaces<'a>(

@@ -1,60 +1,33 @@
 //! An open static operation keeps its resolved syntax and the owner's exact arguments.
 //! L4 supplies values for closed substitutions that require general evaluation.
-use super::static_template::StaticTemplate;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::{SpecializedIndexValue, StaticValue, StaticValueRequest, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::DeclarationId;
+use omega_typed::{ClosedArguments, StaticTemplate, SyntaxKey};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub(super) struct SyntaxKey {
-    pub(super) owner: DeclarationId,
-    nodes: Vec<(NodeKind, usize, Vec<String>, Option<Symbol>)>,
-}
-impl SyntaxKey {
-    fn new(
-        unit: &ResolvedSourceFile<'_>,
-        n: usize,
-        owner: &DeclarationId,
-    ) -> Self {
-        Self {
-            owner: owner.clone(),
-            nodes: (n..unit.file.nodes[n].end)
-                .map(|i| {
-                    let node = &unit.file.nodes[i];
-                    (
-                        node.kind,
-                        node.children.len(),
-                        node.leaves.iter().map(|t| t.text.to_owned()).collect(),
-                        // Receipts identify the same resolved source before and after L3 selects names.
-                        unit.tree.symbol(i).cloned(),
-                    )
-                })
-                .collect(),
-        }
-    }
-}
-/// Only fully substituted arguments may index an admitted evaluation result.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub(super) struct ClosedArguments(Vec<ValueType>);
-
-impl ClosedArguments {
-    pub(super) fn into_values(self) -> Vec<ValueType> {
-        self.0
-    }
-}
-impl TryFrom<Vec<ValueType>> for ClosedArguments {
-    type Error = Vec<ValueType>;
-
-    fn try_from(arguments: Vec<ValueType>) -> Result<Self, Self::Error> {
-        if arguments.iter().any(ValueType::contains_parameter) {
-            Err(arguments)
-        } else {
-            Ok(Self(arguments))
-        }
-    }
+fn syntax_key(
+    unit: &ResolvedSourceFile<'_>,
+    n: usize,
+    owner: &DeclarationId,
+) -> SyntaxKey {
+    SyntaxKey::new(
+        owner.clone(),
+        (n..unit.file.nodes[n].end)
+            .map(|i| {
+                let node = &unit.file.nodes[i];
+                (
+                    node.kind,
+                    node.children.len(),
+                    node.leaves.iter().map(|t| t.text.to_owned()).collect(),
+                    // Receipts identify the same resolved source before and after L3 selects names.
+                    unit.tree.symbol(i).cloned(),
+                )
+            })
+            .collect(),
+    )
 }
 #[derive(Default)]
 pub(crate) struct IndexSpecializations {
@@ -87,7 +60,7 @@ impl IndexSpecializations {
             let arguments = ClosedArguments::try_from(receipt.arguments.clone()).map_err(|_| fail("evaluation requires closed arguments"))?;
             let entry = prepared
                 .values
-                .entry((SyntaxKey::new(unit, n, owner), receipt.request.carrier.clone()))
+                .entry((syntax_key(unit, n, owner), receipt.request.carrier.clone()))
                 .or_default();
             if Arc::make_mut(entry)
                 .insert(arguments, receipt.value.clone())
@@ -105,13 +78,13 @@ impl IndexSpecializations {
         owner: &DeclarationId,
         carrier: &ValueType,
     ) -> Arc<StaticTemplate> {
-        let key = (SyntaxKey::new(unit, n, owner), carrier.clone());
+        let key = (syntax_key(unit, n, owner), carrier.clone());
         let values = self.values.get(&key).cloned().unwrap_or_default();
-        Arc::new(StaticTemplate {
-            key: key.0,
-            request: StaticValueRequest::at(unit.file, n, carrier),
-            allow_pending: self.allow_pending,
+        Arc::new(StaticTemplate::new(
+            key.0,
+            StaticValueRequest::at(unit.file, n, carrier),
+            self.allow_pending,
             values,
-        })
+        ))
     }
 }

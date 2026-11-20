@@ -1,7 +1,6 @@
 //! The production package profile supplies the standard library to the V2 resolver.
 #![forbid(unsafe_code)]
-mod collection;
-pub use collection::CollectionPrimitive;
+pub use omega_program_contracts::CollectionPrimitive;
 mod core_interface;
 pub use core_interface::{CoreInterface, LayoutQuery, core_interface};
 use omega_lexer::SourceSpan;
@@ -11,13 +10,21 @@ pub const TOOLCHAIN_PACKAGE: &str = "@omega/toolchain";
 
 /// Trees resolved with the standard package exports and the toolchain's reserved identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SourcePackage<'text>(SymbolResolvedTrees<'text>);
+pub struct SourcePackage<'text> {
+    resolved: SymbolResolvedTrees<'text>,
+    assembly: Option<std::sync::Arc<omega_typed::AssemblyTypes>>,
+}
+impl SourcePackage<'_> {
+    pub fn assembly(&self) -> Option<&omega_typed::AssemblyTypes> {
+        self.assembly.as_deref()
+    }
+}
 
 impl<'text> std::ops::Deref for SourcePackage<'text> {
     type Target = SymbolResolvedTrees<'text>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.resolved
     }
 }
 
@@ -37,6 +44,21 @@ pub fn check_source_identity(
 }
 
 pub fn resolve_source_package<'text>(sources: &[StageSource<'text, '_>]) -> Result<SourcePackage<'text>, NameError> {
+    resolve_package(sources, None)
+}
+
+/// Resolve target names from the same compiler-owned catalog used in typing.
+/// An unspecified target keeps its empty instruction vocabulary.
+pub fn resolve_source_package_with_assembly<'text>(
+    sources: &[StageSource<'text, '_>],
+    catalog: std::sync::Arc<omega_typed::AssemblyTypes>,
+) -> Result<SourcePackage<'text>, NameError> {
+    resolve_package(sources, Some(catalog))
+}
+fn resolve_package<'text>(
+    sources: &[StageSource<'text, '_>],
+    assembly: Option<std::sync::Arc<omega_typed::AssemblyTypes>>,
+) -> Result<SourcePackage<'text>, NameError> {
     for source in sources {
         check_source_identity(source.package, source.source.logical_path)?;
     }
@@ -51,5 +73,16 @@ pub fn resolve_source_package<'text>(sources: &[StageSource<'text, '_>]) -> Resu
             package: TOOLCHAIN_PACKAGE,
         })
         .collect();
-    omega_resolver::resolve_stage_with_exports(sources, &dependencies, &Default::default(), core_interface().exports()).map(SourcePackage)
+    let mut instructions = Vec::new();
+    let mut registers = Vec::new();
+    if let Some(catalog) = assembly.as_ref() {
+        instructions.extend(catalog.instructions.keys().map(String::as_str));
+        registers.extend(catalog.registers.keys().map(String::as_str));
+    }
+    let names = omega_resolver::AssemblyVocabulary {
+        instructions: &instructions,
+        registers: &registers,
+    };
+    let resolved = omega_resolver::resolve_stage_with_exports(sources, &dependencies, &names, core_interface().exports())?;
+    Ok(SourcePackage { resolved, assembly })
 }

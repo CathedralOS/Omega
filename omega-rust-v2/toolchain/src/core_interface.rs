@@ -3,12 +3,7 @@ use super::TOOLCHAIN_PACKAGE;
 use omega_resolver::{CompiledInterface, DeclarationId, ParsedSource, StageSource, SymbolResolvedTrees};
 use std::sync::OnceLock;
 
-/// Projection from the selected data layout, identified by its core declaration.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum LayoutQuery {
-    Size,
-    Alignment,
-}
+pub use omega_target_contract::LayoutQuery;
 
 pub struct CoreInterface {
     pub declarations: SymbolResolvedTrees<'static>,
@@ -76,6 +71,11 @@ impl CoreInterface {
     pub fn access_plan_requirement(&self) -> &DeclarationId {
         self.id("AccessPolicy::plan")
     }
+    /// The canonical boundary trait and its exact process-exit requirement.
+    /// Identity includes this package, so a same-spelled declaration elsewhere never matches.
+    pub fn process_exit_requirement(&self) -> (&DeclarationId, &DeclarationId) {
+        (self.id("ProcessExit"), self.id("ProcessExit::exit_process"))
+    }
     pub fn ranking_views(&self) -> [(&DeclarationId, bool); 2] {
         [
             (self.id("Nat\\Descending"), true),
@@ -92,6 +92,8 @@ pub fn core_interface() -> &'static CoreInterface {
             ("language/core/reflect/reflect.omg", include_str!("../core/reflect.omg")),
             ("language/core/access/access.omg", include_str!("../core/access.omg")),
             ("language/core/Nat/nat.omg", include_str!("../core/nat.omg")),
+            ("language/core/never.omg", include_str!("../core/never.omg")),
+            ("language/core/process_exit.omg", include_str!("../core/process_exit.omg")),
         ]
         .map(|(path, text)| {
             let tokens = omega_lexer::lex(text.as_bytes()).expect("bundled core tokens");

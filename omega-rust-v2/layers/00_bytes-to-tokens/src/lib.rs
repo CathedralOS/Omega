@@ -66,8 +66,6 @@
         lexing/     the work itself: the two entry points, the scanner that
                     makes the one pass, the byte tables it reads, and the
                     escape rules of a quoted literal.
-        tokens/     what comes out: the token, its kinds, the punctuation
-                    vocabulary and the radix of an integer.
         errors/     what a refusal carries: the error and the rule it names.
         locations/  where something is in a file: a byte range, and the line
                     and column a person would look for.
@@ -80,7 +78,7 @@
            The two entry points, `lex` and `lex_into`, with a narrated example
            on each. This is all a caller ever touches.
 
-        2. tokens/token.rs, tokens/token_kind.rs, locations/source_span.rs
+        2. representations/tokens/src/{token,token_kind}.rs and locations/source_span.rs
            What comes back. A token is a kind and a span, and that is the whole
            output, so read these before the code that fills them in.
 
@@ -93,11 +91,11 @@
            The table the loop looks each first byte up in. It is why the loop
            has so little in it.
 
-        5. tokens/punctuation.rs
+        5. representations/tokens/src/punctuation.rs and lexing/punctuation.rs
            The punctuation list, and how the longest spelling is chosen.
 
         6. lexing/quoted_literal_decoder.rs, lexing/quoted_escape_error.rs,
-           tokens/integer_radix.rs
+           representations/tokens/src/integer_radix.rs
            The small rules the scanner's slower paths lean on: escapes inside a
            quoted literal, and the bases a number can be written in.
 
@@ -139,16 +137,13 @@
 mod errors;
 mod lexing;
 mod locations;
-mod tokens;
 
 pub use errors::lex_error::LexError;
 pub use errors::lex_error_kind::LexErrorKind;
 pub use lexing::lexer::{lex, lex_into};
+pub use lexing::punctuation::longest_match;
 pub use lexing::quoted_literal_decoder::decode_quoted_bytes;
 pub use locations::line_index::LineIndex;
 pub use locations::source_position::SourcePosition;
 pub use locations::source_span::SourceSpan;
-pub use tokens::integer_radix::IntegerRadix;
-pub use tokens::punctuation::Punctuation;
-pub use tokens::token::Token;
-pub use tokens::token_kind::TokenKind;
+pub use omega_tokens::{IntegerRadix, Punctuation, Token, TokenKind};

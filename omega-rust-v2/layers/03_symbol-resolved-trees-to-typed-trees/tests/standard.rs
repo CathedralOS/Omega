@@ -613,7 +613,7 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
             ),
         ]
     };
-    let admit = |arg| {
+    let admit_value = |arg, value| {
         let receipt = SpecializedIndexValue {
             request: omega_typer::StaticValueRequest {
                 node: evaluation::node(source, start, "width::<T>()", omega_parser::NodeKind::Call),
@@ -621,7 +621,7 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
                 carrier: omega_typer::ValueType::Integer { signed: false, width: Some(8) },
             },
             arguments: vec![arg],
-            value: omega_typer::StaticValue::Integer(1.into()),
+            value,
         };
         type_stage_in_environment(
             &resolved,
@@ -632,6 +632,16 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
         )
         .map(|_| ())
     };
+    let admit = |arg| admit_value(arg, omega_typer::StaticValue::Integer(1.into()));
+    // This generic body has no closed caller. Its supplied receipt still has to inhabit u8.
+    for value in [
+        omega_typer::StaticValue::Integer(256.into()),
+        omega_typer::StaticValue::Bool(true),
+    ] {
+        let err = admit_value(T::Bool, value).unwrap_err();
+        assert_eq!(err.message, "specialized evaluation result does not match its carrier");
+        assert_eq!(err.span, site.span);
+    }
     let parameter = T::Parameter {
         owner: Box::new(owner.clone()),
         index: 0,

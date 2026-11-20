@@ -25,15 +25,24 @@ impl DeclarationCatalog<'_> {
             .evaluated_indices
             .iter()
             .map(|(request, _)| &request.carrier);
-        if stage.constants.is_empty() && demands.is_empty() && stage.evaluated_indices.is_empty() {
-            return;
-        }
+        let static_inputs = !stage.constants.is_empty() || !demands.is_empty() || !stage.evaluated_indices.is_empty();
         let mut steps: Vec<_> = constant_carriers
             .chain(demand_carriers)
             .chain(evaluated_carriers)
             // Local machine arguments and temporaries may use a different
             // aggregate than the value returned to the demanding expression.
-            .chain(stage.expressions.iter().map(|expression| &expression.ty))
+            .chain(
+                static_inputs
+                    .then_some(stage.expressions.as_slice())
+                    .into_iter()
+                    .flatten()
+                    .map(|expression| &expression.ty),
+            )
+            .chain(
+                stage
+                    .construction_carriers()
+                    .filter(|carrier| matches!(carrier, ValueType::Applied(..)) && !carrier.contains_parameter()),
+            )
             .filter(|ty| matches!(ty, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)))
             .cloned()
             .map(Step::Visit)

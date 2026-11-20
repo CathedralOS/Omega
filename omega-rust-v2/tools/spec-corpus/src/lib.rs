@@ -52,6 +52,27 @@ impl SpecExample {
     }
 }
 
+/// Resolve the checkout before locating the repository spec. V2 can be opened through a junction.
+fn repository_spec() -> io::Result<PathBuf> {
+    let manifest = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))?;
+    let checkout = manifest
+        .ancestors()
+        .nth(3)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "spec-corpus is outside the V2 workspace layout"))?;
+    Ok(checkout.join("wiki").join("spec"))
+}
+
+pub fn published_examples() -> io::Result<Vec<SpecExample>> {
+    extract_omega_examples(&repository_spec()?)
+}
+
+pub fn published_chapter(chapter: &str) -> io::Result<Vec<SpecExample>> {
+    let markdown = fs::read_to_string(repository_spec()?.join(chapter))?;
+    let mut examples = Vec::new();
+    extract_examples_from_markdown(chapter, &markdown, &mut examples);
+    Ok(examples)
+}
+
 /// Reads every Markdown file under `spec_directory` and returns its `omega` examples,
 /// ordered by file path and then by position in the file.
 pub fn extract_omega_examples(spec_directory: &Path) -> io::Result<Vec<SpecExample>> {
@@ -103,7 +124,10 @@ pub fn extract_examples_from_markdown(
     // An unclosed fence at end of file is dropped: we cannot tell where the example was meant to end.
 }
 
-fn collect_markdown_paths(directory: &Path, markdown_paths: &mut Vec<PathBuf>) -> io::Result<()> {
+fn collect_markdown_paths(
+    directory: &Path,
+    markdown_paths: &mut Vec<PathBuf>,
+) -> io::Result<()> {
     for directory_entry in fs::read_dir(directory)? {
         let entry_path = directory_entry?.path();
         if entry_path.is_dir() {

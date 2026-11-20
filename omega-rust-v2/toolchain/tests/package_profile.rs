@@ -75,3 +75,17 @@ fn the_profile_identifies_the_default_ranking_view_and_the_access_requirement() 
     );
     assert_eq!(core.access_plan_requirement(), core.id("AccessPolicy::plan"));
 }
+
+#[test]
+fn the_profile_owns_the_canonical_process_exit_requirement() {
+    let core = core_interface();
+    let (owner, requirement) = core.process_exit_requirement();
+    assert_eq!((owner.package.as_str(), owner.path.as_str()), (TOOLCHAIN_PACKAGE, "language\\core\\ProcessExit"));
+    assert_eq!(owner.kind, omega_parser::NodeKind::Trait);
+    assert_eq!(
+        (requirement.package.as_str(), requirement.path.as_str()),
+        (TOOLCHAIN_PACKAGE, "language\\core\\ProcessExit::exit_process")
+    );
+    assert_eq!(requirement.kind, omega_parser::NodeKind::Machine);
+    assert_eq!(core.id("Never").kind, omega_parser::NodeKind::Data);
+}

@@ -6,11 +6,23 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+omega-psi = { path = "../../representations/psi" }
+omega-target-contract = { path = "../../contracts/target" }
+num-bigint = "0.4"
+
+omega-program-contracts = { path = "../../contracts/program" }
+omega-syntax = { path = "../../representations/syntax" }
+omega-resolved = { path = "../../representations/resolved" }
+omega-typed = { path = "../../representations/typed" }
+omega-prepared = { path = "../../representations/prepared" }
+
+[dev-dependencies]
+tree-handoff-consumer = { path = "tests/tree-consumer" }
 omega-parser = { path = "../01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 omega-typer = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 omega-preparation = { path = "../04_typed-trees-to-prepared-trees" }
-num-bigint = "0.4"
-
-[dev-dependencies]
+omega-toolchain = { path = "../../toolchain" }
+psi-handoff-consumer = { path = "tests/psi-consumer" }
 omega-lexer = { path = "../00_bytes-to-tokens" }
+spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }

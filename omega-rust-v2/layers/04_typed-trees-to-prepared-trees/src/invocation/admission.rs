@@ -1,4 +1,6 @@
 use super::*;
+use crate::evaluation::floating_point::FloatFormatEvaluation;
+use static_callbacks::CallbackBinding;
 
 mod proofs;
 mod providers;
@@ -9,7 +11,7 @@ use proofs::{InvocationClaim, InvocationSite};
 pub(crate) use providers::ProviderAdmission;
 pub use providers::{CheckedProvider, SelectedRealization};
 
-use omega_typer::CrashCause;
+use omega_typed::CrashCause;
 
 impl ConstantEvaluation<'_, '_> {
     pub(super) fn schedule_call<'a>(
@@ -61,13 +63,7 @@ impl ConstantEvaluation<'_, '_> {
                 .enclosing_arguments
                 .iter()
                 .any(|(_, args)| !args.is_empty()))
-        .then(|| {
-            Rc::new(
-                scope
-                    .application()
-                    .map_or_else(|| call.clone(), |outer| call.in_caller_application(outer)),
-            )
-        });
+        .then(|| Rc::new(call.with_substitutions(|value| scope.instantiate(value))));
         let provider = typed_slot
             .or(supplied_slot)
             .map(|slot| self.checked_provider(call, selected_application.as_deref(), slot))
@@ -85,11 +81,14 @@ impl ConstantEvaluation<'_, '_> {
             .signatures()
             .get(&call.machine)
             .ok_or("the selected declaration has no typed signature")?;
+        let mut callback_bindings = selected_application
+            .as_deref()
+            .map_or_else(Vec::new, |selected| Self::forward_callback_bindings(call, selected, scope));
         for record in request_tree.semantics_at(call.node.node) {
             match record {
                 NodeSemantics::Call(_) | NodeSemantics::Expression(_) => {}
-                NodeSemantics::Obligation(obligation) if let ObligationKind::RefineCallable { contract, machine, arguments } = &obligation.kind => {
-                    self.admit_static_callable_refinement(obligation, contract, machine, arguments, selected_application.as_deref(), scope, execution)?;
+                NodeSemantics::Obligation(obligation) if matches!(&obligation.kind, ObligationKind::RefineCallable { .. }) => {
+                    callback_bindings.push(self.admit_static_callable_refinement(obligation, selected_application.as_deref(), scope, execution)?);
                 }
                 NodeSemantics::Obligation(o) if call.use_site == CallUse::Fact && matches!(o.kind, ObligationKind::TotalCrashGuard) => {}
                 NodeSemantics::Obligation(obligation) if matches!(&obligation.kind, ObligationKind::CallPrecondition(target) if target == &call.machine) => {}
@@ -130,7 +129,7 @@ impl ConstantEvaluation<'_, '_> {
         if resolved.declaration_at(declaration) != Some(&signature.machine) {
             return Err("the selected declaration has no local body".into());
         }
-        if file.nodes[declaration].has_public_modifier() && !signature.terminates {
+        if resolved.is_exported(declaration) && !signature.terminates {
             return Err("the selected public machine does not declare termination".into());
         }
         let effects = self
@@ -139,7 +138,10 @@ impl ConstantEvaluation<'_, '_> {
         if !effects.reach.is_empty() || effects.fixed_pause.suspend || effects.fixed_pause.block {
             return Err("the selected invocation is not effect-free during preparation".into());
         }
-        self.admit_callback_effects(effects, application.as_deref(), execution)?;
+        if provider.is_some() {
+            callback_bindings.clear();
+        }
+        self.admit_callback_effects(effects, application.as_deref(), &callback_bindings, execution)?;
         if signature.satisfies.is_some()
             || &specialize(&signature.result) != carrier
             || !signature.multiplicity_bounds.is_empty()
@@ -170,6 +172,7 @@ impl ConstantEvaluation<'_, '_> {
             signature,
             requirement,
             application: application.clone(),
+            callback_bindings: callback_bindings.into(),
         });
         for ((_, carrier), operand) in signature.parameters.iter().zip(&call.operands).rev() {
             let argument = self
@@ -186,6 +189,7 @@ impl ConstantEvaluation<'_, '_> {
         signature: &'a TypedSignature,
         requirement: Option<(&'a TypedSignature, Option<Rc<TypedCall>>)>,
         application: Option<Rc<TypedCall>>,
+        callback_bindings: Rc<[CallbackBinding]>,
         execution: &mut Execution<'a>,
     ) -> Result<(), EvaluationError> {
         let tree = self.tree(signature.node)?;
@@ -220,12 +224,15 @@ impl ConstantEvaluation<'_, '_> {
         let result = application
             .as_ref()
             .map_or_else(|| signature.result.clone(), |applied| applied.instantiate(&signature.result));
-        let arguments = Rc::new(CallBindings(RefCell::new(arguments), application));
-        let first_activation = execution.active.insert(signature.node);
-        execution.steps.push(Step::Leave {
-            declaration: signature.node,
-            first_activation,
+        let arguments = Rc::new(CallBindings {
+            values: RefCell::new(arguments),
+            application,
+            callback_bindings,
         });
+        execution
+            .active
+            .enter(signature.node, arguments.application.as_deref());
+        execution.steps.push(Step::Leave(signature.node));
 
         let body = file
             .child(declaration, NodeKind::Body)
@@ -293,7 +300,7 @@ impl ConstantEvaluation<'_, '_> {
                 invocation,
                 claim: InvocationClaim::Requires(predicate_id),
             };
-            if self.has_invocation_proof(request, arguments.1.as_deref()) || needs_proof_evaluation(tree, predicate) {
+            if self.has_invocation_proof(request, arguments.application.as_deref()) || needs_proof_evaluation(tree, predicate) {
                 execution
                     .steps
                     .push(Step::CheckInvocationProof(request, Rc::clone(arguments)));
@@ -395,7 +402,7 @@ impl ConstantEvaluation<'_, '_> {
                         invocation,
                         claim: InvocationClaim::CrashDisproved { route, guard: obligation },
                     };
-                    if self.has_invocation_proof(request, arguments.1.as_deref()) || needs_proof_evaluation(tree, obligation.node.node) {
+                    if self.has_invocation_proof(request, arguments.application.as_deref()) || needs_proof_evaluation(tree, obligation.node.node) {
                         // The stack runs all preconditions before this step. The guard
                         // uses the immutable entry operands before the body can run.
                         execution
@@ -434,15 +441,12 @@ impl ConstantEvaluation<'_, '_> {
                 match &operand.subject {
                     ValueType::StaticInteger { value, carrier: selected } if selected.as_ref() == carrier => Step::Push(PreparedValue::Integer(value.clone())),
                     _ => {
-                        let Scope::Initializer { owner_arguments, .. } = scope else { unreachable!() };
-                        Step::Evaluate(
-                            operand.node,
-                            carrier.clone(),
-                            Scope::Initializer {
-                                owner_arguments: *owner_arguments,
-                                in_argument: true,
-                            },
-                        )
+                        let mut argument_scope = scope.clone();
+                        let Scope::Initializer { in_argument, .. } = &mut argument_scope else {
+                            unreachable!()
+                        };
+                        *in_argument = true;
+                        Step::Evaluate(operand.node, carrier.clone(), argument_scope)
                     }
                 }
             }

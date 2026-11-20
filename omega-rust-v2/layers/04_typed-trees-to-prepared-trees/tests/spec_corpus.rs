@@ -3,12 +3,11 @@ use omega_preparation::{PreparedValue, prepare_source_package};
 use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::resolve_source_package;
 use spec_corpus::parser_examples::{fragment_kind, parser_source};
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
 
 #[test]
 fn every_spec_fragment_has_a_preparation_outcome() {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let examples = spec_corpus::extract_omega_examples(&spec).unwrap();
+    let examples = spec_corpus::published_examples().unwrap();
     let previous: BTreeMap<_, _> = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt")
         .lines()
         .chain(include_str!("../../03_symbol-resolved-trees-to-typed-trees/fixtures/spec-outcomes.txt").lines())
@@ -55,8 +54,7 @@ fn every_spec_fragment_has_a_preparation_outcome() {
 }
 #[test]
 fn spec_constants_freeze_by_declaration_including_type_scoped_names() {
-    let mut examples = Vec::new();
-    spec_corpus::extract_examples_from_markdown("constants", include_str!("../../../wiki/spec/language/constants.md"), &mut examples);
+    let examples = spec_corpus::published_chapter("language/constants.md").unwrap();
     let declarations = &examples[0].source_text;
     // The published example uses the EFI type without declaring it.
     let source = format!("data EfiStatus [copy] {{code:u64;}}\n{declarations}");

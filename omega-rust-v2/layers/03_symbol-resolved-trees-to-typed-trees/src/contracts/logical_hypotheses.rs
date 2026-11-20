@@ -1,9 +1,11 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::{LogicalHypothesis, Site, TypeError, TypedStage, ValueType};
-use omega_parser::NodeKind::*;
-use omega_parser::TerminationClause;
-use omega_resolver::{DeclarationId, Symbol};
+use crate::type_error::SourceTypeError;
+use crate::{LogicalHypothesis, TypeError, TypedStage, ValueType};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind::*;
+use omega_syntax::TerminationClause;
+use omega_typed::site_at;
 use std::collections::HashMap;
 
 pub(crate) fn index_logical_hypotheses<'a>(
@@ -19,13 +21,13 @@ pub(crate) fn index_logical_hypotheses<'a>(
             .filter(|owner| owner.kind == Machine)
             .ok_or_else(|| TypeError::at(f, n, "hypothesis needs an enclosing theorem"))?;
         let name = node.binder_name().expect("named hypothesis");
-        let site = Site::at(f, n);
+        let site = site_at(f, n);
         let mut requirement = LogicalHypothesis {
             site: site.clone(),
             parent: node
                 .parent
                 .filter(|&p| f.nodes[p].kind == Hypothesis)
-                .map(|p| Site::at(f, p)),
+                .map(|p| site_at(f, p)),
             owner: owner.clone(),
             name: name.text.into(),
             parameters: vec![],
@@ -49,10 +51,10 @@ pub(crate) fn index_logical_hypotheses<'a>(
                     }
                 }
                 Result => requirement.result = unit.annotation(unit.single_child(part)?, &catalog.types)?,
-                Requires => requirement.premises.push(Site::at(f, unit.single_child(part)?)),
+                Requires => requirement.premises.push(site_at(f, unit.single_child(part)?)),
                 Ensures => requirement
                     .conclusions
-                    .push(Site::at(f, unit.single_child(part)?)),
+                    .push(site_at(f, unit.single_child(part)?)),
                 Hypothesis => {}
                 Terminates if f.nodes[part].termination_clause() == Some(TerminationClause::Bare) => {}
                 Reaches | Crashes

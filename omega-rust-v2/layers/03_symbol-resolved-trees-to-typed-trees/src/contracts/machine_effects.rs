@@ -1,4 +1,5 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::type_error::SourceTypeError;
 use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{MachineEffects, PauseEffects, ServiceApplication, TypeError, TypedStage};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -116,9 +117,10 @@ pub(crate) fn check_machine_effects(
         }
     }
     for obligation in &out.obligations {
-        if let crate::ObligationKind::RefineCallable { contract, machine, arguments } = &obligation.kind
+        if let crate::ObligationKind::RefineCallable { contract, selection, .. } = &obligation.kind
             && dependencies.node_is_ready(obligation.node)
         {
+            let machine = selection.machine.as_ref();
             let pause = formulas[machine].upper();
             if pause.suspend && !contract.pause.suspend
                 || pause.block && !contract.pause.block
@@ -129,7 +131,7 @@ pub(crate) fn check_machine_effects(
                             arguments: s
                                 .arguments
                                 .iter()
-                                .map(|a| a.substitute(machine, arguments))
+                                .map(|argument| selection.instantiate(argument))
                                 .collect(),
                         })
                     })
@@ -170,26 +172,6 @@ struct PauseEffectFormula {
     fixed: PauseEffects,
     binders: BTreeMap<usize, PauseEffects>,
 }
-impl PauseEffects {
-    fn union(
-        &mut self,
-        other: Self,
-    ) -> bool {
-        let old = *self;
-        self.suspend |= other.suspend;
-        self.block |= other.block;
-        *self != old
-    }
-    fn intersect(
-        self,
-        other: Self,
-    ) -> Self {
-        Self {
-            suspend: self.suspend && other.suspend,
-            block: self.block && other.block,
-        }
-    }
-}
 impl PauseEffectFormula {
     fn upper(&self) -> PauseEffects {
         let mut result = self.fixed;
@@ -213,7 +195,7 @@ impl PauseEffectFormula {
 }
 fn specialize(
     call: &crate::TypedCall,
-    formulas: &HashMap<&omega_resolver::DeclarationId, PauseEffectFormula>,
+    formulas: &HashMap<&omega_resolved::DeclarationId, PauseEffectFormula>,
     catalog: &DeclarationCatalog<'_>,
 ) -> PauseEffectFormula {
     let source = &formulas[&call.machine];
@@ -223,10 +205,10 @@ fn specialize(
     };
     for (&index, &bound) in &source.binders {
         match call.type_arguments.get(index) {
-            Some(crate::ValueType::MachineSelection(id, _)) => {
+            Some(crate::ValueType::MachineSelection(selection)) => {
                 derived
                     .fixed
-                    .union(formulas[id.as_ref()].upper().intersect(bound));
+                    .union(formulas[selection.machine.as_ref()].upper().intersect(bound));
             }
             Some(crate::ValueType::Parameter { owner, index }) if call.caller.as_ref() == Some(owner.as_ref()) => {
                 derived.binders.entry(*index).or_default().union(bound);
@@ -252,7 +234,7 @@ fn propagate(
     graph: &super::effect_propagation::ExecutionCalls,
     out: &TypedStage,
     catalog: &DeclarationCatalog<'_>,
-    formulas: &mut HashMap<&omega_resolver::DeclarationId, PauseEffectFormula>,
+    formulas: &mut HashMap<&omega_resolved::DeclarationId, PauseEffectFormula>,
 ) {
     // A finite monotone union of two flags per machine and per binder.
     loop {
@@ -273,7 +255,7 @@ fn derive_pause<'a>(
     catalog: &DeclarationCatalog<'a>,
     out: &TypedStage,
     graph: &super::effect_propagation::ExecutionCalls,
-) -> Result<HashMap<&'a omega_resolver::DeclarationId, PauseEffectFormula>, TypeError> {
+) -> Result<HashMap<&'a omega_resolved::DeclarationId, PauseEffectFormula>, TypeError> {
     let mut formulas = catalog
         .signatures
         .keys()
@@ -321,7 +303,7 @@ fn derive_pause<'a>(
 fn check_fact_effects(
     out: &TypedStage,
     catalog: &DeclarationCatalog<'_>,
-    formulas: &HashMap<&omega_resolver::DeclarationId, PauseEffectFormula>,
+    formulas: &HashMap<&omega_resolved::DeclarationId, PauseEffectFormula>,
     dependencies: &PreparationDependencies<'_>,
 ) -> Result<(), TypeError> {
     use crate::{CallUse, ValueType};

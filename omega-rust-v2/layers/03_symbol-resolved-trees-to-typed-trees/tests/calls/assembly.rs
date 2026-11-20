@@ -35,15 +35,37 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
     assert_eq!(unknown_register.span.slice(code.as_bytes()), Some(b"none".as_slice()));
     assert_eq!(unknown_register.message, "unavailable target register none");
     let byte = ValueType::Integer { width: Some(8), signed: false };
+    use omega_typer::{
+        InstructionExit, InstructionInput, InstructionParameter, InstructionSemantics, InstructionValue, InstructionVariant, InstructionWrite,
+        TypedInstructionOperand,
+    };
     let mut target = AssemblyTypes {
-        target: "test8".into(),
+        target: omega_target_contract::TargetIdentity {
+            profile: "test8".into(),
+            semantics_version: 1,
+            realization: vec![1].into(),
+        },
         registers: ["r0", "none", "scratch"]
             .into_iter()
             .map(|r| (r.into(), byte.clone()))
             .collect(),
         instructions: ["mov", "mov.byte"]
             .into_iter()
-            .map(|name| (name.into(), vec![vec![byte.clone(), byte.clone()]]))
+            .map(|name| {
+                (
+                    name.into(),
+                    vec![InstructionVariant {
+                        parameters: vec![InstructionParameter::Scalar(byte.clone()); 2],
+                        semantics: std::sync::Arc::new(InstructionSemantics {
+                            writes: vec![InstructionWrite {
+                                destination: InstructionInput::Operand(0),
+                                value: InstructionValue::Copy(InstructionInput::Operand(1)),
+                            }],
+                            exit: InstructionExit::Continue,
+                        }),
+                    }],
+                )
+            })
             .collect(),
     };
     let stage = type_stage_for_target(&resolved, &target).unwrap();
@@ -72,8 +94,8 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
                 })
                 .unwrap();
             assert_eq!(instruction.node, tree.file.node_id(node));
-            assert_eq!(instruction.target, "test8");
-            assert_eq!(instruction.operands, [byte.clone(), byte.clone()]);
+            assert_eq!(instruction.target, target.target);
+            assert!(matches!(instruction.operands.as_slice(), [TypedInstructionOperand::Register{ty:a,..},TypedInstructionOperand::Value{ty:b,..}] if a==&byte && b==&byte));
             instruction.mnemonic.as_str()
         })
         .collect();
@@ -103,7 +125,7 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
         "missing register type for scratch"
     );
     target.registers.insert("scratch".into(), byte);
-    target.instructions.get_mut("mov").unwrap()[0][1] = ValueType::Bool;
+    target.instructions.get_mut("mov").unwrap()[0].parameters[1] = InstructionParameter::Scalar(ValueType::Bool);
     assert!(
         type_stage_for_target(&resolved, &target)
             .unwrap_err()

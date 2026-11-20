@@ -227,6 +227,23 @@ fn differently_sized_arrays_refuse_the_same_byte_literal() {
 }
 
 #[test]
+fn a_quoted_result_waits_for_its_computed_extent() {
+    let source = r#"machine width()->u64{2u64}
+        machine key()->[u8;width()]{("hi")}
+        const VALUE:[u8;2]=key();"#;
+    let prepared = prepare(source).unwrap();
+    let bytes = (*b"hi").map(|byte| PreparedValue::Integer(byte.into()));
+    assert_eq!(prepared.constant(declaration(&prepared, "VALUE")), Some(&PreparedValue::Array(bytes.into())));
+
+    let mismatch = source
+        .replace("{2u64}", "{1u64}")
+        .replace("VALUE:[u8;2]", "VALUE:[u8;1]");
+    let error = prepare(&mismatch).unwrap_err();
+    assert_eq!(error.message, "byte literal has 2 bytes, but its array requires 1");
+    assert_eq!(error.span.slice(mismatch.as_bytes()), Some(b"\"hi\"".as_slice()));
+}
+
+#[test]
 fn a_machine_returns_an_exact_quoted_byte_array() {
     let source = r#"machine key()->[u8;2]{("é")}
                     machine branch(b:bool)->[u8;2]{match b {true->("é"),false->"ab",}}
@@ -245,6 +262,77 @@ fn a_machine_returns_an_exact_quoted_byte_array() {
     let error = prepare(&short_result).unwrap_err();
     assert_eq!(error.span.slice(short_result.as_bytes()), Some("\"é\"".as_bytes()));
     assert_eq!(error.message, "byte literal has 2 bytes, but its array requires 1");
+}
+
+#[test]
+fn a_constructed_machine_result_owns_its_quoted_bytes() {
+    let source = r#"data Key [copy]{ bytes:[u8;2]; }
+                    data Choice [copy]{ case Item(bytes:[u8;2]); case Empty; }
+                    machine k()->[[u8;2];1]{["é"]}
+                    machine key()->Key{Key{bytes:"hi"}}
+                    machine item()->Choice{Choice::Item{bytes:"hi"}}
+                    const NESTED:[[u8;2];1]=k();
+                    const KEY:Key=key();
+                    const ITEM:Choice=item();
+                    const NESTED_CONSTANT:[[u8;2];1]=["é"];
+                    const KEY_CONSTANT:Key=Key{bytes:"hi"};"#;
+    let prepared = prepare(source).unwrap();
+    let bytes = |text: &[u8]| {
+        PreparedValue::Array(
+            text.iter()
+                .map(|&byte| PreparedValue::Integer(byte.into()))
+                .collect(),
+        )
+    };
+    let nested = PreparedValue::Array([bytes("é".as_bytes())].into());
+    let key = PreparedValue::Record {
+        owner: declaration(&prepared, "Key").clone(),
+        fields: [bytes(b"hi")].into(),
+    };
+    let item = PreparedValue::Sum {
+        owner: declaration(&prepared, "Choice").clone(),
+        case: declaration(&prepared, "Choice::Item").clone(),
+        fields: [bytes(b"hi")].into(),
+    };
+    for (name, expected) in [
+        ("NESTED", &nested),
+        ("NESTED_CONSTANT", &nested),
+        ("KEY", &key),
+        ("KEY_CONSTANT", &key),
+        ("ITEM", &item),
+    ] {
+        assert_eq!(prepared.constant(declaration(&prepared, name)), Some(expected), "{name}");
+    }
+
+    let short = source
+        .replace("k()->[[u8;2];1]", "k()->[[u8;1];1]")
+        .replace("NESTED:[[u8;2];1]", "NESTED:[[u8;1];1]");
+    let error = prepare(&short).unwrap_err();
+    assert_eq!(error.message, "byte literal has 2 bytes, but its array requires 1");
+    assert_eq!(error.span.slice(short.as_bytes()), Some("\"é\"".as_bytes()));
+}
+
+#[test]
+fn quoted_bytes_outside_the_constructed_result_remain_views() {
+    let base = r#"data Key [copy]{ bytes:[u8;2]; }
+                  machine wrap(value:Key)->Key{value}
+                  machine same(value:[u8;2])->[u8;2]{value}
+                  machine key()->Key{Key{bytes:"hi"}}"#;
+    prepare(base).unwrap();
+    for (replacement, reason, site) in [
+        (
+            r#"machine key()->Key{let local:Key=Key{bytes:"hi"}; local}"#,
+            "expected [u8; 2], found @[u8]",
+            r#""hi""#,
+        ),
+        (r#"machine key()->Key{wrap(Key{bytes:"hi"})}"#, "expected [u8; 2], found @[u8]", r#""hi""#),
+        (r#"machine key()->Key{Key{bytes:same("hi")}}"#, "no matching overload for same(@[u8])", "same"),
+    ] {
+        let source = base.replace(r#"machine key()->Key{Key{bytes:"hi"}}"#, replacement);
+        let error = prepare(&source).unwrap_err();
+        assert_eq!(error.message, reason, "{replacement}");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()), "{replacement}");
+    }
 }
 
 #[test]
@@ -291,4 +379,65 @@ fn a_machine_constructs_owned_values_for_closed_type_identity() {
         "{}",
         error.message
     );
+}
+
+#[test]
+fn generic_construction_uses_the_closed_return_carrier() {
+    let source = "data Pack<const Selected:bool> [copy] { item:bool; extra:u8; }
+                  machine pack<const Selected:bool>(item:bool)->Pack<Selected> {
+                      Pack::<Selected>{item:item,..}
+                  }
+                  const VALUE:Pack<true> = pack::<true>(true);";
+    let prepared = prepare(source).unwrap();
+    let expected = PreparedValue::Record {
+        owner: declaration(&prepared, "Pack").clone(),
+        fields: [PreparedValue::Bool(true), PreparedValue::Integer(0.into())].into(),
+    };
+    assert_eq!(prepared.constant(declaration(&prepared, "VALUE")), Some(&expected));
+}
+
+#[test]
+fn a_closed_generic_call_carries_its_record_shape_into_a_projection() {
+    let source = "data Pack<const Selected:bool> [copy] { item:bool; }
+                  machine pack<const Selected:bool>(item:bool)->Pack<Selected> {
+                      Pack::<Selected>{item:item}
+                  }
+                  const VALUE:bool = pack::<true>(true).item;";
+    let prepared = prepare(source).unwrap();
+    assert_eq!(prepared.constant(declaration(&prepared, "VALUE")), Some(&PreparedValue::Bool(true)));
+}
+
+#[test]
+fn omitted_generic_field_uses_each_closed_carrier() {
+    let source = "data Pack<const N:u64> [copy] { extra:[u8;N]; }
+                  machine pack<const N:u64>()->Pack<N> { Pack::<N>{..} }
+                  const SINGLE:Pack<1> = pack::<1>();
+                  const DOUBLE:Pack<2> = pack::<2>();";
+    let prepared = prepare(source).unwrap();
+    let owner = declaration(&prepared, "Pack");
+    for (name, count) in [("SINGLE", 1), ("DOUBLE", 2)] {
+        let field = PreparedValue::Array(vec![PreparedValue::Integer(0.into()); count].into());
+        assert_eq!(
+            prepared.constant(declaration(&prepared, name)),
+            Some(&PreparedValue::Record {
+                owner: owner.clone(),
+                fields: [field].into(),
+            }),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn named_case_pattern_binds_the_selected_payload_field() {
+    let source = "data Choice [copy] {case Selected(left:u8,right:u8);}
+                  machine selected(value:Choice)->u8 {
+                      match value { Choice::Selected{right,..}->right, }
+                  }
+                  const FIRST:u8=selected(Choice::Selected{right:8,left:3});
+                  const SWAPPED:u8=selected(Choice::Selected{left:8,right:3});";
+    let prepared = prepare(source).unwrap();
+    for (name, expected) in [("FIRST", 8), ("SWAPPED", 3)] {
+        assert_eq!(prepared.integer_constant(declaration(&prepared, name)), Some(&expected.into()), "{name}");
+    }
 }

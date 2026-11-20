@@ -81,6 +81,8 @@ version = "0.0.0"
 dependencies = [
  "golden",
  "measure",
+ "omega-program-contracts",
+ "omega-tokens",
  "spec-corpus",
 ]
 
@@ -92,8 +94,19 @@ dependencies = [
  "omega-lexer",
  "omega-parser",
  "omega-preparation",
+ "omega-prepared",
+ "omega-program-contracts",
+ "omega-psi",
+ "omega-resolved",
  "omega-resolver",
+ "omega-syntax",
+ "omega-target-contract",
+ "omega-toolchain",
+ "omega-typed",
  "omega-typer",
+ "psi-handoff-consumer",
+ "spec-corpus",
+ "tree-handoff-consumer",
 ]
 
 [[package]]
@@ -103,6 +116,8 @@ dependencies = [
  "golden",
  "measure",
  "omega-lexer",
+ "omega-syntax",
+ "omega-tokens",
  "spec-corpus",
 ]
 
@@ -115,10 +130,47 @@ dependencies = [
  "num-traits",
  "omega-lexer",
  "omega-parser",
+ "omega-prepared",
+ "omega-program-contracts",
+ "omega-resolved",
  "omega-resolver",
- "omega-toolchain",
+ "omega-syntax",
+ "omega-target-contract",
+ "omega-typed",
  "omega-typer",
  "spec-corpus",
+]
+
+[[package]]
+name = "omega-prepared"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "omega-resolved",
+ "omega-target-contract",
+ "omega-typed",
+]
+
+[[package]]
+name = "omega-program-contracts"
+version = "0.0.0"
+
+[[package]]
+name = "omega-psi"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "omega-program-contracts",
+ "omega-target-contract",
+]
+
+[[package]]
+name = "omega-resolved"
+version = "0.0.0"
+dependencies = [
+ "omega-program-contracts",
+ "omega-syntax",
+ "omega-tokens",
 ]
 
 [[package]]
@@ -127,7 +179,32 @@ version = "0.0.0"
 dependencies = [
  "omega-lexer",
  "omega-parser",
+ "omega-resolved",
+ "omega-syntax",
+ "omega-tokens",
  "spec-corpus",
+]
+
+[[package]]
+name = "omega-syntax"
+version = "0.0.0"
+dependencies = [
+ "omega-tokens",
+]
+
+[[package]]
+name = "omega-target-contract"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "omega-program-contracts",
+]
+
+[[package]]
+name = "omega-tokens"
+version = "0.0.0"
+dependencies = [
+ "omega-program-contracts",
 ]
 
 [[package]]
@@ -136,7 +213,24 @@ version = "0.0.0"
 dependencies = [
  "omega-lexer",
  "omega-parser",
+ "omega-program-contracts",
  "omega-resolver",
+ "omega-target-contract",
+ "omega-typed",
+]
+
+[[package]]
+name = "omega-typed"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "num-rational",
+ "num-traits",
+ "omega-program-contracts",
+ "omega-resolved",
+ "omega-syntax",
+ "omega-target-contract",
+ "omega-tokens",
 ]
 
 [[package]]
@@ -149,9 +243,22 @@ dependencies = [
  "num-traits",
  "omega-lexer",
  "omega-parser",
+ "omega-program-contracts",
+ "omega-resolved",
  "omega-resolver",
+ "omega-syntax",
+ "omega-target-contract",
+ "omega-tokens",
  "omega-toolchain",
+ "omega-typed",
  "spec-corpus",
+]
+
+[[package]]
+name = "psi-handoff-consumer"
+version = "0.0.0"
+dependencies = [
+ "omega-psi",
 ]
 
 [[package]]
@@ -163,4 +270,15 @@ dependencies = [
  "omega-resolver",
  "omega-toolchain",
  "omega-typer",
+]
+
+[[package]]
+name = "tree-handoff-consumer"
+version = "0.0.0"
+dependencies = [
+ "omega-prepared",
+ "omega-resolved",
+ "omega-syntax",
+ "omega-tokens",
+ "omega-typed",
 ]

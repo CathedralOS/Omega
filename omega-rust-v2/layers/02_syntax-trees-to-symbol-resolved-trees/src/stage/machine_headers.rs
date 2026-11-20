@@ -1,7 +1,7 @@
 //! Bind a machine's qualifier once. A module qualifies its name without choosing an operator home.
 use super::{Catalog, Context, Entry, NameError, NameRole, NameUse, OperatorDeclaration, Symbol, callable};
 use crate::syntax::File;
-use omega_parser::NodeKind;
+use omega_syntax::NodeKind;
 
 impl Catalog<'_> {
     pub(super) fn machine_header(
@@ -80,7 +80,7 @@ impl Catalog<'_> {
             .map(|token| OperatorDeclaration {
                 node: file.node_id(token),
                 token: file.nodes[token].leaves.iter().map(|leaf| leaf.text).collect(),
-                public: machine.public,
+                public: machine.public && machine.lexical_owner.is_none(),
                 machine: machine.id.clone(),
                 declared_home: owner,
             }))

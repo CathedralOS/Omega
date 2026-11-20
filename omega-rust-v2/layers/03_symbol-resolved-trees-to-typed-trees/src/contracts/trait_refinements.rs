@@ -1,11 +1,13 @@
 use crate::contracts::effect_clauses;
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::typing::preparation_dependencies::PreparationDependencies;
-use crate::{ObligationKind, RequirementSlot, ServiceApplication, Site, TraitRefinement, TypeError, TypedStage, ValueType};
-use omega_parser::{NodeKind, PauseFlag, TerminationClause};
-use omega_resolver::DeclarationId;
+use crate::{ObligationKind, RequirementSlot, ServiceApplication, TraitRefinement, TypeError, TypedStage, ValueType};
+use omega_resolved::DeclarationId;
+use omega_syntax::{NodeKind, PauseFlag, TerminationClause};
+use omega_typed::site_at;
 
 pub(crate) fn read(
     unit: &ResolvedSourceFile<'_>,
@@ -15,7 +17,7 @@ pub(crate) fn read(
 ) -> Result<TraitRefinement, TypeError> {
     let f = unit.file;
     let mut refinement = TraitRefinement {
-        site: Site::at(f, n),
+        site: site_at(f, n),
         schema: schema.clone(),
         prohibits_block: false,
         prohibits_suspend: false,

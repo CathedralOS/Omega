@@ -516,3 +516,27 @@ fn nested_data_arguments_use_the_enclosing_type_in_the_function_bound() {
             .contains("wrong carrier")
     );
 }
+
+#[test]
+fn checked_binder_products_separate_public_capture_from_a_private_data_witness() {
+    let text = "data Packet<'a, some S> { payload:Payload<S>; data Payload<U> { value:@'a U; } }";
+    let stage = check(&[("nested.omg", text)]).unwrap();
+    let (outer, params) = stage
+        .generic_parameters
+        .iter()
+        .find(|(id, _)| id.path == "Packet")
+        .unwrap();
+    let (inner, inner_params) = stage
+        .generic_parameters
+        .iter()
+        .find(|(id, _)| id.path == "Packet::Payload")
+        .unwrap();
+    assert_eq!(params.witness_count, 1);
+    assert_eq!(params.parameters.len(), 1);
+    assert_eq!(params.parameters[0].kind, omega_syntax::NodeKind::LifetimeParam);
+    assert_eq!(inner_params.parameters.len(), 1);
+    assert_eq!(inner_params.parameters[0].kind, omega_syntax::NodeKind::TypeParam);
+    assert_eq!(inner_params.witness_count, 0);
+    assert_eq!(stage.enclosing_data_parameters[inner].as_slice(), std::slice::from_ref(outer));
+    assert!(!stage.enclosing_data_parameters.contains_key(outer));
+}

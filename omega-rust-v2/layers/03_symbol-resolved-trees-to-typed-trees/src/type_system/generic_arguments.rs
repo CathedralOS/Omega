@@ -1,9 +1,12 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::evaluation::numeric_literals;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::type_system::type_catalog::TypeCatalog;
-use crate::{TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use crate::{MachineApplication, TypeError, ValueType};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 impl<'a> ResolvedSourceFile<'a> {
     /// Later binders can mention earlier arguments. Keep the identity of each
@@ -113,7 +116,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     })
                 )
             {
-                return Ok(ValueType::ProofTerm(crate::Site::at(self.file, node_index)));
+                return Ok(ValueType::ProofTerm(site_at(self.file, node_index)));
             }
             return match symbol {
                 Some(Symbol::Declaration(id)) if id.kind == NodeKind::Machine => Ok(ValueType::ProofCitation(Box::new(id.clone()))),
@@ -169,8 +172,13 @@ impl<'a> ResolvedSourceFile<'a> {
             if actual.len() != types.arity(id) {
                 return Err(TypeError::at(self.file, value_node, "machine selection requires all generic arguments"));
             }
-            let arguments = self.applied_formals(value_node, id, actual, types, ValueType::clone)?;
-            return Ok(ValueType::MachineSelection(Box::new(id.clone()), arguments));
+            let enclosing_arguments: Vec<_> = types.lexical_machine_arguments(id).collect();
+            let arguments = self.applied_formals(value_node, id, actual, types, |value| value.in_enclosing_scopes(&enclosing_arguments))?;
+            return Ok(ValueType::MachineSelection(MachineApplication {
+                machine: Box::new(id.clone()),
+                arguments,
+                enclosing_arguments,
+            }));
         }
         if let Some(Symbol::Binding {
             span,
@@ -339,7 +347,7 @@ impl ResolvedSourceFile<'_> {
             [section]
                 if self
                     .application_name(*section)
-                    .is_some_and(|name| matches!(&name.target,omega_resolver::Symbol::Declaration(owner) if owner == schema)) =>
+                    .is_some_and(|name| matches!(&name.target,omega_resolved::Symbol::Declaration(owner) if owner == schema)) =>
             {
                 &self.file.nodes[*section].children
             }

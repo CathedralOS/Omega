@@ -1,8 +1,10 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{ObligationKind, Site, TypeError, ValueType};
-use omega_parser::{NodeKind, TerminationClause};
-use omega_resolver::DeclarationId;
-use omega_resolver::Symbol;
+use crate::type_error::SourceTypeError;
+use crate::{ObligationKind, TypeError, ValueType};
+use omega_resolved::DeclarationId;
+use omega_resolved::Symbol;
+use omega_syntax::{NodeKind, TerminationClause};
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn crash_route(
@@ -34,13 +36,13 @@ impl BodyTyper<'_, '_> {
             let ty = self.type_expression_with_expected_type(guard, Some(&ValueType::Bool))?;
             self.check_destination(guard, &ty, &ValueType::Bool)?;
             self.record_obligation(guard, ObligationKind::TotalCrashGuard);
-            Some(Site::at(source, guard))
+            Some(site_at(source, guard))
         } else {
             None
         };
         self.output.crash_routes.push(crate::CrashRoute {
-            clause: Site::at(source, node_index),
-            contract: Site::at(source, contract),
+            clause: site_at(source, node_index),
+            contract: site_at(source, contract),
             cause,
             guard,
         });
@@ -147,7 +149,7 @@ impl BodyTyper<'_, '_> {
             let entry = self.invocation_target(head);
             self.output
                 .invocation_ceilings
-                .push((machine.clone(), Site::at(source, node_index), entry));
+                .push((machine.clone(), site_at(source, node_index), entry));
             return Ok(());
         }
         let Some(Symbol::Declaration(id)) = self.unit.symbol(head) else {
@@ -162,7 +164,7 @@ impl BodyTyper<'_, '_> {
         };
         self.output
             .invocation_ceilings
-            .push((machine.clone(), Site::at(source, node_index), crate::InvocationTarget::Declaration(selection)));
+            .push((machine.clone(), site_at(source, node_index), crate::InvocationTarget::Declaration(selection)));
         Ok(())
     }
 }

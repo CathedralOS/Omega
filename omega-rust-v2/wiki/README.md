@@ -4,7 +4,7 @@
 | --- | --- |
 | [learn/](learn/index.html) | Illustrated field guide for reading Omega and supervising agent-written code. |
 | [language_guide/](language_guide/language_guide.md) | How to write Omega: a tutorial starting from code. |
-| spec/ | Current contracts, organized by subject. |
+| [wiki/spec](../../wiki/spec/) | Current contracts, organized by subject. |
 | [proposals/](proposals/README.md) | Proposed changes, not current rules. |
 | [drafts/](drafts/README.md) | Temporary investigations and implementation plans. |
 
@@ -29,7 +29,7 @@ development artifacts working. This does not remove the current format
 discriminator or exact schema identity: incompatible bytes must reject rather
 than be interpreted under a new layout. Package pins, producer authorization,
 selected-provider identity and contracted runtime replacement are live correctness
-mechanisms, not historical baggage. The [encoding contract](spec/terminal-psi/encoding.md)
+mechanisms, not historical baggage. The [encoding contract](../../wiki/spec/terminal-psi/encoding.md)
 owns these requirements.
 
 A missing implementation, test or difficult repair stays with its owning task.
@@ -50,7 +50,7 @@ Language changes update the specification and examples they invalidate. Guides
 illustrate the rule rather than maintain another exception list. Proof failures
 also need precise terminology: unsupported implementation, a missing required
 automatic discharge, an unestablished goal and resource exhaustion are distinct
-outcomes under [proof contracts](spec/proofs/contracts.md#required-automatic-discharge).
+outcomes under [proof contracts](../../wiki/spec/proofs/contracts.md#required-automatic-discharge).
 
 Release-facing examples need owning tests for their advertised behavior.
 Deliberately invalid examples must reach the intended rejection, not merely
@@ -67,115 +67,115 @@ Use **Terminal Psi** only for the internal compiler stage or representation,
 particularly when distinguishing it from typed source forms. Internal crate
 paths and wire/type identifiers keep their names. Do not make the stage name a
 public product label. Source terminal transfers and outcomes are unrelated and
-keep those terms. The [command-line contract](spec/build/command_line.md) owns
+keep those terms. The [command-line contract](../../wiki/spec/build/command_line.md) owns
 public spellings.
 
 ## Current specification subjects
 
-- Source semantics: [invocation contracts and live facts](spec/language/state_contracts.md),
-  [data and literals](spec/language/data_and_literals.md),
-  [patterns and dispatch](spec/language/patterns.md),
-  [modules and visibility](spec/language/modules.md),
-  [ownership and multiplicity](spec/language/ownership.md),
-  [lifetimes and carried borrows](spec/language/lifetimes.md),
-  [concurrency and atomics](spec/language/concurrency.md),
-  [machines and refinement](spec/language/machines.md),
-  [semantic reflection and typed visitation](spec/language/reflection.md),
-  [named conformances](spec/language/conformances.md),
-  [generic applications](spec/language/generics.md),
-  [termination and progress](spec/language/termination.md),
-  [process exit and abandonment](spec/language/process_exit.md),
-  [domains and qualification](spec/language/domains.md),
-  [value-dependent facts and views](spec/language/dependent_values.md),
-  [service reach and operational ceilings](spec/language/effects.md),
-  [inline assembly](spec/language/assembly.md),
-  [interpreted instructions and environments](spec/language/assembly.md#interpreted-execution),
-  [semantic evaluation](spec/language/evaluation.md),
-  [expressions and operators](spec/language/expressions.md),
-  [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),
-  and [counts, indices and addresses](spec/language/counts_and_addresses.md).
-- Representation policies: [layout plans](spec/layouts/plans.md),
-  [size and alignment queries](spec/layouts/plans.md#size-and-alignment-queries),
-  [native code regions](spec/language/counts_and_addresses.md#native-code-layout-queries),
-  [recasts](spec/layouts/recasts.md), and [codecs](spec/layouts/codecs.md).
-- Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
-  [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
-  [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
-  [contracts, bundles, normalization and trust](spec/proofs/contracts.md),
-  [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization),
-  and [relations and quotients](spec/proofs/quotients.md).
-- Runtime data/code interfaces: [machine values](spec/language/machine_values.md)
-  and [some packages](spec/language/some_packages.md).
-- Psi: [product](spec/terminal-psi/product.md),
-  [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
-  [control flow and ranking](spec/terminal-psi/control_flow.md),
-  [boundary calls](spec/terminal-psi/boundary_calls.md),
-  [byte views](spec/terminal-psi/byte_views.md),
-  [structural access and stores](spec/terminal-psi/structural_access.md),
-  [structural predicates](spec/terminal-psi/structural_predicates.md),
-  [loan resources and compatibility](spec/terminal-psi/loans.md),
-  [structural claims and cleanup](spec/terminal-psi/ownership.md),
-  [runtime callable dispatch](spec/terminal-psi/dynamic_dispatch.md),
-  [observations](spec/terminal-psi/observations.md),
-  [encoding](spec/terminal-psi/encoding.md),
-  [fact validity](spec/terminal-psi/fact_validity.md),
-  [mathematical proof values](spec/terminal-psi/mathematical_values.md), and
-  [integer certificates](spec/terminal-psi/integer_certificates.md).
-- Resources: [logical work](spec/resources/logical_work.md) and
-  [storage](spec/resources/storage.md),
-  [external-entry stacks](spec/resources/entry_stacks.md),
-  [content custody](spec/resources/content_custody.md),
-  [dense owned runs](spec/resources/typed_runs.md),
-  [authority and qualification](spec/resources/authority.md),
-  [extents and mappings](spec/resources/extents.md),
-  [access policies](spec/resources/access.md),
-  [device custody and ordering](spec/resources/device_access.md),
-  [carry demands](spec/resources/carry.md),
-  [runtime-sized activation storage](spec/resources/activation_storage.md),
-  [allocation strategies](spec/resources/allocation.md),
-  [bounded byte input](spec/resources/bounded_input.md), and
-  [bounded growth](spec/resources/bounded_growth.md).
-- Build: [command-line tools](spec/build/command_line.md),
-  [declarations and package identity](spec/build/declarations.md),
-  [dependency scopes, product references and isolated I/O](spec/build/scoped_execution.md),
-  [configuration and targets](spec/build/configuration.md),
-  [recorded proof-work policy](spec/build/configuration.md#proof-work-policy),
-  [portable platform services](spec/build/platform_services.md),
-  [requirement-based test groups](spec/build/testing.md),
-  [selected-product behavior exclusions](spec/build/behavior_exclusions.md),
-  [optimization selection and validation](spec/build/optimizations.md),
-  [validation subjects](spec/build/validation_subjects.md),
-  [target slots and entry roots](spec/build/entry_roots.md),
-  [UEFI entry and handoff](spec/build/uefi_entry.md),
-  [installed external roots](spec/build/external_roots.md),
-  [boundary calling plans](spec/build/calling_plans.md),
-  [boundary signature shapes](spec/build/boundary_shapes.md),
-  [foreign binding values](spec/build/foreign_bindings.md),
-  [foreign storage and lifetime](spec/build/foreign_storage.md),
-  [machine-state evidence](spec/build/machine_state_evidence.md),
-  [provider selection](spec/build/provider_selection.md),
-  [root-assumed bindings (exceptional use only)](spec/build/assumed_binding_contracts.md),
-  [embedding and interpreted components](spec/build/embedding.md),
-  [task activation and lifecycle](spec/build/task_runtime.md),
-  [service permissions](spec/build/permissions.md),
-  [opaque representations](spec/build/opaque_representations.md),
-  [execution and generated source](spec/build/execution.md),
-  [observations and reproducibility](spec/build/observations.md),
-  [compiler storage](spec/build/compiler_storage.md),
-  [standalone compiler request](spec/build/compiler_request.md),
-  [native products and component publication](spec/build/component_publication.md),
-  [macOS applications](spec/build/macos_application.md),
-  [private callbacks](spec/build/private_callbacks.md),
-  [interrupt obligations](spec/build/interrupt_obligations.md),
-  [hardware materialization](spec/build/hardware_materialization.md), and
-  [executable installation](spec/build/executable_installation.md).
-- Packages: [source selection](spec/packages/sources.md),
-  [checked boundary topology](spec/packages/topology.md),
-  [project locks](spec/packages/locks.md),
-  [declaration and carried-type boundaries](spec/packages/boundaries.md),
-  [core and ordinary libraries](spec/packages/toolchain.md),
-  [compiler-derived review](spec/packages/review.md),
-  [acceptance](spec/packages/acceptance.md), and the
+- Source semantics: [invocation contracts and live facts](../../wiki/spec/language/state_contracts.md),
+  [data and literals](../../wiki/spec/language/data_and_literals.md),
+  [patterns and dispatch](../../wiki/spec/language/patterns.md),
+  [modules and visibility](../../wiki/spec/language/modules.md),
+  [ownership and multiplicity](../../wiki/spec/language/ownership.md),
+  [lifetimes and carried borrows](../../wiki/spec/language/lifetimes.md),
+  [concurrency and atomics](../../wiki/spec/language/concurrency.md),
+  [machines and refinement](../../wiki/spec/language/machines.md),
+  [semantic reflection and typed visitation](../../wiki/spec/language/reflection.md),
+  [named conformances](../../wiki/spec/language/conformances.md),
+  [generic applications](../../wiki/spec/language/generics.md),
+  [termination and progress](../../wiki/spec/language/termination.md),
+  [process exit and abandonment](../../wiki/spec/language/process_exit.md),
+  [domains and qualification](../../wiki/spec/language/domains.md),
+  [value-dependent facts and views](../../wiki/spec/language/dependent_values.md),
+  [service reach and operational ceilings](../../wiki/spec/language/effects.md),
+  [inline assembly](../../wiki/spec/language/assembly.md),
+  [interpreted instructions and environments](../../wiki/spec/language/assembly.md#interpreted-execution),
+  [semantic evaluation](../../wiki/spec/language/evaluation.md),
+  [expressions and operators](../../wiki/spec/language/expressions.md),
+  [constants](../../wiki/spec/language/constants.md), [numeric values and bounds](../../wiki/spec/language/numeric_values.md),
+  and [counts, indices and addresses](../../wiki/spec/language/counts_and_addresses.md).
+- Representation policies: [layout plans](../../wiki/spec/layouts/plans.md),
+  [size and alignment queries](../../wiki/spec/layouts/plans.md#size-and-alignment-queries),
+  [native code regions](../../wiki/spec/language/counts_and_addresses.md#native-code-layout-queries),
+  [recasts](../../wiki/spec/layouts/recasts.md), and [codecs](../../wiki/spec/layouts/codecs.md).
+- Mathematical proofs: [foundation and checking judgments](../../wiki/spec/proofs/foundation.md),
+  [mathematical bindings and logical hypotheses](../../wiki/spec/proofs/mathematical_bindings.md),
+  [W-based induction and indexed encoding](../../wiki/spec/proofs/inductive_profile.md),
+  [contracts, bundles, normalization and trust](../../wiki/spec/proofs/contracts.md),
+  [stable index identity and proved compatibility](../../wiki/spec/proofs/contracts.md#licensed-normalization),
+  and [relations and quotients](../../wiki/spec/proofs/quotients.md).
+- Runtime data/code interfaces: [machine values](../../wiki/spec/language/machine_values.md)
+  and [some packages](../../wiki/spec/language/some_packages.md).
+- Psi: [product](../../wiki/spec/terminal-psi/product.md),
+  [calls and outcomes](../../wiki/spec/terminal-psi/calls_and_outcomes.md),
+  [control flow and ranking](../../wiki/spec/terminal-psi/control_flow.md),
+  [boundary calls](../../wiki/spec/terminal-psi/boundary_calls.md),
+  [byte views](../../wiki/spec/terminal-psi/byte_views.md),
+  [structural access and stores](../../wiki/spec/terminal-psi/structural_access.md),
+  [structural predicates](../../wiki/spec/terminal-psi/structural_predicates.md),
+  [loan resources and compatibility](../../wiki/spec/terminal-psi/loans.md),
+  [structural claims and cleanup](../../wiki/spec/terminal-psi/ownership.md),
+  [runtime callable dispatch](../../wiki/spec/terminal-psi/dynamic_dispatch.md),
+  [observations](../../wiki/spec/terminal-psi/observations.md),
+  [encoding](../../wiki/spec/terminal-psi/encoding.md),
+  [fact validity](../../wiki/spec/terminal-psi/fact_validity.md),
+  [mathematical proof values](../../wiki/spec/terminal-psi/mathematical_values.md), and
+  [integer certificates](../../wiki/spec/terminal-psi/integer_certificates.md).
+- Resources: [logical work](../../wiki/spec/resources/logical_work.md) and
+  [storage](../../wiki/spec/resources/storage.md),
+  [external-entry stacks](../../wiki/spec/resources/entry_stacks.md),
+  [content custody](../../wiki/spec/resources/content_custody.md),
+  [dense owned runs](../../wiki/spec/resources/typed_runs.md),
+  [authority and qualification](../../wiki/spec/resources/authority.md),
+  [extents and mappings](../../wiki/spec/resources/extents.md),
+  [access policies](../../wiki/spec/resources/access.md),
+  [device custody and ordering](../../wiki/spec/resources/device_access.md),
+  [carry demands](../../wiki/spec/resources/carry.md),
+  [runtime-sized activation storage](../../wiki/spec/resources/activation_storage.md),
+  [allocation strategies](../../wiki/spec/resources/allocation.md),
+  [bounded byte input](../../wiki/spec/resources/bounded_input.md), and
+  [bounded growth](../../wiki/spec/resources/bounded_growth.md).
+- Build: [command-line tools](../../wiki/spec/build/command_line.md),
+  [declarations and package identity](../../wiki/spec/build/declarations.md),
+  [dependency scopes, product references and isolated I/O](../../wiki/spec/build/scoped_execution.md),
+  [configuration and targets](../../wiki/spec/build/configuration.md),
+  [recorded proof-work policy](../../wiki/spec/build/configuration.md#proof-work-policy),
+  [portable platform services](../../wiki/spec/build/platform_services.md),
+  [requirement-based test groups](../../wiki/spec/build/testing.md),
+  [selected-product behavior exclusions](../../wiki/spec/build/behavior_exclusions.md),
+  [optimization selection and validation](../../wiki/spec/build/optimizations.md),
+  [validation subjects](../../wiki/spec/build/validation_subjects.md),
+  [target slots and entry roots](../../wiki/spec/build/entry_roots.md),
+  [UEFI entry and handoff](../../wiki/spec/build/uefi_entry.md),
+  [installed external roots](../../wiki/spec/build/external_roots.md),
+  [boundary calling plans](../../wiki/spec/build/calling_plans.md),
+  [boundary signature shapes](../../wiki/spec/build/boundary_shapes.md),
+  [foreign binding values](../../wiki/spec/build/foreign_bindings.md),
+  [foreign storage and lifetime](../../wiki/spec/build/foreign_storage.md),
+  [machine-state evidence](../../wiki/spec/build/machine_state_evidence.md),
+  [provider selection](../../wiki/spec/build/provider_selection.md),
+  [root-assumed bindings (exceptional use only)](../../wiki/spec/build/assumed_binding_contracts.md),
+  [embedding and interpreted components](../../wiki/spec/build/embedding.md),
+  [task activation and lifecycle](../../wiki/spec/build/task_runtime.md),
+  [service permissions](../../wiki/spec/build/permissions.md),
+  [opaque representations](../../wiki/spec/build/opaque_representations.md),
+  [execution and generated source](../../wiki/spec/build/execution.md),
+  [observations and reproducibility](../../wiki/spec/build/observations.md),
+  [compiler storage](../../wiki/spec/build/compiler_storage.md),
+  [standalone compiler request](../../wiki/spec/build/compiler_request.md),
+  [native products and component publication](../../wiki/spec/build/component_publication.md),
+  [macOS applications](../../wiki/spec/build/macos_application.md),
+  [private callbacks](../../wiki/spec/build/private_callbacks.md),
+  [interrupt obligations](../../wiki/spec/build/interrupt_obligations.md),
+  [hardware materialization](../../wiki/spec/build/hardware_materialization.md), and
+  [executable installation](../../wiki/spec/build/executable_installation.md).
+- Packages: [source selection](../../wiki/spec/packages/sources.md),
+  [checked boundary topology](../../wiki/spec/packages/topology.md),
+  [project locks](../../wiki/spec/packages/locks.md),
+  [declaration and carried-type boundaries](../../wiki/spec/packages/boundaries.md),
+  [core and ordinary libraries](../../wiki/spec/packages/toolchain.md),
+  [compiler-derived review](../../wiki/spec/packages/review.md),
+  [acceptance](../../wiki/spec/packages/acceptance.md), and the
   [workflow guide](language_guide/packages.md).
 
 Bootstrap contracts live beside the chain; start at

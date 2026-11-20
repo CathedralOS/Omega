@@ -1,11 +1,11 @@
 //! Generic parameters on declarations, and generic arguments in both of their spellings.
 
+use crate::NodeKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 impl SyntaxParser<'_> {
     /// `'<' ( generic_param % ',' ) '>'`
@@ -165,7 +165,8 @@ impl SyntaxParser<'_> {
             ahead += 1;
         }
 
-        let is_inside_brackets = ahead > 0;
+        let enclosing_brackets = ahead;
+        let is_inside_brackets = enclosing_brackets > 0;
 
         // A named mathematical binder can only begin a function type.
         if self.nth_at(ahead, Punctuation::LeftParenthesis) && self.nth_at_word(ahead + 1) && self.nth_at(ahead + 2, Punctuation::Colon) {
@@ -190,9 +191,10 @@ impl SyntaxParser<'_> {
             ahead += 2;
         }
 
-        // `u8 in P`: a qualified type. A slice or array element cannot be qualified.
         if self.nth_at_keyword(ahead, "in") {
-            return !is_inside_brackets;
+            // A semicolon in the enclosing brackets distinguishes a fixed array
+            // type from an array literal containing a membership test.
+            return !is_inside_brackets || self.qualified_array_has_extent(ahead, enclosing_brackets);
         }
 
         match self.nth_punctuation(ahead) {
@@ -201,5 +203,34 @@ impl SyntaxParser<'_> {
             Some(Punctuation::RightBracket | Punctuation::Semicolon) => is_inside_brackets,
             _ => false,
         }
+    }
+
+    fn qualified_array_has_extent(
+        &self,
+        mut ahead: usize,
+        mut enclosing_brackets: usize,
+    ) -> bool {
+        let mut nested = 0usize;
+        while self.nth_exists(ahead) {
+            match self.nth_punctuation(ahead) {
+                Some(Punctuation::LeftBracket | Punctuation::LeftParenthesis | Punctuation::LeftBrace) => nested += 1,
+                Some(Punctuation::RightBracket) if nested == 0 => {
+                    enclosing_brackets -= 1;
+                    if enclosing_brackets == 0 {
+                        return false;
+                    }
+                }
+                Some(Punctuation::RightBracket | Punctuation::RightParenthesis | Punctuation::RightBrace) => {
+                    if nested == 0 {
+                        return false;
+                    }
+                    nested -= 1;
+                }
+                Some(Punctuation::Semicolon) if nested == 0 => return true,
+                _ => {}
+            }
+            ahead += 1;
+        }
+        false
     }
 }

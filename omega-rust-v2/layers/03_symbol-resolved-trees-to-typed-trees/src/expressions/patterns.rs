@@ -1,9 +1,12 @@
 use super::destination::Destination;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::{Origin, PatternSource};
+use crate::type_error::SourceTypeError;
+use crate::type_relations::StoredReference;
 use crate::{Access, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 use std::collections::{HashMap, HashSet};
 
 pub(super) enum PatternCoverage {
@@ -29,7 +32,6 @@ impl BodyTyper<'_, '_> {
         let source = self.unit.file;
         let expected = destination.exact();
         let mut parts = source.nodes[node_index].children.iter().copied().peekable();
-        let subject_place = parts.peek().and_then(|&i| self.fact_subject(i));
         let mut subject_source = PatternSource::default();
         let subject = if let Some(expr) = parts.next_if(|&i| source.nodes[i].kind != NodeKind::Arm) {
             let (ty, from) = self.pattern_subject(expr)?;
@@ -38,6 +40,7 @@ impl BodyTyper<'_, '_> {
         } else {
             None
         };
+        let subject_place = subject.as_ref().and_then(|(expr, _)| self.fact_subject(*expr));
         let mut all = false;
         let mut booleans = [false; 2];
         let mut cases = HashSet::new();
@@ -67,8 +70,11 @@ impl BodyTyper<'_, '_> {
                 PatternCoverage::All => all = true,
                 PatternCoverage::Bool(b) => booleans[usize::from(b)] = true,
                 PatternCoverage::Case(id) => {
-                    if let Some(subject) = subject_place {
-                        self.cases.insert(subject, *id.clone());
+                    self.output
+                        .complete_case_patterns
+                        .insert(source.node_id(pattern), (*id).clone());
+                    if let Some(subject) = &subject_place {
+                        self.cases.insert(subject.clone(), *id.clone());
                     }
                     cases.insert(*id);
                 }
@@ -96,7 +102,7 @@ impl BodyTyper<'_, '_> {
         }
         self.binding_origins = merged_origins.unwrap_or(entry_origins);
         self.set_origin(node_index, result_origin.unwrap_or_default());
-        self.version = if changed { Some(crate::Site::at(source, node_index)) } else { entry_version };
+        self.version = if changed { Some(site_at(source, node_index)) } else { entry_version };
         self.cases = if changed { Default::default() } else { entry_cases };
         let subject = subject.as_ref().map(|(_, ty)| pattern_subject(ty));
         let complete_sum = subject

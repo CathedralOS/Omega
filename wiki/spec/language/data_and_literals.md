@@ -484,3 +484,12 @@ padding, or hidden live-length field. Temporary evaluator views cannot escape;
 only an owned value snapshot crosses its result boundary. Constant interning is
 an unobservable optimization, not source storage identity. See
 [constants](constants.md) and [semantic evaluation](evaluation.md).
+
+## Qualified array elements
+
+In a fixed-array type, a domain written on the element type qualifies each
+element. For example, `[u8 in D; 4]` contains four elements of type `u8 in D`.
+An indexed read has that element type. In `[u8; 4] in D`, the domain qualifies
+the whole array, whose element type is `u8`. In each spelling the domain must
+admit the carrier it qualifies. Computing the extent leaves the qualification
+on the same carrier.

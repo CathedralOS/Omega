@@ -37,10 +37,12 @@ fn a_static_callback_carries_the_machine_application_into_refinement_and_invocat
             .find(|call| call.machine.path == "apply")
             .unwrap();
         let arguments = [ValueType::Integer { signed: false, width: Some(8) }];
-        assert!(matches!(&call.type_arguments[..], [ValueType::MachineSelection(id, args)] if id.path == "id" && args == &arguments));
+        assert!(
+            matches!(&call.type_arguments[..], [ValueType::MachineSelection(selection)] if selection.machine.path == "id" && selection.arguments == arguments)
+        );
         assert!(stage.obligations.iter().any(|obligation| matches!(
             &obligation.kind,
-            ObligationKind::RefineCallable { machine, arguments: args, .. } if machine.path == "id" && args == &arguments
+            ObligationKind::RefineCallable { selection, .. } if selection.machine.path == "id" && selection.arguments == arguments
         )));
         let effects = stage
             .machine_effects
@@ -49,7 +51,7 @@ fn a_static_callback_carries_the_machine_application_into_refinement_and_invocat
             .unwrap();
         assert!(matches!(
             &effects.invokes[..],
-            [InvocationTarget::AppliedMachine { declaration, arguments: args }] if declaration.path == "id" && args == &arguments
+            [InvocationTarget::AppliedMachine(selection)] if selection.machine.path == "id" && selection.arguments == arguments
         ));
     }
 
@@ -64,15 +66,71 @@ fn a_static_callback_carries_the_machine_application_into_refinement_and_invocat
 }
 
 #[test]
+fn nested_callback_selection_keeps_each_enclosing_application() {
+    let source = "machine invoke<const F:machine(x:bool)->bool>(x:bool)->bool {F(x)}
+                  machine outer<const FLAG:bool>(x:bool)->bool {
+                      invoke::<helper>(x)
+                      machine helper(x:bool)->bool {FLAG}
+                  }
+                  machine first(x:bool)->bool {outer::<true>(x)}
+                  machine second(x:bool)->bool {outer::<false>(x)}";
+    let stage = check(&[("lexical.omg", source)]).unwrap();
+    let invoke = stage
+        .calls
+        .iter()
+        .find(|call| call.machine.path == "invoke")
+        .unwrap();
+    let [ValueType::MachineSelection(selected)] = invoke.type_arguments.as_slice() else {
+        panic!("expected one nested machine selection");
+    };
+    let owner = invoke.caller.as_ref().unwrap();
+    assert_eq!(selected.machine.enclosing_machine.as_ref(), Some(owner));
+    assert!(selected.arguments.is_empty());
+    assert_eq!(
+        selected.enclosing_arguments,
+        [(
+            owner.clone(),
+            vec![ValueType::Parameter {
+                owner: Box::new(owner.clone()),
+                index: 0
+            }]
+        )],
+    );
+    assert!(stage.obligations.iter().any(|obligation| {
+        obligation.node == invoke.node && matches!(&obligation.kind, ObligationKind::RefineCallable { selection, .. } if selection == selected)
+    }));
+    let closed = |path| {
+        let call = stage
+            .calls
+            .iter()
+            .find(|call| call.caller.as_ref().is_some_and(|caller| caller.path == path))
+            .unwrap();
+        let effects = stage
+            .machine_effects
+            .iter()
+            .find(|effect| effect.machine.path == path)
+            .unwrap();
+        let [InvocationTarget::AppliedMachine(selection)] = effects.invokes.as_slice() else {
+            panic!("expected one closed nested machine selection");
+        };
+        assert_eq!(selection.machine, selected.machine);
+        assert_eq!(selection.enclosing_arguments, [(owner.clone(), call.type_arguments.clone())]);
+        assert_eq!(selection, &selected.with_substitutions(|value| call.instantiate(value)));
+        selection
+    };
+    assert_ne!(closed("first"), closed("second"));
+}
+
+#[test]
 fn a_static_callback_requires_admitted_arguments_for_its_selected_machine() {
     let declarations = "trait Step<T>{machine run(x:T)->T;} ByteStep satisfies Step<u8>{machine run(x:u8)->u8{x}} BoolStep satisfies Step<bool>{machine run(x:bool)->bool{x}} machine selected<const E:Step<u8>>(x:u8)->u8{E::run(x)} machine apply<const F:machine(x:u8)->u8>(x:u8)->u8{F(x)}";
     let accepted = format!("{declarations} machine f(x:u8)->u8{{apply::<selected::<ByteStep>>(x)}}");
     let stage = check(&[("main.omg", &accepted)]).unwrap();
     assert!(stage.obligations.iter().any(|obligation| matches!(
         &obligation.kind,
-        ObligationKind::RefineCallable { machine, arguments, .. }
-            if machine.path == "selected"
-                && matches!(arguments.as_slice(), [ValueType::Implementation(id)] if id.path == "ByteStep")
+        ObligationKind::RefineCallable { selection, .. }
+            if selection.machine.path == "selected"
+                && matches!(selection.arguments.as_slice(), [ValueType::Implementation(id)] if id.path == "ByteStep")
     )));
 
     for application in ["selected::<BoolStep>(x)", "apply::<selected::<BoolStep>>(x)"] {
@@ -91,11 +149,11 @@ fn a_static_callback_matches_the_applied_nominal_requirement() {
     let byte = ValueType::Integer { signed: false, width: Some(8) };
     assert!(stage.obligations.iter().any(|obligation| matches!(
         &obligation.kind,
-        ObligationKind::RefineCallable { machine, arguments, contract }
-            if machine.path == "selected"
-                && arguments.as_slice() == std::slice::from_ref(&byte)
+        ObligationKind::RefineCallable { selection, contract, .. }
+            if selection.machine.path == "selected"
+                && selection.arguments.as_slice() == std::slice::from_ref(&byte)
                 && contract.requirement.as_ref().is_some_and(|slot| {
-                    slot.declaration.path == "Step::run" && slot.trait_arguments == arguments.as_slice()
+                    slot.declaration.path == "Step::run" && slot.trait_arguments == selection.arguments
                 })
     )));
 

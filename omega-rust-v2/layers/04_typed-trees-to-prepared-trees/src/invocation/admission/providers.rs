@@ -1,20 +1,9 @@
 use super::*;
-use omega_typer::{BoundarySlot, ConformanceRow, RequirementSlot, Site, SlotDirection, TypedTrees};
-use std::sync::Arc;
+use omega_typed::{BoundarySlot, ConformanceRow, SlotDirection, TypedTrees};
 
 use crate::{TargetIdentity, TargetObservation};
 
-/// The exact checked target selection used to run a requirement during preparation.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct SelectedRealization {
-    pub requirement: RequirementSlot,
-    pub arguments: Vec<ValueType>,
-    pub implementation: DeclarationId,
-    pub conformance: Option<DeclarationId>,
-    pub binding: Site,
-    pub checked_contract: Arc<[u8]>,
-    pub selected_plan: Arc<[u8]>,
-}
+pub type SelectedRealization = omega_target_contract::SelectedRealization<ValueType, DeclarationId>;
 
 #[derive(Default)]
 pub(crate) struct ProviderAdmission<'trees, 'text> {
@@ -47,7 +36,15 @@ pub(super) struct SelectedProvider<'a> {
     pub(super) observation: TargetObservation,
 }
 
+const UNSELECTED_SLOT: &str = "the selected runtime boundary slot cannot execute during preparation";
+
 impl ConstantEvaluation<'_, '_> {
+    /// Every checked proof for the exact typed call, slot, application and
+    /// target identity is judged independently. Only a fully applicable proof
+    /// can authorize execution, so rejected or stale evidence never shadows a
+    /// later applicable proof and never contributes observations. Applicable
+    /// proofs must agree on the executed realization; otherwise the slot fails
+    /// closed instead of depending on evidence order.
     pub(super) fn checked_provider(
         &self,
         call: &TypedCall,
@@ -55,44 +52,90 @@ impl ConstantEvaluation<'_, '_> {
         slot: &BoundarySlot,
     ) -> Result<SelectedProvider<'_>, EvaluationError> {
         if slot.direction != SlotDirection::ProgramToProvider {
-            return Err("the selected runtime boundary slot cannot execute during preparation".into());
+            return Err(UNSELECTED_SLOT.into());
         }
-        let proof = self
-            .providers
-            .checked
-            .iter()
-            .find(|proof| {
-                std::ptr::eq(proof.trees, self.trees)
-                    && proof.call == call.node
-                    && proof.binding.requirement == slot.requirement
-                    && proof.realization.arguments == slot.arguments
-                    && proof.application.as_ref().map(|selected| &selected.requirement) == application
-                    && self
-                        .target
-                        .is_some_and(|target| target.identity() == &proof.target)
-            })
-            .ok_or("the selected runtime boundary slot cannot execute during preparation")?;
-        let observation = TargetObservation::SelectedRealization {
-            target: proof.target.clone(),
-            realization: proof.realization.clone(),
-        };
-        if !self
-            .target
-            .is_some_and(|target| target.matches_observation(&observation))
-        {
-            return Err("the checked provider does not match the selected target plan".into());
-        }
-        if !proof.observations.iter().all(|observation| {
-            self.target
-                .is_some_and(|target| target.matches_observation(observation))
+        let target = self.target.ok_or(UNSELECTED_SLOT)?;
+        let mut refusal = None;
+        let mut selected: Option<(&CheckedProvider<'_, '_>, Option<&TypedCall>)> = None;
+        for proof in self.providers.checked.iter().filter(|proof| {
+            std::ptr::eq(proof.trees, self.trees)
+                && proof.call == call.node
+                && proof.binding.requirement == slot.requirement
+                && proof.realization.arguments == slot.arguments
+                && proof.application.as_ref().map(|selected| &selected.requirement) == application
+                && target.identity() == &proof.target
         }) {
-            return Err("the checked provider proof depends on a different target selection".into());
+            match self.applicable_provider(proof, call, target) {
+                Err(reason) => {
+                    if refusal.is_none() {
+                        refusal = Some(reason);
+                    }
+                }
+                Ok(realized) => match selected {
+                    None => selected = Some((proof, realized)),
+                    Some((chosen, chosen_application)) => {
+                        if chosen.binding != proof.binding || chosen.realization != proof.realization || chosen_application != realized {
+                            return Err("checked providers select competing realizations for the runtime boundary slot".into());
+                        }
+                    }
+                },
+            }
         }
+        let Some((proof, application)) = selected else {
+            return Err(refusal.unwrap_or(UNSELECTED_SLOT).into());
+        };
         for dependency in &proof.observations {
             self.record_observation(dependency.clone());
         }
-        let implementation = &proof.binding.implementation;
-        let application = if let Some(selected) = &proof.application {
+        Ok(SelectedProvider {
+            implementation: &proof.binding.implementation,
+            application,
+            observation: TargetObservation::SelectedRealization {
+                target: proof.target.clone(),
+                realization: proof.realization.clone(),
+            },
+        })
+    }
+
+    /// Judge one candidate without recording anything. The certificate must
+    /// realize its own conformance row, match the selected plan, depend only on
+    /// observations of the selected target and preserve the positional application.
+    fn applicable_provider<'proof>(
+        &self,
+        proof: &'proof CheckedProvider<'_, '_>,
+        call: &TypedCall,
+        target: &crate::TargetSemantics,
+    ) -> Result<Option<&'proof TypedCall>, &'static str> {
+        let binding = proof.binding;
+        let realization = &proof.realization;
+        if !self
+            .trees
+            .conformance_rows
+            .iter()
+            .any(|row| std::ptr::eq(row, binding))
+            || realization.requirement != binding.requirement
+            || realization.implementation != binding.implementation
+            || realization.conformance != binding.conformance
+            || realization.binding != binding.site
+        {
+            return Err("the checked provider does not certify the selected conformance binding");
+        }
+        let observation = TargetObservation::SelectedRealization {
+            target: proof.target.clone(),
+            realization: realization.clone(),
+        };
+        if !target.matches_observation(&observation) {
+            return Err("the checked provider does not match the selected target plan");
+        }
+        if !proof
+            .observations
+            .iter()
+            .all(|observation| target.matches_observation(observation))
+        {
+            return Err("the checked provider proof depends on a different target selection");
+        }
+        let implementation = &binding.implementation;
+        if let Some(selected) = &proof.application {
             let required = &selected.requirement;
             let realized = &selected.implementation;
             if &realized.machine != implementation
@@ -112,17 +155,12 @@ impl ConstantEvaluation<'_, '_> {
                         .iter()
                         .map(|operand| (&operand.node, &operand.subject, &operand.callable)))
             {
-                return Err("the checked provider does not preserve the selected positional application".into());
+                return Err("the checked provider does not preserve the selected positional application");
             }
-            Some(realized)
+            Ok(Some(realized))
         } else {
-            None
-        };
-        Ok(SelectedProvider {
-            implementation,
-            application,
-            observation,
-        })
+            Ok(None)
+        }
     }
 }
 
@@ -173,7 +211,7 @@ pub(super) fn bind_requirement(
     let parameters = file
         .child(requirement.node.node, NodeKind::Params)
         .map_or(&[][..], |list| file.nodes[list].children.as_slice());
-    let operands = operands.0.borrow();
+    let operands = operands.values.borrow();
     if parameters.len() != operands.len() {
         return Err(UNSUPPORTED_CONTRACT.into());
     }
@@ -187,7 +225,11 @@ pub(super) fn bind_requirement(
             writable: false,
         })
         .collect();
-    Ok(Rc::new(CallBindings(RefCell::new(bindings), application)))
+    Ok(Rc::new(CallBindings {
+        values: RefCell::new(bindings),
+        application,
+        ..Default::default()
+    }))
 }
 
 #[cfg(test)]

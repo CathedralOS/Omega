@@ -1,0 +1,8 @@
+// Core owns the canonical boundary and the semantic identity of its exact
+// requirement, not process management or a platform implementation.
+public boundary trait ProcessExit {
+    machine exit_process(return_code: i32) -> Never
+    reaches ProcessExit
+    crashes none
+    terminates;
+}

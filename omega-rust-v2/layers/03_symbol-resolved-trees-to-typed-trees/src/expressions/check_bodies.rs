@@ -2,8 +2,9 @@ use crate::contracts::conformance;
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::declaration_bodies;
+use crate::type_error::SourceTypeError;
 use crate::{TypeError, TypedStage};
-use omega_parser::NodeKind;
+use omega_syntax::NodeKind;
 
 pub(crate) fn check_bodies(
     units: &[ResolvedSourceFile<'_>],
@@ -52,7 +53,7 @@ pub(crate) fn check_bodies(
 
 fn check_until_pending(result: Result<(), TypeError>) -> Result<(), TypeError> {
     match result {
-        Err(error) if error.waiting_for_static_value => Ok(()),
+        Err(error) if error.waiting_for_static_value() => Ok(()),
         other => other,
     }
 }

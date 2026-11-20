@@ -1,11 +1,13 @@
 use super::{numeric_literals, specialized_indices::IndexSpecializations};
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::evaluation::static_value::StaticValueCarrier;
 use crate::expressions::declaration_bodies;
+use crate::type_error::SourceTypeError;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{IntegerIndex, StaticValue, StaticValueDemand, StaticValueRequest, TypeError, TypedStage, TypingEnvironment, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, IndexedSource, Symbol, TreeNodeId};
+use omega_resolved::{DeclarationId, IndexedSource, Symbol, TreeNodeId};
+use omega_syntax::NodeKind;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -262,7 +264,7 @@ pub(crate) fn check_static_indices(
         for (request, evaluation) in uses {
             let node = request.node;
             if let Err(error) = declaration_bodies::check_static_argument(&units[node.file], catalog, node.node, &request, &evaluation, output) {
-                if error.waiting_for_static_value {
+                if error.waiting_for_static_value() {
                     continue;
                 }
                 return Err(error);
@@ -290,6 +292,12 @@ pub(crate) fn check_static_indices(
             return Err(TypeError::for_site(
                 &request.expression,
                 "evaluation result has no matching specialized expression, carrier and owner arity",
+            ));
+        }
+        if !result.value.matches_carrier(&request.carrier, catalog) {
+            return Err(TypeError::for_site(
+                &request.expression,
+                "specialized evaluation result does not match its carrier",
             ));
         }
     }

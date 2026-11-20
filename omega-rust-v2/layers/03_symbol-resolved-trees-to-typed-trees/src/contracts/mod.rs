@@ -8,4 +8,5 @@ pub(crate) mod effect_propagation;
 pub(crate) mod guarded_calls;
 pub(crate) mod logical_hypotheses;
 pub(crate) mod machine_effects;
+pub(crate) mod process_exit;
 pub(crate) mod trait_refinements;

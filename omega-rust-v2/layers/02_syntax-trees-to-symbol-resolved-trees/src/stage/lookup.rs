@@ -1,7 +1,7 @@
-use super::{Catalog, Context, DomainCarrier, NameError, NameUse, Symbol, callable, module_child, qualify, usage};
+use super::{Catalog, Context, DeclarationId, DomainCarrier, NameError, NameUse, Symbol, callable, module_child, qualify, usage};
 use crate::syntax::File;
-use omega_lexer::SourceSpan;
-use omega_parser::NodeKind;
+use omega_syntax::NodeKind;
+use omega_tokens::SourceSpan;
 
 #[derive(Clone, Copy)]
 pub(super) struct Attachment {
@@ -140,13 +140,7 @@ impl Catalog<'_> {
                 }
                 _ => break,
             };
-            let slot = self
-                .index
-                .get(&(id.package.clone(), id.path.clone()))
-                .into_iter()
-                .flatten()
-                .copied()
-                .find(|&i| self.entries[i].id == *id);
+            let slot = self.declaration_slot(id);
             let accessible = slot.filter(|&i| {
                 id.package == file.package
                     || self.entries[i].public
@@ -174,6 +168,39 @@ impl Catalog<'_> {
             owner = slot;
         }
         Ok(())
+    }
+
+    fn declaration_slot(
+        &self,
+        id: &DeclarationId,
+    ) -> Option<usize> {
+        self.index
+            .get(&(id.package.clone(), id.path.clone()))
+            .into_iter()
+            .flatten()
+            .copied()
+            .find(|&slot| self.entries[slot].id == *id)
+    }
+
+    pub(super) fn has_domain_ancestor(
+        &self,
+        domain: usize,
+        ancestor: usize,
+    ) -> bool {
+        let mut current = domain;
+        let mut visited = std::collections::HashSet::new();
+        while visited.insert(current) {
+            let parent = match self.carriers.get(&current) {
+                Some(DomainCarrier::Named(parent) | DomainCarrier::Bound { alternative: parent, .. }) if parent.kind == NodeKind::Domain => parent,
+                _ => return false,
+            };
+            if *parent == self.entries[ancestor].id {
+                return true;
+            }
+            let Some(slot) = self.declaration_slot(parent) else { return false };
+            current = slot;
+        }
+        false
     }
     /// Imports and fully qualified paths start at a requester-local dependency
     /// alias or at the requester's package root, never at the caller's directory.
@@ -268,13 +295,11 @@ impl Catalog<'_> {
         Ok(())
     }
 
-    pub(super) fn bind_imports(
+    pub(super) fn index_visible_domains(
         &self,
         file: &File<'_>,
         ctx: &mut Context<'_>,
-        uses: &mut Vec<NameUse>,
-        visibility: &mut Vec<super::CarrierVisibility>,
-    ) -> Result<(), NameError> {
+    ) {
         let mut expose = |slot: usize, origin| {
             let id = &self.entries[slot].id;
             let leaf = id.path.rsplit([':', '\\']).next().unwrap();
@@ -289,18 +314,38 @@ impl Catalog<'_> {
         }
         for import in &ctx.imports {
             let span = file.span(import.node);
-            let (package, path) = &import.address;
-            let target = if ctx.open_modules.contains(&import.address) {
+            if ctx.open_modules.contains(&import.address) {
                 for &slot in self
                     .domains_by_module
                     .get(&import.address)
                     .into_iter()
                     .flatten()
                 {
-                    if self.entries[slot].public || package == file.package {
+                    if self.entries[slot].public || import.address.0 == file.package {
                         expose(slot, Some(span));
                     }
                 }
+            } else {
+                for &slot in &import.slots {
+                    if self.carriers.contains_key(&slot) {
+                        expose(slot, Some(span));
+                    }
+                }
+            }
+        }
+    }
+
+    pub(super) fn bind_imports(
+        &self,
+        file: &File<'_>,
+        ctx: &Context<'_>,
+        uses: &mut Vec<NameUse>,
+        visibility: &mut Vec<super::CarrierVisibility>,
+    ) -> Result<(), NameError> {
+        for import in &ctx.imports {
+            let span = file.span(import.node);
+            let (package, path) = &import.address;
+            let target = if ctx.open_modules.contains(&import.address) {
                 Symbol::Module {
                     package: package.clone(),
                     path: path.clone(),
@@ -311,9 +356,6 @@ impl Catalog<'_> {
                 }
                 let target = self.symbol(file, span, &import.slots)?;
                 for &slot in &import.slots {
-                    if self.carriers.contains_key(&slot) {
-                        expose(slot, Some(span));
-                    }
                     self.require_carrier(file, slot, import.node, span, visibility)?;
                 }
                 target
@@ -503,7 +545,12 @@ impl Catalog<'_> {
         attachments: &[Attachment],
     ) -> Result<Symbol, NameError> {
         self.symbol(file, span, slots).or_else(|mut error| {
-            for slot in slots.iter().copied().collect::<std::collections::BTreeSet<_>>() {
+            // Source and compiled declarations can occupy different catalog slots.
+            // Report the competing attachments in the same order as their identities.
+            let mut slots = slots.to_vec();
+            slots.sort_unstable_by_key(|&slot| &self.entries[slot].id);
+            slots.dedup();
+            for &slot in &slots {
                 let Some(carrier) = self.carriers.get(&slot) else { continue };
                 let owner = &self.entries[slot].id;
                 let carrier = match carrier {
@@ -615,10 +662,18 @@ impl Catalog<'_> {
                     .copied()
                     .filter(|&i| {
                         let e = &self.entries[i];
-                        e.lexical_owner.is_none() || (e.source.is_some_and(|(origin, _)| origin == file.ordinal) && e.lexical_owner == Some(owner))
+                        e.lexical_owner.is_none() || (e.source.is_some_and(|(origin, _)| origin == file.ordinal()) && e.lexical_owner == Some(owner))
                     })
                     .collect();
-                if !visible.is_empty() {
+                // Cases share their owner's member namespace, but only `Shape::Circle`
+                // names a case. A bare spelling that finds nothing except cases at this
+                // owner keeps searching outward, so `case Circle(c:Circle)` can name an
+                // outer `Circle`. Any other member with that spelling still decides here.
+                let bare_cases_only = rest.is_none()
+                    && visible
+                        .iter()
+                        .all(|&i| self.entries[i].id.kind == NodeKind::Case);
+                if !visible.is_empty() && !bare_cases_only {
                     return Ok(visible);
                 }
             }
@@ -630,7 +685,7 @@ impl Catalog<'_> {
             .filter(|&i| {
                 self.entries[i]
                     .source
-                    .is_some_and(|(origin, _)| origin == file.ordinal)
+                    .is_some_and(|(origin, _)| origin == file.ordinal())
             })
             .collect();
         let mut imported = Vec::new();

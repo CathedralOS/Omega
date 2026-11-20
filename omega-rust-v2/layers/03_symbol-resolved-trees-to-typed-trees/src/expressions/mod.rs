@@ -8,6 +8,7 @@ pub(crate) mod check_bodies;
 pub(crate) mod declaration_bodies;
 mod destination;
 pub(crate) mod existential_records;
+mod fixed_array_moves;
 pub(crate) mod indexing;
 pub(crate) mod mathematical_application;
 pub(crate) mod operators;

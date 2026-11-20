@@ -3,7 +3,7 @@
 use crate::TypedSignature;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{AssemblyTypes, LogicalHypothesis, RankingView, RequirementSlot, Site, TraitRefinement, ValueType};
-use omega_resolver::DeclarationId;
+use omega_resolved::DeclarationId;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -68,12 +68,13 @@ pub(crate) struct DeclaredItems<'a> {
     pub(crate) signatures: HashMap<&'a DeclarationId, Arc<TypedSignature>>,
     pub(crate) fields: HashMap<&'a DeclarationId, RecordFields<'a>>,
     pub(crate) cases: HashMap<&'a DeclarationId, Vec<&'a DeclarationId>>,
+    pub(crate) schema_numbering: HashMap<&'a DeclarationId, Arc<omega_program_contracts::SchemaNumbering>>,
     pub(crate) case_owner: HashMap<&'a DeclarationId, &'a DeclarationId>,
     pub(crate) implementations: HashMap<&'a DeclarationId, RequirementSlot>,
     pub(crate) requirements: HashMap<&'a DeclarationId, Vec<&'a DeclarationId>>,
     pub(crate) refinements: HashMap<&'a DeclarationId, Vec<TraitRefinement>>,
     pub(crate) trait_parents: HashMap<&'a DeclarationId, RequirementSlot>,
-    pub(crate) token_bindings: HashMap<&'a str, Vec<super::operator_declarations::TypedOperatorBinding<'a>>>,
+    pub(crate) token_bindings: HashMap<&'a str, Vec<&'a DeclarationId>>,
     pub(crate) predicates: HashSet<&'a DeclarationId>,
     pub(crate) hypotheses: HashMap<Site, LogicalHypothesis>,
     pub(crate) assumptions: HashMap<DeclarationId, Vec<DeclarationId>>,
@@ -96,10 +97,21 @@ impl DeclarationCatalog<'_> {
             }
             output.signatures.push(self.signatures[id].clone());
         }
+        output.schema_numbering = self
+            .declarations
+            .schema_numbering
+            .iter()
+            .map(|(&owner, numbers)| (owner.clone(), numbers.clone()))
+            .collect();
         output.record_fields = self
             .fields
             .iter()
             .map(|(&id, fields)| (id.clone(), fields.ordered.clone()))
+            .collect();
+        output.case_owners = self
+            .case_owner
+            .iter()
+            .map(|(&case, &owner)| (case.clone(), owner.clone()))
             .collect();
     }
 

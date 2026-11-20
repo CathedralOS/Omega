@@ -1,5 +1,5 @@
 use crate::{AssemblyTypes, BoundarySlot, RankingView, SpecializedIndexValue, StaticValue, StaticValueRequest};
-use omega_resolver::DeclarationId;
+use omega_resolved::DeclarationId;
 /// Declarations and capabilities admitted by the Build for this exact stage.
 #[derive(Default)]
 pub struct TypingEnvironment<'a> {

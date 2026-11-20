@@ -83,6 +83,25 @@ fn inferred_operator_home_distinguishes_inherited_and_independent_domains() {
     let child = "machine + add(x:u8 in P::Child,y:u8 in P::Child)->u8 in P::Child{x} machine sum(x:u8 in P::Child,y:u8 in P::Child)->u8 in P::Child{x+y}";
     let stage = check(&[("domains.omg", declarations), ("child.omg", child)]).unwrap();
     assert!(stage.calls.iter().any(|c| c.machine.path == "add"));
+    let unused = check(&[
+        ("domains.omg", declarations),
+        ("child.omg", "machine + add(x:u8 in P::Child,y:u8 in P::Child)->u8 in P::Child{x}"),
+    ])
+    .unwrap();
+    let sig = unused
+        .signatures
+        .iter()
+        .find(|sig| sig.machine.path == "add")
+        .unwrap();
+    let binding = sig.operator.as_ref().unwrap();
+    let child = unused
+        .domain_carriers
+        .keys()
+        .find(|id| id.path == "u8::P::Child")
+        .unwrap();
+    assert_eq!(binding.home.as_ref(), Some(child));
+    assert_eq!(binding.token, "+");
+    assert_eq!(binding.site.file, "child.omg");
     let competing = "machine + add(x:u8 in P,y:u8 in Q)->u8 in P{x}";
     assert_eq!(
         check(&[("domains.omg", declarations), ("ambiguous.omg", competing)])
@@ -115,6 +134,29 @@ fn cross_package_operator_selection_uses_the_resolved_visibility() {
             assert_eq!(error.span.slice(caller.as_bytes()), Some(&b"a+b"[..]));
         }
     }
+}
+
+#[test]
+fn nested_operators_are_visible_only_inside_their_enclosing_machine() {
+    let library = "public data Point{}
+                   public machine outer(a:Point,b:Point)->Point{
+                       a+b
+                       public machine + add(a:Point,b:Point)->Point{a}
+                   }";
+    let foreign = "use dep\\Point; machine combine(a:Point,b:Point)->Point{a+b}";
+    let resolved = resolve_operator_packages("main.omg", library, foreign);
+    assert!(!resolved.operator_declarations[0].public);
+    let error = omega_typer::type_stage(&resolved).unwrap_err();
+    assert_eq!(error.package, "app");
+    assert_eq!(error.span.slice(foreign.as_bytes()), Some(b"a+b".as_slice()));
+
+    let sibling = "machine combine(a:Point,b:Point)->Point{a+b}";
+    let error = check(&[("outer.omg", library), ("sibling.omg", sibling)]).unwrap_err();
+    assert_eq!(error.file, "sibling.omg");
+    assert_eq!(error.span.slice(sibling.as_bytes()), Some(b"a+b".as_slice()));
+
+    let typed = check(&[("outer.omg", library)]).unwrap();
+    assert!(typed.calls.iter().any(|call| call.machine.path == "outer::add"));
 }
 
 fn resolve_operator_packages<'a>(
@@ -230,4 +272,17 @@ fn a_later_operand_call_preserves_the_first_operands_storage_version() {
     };
     assert_eq!(write.span.slice(code.as_bytes()), Some(b"k=2;".as_slice()));
     assert_eq!(mark.result.domains()[0].arguments[0], first.subject);
+}
+
+#[test]
+fn dependent_operator_duplicates_compare_runtime_subjects_by_operand_position() {
+    let source = "data Byte=u8; data Frame<N:u8>{}
+                  machine + attach(n:u8,x:Frame<n>)->Frame<n>{x}
+                  machine combine(n:u8,x:Frame<n>)->Frame<n>{n+x}";
+    let stage = check(&[("dependent.omg", source)]).unwrap();
+    assert!(stage.calls.iter().any(|call| call.machine.path == "attach"));
+
+    let duplicate = "machine + also_attach(m:Byte,y:Frame<m>)->Frame<m>{y}";
+    let error = check(&[("dependent.omg", source), ("duplicate.omg", duplicate)]).unwrap_err();
+    assert_eq!(error.message, "duplicate normalized operator binding");
 }

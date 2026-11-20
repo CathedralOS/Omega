@@ -6,14 +6,19 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-omega-toolchain = { path = "../../toolchain" }
-omega-parser = { path = "../01_tokens-to-syntax-trees" }
-omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
+omega-prepared = { path = "../../representations/prepared" }
+omega-target-contract = { path = "../../contracts/target" }
+omega-program-contracts = { path = "../../contracts/program" }
+omega-syntax = { path = "../../representations/syntax" }
+omega-resolved = { path = "../../representations/resolved" }
+omega-typed = { path = "../../representations/typed" }
 omega-typer = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 num-bigint = "0.4"
 num-rational = "0.4"
 num-traits = "0.2"
 
 [dev-dependencies]
+omega-parser = { path = "../01_tokens-to-syntax-trees" }
+omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 omega-lexer = { path = "../00_bytes-to-tokens" }
 spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }

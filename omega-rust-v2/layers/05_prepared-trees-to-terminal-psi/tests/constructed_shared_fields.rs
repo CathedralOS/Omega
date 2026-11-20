@@ -1,0 +1,111 @@
+#[path = "support/source.rs"]
+mod source;
+
+use omega_lowering::{EmbeddedLoanOrigin, Parameter};
+use psi_handoff_consumer::check_constructed_field;
+
+#[test]
+fn parked_local_keeps_the_descriptor_used_to_initialize_its_field() {
+    for (selected, slot, terminal) in [
+        ("first", 0, false),
+        ("second", 1, false),
+        ("first", 0, true),
+        ("second", 1, true),
+    ] {
+        let call = if terminal { "transition{_ -> suspend wait(),}" } else { "suspend wait()" };
+        let program =
+            format!("data Holder{{r:@u8;}} machine wait() suspends{{}} machine forward(first:@u8,second:@u8) suspends{{let h=Holder{{r:{selected}}};{call}}}");
+        let resolved = source::resolve(&[("constructed.omg", &program)]);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let tree = prepared.typed().trees().next().unwrap();
+        let construction = (0..tree.resolved().file.nodes.len())
+            .find_map(|node| tree.construction(node))
+            .unwrap();
+        let [input] = construction.initializers.as_slice() else {
+            panic!("one prepared field")
+        };
+        assert_eq!(input.position, 0);
+        assert_eq!(
+            tree.resolved()
+                .file
+                .span(input.expression)
+                .slice(program.as_bytes()),
+            Some(selected.as_bytes())
+        );
+        let mut package = omega_lowering::lower_package(&prepared).unwrap();
+        drop(prepared);
+        drop(resolved);
+        assert_eq!(check_constructed_field(&package, slot), Ok(()));
+        let body = &mut package
+            .machines
+            .iter_mut()
+            .find(|m| m.declaration.path == "forward")
+            .unwrap()
+            .body;
+        assert_eq!(matches!(body.suspension_sites[0].call, omega_lowering::CallSite::Edge(_)), terminal);
+        let Parameter::Structural(other) = body.parameters[1 - slot] else {
+            panic!("other input descriptor")
+        };
+        body.suspension_sites[0].retained_owners[0].embedded_loans[0].origin = EmbeddedLoanOrigin {
+            reborrows: Vec::new(),
+            formal: other,
+            path: vec![],
+        };
+        assert_eq!(check_constructed_field(&package, slot), Err("wrong initializer origin"));
+    }
+}
+
+#[test]
+fn a_selected_case_stores_its_shared_descriptor_in_the_payload_slot() {
+    use omega_lowering::{OperationKind, ValueOperand};
+    let text = "data Reply{case Ready(r:@u8);case Empty;} machine build(x:@u8){let item=Reply::Ready{r:x};}";
+    let pkg = source::lower(&[("payload.omg", text)]).unwrap();
+    let body = &pkg.machines[0].body;
+    let Parameter::Structural(input) = body.parameters[0] else {
+        panic!("incoming loan")
+    };
+    let [establish] = body.operations.as_slice() else {
+        panic!("one case construction")
+    };
+    let OperationKind::EstablishCase { case, fields } = &establish.kind else {
+        panic!("selected case")
+    };
+    let [field] = fields.as_slice() else { panic!("one initialized field") };
+    assert_eq!(case.path, "Reply::Ready");
+    assert_eq!(field.field.path, "Reply::Ready::r");
+    assert_eq!(field.operand, ValueOperand::CopyWhole(input));
+}
+
+#[test]
+fn parking_a_reborrow_preserves_its_formation_and_its_incoming_parent() {
+    use omega_lowering::{OperationKind, PlaceProjection, ReferenceAccess};
+    let text =
+        "data Cell{mark:u8;} data Holder{r:@u8;} machine wait() suspends{} machine forward(cell:@Cell) suspends{let h=Holder{r:@cell.mark};suspend wait()}";
+    let package = source::lower(&[("reborrow.omg", text)]).unwrap();
+    let body = &package
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "forward")
+        .unwrap()
+        .body;
+    let Parameter::Structural(cell) = body.parameters[0] else {
+        panic!("incoming parent descriptor")
+    };
+    let [loan] = body.suspension_sites[0].retained_owners[0]
+        .embedded_loans
+        .as_slice()
+    else {
+        panic!("one stored reborrow")
+    };
+    let [definition] = loan.origin.reborrows.as_slice() else {
+        panic!("one reborrow formation")
+    };
+    assert_eq!(loan.origin.formal, cell);
+    assert!(loan.origin.path.is_empty());
+    let op = &body.operations[definition.index()];
+    let OperationKind::BorrowPlace { source, access } = &op.kind else {
+        panic!("borrow operation")
+    };
+    assert_eq!((source.root, *access), (cell, ReferenceAccess::Shared));
+    assert!(matches!(&source.path[..], [PlaceProjection::Referent, PlaceProjection::Field(field)] if field.path=="Cell::mark"));
+}

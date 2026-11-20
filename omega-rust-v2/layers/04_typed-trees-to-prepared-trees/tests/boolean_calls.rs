@@ -40,6 +40,102 @@ fn selected_boolean_calls_produce_the_same_constants_as_literals() {
 }
 
 #[test]
+fn local_declarations_follow_both_terminal_body_forms() {
+    let source = "machine tail(value:bool)->bool {step(value) machine step(input:bool)->bool {input}}
+                  machine dispatch(value:bool)->bool {
+                      transition value {true -> step(true), false -> step(false),}
+                      machine step(input:bool)->bool {input}
+                  }
+                  const TAIL:bool=tail(true);
+                  const DISPATCH:bool=dispatch(false);";
+    let prepared = prepare(source).unwrap();
+    for (name, result) in [("TAIL", true), ("DISPATCH", false)] {
+        let constant = prepared
+            .typed()
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap();
+        assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(result)));
+    }
+}
+
+#[test]
+fn a_nested_helper_uses_the_enclosing_application_each_time() {
+    let source = "machine always(value:bool)->bool {true}
+                  machine never(value:bool)->bool {false}
+                  machine apply<const F:machine(value:bool)->bool>(value:bool)->bool {
+                      step(value)
+                      machine step(input:bool)->bool {
+                          invoke(input)
+                          machine invoke(argument:bool)->bool {F(argument)}
+                      }
+                  }
+                  const FIRST:bool=apply::<always>(false);
+                  const SECOND:bool=apply::<never>(true);";
+    let prepared = prepare(source).unwrap();
+    let typed = prepared.typed();
+    let indirect = &typed.indirect_calls[0];
+    let omega_typed::InvocationTarget::StaticParameter { owner, index } = &indirect.entry else {
+        panic!("expected the enclosing machine's const callback");
+    };
+    let helper = typed
+        .calls
+        .iter()
+        .find(|call| Some(&call.machine) == indirect.caller.as_ref())
+        .unwrap();
+    assert_eq!(
+        helper.generic_argument(owner, *index),
+        Some(&omega_typed::ValueType::Parameter {
+            owner: Box::new(owner.clone()),
+            index: *index
+        }),
+    );
+    for (name, result) in [("FIRST", true), ("SECOND", false)] {
+        let constant = typed
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap();
+        assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(result)));
+    }
+}
+
+#[test]
+fn nested_helpers_read_their_exact_static_arguments() {
+    let source = "machine outer<const FLAG:bool>(input:bool)->bool {
+                      helper(input)
+                      machine helper(value:bool)->bool {FLAG}
+                  }
+                  machine pair<const OUTER:bool>()->bool {
+                      inner::<false>()
+                      machine inner<const INNER:bool>()->bool {
+                          helper::<true>()
+                          machine helper<const OWN:bool>()->bool {OUTER && !INNER && OWN}
+                      }
+                  }
+                  const FIRST:bool=outer::<true>(false);
+                  const SECOND:bool=outer::<false>(true);
+                  const THREE_SCOPES_TRUE:bool=pair::<true>();
+                  const THREE_SCOPES_FALSE:bool=pair::<false>();";
+    let prepared = prepare(source).unwrap();
+    let typed = prepared.typed();
+    for (name, result) in [
+        ("FIRST", true),
+        ("SECOND", false),
+        ("THREE_SCOPES_TRUE", true),
+        ("THREE_SCOPES_FALSE", false),
+    ] {
+        let constant = typed
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap();
+        assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(result)));
+    }
+}
+
+#[test]
 fn a_selected_predicate_checks_the_bound_value_before_running_the_callee() {
     let machines = "machine predicate(value:bool)->bool reaches none crashes none terminates {value}
                     machine guarded(value:bool)->bool requires predicate(value) {value}
@@ -213,16 +309,79 @@ fn compound_integer_calls_are_equivalent_to_their_literal_result() {
 }
 
 #[test]
-fn a_selected_scalar_block_cannot_ignore_an_unsupported_statement() {
+fn discarding_a_local_preserves_its_bool_binding() {
     let source = "machine run(value:bool)->bool {let saved:bool=value; _ = saved; saved} const VALUE:bool=run(true);";
+    let prepared = prepare(source).unwrap();
+    assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration), Some(&PreparedValue::Bool(true)));
+}
+
+#[test]
+fn an_explicit_discard_evaluates_and_drops_a_copy_value() {
+    let source = "data Pair [copy] {first:u8; flag:bool;}
+                  const SEED:u8=9u8;
+                  machine leaf(x:u8)->u8{x}
+                  machine make(x:u8)->Pair{Pair{first:x,flag:true}}
+                  machine caller(x:u8)->u8{_ = leaf(x); x}
+                  machine aggregate(x:u8)->u8{_ = make(x); _ = SEED; x}
+                  machine run(value:bool)->bool {let saved:bool=value; _ = saved; _ = !saved; saved}
+                  const V:u8=caller(3u8);
+                  const RECORD:u8=aggregate(5u8);
+                  const FLAG:bool=run(true);";
+    let prepared = prepare(source).unwrap();
+    let typed = prepared.typed();
+    let find = |name| {
+        &typed
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap()
+            .declaration
+    };
+    assert_eq!(prepared.constant(find("V")), Some(&PreparedValue::Integer(3u8.into())));
+    assert_eq!(prepared.constant(find("RECORD")), Some(&PreparedValue::Integer(5u8.into())));
+    assert_eq!(prepared.constant(find("FLAG")), Some(&PreparedValue::Bool(true)));
+    // The discarded read is still an input of the constant that performed it.
+    let inputs = prepared
+        .dependencies()
+        .inputs(&omega_preparation::PreparedValueOrigin::Constant(find("RECORD").clone()))
+        .unwrap();
+    assert_eq!(inputs.constants.as_slice(), std::slice::from_ref(find("SEED")));
+}
+
+#[test]
+fn a_discarded_operand_still_refuses_its_failed_precondition() {
+    let machines = "machine divide(value:u8)->u8 requires value != 0 {12u8 / value}
+                    machine caller(x:u8)->u8{_ = divide(x); x}";
+    let source = format!("{machines} const V:u8=caller(3u8);");
+    let prepared = prepare(&source).unwrap();
+    assert_eq!(
+        prepared.constant(&prepared.typed().constants[0].declaration),
+        Some(&PreparedValue::Integer(3u8.into()))
+    );
+
+    let source = format!("{machines} const V:u8=caller(0u8);");
+    let error = prepare(&source).unwrap_err();
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"divide(x)".as_slice()));
+    assert_eq!(
+        error.message,
+        "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments\ncall chain: caller -> divide"
+    );
+}
+
+#[test]
+fn an_explicit_discard_does_not_dispose_of_a_linear_value() {
+    let source = "data Handle [linear] {}
+                  machine make()->Handle{Handle{}}
+                  machine run(x:u8)->u8{_ = make(); x}
+                  const V:u8=run(1u8);";
     let error = prepare(source).unwrap_err();
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"make()".as_slice()));
     assert!(
         error
             .message
-            .starts_with("static evaluation cannot admit this invocation:"),
+            .contains("the complete constant type must permit copying"),
         "{error:?}"
     );
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"run(true)".as_slice()));
 }
 
 #[test]
@@ -283,4 +442,22 @@ fn writes_only_the_selected_local_in_each_fresh_invocation() {
     let error = prepare(&immutable).unwrap_err();
     assert_eq!(error.message, "place requires writable authority");
     assert_eq!(error.span.slice(immutable.as_bytes()), Some(b"saved".as_slice()));
+}
+
+#[test]
+fn constant_match_arms_bind_values_through_nested_matches_and_calls() {
+    for (expression, expected) in [
+        ("match true { flag -> flag, }", true),
+        ("match false { flag -> keep(flag), }", false),
+        ("match true { flag -> match false { inner -> flag, }, }", true),
+        ("match true { flag -> match false { flag -> flag, }, }", false),
+    ] {
+        let source = format!("machine keep(value:bool)->bool {{value}} const OUT:bool={expression};");
+        let prepared = prepare(&source).unwrap();
+        assert_eq!(
+            prepared.constant(&prepared.typed().constants[0].declaration),
+            Some(&PreparedValue::Bool(expected)),
+            "{expression}"
+        );
+    }
 }

@@ -1,8 +1,10 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{DomainApplication, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Default)]
@@ -271,6 +273,12 @@ impl Domains<'_> {
         let parent = self.entries.get(&child.declaration)?.parent.as_ref()?;
         Some(parent.substitute(&child.declaration, &self.bind_arguments(child, carrier)))
     }
+    pub(crate) fn alias_members(
+        &self,
+        id: &DeclarationId,
+    ) -> &[DomainApplication] {
+        &self.entries[id].alias
+    }
     pub fn known_carrier(
         &self,
         id: &DeclarationId,
@@ -366,20 +374,16 @@ impl Domains<'_> {
         Ok(atoms)
     }
 }
-pub(crate) fn qualified(
-    carrier: ValueType,
-    mut atoms: Vec<DomainApplication>,
-) -> ValueType {
-    atoms.sort_by_cached_key(|a| (a.declaration.package.clone(), a.declaration.path.clone(), format!("{:?}", a.arguments)));
-    atoms.dedup();
-    if atoms.is_empty() {
-        carrier
-    } else {
-        ValueType::Qualified(Box::new(carrier), atoms)
-    }
+pub(crate) trait InferResultDomains: Sized {
+    fn can_infer_result_domains(
+        &self,
+        owner: &DeclarationId,
+        destination: &Self,
+    ) -> bool;
 }
-impl ValueType {
-    pub(crate) fn can_infer_result_domains(
+
+impl InferResultDomains for ValueType {
+    fn can_infer_result_domains(
         &self,
         owner: &DeclarationId,
         destination: &Self,
@@ -399,17 +403,5 @@ impl ValueType {
             .iter()
             .any(|d| d.arguments.iter().any(Self::depends_on_call_input))
             && declarations(domains).eq(declarations(destination.domains()))
-    }
-    pub fn domains(&self) -> &[DomainApplication] {
-        match self {
-            Self::Qualified(_, atoms) => atoms,
-            _ => &[],
-        }
-    }
-    pub fn carrier(&self) -> &Self {
-        match self {
-            Self::Qualified(base, _) => base,
-            _ => self,
-        }
     }
 }

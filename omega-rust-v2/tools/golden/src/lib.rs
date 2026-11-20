@@ -94,6 +94,15 @@ pub fn check_directory(
 ) -> io::Result<GoldenReport> {
     let should_bless =
         std::env::var_os(BLESS_ENVIRONMENT_VARIABLE).is_some_and(|value| value == "1");
+    check_directory_with_policy(fixture_directory, input_extension, produce_output, should_bless)
+}
+
+fn check_directory_with_policy(
+    fixture_directory: &Path,
+    input_extension: &str,
+    produce_output: impl Fn(&[u8]) -> Result<String, String>,
+    should_bless: bool,
+) -> io::Result<GoldenReport> {
     let mut report = GoldenReport::default();
 
     for input_path in list_input_paths(fixture_directory, input_extension)? {
@@ -204,7 +213,49 @@ fn describe_first_difference(expected_output: &str, actual_output: &str) -> Stri
 
 #[cfg(test)]
 mod tests {
-    use super::describe_first_difference;
+    use super::{Path, check_directory_with_policy, describe_first_difference, fs};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn compare_and_bless_preserve_the_layers_verdict() {
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/golden-tests")
+            .join(format!("{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        for (file, bytes) in [
+            ("current.omg", "ok"),
+            ("current.expected", "ok"),
+            ("missing.omg", "new"),
+            ("refused.omg", "refuse"),
+            ("newline.omg", "line\n"),
+            ("newline.expected", "line"),
+        ] {
+            fs::write(directory.join(file), bytes).unwrap();
+        }
+        let output = |source: &[u8]| match source {
+            b"refuse" => Err("wrong verdict".into()),
+            _ => Ok(String::from_utf8(source.to_vec()).unwrap()),
+        };
+        let report = check_directory_with_policy(&directory, "omg", output, false).unwrap();
+        assert_eq!((report.case_count, report.blessed_count, report.failures.len()), (4, 0, 3));
+        let details = report.describe_failures().unwrap();
+        for reason in ["no expected file", "final line ending", "wrong verdict"] {
+            assert!(details.contains(reason), "{details}");
+        }
+        let blessed = check_directory_with_policy(&directory, "omg", output, true).unwrap();
+        assert_eq!((blessed.case_count, blessed.blessed_count, blessed.failures.len()), (4, 2, 1));
+        assert!(!directory.join("refused.expected").exists());
+        assert_eq!(fs::read(directory.join("missing.expected")).unwrap(), b"new");
+        assert_eq!(fs::read(directory.join("newline.expected")).unwrap(), b"line\n");
+        fs::create_dir(directory.join("refused.expected")).unwrap();
+        assert!(check_directory_with_policy(&directory, "omg", |_| Ok(String::new()), false).is_err());
+        fs::remove_dir(directory.join("refused.expected")).unwrap();
+        for file in fs::read_dir(&directory).unwrap() {
+            fs::remove_file(file.unwrap().path()).unwrap();
+        }
+        fs::remove_dir(directory).unwrap();
+    }
 
     #[test]
     fn first_difference_names_the_line_and_both_sides() {

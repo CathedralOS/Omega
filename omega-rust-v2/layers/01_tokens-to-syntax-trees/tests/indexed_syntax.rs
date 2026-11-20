@@ -51,6 +51,56 @@ fn pause_flags_preserve_exactly_what_was_written() {
 }
 
 #[test]
+fn array_element_and_array_qualifications_keep_their_written_owner() {
+    use NodeKind::{ArrayLiteral, ArrayType, PathType, QualifiedType, SliceType};
+    for (annotation, parent, child) in [
+        ("[u8 in D; 4]", ArrayType, QualifiedType),
+        ("[u8; 4] in D", QualifiedType, ArrayType),
+        ("[u8 in D]", SliceType, QualifiedType),
+        ("Box<[u8 in D<N>; width()]>", ArrayType, QualifiedType),
+        ("Box<[[u8 in D]; 4]>", SliceType, QualifiedType),
+        ("Box<[x in D]>", ArrayLiteral, NodeKind::Binary),
+    ] {
+        let source = format!("machine f(x:{annotation}) {{}}");
+        let tokens = lex(source.as_bytes()).unwrap();
+        let tree = parse_file(source.as_bytes(), &tokens).unwrap();
+        let syntax = tree.index(&source, &tokens).unwrap();
+        let node = syntax.nodes.iter().find(|n| n.kind == parent).unwrap();
+        assert_eq!(syntax.nodes[node.children[0]].kind, child, "{annotation}");
+        if child == QualifiedType {
+            let qualification = &syntax.nodes[node.children[0]];
+            assert_eq!(syntax.nodes[qualification.children[0]].kind, PathType);
+            assert_eq!(syntax.nodes[qualification.children[0]].path(), "u8");
+            assert_eq!(syntax.nodes[qualification.children[1]].path(), "D");
+        }
+    }
+}
+
+#[test]
+fn retired_member_numbers_stay_in_their_record_or_payload() {
+    let text = "data Log { retired #0; #2 case Item(#3 retired:u8, retired #8); }";
+    let tokens = lex(text.as_bytes()).unwrap();
+    let tree = parse_file(text.as_bytes(), &tokens).unwrap();
+    let syntax = tree.index(text, &tokens).unwrap();
+    let data = syntax.child(0, NodeKind::Data).unwrap();
+    let case = syntax.child(data, NodeKind::Case).unwrap();
+    for (owner, spelling) in [(data, "#0"), (case, "#8")] {
+        let retired = syntax.child(owner, NodeKind::RetiredNumber).unwrap();
+        let number = syntax.child(retired, NodeKind::StableNumber).unwrap();
+        assert_eq!(syntax.span(number).slice(text.as_bytes()), Some(spelling.as_bytes()));
+    }
+    assert!(syntax.child(case, NodeKind::CaseField).is_some());
+    for text in [
+        "data R {retired #1}",
+        "data S {case A(retired #2;);}",
+        "data S {case A(retired #2 x:u8);}",
+    ] {
+        let tokens = lex(text.as_bytes()).unwrap();
+        assert!(parse_file(text.as_bytes(), &tokens).is_err(), "{text}");
+    }
+}
+
+#[test]
 fn indexed_nodes_preserve_parser_spelling_ranges_and_parentage() {
     let text = "machine f<T, const N:u8>(x:T)->T { /* gap */ x }";
     let tokens = lex(text.as_bytes()).unwrap();

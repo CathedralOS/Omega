@@ -1,8 +1,9 @@
 //! L3 borrows L2's resolved tree and keeps parameter types and logical hypotheses for this file.
 
+use crate::type_error::SourceTypeError;
 use crate::{Access, Site, TypeError, ValueType};
-use omega_lexer::SourceSpan;
-use omega_resolver::{DeclarationId, NameContext, Symbol, SymbolResolvedTree};
+use omega_resolved::{DeclarationId, NameContext, Symbol, SymbolResolvedTree};
+use omega_tokens::SourceSpan;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub(crate) type ParameterSlot<'a> = (&'a DeclarationId, usize);
@@ -79,9 +80,9 @@ impl<'a> ResolvedSourceFile<'a> {
         &self,
         symbol: &Symbol,
     ) -> bool {
-        use omega_parser::NodeKind::*;
+        use omega_syntax::NodeKind::*;
         match symbol {
-            Symbol::Builtin(name) => omega_resolver::is_builtin_type_name(name),
+            Symbol::Builtin(name) => omega_resolved::is_builtin_type_name(name),
             Symbol::Declaration(id) => matches!(id.kind, Data | Trait | Domain),
             Symbol::DomainCandidates { .. } => true,
             Symbol::Binding {
@@ -158,7 +159,7 @@ impl<'a> ResolvedSourceFile<'a> {
         binder_node: usize,
     ) -> Option<usize> {
         let binder = &self.file.nodes[binder_node];
-        if binder.kind != omega_parser::NodeKind::Param {
+        if binder.kind != omega_syntax::NodeKind::Param {
             return None;
         }
         binder.children.first().copied()

@@ -1,4 +1,36 @@
 #[test]
+fn schema_numbers_are_exact_and_unique_among_live_and_retired_members() {
+    let accepted = "data Packet {#0xffff_ffff_ffff_ffff word:u8; retired #0;}";
+    let typed = check(&[("schema.omg", accepted)]).unwrap();
+    let (_, scope) = typed
+        .schema_numbering
+        .iter()
+        .find(|(id, _)| id.path == "Packet")
+        .unwrap();
+    assert_eq!(scope.members.len(), 1);
+    assert_eq!(scope.members[0].number, u64::MAX);
+    assert_eq!(scope.members[0].declaration_index, 0);
+    assert_eq!(scope.retired, [0]);
+    for (text, site, reason) in [
+        ("data R {#7 a:u8; b:u8;}", "b:u8;", "every member"),
+        ("data R {a:u8; retired #9;}", "a:u8;", "every member"),
+        ("data R {#1 a:u8; #0x1 b:u8;}", "#0x1", "duplicate stable schema number #1"),
+        ("data R {retired #1; #0b1 a:u8;}", "#0b1", "duplicate stable schema number #1"),
+        ("data R {#1 a:u8; retired #0o1;}", "#0o1", "duplicate stable schema number #1"),
+        ("data R {retired #0; retired #00;}", "#00", "duplicate stable schema number #0"),
+        ("data S {#2 case A; #2 case B;}", "#2", "duplicate stable schema number #2"),
+        ("data S {case A(#2 x:u8, #2 y:u8);}", "#2", "duplicate stable schema number #2"),
+        ("data S {case A(retired #2, x:u8);}", "x:u8", "every member"),
+        ("data R {#18446744073709551616 a:u8;}", "#18446744073709551616", "stable schema number must"),
+        ("data R {#256u8 a:u8;}", "#256u8", "stable schema number must"),
+    ] {
+        let error = check(&[("schema.omg", text)]).unwrap_err();
+        assert!(error.message.starts_with(reason), "{text}: {error:?}");
+        assert_eq!(error.span.get_start_offset(), text.rfind(site).unwrap(), "{text}: {error:?}");
+    }
+}
+
+#[test]
 fn shorthand_checks_the_local_against_the_named_field() {
     let program = |parameter| format!("data Point {{ x: u8; }} machine point(x: {parameter}) -> Point {{ Point {{ x }} }}");
     let accepted = program("u8");
@@ -240,14 +272,24 @@ fn core_bracket_contracts_retain_endpoints_access_and_origin() {
             inclusive: false
         })
     ));
-    for access in &stage.collection_accesses {
+    use omega_program_contracts::CollectionPrimitive::{ElementMut, RangeMut, Read};
+    let library = stage.library.expect("sealed bracket declarations");
+    for (access, primitive) in stage
+        .collection_accesses
+        .iter()
+        .zip([RangeMut, ElementMut, Read])
+    {
+        assert_eq!(access.primitive, primitive);
+        let signature = library
+            .signatures
+            .iter()
+            .find(|s| s.machine == access.machine)
+            .unwrap();
         assert!(
-            stage
-                .library
-                .expect("sealed bracket declarations")
-                .signatures
+            access
+                .selector_carriers
                 .iter()
-                .any(|s| s.machine == access.machine)
+                .eq(signature.parameters[1..].iter().map(|(_, carrier)| carrier))
         );
     }
     for (code, msg) in [
@@ -474,7 +516,7 @@ fn a_package_infers_one_witness_through_array_and_callable_fields() {
             panic!("expected one construction")
         };
         assert!(matches!(package.witnesses.as_slice(),[ValueType::Nominal(id)] if id.path=="File"));
-        assert!(stage.obligations.iter().any(|o|matches!(&o.kind,omega_typer::ObligationKind::RefineCallable {machine,contract,..} if machine.path=="read_file" && contract.parameters[0].to_string().contains("File"))));
+        assert!(stage.obligations.iter().any(|o|matches!(&o.kind,omega_typer::ObligationKind::RefineCallable {selection,contract,..} if selection.machine.path=="read_file" && contract.parameters[0].to_string().contains("File"))));
         let wrong = source.replace("read_file(state:@File)", "read_file(state:@Socket)");
         let error = check(&[("reader.omg", &wrong)]).unwrap_err();
         let site = error.span.slice(wrong.as_bytes()).unwrap();
@@ -593,4 +635,54 @@ fn positional_rest_checks_only_written_patterns_and_covers_the_omitted_positions
         let error = check(&[("rest.omg", source)]).unwrap_err();
         assert!(error.message.contains(message), "{source}: {error:?}");
     }
+}
+
+#[test]
+fn runtime_construction_publishes_each_applied_payload_without_a_static_request() {
+    let code = "data Box<T> { case Full(value:T); } machine build() { let a = Box::<u8>::Full {value:7}; let b = Box::<bool>::Full {value:true}; }";
+    let stage = check(&[("box.omg", code)]).unwrap();
+    assert!(stage.constants.is_empty());
+    let mut count = 0;
+    for (carrier, shape) in &stage.static_data_shapes {
+        let Some((owner, [arg])) = carrier.nominal_parts() else { continue };
+        if owner.path != "Box" {
+            continue;
+        }
+        let [(case, fields)] = shape.cases.as_slice() else {
+            panic!("expected the Full case")
+        };
+        assert_eq!(case.path, "Box::Full");
+        assert_eq!(fields.as_slice(), std::slice::from_ref(arg));
+        count += 1;
+    }
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn equal_named_cases_publish_their_exact_declaring_sum() {
+    let code = "data Alpha { case Same(w:u8, v:u8); case Other; } data Beta { case Empty; case Same(v:u8, w:u8); }";
+    let stage = check(&[("cases.omg", code)]).unwrap();
+    let mut rows: Vec<_> = stage
+        .case_owners
+        .iter()
+        .filter(|(_, owner)| matches!(owner.path.as_str(), "Alpha" | "Beta"))
+        .map(|(case, owner)| (case.path.as_str(), owner.path.as_str()))
+        .collect();
+    rows.sort();
+    assert_eq!(
+        rows,
+        [("Alpha::Other", "Alpha"), ("Alpha::Same", "Alpha"), ("Beta::Empty", "Beta"), ("Beta::Same", "Beta")]
+    );
+    let owner_of = |path: &str| {
+        let (case, owner) = stage.case_owners.iter().find(|(case, _)| case.path == path).unwrap();
+        assert!(stage.record_fields.contains_key(case), "{path} keeps its payload roster");
+        (case.clone(), owner.clone())
+    };
+    let (alpha_same, alpha) = owner_of("Alpha::Same");
+    let (beta_same, beta) = owner_of("Beta::Same");
+    assert_ne!(alpha_same, beta_same);
+    assert_ne!(alpha, beta);
+    // Sums are owners, never cases of themselves or of each other.
+    assert!(!stage.case_owners.contains_key(&alpha));
+    assert!(!stage.case_owners.contains_key(&beta));
 }

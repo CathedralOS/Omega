@@ -73,7 +73,7 @@ pub(crate) fn record_guarded_calls(
                 let supplied = callback_invocations::through(call, &entry);
                 let declaration = match &supplied {
                     InvocationTarget::Declaration(slot) => Some(&slot.declaration),
-                    InvocationTarget::AppliedMachine { declaration, .. } => Some(declaration),
+                    InvocationTarget::AppliedMachine(selection) => Some(selection.machine.as_ref()),
                     _ => None,
                 };
                 if let Some(declaration) = declaration {

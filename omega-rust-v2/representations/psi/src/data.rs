@@ -1,0 +1,158 @@
+use crate::{Carry, ContractClause, DeclarationId, Multiplicity, Site, TypeId};
+use std::num::NonZeroUsize;
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct DataId(NonZeroUsize);
+
+impl DataId {
+    pub fn get(self) -> usize {
+        self.0.get()
+    }
+
+    pub fn from_index(index: usize) -> Self {
+        Self(NonZeroUsize::new(index + 1).expect("data index belongs to a vector"))
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct LoweredData {
+    pub id: DataId,
+    pub declaration: DeclarationId,
+    pub carrier: TypeId,
+    /// Concrete arguments of this schema, including arguments supplied by enclosing data.
+    pub type_arguments: Vec<TypeId>,
+    /// Exact owned cleanup selected for this declaration, when one is authored.
+    pub cleanup_target: Option<crate::MachineId>,
+    pub public: bool,
+    /// The nominal declaration's multiplicity. A value also owes the obligations
+    /// of its record fields or the fields of its active case.
+    pub multiplicity: Multiplicity,
+    /// Erased lifetime binders in declaration order. No binder adds a layout dimension.
+    pub lifetime_count: usize,
+    /// Carriers of runtime-capable value indices referenced by the default-domain contract.
+    pub value_indices: Vec<TypeId>,
+    /// Authored type-wide restrictions. The checker also composes the
+    /// applicable fields of the value, including the live case of a sum.
+    pub carry: Option<Carry>,
+    /// Predicates that every established value of this carrier must satisfy.
+    pub requires: Vec<ContractClause>,
+    pub fields: Vec<LoweredField>,
+    pub cases: Vec<LoweredCase>,
+    /// Stable identities of this record’s fields or this sum’s cases.
+    pub numbering: Option<std::sync::Arc<crate::SchemaNumbering>>,
+    pub site: Site,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct LoweredField {
+    pub declaration: DeclarationId,
+    /// Lifetime of a stored reference, indexed in the enclosing data declaration.
+    pub lifetime: Option<usize>,
+    pub carrier: TypeId,
+    pub site: Site,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct LoweredCase {
+    pub declaration: DeclarationId,
+    /// The payload has a separate numbering scope from its enclosing sum.
+    pub numbering: Option<std::sync::Arc<crate::SchemaNumbering>>,
+    pub fields: Vec<LoweredField>,
+    pub site: Site,
+}
+
+/// A transparent type name and the next edge in its expansion chain.
+#[derive(Debug, Eq, PartialEq)]
+pub struct LoweredAlias {
+    pub declaration: DeclarationId,
+    pub target: AliasTarget,
+    pub public: bool,
+    pub site: Site,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum AliasTarget {
+    Declaration(DeclarationId),
+    Builtin(String),
+    /// An anonymous type expression whose complete shape belongs to the package type table.
+    Structural(TypeId),
+    /// A generic alias, or a closed application whose expansion has no row in the
+    /// package type table. This is a declaration handoff only: it carries no layout,
+    /// constructor or ownership identity of its own.
+    Expansion(AliasExpansion),
+}
+
+/// The checked expansion of a transparent alias. Uses substitute the supplied
+/// arguments for `GenericParameter { owner: alias, .. }` by declaration identity;
+/// the expansion and the alias spelling then denote the same type.
+#[derive(Debug, Eq, PartialEq)]
+pub struct AliasExpansion {
+    /// Outer scopes supplying the leading arguments, as for data templates.
+    pub enclosing_parameters: Vec<DeclarationId>,
+    /// The alias's own binders with their checked kinds, in declaration order.
+    pub parameters: Vec<TemplateBinder>,
+    /// The declaration named by the authored target path, which may itself be an
+    /// alias. Provenance only; `expansion` is already fully normalized.
+    pub head: Option<DeclarationId>,
+    pub expansion: DeclarationTerm,
+}
+
+/// A type or value in a declaration application. Static values retain their declared carrier
+/// and canonical value. A forwarded binder retains its owner and position.
+#[derive(Debug, Eq, PartialEq)]
+pub enum DeclarationTerm {
+    /// A type with no static value argument.
+    Type(crate::TypeExpression),
+    /// A declared data application with at least one static value argument.
+    Applied {
+        declaration: DeclarationId,
+        arguments: Vec<DeclarationTerm>,
+    },
+    StaticInteger {
+        carrier: crate::ScalarType,
+        value: num_bigint::BigInt,
+    },
+    StaticBoolean(bool),
+}
+
+/// An open data declaration with its type arguments, private witnesses and unevaluated field types.
+/// Instantiation and construction must carry its default-domain requirements forward.
+#[derive(Debug, Eq, PartialEq)]
+pub struct DataTemplate {
+    pub declaration: DeclarationId,
+    /// Outer scopes supplying the leading arguments in a flattened type application.
+    pub enclosing_parameters: Vec<DeclarationId>,
+    pub parameters: Vec<TemplateBinder>,
+    /// Structural equations used to infer a binder from the supplied arguments.
+    pub equations: Vec<(usize, crate::TypeExpression)>,
+    pub witness_count: usize,
+    pub public: bool,
+    pub fields: Vec<TemplateField>,
+    pub cases: Vec<TemplateCase>,
+    pub numbering: Option<std::sync::Arc<crate::SchemaNumbering>>,
+    pub multiplicity: Multiplicity,
+    pub carry: Option<Carry>,
+    pub requires: Vec<ContractClause>,
+    pub site: Site,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TemplateBinder {
+    Type { multiplicity: Option<Multiplicity> },
+    Kinded(crate::TypeExpression),
+    Lifetime,
+    Const(crate::TypeExpression),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateCase {
+    pub declaration: DeclarationId,
+    pub fields: Vec<TemplateField>,
+    pub numbering: Option<std::sync::Arc<crate::SchemaNumbering>>,
+    pub site: Site,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TemplateField {
+    pub declaration: DeclarationId,
+    pub ty: crate::TypeExpression,
+    pub site: Site,
+}

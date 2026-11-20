@@ -9,9 +9,10 @@ use crate::declarations::{constants, mathematical_signatures};
 use crate::evaluation::check_static_indices::{IndexEvaluations, check_static_indices};
 use crate::expressions::check_bodies::check_bodies;
 use crate::toolchain_declarations::core_interface::{CheckedLibrary, configure_roles};
+use crate::type_error::SourceTypeError;
 use crate::type_system::definition_order::index_type_definitions;
 use crate::{StaticValueDemand, TypeError, TypedStage, TypedTrees, TypingEnvironment};
-use omega_resolver::SymbolResolvedTrees;
+use omega_resolved::SymbolResolvedTrees;
 use omega_toolchain::CoreInterface;
 
 pub(crate) fn type_admitted_stage<'text>(
@@ -107,6 +108,56 @@ pub(crate) fn check_stage<'a>(
         catalog.types.formations.check(&catalog.types, output)?;
     }
     let demands = dependencies.ready_demands(demands)?;
+    let specialized_requests = demands
+        .iter()
+        .filter_map(|demand| match demand {
+            StaticValueDemand::Closed(_) => None,
+            StaticValueDemand::Specialized { request, .. } => Some(request),
+        })
+        .chain(
+            environment
+                .specialized_indices
+                .iter()
+                .map(|receipt| &receipt.request),
+        );
+    for request in specialized_requests {
+        if output.static_request_scopes.contains_key(&request.node) {
+            continue;
+        }
+        let owner = units
+            .get(request.node.file)
+            .and_then(|unit| unit.specialization_owner(request.node.node))
+            .ok_or_else(|| TypeError::for_site(&request.expression, "the specialized static expression has no owning declaration"))?;
+        let scopes = catalog
+            .types
+            .specialization_scopes(owner)
+            .map(|scope| (scope.clone(), catalog.types.arity(scope)))
+            .collect();
+        output.static_request_scopes.insert(request.node, scopes);
+    }
+    for unit in &units {
+        for (_, owner) in unit.declaration_nodes() {
+            if let Some(scopes) = catalog.types.scopes.get(owner) {
+                let captured: Vec<_> = scopes
+                    .iter()
+                    .copied()
+                    .take_while(|scope| *scope != owner)
+                    .filter(|scope| catalog.types.arity(scope) > 0)
+                    .cloned()
+                    .collect();
+                if !captured.is_empty() {
+                    output.enclosing_data_parameters.insert(owner.clone(), captured);
+                }
+            }
+            if let Some(parameters) = catalog.types.generics.get(owner)
+                && (!parameters.parameters.is_empty() || parameters.witness_count != 0)
+            {
+                output
+                    .generic_parameters
+                    .insert(owner.clone(), parameters.clone());
+            }
+        }
+    }
     catalog.publish_static_data_shapes(&demands, &dependencies, output);
     Ok((execution, demands))
 }

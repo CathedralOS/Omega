@@ -1,14 +1,22 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Site, TypeError, ValueType};
-use omega_lexer::SourceSpan;
-use omega_parser::NodeKind;
-use omega_resolver::DeclarationId;
-use omega_resolver::Symbol;
+use crate::type_error::SourceTypeError;
+use crate::{TypeError, ValueType};
+use omega_resolved::DeclarationId;
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_tokens::SourceSpan;
+use omega_typed::site_at;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub(super) enum Subject {
+enum SubjectRoot {
     SelfValue,
     Binding(SourceSpan),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub(super) struct Subject {
+    root: SubjectRoot,
+    pub(super) fields: Vec<DeclarationId>,
 }
 
 impl BodyTyper<'_, '_> {
@@ -16,12 +24,22 @@ impl BodyTyper<'_, '_> {
         &self,
         node_index: usize,
     ) -> Option<Subject> {
-        let node_index = self.unit.file.ungroup(node_index);
-        match self.unit.symbol(node_index)? {
-            Symbol::Builtin(s) if s == "self" => Some(Subject::SelfValue),
-            Symbol::Binding { span, .. } => Some(Subject::Binding(*span)),
-            _ => None,
-        }
+        let file = self.unit.file;
+        let node = file.node_id(file.ungroup(node_index));
+        let (base, steps) = self.output.place_path(node);
+        let root = match self.unit.symbol(base.node)? {
+            Symbol::Builtin(s) if s == "self" => SubjectRoot::SelfValue,
+            Symbol::Binding { span, .. } => SubjectRoot::Binding(*span),
+            _ => return None,
+        };
+        let fields = steps
+            .iter()
+            .map(|step| match &step.projection {
+                Some(crate::Projection::Field(f)) => Some((**f).clone()),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Subject { root, fields })
     }
     pub(super) fn case_guard(
         &self,
@@ -98,7 +116,8 @@ impl BodyTyper<'_, '_> {
             _ => return Err(TypeError::at(source, right, "membership requires a case or domain")),
         };
         self.output.memberships.push(crate::TypedMembership {
-            site: Site::at(source, node_index),
+            node: source.node_id(node_index),
+            site: site_at(source, node_index),
             subject: left_type.clone(),
             domain,
         });

@@ -1,0 +1,2 @@
+// The uninhabited core data type. No value establishes its default domain.
+public data Never requires false {}

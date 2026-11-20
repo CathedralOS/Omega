@@ -2,8 +2,12 @@ use super::call_arguments::{CallOperand, PendingComparisons, SelectedMachine};
 use crate::declarations::operator_declarations::nominal_operator_operand;
 use crate::evaluation::numeric_literals;
 use crate::expressions::body_typer::BodyTyper;
-use crate::{ObligationKind, Site, TypeError, TypedOperation, ValueType};
-use omega_parser::NodeKind;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
+use crate::type_system::dependent_subjects::DependentSubjects;
+use crate::{ObligationKind, TypeError, TypedOperation, ValueType};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn declared_operator(
@@ -19,13 +23,18 @@ impl BodyTyper<'_, '_> {
         let mut selected = Vec::new();
         let indices = &self.catalog.types.indices;
         let mut waiting = false;
-        for binding in family {
-            let id = &binding.declaration.machine;
+        for &id in family {
             let signature = &self.catalog.signatures[id];
-            if signature.parameters.len() != operands.len()
-                || !self.unit.can_select_from(&id.package)
-                || id.package != source.package && !binding.declaration.public
-            {
+            let binding = signature
+                .operator
+                .as_ref()
+                .expect("operator family indexes checked declarations");
+            let visible = if let Some(owner) = &id.enclosing_machine {
+                std::iter::successors(self.caller.as_ref(), |caller| caller.enclosing_machine.as_ref()).any(|scope| scope == owner)
+            } else {
+                id.package == source.package || binding.public
+            };
+            if signature.parameters.len() != operands.len() || !self.unit.can_select_from(&id.package) || !visible {
                 continue;
             }
             let mut contexts = Vec::new();
@@ -123,7 +132,7 @@ impl BodyTyper<'_, '_> {
     ) {
         self.output.operations.push(TypedOperation {
             node: self.unit.file.node_id(node_index),
-            site: Site::at(self.unit.file, node_index),
+            site: site_at(self.unit.file, node_index),
             token: token.into(),
             operands,
             result: result.clone(),
@@ -161,7 +170,7 @@ impl BodyTyper<'_, '_> {
                 let fact = (token == "&&").then(|| self.case_guard(left)).flatten();
                 let previous = fact
                     .as_ref()
-                    .and_then(|(s, id)| self.cases.insert(*s, id.clone()));
+                    .and_then(|(s, id)| self.cases.insert(s.clone(), id.clone()));
                 let left_operand = self.call_operand(left, left_type);
                 let right_type = self.type_expression(right)?;
                 if let Some((s, _)) = fact

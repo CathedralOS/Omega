@@ -74,6 +74,53 @@ fn lower_array_parameter_shapes(
 }
 
 #[test]
+fn computing_an_extent_preserves_the_indexed_elements_domain_and_operator() {
+    for extent in ["4", "width()"] {
+        let source = format!(
+            "domain u8::Tag; machine width()->u64{{4u64}}
+            machine + add(x:u8 in Tag,y:u8)->u8 in Tag {{x}}
+            machine read(a:[u8 in Tag;{extent}],i:u64)->u8 in Tag {{a[i]+1}}"
+        );
+        let package = resolve(&source);
+        let first = type_source_package_for_preparation(&package, &TypingEnvironment::default()).unwrap();
+        match (extent, first) {
+            ("4", TypingProgress::Complete(_)) => {}
+            ("width()", TypingProgress::Pending(pending)) => {
+                let [demand] = pending.demands() else {
+                    panic!("expected only the extent request")
+                };
+                assert_eq!(demand.request().expression.span.slice(source.as_bytes()), Some(&b"width()"[..]));
+            }
+            _ => panic!("unexpected first typing pass for {extent}"),
+        }
+        let prepared = prepare_source_package(&package).unwrap();
+        let trees = prepared.typed();
+        let read = trees
+            .signatures
+            .iter()
+            .find(|s| s.machine.path == "read")
+            .unwrap();
+        assert_eq!(read.parameters[0].1, ValueType::Array(Box::new(read.result.clone()), 4));
+        let [tag] = read.result.domains() else {
+            panic!("expected the element domain")
+        };
+        assert_eq!(tag.declaration.path, "u8::Tag");
+        let access = trees
+            .collection_accesses
+            .iter()
+            .find(|a| a.element == read.result)
+            .unwrap();
+        assert_eq!(access.result, read.result);
+        assert!(
+            trees
+                .calls
+                .iter()
+                .any(|c| c.machine.path == "add" && c.result == read.result)
+        );
+    }
+}
+
+#[test]
 fn lowering_consumes_the_prepared_array_element_and_extent() {
     let source = "machine width(n:u64)->u64 reaches none crashes none terminates {n + 1}
                   const SIZE:u64=width(7);

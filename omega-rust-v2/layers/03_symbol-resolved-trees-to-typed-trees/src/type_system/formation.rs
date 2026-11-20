@@ -2,8 +2,11 @@
 //! Replay those edges only after all declaration bodies and field types are available.
 use super::type_catalog::TypeCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
+use crate::type_system::substitution::TypeInference;
 use crate::{ObligationKind, Site, TypeError, TypedStage, TypingObligation, ValueType};
-use omega_resolver::{DeclarationId, TreeNodeId};
+use omega_resolved::{DeclarationId, TreeNodeId};
+use omega_typed::site_at;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -50,7 +53,7 @@ impl Formations {
         }
         let mut sites = self.local.borrow_mut();
         let checked = sites
-            .entry((Site::at(unit.file, node), unit.file.node_id(node)))
+            .entry((site_at(unit.file, node), unit.file.node_id(node)))
             .or_insert_with(|| SiteRequirements {
                 owner: unit.specialization_owner(node).cloned(),
                 rows: Vec::new(),
