@@ -31,6 +31,12 @@ typing_reasons! {
         ExceedsSuspensionCeiling => "call exceeds the machine's suspension ceiling",
         ExceedsBlockingCeiling => "call exceeds the machine's blocking ceiling",
     },
+    CallbackEffect(CallbackEffectError, "callback-effect") {
+        OpenReachUnderCeiling => "callback with open service reach cannot fit the machine's reach ceiling",
+        ExceedsServiceReach => "callback exceeds the machine's service reach",
+        MissingPauseAcknowledgement => "callback requires its declared pause acknowledgement",
+        ExceedsPauseCeiling => "callback exceeds the machine's pause ceiling",
+    },
     Dispatch(DispatchError, "dispatch") {
         UncoveredSubject => "dispatch does not cover its subject",
     },

@@ -141,7 +141,7 @@ L3	L2 supplies the packages each requester may select from.	consumer	L4	tests/st
 L3	Calls	consumer	L4	tests/closed_indices.rs	a_computed_result_domain_selects_the_exact_overload	result-domain-call-selection/consumer
 L3	Numbers and operators	consumer	L4	tests/frozen_handoff.rs	generic_indexed_integer_operations_keep_their_selected_policy_and_width	selected-operator-policy-and-width/consumer
 L3	Data and bindings	consumer	L4	tests/frozen_handoff.rs	generic_returns_discharge_possible_loans_only_for_complete_owned_results	declared-field-order/consumer
-L3	Evidence and effects	consumer	L4	tests/static_callbacks.rs	a_skipped_callback_still_requires_non_suspending_selected_effects	selected-callback-effects/consumer
+L3	Evidence and effects	consumer	L4	tests/typed_input_diagnostics.rs	a_skipped_callback_cannot_have_a_fixed_suspension_effect	selected-callback-effects/consumer
 L3	Collection access	consumer	L4	tests/frozen_handoff.rs	fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field	selected-element-read-precondition/consumer
 L3	Domains	consumer	L5	tests/domains.rs	qualification_edges_preserve_each_source_and_deliver_the_exact_destination_set	checked-domain-casts/consumer
 L3	Access plans and progress	consumer	L5	tests/ranking.rs	a_self_countdown_claims_strict_descent_only_on_its_exact_internal_edge	canonical-ranking-view/consumer

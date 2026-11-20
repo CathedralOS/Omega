@@ -749,6 +749,50 @@ fn a_fixed_array_extent_must_fit_u64() {
     );
 }
 
+mod callback_effects {
+    use super::*;
+    use omega_typer::CallbackEffectError::{self, *};
+
+    const SUSPENDING: &str = "data Step=machine()->u8 reaches none crashes none suspends;\nmachine apply(f:Step)->u8 suspends {suspend f()}";
+
+    fn check_change(
+        good: &str, before: &str, after: &str, call: &str, reason: &str, cause: CallbackEffectError,
+    ) {
+        assert_eq!(good.matches(before).count(), 1);
+        let bad = good.replacen(before, after, 1);
+        diagnostic_twins::check_with_reason(Case {
+            layer: "L3", producer: "typer", good: &[("callback.omg", good)], bad: &[("callback.omg", &bad)],
+            file: "callback.omg", occurrence: call, reason, rule: "Evidence and effects",
+        }, None, Some(cause.into()));
+    }
+
+    #[test]
+    fn open_reach_under_a_finite_ceiling() {
+        let good = "data Step=machine() reaches none crashes none;\nmachine apply<const F:Step>() reaches none {F()}";
+        check_change(good, "reaches none crashes", "crashes", "F()",
+            "callback with open service reach cannot fit the machine's reach ceiling", OpenReachUnderCeiling);
+    }
+
+    #[test]
+    fn bounded_reach_exceeds_the_caller() {
+        let good = "boundary trait Clock {}\ndata Step=machine() reaches Clock crashes none;\nmachine apply<const F:Step>() reaches Clock {F()}";
+        check_change(good, "reaches Clock {", "reaches none {", "F()",
+            "callback exceeds the machine's service reach", ExceedsServiceReach);
+    }
+
+    #[test]
+    fn block_does_not_acknowledge_suspension() {
+        check_change(SUSPENDING, "suspend f()", "block f()", "f()",
+            "callback requires its declared pause acknowledgement", MissingPauseAcknowledgement);
+    }
+
+    #[test]
+    fn acknowledgement_preserves_the_caller_ceiling() {
+        check_change(SUSPENDING, "suspends {", "suspends false {", "f()",
+            "callback exceeds the machine's pause ceiling", ExceedsPauseCeiling);
+    }
+}
+
 #[test]
 fn a_callback_call_must_match_its_declared_arity() {
     check_source_change(

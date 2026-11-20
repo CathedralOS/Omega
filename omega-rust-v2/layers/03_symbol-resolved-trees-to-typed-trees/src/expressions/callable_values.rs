@@ -183,7 +183,7 @@ impl BodyTyper<'_, '_> {
         let source = self.unit.file;
         let ack = effect_clauses::markers(self.unit, node_index)?;
         if c.pause.suspend && !ack.suspend || c.pause.block && !ack.block {
-            return Err(TypeError::at(source, node_index, "callback requires its declared pause acknowledgement"));
+            return Err(TypeError::for_reason(&omega_typed::site_at(source, node_index), crate::CallbackEffectError::MissingPauseAcknowledgement));
         }
         self.unit
             .check_runtime_type(node_index, &c.result, &self.catalog.types)?;
