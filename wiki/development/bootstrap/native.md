@@ -29,7 +29,9 @@ its storage runtime and entry (SHA-256
 `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab`).
 It contains 7,774 top-level forms, 468,044 lists and 1,172,126 atoms.
 Applying the parser's production allocation ledger gives 384,199,320 bytes
-for balanced parsing. Grammar then allocates from the same budget.
+for balanced parsing. A diagnostic build that reported the ledger after
+grammar measured 529,276,120 bytes in total, including 145,076,800 for
+grammar.
 [Syntax representation and charges](../../../bootstrap/delta/compiler/implementation/checking/syntax/README.md)
 
 The ConstructionBytesV1 Delta compiler now provisions 1 GiB for syntax. On
@@ -40,7 +42,7 @@ returned code 12 in emitted-payload space and requested 26,398,215 bytes.
 
 The frozen 4,107,257-byte Omega signature-checking program
 (`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`) takes
-90,118,000 parser bytes. Its original 114,294,752-byte syntax provision ran out
+90,118,000 bytes to parse and 31,712,800 for grammar. Its original 114,294,752-byte syntax provision ran out
 during grammar at byte 3,132,226. With the construction provision the compiler
 published 5,819,889 bytes of Gamma (SHA-256
 `5bfd4417a851ca411730364a88935511494847cd8a80392e110ec895273a1e11`).
