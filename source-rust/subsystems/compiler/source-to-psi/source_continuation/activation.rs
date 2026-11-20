@@ -154,7 +154,7 @@ impl ActivatedSource {
 pub(super) fn select_retained_source(
     request: &ResolveAndTypeRequest,
     context: &SourceContext,
-    observer: &mut impl crate::PsiCompilationObserver,
+    timings: &mut crate::CompileTimings,
 ) -> Result<Option<ActivatedSource>, Vec<Diagnostic>> {
     let mut candidates = Vec::new();
     for source in request.frontends.snapshots()? {
@@ -190,7 +190,7 @@ pub(super) fn select_retained_source(
             source,
             Arc::clone(&sources),
             context.bindings.clone(),
-            observer,
+            timings,
         )?;
         let typing = typing.activate_sources(
             Arc::clone(&sources),

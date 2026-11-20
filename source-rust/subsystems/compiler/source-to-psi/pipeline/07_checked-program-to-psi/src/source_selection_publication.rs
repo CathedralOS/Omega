@@ -2906,7 +2906,7 @@ machine entry() reaches Input {}
         let published = source
             .produce(
                 crate::production::TerminalProductionCustody::default(),
-                &mut crate::production::UnmeasuredProduction,
+                &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .unwrap();
         assert!(published.view().module().entry.is_some());

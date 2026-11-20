@@ -19,7 +19,7 @@ use diagnostics::Diagnostic;
 use source_admission::LoadedSource;
 use source_capture::SourceFileSystem;
 use source_compiler::RetainedSourceParse;
-use source_compiler::{SourceInput, UnmeasuredProduction};
+use source_compiler::{SourceInput, CompileTimings};
 use source_text::SourceId;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -259,7 +259,7 @@ impl LogicalSourceInventory {
         // page generation never reaches the checked-source cohort: adoption
         // moves the retained page to admitted coordinates first.
         let parsed = SourceInput(loaded.into_iter().collect())
-            .into_parsed_units(&mut UnmeasuredProduction)?;
+            .into_parsed_units(&mut CompileTimings::default())?;
         let mut result = Self {
             filesystem: filesystem.clone(),
             excluded_roots: excluded_roots.to_vec(),

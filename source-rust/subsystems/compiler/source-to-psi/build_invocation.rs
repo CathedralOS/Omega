@@ -8,7 +8,7 @@ use crate::{
     AcceptedTerminalSource, ConstantRead, ParsedStageSources, ProducedTerminalProgram,
     ResolveAndTypeRequest, SourceAdmission, SourceContinuation, SourcePreparation,
     SourcePreparationFailure, SourcePreparationRequest, TerminalProductionCustody,
-    TerminalSourceCompilation, UnmeasuredProduction,
+    TerminalSourceCompilation, CompileTimings,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -48,7 +48,7 @@ impl ProductDeclarationSource {
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         self.0
             .request(preparation, host, authority)?
-            .prepare(&mut UnmeasuredProduction)
+            .prepare(&mut CompileTimings::default())
     }
 }
 
@@ -63,7 +63,7 @@ impl BuildStageSource {
         let entry = self.entry;
         let mut request = self.request(preparation, host, authority)?;
         let stage = stages::select_build_stage(&mut request.syntax.trees, entry, index)?;
-        let source = request.prepare(&mut UnmeasuredProduction)?;
+        let source = request.prepare(&mut CompileTimings::default())?;
         Ok((source, stage))
     }
 
@@ -149,7 +149,7 @@ impl CheckedBuildInvocation {
                 invocation_sources: self.invocation_sources.as_deref(),
                 ..Default::default()
             },
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )?;
         Ok((self.accepted, produced))
     }

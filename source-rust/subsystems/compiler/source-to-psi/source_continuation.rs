@@ -9,7 +9,7 @@
 */
 
 use crate::compile_time::{BuildTimeSelectionAuthority, PreCheckEvaluation};
-use crate::{PsiCompilationObserver, PsiCompilationStage};
+use artifacts::compile_timings::{CompileTimings, source as stages};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::product_declarations;
@@ -132,7 +132,7 @@ impl ResolveAndTypeRequest {
 
     pub fn prepare(
         mut self,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         let context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.trees.clone()),
@@ -141,7 +141,7 @@ impl ResolveAndTypeRequest {
             build_helper_identity: self.build_helper_identity.into(),
             recorded_authority: None,
         };
-        let activation = activation::select_retained_source(&self, &context, observer)?;
+        let activation = activation::select_retained_source(&self, &context, timings)?;
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax.trees, &self.source_items);
         }
@@ -176,11 +176,11 @@ impl ResolveAndTypeRequest {
                         sources: self.sources,
                         top_level_bindings: self.top_level_bindings,
                     },
-                    observer,
+                    timings,
                 )?
             } else {
                 let mut frontier = {
-                    observer.record_result(PsiCompilationStage::Resolution, || {
+                    timings.record_result(stages::RESOLVE, || {
                         crate::resolution::resolve_deferred(crate::resolution::ResolutionRequest {
                             syntax,
                             sources: Some(self.sources),
@@ -196,14 +196,14 @@ impl ResolveAndTypeRequest {
                     if selected.is_empty() {
                         break;
                     }
-                    frontier = observer
-                        .record_result(PsiCompilationStage::Resolution, || {
+                    frontier = timings
+                        .record_result(stages::RESOLVE, || {
                             frontier.complete_machine_bodies(&selected)
                         })?
                         .into_resolved_frontier();
                 }
                 let typing = {
-                    observer.record_result(PsiCompilationStage::Typing, || {
+                    timings.record_result(stages::TYPE, || {
                         crate::typing::lower_symbol_resolved_trees_to_seeded_base(
                             frontier.shared_trees(),
                         )
@@ -220,11 +220,11 @@ impl ResolveAndTypeRequest {
             }
             pending_bodies =
                 pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
-            let completed = observer.record_result(PsiCompilationStage::Resolution, || {
+            let completed = timings.record_result(stages::RESOLVE, || {
                 pending_bodies.complete_machine_bodies(&build_bodies)
             })?;
-            (typing, pending_bodies) = observer
-                .record_result(PsiCompilationStage::Typing, || {
+            (typing, pending_bodies) = timings
+                .record_result(stages::TYPE, || {
                     type_completed_bodies(typing, completed)
                 })?;
         }
@@ -253,7 +253,7 @@ impl SourceContinuation {
         input: Arc<SourceCompletionInput>,
         sources: Arc<crate::source_inputs::SourceMap>,
         bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<(crate::typing::SeededTypingBase, Vec<PreCheckEvaluation>), Vec<Diagnostic>> {
         let mut typing = input.typing.clone();
         let pending_bodies = input
@@ -266,7 +266,7 @@ impl SourceContinuation {
             typing,
             pending_bodies,
             crate::resolution::DeferredBodyScope::SelectedFiles,
-            observer,
+            timings,
         )?;
         Ok((typing, input.pending_pre_checks.clone()))
     }
@@ -380,7 +380,7 @@ impl SourceContinuation {
 
     pub fn materialize_authored_bodies(
         self,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
         let Self { input, completions } = self;
         let SourceCompletionInput {
@@ -393,7 +393,7 @@ impl SourceContinuation {
             typing,
             pending_bodies,
             crate::resolution::DeferredBodyScope::All,
-            observer,
+            timings,
         )?;
         Ok(Self {
             input: Arc::new(SourceCompletionInput {
@@ -408,7 +408,7 @@ impl SourceContinuation {
 
     pub fn complete_authored(
         self,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
         if let Some(source) = self.completions.find(&self.input)? {
             return Ok(source);
@@ -428,7 +428,7 @@ impl SourceContinuation {
             typing,
             pending_bodies,
             crate::resolution::DeferredBodyScope::All,
-            observer,
+            timings,
         )?;
         drop(pending_bodies);
         PreCheckEvaluation::record_continuations(pending_pre_checks, typing.typed_mut())?;
@@ -472,12 +472,12 @@ fn type_completed_bodies(
 fn extend_declarations(
     typing: crate::typing::SeededTypingBase,
     request: crate::resolution::ExtensionRequest,
-    observer: &mut impl PsiCompilationObserver,
+    timings: &mut CompileTimings,
 ) -> Result<(crate::typing::SeededTypingBase, crate::resolution::DeferredResolvedFrontier), Vec<Diagnostic>> {
-    let extension = observer.record_result(PsiCompilationStage::Resolution, || {
+    let extension = timings.record_result(stages::RESOLVE, || {
         crate::resolution::resolve_deferred_extension(request)
     })?;
-    observer.record_result(PsiCompilationStage::Typing, || {
+    timings.record_result(stages::TYPE, || {
         let (source, frontier) = extension
             .rebase_for_typed_continuation(typing.typed().authored_declaration_selections())?;
         Ok((typing.append_resolved(source)?, frontier))
@@ -488,7 +488,7 @@ fn complete_pending_bodies(
     mut typing: crate::typing::SeededTypingBase,
     mut pending_bodies: crate::resolution::DeferredResolvedFrontier,
     scope: crate::resolution::DeferredBodyScope,
-    observer: &mut impl PsiCompilationObserver,
+    timings: &mut CompileTimings,
 ) -> Result<
     (
         crate::typing::SeededTypingBase,
@@ -503,12 +503,12 @@ fn complete_pending_bodies(
             break;
         }
         let resolved = {
-            observer.record_result(PsiCompilationStage::Resolution, || {
+            timings.record_result(stages::RESOLVE, || {
                 pending_bodies.complete_machine_bodies(&selected)
             })?
         };
         (typing, pending_bodies) = {
-            observer.record_result(PsiCompilationStage::Typing, || {
+            timings.record_result(stages::TYPE, || {
                 type_completed_bodies(typing, resolved)
             })?
         };
@@ -531,11 +531,11 @@ impl CompletedSource {
     pub fn extend(
         mut self,
         extension: SourceExtensionRequest,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<PreparedSource, Vec<Diagnostic>> {
         // Parse admitted generated bytes before touching the retained typed
         // frontier, preserving the extension's original error precedence.
-        let units = crate::SourceInput(extension.units).into_parsed_units(observer)?;
+        let units = crate::SourceInput(extension.units).into_parsed_units(timings)?;
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
         let pre_checks =
@@ -561,13 +561,13 @@ impl CompletedSource {
                 sources: extension.sources,
                 top_level_bindings: Vec::new(),
             },
-            observer,
+            timings,
         )?;
         let (typing, _) = complete_pending_bodies(
             typing,
             pending,
             crate::resolution::DeferredBodyScope::All,
-            observer,
+            timings,
         )?;
         let mut typed = typing.into_typed();
         PreCheckEvaluation::record_extension(pre_checks, wire_schema_frontier, &mut typed)?;

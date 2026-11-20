@@ -51,121 +51,6 @@ pub(crate) mod production_selection {
         pub boundaries: &'a [symbols::SymbolHandle],
     }
 }
-pub(crate) mod observation {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum PsiCompilationStage {
-        EntryReceipt,
-        Publication,
-        Resolution,
-        Typing,
-        SourceParsing,
-        SourcePreparation,
-    }
-
-    impl PsiCompilationStage {
-        /// Names the value the recorded call reads and the value it returns.
-        ///
-        /// Publication records `AcceptedClosure::publish` and
-        /// `publish_invocation`: accepted closure in, `TerminalProgramProduct`
-        /// out (portable canonical artifact or invocation code), with the
-        /// evidence seals beside that product. Entry receipt records
-        /// `prepare_program_entry_receipt`: that canonical artifact in,
-        /// `CheckedProgramEntryTerminalReceipt` out. Elaboration and discharge
-        /// run before the publisher receives the whole-compilation judgment.
-        pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
-            match self {
-                Self::EntryReceipt => (
-                    "terminal-production/entry-receipt",
-                    "CanonicalTerminalArtifact",
-                    "CheckedProgramEntryTerminalReceipt",
-                ),
-                Self::Publication => (
-                    "terminal-production/publication",
-                    "AcceptedClosure",
-                    "TerminalProgramProduct",
-                ),
-                Self::Resolution => ("Psi 02", "SyntaxTrees", "SymbolResolvedTrees"),
-                Self::Typing => ("Psi 03", "SymbolResolvedTrees", "TypedTrees"),
-                Self::SourceParsing => ("Source ingress", "SourceFiles", "SyntaxTrees"),
-                Self::SourcePreparation => {
-                    ("typed-source-preparation", "TypedTrees", "PreparedTypedTrees")
-                }
-            }
-        }
-    }
-
-    pub trait PsiCompilationObserver {
-        fn record_result<Value, Error>(
-            &mut self,
-            stage: PsiCompilationStage,
-            operation: impl FnOnce() -> Result<Value, Error>,
-        ) -> Result<Value, Error>;
-    }
-
-    pub struct UnmeasuredProduction;
-
-    impl PsiCompilationObserver for UnmeasuredProduction {
-        fn record_result<Value, Error>(
-            &mut self,
-            _stage: PsiCompilationStage,
-            operation: impl FnOnce() -> Result<Value, Error>,
-        ) -> Result<Value, Error> {
-            operation()
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::PsiCompilationStage;
-
-        #[test]
-        fn live_rows_name_the_representations_their_producers_return() {
-            assert_eq!(
-                PsiCompilationStage::EntryReceipt.observation_labels(),
-                (
-                    "terminal-production/entry-receipt",
-                    "CanonicalTerminalArtifact",
-                    "CheckedProgramEntryTerminalReceipt",
-                )
-            );
-            assert_eq!(
-                PsiCompilationStage::Publication.observation_labels(),
-                (
-                    "terminal-production/publication",
-                    "AcceptedClosure",
-                    "TerminalProgramProduct",
-                )
-            );
-            assert_eq!(
-                PsiCompilationStage::Resolution.observation_labels(),
-                ("Psi 02", "SyntaxTrees", "SymbolResolvedTrees")
-            );
-            assert_eq!(
-                PsiCompilationStage::Typing.observation_labels(),
-                ("Psi 03", "SymbolResolvedTrees", "TypedTrees")
-            );
-            assert_eq!(
-                PsiCompilationStage::SourceParsing.observation_labels(),
-                ("Source ingress", "SourceFiles", "SyntaxTrees")
-            );
-            for stage in [
-                PsiCompilationStage::EntryReceipt,
-                PsiCompilationStage::Publication,
-                PsiCompilationStage::Resolution,
-                PsiCompilationStage::Typing,
-                PsiCompilationStage::SourceParsing,
-            ] {
-                let (name, input, output) = stage.observation_labels();
-                for label in [name, input, output] {
-                    assert!(
-                        !matches!(label, "CheckedTrees" | "LoweredPsi" | "OptimizedLoweredPsi"),
-                        "{stage:?} still names a deleted representation: {label}"
-                    );
-                }
-            }
-        }
-    }
-}
 pub(crate) mod terminal_production {
     use diagnostics::Diagnostic;
 
@@ -218,7 +103,6 @@ pub use build_requests::{
     BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
 pub use custody::{PortableTerminalProgram, ProducedTerminalProgram, TerminalProductionCustody};
-pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
 pub use terminal_codec::entry_receipt::application::{
     TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,

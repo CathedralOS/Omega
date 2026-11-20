@@ -121,13 +121,13 @@ pub(crate) fn prepare_lower_and_check(
     inspection: Option<&str>,
     test_root: Option<(&crate::registered_tests::TestRoot, &str)>,
     frontier: Option<&mut Option<crate::TypedFrontier>>,
-    observer: &mut impl crate::PsiCompilationObserver,
+    timings: &mut crate::CompileTimings,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
     let (activation, admitted) = inputs.policy.admit(&mut continuation, inputs.subject)?;
     let native_supplies = inputs.native_bindings.resolve(&mut continuation, admitted.native_bindings)?;
-    let authored = continuation.complete_authored(observer)?;
+    let authored = continuation.complete_authored(timings)?;
     let crate::PreparedSource { mut typed, mut accounting } = match inputs.generated.take() {
-        Some(extension) => authored.extend(extension, observer)?,
+        Some(extension) => authored.extend(extension, timings)?,
         None => authored.finish(),
     };
     accounting
@@ -161,7 +161,7 @@ pub(crate) fn prepare_lower_and_check(
         frontier,
         initial_accounting: accounting.clone(),
         accounting: &mut accounting,
-        observer,
+        timings,
     };
     let mut judged = prepare_and_judge(&mut pass, typed, &[])?;
     let terminal_publication = loop {
@@ -190,7 +190,7 @@ pub(crate) fn prepare_lower_and_check(
     })
 }
 
-struct ProductSourcePass<'a, 'f, O> {
+struct ProductSourcePass<'a, 'f> {
     inputs: ProductSourceInputs<'a>,
     activation: Option<symbols::SymbolHandle>,
     explicit_providers: Vec<crate::provider_choice_inputs::ProviderSelection>,
@@ -203,7 +203,7 @@ struct ProductSourcePass<'a, 'f, O> {
     frontier: Option<&'f mut Option<crate::TypedFrontier>>,
     initial_accounting: crate::compile_time::SourceCompletionAccounting,
     accounting: &'f mut crate::compile_time::SourceCompletionAccounting,
-    observer: &'f mut O,
+    timings: &'f mut crate::CompileTimings,
 }
 
 struct JudgedSource {
@@ -225,7 +225,7 @@ pub(crate) fn program_roots(
 }
 
 fn prepare_and_judge(
-    pass: &mut ProductSourcePass<'_, '_, impl crate::PsiCompilationObserver>,
+    pass: &mut ProductSourcePass<'_, '_>,
     typed: crate::source_state::TypedTrees,
     chosen_defaults: &[crate::product::provider_settlement::ChosenDefaultLayout],
 ) -> Result<JudgedSource, Vec<Diagnostic>> {
@@ -384,8 +384,8 @@ fn prepare_and_judge(
     };
     let preparation_compilation = roster.preparation_compilation()?;
     let source = pass
-        .observer
-        .record_result(crate::PsiCompilationStage::SourcePreparation, || {
+        .timings
+        .record_result(artifacts::compile_timings::source::PREPARE, || {
             crate::SourcePreparationRequest {
                 program: typed,
                 admission: source_admission,

@@ -331,7 +331,7 @@ mod tests {
     use source_admission::LoadedSource;
     use source_capture::{CapturedSourceNode, CapturedSourceTree};
     use source_compiler::SourceSyntax;
-    use source_compiler::{SourceInput, UnmeasuredProduction};
+    use source_compiler::{SourceInput, CompileTimings};
     use source_text::SourceId;
     use std::sync::Arc;
 
@@ -385,7 +385,7 @@ mod tests {
             .into_iter()
             .collect(),
         )
-        .append(&mut syntax, &mut UnmeasuredProduction)
+        .append(&mut syntax, &mut CompileTimings::default())
         .unwrap();
         let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
         let members = &unit.imports[0].members;

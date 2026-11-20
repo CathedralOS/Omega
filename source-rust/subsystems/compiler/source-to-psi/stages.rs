@@ -1,3 +1,4 @@
+pub use artifacts::compile_timings::CompileTimings;
 pub use checked_program_to_psi::provider_choice_inputs;
 pub use source_declarations::declaration_selection;
 pub use source_symbol_table::{source_inputs, source_symbols, source_tables};
@@ -80,7 +81,7 @@ pub use crate::production::{
     AcceptedTerminalSource, BuildCallSite, CallableBoundaryImplementation, ConstantRead,
     DeclaredBoundaryRequirement, PortableTerminalProgram, PreparedTerminalRoots,
     ProducedBuildProvider, ProducedTerminalApplication, ProducedTerminalProgram,
-    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
+    ProgramEntryTerminalReceiptError,
     RequirementReviewMetadata, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
@@ -91,7 +92,7 @@ pub use crate::production::{
     TerminalCallingPolicySelections, TerminalCompositionRoots, TerminalMachineSelection,
     TerminalProgramEntryContractSelection, TerminalProgramRoots,
     TerminalProviderSelectionInput, TerminalProviderSelections,
-    TerminalSourceSupply, TerminalSuppliedRequirement, UnmeasuredProduction,
+    TerminalSourceSupply, TerminalSuppliedRequirement,
 };
 
 /// Logical provider closure; native planning consumes only its accepted result.

@@ -2,7 +2,7 @@
 
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
-use crate::{ResolveAndTypeRequest, SourceInput, SourceSyntax, UnmeasuredProduction};
+use crate::{ResolveAndTypeRequest, SourceInput, SourceSyntax, CompileTimings};
 use diagnostics::Diagnostic;
 use source_files::{LoadedSource, LoadedSources};
 use source_text::SourceId;
@@ -38,7 +38,7 @@ impl ParsedStageSources {
             })
             .collect();
         let mut syntax = SourceSyntax::new(primary);
-        SourceInput(loaded).append(&mut syntax, &mut UnmeasuredProduction)?;
+        SourceInput(loaded).append(&mut syntax, &mut CompileTimings::default())?;
         Ok(Self {
             syntax,
             files,

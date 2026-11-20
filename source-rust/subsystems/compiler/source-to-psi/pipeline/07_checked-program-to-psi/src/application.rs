@@ -1,7 +1,6 @@
 //! Observe the entry-receipt check when publishing an application from source.
-use super::{
-    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
-};
+use super::{TerminalAdmissionRoot, TerminalApplicationCustody};
+use artifacts::compile_timings::{CompileTimings, source as stages};
 use diagnostics::Diagnostic;
 use terminal_codec::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalExecutionView,
@@ -19,13 +18,13 @@ pub(super) fn attach(
     view: TerminalExecutionView<'_>,
     artifact: Result<&CanonicalTerminalArtifact, CanonicalTerminalArtifactError>,
     provenance: &TerminalMachineProvenance,
-    observer: &mut impl PsiCompilationObserver,
+    timings: &mut CompileTimings,
 ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
     let attached = application.attach(view, artifact, provenance)?;
     let receipt = attached
         .entry_receipt
         .map(|request| {
-            observer.record_result(PsiCompilationStage::EntryReceipt, || request.check())
+            timings.record_result(stages::ENTRY_RECEIPT, || request.check())
         })
         .transpose();
     Ok(ProducedTerminalApplication {
@@ -38,20 +37,6 @@ pub(super) fn attach(
 mod tests {
     use super::*;
 
-    #[derive(Default)]
-    struct Observed(Vec<PsiCompilationStage>);
-
-    impl PsiCompilationObserver for Observed {
-        fn record_result<Value, Error>(
-            &mut self,
-            stage: PsiCompilationStage,
-            operation: impl FnOnce() -> Result<Value, Error>,
-        ) -> Result<Value, Error> {
-            self.0.push(stage);
-            operation()
-        }
-    }
-
     #[test]
     fn only_a_requested_entry_receipt_records_a_compilation_span() {
         let mut module = terminal_psi::TerminalModule::declarations();
@@ -60,7 +45,7 @@ mod tests {
         module.identities = identities.build();
         let code = terminal_codec::InvocationTerminalCode::new(module).unwrap();
         let provenance = TerminalMachineProvenance::default();
-        let mut observed = Observed::default();
+        let mut timings = CompileTimings::enabled();
         for identity in [None, Some([4; 32])] {
             let custody = TerminalApplicationCustody::prepare(
                 Ok(terminal_psi::PreparedNominalRoot::new("Root", "Root", None).unwrap()),
@@ -74,7 +59,7 @@ mod tests {
                     "local only".into(),
                 )),
                 &provenance,
-                &mut observed,
+                &mut timings,
             )
             .unwrap();
             assert!(application.roots.is_empty());
@@ -84,10 +69,11 @@ mod tests {
                         .message
                         .contains("local only")
                 );
-                assert_eq!(observed.0, [PsiCompilationStage::EntryReceipt]);
+                assert_eq!(timings.phases().len(), 1);
+                assert_eq!(timings.phases()[0].phase, stages::ENTRY_RECEIPT.label());
             } else {
                 assert!(application.receipt.unwrap().is_none());
-                assert!(observed.0.is_empty());
+                assert!(timings.phases().is_empty());
             }
         }
     }

@@ -1,5 +1,4 @@
 use super::*;
-use crate::UnmeasuredProduction;
 fn parse(
     loaded: LoadedSources,
     first_page: u32,
@@ -12,7 +11,7 @@ fn parse(
         } else {
             Layout::Shared
         },
-        &mut UnmeasuredProduction,
+        &mut CompileTimings::default(),
     )
 }
 use source_text::SourceId;
@@ -72,7 +71,11 @@ fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
     )
     .unwrap()
     .into_parts();
-    let (actual_pages, actual_sources) = parse(input, 5, false).unwrap();
+    let mut timings = CompileTimings::enabled();
+    let (actual_pages, actual_sources) =
+        SourceInput(input).parse_batch(5, Layout::Shared, &mut timings).unwrap();
+    assert_eq!(timings.phases().len(), 1);
+    assert_eq!(timings.phases()[0].phase, "Source ingress: SourceFiles -> SyntaxTrees");
     assert_eq!(
         format!("{actual_sources:?}"),
         format!("{expected_sources:?}")

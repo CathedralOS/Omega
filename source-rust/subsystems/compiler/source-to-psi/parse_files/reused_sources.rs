@@ -1,5 +1,5 @@
 use super::*;
-use crate::UnmeasuredProduction;
+use crate::CompileTimings;
 use source_text::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ fn adopted_discovery_parse_equals_a_fresh_parse_at_admitted_coordinates() {
             .map(|(index, (path, text))| loaded(usize::MAX - index, path, text))
             .collect(),
     )
-    .into_parsed_units(&mut UnmeasuredProduction)
+    .into_parsed_units(&mut CompileTimings::default())
     .expect("core parses");
     let prefix = Arc::from("data Prefix {}");
     let mut fresh = SourceSyntax::default();
@@ -56,18 +56,18 @@ fn adopted_discovery_parse_equals_a_fresh_parse_at_admitted_coordinates() {
                 .into_iter()
                 .collect(),
         )
-        .append(forest, &mut UnmeasuredProduction)
+        .append(forest, &mut CompileTimings::default())
         .unwrap();
     }
     for (index, (path, text)) in sources.iter().enumerate().rev() {
         let admitted =
             || -> LoadedSources { [loaded(1000 + index, path, text)].into_iter().collect() };
         let expected = SourceInput(admitted())
-            .append(&mut fresh, &mut UnmeasuredProduction)
+            .append(&mut fresh, &mut CompileTimings::default())
             .unwrap();
         let mut offered = 0;
         let actual = SourceInput(admitted())
-            .append_reusing(&mut adopted, &mut UnmeasuredProduction, |source| {
+            .append_reusing(&mut adopted, &mut CompileTimings::default(), |source| {
                 offered += 1;
                 assert_eq!(source.path, *path);
                 Some(&units[index])
@@ -117,15 +117,15 @@ fn retained_parse_of_other_bytes_is_not_adopted() {
     let old: Arc<str> = Arc::from("data Old {}");
     let new: Arc<str> = Arc::from("data New { value: u8 }");
     let units = SourceInput([loaded(usize::MAX, path, &old)].into_iter().collect())
-        .into_parsed_units(&mut UnmeasuredProduction)
+        .into_parsed_units(&mut CompileTimings::default())
         .unwrap();
     let mut fresh = SourceSyntax::default();
     let mut reused = SourceSyntax::default();
     let expected = SourceInput([loaded(3, path, &new)].into_iter().collect())
-        .append(&mut fresh, &mut UnmeasuredProduction)
+        .append(&mut fresh, &mut CompileTimings::default())
         .unwrap();
     let actual = SourceInput([loaded(3, path, &new)].into_iter().collect())
-        .append_reusing(&mut reused, &mut UnmeasuredProduction, |_| Some(&units[0]))
+        .append_reusing(&mut reused, &mut CompileTimings::default(), |_| Some(&units[0]))
         .unwrap();
     assert_eq!(actual, expected);
     assert_eq!(reused, fresh);
@@ -148,17 +148,17 @@ fn mixed_reuse_places_the_roots_and_source_records_in_capture_order() {
     let mut expected_records = Vec::new();
     for file in &files {
         let parsed = SourceInput([file.clone()].into_iter().collect())
-            .append(&mut expected, &mut UnmeasuredProduction)
+            .append(&mut expected, &mut CompileTimings::default())
             .unwrap();
         expected_records.extend_from_slice(parsed.sources.span_or_empty(parsed.batch));
     }
     let retained = SourceInput(files.iter().cloned().rev().collect())
-        .into_parsed_units(&mut UnmeasuredProduction)
+        .into_parsed_units(&mut CompileTimings::default())
         .unwrap();
     for bits in [1, 2, 5, 10, 15] {
         let mut actual = SourceSyntax::default();
         let records = SourceInput(files.iter().cloned().collect())
-            .append_reusing(&mut actual, &mut UnmeasuredProduction, |file| {
+            .append_reusing(&mut actual, &mut CompileTimings::default(), |file| {
                 let index = file.source_id.0;
                 (bits & (1 << index) != 0).then(|| &retained[files.len() - 1 - index])
             })
@@ -185,7 +185,7 @@ fn refused_reuse_does_not_leave_the_fresh_file_in_the_forest() {
         &Arc::from("data Cached {}"),
     );
     let mut retained = SourceInput([cached.clone()].into_iter().collect())
-        .into_parsed_units(&mut UnmeasuredProduction)
+        .into_parsed_units(&mut CompileTimings::default())
         .unwrap()
         .pop()
         .unwrap();
@@ -193,7 +193,7 @@ fn refused_reuse_does_not_leave_the_fresh_file_in_the_forest() {
     let mut forest = SourceSyntax::default();
     let before = forest.clone();
     let errors = SourceInput([fresh, cached].into_iter().collect())
-        .append_reusing(&mut forest, &mut UnmeasuredProduction, |file| {
+        .append_reusing(&mut forest, &mut CompileTimings::default(), |file| {
             (file.source_id == SourceId(2)).then_some(&retained)
         })
         .unwrap_err();

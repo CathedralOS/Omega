@@ -120,10 +120,10 @@ impl SourcePublication {
         &self,
         optimizations: &PsiOptimizationSelections,
         authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
-        observer: &mut impl crate::PsiCompilationObserver,
+        timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
         self.retain(optimizations, || {
-            let produced = self.accepted()?.produce(Default::default(), observer)?;
+            let produced = self.accepted()?.produce(Default::default(), timings)?;
             let artifact = produced
                 .artifact()
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])?;

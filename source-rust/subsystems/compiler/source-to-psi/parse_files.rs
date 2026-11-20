@@ -8,7 +8,7 @@ pub use parsed_files::{
     SourceItems, SourceSyntax,
 };
 
-use crate::{PsiCompilationObserver, PsiCompilationStage};
+use artifacts::compile_timings::{CompileTimings, source as stages};
 use batch::Layout;
 use diagnostics::Diagnostic;
 use source_files::{LoadedSource, LoadedSources};
@@ -20,16 +20,16 @@ impl SourceInput {
     pub fn append(
         self,
         syntax: &mut SourceSyntax,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<ParsedSourceBatch, Vec<Diagnostic>> {
-        let parsed = self.append_pages(&mut syntax.trees, Layout::Shared, observer)?;
+        let parsed = self.append_pages(&mut syntax.trees, Layout::Shared, timings)?;
         Ok(syntax.retain_batch(parsed))
     }
 
     pub fn append_reusing<'unit>(
         self,
         syntax: &mut SourceSyntax,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
         mut retained: impl FnMut(&LoadedSource) -> Option<&'unit RetainedSourceParse>,
     ) -> Result<ParsedSourceBatch, Vec<Diagnostic>> {
         let files = self.0.sources.span_or_empty(self.0.batch);
@@ -46,7 +46,7 @@ impl SourceInput {
         } else {
             Layout::Shared
         };
-        let parsed = self.append_pages(&mut syntax.trees, layout, observer)?;
+        let parsed = self.append_pages(&mut syntax.trees, layout, timings)?;
         Ok(syntax.retain_batch(parsed))
     }
 
@@ -54,13 +54,13 @@ impl SourceInput {
         self,
         syntax: &mut SyntaxTrees,
         layout: Layout<'_>,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<ParsedSources, Vec<Diagnostic>> {
         let first_page = u32::try_from(syntax.page_count())
             .ok()
             .and_then(|count| count.checked_add(1))
             .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
-        let (pages, parsed) = self.parse_batch(first_page, layout, observer)?;
+        let (pages, parsed) = self.parse_batch(first_page, layout, timings)?;
         for page in pages {
             syntax.adopt_page(page);
         }
@@ -70,9 +70,9 @@ impl SourceInput {
     /// Capture each file with the roots it owns, ready for later admission.
     pub fn into_parsed_units(
         self,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<Vec<RetainedSourceParse>, Vec<Diagnostic>> {
-        let (pages, mut sources) = self.parse_batch(1, Layout::Independent, observer)?;
+        let (pages, mut sources) = self.parse_batch(1, Layout::Independent, timings)?;
         let records = sources.sources.span_mut_or_empty(sources.batch);
         if records.len() != pages.len() {
             return Err(vec![Diagnostic::error(
@@ -97,9 +97,9 @@ impl SourceInput {
         self,
         first_page: u32,
         layout: Layout<'_>,
-        observer: &mut impl PsiCompilationObserver,
+        timings: &mut CompileTimings,
     ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
-        observer.record_result(PsiCompilationStage::SourceParsing, || {
+        timings.record_result(stages::PARSE_FILES, || {
             batch::parse(self.0, first_page, layout)
         })
     }

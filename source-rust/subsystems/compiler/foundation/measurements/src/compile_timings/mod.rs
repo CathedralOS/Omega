@@ -11,6 +11,7 @@
 // assembly before build evaluation.
 
 pub mod counters;
+pub mod source;
 
 use std::time::Instant;
 

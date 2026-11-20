@@ -527,7 +527,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let produced = accepted
         .produce(
             Default::default(),
-            &mut crate::production::UnmeasuredProduction,
+            &mut artifacts::compile_timings::CompileTimings::default(),
         )
         .expect("publish the same accepted ordinary program");
     let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
@@ -697,7 +697,7 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
         let produced = accepted
             .produce(
                 Default::default(),
-                &mut crate::production::UnmeasuredProduction,
+                &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .expect("produce the same checked read/write program");
         let received = terminal_interpreter::TerminalProgram::load(&bytes)
