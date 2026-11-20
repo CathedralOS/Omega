@@ -1,4 +1,4 @@
-//! The saved specimen came from the fixture's directly supplied Linux/main nomination.
+//! The saved specimen came from the fixture's ordinary Linux source and Build publication.
 //! Its source publication and identity are recorded alongside its canonical bytes.
 
 use native_artifact::{FinishedNativeImage, RequestedNativeArtifact};
@@ -100,12 +100,19 @@ fn published_target_entry_emits_linux_image() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     assert_eq!(
         artifact.manifest().identity().to_string(),
-        "b0e903a139095a3e99ccaf9771df7036d403983b81191df1615731fc21d1d721"
+        "3a6fa5cfba1465c655a59ac981e7aa647482a019436b10d7f83d07807391732f"
     );
     let entry = artifact
         .semantic_module()
         .program_entry_contract("linux_x86_64")
         .unwrap();
+    assert_eq!(
+        artifact
+            .semantic_module()
+            .identities
+            .text(entry.schema_declaration),
+        Some("toolchain-contract::targets::linux_x86_64::LinuxX86_64Application"),
+    );
     assert_eq!(
         artifact
             .publication_metadata()
@@ -122,6 +129,20 @@ fn published_target_entry_emits_linux_image() {
     assert!(bytes.starts_with(b"\x7fELF"));
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     assert_native_exit(bytes);
+}
+
+#[test]
+fn pre_namespace_publication_does_not_supply_the_current_physical_entry() {
+    let old = include_bytes!(
+        "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.pre_namespace.psi"
+    );
+    let artifact = CanonicalTerminalArtifact::from_bytes(old).unwrap();
+    let Err(diagnostics) = emit(artifact) else {
+        panic!("a pre-namespace physical entry filled the current target contract");
+    };
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message ==
+        "selected entry schema does not declare exactly one `targets::linux_x86_64::LinuxX86_64PhysicalEntry::enter` arrival"
+    ), "{diagnostics:?}");
 }
 
 #[test]
