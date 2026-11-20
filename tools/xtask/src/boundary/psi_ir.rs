@@ -5,22 +5,14 @@ use serde::Deserialize;
 use syn::{Expr, File, Item, Lit, Meta, Type, Visibility};
 
 const PSI: &str = "source-rust/subsystems/compiler/psi";
-const GROUPS: &[(&str, &str, &str)] = &[
-    ("types", "TypeDeclarations", "types/declarations.rs"),
-    ("scalars", "ScalarDeclarations", "scalars/declarations.rs"),
-    (
-        "interfaces",
-        "ProgramInterfaces",
-        "interfaces/declarations.rs",
-    ),
-    ("access", "AccessDeclarations", "access/declarations.rs"),
-    (
-        "execution",
-        "ExecutionDeclarations",
-        "execution/declarations.rs",
-    ),
-    ("proofs", "ProgramProofs", "proofs/declarations.rs"),
-    ("layouts", "LayoutDeclarations", "layouts/declarations.rs"),
+const GROUPS: &[(&str, &str)] = &[
+    ("types", "TypeDeclarations"),
+    ("scalars", "ScalarDeclarations"),
+    ("interfaces", "ProgramInterfaces"),
+    ("access", "AccessDeclarations"),
+    ("execution", "ExecutionDeclarations"),
+    ("proofs", "ProgramProofs"),
+    ("layouts", "LayoutDeclarations"),
 ];
 
 #[derive(Deserialize)]
@@ -151,20 +143,26 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
             "{PSI}/psi.rs: must directly define the public Psi IR data"
         ));
     }
-    for &(field, name, path) in GROUPS {
+    for &(field, name) in GROUPS {
         let owner = format!("{field}/mod.rs");
-        let module = read_module(&psi, &owner)?;
-        if !has_group(&program, field, name)
-            || !loads_module(&program, &owner)
-            || !loads_module(&module, "declarations.rs")
-        {
+        if !has_group(&program, field, name) || !loads_module(&program, &owner) {
             errors.push(format!(
-                "{PSI}/psi.rs: Psi.{field} must carry {name} from {path}"
+                "{PSI}/psi.rs: Psi.{field} must carry {name} from {owner}"
             ));
         }
-        if !Definition::Record(&[]).present(&read_module(&psi, path)?, name) {
+        let module = read_module(&psi, &owner)?;
+        let definition = Definition::Record(&[]);
+        if definition.present(&module, name) {
+            continue;
+        }
+        if !loads_module(&module, "declarations.rs")
+            || !definition.present(
+                &read_module(&psi, &format!("{field}/declarations.rs"))?,
+                name,
+            )
+        {
             errors.push(format!(
-                "{PSI}/{path}: must directly define the public {name} data"
+                "{PSI}/{owner}: must define {name} or load its declaration"
             ));
         }
     }

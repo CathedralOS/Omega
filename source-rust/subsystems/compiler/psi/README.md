@@ -8,7 +8,7 @@
 | `identities` | [Interned names and declaration identities](identities/table.rs) |
 | `entry` | [Optional callable selected as the program entry](../foundation/semantic-records/src/lib.rs#L30) |
 | `machines` | [Executable machines](machines/machine.rs) contain [blocks](machines/block.rs), [operations](machines/operation.rs) and [terminators](machines/terminator.rs). |
-| `types` | [Structural types, domains, qualifications and quotients](types/declarations.rs) |
+| `types` | [Structural types, domains, qualifications and quotients](types/mod.rs) |
 | `scalars` | [Scalar applications, folded constants and predicates](scalars/declarations.rs) |
 | `interfaces` | [Services, program entry contracts, providers and callback declarations](interfaces/declarations.rs) |
 | `access` | [Access views, lifecycle plans and reborrows](access/declarations.rs) |

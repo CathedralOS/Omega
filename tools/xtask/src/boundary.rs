@@ -200,7 +200,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
-            ("source-rust/subsystems/compiler/build/inputs/declarations", linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
             ("source-rust/subsystems/compiler/source-to-psi/product/accounting", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
