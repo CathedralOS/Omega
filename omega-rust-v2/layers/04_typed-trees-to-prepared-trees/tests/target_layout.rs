@@ -81,22 +81,24 @@ fn a_selected_layout_survives_constant_aliases_and_type_formation() {
     let size = layout(&target, WORD, LayoutExtent::Fixed(8), Some(8));
     let capsule = TargetSemantics::new(target.clone(), [size.clone()], []).unwrap();
     let prepared = prepare_source_package_for_target(&source, &[], &capsule).unwrap();
-    assert_eq!(parameter(&prepared, "consume"), &ValueType::Array(Box::new(BYTE), 8));
     let alias = prepared
         .typed()
         .constants
         .iter()
         .find(|constant| constant.declaration.path == "ALIAS")
         .unwrap();
-    assert_eq!(prepared.integer_constant(&alias.declaration), Some(&8.into()));
-    assert_eq!(
-        prepared.target_observations(),
-        &[TargetObservation::Layout {
-            target: target.clone(),
-            projection: LayoutQuery::Size,
-            layout: Arc::new(size.clone())
-        }]
-    );
+    spec_corpus::observe_handoff!("product/l4", {
+        assert_eq!(parameter(&prepared, "consume"), &ValueType::Array(Box::new(BYTE), 8));
+        assert_eq!(prepared.integer_constant(&alias.declaration), Some(&8.into()));
+        assert_eq!(
+            prepared.target_observations(),
+            &[TargetObservation::Layout {
+                target: target.clone(),
+                projection: LayoutQuery::Size,
+                layout: Arc::new(size.clone())
+            }]
+        );
+    });
 
     let observation = &prepared.target_observations()[0];
     assert!(capsule.matches_observation(observation));

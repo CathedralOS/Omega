@@ -6,6 +6,7 @@ import re
 import subprocess
 import diagnostic_kinds
 from diagnostic_fields import readable, unescape
+from frontend_products import PRODUCTS, comparison as product_comparison
 import rule_diagnostics
 import reviewed_comparisons
 
@@ -33,14 +34,6 @@ CONTROLS = {
 LAYER_WITNESSES = {
     "attributed_alias_refused_by_lowering": ("declarations", "aliases_with_attributes_still_refuse"),
     "domain_predicate_call_refused_by_lowering": ("domains", "unsupported_domain_clause_is_refused_at_its_predicate_call"),
-}
-PRODUCTS = {
-    "L0": ("byte_cases", "line_comment_with_crlf_keeps_the_carriage_return", "token kind and original byte extent"),
-    "L1": ("operator_grouping", "every_operator_pair_has_the_specified_grouping", "parent and children for each pair of operators"),
-    "L2": ("stage", "ranking_order_resolves_to_its_declaration_and_bound_to_its_parameter", "declaration selected for the order and parameter selected for the bound"),
-    "L3": ("contextual_examples", "published_cleanup_clauses_select_owned_hooks", "typed cleanup selection and owned receiver"),
-    "L4": ("target_layout", "a_selected_layout_survives_constant_aliases_and_type_formation", "frozen extent and exact selected layout"),
-    "L5": ("declarations", "transparent_aliases_share_the_underlying_schema_and_field_carrier", "alias declarations sharing the original field carrier"),
 }
 
 
@@ -108,7 +101,7 @@ def preparation_phases(report):
             suite, target, test = registration
             producer = (test_results(report, suite, "preparation_failure_phases", test) == ["ok"]
                         and target == "tests/preparation_failure_phases.rs"
-                        and comparison in report.get("reviewed_comparisons", {})
+                        and bool(report.get("reviewed_comparisons", {}).get(comparison))
                         and comparison not in report.get("failed_comparisons", {}))
         cli = cli_test in report["frontend_diagnostics"]["cli"]
         row.update(comparison=comparison, cli_test=cli_test, producer_verified=producer, cli_verified=cli, verified=producer and cli)
@@ -212,9 +205,23 @@ def collect(report, logs):
             errors.append(f"{name}: layer witness {target}::{test}: {results or 'missing'}")
     for stage, (target, name, product) in active_products(report).items():
         results = test_results(report, stage, target, name)
-        data["products"][stage] = {"target": target, "test": name, "product": product, "verified": results == ["ok"]}
-        if results != ["ok"]:
-            errors.append(f"{stage} product witness {name}: {results or 'missing'}")
+        comparison = product_comparison(stage)
+        receipts = report.get("reviewed_comparisons", {})
+        # record() authenticates the suite/target/test and nulls duplicate success receipts.
+        if comparison in report.get("failed_comparisons", {}):
+            problem = "comparison failed"
+        elif results != ["ok"]:
+            problem = f"test results: {results or 'missing'}"
+        elif comparison not in receipts:
+            problem = "comparison not observed"
+        elif not receipts[comparison]:
+            problem = "duplicate comparison"
+        else:
+            problem = None
+        data["products"][stage] = {"target": target, "test": name, "product": product,
+                                   "comparison": comparison, "verified": problem is None}
+        if problem:
+            errors.append(f"{stage} product witness {target}::{name} ({comparison}): {problem}")
     report["frontend_diagnostics"] = data
 
 
