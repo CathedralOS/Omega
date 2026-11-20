@@ -91,3 +91,31 @@ sha256sum "$scratch/stock-delta.out" "$scratch/wide-delta.out"
 The stock and source-widened DCOUT SHA-256 digests are `e3a6ea00f77825c87468c2dd5f75a392230333016ee1097c19862a0ed3b6d2b6` and `3299c898337296b8c82537a4f5abb2d47a07ff54d7073e882c4ff549e33f61b0`.
 
 The benchmark constructs and measures private profiles. `--frame` packages the captured result with the pinned storage runtime, standard entry and published support. The production compiler and evaluator continue to use their published profiles.
+
+## Field projections in the generated Delta
+
+The compiled Epsilon frontend at `46d91bbc777` emitted 18,816,197 bytes for the 873,205-byte Omega compiler and construction entry. The input concatenates the 867,087 bytes listed in `bootstrap/omega/compiler/omega_compiler.epsilon.sources` with `bootstrap/omega/construct_omega.epsilon` at that revision. Its SHA-256 is `8bdbb90999c6b62a04754a3d452966b4903af74179fbc113fdc910a628d27401`. The first 17 bytes select the storage runtime. The rest is Delta source. Counting from each top-level definition to the next gives the following breakdown.
+
+| Generated definitions | Count | Delta bytes |
+| --- | ---: | ---: |
+| Block terminals (`ep_block_end_`) | 2,470 | 10,569,468 |
+| Block statements (`ep_block_`) | 2,717 | 6,543,593 |
+| States (`ep_state_`) | 2,272 | 1,521,381 |
+| Owned machines, free machines and entry | 199 | 181,738 |
+
+The blocks contain both the program body and its control plumbing. Across all definitions, 36,617 match arms simply carry a terminal result forward. Those arms occupy 1,660,037 bytes including their trailing newlines. Field reads repeated a type descriptor inside the same call 9,820 times, accounting for 507,157 duplicate bytes. These counts describe text inside the table's totals.
+
+The storage runtime now takes one checked type for a value field read and uses it both to identify the field and to project its place. The generated field arm uses four fixed local names for its value, place, store and output. Its source coordinate stays on the existing value check. A failed base expression still returns the original terminal outcome before evaluating field metadata.
+
+The helper adds 486 bytes to the shared storage runtime. A storage-only echo with no field reads emitted the same 2,346 bytes and grew by 819 bytes when linked to a Linux executable. The pure program emitted the same 90 bytes. The public lexer module shrank from 1,106,536 to 1,088,131 bytes. Both lexer executables returned the same 465 bytes for all 23 cases.
+
+Under `ConstructionBytesV1`, the same whole input now emits 17,751,990 bytes including the marker, a reduction of 1,064,207 bytes (5.66%). Its SHA-256 is `d903f8d86cd12fd5cf11c57dda49fe4c5463805cdfbd62946a42e41cde01b11b`. Rewriting only the corresponding arms of the reference output reproduced every byte. This covers 9,820 ordinary field reads, 348 array lengths and three slice projections. In one Linux run per compiler, CPU time went from 135.36 to 134.64 seconds and peak RSS went from 3,708,708 to 3,585,784 KiB.
+
+The same source-built Delta and Gamma compilers took the module through native construction.
+
+| Artifact | Previous bytes | Revised bytes |
+| --- | ---: | ---: |
+| Gamma program | 27,177,694 | 25,928,081 |
+| Linux x86-64 executable | 58,603,133 | 55,718,620 |
+
+The revised executable compiled the two-package wire customer to the same 1,607-byte Alpha tape, SHA-256 `f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`. The stamped tape exited 42 with empty output. The wire gate also checks a missing package edge and a trailing byte. [Wire gate](../product_wire.py)

@@ -197,54 +197,49 @@
       ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
       ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
 
+; The projection's success arm consumes only the current value, place and
+; effects. All source expressions run in its subject, outside these bindings.
 (def epsilon_delta_stored_field_result ((context EpsilonDeltaContext)
-  (expression EpsilonExpression) (member EpsilonName) (coordinate Int)) EpsilonDeltaCompilation
-  (let value Bytes (epsilon_emit_generated "value" coordinate)
-    (let place Bytes (epsilon_emit_generated "place" coordinate)
-      (let effects Bytes (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate)
-        (epsilon_emit_generated "output" coordinate))
-        (match context
-          ((EpsilonDeltaContextAt source catalog references declaration)
-            (match (epsilon_runtime_find_field_reference expression references)
-              (NoEpsilonResolvedFieldReference
-                (if (epsilon_name_is_len source member)
-                  (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_array_length"
-                    (epsilon_emit_spaced value effects)))
-                  (if (epsilon_name_is_as_slice source member)
-                    (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_as_slice"
-                      (epsilon_emit_spaced value (epsilon_emit_spaced place effects))))
-                    (EpsilonDeltaInternal (epsilon_expression_start expression)))))
-              ((OneEpsilonResolvedFieldReference owner field)
-                (match owner
-                  ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
-                    (match field
-                      ((EpsilonFieldMember fieldStart fieldEnd fieldName typeValue)
-                        (let descriptor Bytes (epsilon_delta_type_descriptor source catalog typeValue)
-                          (let projection Bytes (epsilon_emit_call "EpsilonRuntimeField"
-                            (epsilon_emit_spaced (epsilon_delta_span ownerStart ownerEnd)
-                              (epsilon_emit_spaced (epsilon_delta_span fieldStart fieldEnd) descriptor)))
-                            (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_project_value"
-                              (epsilon_emit_spaced value (epsilon_emit_spaced place
-                                (epsilon_emit_spaced projection (epsilon_emit_spaced descriptor effects)))))))))
-                      ((EpsilonCaseMember start end name payload) (EpsilonDeltaInternal start))))
-                  ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
-                  ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal start)))))))))))
+  (expression EpsilonExpression) (member EpsilonName)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_field_reference expression references)
+        (NoEpsilonResolvedFieldReference
+          (if (epsilon_name_is_len source member)
+            (EpsilonDeltaCompiled "(epsilon_evaluator_array_length field_value field_store field_output)")
+            (if (epsilon_name_is_as_slice source member)
+              (EpsilonDeltaCompiled "(epsilon_evaluator_as_slice field_value field_place field_store field_output)")
+              (EpsilonDeltaInternal (epsilon_expression_start expression)))))
+        ((OneEpsilonResolvedFieldReference owner field)
+          (match owner
+            ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+              (match field
+                ((EpsilonFieldMember fieldStart fieldEnd fieldName typeValue)
+                  (let identity Bytes (epsilon_emit_spaced (epsilon_delta_span ownerStart ownerEnd)
+                    (epsilon_delta_span fieldStart fieldEnd))
+                    (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_compiled_project_field"
+                      (epsilon_emit_spaced "field_value field_place"
+                        (epsilon_emit_spaced identity (epsilon_emit_spaced
+                          (epsilon_delta_type_descriptor source catalog typeValue) "field_store field_output")))))))
+                ((EpsilonCaseMember start end name payload) (EpsilonDeltaInternal start))))
+            ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
+            ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal start))))))))
 
 (def epsilon_delta_stored_field ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (base EpsilonExpression) (member EpsilonName)
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
-  (let coordinate Int (epsilon_expression_start base)
-    (match (epsilon_delta_stored_expression context base store output)
-      ((EpsilonDeltaCompiled text)
-        (match (epsilon_delta_stored_field_result context expression member coordinate)
-          ((EpsilonDeltaCompiled continuation)
-            (EpsilonDeltaCompiled (epsilon_emit_stored_value_then coordinate text continuation)))
-          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
-          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
-      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
-      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+  (match (epsilon_delta_stored_expression context base store output)
+    ((EpsilonDeltaCompiled text)
+      (match (epsilon_delta_stored_field_result context expression member)
+        ((EpsilonDeltaCompiled continuation)
+          (EpsilonDeltaCompiled (epsilon_emit_stored_value_then_named (epsilon_expression_start base)
+            text "field_value field_place field_store field_output" continuation)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
 
 ; Base snapshot and place are captured before the index. The shared primitive
 ; rereads a live array from the post-index store, and checks view/array bounds.

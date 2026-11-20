@@ -37,6 +37,14 @@
     ((EpsilonEvaluatorTrap kind output) (EpsilonStopEffect outcome))
     ((EpsilonEvaluatorInternal offset) (EpsilonStopEffect outcome))))
 
+; The resolved field and its projected place use the same checked type.
+(def epsilon_compiled_project_field
+  ((value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
+   (ownerStart Int) (ownerEnd Int) (fieldStart Int) (fieldEnd Int) (fieldType EpsilonType)
+   (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (epsilon_evaluator_project_value value place
+    (EpsilonRuntimeField ownerStart ownerEnd fieldStart fieldEnd fieldType) fieldType store output))
+
 (def epsilon_compiled_write ((place EpsilonRuntimeOptionalPlace)
   (value EpsilonRuntimeValue) (store EpsilonRuntimeStore) (output Bytes)
   (offset Int)) EpsilonEvaluatorOutcome
