@@ -212,7 +212,7 @@ fragments. Select a case with `--case` and keep each case’s output directory.
 | `omega-punctuation` | Scan each of 45 spellings at end of input and between letters. Emit the token’s extent and the spelling of the punctuation kind the scanner actually selected. |
 
 The frozen 58,127-byte lexer and its wrong-cursor twin have complete
-observations on **8 routes**. This measures the full scanner separately from
+observations on **9 routes**. This measures the full scanner separately from
 the byte classifier above. The 465-byte positive observation has SHA-256
 `7d7a561d217ec1ce599a203fb8290b907c2582883c98dc71541c5bd0633f31aa`.
 For this source the interpreter returns `02 12 94 e2 00 00` and the compiler
@@ -223,7 +223,7 @@ returns `rejected 18 58004`. A dash means this comparison has no result.
 | Interpreter | Alpha | Both | — | — |
 | Interpreter | Linux | Both | Refusal | Refusal |
 | Alpha | Alpha | Both | Refusal | Refusal |
-| Alpha | Linux | Both | Refusal | Refusal |
+| Alpha | Linux | Both | Refusal | Both |
 | Linux | Alpha | Both | Refusal | Refusal |
 | Linux | Linux | Both | Both | Both |
 
@@ -391,6 +391,11 @@ The Delta compiler translated that module and its storage runtime into
 Both conformance hosts reached the 4 MiB output limit (status 254) on the
 same source. A bad final call produced type error 18 at byte 900,855 on
 both Alpha and Linux. [Public-entry receipts](source-audit.md#public-ocreq-on-alpha-and-linux) · [Construction replay](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
+
+The seed-built Linux Omega constructor also compiled the complete, unchanged
+2,082-byte `request.omg` to a 2,071-byte Alpha tape that exited 42. Changing
+the staged byte to `true` gave a nine-byte rejection at byte 143.
+[Complete request customer](https://github.com/CathedralOS/Omega/pull/4656)
 
 ### Earlier whole-compiler builds
 
