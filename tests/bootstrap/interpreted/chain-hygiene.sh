@@ -133,16 +133,15 @@ git -C "$FIXTURE_ROOT" add .
 expect_result accepted 'checkout with empty owner directories'
 reject_list_member epsilon/compiler/runtime/pure.parts runtime/absent.delta \
   'checkout with a missing pure runtime member'
-fixture=../../../tests/bootstrap/interpreted/delta
+external=../../../tests/bootstrap/interpreted/delta
+link=$FIXTURE_ROOT/bootstrap/epsilon/compiler/fixture
 case "$(uname -s)" in
-  MINGW*|MSYS*) ;; # Git Bash can copy the directory when native symlinks are disabled.
-  *)
-    ln -s "$fixture" "$FIXTURE_ROOT/bootstrap/epsilon/compiler/fixture"
-    fixture=fixture ;;
+  MINGW*|MSYS*) member_dir=$external ;; # Git Bash can copy a directory instead of linking it.
+  *) ln -s "$external" "$link"; member_dir=fixture ;;
 esac
-reject_list_member epsilon/compiler/runtime/storage.parts "$fixture/interpreter_values.delta" \
+reject_list_member epsilon/compiler/runtime/storage.parts "$member_dir/interpreter_values.delta" \
   'checkout importing an external Delta test source'
-if [ "$fixture" = fixture ]; then rm "$FIXTURE_ROOT/bootstrap/epsilon/compiler/fixture"; fi
+if [ -L "$link" ]; then rm "$link"; fi
 
 touch "$FIXTURE_ROOT/source/retired/.DS_Store" \
   "$FIXTURE_ROOT/bootstrap/retired/.DS_Store"

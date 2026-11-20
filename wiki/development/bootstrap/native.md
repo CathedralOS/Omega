@@ -594,3 +594,49 @@ from the repository root on Linux x86-64. `--reuse-constructed` reuses the
 verified Gamma predecessor. Look under `build/independent-successors/compiled-epsilon/`
 for the authored sources, emitted Delta, common Gamma receipts, native images,
 Alpha tape, input, expected bytes, actual outputs and `result.json`.
+
+### Shared Epsilon continuations and the stock Alpha seed
+
+The compiled public lexer now executes all 23 cases on the stock Alpha seed.
+The Linux x86-64 target, Alpha target and source-built Epsilon evaluator
+returned the same 465 bytes, including exit 42. The batch checks individual
+tokens, whole-source lexical validation and rejection coordinates.
+
+The Epsilon compiler emits one successful arm per value, scalar or statement
+continuation. The other arm forwards the complete stopped outcome. Shared
+Delta functions perform the constructor matching and preserve the exit code,
+trap, output prefix or internal source coordinate. The following runs used
+the same Epsilon lexer source, input and stock Delta and Gamma predecessors.
+
+| Public lexer artifact | Earlier lowering | Shared continuations |
+| --- | ---: | ---: |
+| Epsilon compiler observation with storage marker | 1,951,373 bytes | 1,104,979 bytes |
+| Delta program including runtime and entry | 2,045,415 bytes | 1,201,002 bytes |
+| Gamma program | 2,827,892 bytes | 1,594,506 bytes |
+| Linux x86-64 executable | 103,247,790 bytes | 48,731,647 bytes |
+| Production Alpha publisher | Exit 249 and empty output | Exit 0 and 15,120,299 tape bytes |
+
+The new Gamma program has SHA-256
+`267f3b49246d8593e9fc467bee36bc3b82715dedb3e3e397e7757e02234cd8d3`.
+The Alpha tape has SHA-256
+`c0cf4b55c846f46910f32ed5061416e68b66916e4e500acc09c13496721c50d6`.
+The gate now requires both lexer customers to publish runnable tapes and
+compares their output bytes with the same expected records as the native
+programs. [Public lexer cases](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
+
+A second customer executes the Omega compiler's state signature checker. Its
+146,904-byte Epsilon source retains the production data declarations and 59
+complete machine declarations from checking, layout, lexical scanning and
+name resolution. The test supplies a syntax row with one state. The checker
+accepts its implicit Unit return and stores type 2. Setting the same row's
+explicit return marker without a formed type makes the checker return 0.
+The source-built evaluator and 102,548,039-byte Linux executable both emitted
+`00 2a 00 00 00 01 02 00`.
+
+The same 3,315,409-byte Gamma program has SHA-256
+`651e79d34e6484d3c5994571895f729668cc9f512088c8e97bb9d4cfe291083e`.
+With the compact Gamma-to-Alpha backend it produces a 15,398,168-byte tape
+with SHA-256 `e9343bc5219ff0dd30766b242ba3cc2091f5ca788bdc353741bc6d9cb2c73f0a`.
+That tape returned the identical eight bytes on the seed. The customer enters
+the checker with prepared syntax. Constructing the full Omega compiler from its
+Epsilon sources remains open. [Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)

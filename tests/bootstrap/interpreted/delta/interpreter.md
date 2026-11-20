@@ -33,7 +33,8 @@ or timeout and prints the case name.
 The original runs used Gamma compiler sources at `35e76509787`. With the compact
 Alpha backend the same interpreter source produced a 427,830-byte tape
 (`1564536f75ee76d5b73582ebbc53ee08b1c2529cf2eccf785e19e2570c7df8f4`).
-It passed the same 23 Delta checks on the seed.
+It passed the same 23 Delta checks on the seed, all five Epsilon language cases
+and both syntax refusals.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
@@ -46,3 +47,13 @@ passed all five Epsilon language cases and both refusal controls. The actual Del
 Epsilon evaluator with its entry was 627,502 bytes. The exit case printed
 `00 2a 00 00 00 41` with process status zero, including the guest's exit of
 42 and its console byte `41`.
+
+The canonical Epsilon `exit` request supplied 627,860 bytes to the Delta
+interpreter, SHA-256
+`7afcb01dbf939870d2f9019d7ec8ff39c33f506c77ee76d9547d2d254285a9b1`.
+The 822,922-byte Alpha tape listed above and the original Beta-written Gamma
+interpreter each reached a 240-second wall limit on this request before
+returning an observation. Both ran as a single low-priority process on a
+shared host. Reproduce with `--epsilon-case exit --seconds 240` and the
+corresponding host command above.
+The compact Alpha tape completed the same request in 64 seconds.
