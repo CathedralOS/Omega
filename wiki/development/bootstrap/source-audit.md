@@ -35,6 +35,13 @@ inputs. Their 5,125-byte observations matched the numeric scanner, including
 its lexical diagnostics. Passing the source view as the cursor produced
 type error 18 at the changed call, byte 58,106. [Route fixtures](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py) · [Parser and refusal controls](https://github.com/CathedralOS/Omega/pull/4643)
 
+The complete Epsilon-written Omega constructor exhibited the same pattern.
+The same Linux compiler compiled both its 899,558-byte numeric source and
+its 899,660-byte quoted source. Their Delta modules were 18,248,084 and
+18,248,100 bytes. Each of the 369,378 differing numeric fields
+was one of 37,200 corresponding source coordinates. All other generated
+bytes agreed. [Whole constructor](README.md#current-305-unit-product)
+
 ## One byte-view writer for both Epsilon variants
 
 The 45-kind punctuation customer exposed a difference between Epsilon

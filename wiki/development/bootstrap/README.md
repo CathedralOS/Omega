@@ -346,6 +346,16 @@ units omitted, an eight-unit slice reached the second `as` in a
 sequential cast at `operators.omg:195:90`. That reduced-input result
 identifies a later language limitation. [Whole-input stopping point](https://github.com/CathedralOS/Omega/blob/950caad840a/source/subsystems/compiler/source_to_psi/pipeline/symbol_resolved_trees_to_typed_trees/expressions.omg#L546)
 
+Tracing that exact 405-byte `payload_open` declaration identified one
+resource check among the eleven parser states that visit the offending
+`expression` token. It reserves a path member. Starting that check with
+its table full reproduced `PathMembers` at the same token, requesting
+entry 16,385 with a limit of 16,384. Filling the expression table instead
+reported the following comma, ten bytes later. Only the path-member
+control reproduced the whole-product coordinate. The whole-product result
+itself records status and coordinate.
+[Parser check](https://github.com/CathedralOS/Omega/blob/950caad840a/bootstrap/omega/compiler/parser.epsilon#L6148)
+
 <details>
 <summary>Reproduce the source-model inputs</summary>
 
@@ -369,7 +379,7 @@ also **compiled the 901,333-byte compiler program itself**. It emitted an
 `48f662488376b40d495ea747c152a87accc4aeca96ab652f12b3de0c3d912cfa`.
 The Delta compiler translated that module and its storage runtime into
 26,367,941 bytes of Gamma (SHA-256 `718ee1a63a37ba76f314f860833bacc19ae58120eb1d404661ca1c4b318fb2be`).
-The conformance compiler reached its 4 MiB output limit (status 254) on the
+Both conformance hosts reached the 4 MiB output limit (status 254) on the
 same source. A bad final call produced type error 18 at byte 900,855 on
 both Alpha and Linux. [Public-entry receipts](source-audit.md#public-ocreq-on-alpha-and-linux) · [Construction replay](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
 
