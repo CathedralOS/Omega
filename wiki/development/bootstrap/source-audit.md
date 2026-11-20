@@ -17,6 +17,68 @@ Three changes made a reviewer’s comparisons more direct. The Epsilon wire entr
 
 These runs use fixed revisions. The four host/target tests predate the 729,482-byte keyword-table evaluator. The wire tape exercises one Omega product; the complete Omega-in-Omega rebuild is still open.
 
+## Public OCREQ on Alpha and Linux
+
+The same Epsilon-written Omega compiler ran on the fixed Alpha seed and on Linux x86-64. Each compiled `machine main() -> u8 { 42 }` through the public OCREQ entry. Both emitted the same 22-byte Alpha tape, which exited 42 on the seed with empty stdout and stderr. Replacing byte 3 of the OCREQ marker with `!` made both report that exact byte. [Public compiler entry at #4634](https://github.com/CathedralOS/Omega/blob/f552e5b8274d73b1435d803a15b1743e581b81e1/tests/bootstrap/conformance/omega/main_ocreq.epsilon)
+
+| OCREQ input | Full Epsilon observation on both hosts | SHA-256 of observation |
+| --- | --- | --- |
+| Valid, 188 bytes | 27 bytes · guest exit 0 and tape | `405b922ca60e8bc110ec662ee5aee0353bb3d4c2ca4a7fce5d8ade1bbdef23bd` |
+| Bad identity, 188 bytes | 45 bytes · guest exit 1 and malformed OCOUT at byte 3 | `abab215911641d6d1035806c9c9102da44a4e896514be94aca2252b1054c3868` |
+
+All four evaluator processes exited 0 with empty stderr. Their complete observations also matched the independent Epsilon source model. The emitted tape had SHA-256 `25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`.
+
+<details>
+<summary>Host identities, request digests and replay</summary>
+
+At `f552e5b8274d73b1435d803a15b1743e581b81e1`, the packed Omega compiler library plus public entry was 901,333 bytes, SHA-256 `07fed33d92c9ab84c910726e9184dda526d9961271ed1936ac32cac1d05775f8`. The valid OCREQ digest was `4cd8ca519b2e3519ccb19c25ba9ab773be14e465d0472fe90c077c2e906d6d0b` and the changed one was `bd3c30f4994808c730ed3c5d4083ff312e559cbf62c8f541997a2379ac85e9a1`. Both outer EEREQs used wire profile 1. Each bound the Delta library of its own evaluator.
+
+| Evaluator | Packed library SHA-256 | Executable SHA-256 |
+| --- | --- | --- |
+| Alpha · `d3a79047ce09` library, conformance Delta profile, `d00a570048e5` Gamma backend | `7b214d058c086ffcf5e5481e5dd08e4e6f47275ae07a4cb2cb6b4d26764b1bae` | `5bd3a4ed76e12931add218666ccd55d76c9d38559a4c44509a764290e43f1c0c` (stamped seed) |
+| Linux x86-64 · `9df6f79be79` library, construction Delta profile | `c5392b0a71cbe58de5090fb888b379fa5cb3b4b598ba38d6f1a568e326ffa0ff` | `5b17b0fb5fcf8ce8006861a62f68adbb68f494e07c0e04f88e2522043bddd33f` |
+
+| Host | Case | EEREQ SHA-256 (901,573 bytes each) | Evaluator CPU seconds | Peak KiB |
+| --- | --- | --- | ---: | ---: |
+| Alpha | Valid | `80208f95ff8f7a79418c2639e426e6907f2949d4d6abe8567db9d7ee934fd198` | 275.61 | 306,292 |
+| Alpha | Bad identity | `e0604df9aec3fff970cfd33ec20f298ed2f11925da0a7f0de5645133e8a6cfc2` | 226.14 | 241,096 |
+| Linux | Valid | `5bceb29acfadca422425e8134fa22b9467354788b9e6b2ebae5f2b3ecb540513` | 32.39 | 303,736 |
+| Linux | Bad identity | `63ecb63bc7efbd7c9d119989b3ab83533c534a88d6fd007d20a79f1680aa21bc` | 28.86 | 238,456 |
+
+At the #4634 checkout root, set `EVALUATOR` to the absolute path of either executable above and `EVAL_TREE` to the checkout of its library revision. Set `OMEGA_XTASK_BIN` to a built `xtask` executable by absolute path. [Alpha evaluator build](compiled-alpha.md#compile-the-product-wire-decoder-through-epsilon-on-alpha) · [Linux construction-profile build](README.md#whole-omega-compiler)
+
+```sh
+work=$(mktemp -d)
+"$OMEGA_XTASK_BIN" source-closure bootstrap/omega/compiler/omega_compiler.epsilon.sources "$work/library"
+cat "$work/library" tests/bootstrap/conformance/omega/main_ocreq.epsilon > "$work/public"
+(cd "$EVAL_TREE" && "$OMEGA_XTASK_BIN" source-closure bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources "$work/evaluator-library")
+PYTHONPATH=tests/bootstrap python3 - "$work" <<'PY'
+from pathlib import Path
+import sys
+from conformance.vectors import epsilon_request, ocreq_request
+w = Path(sys.argv[1])
+valid = ocreq_request(b"machine main() -> u8 { 42 }", b"program.omg")
+for name, req in [("valid", valid), ("bad-identity", valid[:3] + b"!" + valid[4:])]:
+    frame = epsilon_request((w / "evaluator-library").read_bytes(), (w / "public").read_bytes(), req)
+    (w / (name + ".eereq")).write_bytes(frame)
+PY
+for name in valid bad-identity; do
+  "$EVALUATOR" < "$work/$name.eereq" > "$work/$name.out" || exit 1
+done
+sha256sum "$work"/*.eereq "$work"/*.out
+PYTHONPATH=tests/bootstrap python3 - "$work" <<'PY'
+from pathlib import Path
+import sys
+from compiled import execute, stamp
+w = Path(sys.argv[1])
+(w / "tape").write_bytes((w / "valid.out").read_bytes()[5:])
+stamp(w / "tape", w / "product")
+assert execute(w / "product") == (42, b"")
+PY
+```
+
+</details>
+
 ## Quoted ASCII integers in Delta
 
 Delta lets the Epsilon lexer say `(ascii_between c 'A' 'Z')`. The shared
