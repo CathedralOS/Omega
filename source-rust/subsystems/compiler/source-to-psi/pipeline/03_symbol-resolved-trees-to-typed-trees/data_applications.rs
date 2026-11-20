@@ -1,5 +1,7 @@
-//! Applied data keeps its authored members and the actual substituted types.
-//! This is source metadata formation, never constructor or argument admission.
+//! Substitute a data declaration’s type and constant arguments into its member types.
+//! Typing forms the first views. Specialization and compile-time evaluation use
+//! the same operation when they create types or settle a computed constant.
+//! Each view stays associated with its original source type occurrence.
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataMember, TypeParameterKind};
