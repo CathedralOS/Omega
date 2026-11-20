@@ -13,7 +13,7 @@ machine probe(val: u32 in Wrapping) -> u32 in Wrapping {
 }
 
 machine main() crashes Trap {
-    let val: u32 in Wrapping = 21 as u32 in Wrapping;
+    let val: u32 in Wrapping = 21 as u32 +Wrapping;
     let recovered: u32 in Wrapping = probe(val);
     let shifted: u32 in Wrapping = val << SHIFT;
     transition (shifted as u32) == 42 && (recovered as u32) == 21 {

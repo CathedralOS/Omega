@@ -156,21 +156,21 @@ requires divisor > 0
 // exactly that threshold only subseconds up to 709_551_615 still fit
 // (18_446_744_073 * 1e9 + 709_551_615 == u64 maximum).
 public machine duration_checked_as_nanoseconds(duration: @Duration) -> TotalResult {
-    checked_as_scaled_total(duration, 1000000000 as u64 in Wrapping, 1, 18446744073, 709551615)
+    checked_as_scaled_total(duration, 1000000000 as u64 +Wrapping, 1, 18446744073, 709551615)
 }
 
 // The whole duration as a microsecond count (subseconds truncate to the
 // microsecond). Threshold 18_446_744_073_709 = u64 maximum / 1e6; at the edge
 // only microsecond parts up to 551_615 still fit.
 public machine duration_checked_as_microseconds(duration: @Duration) -> TotalResult {
-    checked_as_scaled_total(duration, 1000000 as u64 in Wrapping, 1000, 18446744073709, 551615)
+    checked_as_scaled_total(duration, 1000000 as u64 +Wrapping, 1000, 18446744073709, 551615)
 }
 
 // The whole duration as a millisecond count (subseconds truncate to the
 // millisecond). Threshold 18_446_744_073_709_551 = u64 maximum / 1e3; at the
 // edge only millisecond parts up to 615 still fit.
 public machine duration_checked_as_milliseconds(duration: @Duration) -> TotalResult {
-    checked_as_scaled_total(duration, 1000 as u64 in Wrapping, 1000000, 18446744073709551, 615)
+    checked_as_scaled_total(duration, 1000 as u64 +Wrapping, 1000000, 18446744073709551, 615)
 }
 
 public machine duration_is_zero(duration: @Duration) -> bool {
@@ -249,7 +249,7 @@ public machine duration_checked_subtract(duration: @Duration, other: Duration) -
     // emit states must see a BARE param (`nanoseconds_final % 1000000000`).
     let nanoseconds_direct: u32 = ((duration.subsecond_nanoseconds as u32 in Wrapping)
         - (other.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (other.subsecond_nanoseconds as u32 in Wrapping))
         + (duration.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
@@ -540,7 +540,7 @@ public machine instant_checked_subtract(instant: @Instant, duration: Duration) -
     let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
     let nanoseconds_direct: u32 = ((instant.subsecond_nanoseconds as u32 in Wrapping)
         - (duration.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (duration.subsecond_nanoseconds as u32 in Wrapping))
         + (instant.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
@@ -583,7 +583,7 @@ public machine instant_checked_duration_since(instant: @Instant, earlier: Instan
     let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
     let nanoseconds_direct: u32 = ((instant.subsecond_nanoseconds as u32 in Wrapping)
         - (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (earlier.subsecond_nanoseconds as u32 in Wrapping))
         + (instant.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
@@ -705,7 +705,7 @@ public machine system_time_duration_since(time: @SystemTime, earlier: SystemTime
     let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
     let nanoseconds_direct: u32 = ((time.subsecond_nanoseconds as u32 in Wrapping)
         - (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (earlier.subsecond_nanoseconds as u32 in Wrapping))
         + (time.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     let back_seconds_direct: u64 in Wrapping =
@@ -714,7 +714,7 @@ public machine system_time_duration_since(time: @SystemTime, earlier: SystemTime
     let back_seconds_borrowed: u64 in Wrapping = (back_seconds_direct as u64 in Wrapping) - 1;
     let back_nanoseconds_direct: u32 = ((earlier.subsecond_nanoseconds as u32 in Wrapping)
         - (time.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let back_nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let back_nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (time.subsecond_nanoseconds as u32 in Wrapping))
         + (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
@@ -778,7 +778,7 @@ public data SystemTimeResult [copy] {
 // bit-arithmetic (probe-verified incl. above-i64 maximum operands).
 public machine system_time_checked_add(time: @SystemTime, duration: Duration) -> SystemTimeResult {
     let nanoseconds_total: u32 = time.subsecond_nanoseconds + duration.subsecond_nanoseconds;
-    let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
+    let bias: u64 in Wrapping = (1 as u64 +Wrapping) << 63;
     let seconds_biased: u64 in Wrapping =
         (narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as u64 in Wrapping)
         + (bias as u64 in Wrapping);
@@ -830,7 +830,7 @@ public machine system_time_checked_add(time: @SystemTime, duration: Duration) ->
 // UPWARD (difference > minuend, unsigned).
 public machine system_time_checked_subtract(time: @SystemTime, duration: Duration) -> SystemTimeResult {
     let nanoseconds_fit: bool = time.subsecond_nanoseconds >= duration.subsecond_nanoseconds;
-    let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
+    let bias: u64 in Wrapping = (1 as u64 +Wrapping) << 63;
     let seconds_biased: u64 in Wrapping =
         (narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as u64 in Wrapping)
         + (bias as u64 in Wrapping);
@@ -842,7 +842,7 @@ public machine system_time_checked_subtract(time: @SystemTime, duration: Duratio
         - (narrow_u64_to_i64_wrapping(duration.seconds) as i64 in Wrapping);
     let nanoseconds_direct: u32 = ((time.subsecond_nanoseconds as u32 in Wrapping)
         - (duration.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (duration.subsecond_nanoseconds as u32 in Wrapping))
         + (time.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition nanoseconds_fit {
@@ -1017,7 +1017,7 @@ reaches
     let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
     let nanoseconds_direct: u32 = ((now_subsecond as u32 in Wrapping)
         - (start.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
         - (start.subsecond_nanoseconds as u32 in Wrapping))
         + (now_subsecond as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {

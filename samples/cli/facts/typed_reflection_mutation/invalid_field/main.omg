@@ -5,8 +5,8 @@ data Subject [copy] { first: u64; second: u64; third: u64; }
 machine increment<Kind>(count: @mut u64, info: @reflect\FieldInfo, value: @mut Kind)
 requires Kind == u32
 {
-    $value = (($value as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
-    $count = (($count as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    $value = (($value as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
+    $count = (($count as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
 }
 data Holder { subject: Subject; }
 machine main() crashes Trap {

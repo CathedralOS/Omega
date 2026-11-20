@@ -29,7 +29,7 @@ machine qualified(flag: bool, value: u64 in Wrapping) -> u64 {
 }
 
 machine combine(flag: bool) -> u64 {
-    qualified(flag, 9 as u64 in Wrapping)
+    qualified(flag, 9 as u64 +Wrapping)
 }
 
 data Main {

@@ -2,7 +2,7 @@
 // block-parameter channel, then re-borrows whole into a unit machine call.
 data Sink { value: u64 in Wrapping; }
 machine Sink::bump(sink: @mut Sink) {
-    sink.value = sink.value + 1 as u64 in Wrapping;
+    sink.value = sink.value + 1 as u64 +Wrapping;
 }
 data Driver { ticks: u64 in Wrapping; }
 machine Driver::drive(driver: @mut Driver, sink: @mut Sink, more: bool) {
@@ -15,7 +15,7 @@ machine Driver::drive(driver: @mut Driver, sink: @mut Sink, more: bool) {
     }
     machine step(driver: @mut Driver, sink: @mut Sink) {
         Sink::bump(sink);
-        driver.ticks = driver.ticks + 1 as u64 in Wrapping;
+        driver.ticks = driver.ticks + 1 as u64 +Wrapping;
         transition driver.ticks > 4 {
             true -> go(driver, sink, false),
             false -> go(driver, sink, true)

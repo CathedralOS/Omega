@@ -1056,7 +1056,7 @@ requires
         // Fused Saturating mul/add in operand position lower correctly since
         // the 2026-07-09d operand-position domain lowering (the clamp happens
         // at each operation node before the modulo).
-        main.current = ((main.current * (10 as i32 in Saturating)) + (digit as i32 in Saturating)) % (10000 as i32 in Saturating);
+        main.current = ((main.current * (10 as i32 +Saturating)) + (digit as i32 in Saturating)) % (10000 as i32 +Saturating);
     }
 }
 

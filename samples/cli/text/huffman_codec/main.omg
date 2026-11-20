@@ -253,7 +253,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine find_first_loop(main: @mut Main) {
-        let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
+        let limit: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 in Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
             true -> check_first_candidate(main),
             _ -> after_find_first(main)
@@ -299,7 +299,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine find_second_loop(main: @mut Main) {
-        let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
+        let limit: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 in Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
             true -> check_second_candidate(main),
             _ -> after_find_second(main)
@@ -329,7 +329,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine after_find_second(main: @mut Main) {
-        let branch_wrap: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
+        let branch_wrap: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 in Wrapping);
         let branch_idx: u64 = branch_wrap as u64;
         transition main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
             true -> create_branch(main, branch_idx),
@@ -541,7 +541,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine set_packed_bit(main: @mut Main, byte_idx: u64, bit_offset: u64)
     requires byte_idx < 4 && bit_offset < 8 {
         let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
-        let mask: u8 in Wrapping = (1 as u8 in Wrapping) << shift_amt;
+        let mask: u8 in Wrapping = (1 as u8 +Wrapping) << shift_amt;
         main.packed[byte_idx] = main.packed[byte_idx] | mask;
         transition { _ -> advance_bit_cursor(main) }
     }
