@@ -1,4 +1,4 @@
-use super::{Catalog, Context, DomainCarrier, NameError, NameUse, Symbol, callable, qualify, usage};
+use super::{Catalog, Context, DomainCarrier, NameError, NameUse, Symbol, callable, module_child, qualify, usage};
 use crate::syntax::File;
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
@@ -156,7 +156,7 @@ impl Catalog<'_> {
                             .any(|(&(from, _), &to)| from == file.package && to == id.package)
             });
             let Some(slot) = accessible else {
-                let error = file.error(span, format!("no authority to name carrier {}::{}", id.package, id.path));
+                let error = file.error(span, format!("no authority to name carrier {}\\{}", id.package, id.path));
                 if binders.is_empty() {
                     return Err(error);
                 }
@@ -186,13 +186,13 @@ impl Catalog<'_> {
         path: &str,
         span: SourceSpan,
     ) -> Result<(String, String), NameError> {
-        let (root, rest) = path.split_once("::").unwrap_or((path, ""));
+        let (root, rest) = path.split_once('\\').unwrap_or((path, ""));
         let Some(&package) = self.edges.get(&(file.package, root)) else {
             return Ok((file.package.into(), path.into()));
         };
         let own = (file.package.to_owned(), root.to_owned());
-        if self.modules.contains(&own) || !self.visible(file, &own).is_empty() {
-            return Err(file.error(span, format!("competing module paths {root}: package {package} and {}::{root}", file.package)));
+        if self.modules.contains(&own) || rest.is_empty() && !self.visible(file, &own).is_empty() {
+            return Err(file.error(span, format!("competing module paths {root}: package {package} and {}\\{root}", file.package)));
         }
         Ok((package.into(), rest.into()))
     }
@@ -255,7 +255,7 @@ impl Catalog<'_> {
             let head = node.children[0];
             let path = file.nodes[head].path();
             let address = self.address(file, &path, file.span(head))?;
-            let alias = path.rsplit("::").next().unwrap();
+            let alias = path.rsplit([':', '\\']).next().unwrap();
             let site = ctx.imports.len();
             let slots = self.direct(file, &address);
             if self.modules.contains(&address) && slots.is_empty() {
@@ -277,7 +277,7 @@ impl Catalog<'_> {
     ) -> Result<(), NameError> {
         let mut expose = |slot: usize, origin| {
             let id = &self.entries[slot].id;
-            let leaf = id.path.rsplit("::").next().unwrap();
+            let leaf = id.path.rsplit([':', '\\']).next().unwrap();
             ctx.domains
                 .entry(leaf.to_owned())
                 .or_default()
@@ -346,7 +346,7 @@ impl Catalog<'_> {
                 format!(
                     "competing declarations: {}",
                     ids.iter()
-                        .map(|id| format!("{}::{}", id.package, id.path))
+                        .map(|id| format!("{}\\{}", id.package, id.path))
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
@@ -507,14 +507,14 @@ impl Catalog<'_> {
                 let Some(carrier) = self.carriers.get(&slot) else { continue };
                 let owner = &self.entries[slot].id;
                 let carrier = match carrier {
-                    DomainCarrier::Named(id) => format!("{}::{}", id.package, id.path),
+                    DomainCarrier::Named(id) => format!("{}\\{}", id.package, id.path),
                     DomainCarrier::Builtin(name) => name.clone(),
                     DomainCarrier::Generic | DomainCarrier::Bound { .. } => "generic carrier".into(),
                 };
                 error
                     .message
-                    .push_str(&format!(" ({}::{} on {carrier}", owner.package, owner.path));
-                let leaf = owner.path.rsplit("::").next().unwrap();
+                    .push_str(&format!(" ({}\\{} on {carrier}", owner.package, owner.path));
+                let leaf = owner.path.rsplit([':', '\\']).next().unwrap();
                 if let Some(Some(import)) = ctx.domains.get(leaf).and_then(|sites| sites.get(&slot)) {
                     error
                         .message
@@ -547,26 +547,32 @@ impl Catalog<'_> {
             }
         })
     }
-    pub(super) fn has_static_root(
+    /// Decide eligibility from the written use before consulting the member name.
+    pub(super) fn has_static_owner(
         &self,
         file: &File<'_>,
         ctx: &Context<'_>,
-        n: usize,
-        root: &str,
+        node: usize,
+        name: &str,
+        span: SourceSpan,
+        call: bool,
     ) -> Result<bool, NameError> {
         use NodeKind::{Conformance, Data, Domain, Trait};
-        Ok(super::builtin(root)
-            || self.edges.contains_key(&(file.package, root))
-            || ctx.by_alias.get(root).is_some_and(|sites| {
-                sites
-                    .iter()
-                    .any(|&i| ctx.open_modules.contains(&ctx.imports[i].address))
-            })
-            || self.modules.contains(&(file.package.into(), root.into()))
-            || self
-                .lookup(file, ctx, n, root)?
-                .iter()
-                .any(|&i| matches!(self.entries[i].id.kind, Data | Domain | Trait | Conformance)))
+        let visible = self.lookup(file, ctx, node, name)?;
+        let domains = ctx
+            .domains
+            .get(name)
+            .into_iter()
+            .flat_map(|sites| sites.keys().copied());
+        let mut owners = visible.into_iter().chain(domains).filter(|&slot| {
+            let kind = self.entries[slot].id.kind;
+            matches!(kind, Trait | Conformance | Domain) || !call && kind == Data
+        });
+        let first = owners.next();
+        if first.is_some_and(|first| owners.any(|other| self.entries[first].id != self.entries[other].id)) {
+            return Err(file.error(span, format!("ambiguous static root {name}")));
+        }
+        Ok(first.is_some() || !call && super::builtin(name))
     }
 
     pub(super) fn lookup(
@@ -576,15 +582,30 @@ impl Catalog<'_> {
         n: usize,
         path: &str,
     ) -> Result<Vec<usize>, NameError> {
+        if let Some((root, rest)) = path.split_once('\\') {
+            let address = self.address(file, path, file.span(n))?;
+            let mut modules = ctx
+                .by_alias
+                .get(root)
+                .into_iter()
+                .flatten()
+                .map(|&site| &ctx.imports[site].address)
+                .filter(|module| ctx.open_modules.contains(*module));
+            if let Some(module) = modules.next() {
+                if modules.any(|other| other != module) {
+                    let span = file.nodes[n]
+                        .words()
+                        .next()
+                        .map_or(file.span(n), |word| word.span);
+                    return Err(file.error(span, format!("competing module paths {root}")));
+                }
+                return Ok(self.visible(file, &(module.0.clone(), module_child(&module.1, rest))));
+            }
+            return Ok(self.visible(file, &address));
+        }
         let (root, rest) = path
             .split_once("::")
             .map_or((path, None), |(root, rest)| (root, Some(rest)));
-        // An import cannot resolve away a conflict between a package alias and a root name.
-        let dependency_address = if rest.is_some() && self.edges.contains_key(&(file.package, root)) {
-            Some(self.address(file, path, file.span(n))?)
-        } else {
-            None
-        };
         for owner in file.ancestors(n) {
             let Some(&entry) = ctx.entries.get(&owner) else { continue };
             let address = (file.package.into(), qualify(&self.entries[entry].id.path, path));
@@ -602,22 +623,7 @@ impl Catalog<'_> {
                 }
             }
         }
-        // A qualified path can name a declaration of the caller's own namespace,
-        // as in `Shape::Circle` or `i32::Positive`, but it never descends into a
-        // child directory: written in game/, `combat::score` names the root
-        // module combat, as `use combat::score` does. Root module and dependency
-        // addresses are considered after the file's imports.
-        let local = match path.split_once("::") {
-            Some((root, _))
-                if self
-                    .modules
-                    .contains(&(file.package.into(), qualify(&file.namespace, root)))
-                    || (file.namespace.is_empty() && self.edges.contains_key(&(file.package, root))) =>
-            {
-                Vec::new()
-            }
-            _ => self.visible(file, &(file.package.into(), qualify(&file.namespace, path))),
-        };
+        let local = self.visible(file, &(file.package.into(), module_child(&file.namespace, path)));
         let mut preferred: Vec<_> = local
             .iter()
             .copied()
@@ -630,17 +636,13 @@ impl Catalog<'_> {
         let mut imported = Vec::new();
         for &site in ctx.by_alias.get(root).into_iter().flatten() {
             let address = &ctx.imports[site].address;
-            if ctx.open_modules.contains(address) {
-                if let Some(rest) = rest {
-                    preferred.extend(self.visible(file, &(address.0.clone(), qualify(&address.1, rest))));
-                }
-            } else {
+            if !ctx.open_modules.contains(address) {
                 imported.extend_from_slice(&ctx.imports[site].slots);
             }
         }
         // Opening a module exposes its direct declarations under their own names.
         for (package, module) in &ctx.open_modules {
-            imported.extend(self.direct(file, &(package.clone(), qualify(module, root))));
+            imported.extend(self.direct(file, &(package.clone(), module_child(module, root))));
         }
         if let Some(rest) = rest {
             for slot in imported {
@@ -656,7 +658,7 @@ impl Catalog<'_> {
         if !local.is_empty() || rest.is_none() {
             return Ok(local);
         }
-        let address = dependency_address.unwrap_or_else(|| (file.package.into(), path.into()));
+        let address = (file.package.into(), path.into());
         Ok(self.visible(file, &address))
     }
 }

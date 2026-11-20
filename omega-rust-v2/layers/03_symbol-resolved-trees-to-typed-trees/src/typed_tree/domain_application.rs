@@ -24,7 +24,7 @@ impl fmt::Display for DomainApplication {
         &self,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}::{}", self.declaration.package, self.declaration.path)?;
+        write!(f, "{}\\{}", self.declaration.package, self.declaration.path)?;
         if !self.arguments.is_empty() {
             write!(
                 f,

@@ -68,8 +68,8 @@ fn parameter<'prepared>(
 
 #[test]
 fn a_selected_layout_survives_constant_aliases_and_type_formation() {
-    let code = "use omega::language::core;
-                machine read_size()->u64 reaches none crashes none terminates { core::size_of::<u16>() }
+    let code = "use omega\\language\\core;
+                machine read_size()->u64 reaches none crashes none terminates { core\\size_of::<u16>() }
                 const WIDTH:u64 = read_size();
                 const ALIAS:u64 = WIDTH;
                 machine consume(bytes:[u8; ALIAS]){}";
@@ -110,7 +110,7 @@ fn a_selected_layout_survives_constant_aliases_and_type_formation() {
 
 #[test]
 fn a_dynamic_extent_can_have_alignment() {
-    let code = "use omega::language::core; const VALUE:u64 = core::align_of::<[u8]>();";
+    let code = "use omega\\language\\core; const VALUE:u64 = core\\align_of::<[u8]>();";
     let target = identity("layout-target");
     let subject = ValueType::Slice(Box::new(BYTE));
     let dynamic = layout(&target, subject, LayoutExtent::Dynamic, Some(1));
@@ -130,19 +130,19 @@ fn a_dynamic_extent_can_have_alignment() {
     let code = code.replace("align_of", "size_of");
     let error = prepare_source_package_for_target(&resolve(&code), &[], &capsule).unwrap_err();
     assert!(error.message.contains("no fixed complete extent"), "{}", error.message);
-    assert_eq!(error.span.slice(code.as_bytes()), Some(b"core::size_of::<[u8]>()".as_slice()));
+    assert_eq!(error.span.slice(code.as_bytes()), Some(b"core\\size_of::<[u8]>()".as_slice()));
 }
 
 #[test]
 fn target_and_plan_must_match_and_queries_do_not_guess() {
-    let code = "use omega::language::core; const VALUE:u64 = core::size_of::<u16>();";
+    let code = "use omega\\language\\core; const VALUE:u64 = core\\size_of::<u16>();";
     let source = resolve(code);
     let open = prepare_source_package(&source).unwrap();
     let constant = &open.typed().constants[0];
     assert!(open.constant(&constant.declaration).is_none());
     let error = open.open_target_constant(&constant.declaration).unwrap();
     assert!(error.message.contains("requires a selected target"), "{}", error.message);
-    assert_eq!(error.span.slice(code.as_bytes()), Some(b"core::size_of::<u16>()".as_slice()));
+    assert_eq!(error.span.slice(code.as_bytes()), Some(b"core\\size_of::<u16>()".as_slice()));
 
     let with_use = format!("{code} machine consume(bytes:[u8; VALUE]){{}}");
     let error = prepare_source_package(&resolve(&with_use)).unwrap_err();
@@ -177,7 +177,7 @@ fn only_the_selected_core_declaration_is_a_layout_query() {
 
 #[test]
 fn an_open_layout_recipe_closes_under_exact_type_arguments() {
-    let open = "use omega::language::core; data Bytes<T> { bytes: [u8; core::size_of::<T>()]; }";
+    let open = "use omega\\language\\core; data Bytes<T> { bytes: [u8; core\\size_of::<T>()]; }";
     assert!(
         prepare_source_package(&resolve(open))
             .unwrap()
@@ -201,8 +201,8 @@ fn an_open_layout_recipe_closes_under_exact_type_arguments() {
 
 #[test]
 fn an_open_package_retains_exact_demands_and_closes_like_direct_preparation() {
-    let code = "use omega::language::core;
-                public const WIDTH: u64 = core::size_of::<u16>();
+    let code = "use omega\\language\\core;
+                public const WIDTH: u64 = core\\size_of::<u16>();
                 public const ALIAS: u64 = WIDTH;
                 public data Packet { payload: [u8; ALIAS]; }
                 machine portable()->u64 reaches none crashes none terminates { 2 }
@@ -229,7 +229,7 @@ fn an_open_package_retains_exact_demands_and_closes_like_direct_preparation() {
         panic!("expected one open target demand")
     };
     assert_eq!(demand.demand.request().expression.span.slice(code.as_bytes()), Some(b"ALIAS".as_slice()));
-    assert_eq!(demand.diagnostic.span.slice(code.as_bytes()), Some(b"core::size_of::<u16>()".as_slice()));
+    assert_eq!(demand.diagnostic.span.slice(code.as_bytes()), Some(b"core\\size_of::<u16>()".as_slice()));
     let pending = open.pending_typing();
     assert_eq!(pending.demands(), std::slice::from_ref(&demand.demand));
     let width = pending
@@ -262,8 +262,8 @@ fn an_open_package_retains_exact_demands_and_closes_like_direct_preparation() {
 
 #[test]
 fn a_layout_cannot_supply_the_extent_that_defines_its_own_subject() {
-    let code = "use omega::language::core;
-                data Ring { bytes: [u8; core::size_of::<Ring>()]; }";
+    let code = "use omega\\language\\core;
+                data Ring { bytes: [u8; core\\size_of::<Ring>()]; }";
     let source = resolve(code);
     let (_, declaration) = source
         .trees()

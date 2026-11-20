@@ -271,8 +271,8 @@ fn public_contract_defaults_are_lowered_as_effective_bounds() {
 #[test]
 fn refusal_for_target_dependent_extent_points_to_the_observed_input() {
     use omega_preparation::{LayoutExtent, LayoutGeometry, SelectedLayout, TargetIdentity, TargetSemantics, prepare_source_package_for_target};
-    let source = "use omega::language::core; const UNRELATED:u64=9u64;
-        const EXTENT:u64=core::size_of::<u64>(); machine read(arr:[u8;EXTENT]) {}";
+    let source = "use omega\\language\\core; const UNRELATED:u64=9u64;
+        const EXTENT:u64=core\\size_of::<u64>(); machine read(arr:[u8;EXTENT]) {}";
     let package = resolve(&[("extent.omg", source)]);
     let identity = TargetIdentity {
         profile: "test-target".into(),
@@ -297,5 +297,5 @@ fn refusal_for_target_dependent_extent_points_to_the_observed_input() {
     let error = lower_package(&prepared).unwrap_err();
     assert_eq!(error.message, "target-dependent values require a portable target closure");
     assert_eq!(error.site.file, "extent.omg");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"core::size_of::<u64>()".as_slice()));
+    assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"core\\size_of::<u64>()".as_slice()));
 }

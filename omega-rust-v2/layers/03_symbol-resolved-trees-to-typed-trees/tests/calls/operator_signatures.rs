@@ -94,7 +94,7 @@ fn inferred_operator_home_distinguishes_inherited_and_independent_domains() {
 
 #[test]
 fn cross_package_operator_selection_uses_the_resolved_visibility() {
-    let caller = "use dep::Point; machine combine(a:Point,b:Point)->Point{a+b}";
+    let caller = "use dep\\Point; machine combine(a:Point,b:Point)->Point{a+b}";
     for visibility in ["public ", ""] {
         let library = format!("public data Point{{}} {visibility}machine + add(a:Point,b:Point)->Point{{a}}");
         let resolved = resolve_operator_packages("main.omg", &library, caller);
@@ -136,7 +136,7 @@ fn resolve_operator_packages<'a>(
 fn explicit_and_inferred_foreign_operator_homes_are_rejected_at_the_same_boundary() {
     let declaration = "public domain i32::Km;";
     for name in ["Km::add", "add"] {
-        let code = format!("use dep::units; machine + {name}(x:i32 in Km,y:i32 in Km)->i32 in Km {{x}}");
+        let code = format!("use dep\\units; machine + {name}(x:i32 in Km,y:i32 in Km)->i32 in Km {{x}}");
         let resolved = resolve_operator_packages("units/u.omg", declaration, &code);
         assert_eq!(resolved.operator_declarations[0].declared_home.is_some(), name == "Km::add");
         let error = omega_typer::type_stage(&resolved).unwrap_err();
@@ -152,7 +152,7 @@ fn explicit_and_inferred_foreign_operator_homes_are_rejected_at_the_same_boundar
 
 #[test]
 fn a_directory_qualifies_an_operator_name_without_becoming_an_operand_type() {
-    let source = "data Point{} machine + drawing::add(x:Point,y:Point)->Point{x} machine sum(x:Point,y:Point)->Point{x+y}";
+    let source = "data Point{} machine + drawing\\add(x:Point,y:Point)->Point{x} machine sum(x:Point,y:Point)->Point{x+y}";
     let typed = check(&[
         ("op.omg", source),
         ("drawing/helpers.omg", "machine helper(){}"),
@@ -161,8 +161,8 @@ fn a_directory_qualifies_an_operator_name_without_becoming_an_operand_type() {
     let [call] = typed.calls.as_slice() else {
         panic!("expected one operator use")
     };
-    assert_eq!(call.machine.path, "drawing::add");
-    assert_eq!(call.result.to_string(), "game::Point");
+    assert_eq!(call.machine.path, "drawing\\add");
+    assert_eq!(call.result.to_string(), "game\\Point");
 }
 
 #[test]

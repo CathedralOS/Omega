@@ -7,15 +7,14 @@ The indexed tree supplies declaration names, generic binders in source order, an
 **L1 is locked.** The original grammar passed its gate on 2026-11-18. The revised positional rest handoff was signed off on 2026-11-19. L1 records the final `..` and its span in a tuple pattern. L3 checks the components against the subject type. [Pattern tests](tests/indexed_syntax.rs)
 
 All twelve decisions are
-made. The parser in `src/` follows
-this grammar, every rule below has fixtures (see [Rules and their
-fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
+made. The original grammar and its 132 specification examples passed the parser gate.
+The [module path ruling](../../wiki/spec/language/modules.md#names-and-imports)
+is implemented by the path productions below.
 Building it changed the grammar in seven places and raised two questions;
 both are listed under [What building it found](#what-building-it-found).
 A later review added qualified type arguments; that section records it too.
 
-The spec has no grammar, so this document is one. Its sources, in order of
-authority:
+The following sources govern this grammar, in order of authority.
 
 1. **Decisions by Jarod and Zac**, recorded under [Decisions](#decisions).
    The syntax changes from the imported spec are listed under
@@ -58,7 +57,8 @@ A file's namespace comes from its directory; there is no `module` header
 
 ## Names, and the two spellings of generic arguments
 
-    path       = word ( '::' word )*
+    module_prefix = ( word '\' )*
+    path       = module_prefix word ( '::' word )*
     type_args  = '<' ( generic_arg % ',' ) '>'            in types and declarations
     expr_args  = '::' '<' ( generic_arg % ',' ) '>'       in expressions
     generic_arg = lifetime | type_in | expression
@@ -74,7 +74,7 @@ parser decides by looking ahead:
 
 1. Skip any `[` the argument opens with.
 2. `@`, `machine(`, or a named function binder such as `(n: u8) ->` there begins a type.
-3. A name there, with any `::name` parts, begins a type if the token after
+3. A name there, with any module prefix and `::name` parts, begins a type if the token after
    it is `<`, `->` or, at the top, `in`, or ends the argument: `,` or `>` at
    the top, `]` or `;` inside brackets. So `[u8]` and `[u8; 4]` are types,
    and `[a, b]` and `[f(x)]` are array literals.
@@ -103,7 +103,7 @@ ahead to tell them apart.
 | The spec writes | V2 writes |
 | --- | --- |
 | `apply<set_time>(&mut e, 5)` | `apply::<set_time>(@mut e, 5)` |
-| `integer::max<i32>()` | `integer::max::<i32>()` |
+| `integer\max<i32>()` | `integer\max::<i32>()` |
 | `Sensor<29u64>::read()` | `Sensor::<29u64>::read()` |
 | `builder.tests.group<Tests::memory>()` | `builder.tests.group::<Tests::memory>()` |
 | `Envelope<u32>::Body::Value { value: 7 }` | `Envelope::<u32>::Body::Value { value: 7 }` |
@@ -116,7 +116,7 @@ ahead to tell them apart.
     use = 'use' path ';'
 
 `use topology;` (build/scoped_execution.md:134),
-`use ui_policy::screen::Point::OnScreen;` (language/modules.md:102).
+`use ui_policy\screen\Point::OnScreen;`. [Names and imports](../../wiki/spec/language/modules.md#names-and-imports)
 
 ### const
 
@@ -184,7 +184,7 @@ and a restricted alias
 
     conformance = visibility? word generic_params? 'satisfies' type
                   hypothesis* '{' ( machine | selection_row )* '}'
-    selection_row = word '::' word '=' path ';'
+    selection_row = module_prefix word '::' word '=' path ';'
 
 A selection row names a trait requirement and an existing machine to supply
 it. Both paths retain their own source spans. [Named conformances](../../wiki/spec/language/conformances.md#declaration-and-selection)
@@ -227,7 +227,7 @@ conformance for a type named `public`.
 
     math_let = 'boundary'? 'let' word generic_params? '(' params ')' ':' type ( '=' expression )? ';'
 
-`let greater_than(limit: i32, value: i32): core::Strict<0> = value > limit;`
+`let greater_than(limit: i32, value: i32): core\Strict<0> = value > limit;`
 (proofs/mathematical_bindings.md:63) and a bodyless
 `boundary let choose<...>(...): A;` (:263). A `let` at the top of a file is
 this form; inside a body it is a statement.
@@ -236,7 +236,7 @@ this form; inside a body it is a statement.
 
     generic_params = '<' ( generic_param % ',' ) '>'
     generic_param  = word attributes?                 type parameter:    T, Element [copy]
-                   | word ':' type                    kinded parameter:  Count: u32, u: core::Level
+                   | word ':' type                    kinded parameter:  Count: u32, u: core\Level
                    | 'const' word ':' type            static value:      const N: u64
                    | 'const' word ':' machine_type    static machine:    const F: machine(v: u32) -> u32
                    | 'const' word ':' 'machine'       inferred machine:  const F: machine
@@ -257,7 +257,7 @@ proofs/mathematical_bindings.md:63 and :226.
                 | '[' type ';' expression ']'
                 | machine_type
                 | path_type ( '(' arguments? ')' )?
-    path_type   = word type_args? ( '::' word type_args? )*
+    path_type   = module_prefix word type_args? ( '::' word type_args? )*
     type_in     = type ( 'in' type_domains )?
     type_domains = path_type ( '&' path_type )*
     machine_type = 'machine' generic_params? '(' params ')' result? clause*
@@ -437,7 +437,7 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
             | '[' ( expression % ',' )? ']'
             | match
             | '(' selection ')'
-    expr_path  = word expr_args? ( '::' word expr_args? )*
+    expr_path  = module_prefix word expr_args? ( '::' word expr_args? )*
     field_init = word ( ':' expression )?
     selection  = path 'satisfies' type
     postfix = primary ( '(' args ')' | '.' word expr_args? | '[' index ']' )*
@@ -685,10 +685,10 @@ the grammar had missed; all 132 parse now.
 | # | Example | What the grammar had | What the example needs | Resolution |
 | --- | --- | --- | --- | --- |
 | F1 | language/effects.md:571 | A machine type's clauses were ordinary predicates. | `<const F: machine(v: u64) -> u64 ensures result >= value>`: the clause ends at the `>` that closes the list. | Inside `<...>`, a `>` ends a machine type's clause. |
-| F2 | proofs/mathematical_bindings.md:226 | Function types only in mathematical `let`. | A machine parameter typed `A -> core::Strict<v>`. | `A -> B` is a type everywhere except directly after `as`. |
+| F2 | proofs/mathematical_bindings.md:226 | Function types only in mathematical `let`. | A machine parameter typed `A -> core\Strict<v>`. | `A -> B` is a type everywhere except directly after `as`. |
 | F3 | proofs/mathematical_bindings.md:226 | A hypothesis only on a conformance. | `requires machine Step(...) ...;` on a machine. | A hypothesis is a clause; a conformance takes only that one. |
 | F4 | language/termination.md:35 | `terminates by e in e`. | `in 0..=limit`. | The bound may be a range. |
-| F5 | resources/access.md:83 | A generic argument starting `[` was a type. | `IssuedByAny<2, [reflect::callable(a), ...]>`, an array literal. | The lookahead rule under [generic arguments](#names-and-the-two-spellings-of-generic-arguments). |
+| F5 | resources/access.md:83 | A generic argument starting `[` was a type. | `IssuedByAny<2, [reflect\callable(a), ...]>`, an array literal. | The lookahead rule under [generic arguments](#names-and-the-two-spellings-of-generic-arguments). |
 | F6 | language/patterns.md:86, language/reflection.md:77 | Fragments were statements. | Bare expressions listed one per line. | The Statements fragment accepts an expression wherever it ends. Files are unaffected. |
 | F7 | resources/content_custody.md:129 | A clause fragment ended at its last clause. | A final `;`, as on a bodyless declaration. | The Clauses fragment accepts one. |
 

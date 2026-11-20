@@ -5,7 +5,7 @@ File
     ';'
   Use
     'use'
-    Path 'ui_policy' '::' 'screen' '::' 'Point' '::' 'OnScreen'
+    Path 'ui_policy' '\' 'screen' '\' 'Point' '::' 'OnScreen'
     ';'
   Const
     'const'

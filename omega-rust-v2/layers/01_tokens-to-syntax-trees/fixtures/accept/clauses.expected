@@ -56,7 +56,7 @@ File
         '-'
         PathExpression 'n'
       '->'
-      PathExpression 'Nat' '::' 'Descending'
+      PathExpression 'Nat' '\' 'Descending'
       'in'
       Range
         Literal '0'

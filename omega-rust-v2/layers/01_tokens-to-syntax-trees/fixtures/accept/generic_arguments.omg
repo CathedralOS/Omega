@@ -12,15 +12,15 @@ machine arguments(
     h: Routes<1, [(open_file)]>,
     i: Table<[a, b]>,
     j: Callback<machine(value: u32) -> u32, A -> B>,
-    k: Holder<'a, core::Level>,
+    k: Holder<'a, core\Level>,
     l: Chosen<(clear satisfies A::clear)>,
     m: Signed<-1, !flag>,
     n: AccessReturn<Extent in Granted, C>,
-    o: Wrapper<[u8; 4] in D, u8 in A & B, core::u8 in P>,
+    o: Wrapper<[u8; 4] in D, u8 in A & B, core\u8 in P>,
     p: Check<N + 1 in D>,
 ) {
     _ = apply::<set_time>(@mut e, 5);
-    _ = integer::max::<i32>();
+    _ = integer\max::<i32>();
     _ = Sensor::<29u64>::read();
     _ = convert::<Outcome<u32, Never>, 64>(a);
     _ = id::<u8 in P>(v);

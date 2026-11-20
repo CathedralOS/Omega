@@ -175,8 +175,8 @@ fn published_range_views_preserve_bounds_and_authority() {
         panic!("expected the three published alternatives")
     };
     for (line, expected, result) in [
-        (*shared, "indexing::range", "@[u8]"),
-        (*exclusive, "indexing::range_mut", "@mut [u8]"),
+        (*shared, "indexing\\range", "@[u8]"),
+        (*exclusive, "indexing\\range_mut", "@mut [u8]"),
     ] {
         let source = format!("machine read(view:@mut [u8]) {{ {line} }}");
         let resolved = support::resolve_packages(&[("game", "published.omg", &source)], &[]);
@@ -265,7 +265,7 @@ fn published_scoped_constants_keep_qualified_identity_and_carrier() {
     assert_eq!(
         constants,
         [
-            ("EfiStatus::SUCCESS", "game::EfiStatus".into()),
+            ("EfiStatus::SUCCESS", "game\\EfiStatus".into()),
             ("PAGE_SIZE", "u64".into())
         ]
     );
@@ -353,7 +353,7 @@ fn published_operator_in_its_own_module_keeps_the_domain_home() {
     };
     assert_eq!(call.site.file, "caller.omg");
     assert_eq!(call.machine.path, "Distance::add");
-    assert!(matches!(&call.result, ValueType::Qualified(_,domains) if domains.len()==1 && domains[0].declaration.path=="units::u64::Distance"));
+    assert!(matches!(&call.result, ValueType::Qualified(_,domains) if domains.len()==1 && domains[0].declaration.path=="units\\u64::Distance"));
 }
 
 #[test]
@@ -514,7 +514,7 @@ fn published_inherited_call_contributes_its_declared_reach() {
     assert!(
         call.enclosing_arguments
             .iter()
-            .any(|(owner, args)| owner.path == "ClockOps" && args[0].to_string() == "game::NoState")
+            .any(|(owner, args)| owner.path == "ClockOps" && args[0].to_string() == "game\\NoState")
     );
 }
 
@@ -535,7 +535,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
         .iter()
         .zip([omega_typer::Access::Mut, omega_typer::Access::Shared])
     {
-        assert!(matches!(c.parameters.as_slice(),[ValueType::Reference(a,t)] if a==&authority && t.to_string()=="game::Counter"));
+        assert!(matches!(c.parameters.as_slice(),[ValueType::Reference(a,t)] if a==&authority && t.to_string()=="game\\Counter"));
         assert!(c.closed_runtime && c.terminates && c.reach.as_ref().is_some_and(Vec::is_empty) && c.crash_ceiling.as_ref().is_some_and(Vec::is_empty));
     }
     let wrong = caller.replace("a:@mut Counter", "a:@Counter");
@@ -545,7 +545,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
         ("invoke.omg", &wrong),
     ])
     .unwrap_err();
-    assert_eq!(err.message, "expected @mut game::Counter, found @game::Counter");
+    assert_eq!(err.message, "expected @mut game\\Counter, found @game\\Counter");
 }
 
 #[test]
@@ -660,7 +660,7 @@ fn published_record_call_selects_the_shared_counter_field() {
         panic!("expected field call")
     };
     assert_eq!(call.contract.result.to_string(), "u64");
-    assert_eq!(call.contract.parameters[0].to_string(), "@game::Counter");
+    assert_eq!(call.contract.parameters[0].to_string(), "@game\\Counter");
     assert!(call.contract.terminates);
     let wrong = decls.replace("machine value(counter: @Counter)", "machine value(counter: @mut Counter)");
     let error = check(&[("defs.omg", &wrong), ("observe.omg", &caller)]).unwrap_err();
@@ -761,8 +761,8 @@ fn domain_qualification_keeps_the_bound_carrier_and_indices_separate() {
 
 #[test]
 fn an_annotated_domain_carrier_takes_its_role_from_its_bound() {
-    let aliases = ("aliases.omg", "data Sort=core::Type<0>; data Byte=u8;");
-    for binder in ["T:core::Type<0>", "T:Sort", "const T:Sort"] {
+    let aliases = ("aliases.omg", "data Sort=core\\Type<0>; data Byte=u8;");
+    for binder in ["T:core\\Type<0>", "T:Sort", "const T:Sort"] {
         let domain = format!("domain<{binder}, const N:u8> T::Level<N>;");
         let caller = "machine f(x:u16 in u16::Level<2>) {}";
         for shadow in ["", "data T {}"] {
@@ -816,13 +816,13 @@ fn a_bound_decides_which_visible_domain_applies_to_the_written_carrier() {
                 .all(|m| m.domain.declaration.path == "u16::Tag")
         );
     }
-    let both = "data T{} domain<T:core::Type<0>,const N:u8> T::Tag<N>; domain<const N:u8> u16::Tag<N>;";
+    let both = "data T{} domain<T:core\\Type<0>,const N:u8> T::Tag<N>; domain<const N:u8> u16::Tag<N>;";
     let ambiguous = check(&[
         ("domains.omg", both),
         ("use.omg", "machine f(x:u16 in u16::Tag<1>) {}"),
     ])
     .unwrap_err();
-    for owner in ["game::u16::Tag", "game::T::Tag"] {
+    for owner in ["game\\u16::Tag", "game\\T::Tag"] {
         assert!(ambiguous.message.contains(owner), "{ambiguous:?}");
     }
     let machine = "machine u16::Tag::inspect(x:u16) {}";
@@ -872,11 +872,11 @@ fn a_foreign_domain_selection_checks_access_to_the_selected_carrier() {
         },
     ];
     for (binder, index, generic) in [
-        ("const T:core::Type<0>, const N:u8", "N", true),
+        ("const T:core\\Type<0>, const N:u8", "N", true),
         ("const T:u8", "T", false),
     ] {
-        let policy = format!("use geom::T; public domain<{binder}> T::Mark<{index}>;");
-        let caller = "use lib::T::Mark;";
+        let policy = format!("use geom\\T; public domain<{binder}> T::Mark<{index}>;");
+        let caller = "use lib\\T::Mark;";
         let files = [
             ("geometry", "types.omg", "public data T {}"),
             ("policy", "domains.omg", &policy),
@@ -887,12 +887,12 @@ fn a_foreign_domain_selection_checks_access_to_the_selected_carrier() {
             panic!("expected one conditional carrier access")
         };
         assert_eq!(check.domain.path, "T::Mark");
-        assert_eq!(check.error.span.slice(caller.as_bytes()), Some(b"lib::T::Mark".as_slice()));
+        assert_eq!(check.error.span.slice(caller.as_bytes()), Some(b"lib\\T::Mark".as_slice()));
         let typed = omega_typer::type_stage(&resolved);
         if generic {
             typed.unwrap();
         } else {
-            assert_eq!(typed.unwrap_err().message, "no authority to name carrier geometry::T");
+            assert_eq!(typed.unwrap_err().message, "no authority to name carrier geometry\\T");
         }
         if !generic {
             let local = "use lib; domain<const N:u8> u16::Mark<N>; machine f(x:u16 in Mark<2>) {}";
@@ -915,7 +915,7 @@ fn a_foreign_domain_selection_checks_access_to_the_selected_carrier() {
 #[test]
 fn an_imported_parent_domain_travels_with_its_child() {
     let parent = ("units/p.omg", "public domain u8::Positive;");
-    let source = "use units::u8::Positive; domain Positive::Small; machine f(x:u8 in Positive::Small) {}";
+    let source = "use units\\u8::Positive; domain Positive::Small; machine f(x:u8 in Positive::Small) {}";
     let stage = check(&[parent, ("use.omg", source)]).unwrap();
     let sig = stage.signatures.iter().find(|s| s.machine.path == "f").unwrap();
     let mut atoms: Vec<_> = sig.parameters[0]
@@ -925,7 +925,7 @@ fn an_imported_parent_domain_travels_with_its_child() {
         .map(|a| a.declaration.path.as_str())
         .collect();
     atoms.sort();
-    assert_eq!(atoms, ["Positive::Small", "units::u8::Positive"]);
+    assert_eq!(atoms, ["Positive::Small", "units\\u8::Positive"]);
 }
 
 #[test]

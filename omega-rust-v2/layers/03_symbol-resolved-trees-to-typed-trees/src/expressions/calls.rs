@@ -167,7 +167,7 @@ impl BodyTyper<'_, '_> {
                     lineage
                         .iter()
                         .flat_map(|owner| &self.catalog.requirements[&owner.declaration])
-                        .filter(|id| id.path.rsplit("::").next() == Some(member.as_str()))
+                        .filter(|id| id.path.rsplit([':', '\\']).next() == Some(member.as_str()))
                         .copied(),
                 );
                 if requirements.is_empty() {

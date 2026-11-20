@@ -242,7 +242,7 @@ fn nested_fields_specialize_their_own_and_the_enclosing_boolean_binders() {
     ] {
         let source = source.replace("Outer<true>::Inner<false>", actuals);
         let error = prepare(&source).unwrap_err();
-        assert!(error.message.contains(&format!("found app::Flag<{expected}>")), "{field}: {error:?}");
+        assert!(error.message.contains(&format!("found app\\Flag<{expected}>")), "{field}: {error:?}");
     }
 }
 

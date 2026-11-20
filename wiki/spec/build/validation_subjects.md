@@ -68,11 +68,11 @@ root Build are eligible, in their corresponding checking contexts.
 ```omega
 machine build(builder: @mut Build) {
     Build::application(builder, "app");
-    let mut description = dependency::from_source(Source::Path { location: "producer" });
-    dependency::with_alias(@mut description, "producer");
+    let mut description = dependency\from_source(Source::Path { location: "producer" });
+    dependency\with_alias(@mut description, "producer");
     let registered = Build::dependency(builder, description);
     Build::validate(builder, @registered);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }
 ```
 

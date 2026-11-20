@@ -193,8 +193,8 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
     use std::sync::Arc;
 
     let source = "
-        use omega::language::core;
-        let within(n:u64):bool = n <= core::size_of::<u64>();
+        use omega\\language\\core;
+        let within(n:u64):bool = n <= core\\size_of::<u64>();
         machine get<const K:u64>(n:u64)->u64 requires within(n) {n}
         machine via<const K:u64>(n:u64)->u64 {get::<K>(n)}
         const VALUE:u64=via::<1u64>(7u64);

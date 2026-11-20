@@ -136,10 +136,10 @@ public domain Reservation::Issued
     access ReservationAccess;
 
 ReservationAccess satisfies AccessPolicy {
-    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        access::new_plan(
+    machine plan(schema: reflect\TypeSchema) -> AccessPlan {
+        access\new_plan(
             @schema,
-            Issuance::Only { routes: [reflect::callable(Issues::issue)] }
+            Issuance::Only { routes: [reflect\callable(Issues::issue)] }
         )
     }
 }
@@ -250,16 +250,16 @@ public domain Cell::Controlled
     access CellAccess;
 
 CellAccess satisfies AccessPolicy {
-    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = access::new_plan(
+    machine plan(schema: reflect\TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = access\new_plan(
             @schema,
-            Issuance::Only { routes: [reflect::callable(Cell::create)] }
+            Issuance::Only { routes: [reflect\callable(create_cell)] }
         );
-        access::allow_readers(
-            @mut plan, TypeSchema::root(@schema), [reflect::callable(Cell::read)]
+        access\allow_readers(
+            @mut plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
         );
-        access::allow_writers(
-            @mut plan, TypeSchema::root(@schema), [reflect::callable(Cell::set)]
+        access\allow_writers(
+            @mut plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
         );
         plan
     }
@@ -273,10 +273,10 @@ public data Counter {
 The former `established by`, `read by` and `written by` clauses are retired, not
 parallel ways of configuring the policy. `access` belongs to the domain, not a
 field-private modifier. Fields may use qualified types; a whole-value domain's
-policy may also name individual fields with `reflect::field(Type::field)`.
+policy may also name individual fields with `reflect\field(Type::field)`.
 
 Every plan [states its issuance](../resources/access.md#plans-and-admitted-supply):
-`access::new_plan(@schema, issuance)` takes `Issuance::Only` with the exact
+`access\new_plan(@schema, issuance)` takes `Issuance::Only` with the exact
 routes, where an empty list permits nobody, or `Issuance::Unrestricted`.
 Reader and writer lists are independent ceilings: omission leaves that axis
 unrestricted by this policy, an empty list permits nobody, and a nonempty list
@@ -922,7 +922,7 @@ needs an exact combined declaration or a written cast. An exact combined
 declaration must prove its own result contract; neither constituent's
 operators or predicates supply automatic preservation.
 
-`Wrapping`, `Saturating` and `Trapping` are the `omega::core` contributions to
+`Wrapping`, `Saturating` and `Trapping` are the `omega\core` contributions to
 the arithmetic-policy role. Their unsuffixed integer operators are defined by
 the [policy operators](numeric_values.md#policy-domains): the domain selects
 which suffixed operation `+` means for its operands. A policy operator written

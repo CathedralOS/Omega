@@ -21,7 +21,7 @@ File
       KindedParam
         'u'
         ':'
-        PathType 'core' '::' 'Level'
+        PathType 'core' '\' 'Level'
       ','
       ConstParam
         'const'

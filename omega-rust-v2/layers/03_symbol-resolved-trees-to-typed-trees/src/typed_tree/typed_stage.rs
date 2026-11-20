@@ -18,7 +18,7 @@ pub struct TypedField {
 }
 impl TypedField {
     pub(crate) fn name(&self) -> &str {
-        self.declaration.path.rsplit("::").next().unwrap()
+        self.declaration.path.rsplit([':', '\\']).next().unwrap()
     }
 }
 

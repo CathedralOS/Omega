@@ -154,7 +154,7 @@ fn report(
 
 fn codec() -> bool {
     let spec = format!(
-        "use model::Message; use model::Codec;\n{}",
+        "use model\\Message; use model\\Codec;\n{}",
         block(include_str!("../../../../wiki/spec/language/conformances.md"), 204)
     );
     let edges = [
@@ -166,8 +166,8 @@ fn codec() -> bool {
     ]
     .map(|(requester, alias, package)| Dependency { requester, alias, package });
     let defs = "public data Message{} public trait Codec<T>{machine encode(m:T)->u8; machine decode(n:u8)->T;}";
-    let encode = "use model::Message; use model::Codec; public machine encode(m:Message)->u8 satisfies Codec<Message>::encode {0}";
-    let decode = "use model::Message; use model::Codec; public machine decode(n:u8)->Message satisfies Codec<Message>::decode {Message{}}";
+    let encode = "use model\\Message; use model\\Codec; public machine encode(m:Message)->u8 satisfies Codec<Message>::encode {0}";
+    let decode = "use model\\Message; use model\\Codec; public machine decode(n:u8)->Message satisfies Codec<Message>::decode {Message{}}";
     let context = [
         ("messages", "types.omg", defs),
         ("encoder", "a.omg", encode),
@@ -200,7 +200,7 @@ fn codec() -> bool {
                                 .trait_arguments
                                 .iter()
                                 .map(ToString::to_string)
-                                .eq(["messages::Message"])
+                                .eq(["messages\\Message"])
                     })
                 })
             },
@@ -208,8 +208,8 @@ fn codec() -> bool {
     );
     let mut ok = valid;
     for (from, to) in [
-        ("lib_a::encode", "lib_b::decode"),
-        ("lib_b::decode", "lib_a::encode"),
+        ("lib_a\\encode", "lib_b\\decode"),
+        ("lib_b\\decode", "lib_a\\encode"),
     ] {
         let wrong = spec.replacen(from, to, 1);
         let line = wrong
@@ -274,13 +274,13 @@ fn reflection() -> bool {
     let expected = [
         ("Controller::status", "FieldInfo"),
         ("Buffer::used", "FieldInfo"),
-        ("Controller::update", "CallableInfo"),
+        ("Controller\\update", "CallableInfo"),
         ("ControllerWriter::write", "CallableInfo"),
     ];
     let lines: Vec<_> = selectors.lines().collect();
     assert_eq!(lines.len(), expected.len());
     for (selector, (path, kind)) in lines.into_iter().zip(expected) {
-        let source = format!("use omega::language::core::reflect;\nmachine inspect() {{ let descriptor={selector}; }}");
+        let source = format!("use omega\\language\\core\\reflect;\nmachine inspect() {{ let descriptor={selector}; }}");
         let files = |text| {
             [
                 ("example", "owners.omg", defs),
@@ -308,14 +308,14 @@ fn reflection() -> bool {
                                         .any(|&arg| tree.file.span(arg).slice(source.as_bytes()) == Some(b"u32"))
                             })
                         });
-                let typed=s.expressions.iter().any(|e|e.site.file=="selector.omg" && e.site.span.slice(source.as_bytes())==Some(selector.as_bytes()) && matches!(&e.ty,ValueType::Nominal(id)|ValueType::Applied(id,_) if id.package=="@omega/toolchain" && id.path==format!("language::core::reflect::{kind}")));
+                let typed=s.expressions.iter().any(|e|e.site.file=="selector.omg" && e.site.span.slice(source.as_bytes())==Some(selector.as_bytes()) && matches!(&e.ty,ValueType::Nominal(id)|ValueType::Applied(id,_) if id.package=="@omega/toolchain" && id.path==format!("language\\core\\reflect\\{kind}")));
                 selected && applied && typed
             }),
         );
         let (from, to) = if kind == "FieldInfo" {
-            ("reflect::field", "reflect::callable")
+            ("reflect\\field", "reflect\\callable")
         } else {
-            ("reflect::callable", "reflect::field")
+            ("reflect\\callable", "reflect\\field")
         };
         let other = selector.replace(from, to);
         let wrong = source.replace(selector, &other);

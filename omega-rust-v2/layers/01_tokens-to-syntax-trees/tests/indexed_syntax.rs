@@ -280,7 +280,7 @@ fn range_endpoints_remain_on_the_written_side_of_the_operator() {
 
 #[test]
 fn a_generic_argument_list_identifies_its_applied_path_prefix() {
-    let text = "machine f(x:Outer<u8> /* gap */ ::Inner<bool>::Last<u32>) {root::Outer::<u8>::get::<bool>();}";
+    let text = "machine f(x:Outer<u8> /* gap */ ::Inner<bool>::Last<u32>) {root\\Outer::<u8>::get::<bool>();}";
     let tokens = lex(text.as_bytes()).unwrap();
     let tree = parse_file(text.as_bytes(), &tokens).unwrap();
     let syntax = tree.index(text, &tokens).unwrap();
@@ -301,7 +301,7 @@ fn a_generic_argument_list_identifies_its_applied_path_prefix() {
             Some(("Outer".into(), b"Outer".as_slice())),
             Some(("Outer::Inner".into(), b"Outer<u8> /* gap */ ::Inner".as_slice())),
             None,
-            Some(("root::Outer".into(), b"root::Outer".as_slice())),
+            Some(("root\\Outer".into(), b"root\\Outer".as_slice())),
             None
         ]
     );

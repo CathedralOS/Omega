@@ -48,7 +48,7 @@ fn source_package_preserves_selections_and_obligations_in_every_file_order() {
     let [read] = expected.collection_accesses.as_slice() else {
         panic!("expected one indexed read");
     };
-    assert_eq!(read.machine.path, "indexing::read");
+    assert_eq!(read.machine.path, "indexing\\read");
     assert!(
         expected
             .obligations
@@ -135,7 +135,7 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
     );
     assert!(tree.semantics_at(second).any(|fact| matches!(fact,
         NodeSemantics::Obligation(o) if o.node == file.node_id(second)
-            && matches!(&o.kind, ObligationKind::CallPrecondition(id) if id.path == "indexing::read")
+            && matches!(&o.kind, ObligationKind::CallPrecondition(id) if id.path == "indexing\\read")
     )));
     let view = typed
         .trees()
@@ -152,7 +152,7 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
     assert_eq!(file.span(tail), file.span(index));
     let read_precondition = |fact| {
         matches!(fact, NodeSemantics::Obligation(o)
-        if matches!(&o.kind, ObligationKind::CallPrecondition(id) if id.path == "indexing::read"))
+        if matches!(&o.kind, ObligationKind::CallPrecondition(id) if id.path == "indexing\\read"))
     };
     assert!(view.semantics_at(index).any(read_precondition));
     assert!(!view.semantics_at(tail).any(read_precondition));
@@ -252,7 +252,7 @@ fn field_projections_keep_the_selected_declaration_and_its_applied_type() {
         .unwrap();
     let file = tree.resolved().file;
     for (expr, owner_path, expected) in [
-        ("x.value", "Outer", "app::Box<bool>"),
+        ("x.value", "Outer", "app\\Box<bool>"),
         ("(x.value).value", "Box", "bool"),
     ] {
         let n = file
@@ -294,12 +294,12 @@ fn field_projections_keep_the_selected_declaration_and_its_applied_type() {
     let (case, fields) = typed
         .record_fields
         .iter()
-        .find(|(id, _)| id.path == "language::core::reflect::CallableInfo::Requirement")
+        .find(|(id, _)| id.path == "language\\core\\reflect\\CallableInfo::Requirement")
         .unwrap();
     assert_eq!(case.kind, omega_parser::NodeKind::Case);
     assert_eq!(
         fields[0].declaration.path,
-        "language::core::reflect::CallableInfo::Requirement::declaration_identity"
+        "language\\core\\reflect\\CallableInfo::Requirement::declaration_identity"
     );
     assert_eq!(fields[0].declaration.kind, omega_parser::NodeKind::CaseField);
 }

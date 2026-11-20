@@ -71,7 +71,7 @@ guides and command examples together.
 
 ## Build-first entry selection
 
-`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega::core`.
+`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.
 A build requests the product artifact. A run requests execution under the
 [engine and target rules](embedding.md#standalone-execution-selection).
 

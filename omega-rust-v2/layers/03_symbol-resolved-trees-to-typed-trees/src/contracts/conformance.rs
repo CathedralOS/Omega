@@ -154,12 +154,12 @@ pub(crate) fn check(
         let (left, right) = match f.nodes[row].kind {
             NodeKind::Machine => {
                 let machine = unit.declaration(row)?;
-                let name = machine.path.rsplit("::").next();
+                let name = machine.path.rsplit([':', '\\']).next();
                 (
                     requirements
                         .iter()
                         .map(|(r, _)| *r)
-                        .filter(|r| r.path.rsplit("::").next() == name)
+                        .filter(|r| r.path.rsplit([':', '\\']).next() == name)
                         .collect::<Vec<_>>(),
                     std::slice::from_ref(machine),
                 )

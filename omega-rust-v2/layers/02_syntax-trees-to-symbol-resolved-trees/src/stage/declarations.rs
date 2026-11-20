@@ -91,8 +91,10 @@ pub(super) fn index_file<'a>(
             .ancestors(n)
             .filter(|&p| node.kind != Data || file.nodes[p].kind != Field)
             .find_map(|p| ctx.entries.get(&p).copied());
-        let parent_path = owner.map_or(file.namespace.as_str(), |p| entries[p].id.path.as_str());
-        let path = qualify(parent_path, &name);
+        let path = match owner {
+            Some(parent) => qualify(&entries[parent].id.path, &name),
+            None => super::module_child(&file.namespace, &name),
+        };
         let inherited = matches!(node.kind, Field | Case | CaseField)
             || owner.is_some_and(|p| matches!((entries[p].id.kind, node.kind), (Data, Data) | (Trait, Machine | AsmMachine)));
         let public = if inherited {

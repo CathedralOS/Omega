@@ -200,7 +200,7 @@
 </div>
 
 <script>
-const SOURCE = `use omega_language_std::console;
+const SOURCE = `use omega_language_std\\console;
 
 machine main() reaches Console {
     transition { _ -> rd(0, 0) }
@@ -333,8 +333,8 @@ const TREE_NAMES = TREE
   .replace("→ acc(sum, n, value)", "→ <span class=res>state acc</span>(sum, n, value)")
   .replace("→ fin(sum, n)", "→ <span class=res>state fin</span>(sum, n)")
   .replace("→ rd(sum + b, n + 1)", "→ <span class=res>state rd</span>(sum + b, n + 1)")
-  .replace("Console::read_byte()", "<span class=res>console::read_byte</span>()")
-  .replace("Console::exit_process", "<span class=res>console::exit_process</span>");
+  .replace("Console::read_byte()", "<span class=res>Console::read_byte</span>()")
+  .replace("Console::exit_process", "<span class=res>Console::exit_process</span>");
 const TREE_TYPES = TREE_NAMES
   .replace("rd(sum, n)", "rd(sum<span class=ty>: i32 wrapping</span>, n<span class=ty>: i32 wrapping</span>)")
   .replace("acc(sum, n, value)\n", "acc(sum<span class=ty>: i32 w</span>, n<span class=ty>: i32 w</span>, value<span class=ty>: i32</span>)\n")

@@ -87,34 +87,82 @@ fn static_member_uses_the_normalized_evidence_bound() {
 }
 
 #[test]
-fn only_an_eligible_static_binder_competes_with_a_visible_namespace() {
-    let items = "trait Ops {machine run();} data OpsAlias = Ops;";
-    for (bound, member, ambiguous) in [
-        ("u8", "run", false),
-        ("OpsAlias", "run", true),
-        ("OpsAlias", "absent", true),
-    ] {
-        let source = format!("{items} machine f<const X:{bound}>(){{ X::{member}() }}");
-        let result = check(&[("main.omg", &source), ("X/run.omg", "machine run() {}")]);
-        if ambiguous {
-            let error = result.unwrap_err();
-            assert!(error.message.contains("ambiguous static root"), "{error:?}");
-            assert_eq!(error.span.slice(source.as_bytes()), Some(b"X".as_slice()));
-        } else {
-            assert_eq!(result.unwrap().calls[0].machine.path, "X::run");
-        }
-    }
-    for (import, file, declarations) in [
-        ("use nested::X;", "nested/X/items.omg", "machine run() {}"),
-        ("use nested::X;", "nested/items.omg", "trait X {machine run();}"),
-    ] {
-        let source = format!("{import} {items} machine f<const X:OpsAlias>(){{ X::run() }}");
-        let error = check(&[("main.omg", &source), (file, declarations)]).unwrap_err();
-        assert!(error.message.contains("ambiguous static root"), "{file}: {error:?}");
+fn module_and_member_calls_select_the_written_owner() {
+    let module = ("audio/play.omg", "public machine play(volume:u8) {}");
+    let source = r"use audio; trait Player { machine play(volume:u8); }
+        machine preview<const audio:Player>(volume:u8) { audio\play(volume); audio::play(volume); }";
+    let stage = check(&[module, ("main.omg", source)]).unwrap();
+    assert!(
+        stage
+            .calls
+            .iter()
+            .any(|call| call.machine.path == r"audio\play" && call.evidence.is_none())
+    );
+    assert!(
+        stage
+            .calls
+            .iter()
+            .any(|call| call.machine.path == "Player::play" && call.evidence.is_some())
+    );
+
+    let missing = source.replace("audio::play", "audio::stop");
+    assert!(
+        check(&[module, ("main.omg", &missing)])
+            .unwrap_err()
+            .message
+            .contains("no requirement")
+    );
+}
+
+#[test]
+fn static_calls_use_the_role_of_the_owner() {
+    let source = "data Audio { volume:u8; } domain Audio::Audible requires self.volume > 0;
+        trait Player { machine play(volume:u8); }
+        machine preview<const Audio:Player>(track:Audio) requires track in Audio::Audible { Audio::play(track.volume); }";
+    let stage = check(&[("main.omg", source)]).unwrap();
+    assert!(
+        stage
+            .calls
+            .iter()
+            .any(|call| call.machine.path == "Player::play" && call.evidence.is_some())
+    );
+
+    let annotation = "data Audio { volume:u8; } domain Audio::Audible requires self.volume > 0;
+        trait Player { machine play(volume:u8); }
+        machine preview<const Audio:Player>(track:Audio in Audio::Audible, volume:u8) { Audio::play(volume); }";
+    check(&[("main.omg", annotation)]).unwrap();
+
+    let builtin = "trait Player { machine play(); } domain u32::Small;
+        machine preview<const u32:Player>(v:u32 in u32::Small) { u32::play(); }";
+    check(&[("main.omg", builtin)]).unwrap();
+
+    for member in ["run", "missing"] {
+        let items = "trait Ops {machine run();} data Alias = Ops;";
+        let source = format!(r"use nested\X; {items} machine preview<const X:Alias>() {{ X::{member}() }}");
+        let error = check(&[
+            ("main.omg", &source),
+            ("nested/items.omg", "trait X {machine run();}"),
+        ])
+        .unwrap_err();
+        assert!(error.message.contains("ambiguous static root"), "{error:?}");
         assert_eq!(error.span.slice(source.as_bytes()), Some(b"X".as_slice()));
     }
-    let source = "domain u32::Small; machine f<const u32:u8>(x:u32 in u32::Small) {}";
-    check(&[("domain.omg", source)]).unwrap();
+}
+
+#[test]
+fn nested_data_and_a_module_declaration_keep_distinct_types() {
+    let items = [
+        ("net/wire/types.omg", "public data Packet { data Header { byte_count:u8; } }"),
+        ("net/wire/Packet/types.omg", "public data Header { length:u32; }"),
+        (
+            "main.omg",
+            r"machine nested(h:net\wire\Packet::Header)->u8 { h.byte_count }
+                     machine module_size(h:net\wire\Packet\Header)->u32 { h.length }",
+        ),
+    ];
+    check(&items).unwrap();
+    let mixed = items[2].1.replace("h.length", "h.byte_count");
+    assert!(check(&[items[0], items[1], ("main.omg", &mixed)]).is_err());
 }
 
 #[test]
@@ -196,7 +244,7 @@ fn duplicate_rows_are_checked_after_selecting_the_requirement_overload() {
 
 #[test]
 fn trait_applications_check_the_same_arguments_in_every_type_position() {
-    let definitions = "data Byte=u8; public boundary trait Marker<T:core::Type<1>> {}";
+    let definitions = "data Byte=u8; public boundary trait Marker<T:core\\Type<1>> {}";
     for usage in [
         "Supplied satisfies ARG {}",
         "boundary trait Derived:ARG {}",
@@ -210,7 +258,7 @@ fn trait_applications_check_the_same_arguments_in_every_type_position() {
             let usage = usage.replace("ARG", arg);
             check(&[("definitions.omg", definitions), ("use.omg", &usage)])
         };
-        for valid in ["Marker<Byte>", "Marker<core::Type<0>>"] {
+        for valid in ["Marker<Byte>", "Marker<core\\Type<0>>"] {
             let stage = compile(valid).unwrap_or_else(|e| panic!("{usage} / {valid}: {e:?}"));
             assert!(
                 stage
@@ -223,7 +271,7 @@ fn trait_applications_check_the_same_arguments_in_every_type_position() {
         for (arg, reason) in [
             ("Marker", "expects 1 trait arguments"),
             ("Marker<u8,u8>", "expects 1 trait arguments"),
-            ("Marker<core::Type<1>>", "exact successor universe"),
+            ("Marker<core\\Type<1>>", "exact successor universe"),
         ] {
             let error = compile(arg).unwrap_err();
             assert!(error.message.contains(reason), "{usage} / {arg}: {error:?}");
@@ -266,8 +314,8 @@ fn inherited_operation_records_keep_the_originating_slot_through_projection() {
 
 #[test]
 fn qualified_calls_check_the_receivers_bounds_before_typing_the_member() {
-    let defs = "boundary trait Read<T:core::Type<1>>{machine read<U>(x:U)->U;}";
-    let caller = "machine f(x:bool)->bool{Read::<core::Type<0>>::read::<bool>(x)}";
+    let defs = "boundary trait Read<T:core\\Type<1>>{machine read<U>(x:U)->U;}";
+    let caller = "machine f(x:bool)->bool{Read::<core\\Type<0>>::read::<bool>(x)}";
     let compile = |caller: &str| check(&[("schema.omg", defs), ("caller.omg", caller)]);
     let stage = compile(caller).unwrap();
     let [call] = stage.calls.as_slice() else {
@@ -287,7 +335,7 @@ fn qualified_calls_check_the_receivers_bounds_before_typing_the_member() {
     );
     for (caller, reason) in [
         (caller.replace("Type<0>", "Type<1>"), "exact successor universe"),
-        (caller.replace("::<core::Type<0>>", ""), "expects 1 trait arguments"),
+        (caller.replace("::<core\\Type<0>>", ""), "expects 1 trait arguments"),
     ] {
         let error = compile(&caller).unwrap_err();
         assert!(error.message.contains(reason), "{caller}: {error:?}");
@@ -315,19 +363,19 @@ fn forwarding_invocation_effects_substitutes_both_trait_and_machine_parameters()
 
 #[test]
 fn a_row_selects_the_inherited_requirement_from_an_imported_module() {
-    let caller = "use views; use views::Child::read; machine copy(x:numbers::Word)->numbers::Word{x} Adapter satisfies Child { Child::read = copy; }";
+    let caller = "use views; use views\\Child::read; machine copy(x:numbers\\Word)->numbers\\Word{x} Adapter satisfies Child { Child::read = copy; }";
     let typed = check(&[
         ("main.omg", caller),
         ("numbers/types.omg", "public data Word {}"),
-        ("api/base.omg", "use numbers::Word; public trait Parent {machine read(x:Word)->Word;}"),
-        ("views/child.omg", "use api::Parent; public trait Child:Parent {}"),
+        ("api/base.omg", "use numbers\\Word; public trait Parent {machine read(x:Word)->Word;}"),
+        ("views/child.omg", "use api\\Parent; public trait Child:Parent {}"),
     ])
     .unwrap();
     let [row] = typed.conformance_rows.as_slice() else {
         panic!("expected one inherited selection")
     };
-    assert_eq!(row.requirement.declaration.path, "api::Parent::read");
-    assert_eq!(row.requirement.declaration.signature_owners, [("game".into(), "numbers::Word".into())]);
+    assert_eq!(row.requirement.declaration.path, "api\\Parent::read");
+    assert_eq!(row.requirement.declaration.signature_owners, [("game".into(), "numbers\\Word".into())]);
     assert_eq!(row.implementation.path, "copy");
 }
 

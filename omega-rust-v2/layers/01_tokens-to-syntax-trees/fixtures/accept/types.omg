@@ -1,7 +1,7 @@
 // GRAMMAR.md: types.
 machine types(
     a: u32,
-    b: core::Level,
+    b: core\Level,
     c: Outcome<u32, Never>,
     d: Vec<Vec<u8>>,
     e: Envelope<u32>::Body,

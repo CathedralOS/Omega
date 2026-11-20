@@ -22,7 +22,7 @@ profile and requested product target under
 ## Requester-local graph
 
 A dependency declares its own canonical snake_case package name. Default aliases
-preserve that spelling; a description configured with `dependency::with_alias`
+preserve that spelling; a description configured with `dependency\with_alias`
 supplies a validated alias in the scope of the call that registers it,
 `Build::dependency` for product and `Build::build_dependency` for build. Aliases are unique within a scope,
 not across both; there is no cross-scope fallback. Distinct requesters may use

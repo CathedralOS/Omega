@@ -53,7 +53,7 @@ fn construction_distinguishes_omitted_fields_zero_bindings_and_moves() {
         &stage,
         source,
         "move config",
-        |k| matches!(k, ObligationKind::Move {place,ty} if spelling(place,source)=="config" && ty.to_string()=="game::Options"),
+        |k| matches!(k, ObligationKind::Move {place,ty} if spelling(place,source)=="config" && ty.to_string()=="game\\Options"),
     );
     let explicit = source
         .replace("count, ..", "count, retries: 0")
@@ -264,10 +264,10 @@ fn bare_arm_bindings_cover_the_subject_and_qualified_constants_test_one_value() 
         let bare = format!("machine f(v:u32)->u32 {{ {dispatch} v {{ x -> x }} }}");
         support::check(&[("handoff.omg", &bare)]).unwrap();
         support::check(&[("handoff.omg", &bare), sibling]).unwrap();
-        let compare = format!("machine f(v:u32)->u32 {{ {dispatch} v {{ limits::x -> 1 }} }}");
+        let compare = format!("machine f(v:u32)->u32 {{ {dispatch} v {{ limits\\x -> 1 }} }}");
         let error = support::check(&[("handoff.omg", &compare), limits]).unwrap_err();
         assert_eq!(error.message, "dispatch does not cover its subject");
-        let covered = compare.replace("limits::x -> 1", "limits::x -> 1, x -> x");
+        let covered = compare.replace("limits\\x -> 1", "limits\\x -> 1, x -> x");
         support::check(&[("handoff.omg", &covered), limits, sibling]).unwrap();
 
         let guard = format!("machine f(ready:bool)->u32 {{ {dispatch} {{ ready -> 1, _ -> 0 }} }}");
@@ -288,7 +288,7 @@ fn value_patterns_read_a_copy_through_a_reference_subject() {
         ("machine f(v:@bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
         ("machine f(v:@mut bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
         ("machine f(v:@u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
-        ("machine f(v:@u8)->u8 {match $v {limits::Z->1,_->0,}}", "$v", "u8"),
+        ("machine f(v:@u8)->u8 {match $v {limits\\Z->1,_->0,}}", "$v", "u8"),
         ("machine f<'a>(v:@'a u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
         ("machine f(a:@bool,b:u8)->u8 {match ($a,b) {(true,_)->1,(false,_)->0,}}", "$a", "bool"),
         ("data V {r:@u8;} machine f(h:V)->u8 {match $h.r {0->1,_->0,}}", "$h.r", "u8"),
@@ -358,7 +358,7 @@ fn explicit_dereference_obeys_the_type_and_access_of_each_reference() {
         support::check(&[("deref.omg", source)]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
     }
     for (source, message) in [
-        ("data S [copy] { n:u8; } machine f(r:@S)->S {r}", "expected game::S, found @game::S"),
+        ("data S [copy] { n:u8; } machine f(r:@S)->S {r}", "expected game\\S, found @game\\S"),
         (
             "data S{case A;case B;} machine f(r:@write S)->u8 {match $r {S::A->1,_->0,}}",
             "cannot read through a write-only reference",
@@ -459,7 +459,7 @@ fn exclusive_move_obligations_identify_the_evaluated_subject_and_field() {
         });
         let (taken, ty) = restores.next().expect(body);
         assert!(restores.next().is_none(), "{body}");
-        assert_eq!(ty.to_string(), "game::Resource");
+        assert_eq!(ty.to_string(), "game\\Resource");
         assert_eq!(file.span(taken.node).slice(source.as_bytes()), Some(operand.as_bytes()));
         let store = file
             .nodes

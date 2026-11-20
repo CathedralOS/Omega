@@ -179,7 +179,7 @@ impl SyntaxParser<'_> {
     pub(crate) fn parse_path_type(&mut self) -> Parsed<ClosedNode> {
         let path_type = self.open();
 
-        self.expect_word("a type")?;
+        self.parse_module_name("a type")?;
 
         loop {
             if self.at(Punctuation::Less) {

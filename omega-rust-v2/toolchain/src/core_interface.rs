@@ -24,7 +24,7 @@ impl CoreInterface {
             .exports
             .declarations
             .iter()
-            .find(|e| e.id.path.strip_prefix("language::core::") == Some(name))
+            .find(|e| e.id.path.strip_prefix("language\\core\\") == Some(name))
             .expect("declared core name")
             .id
     }
@@ -36,7 +36,7 @@ impl CoreInterface {
         &self,
         machine: &DeclarationId,
     ) -> bool {
-        machine == self.id("access::new_plan")
+        machine == self.id("access\\new_plan")
             || self.ranking_views().iter().any(|(view, _)| machine == *view)
             || self.collection_primitive(machine).is_some()
             || self.layout_query(machine).is_some()
@@ -78,8 +78,8 @@ impl CoreInterface {
     }
     pub fn ranking_views(&self) -> [(&DeclarationId, bool); 2] {
         [
-            (self.id("Nat::Descending"), true),
-            (self.id("Nat::BoundedDistance"), false),
+            (self.id("Nat\\Descending"), true),
+            (self.id("Nat\\BoundedDistance"), false),
         ]
     }
 }

@@ -215,11 +215,23 @@ impl SyntaxParser<'_> {
         self.nth_at_keyword(ahead, "satisfies")
     }
 
-    /// `word ( '::' word )*`
+    /// Module components precede the declared name and its optional static members.
+    pub(crate) fn parse_module_name(
+        &mut self,
+        expected: &'static str,
+    ) -> Parsed {
+        self.expect_word(expected)?;
+        while self.eat(Punctuation::Backslash) {
+            self.expect_word("a name after the module separator")?;
+        }
+        Ok(())
+    }
+
+    /// `module_prefix word ( '::' word )*`
     pub(crate) fn parse_path(&mut self) -> Parsed {
         let path = self.open();
 
-        self.expect_word("a name")?;
+        self.parse_module_name("a name")?;
 
         while self.at(Punctuation::ColonColon) && self.nth_at_word(1) {
             self.bump();

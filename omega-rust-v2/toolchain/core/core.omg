@@ -1,4 +1,4 @@
-use language::core::reflect;
+use language\core\reflect;
 
 public data Exposure {
     case Exported;

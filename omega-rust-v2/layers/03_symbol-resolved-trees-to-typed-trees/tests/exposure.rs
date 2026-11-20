@@ -392,12 +392,12 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
             .iter()
             .find(|signature| signature.machine.path == "f")
             .unwrap();
-        assert_eq!(f.result.to_string(), "game::Buffer<8>");
+        assert_eq!(f.result.to_string(), "game\\Buffer<8>");
         assert!(
             resume(9)
                 .unwrap_err()
                 .message
-                .contains("expected game::Buffer<8>")
+                .contains("expected game\\Buffer<8>")
         );
     }
 }
@@ -558,7 +558,7 @@ fn boolean_static_identity_waits_for_checked_calls_and_constant_references() {
         if usage {
             assert!(wrong_value.message.contains("conflicting type argument false"));
         } else {
-            assert_eq!(wrong_value.message, "expected game::Flag<true>, found game::Flag<false>");
+            assert_eq!(wrong_value.message, "expected game\\Flag<true>, found game\\Flag<false>");
         }
         assert!(resume(StaticValue::Integer(1.into())).is_err());
     }

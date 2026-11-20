@@ -430,7 +430,7 @@ File
         Call
           PathExpression
             'integer'
-            '::'
+            '\'
             'max'
             ExpressionArgs
               '::'
