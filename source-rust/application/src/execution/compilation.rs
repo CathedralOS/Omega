@@ -201,7 +201,7 @@ pub(super) fn interpret_product(
             "run lost its produced Terminal artifact before execution",
         ))?;
     let runtime = report.runtime();
-    project_build::published_terminal::execute_published_terminal(
+    retained_image_runtime::execute(
         TerminalRuntimeRequest {
             entry: None,
             filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,

@@ -143,7 +143,7 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> EngineOutcome 
         Ok(flags) => flags,
         Err(error) => return EngineOutcome::Unavailable(error.to_string()),
     };
-    let observation = crate::published_terminal::execute_published_terminal(
+    let observation = retained_image_runtime::execute(
         TerminalRuntimeRequest {
             entry: None,
             native_provider: None,

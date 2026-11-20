@@ -6,12 +6,7 @@ an explicit host request. It admits the requested target and bindings, sets up
 private entry storage, installs host adapters and runs it on the Psi
 interpreter. Replenishing work resumes the same instance.
 
-The portable `execute` and `execute_sliced` entrances run without a native
-image. A program that observes a machine's linked code layout uses Build's
-[published program execution](../../compiler/build/published_terminal.rs). Full and sliced execution both take the retained native artifact. Build checks its target and
-canonical Terminal identity, replays the final image against its object, and
-reads root machine descriptors from the linked sections. A failed inspection
-is an execution error. The CLI reports it when running `--both`.
+The portable `execute` and `execute_sliced` entries run without a native image. The [retained-image host](retained-image/execution.rs) also accepts the completed image for programs that observe linked code layout. It checks the supplied image against the target and the canonical Psi manifest before reading the root machine descriptors. The CLI’s `--both` mode and Build’s registered tests use this entry. Both surface inspection failures as execution errors.
 
 [Clock bindings](clock/bindings.rs) and [filesystem bindings](filesystem/bindings.rs)
 admit the calls this host can service. The [native worker](native-worker/src/lib.rs)

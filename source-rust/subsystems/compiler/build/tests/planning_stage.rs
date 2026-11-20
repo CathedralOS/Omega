@@ -8,7 +8,7 @@ use package_compilation::BuildExecutionInputs;
 use package_manager::{
     operations::begin_local_project_preparation, resolution::source::ExecutedSourceResolution,
 };
-use project_build::planning::{PlanningRequest, PlanningSources, interpret, prepare};
+use project_build::{PlanningRequest, PlanningSources, interpret, prepare};
 use semantic_vocabulary::NativeBindingLocator;
 use std::sync::OnceLock;
 use target::TargetProfile;
@@ -213,7 +213,7 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
     use package_manager::resolution::source::{
         AcquiredBuildSource, AcquiredSourceSelection, BuildSourceAcquisitions,
     };
-    use project_build::planning::PlanningServices;
+    use project_build::PlanningServices;
 
     struct Helper<'a> {
         root: &'a AcquiredBuildSource,
@@ -323,7 +323,7 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
     use build_execution::host::bindings::BuildProductQuery;
     use build_execution::{CompileFailure, TerminalBuildActivation};
     use package_compilation::source_imports::ProductQueryDependency;
-    use project_build::planning::PlanningServices;
+    use project_build::PlanningServices;
     use source_compiler::TerminalBuildQueryOperation;
 
     #[derive(Default)]

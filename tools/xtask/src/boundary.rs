@@ -18,6 +18,7 @@ use std::process::Command;
 pub const NATIVE_ROOT: &str = native_stages::DRIVER;
 pub const PROVIDER_SELECTION_ROOT: &str = "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence";
 pub const RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host";
+pub const RETAINED_IMAGE_RUNTIME: &str = "source-rust/subsystems/interpreter/host/retained-image";
 pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host/native-worker";
 
 // The native driver's own package is admitted separately. Runtime consumers

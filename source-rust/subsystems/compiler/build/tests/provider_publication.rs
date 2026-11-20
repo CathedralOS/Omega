@@ -10,7 +10,7 @@ use package_compilation::{
 use package_manager::{
     operations::begin_local_project_preparation, resolution::source::ExecutedSourceResolution,
 };
-use project_build::planning::{self, PlannedProduct, PlanningRequest, PlanningSources};
+use project_build::{PlannedProduct, PlanningRequest, PlanningSources};
 use psi_authorization::{HostProducerTrust, authorize_terminal_artifact};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
@@ -36,7 +36,7 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
     }))
     .unwrap();
     let acquired = project.acquire_selected_root(&selected).unwrap();
-    let prepared = planning::prepare(
+    let prepared = project_build::prepare(
         PlanningRequest {
             root: &acquired.entry_path(),
             sources: PlanningSources::Captured(acquired.source_capture()),
@@ -47,7 +47,7 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
         Default::default(),
     )
     .unwrap();
-    let mut returned = planning::interpret(prepared, &mut ()).unwrap();
+    let mut returned = project_build::interpret(prepared, &mut ()).unwrap();
     let declaration = acquired.declare_build(returned.returned()).unwrap();
     let subject = declaration.identity();
     let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {

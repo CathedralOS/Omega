@@ -184,6 +184,7 @@ members = [
     "source-rust/subsystems/interpreter/host",
     "source-rust/subsystems/interpreter/host/native-sponsor",
     "source-rust/subsystems/interpreter/host/native-worker",
+    "source-rust/subsystems/interpreter/host/retained-image",
     "source-rust/subsystems/interpreter/memory/extents",
     "source-rust/subsystems/interpreter/memory/materialization",
     "source-rust/subsystems/interpreter/memory/storage-access",

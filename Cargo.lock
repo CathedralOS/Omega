@@ -579,7 +579,6 @@ dependencies = [
  "numerics",
  "optimization-selections",
  "product-publication",
- "project-build",
  "provider-acceptance",
  "provider-demand",
  "provider-plans",
@@ -587,6 +586,7 @@ dependencies = [
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-to-admitted-native-inputs",
+ "retained-image-runtime",
  "review-evidence",
  "selected-provider-plans",
  "semantic-vocabulary",
@@ -599,6 +599,7 @@ dependencies = [
  "target-bound-program-to-abstract-operations",
  "target-provider-admission",
  "terminal-codec",
+ "terminal-runtime",
  "terminal-semantics",
  "verified-optimization-input",
 ]
@@ -1818,6 +1819,7 @@ dependencies = [
  "psi-authorization",
  "psi-entry-memory",
  "resolver-execution",
+ "retained-image-runtime",
  "semantic-vocabulary",
  "sha2",
  "source-acquisition",
@@ -2196,6 +2198,7 @@ dependencies = [
  "product-publication",
  "psi-authorization",
  "psi-provider-selections",
+ "retained-image-runtime",
  "review-evidence",
  "semantic-vocabulary",
  "source-compiler",
@@ -2619,6 +2622,20 @@ name = "resource-bounds"
 version = "0.1.0"
 dependencies = [
  "extent-contracts",
+]
+
+[[package]]
+name = "retained-image-runtime"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "native-artifact",
+ "psi-authorization",
+ "target",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-runtime",
 ]
 
 [[package]]

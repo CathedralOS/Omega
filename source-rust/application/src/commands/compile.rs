@@ -11,7 +11,7 @@ use compiler::{Artifact, CompileRequest};
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::{BuildSnapshotRequest, RetainedBuildOutputs};
 use product_publication::CompletedProduct;
-use project_build::planning::PlannedProduct;
+use project_build::PlannedProduct;
 use std::fmt::Write as _;
 use target::TargetProfile;
 
@@ -321,7 +321,7 @@ fn output_error(message: impl ToString) -> NativeValidationError {
 fn compile_target(
     arguments: &CompileArguments,
     planned: &PlannedProduct,
-    stage: &project_build::planning::ProductStage<'_>,
+    stage: &project_build::ProductStage<'_>,
     profile: TargetProfile,
     directory: &Path,
     rollback: Option<&optimization_requests::OptimizationRollbackReceipt>,

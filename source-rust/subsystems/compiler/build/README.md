@@ -9,5 +9,3 @@
 | [settings](settings/README.md) | Decode the returned value into target settings, [optimization requests](settings/optimizations/requests.rs) and [behavior exclusions](settings/behavior-exclusions/requests.rs). |
 | [providers](providers) | Record the receiver’s [acceptance](providers/acceptance/acceptance.rs), the provider’s [plan](providers/plans/provider_plan.rs) and the [selected plans](providers/selections). |
 | [publication](publication/publication.rs) | Publish the selected product to an [owned output directory](publication/output_directory.rs) and retain the native output with its canonical Psi artifact. |
-
-[Retained-product execution](published_terminal.rs) admits the image’s target and layout before supplying it to the interpreter.

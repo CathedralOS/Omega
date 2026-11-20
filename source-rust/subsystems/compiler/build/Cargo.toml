@@ -5,9 +5,10 @@ license.workspace = true
 version.workspace = true
 
 [lib]
-path = "project.rs"
+path = "planning/mod.rs"
 
 [dependencies]
+retained-image-runtime = { path = "../../interpreter/host/retained-image" }
 review-evidence = { path = "../../package-manager/review/evidence" }
 optimization-requests = { path = "settings/optimizations" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
@@ -18,7 +19,6 @@ source-compiler = { path = "../source-to-psi" }
 artifacts = { path = "../foundation/measurements" }
 build-execution = { path = "evaluation" }
 package-compilation = { path = "inputs" }
-terminal-interpreter = { path = "../../interpreter" }
 terminal-runtime = { path = "../../interpreter/host" }
 target = { path = "../psi-to-native/targets/target" }
 product-publication = { path = "publication" }
@@ -27,6 +27,7 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
+terminal-interpreter = { path = "../../interpreter" }
 package-manager = { path = "../../package-manager" }
 psi-authorization = { path = "../psi/authorization" }
 terminal-codec = { path = "../psi/codec" }

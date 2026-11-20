@@ -9,7 +9,7 @@ use source_compiler::{SourceContinuation, TerminalBuildQueryOperation};
 use std::sync::Arc;
 
 impl PlanningSource {
-    pub(in crate::planning) fn describe_product(
+    pub(crate) fn describe_product(
         &mut self,
         activation: &TerminalBuildActivation,
         query: &BuildProductQuery,
