@@ -244,7 +244,7 @@ machine Main::main(&mut self) {
         self.refusal("machine main()->u8 {transition{_->route(0)} machine route(n:u8)->u8 crashes Trap n==0 {crash Trap;}}",2,210);
         self.refusal("machine main()->u8 {transition{_->route()} machine route()->u8 crashes Missing {42}}",1,211);
         self.refusal("machine main()->u8 {transition{_->good()} machine good()->u8 {42} machine unused(n:u32 in Trapping)->u32 in Trapping crashes none {n+1}}",2,212);
-        self.refusal("machine main()->u8 {transition{_->good()} machine good()->u8 {42} machine unused(n:u32 in Trapping)->bool crashes none {n==1}}",2,213);
+        self.positive("machine main()->u8 {transition{_->good()} machine good()->u8 {42} machine unused(n:u32 in Trapping)->bool crashes none {n==1}}",42,213);
         self.positive("machine main()->u8 crashes Trap {transition{_->route()} machine route()->u8 crashes Trap {crash Trap;}}",0,214);
         self.positive("machine main()->u8 crashes none {transition{_->route(42)} machine route(n:u8)->u8 crashes none {n}}",42,215);
     }

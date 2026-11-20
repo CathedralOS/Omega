@@ -196,9 +196,7 @@ data OmegaScalarCompiler {
     call_edge_next: [i32; 32768];
     call_edge_offsets: [i32; 32768];
     call_edge_count: i32;
-    // Core Trapping comparisons retain their published Trap ceiling even
-    // though the emitted comparison is total. Private bodies infer it; a
-    // public body without a supported crash clause cannot admit that ceiling.
+    // A declared crash ceiling admits Trap and publishes it to callers.
     machine_allows_trap: [i32; 4096];
     // -1 = omitted, 0 = blocks false, 1 = blocks. A private omitted
     // bound infers. The published envelope is distinct from its call marker.
@@ -1589,17 +1587,8 @@ machine OmegaScalarCompiler::check_value(
     state operands(row: OmegaBinaryExpressionSyntax, operand_type: i32) {
         transition true { true -> operands_types(row, operand_type, operand_type) }
     }
+    // A comparison adds no crash effect. Check each operand for its own effects.
     state operands_types(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        transition (left == 288) || (right == 288) || (left == 320) || (right == 320) {
-            true -> trapping_operands(row, left, right)
-            _ -> check_operands(row, left, right)
-        }
-    }
-    state trapping_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        self.state_effects[state_index] = self.state_effects[state_index] | 2;
-        transition true { true -> check_operands(row, left, right) }
-    }
-    state check_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
         transition (self.check_value(source, owner, state_index, before, row.left, left) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, right) == 1) {
             true -> retain(OmegaCheckedValueKind::BooleanBinary, self.parser.expressions[expression].payload0)
