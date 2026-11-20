@@ -363,10 +363,11 @@ refuses a second build or test run while one is active.
 
 In each Rust compiler half, `pipeline/` contains the numbered transformations
 and `representations/` contains the forms they exchange. Follow source and
-native stage ordering from the driver files at each subsystem root. Compile-time
-constant and call evaluation belongs to the source compiler. Native code for the
-root entry, private callables and component exports goes through the shared body
-driver. Requested object verification consumes evidence from that emission.
+native stage ordering from the source [driver](source-rust/subsystems/compiler/source-to-psi/driver.rs) and native [driver](source-rust/subsystems/compiler/psi-to-native/driver/mod.rs). Compile-time
+constant and call evaluation belongs to the source compiler. The native root
+entry and private callables use the shared body driver. The former component
+export scheduler is in the root archive. Restored exports also use the shared
+body driver. Requested object verification consumes evidence from that emission.
 [Source map](source-rust/subsystems/compiler/source-to-psi/README.md) · [Native map](source-rust/subsystems/compiler/psi-to-native/README.md)
 
 ## Conventions and workflow

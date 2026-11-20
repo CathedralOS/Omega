@@ -216,7 +216,7 @@ fn prepare_stage(
     // can supply checked declarations to the next stage.
     let mut candidate = request.clone();
     candidate.frontends = request.frontends.fork()?;
-    let whole = prepare(candidate, false);
+    let (source, stage) = prepare(candidate, false)?;
     let after_wait = |span: source_text::SourceSpan| {
         span.source_id == entry.source_id && span.span.start > wait.end
     };
@@ -224,23 +224,16 @@ fn prepare_stage(
         request.sources.source_is_selected(span.source_id)
             && request.sources.same_checked_instance(entry, span)
     };
-    let needs_scope = match &whole {
-        // A helper's position says nothing about when it runs. The prefix
-        // checks every helper an early call reaches using its original scope.
-        Ok((source, _)) => source.missing_name_uses().any(|(owner, site)| match owner {
-            Some(owner) if owner == entry => after_wait(site),
-            owner => in_build_package(owner.unwrap_or(site)),
-        }),
-        // Typing can fail before it records the declaration that owns a diagnostic.
-        // Retry the prefix for errors in local Build sources, wherever the helper is written.
-        Err(rows) => rows
-            .iter()
-            .all(|row| row.source_span.is_some_and(in_build_package)),
-    };
-    if needs_scope {
+    // A successful lookup pass can identify declarations a later interval
+    // might admit. A hard source error already refused this program.
+    // A helper's position says nothing about when it runs. The prefix checks
+    // every helper an early call reaches using its original scope.
+    if source.missing_name_uses().any(|(owner, site)| match owner {
+        Some(owner) if owner == entry => after_wait(site),
+        owner => in_build_package(owner.unwrap_or(site)),
+    }) {
         return prepare(request, true);
     }
-    let (source, stage) = whole?;
     request.frontends.retain(&source)?;
     Ok((source, stage))
 }
