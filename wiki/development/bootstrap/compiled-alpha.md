@@ -160,6 +160,34 @@ The stamped program matched byte output, a guest refusal and an arithmetic
 trap. The compiler rejected an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
 [Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 
+#### Comparing the same constructor on Alpha and Linux
+
+At `980fa9c6a6c` the Epsilon-written Omega compiler handled typed
+forward-call parameters and qualified sum cases in transition result arms. Packing its
+manifest and appending the normal construction entry reproduced its complete
+934,574-byte source. Seed-built Linux-hosted tools produced the Gamma input.
+The Alpha and Linux backends then assembled that input for their respective
+runtimes.
+[Compiler manifest](https://github.com/CathedralOS/Omega/blob/980fa9c6a6c/bootstrap/omega/compiler/omega_compiler.epsilon.sources) ·
+[Construction entry](../../../bootstrap/omega/construct_omega.epsilon)
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Epsilon constructor source | 934,574 | `9384d52f1fafbb94c2c4229e3ddc4ea4d5d6ede68f30f0615c6ea1ede4490611` |
+| Generated Gamma source for both targets | 26,574,759 | `5452dfddad14b49a8451a0e080cb237723d5268f1a78394b58d164628ee173f1` |
+| Packed Alpha tape | 12,359,478 | `554b7ee19a07cfe50a6d8eed1cfc56911768553b1a19c7c2c6080047d63f88c3` |
+| Linux x86-64 executable | 56,615,863 | `2fe8ba0c5e1fa254c2c83e673c3f7495f4e673cfc5fc4fe8cde52593c981bdfe` |
+
+The independent tape reader expanded 58,805,184 instruction bytes and
+rebased 3,596,175 jump and call targets to a code base of zero, giving SHA-256
+`a6c236eb3db6002e3622b4b987f32cdf808bb6c525338882c098e857fcf77577`.
+The Alpha seed ran the packed constructor on the same 111-byte package as
+the Linux executable. Their 27 output bytes matched, including the 22-byte
+Alpha tape `25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`.
+The resulting tape exited 42 on the seed with empty stdout and stderr. The
+Alpha constructor returned the exact five-byte guest exit 3 for the
+trailing-byte wire package.
+
 #### Checking the expanded instructions
 
 The external reader walks the tape, checks instruction widths against the
