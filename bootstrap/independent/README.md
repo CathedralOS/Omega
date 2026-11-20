@@ -546,3 +546,47 @@ after the frozen lexer's last machine at byte 108,029. The new compiler reaches
 that constructor at byte 108,141. The lexer itself is unchanged. The complete
 numeric scanner also compiles and runs as a separate executable. [Scanner
 fixture](../../tests/bootstrap/independent/epsilon/lexer_digits_main.epsilon)
+
+### Public Omega lexer observations
+
+The compiled-Epsilon gate exercises `OmegaLexScan::scan_at` and
+`OmegaLexScan::validate_lexical` in the complete production `lexer.epsilon`.
+The customer includes the production lexical classification file, the UTF-8
+validator and its lexical types. For each of 23 input records it reports the
+selected token or diagnostic, byte coordinates, decoded length, and the result
+of validating the whole source. The cases include malformed UTF-8 after a
+valid token, nested comments, invalid escapes and an out-of-range cursor.
+The source evaluator and compiled Linux x86-64 program returned the same
+465-byte observation, including Epsilon exit 42 (SHA-256
+`7d7a561d217ec1ce599a203fb8290b907c2582883c98dc71541c5bd0633f31aa`).
+
+`scan_string` has a smaller dependency closure. One emitted Gamma receipt
+builds both its Linux x86-64 executable and its Alpha tape. Both and the
+source-built evaluator returned the expected 175 bytes across 17 positive
+and negative cases. Passing the diagnostic enum to the token classifier
+also makes both Epsilon frontends reject the same call offset before code
+publication. [Cases and exact output layout](../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
+
+The measured run reused the source-built native Gamma and Delta executables.
+Recompiling the current Delta source and the bound evaluator request reproduced
+those predecessor artifacts byte for byte. The 610,797-byte Delta-written
+Epsilon compiler was rebuilt. Its 795,622-byte Gamma receipt produces a
+28,071,326-byte native executable and an 8,947,202-byte Alpha tape. Both
+compiler hosts emitted identical Delta for the 16,466-byte string customer
+and returned the same wrong-owner refusal at byte 14,793. The string customer's
+727,812-byte Gamma receipt produced a 26,900,281-byte native executable and an
+8,391,472-byte Alpha tape.
+
+The 58,733-byte public customer produced a 2,827,892-byte Gamma receipt and
+a 103,247,790-byte native executable. Alpha's production compiler returned
+249 with empty output for the same receipt. A separate diagnostic copy of its publisher
+reported 32,158,739 bytes of computed layout for that receipt. Alpha's
+stamped seed accepts 16,777,212 tape bytes. The same diagnostic measured the
+smaller string tape at exactly its published length. The gate retains both
+production compiler outcomes and executes any successfully published tape.
+
+Run `python3 tests/bootstrap/independent/successor_test.py --compile-epsilon`
+from the repository root on Linux x86-64. `--reuse-constructed` reuses the
+verified Gamma predecessor. Look under `build/independent-successors/compiled-epsilon/`
+for the authored sources, emitted Delta, common Gamma receipts, native images,
+Alpha tape, input, expected bytes, actual outputs and `result.json`.

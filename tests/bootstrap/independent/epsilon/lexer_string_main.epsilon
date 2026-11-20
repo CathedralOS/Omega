@@ -1,0 +1,5 @@
+machine Main::inspect(&mut self, source: &[u8], offset: i32) {
+    self.scanner.reset(offset);
+    self.scanner.scan_string(source, offset);
+    self.observe();
+}
