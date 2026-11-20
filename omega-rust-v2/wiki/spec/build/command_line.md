@@ -15,6 +15,7 @@ justify its name.
 
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega build <root.omg>
 omega run [--engine native|psi | --both] [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -27,7 +28,8 @@ omega psi inspect --artifact <file>
 ```
 
 These forms show routing, not an exhaustive restatement of existing options.
-V2 implements `omega source parse` as a whole-file syntax check. Success
+Build and run share the same [initial entry selection](#build-first-entry-selection).
+`omega source parse` checks the syntax of the whole file. Success
 exits silently with status 0. File-read, lexer and parser errors go to stderr
 with status 1. Source refusals include the path, one-based line and byte
 column, and byte range. Invalid usage exits with status 2. Use `--` before
@@ -66,6 +68,40 @@ There is one public spelling for each operation. Former flat install/update,
 action-first audit and hyphenated inspection commands are not compatibility
 aliases. The implementation migration must update callers, diagnostics, tests,
 guides and command examples together.
+
+## Build-first entry selection
+
+`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega::core`.
+A build requests the product artifact. A run requests execution under the
+[engine and target rules](embedding.md#standalone-execution-selection).
+
+1. Look for a free `machine build` in the named file. If present, bind it as the
+   [build entry](declarations.md#project-role), including when the file also
+   declares `machine main`. Run the build after the stage checks. An invalid or
+   ambiguous build entry fails the invocation.
+2. If the file has no build entry, use core's default Build configuration and
+   bind `machine main` in that file as the product entry. Check it under
+   the ordinary [target entry contract](entry_roots.md). A missing or invalid
+   `main` fails the invocation.
+
+A neighboring file has no effect on this selection. After a failed invocation,
+the CLI may suggest explicitly naming a neighboring `build.omg`. Giving a
+build file any other name has the same semantics.
+
+A build stage starts with its own service backings already selected. Its plan
+selects the inputs, providers and exact entry for the next stage within the
+grants the build received. The driver follows the entry's reflection identity
+directly. For example, a build in `release.omg`
+can select `main` in `release.omg` as its product. The initial build-first
+lookup occurs only once. Selecting the same file with a different entry is
+valid. A plan that depends on its own active stage request, directly or
+indirectly, forms a cycle and is refused.
+
+The compiler checks the whole source file with the inputs available to each
+stage before running its selected entry. If `build` generates a type named
+`Schema` and a same-file `main` uses it, checking the build stage fails at the
+use of `Schema`. A build can instead put that `main` and the generated type
+together in the product stage's inputs.
 
 ## Public Psi naming
 

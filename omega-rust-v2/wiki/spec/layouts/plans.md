@@ -1,7 +1,7 @@
 # Layout policies and plans
 
 [Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
-have uniform descriptor/reference fields in the borrowed V1 representation.
+have uniform descriptor/reference fields in the borrowed representation.
 A layout cannot inline an unknown witness, vary field offsets by that witness,
 or reinterpret descriptor bits as type authority. New admissible call targets
 or witnesses do not change a semantic global roster or the package layout;
@@ -147,7 +147,7 @@ authority: consumers retain and replay the exact schema and validated plan.
 
 ## Size and alignment queries
 
-The compiler-known core queries `size_of<T>()` and `align_of<T>()` return `u64`
+The compiler-known core queries `size_of::<T>()` and `align_of::<T>()` return `u64`
 byte counts for the exact selected target and validated layout of `T`. These
 are core names, not keywords, casts, or permission to replace the layout policy.
 
@@ -166,7 +166,7 @@ storage; a valid zero-sized layout can report zero, but a proof-only carrier
 with no runtime layout cannot receive a fabricated size or alignment.
 
 An explicit representation application identifies the geometry being measured.
-A bare `size_of<T>()` or `align_of<T>()` uses the ordinary default-storage rule
+A bare `size_of::<T>()` or `align_of::<T>()` uses the ordinary default-storage rule
 for that occurrence; it does not attach a layout to the declaration of T.
 Queries consume the same exact schema, target and layout-policy application as
 placement and ABI. They run under ordinary semantic-evaluation admission once
@@ -399,7 +399,7 @@ do not acquire target tags through this rule.
 
 Storage, projections, ABI planning and compile-time operations that consume
 concrete geometry must establish their exact layout demand before using it.
-For example, evaluating `size_of<T>()` or a proof that needs a concrete field
+For example, evaluating `size_of::<T>()` or a proof that needs a concrete field
 offset cannot proceed with a placeholder or unvalidated plan. A required policy
 still undergoes admission, evaluation and full validation with the exact schema,
 representation application and authorized target facts. Layout-dependent

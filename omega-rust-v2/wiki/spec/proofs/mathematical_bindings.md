@@ -11,7 +11,7 @@ proposition-returning machines remain optional, unaccepted naming proposals.
 
 Psi owns elaboration to the common calculus, with independently checked terms,
 contracts and assumption closure.
-The sealed core mathematical declaration `core::Identity<T>(left, right)`
+The sealed core mathematical declaration `core::Identity::<T>(left, right)`
 exposes proof-relevant identity, with its type/universe and exact subjects
 checked by the existing `Id` formation rules. It does not return an executable
 Boolean, assume its own proof or introduce arbitrary proposition-returning

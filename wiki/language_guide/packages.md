@@ -124,8 +124,9 @@ The [command reference](../spec/build/command_line.md) lists the full option set
 ## Compile without a build file
 
 A loose root uses default application configuration. It still needs target
-entry and provider selections. For repeated use, add a `build.omg` naming your
-application and dependencies.
+entry and provider selections. For repeated use, write a build file naming
+your application and dependencies and pass that file to the command.
+[Build-first entry selection](../spec/build/command_line.md#build-first-entry-selection)
 
 Unnamed source gets an owner identity derived from its source, dependencies,
 and semantic build inputs. Importing the same artifact twice retains the same

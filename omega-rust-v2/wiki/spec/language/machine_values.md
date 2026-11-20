@@ -42,9 +42,8 @@ In a callable-valued context, a named machine reference selects an exact closed
 declaration application. A qualified named implementation member is eligible;
 the conformance must be explicitly named, and the exact overload and all static
 arguments resolved by ordinary selection. No search for a unique visible
-implementation or implicit whole-trait conversion is introduced. Unrestricted
-type-, machine- or evidence-polymorphic runtime callables are outside V1; close
-their static arguments before constructing a value. Existing explicitly finite
+implementation or implicit whole-trait conversion is introduced. A runtime callable
+requires closed type, machine and evidence arguments at construction. Existing explicitly finite
 value families retain their declared coverage, as described in
 [Terminal dispatch](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 

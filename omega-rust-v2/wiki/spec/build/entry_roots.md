@@ -64,7 +64,7 @@ installed entry contract determines its invocation arguments and the arrival
 bridge must establish each one from actual backing. A mutable parameter alone
 does not ask the bridge to construct its referent. The provider selection names a provider implementation;
 its ordinary satisfiers determine the derived plan. Irreducible native backing
-uses the separate `Build::bind<Requirement>(builder, target, locator)` overload
+uses the separate `Build::bind::<Requirement>(builder, target, locator)` overload
 under [foreign bindings](foreign_bindings.md#build-owned-native-binding), not a
 source `via` clause or a per-symbol forwarding declaration. Both forms record
 product intent rather than invoking selected code or granting authority.
@@ -76,8 +76,10 @@ exposure cannot redirect them. Ordinary same-named operations receive no excepti
 defines lexical visibility, restricted helper delegation, exact source/target
 identity, and rejection of generated-source or unfinished-layout cycles.
 
-There is no special `main`, data-owned entry machine, uniquely visible export,
-entry field, or ambient static discovery. Templates may write ordinary bindings. A test
+The target receives an exact slot binding from the Build, including when core
+binds the named file's `main` under [build-first entry selection](command_line.md#build-first-entry-selection).
+A data-owned machine, uniquely visible export or entry field has no implicit
+target-slot authority. Templates may write ordinary bindings. A test
 harness name override carries no slot, signature, calling-plan, or storage
 authority.
 

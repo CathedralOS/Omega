@@ -209,9 +209,9 @@ conformance for a type named `public`.
 
 - Qualified names such as `boundary machine NativeConsole::write(...)`
   (build/boundary_shapes.md:52).
-- Operator tokens: `machine + add(...)` (language/expressions.md:151),
+- Operator tokens: `machine + add(...)` (language/expressions.md:157),
   `machine > Small::greater(...)` (language/domains.md:910),
-  `machine [] read<Element [copy]>(...)` (language/expressions.md:405). The
+  `machine [] read<Element [copy]>(...)` (language/expressions.md:411). The
   spec names `+`, `==`, `[]` and `[..]` and forbids binding suffixed
   integer policy operators. V1's `OperatorSpelling::ALL` supplies the full
   13-spelling list above. [Declaration-head tests](tests/operator_grouping.rs)
@@ -265,7 +265,7 @@ proofs/mathematical_bindings.md:63 and :226.
 
 References and views `@[u8]`, `@mut [u8]`, `@'a U`, `@'a mut S`
 (language/data_and_literals.md:109, language/some_packages.md:15), arrays
-`[u8; 38]` (language/expressions.md:526), machine types as field and
+`[u8; 38]` (language/expressions.md:532), machine types as field and
 parameter types (language/effects.md:201), function types `A -> B` in
 mathematical declarations and in machine parameters
 (proofs/mathematical_bindings.md:63 and :226), and qualification
@@ -360,7 +360,7 @@ mathematical declarations and in machine parameters
   `loop`, `return`, `for`, `break` or `continue`. Branching is `match` and
   `transition`; repetition is nested machines and transitions.
 - `let` with and without a type, with `mut`, and with no initializer
-  `let mut bytes: [u8; 38];` (language/expressions.md:526).
+  `let mut bytes: [u8; 38];` (language/expressions.md:532).
 - Destructuring `let Lease { pool, slot } = move value;`
   (language/ownership.md:309).
 - Discard `_ = builder.tests.group::<Tests::memory>();`
@@ -384,7 +384,7 @@ mathematical declarations and in machine parameters
 - **`match` and `transition` have one grammar** (decision 3). They differ in
   position only: `transition` is the form at the end of a body, where the
   chosen arm's result is the machine's result and nothing follows it. Both
-  take a tuple subject and tuple patterns (language/patterns.md:82).
+  take a tuple subject and tuple patterns (language/patterns.md:86).
 - **Arms are separated by commas**, with an optional comma after the last
   (decision 2). Newlines never matter. An arm has no marker of its own to say
   where the next one starts, which is what a clause gets from the next clause
@@ -497,7 +497,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
 - Record literals with shorthand and explicit omission `..`
   (language/data_and_literals.md:172).
 - Membership `self in Value::Integer` (language/data_and_literals.md:272).
-- Views `view[2..4]`, `bytes[..]` (language/expressions.md:499, :526).
+- Views `view[2..4]`, `bytes[..]` (language/expressions.md:505, :532).
 - A call through a field `(operations.value)(@counter)`
   (language/machine_values.md:17).
 - A selection `(clear satisfies A::clear)` is an expression and a generic
@@ -685,7 +685,7 @@ the grammar had missed; all 132 parse now.
 | F3 | proofs/mathematical_bindings.md:226 | A hypothesis only on a conformance. | `requires machine Step(...) ...;` on a machine. | A hypothesis is a clause; a conformance takes only that one. |
 | F4 | language/termination.md:35 | `terminates by e in e`. | `in 0..=limit`. | The bound may be a range. |
 | F5 | resources/access.md:83 | A generic argument starting `[` was a type. | `IssuedByAny<2, [reflect::callable(a), ...]>`, an array literal. | The lookahead rule under [generic arguments](#names-and-the-two-spellings-of-generic-arguments). |
-| F6 | language/patterns.md:82, language/reflection.md:77 | Fragments were statements. | Bare expressions listed one per line. | The Statements fragment accepts an expression wherever it ends. Files are unaffected. |
+| F6 | language/patterns.md:86, language/reflection.md:77 | Fragments were statements. | Bare expressions listed one per line. | The Statements fragment accepts an expression wherever it ends. Files are unaffected. |
 | F7 | resources/content_custody.md:129 | A clause fragment ended at its last clause. | A final `;`, as on a bodyless declaration. | The Clauses fragment accepts one. |
 
 Two things came up that were questions for the owners, not fixes. Both are

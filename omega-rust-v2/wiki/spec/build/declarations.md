@@ -59,7 +59,7 @@ never execute during Build; product compilation starts only after the join.
 ## Native binding intent
 
 The owning package records a direct native binding with
-`Build::bind<Requirement>(builder, target, locator)` under
+`Build::bind::<Requirement>(builder, target, locator)` under
 [foreign bindings](foreign_bindings.md#build-owned-native-binding). The exact
 requirement is an inert designated product-selection reference until product
 discovery and checking resolve its complete owned declaration/application.
@@ -84,7 +84,7 @@ The entry-binding overload of `Build::bind` is a separate operation.
 
 ## Project role
 
-A selected `build.omg` has exactly one free build entry with the explicit mutable
+A selected build file has exactly one free build entry with the explicit mutable
 Build parameter and any declared execution-backing parameters selected and
 admitted by its invocation. A simple entry remains
 `machine build(builder: @mut Build)`; a filesystem-using entry may additionally
@@ -104,14 +104,15 @@ noncanonical results reject.
 `Owner::build` is not a project root and cannot acquire a synthesized receiver.
 An ordinary same-spelled machine remains ordinary source.
 
-With no selected `build.omg`, the compiler supplies ordinary default Build
+With no selected build file, the compiler supplies ordinary default Build
 source and runs it through the same one-entry checking, interpretation, join,
 and freeze route. No file need be written. A standalone loose root defaults to
 application role; an already resolved package retains its supplied role and
 owner. Checking source does not require an executable entry. Executable output
-still needs ordinary target-slot selections and provider checks; the default
-does not discover a machine named `main` or bypass
-[entry admission](entry_roots.md).
+still needs ordinary target-slot selections and provider checks. When the
+named root has no build entry, core supplies the product entry binding under
+[build-first entry selection](command_line.md#build-first-entry-selection).
+The target checks that binding under [entry admission](entry_roots.md).
 
 `package`, `application`, `member`, `dependency` and `build_dependency` are
 compiler-owned operations on the activation's Build value. Product and build
@@ -316,7 +317,7 @@ graph, not provider-slot selection. Transitive reach,
 invocation, blocking/suspension, termination, observations, and authority
 demands compose into the root's published ceiling.
 
-`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)` is an
+`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)` is an
 evaluated root-authorized product selection under the
 [assumed-binding contract](assumed_binding_contracts.md), not a statically
 projected project/dependency declaration. Its exact product references do not

@@ -7,7 +7,7 @@ AST quotation, mandatory object header, or implicit runtime registry follows.
 
 ## Semantic descriptions
 
-`reflect::schema<T>()` produces an owned `reflect::TypeSchema` description graph
+`reflect::schema::<T>()` produces an owned `reflect::TypeSchema` description graph
 for the selected type application. Nodes describe declarations, fields, cases,
 and their relationships; handles index only that owned graph. `schema.fields()`
 and `schema.cases()` borrow description records from the schema value, never
@@ -33,7 +33,7 @@ complete description reports exhaustion or unsupported production, not a
 truncated schema. Fixed capacities in an implementation of `core::layout::Schema` do not define
 the semantic reflection contract.
 
-`reflect::type_key<T>()` provides a comparable descriptive key for a fully static
+`reflect::type_key::<T>()` provides a comparable descriptive key for a fully static
 type application under ordinary canonical type equality. It is not a source type,
 address, cast, or conformance. Runtime-dependent applications instead retain a
 schema recipe with explicit subject/parameter references. No guessed Boolean
@@ -152,7 +152,7 @@ different projection and conversion capabilities under the
 [representation contract](../layouts/plans.md#representation-applications).
 
 Geometry may be queried only after the selected [layout plan](../layouts/plans.md)
-is validated. Core `size_of<T>()` and `align_of<T>()` consume that same plan,
+is validated. Core `size_of::<T>()` and `align_of::<T>()` consume that same plan,
 not a second interpretation of semantic schema fields. A layout cannot inspect
 its own unfinished result; dependency cycles reject. Erased fields have no
 physical field key or access decision.
@@ -208,9 +208,9 @@ runtime interpreter:
 ```text
 Player { health: u32; speed: f32; }
 
-visit_runtime_fields<Player>(player, visitor):
-    invoke<u32>(visitor, health_description, @player.health)
-    invoke<f32>(visitor, speed_description, @player.speed)
+visit_runtime_fields::<Player>(player, visitor):
+    invoke::<u32>(visitor, health_description, @player.health)
+    invoke::<f32>(visitor, speed_description, @player.speed)
 ```
 
 The compiler resolves the member, exact owning application, actual complete field
@@ -245,14 +245,19 @@ custody or enable reconstruction of its authority.
 
 ## Sum coverage
 
-A sum visitor has an active-case callback and field callbacks. It first reports
-the selected semantic case exactly once, even for a case with no payload. It then
-visits common runtime fields once and the active payload's runtime fields, each
-in declaration order. Two nullary cases therefore remain distinguishable. A
-record visitor alone is not a complete sum serializer.
+A sum visitor reports the selected semantic case exactly once, then visits that
+case's runtime payload fields in declaration order. The case callback also runs
+for a case with no payload, so it can distinguish two such cases.
 
-Compile callback applications for every admitted case; execution projects only
-the selected payload after testing the actual discriminator. Semantic case
+Under [record or sum data](data_and_literals.md#records-sums-and-nested-declarations),
+a record can hold a sum in a field alongside its other fields. Apply a sum
+visitor to that field and compose the two visits explicitly when the caller
+needs both the record fields and the active case.
+
+Compile callback applications for every admitted case. A case whose payload is
+[proved uninhabited](patterns.md#coverage-and-domain-tests) contributes no
+callback applications. Execution projects only the selected payload after
+testing the actual discriminator. Semantic case
 identity, authored wire numbers, and runtime discriminator values remain distinct;
 the encoding library chooses its wire tags. Active-case evidence stays valid
 while payload loans are live. Retired cases are metadata, not executable cases.
@@ -273,11 +278,11 @@ without enumerating each capacity or qualification combination.
 For an encoding library, the policy shape is:
 
 ```text
-encoding_policy<Value>(field: FieldInfo,
+encoding_policy::<Value>(field: FieldInfo,
                        selection: @mut EncodingSelection<Value>)
 
     if field is the special timestamp member:
-        EncodingSelection::select<UnixTimestampEncoding>(selection)
+        EncodingSelection::select::<UnixTimestampEncoding>(selection)
         return
     apply the explicitly selected type rules
 ```
@@ -310,7 +315,7 @@ tie-break. The same carrier may use different encodings at different members.
 Member keys originate from the authorized schema. An ordinary static name lookup
 may find a member or return failure; subsequent selection retains the resolved
 exact key, not the string as identity. This needs no field-declaration generic
-binder such as `member<Player::health>()`. Display labels and policy flags remain
+binder such as `member::<Player::health>()`. Display labels and policy flags remain
 ordinary data. Forged or stale key/type pairs reject before projection.
 
 ## Selection evaluation and retained results
@@ -377,7 +382,7 @@ inspection of the abstract referent. See [some packages](some_packages.md).
 
 ## Runtime descriptions and access views
 
-An explicit `reflect::metadata<T>()` request materializes owned copy-eligible
+An explicit `reflect::metadata::<T>()` request materializes owned copy-eligible
 descriptive data under ordinary constant rules. It may be a library projection
 from TypeSchema rather than another primitive. Direct visitation does not retain
 a complete runtime table; names actually used by generated code still cost data.

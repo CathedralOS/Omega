@@ -161,7 +161,7 @@ refuse the mapping or replace the earlier one.
 ## Test groups
 
 [Requirement-based tests](testing.md) register exact product machine requirements
-through `builder.tests.group<Requirement>()`. Each enabled group collects its
+through `builder.tests.group::<Requirement>()`. Each enabled group collects its
 package-local concrete satisfiers for Psi execution before successful
 publication. Groups own provider configuration, not new authority. Root grants
 can only be attenuated; selecting a real provider cannot escape virtual backing.
@@ -297,7 +297,7 @@ No documentation change here establishes those implementation results.
 ## Directional wire compatibility
 
 The authoritative Build may request
-`Build::require_wire_compatibility<Edge, Lineage, Local, Peer, ...>(builder);`.
+`Build::require_wire_compatibility::<Edge, Lineage, Local, Peer, ...>(builder);`.
 The explicit argument must borrow that activation's original Build. Requests
 are collected when executed, including through ordinary helper machines; an
 unexecuted call contributes no demand. The receiver-call spelling is retired.

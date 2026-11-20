@@ -39,7 +39,7 @@ Proof use must satisfy the selected invocation's ordinary totality, termination,
 observation/effect and precondition rules. Type equality and specified primitive
 relations, including cross-carrier integer comparisons, retain their rules.
 
-`core::Identity<T>(left, right)` explicitly forms the foundation's proof-relevant
+`core::Identity::<T>(left, right)` explicitly forms the foundation's proof-relevant
 `Id T left right`. This is a sealed core mathematical declaration, not a new
 keyword, operator, executable Boolean comparison or theorem asserting its own
 conclusion. Its ordinary core declaration identity, typed subjects and universe
@@ -66,8 +66,8 @@ Independent checked law evidence may establish either direction:
 
 | Law premise | Conclusion | Use |
 | --- | --- | --- |
-| Selected `equal(a, b) == true` | `core::Identity<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
-| `core::Identity<T>(a, b)` | Selected `equal(a, b) == true` | Establish that comparison from identity. |
+| Selected `equal(a, b) == true` | `core::Identity::<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
+| `core::Identity::<T>(a, b)` | Selected `equal(a, b) == true` | Establish that comparison from identity. |
 
 These are additional trait/conformance evidence, not optional members of
 `Equatable`. Each selected conformance still supplies its complete row set.
@@ -504,8 +504,8 @@ may identify `Indexed<N + 0>` with `Indexed<N>`. For a user algebra, the same
 use is automatic proved compatibility when its checked laws establish it.
 
 An abstract right-identity law
-`core::Identity<T>(add(value, zero()), value)` combines with a checked
-connection `core::Identity<T>(zero(), 0)`, with the literal formed in the exact
+`core::Identity::<T>(add(value, zero()), value)` combines with a checked
+connection `core::Identity::<T>(zero(), 0)`, with the literal formed in the exact
 carrier `T`. Multiplication uses the corresponding identity and connection to
 `1`. Each proof needs only its own laws, not a full ring or semiring.
 Left and right identities remain separate. These user laws do not rename a

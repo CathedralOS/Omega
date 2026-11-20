@@ -49,7 +49,7 @@ may construct a package using its ordinary static type argument as the witness,
 and an [opened abstract witness](#owned-state-through-uniform-carriers) may do
 so within its scope.
 
-V1 permits sized concrete witnesses. A field depending on `S` must have a
+A concrete witness must be sized. A field depending on `S` must have a
 uniform representation independent of the witness: references to sized
 referents, callable descriptors over those references, and
 [uniform carriers](#owned-state-through-uniform-carriers) whose custody index

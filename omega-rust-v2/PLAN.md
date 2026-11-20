@@ -37,10 +37,10 @@ normalized parameter bounds to select type or value equality.
 
 ## What is authoritative
 
-- **V1 and V2 share the Omega specification.** Both implement the rules in
-  [`wiki/spec/`](wiki/spec/). Changes to language or build semantics belong
-  in the shared spec. This plan records compiler responsibilities, implementation
-  status and open questions. **Decided.**
+- **Omega has one specification.** Edit the [root specification](../wiki/spec/)
+  and keep the [workspace copy](wiki/spec/) byte-identical. This plan records
+  the experimental compiler's responsibilities, implementation status and open
+  questions.
 - **The language guide is for humans**, not a source for V2. **Decided.**
 - **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
 - **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context
@@ -177,8 +177,8 @@ with `cargo build --release -p omega`, or try it from this checkout with
 Success is silent. A lexical or grammar refusal identifies the file, line
 and byte column on stderr. Jarod's spellings in the Fable session were
 `omega run main.omg` and `omega build build.omg`. The command chooses the
-operation. The [build model](#v2s-build-model-a-chain-of-stages) records the
-entry conventions and which choices about direct execution are still open.
+final operation. Both commands use [build-first entry selection](wiki/spec/build/command_line.md#build-first-entry-selection)
+for the named source file.
 
 **What V1 actually does.** In V1 at `0b90bdba`, the Rust package
 `omega-rust/omega/application` builds the `omega` executable. It parses OS
@@ -200,8 +200,8 @@ also supports Psi and differential runs.
 | Syntax parsing (built) | The `application/` workspace member produces `omega source parse <file>`. The file operation reads the bytes and invokes L0 and L1 through their public APIs. | [CLI process tests](application/tests/cli.rs) cover V2 reference syntax, lexical and grammar refusals, invalid UTF-8, caller-relative paths, help, missing files and usage errors. |
 | Name resolution (built) | `omega source resolve <file> [<file> ...]` treats the current directory as the package root. The library also accepts direct requester-local dependency aliases and target assembly names. | CLI process tests select a sibling declaration and identify the exact call site when its target moves into a child directory. |
 | As L3 through L5 land | Extend stage compilation with typing, evaluation and lowering. Finalize closed application identities after computing their arguments. | A later stage rebinds a serialized checked identity to the intended declaration and refuses a mismatch. |
-| First execution | Once L5, a Terminal Psi interpreter and its required admission checks exist, connect the run request to the driver. Start with the permitted constant first plan and the explicit Psi engine. The first direct-run fixture supplies an explicitly named file containing `machine main`; the interpreter receives the product of that invocation. | Run the binary on a file called `hello.omg`, observe exact guest output and status, and verify a compile refusal produces a diagnostic before any guest output. A sibling build-file test fixes the direct-run policy once chosen. |
-| Project builds | `omega build <file>` enters `machine build`. The driver compiles and runs each requested stage with its own settled inputs and backings. A terminal artifact request compiles and publishes the product when checking and publication are available. | Exercise the four [build-model cases](#defaults-leaning-not-decided): bind an entry, select a provider, use a generated constant from authored code, and let the build itself write to Console. A cross-build returns its artifact without executing the target product on the host. |
+| First execution | Once L5, a Terminal Psi interpreter and its required admission checks exist, connect the run request to the driver. Start with the permitted constant first plan and the explicit Psi engine. The first direct-run fixture supplies an explicitly named file containing `machine main`; the interpreter receives the product of that invocation. | Run the binary on a file called `hello.omg`, observe exact guest output and status, and verify a compile refusal produces a diagnostic before any guest output. Repeat beside a build file that selects a different provider. The direct run must produce the same result. |
+| Project builds | A named file with a build entry supplies the project plan for either command. The driver compiles and runs each requested stage with its own settled inputs and backings. A terminal artifact request compiles and publishes the product when checking and publication are available. | Exercise the four [build-model cases](#defaults-leaning-not-decided): bind an entry, select a provider, use a generated constant from authored code, and let the build itself write to Console. A cross-build returns its artifact without executing the target product on the host. |
 
 Use V1's process-level tests as references for argument errors, raw output
 and guest status, source-located refusals, selected providers and eventually
@@ -211,11 +211,9 @@ native/Psi agreement. Use V2 syntax and stage expectations for the fixtures.
 · [Selected provider](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/build_selected_providers.rs)
 · [Execution comparison](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/both_exit_status_comparison.rs)
 
-**Before documenting bare `omega run` as available**, settle whether a
-neighboring build file participates. The [open direct-run question](../OWNER_QUESTIONS.md#open-questions)
-records the choice. The [execution spec](wiki/spec/build/embedding.md#standalone-execution-selection)
-selects native execution when the engine is omitted. Track the build backings, grants,
-stage budget and lockfile details with the existing driver questions below.
+The V2 CLI currently exposes source-stage commands. The build and run paths
+above are driver milestones. [Execution selection](wiki/spec/build/embedding.md#standalone-execution-selection)
+specifies the default engine and the effect of an explicit target.
 
 ### L0 Lexer
 
@@ -452,13 +450,10 @@ mean, and resumes it.
    generated files together. Generated files are ordinary inputs, so
    hand-written code may call generated code.
 
-The ordinary chain is three programs: a core-supplied first stage, the
-project's `build.omg`, and the product. **A normal project still writes one
-`build.omg`.** Another stage is authored only when something learned in this
-one changes what the next can compile or call. The chain's start is fixed: a
-project that needs a build service the default does not supply does not
-replace the first stage; its `build.omg` selects that backing for a stage
-after it.
+Core starts the chain. For a project with a custom build, the named project
+build runs next and its plan selects the product. The project
+build can select a service backing for a later stage when the core defaults
+are insufficient for that later work.
 
 What follows from it:
 
@@ -497,22 +492,15 @@ permission" ([Provider selection](wiki/spec/build/provider_selection.md#provider
 
 ##### How the chain starts
 
-The first stage cannot find anything, because it has no services, not even a
-filesystem. So it is the **driver**, which is toolchain code and not Omega,
-that reads the command line, locates the project and its `build.omg`, and
-hands those to the first stage as plain input data. The first stage is a pure
-function from "what was invoked" to the first plan: next program is this
-`build.omg`, with these default backings selected.
+The driver supplies the named root file as invocation data. The service-free
+`omega::core` first stage requests checked reflection binding of the initial
+entry in that file under [build-first entry selection](wiki/spec/build/command_line.md#build-first-entry-selection).
+The compiler resolves the binding as it checks the named file. When a build
+entry is present, core selects the ordinary build backings for that stage,
+such as reading project source and writing build output.
 
-Two things follow:
-
-- **The first stage can start life as a constant inside the driver.** A plan
-  is data, so a hard-coded default plan and an Omega program that returns the
-  same plan are indistinguishable to everything after them. V2 can build the
-  driver with the constant and replace it with an Omega core stage later.
-- **What the first stage selects** is the ordinary set of build backings:
-  `Console`, reading the project's source, writing build output, and whatever
-  else a normal `build.omg` expects to call.
+The initial driver may encode this first plan as a constant if it implements
+the same checked selection as the eventual core stage.
 
 ##### Unused selections are inert
 
@@ -558,59 +546,22 @@ half of "selecting is not granting": a plan may ask for less than the stage
 has, never for more than the invocation gave. The spec has the same idea
 under its `staged-build-capability-attenuation` decision.
 
-##### What gets invoked: leaning, not decided
+##### Driver acceptance for build-first selection
 
-Relayed by Jarod, 2026-11-18, marked "maybe":
+Exercise the same named source through both `build` and `run`. Check the
+published artifact for a build and guest output and exit status for a host run.
 
-- **`omega build build.omg`:** the full chain. The first stage plans for the
-  given build program, and that program plans for the product.
-- **`omega run main.omg`:** no build program needed. The first plan goes
-  straight to the given program with default settings, so a simple program or
-  script is a two-program chain. No default build file has to exist; the
-  first plan just says what a trivial one would have said. Put the other way
-  round: reaching `main` directly means the first stage did its own default
-  build, such as selecting a default `Console`.
+| Named source | Expected result |
+| --- | --- |
+| `hello.omg` defines only `main`, beside a `build.omg` with different provider selections | Core uses its default Build. Naming the sibling explicitly selects its build. |
+| `nightly.omg` defines only a build entry and selects a product in another file | `omega run nightly.omg` runs that product under the selected engine. |
+| `release.omg` defines both entries and its `build` selects its own `main` | The build runs once, then its chosen product entry binds in the next stage. |
+| The same file defines a malformed build entry and a valid `main` | The driver reports the build entry error. |
+| A stage requests itself again with the same entry and inputs | The driver reports a cycle. |
+| The build would generate `Schema` and the same file's `main` mentions it | Checking the build stage reports the unresolved `Schema` before the build executes. Moving the product source to the stage that receives `Schema` allows it to check. |
 
-Commands are always `omega <subsystem> <action>` (Jarod, 2026-11-18). The
-command, not the file's name, picks the mode, and there may be no blessed
-file names at all: `build.omg` and `main.omg` here are only examples.
-
-This needs no new mechanism. The first plan already depends on what was
-invoked, and nothing has to be inspected before the chain starts.
-
-**Entry names are blessed; file names are not.** `omega build <file>` targets
-`machine build` in that file and `omega run <file>` targets `machine main`.
-Those two names have to stay stable for one reason: the core first stage is
-the only program in a chain that must name something it cannot import. It is
-handed a file path at run time, so it builds the entry's identity from that
-file and a fixed name, where every later stage names its next entry by
-importing it. Later entries can therefore be called anything; only the first
-needs a convention. Overriding the name with an argument is possible and
-probably overkill.
-
-**The first stage names the entry; it does not call it.** The user's file is
-not compiled when the first stage runs. The first stage's plan says "this
-file, entry `build`", and the driver compiles and runs it.
-
-**One file with both a build entry and a main entry** also falls out, if a
-plan names its next program as a set of files plus an entry point, with the
-entry given as a reflection identity like every other reference between
-stages. Such a file is a `build.omg` whose plan names itself, with a
-different entry, as the product: the outer stage runs one entry, and that
-entry recurses on the same file with the entry for the actual program.
-It is compiled twice, once per stage, each in its own universe. Its one
-limit: the whole file has to check in the build stage too, so `main` cannot
-use a package the build discovers or code the build generates. A project that
-needs either moves its build into its own file. The limit is the same loop
-this model removed, showing up where it should.
-
-Pruning by use does not lift that limit, because it can only happen after
-typing: knowing what an entry reaches needs resolved and typed calls. So in
-each stage the whole file is lexed, parsed, resolved and typed (L0 to L3),
-and only what the stage's entry reaches goes on to lowering and beyond. The
-other entry's code is checked but never lowered, run or published. The spec
-has both halves: "unreachable statements are still source", and source checks
-"do not force concrete layouts for unused bodies".
+Each stage resolves and types the whole file (L0 to L3). Only code reachable
+from its selected entry goes on to lowering and publication.
 
 ##### Defaults: leaning, not decided
 
@@ -618,9 +569,6 @@ Relayed by Jarod, 2026-11-18, as intuition and not a ruling:
 
 - **Permissive by default:** the real filesystem and no stage budget, with
   command-line arguments to narrow either when someone cares.
-- **Interpreting need not differ.** `omega run` still has to run every stage
-  up to the product; only the last step changes, from emitting an artifact to
-  interpreting the program.
 - **One `omega.lock`** for the whole chain.
 
 How this fits the decided model: a permissive default is a default *value* of
@@ -636,7 +584,9 @@ becomes the ruling:
 
 Still to settle when the driver is designed: the two points above, how a
 stage's discovered packages reach `omega.lock` between stages, and the exact
-list of backings the first stage selects.
+list of backings the first stage selects. Which caller-supplied build arguments
+core passes to the first build, and which a build stage forwards to its
+successor, also remain open.
 
 The first test of the model, when the driver is designed, is to rewrite four
 real cases in it and see whether any needs something the model cannot give:

@@ -65,11 +65,11 @@ language/effects.md:571  accepted
 language/effects.md:636  accepted
 language/effects.md:743  unresolved name Handler::read
 language/effects.md:871  unresolved name ordinary_call
-language/expressions.md:151  unresolved name Vec2
-language/expressions.md:337  unavailable import units
-language/expressions.md:405  accepted
-language/expressions.md:499  unresolved name view
-language/expressions.md:526  accepted
+language/expressions.md:157  unresolved name Vec2
+language/expressions.md:343  unavailable import units
+language/expressions.md:411  accepted
+language/expressions.md:505  unresolved name view
+language/expressions.md:532  accepted
 language/generics.md:61  unresolved name Ordering
 language/generics.md:138  unresolved name LayoutStorage
 language/generics.md:223  unresolved name embed
@@ -91,10 +91,10 @@ language/numeric_values.md:498  accepted
 language/numeric_values.md:643  unresolved name cursor
 language/ownership.md:201  unresolved name items
 language/ownership.md:313  unresolved name PoolHandle
-language/patterns.md:22  unresolved name header
-language/patterns.md:46  accepted
-language/patterns.md:82  unresolved name command
-language/patterns.md:158  unresolved name Command
+language/patterns.md:26  unresolved name header
+language/patterns.md:50  accepted
+language/patterns.md:86  unresolved name command
+language/patterns.md:162  unresolved name Command
 language/process_exit.md:17  unresolved name Never
 language/reflection.md:77  unresolved name reflect::field
 language/some_packages.md:15  accepted

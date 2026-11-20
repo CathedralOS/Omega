@@ -1,6 +1,6 @@
 # Opaque representation selection
 
-`Build::select_representation<Opaque, Conformance>(builder)` selects one exact named
+`Build::select_representation::<Opaque, Conformance>(builder)` selects one exact named
 implementation of compiler-owned `OpaqueRepresentation<Opaque, Representation>`,
 such as `TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }`.
 Both data types are ordinary trait arguments; the implementation has no data
@@ -32,7 +32,7 @@ Historical review choices do not conflict merely by sharing a source closure.
 
 ## Lifecycle and movement
 
-V1 has explicit lifecycle role `Inert`, not an omitted field or provider assertion.
+The declaration explicitly selects the lifecycle role `Inert`. An omitted field or a provider assertion cannot establish it.
 Admission proves no independently invoked cleanup/disposable obligation in any
 field, array element type, or sum payload in the complete closed carrier graph,
 including inactive cases. A copyable opaque additionally

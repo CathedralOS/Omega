@@ -83,8 +83,11 @@ traits like this one.
 
 ## The program entry
 
-`build.omg` picks the machine a program starts in. That machine creates the
-program's state and passes it on:
+If `hello.omg` defines only `machine main`, `omega run hello.omg` uses
+core's default Build. To run a project with a custom build, name the file
+containing `machine build`, for example `omega run release.omg`. That build
+picks the product entry, here `start`. The entry creates the program's state
+and passes it on. [Build-first entry selection](../spec/build/command_line.md#build-first-entry-selection)
 
 ```omega
 data Application {

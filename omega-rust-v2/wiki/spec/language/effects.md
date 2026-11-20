@@ -656,7 +656,7 @@ wrapper requirements do not create one.
 The body of `apply` acknowledges possible suspension. Its summary is
 `suspend(F)`; `example` substitutes the published non-suspending `local` and
 needs no marker or suspension permission. A selected callback whose published
-contract permits suspension requires `suspend apply<Callback>(42)` and a
+contract permits suspension requires `suspend apply::<Callback>(42)` and a
 caller context admitting suspension, even if a particular execution never parks.
 
 Operational dependency summaries compose through wrapper calls, including

@@ -734,8 +734,7 @@ Transformation derivations and their input/output rosters are unordered sets,
 strictly sorted by the representation's lexicographic field order; duplicates
 and alternative ordering reject. Parent arguments retain positional operand
 order. Neither order supplies authority. The reconstructed obligations and
-execution behavior follow the [ownership contract](ownership.md); implementation
-notes live beside [the shared operation semantics](../../../source-rust/subsystems/compiler/psi/semantics/src/content_transformations.rs).
+execution behavior follow the [ownership contract](ownership.md).
 
 Lineage steps retain causal order; each step's input and output claim rosters
 are strictly increasing sets. Marker 183 adds these completed producer links
