@@ -39,11 +39,8 @@ machine main() crashes Trap {
     );
     let observed = [positive, negative.as_str(), reversed.as_str()].map(|text| {
         let source = super::boundary_calls::typed(text);
-        let (source, _) = crate::preparation::prepare_typed_trees(
-            source,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .expect("the query keeps its actual type operand");
+        let source = crate::preparation::prepare_typed_trees(source, &[])
+            .expect("the query keeps its actual type operand");
         super::entryless::judged_typed_result(&source, false)
     });
     for (name, result) in [

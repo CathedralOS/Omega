@@ -201,7 +201,7 @@ machine build_entry() {{ }}
 fn lifetime_requirement(
     contract: &str,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let (typed, _) = crate::preparation::prepare_typed_trees(
+    let typed = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&format!(
             "data Holder {{ value: u32; }}
 boundary trait Source {{
@@ -212,7 +212,7 @@ boundary trait Source {{
 }}
 machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::take(@holder, 1) }}"
         )),
-        &crate::preparation::PreparationRequest::settled(),
+        &[],
     )
     .unwrap();
     let entry = super::boundary_calls::entry(&typed);
@@ -326,11 +326,8 @@ machine entry(left: @[u8], right: @[u8], count: @mut u64) {
             2,
             "the helper supplies both its type and callable arguments"
         );
-        let (prepared, _) = crate::preparation::prepare_typed_trees(
-            typed,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .expect("ordinary preparation must retain the selected helper");
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[])
+            .expect("ordinary preparation must retain the selected helper");
         let template = prepared
             .machines()
             .iter()

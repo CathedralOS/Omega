@@ -27,12 +27,8 @@ const DECOMPOSE: &str =
     "let { dropped, valid, value as _ } = move resource; dropped.value = valid;";
 
 fn prepared(text: &str) -> crate::preparation::PreparedTypedTrees {
-    crate::preparation::prepare_typed_trees(
-        super::boundary_calls::typed(text),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .expect("ordinary typed preparation must preserve this source program")
-    .0
+    crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
+        .expect("ordinary typed preparation must preserve this source program")
 }
 
 fn judged(text: &str) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {

@@ -145,11 +145,7 @@ mod tests {
             assert_eq!(identities.len(), 2);
             assert_ne!(identities[0], identities[1]);
             let entry = typed.realized_machine_named("main").unwrap().symbol;
-            let (frozen, _) = crate::preparation::prepare_typed_trees(
-                typed,
-                &crate::preparation::PreparationRequest::settled(),
-            )
-            .unwrap();
+            let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
             let accepted = crate::judge_fixture(
                 frozen,
                 crate::production::TerminalSourceCompilation {
@@ -250,11 +246,7 @@ mod tests {
         let resolved = crate::resolution::resolve(request).unwrap();
         let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         let entry = typed.realized_machine_named("build").unwrap().symbol;
-        let (frozen, _) = crate::preparation::prepare_typed_trees(
-            typed,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .unwrap();
+        let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
         let accepted = crate::judge_fixture(
             frozen,
             crate::production::TerminalSourceCompilation {

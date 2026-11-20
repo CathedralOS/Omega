@@ -176,11 +176,7 @@ fn completed_body_work_is_recorded_before_retained_source_activation() {
             .any(|row| row.request == DeferredRequest::ArrayExtentEvaluation)
     );
     let unserved = typing.typed().deferred_refusal(helper).unwrap().request;
-    let (program, _) = crate::preparation::prepare_typed_trees(
-        typing.typed().clone(),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let program = crate::preparation::prepare_typed_trees(typing.typed().clone(), &[]).unwrap();
     let refused = crate::judge_terminal_source(
         program,
         crate::TerminalSourceCompilation {

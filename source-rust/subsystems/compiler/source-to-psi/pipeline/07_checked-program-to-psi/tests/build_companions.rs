@@ -215,10 +215,7 @@ fn accepted_frontier_with_subjects(
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let (frozen, _) = source_compiler::preparation::prepare_typed_trees(
-        typed,
-        &source_compiler::preparation::PreparationRequest::settled(),
-    )?;
+    let frozen = source_compiler::preparation::prepare_typed_trees(typed, &[])?;
     source_compiler::judge_terminal_source(
         frozen,
         source_compiler::lowering::Compilation {

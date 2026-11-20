@@ -361,11 +361,8 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let mut accounting = SourceCompletionAccounting::default();
     super::evaluate(&mut typed, request, None, None, &mut accounting)
         .expect("evaluate the actual domain's selected policy with normal call accounting");
-    let (source, _) = crate::preparation::prepare_typed_trees(
-        typed.clone(),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .expect("ordinary preparation keeps the exact caller description");
+    let source = crate::preparation::prepare_typed_trees(typed.clone(), &[])
+        .expect("ordinary preparation keeps the exact caller description");
     let accepted = crate::judge_terminal_source(
         source,
         request,
@@ -628,11 +625,8 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
             "the original selected policy must be judged before checking its operations: {:?}",
             policy.plan,
         );
-        let (prepared, _) = crate::preparation::prepare_typed_trees(
-            typed,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .expect("retain the same selected declarations and checked borrows");
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[])
+            .expect("retain the same selected declarations and checked borrows");
         let judged = crate::judge_terminal_source(
             prepared,
             request,

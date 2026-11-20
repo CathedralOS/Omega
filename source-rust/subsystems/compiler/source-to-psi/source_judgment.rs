@@ -31,9 +31,7 @@ impl SettledSource<'_> {
 
     pub(crate) fn freeze(self) -> Result<FrozenSource, crate::SourcePreparationFailure> {
         let result = (|| {
-            let preparation = crate::preparation::PreparationRequest::settled()
-                .with_wire_compatibility_demands(self.wire_demands);
-            let (program, _) = crate::preparation::prepare_typed_trees(self.program, &preparation)?;
+            let program = crate::preparation::prepare_typed_trees(self.program, self.wire_demands)?;
             let constants = constant_reads(&program, self.demanded_constants)?;
             Ok((program, constants))
         })();

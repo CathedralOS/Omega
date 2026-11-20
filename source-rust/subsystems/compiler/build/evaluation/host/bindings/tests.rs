@@ -84,11 +84,7 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let (prepared, _) = source_compiler::preparation::prepare_typed_trees(
-        typed,
-        &source_compiler::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let prepared = source_compiler::preparation::prepare_typed_trees(typed, &[]).unwrap();
     let accepted = source_compiler::judge_terminal_source(
         prepared,
         source_compiler::TerminalSourceCompilation {

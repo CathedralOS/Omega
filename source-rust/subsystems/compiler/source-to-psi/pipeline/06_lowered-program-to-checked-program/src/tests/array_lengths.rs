@@ -75,11 +75,8 @@ machine build_entry() -> u64 { make().len }"
 }
 
 fn rigid_array_form(text: &str) -> crate::lowering::Elaboration {
-    let (typed, _) = crate::preparation::prepare_typed_trees(
-        super::boundary_calls::typed(text),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let typed =
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
     let entry = super::boundary_calls::entry(&typed);
     crate::lowering::elaborate_generic(&typed, entry).unwrap()
 }
@@ -133,11 +130,8 @@ fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
 }
 
 fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let (typed, _) = crate::preparation::prepare_typed_trees(
-        super::boundary_calls::typed(text),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let typed =
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[]).unwrap();
     let entry = super::boundary_calls::entry(&typed);
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -617,7 +611,7 @@ fn sized_boundary_program(
     contract: &str,
     call: &str,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let (typed, _) = crate::preparation::prepare_typed_trees(
+    let typed = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&format!(
             "boundary trait Sink {{
     machine take<const Count: u64>(items: @[u8; Count], used: i32) -> u32
@@ -627,7 +621,7 @@ fn sized_boundary_program(
 }}
 machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
         )),
-        &crate::preparation::PreparationRequest::settled(),
+        &[],
     )
     .unwrap();
     let entry = super::boundary_calls::entry(&typed);
