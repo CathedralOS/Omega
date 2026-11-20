@@ -30,19 +30,19 @@ than a callback loop:
    settlement.
 5. A Build whose entry is divided into stages by a dependency preparation
    runs as several accepted programs against this one activation. `carry`
-   ends a stage that returned at the preparation dividing it, and
+   ends a stage that returned after completing its preparation and using its locals, and
    `TerminalBuildHost::resume` starts the next stage's program with what the
    earlier stages left: the guest `Build`, the issued requests, the executed
    selections, the log and the filesystem runtime. Only the last stage is
    completed; nothing an earlier stage did runs again.
 */
 
-mod carried_build;
 pub(crate) mod preparation;
 mod project;
 mod provider_installation;
 mod source_join;
 mod source_result;
+mod storage;
 pub use source_join::BuildDependencySelection;
 pub use source_result::BuildSourceResult;
 
@@ -325,7 +325,7 @@ impl TerminalBuildHost {
     }
 
     /// Starts this stage's program where the previous stage of the same
-    /// activation returned by a dependency preparation. The guest `Build`
+    /// activation returned after preparing a dependency. The guest `Build`
     /// holds what the earlier stages wrote, and the hosts continue the
     /// requests, selections, log and files those stages made. Nothing an
     /// earlier stage did runs again, and this is not counted as another Build
@@ -338,7 +338,7 @@ impl TerminalBuildHost {
             return Err("Build host has already started its activation".into());
         }
         let CarriedStage {
-            build,
+            contents,
             output_issued,
             requests,
             demanded_sources,
@@ -349,8 +349,6 @@ impl TerminalBuildHost {
         } = carried;
         self.requests.adopt(request_host)?;
         self.bindings.adopt(binding_host)?;
-        let contents =
-            build.contents(self.produced.view().module(), self.original.structural_type)?;
         let instance = self.instantiate(Some(contents), output_issued)?;
         let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
@@ -507,10 +505,10 @@ impl TerminalBuildHost {
     }
 }
 
-/// What a stage that returned at its dividing preparation leaves for the
+/// What a checked program that completed its preparation leaves for the
 /// next stage of the same activation.
 pub(crate) struct CarriedStage {
-    build: carried_build::CarriedBuild,
+    contents: Vec<terminal_interpreter::TerminalBoundaryStorageValue>,
     output_issued: bool,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
@@ -708,27 +706,28 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
-    /// Ends a stage that is not the last one and hands over what the next
-    /// stage continues from. The stage must have returned normally, and
-    /// right after the dependency preparation that divides it: the division
-    /// is read from the statement's written form, and this is where the
-    /// host confirms that statement was a preparation it served.
-    pub(crate) fn carry(mut self) -> Result<CarriedStage, String> {
+    /// The guest reached the end of its checked straight-line prefix. Only a
+    /// preparation this host actually completed can open another program.
+    pub(crate) fn carry(
+        mut self,
+        successor: &terminal_psi::TerminalModule,
+        receiver: semantic_vocabulary::StructuralTypeId,
+    ) -> Result<CarriedStage, String> {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("a Build stage is continued only after its normal return".into());
         }
-        if !self.host.requests.ended_at_preparation()? {
+        if !self.host.requests.completed_preparation()? {
             return Err(
-                "a Build stage before the last must end at the `Build::prepare_dependency` call that divides it"
+                "a Build stage before the last must complete its dependency preparation"
                     .into(),
             );
         }
-        let build = carried_build::CarriedBuild::capture(&self.instance)?;
+        let contents = storage::transfer(&self.instance, successor, receiver)?;
         let output_issued = self.host.output.is_issued(&self.instance)?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
         Ok(CarriedStage {
-            build,
+            contents,
             output_issued,
             requests: self.requests,
             demanded_sources: self.demanded_sources,

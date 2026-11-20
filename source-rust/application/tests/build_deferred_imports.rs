@@ -20,7 +20,7 @@ The programs below are one project with a line changed:
 
 - The Build imports `kit` and uses nothing of it; the Product source imports
   its own Product dependency. It compiles.
-- The Build uses `kit::v()` with no stage that prepared `kit`. The name is
+- The Build uses `kit\v()` with no stage that prepared `kit`. The name is
   unknown, and the Build is rejected for it before anything runs.
 - A Product source's import that names nothing is still an error.
 - The Build imports `lib`, which it registers as a Product dependency. Once
@@ -105,12 +105,12 @@ fn a_name_used_with_no_stage_that_prepared_its_dependency_is_unknown() {
     let (compiled, stderr) = check(
         "used-unprepared",
         "use kit;\n\n",
-        "    let seven: i32 = kit::v();\n",
+        "    let seven: i32 = kit\\v();\n",
         PRODUCT,
     );
     assert!(!compiled);
     assert!(
-        stderr.contains("names a value nothing the program declares"),
+        stderr.contains("this call has no visible declaration in its source scope"),
         "{stderr}"
     );
 }

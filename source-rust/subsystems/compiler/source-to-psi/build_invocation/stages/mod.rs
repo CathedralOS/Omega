@@ -1,7 +1,6 @@
 //! Project the selected Build entry onto the statements checked at one preparation boundary.
-//! Each top-level preparation ends a stage. Its continuation is checked after
-//! the host admits that dependency. Nested machines stay with the final stage.
-//! Until the continuation can carry checked locals, reject uses across the boundary.
+//! A preparation parks the live interpreter. End the checked program there only
+//! when the remaining statements can start without its locals.
 
 mod lexical_uses;
 #[cfg(test)]
@@ -14,30 +13,27 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{Item, ItemHandle, Machine, StateHandle};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
-/// One part of the selected Build entry. The parser supplies the ordered byte
-/// spans of its top-level preparation calls in the captured source file.
-/// A fresh assembly can assign new file IDs, while these source coordinates
-/// must agree before the activation continues.
+/// The same captured entry can receive different source-file IDs when the
+/// next program is assembled. Keep the authored preparation spans and the
+/// statement offsets where the interpreter can give up the entry frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildStage {
     index: usize,
     preparations: Vec<Span>,
+    program_ends: Vec<usize>,
 }
 
 impl BuildStage {
-    fn at(index: usize, preparations: Vec<Span>) -> Option<Self> {
-        (index <= preparations.len()).then_some(Self {
-            index,
-            preparations,
-        })
-    }
-
     pub fn next_index(&self) -> Option<usize> {
-        (self.index < self.preparations.len()).then(|| self.index + 1)
+        (self.index < self.program_ends.len()).then(|| self.index + 1)
     }
 
     pub fn preparations(&self) -> &[Span] {
         &self.preparations
+    }
+
+    pub fn same_entry_plan(&self, other: &Self) -> bool {
+        self.preparations == other.preparations && self.program_ends == other.program_ends
     }
 }
 
@@ -60,27 +56,38 @@ pub(crate) fn select_build_stage(
     })?;
     let span = syntax.items.state(state).statements;
     let statements = syntax.items.statements(span).to_vec();
-    let (ends, preparations): (Vec<_>, Vec<_>) = statements
+    let (positions, preparations): (Vec<_>, Vec<_>) = statements
         .iter()
         .enumerate()
         .filter_map(|(position, &statement)| {
             preparation(syntax, statement).map(|site| (position, site))
         })
         .unzip();
-    let selected = BuildStage::at(stage, preparations).ok_or_else(|| {
-        vec![Diagnostic::error(
+    let program_ends = if positions.is_empty() {
+        Vec::new()
+    } else {
+        lexical_uses::program_ends(syntax, &machine, &statements, &positions)?
+    };
+    let selected = BuildStage {
+        index: stage,
+        preparations,
+        program_ends,
+    };
+    if stage > selected.program_ends.len() {
+        return Err(vec![Diagnostic::error(
             "Build entry has no stage after its last dependency preparation",
-        )]
-    })?;
-    if ends.is_empty() {
+        )]);
+    }
+    if selected.program_ends.is_empty() {
         return Ok(selected);
     }
-    lexical_uses::check_stage_bindings(syntax, &machine, &statements, &ends)?;
-    let first = match stage {
-        0 => 0,
-        stage => ends[stage - 1] + 1,
-    };
-    let end = ends.get(stage).map_or(statements.len(), |end| end + 1);
+    let first = stage
+        .checked_sub(1)
+        .map_or(0, |previous| selected.program_ends[previous] + 1);
+    let end = selected
+        .program_ends
+        .get(stage)
+        .map_or(statements.len(), |end| end + 1);
     let offset = u32::try_from(first).expect("a statement span is indexed by u32");
     let count = u32::try_from(end - first).expect("a statement span is counted by u32");
     syntax.items.state_mut(state).statements =

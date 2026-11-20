@@ -187,7 +187,14 @@ impl PreparedBuildExecution {
             return Err(self.refuse("Build resume requires the preceding stage of this invocation"));
         }
         self.host_issued = true;
-        let mut carried = previous.carry().map_err(|reason| self.refuse(&reason))?;
+        let successor = self.produced.view().module();
+        let receiver = self
+            .machine
+            .receiver_for(successor)
+            .map_err(|reason| self.refuse(&reason))?;
+        let mut carried = previous
+            .carry(successor, receiver.structural_type)
+            .map_err(|reason| self.refuse(&reason))?;
         crate::TerminalBuildHost::new(
             self.execution_purpose,
             Arc::clone(&self.produced),

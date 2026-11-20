@@ -1,7 +1,7 @@
 //! Check which local and nested machine names cross a preparation boundary.
 
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern, TableDestructurePattern,
@@ -14,26 +14,27 @@ use syntax_trees::statement::{
     TransitionTargetNode,
 };
 
-/// The projection removes earlier statements, but a wait does not end their
-/// lexical scope. Stage 02 checks the bindings within a projected stage. Check
-/// bindings against earlier stages here, as well as uses we cannot carry.
-pub(super) fn check_stage_bindings(
+/// Keep each local's definition and all its uses in one checked machine. A
+/// preparation inside that lifetime parks the interpreter with its frame intact.
+/// Once the preparation has returned, the next program can start at the first
+/// statement boundary where no such local is still needed.
+pub(super) fn program_ends(
     syntax: &SyntaxTrees,
     machine: &Machine,
     statements: &[StatementHandle],
-    ends: &[usize],
-) -> Result<(), Vec<Diagnostic>> {
+    preparations: &[usize],
+) -> Result<Vec<usize>, Vec<Diagnostic>> {
     let nested = machine
         .nested_machines
         .handles()
         .filter_map(|handle| syntax.items.item(handle).as_machine())
         .map(|machine| machine.name.as_str(syntax))
         .collect::<Vec<_>>();
-    let last_end = *ends.last().expect("a divided entry has a preparation");
-    // Locals bound by stages already passed, and by the stage being walked.
-    let mut earlier = HashSet::new();
-    let mut current = HashSet::new();
+    let mut locals = HashMap::new();
+    let mut last_use = (0..statements.len()).collect::<Vec<_>>();
+    let mut calls_to_nested = Vec::new();
     let mut refusals = Vec::new();
+    let mut phase = 0;
     for (position, statement) in statements.iter().enumerate() {
         let node = syntax.statements.statement(*statement);
         let mut uses = Uses {
@@ -44,34 +45,24 @@ pub(super) fn check_stage_bindings(
         };
         uses.statement(node);
         for name in uses.names {
-            let text = name.as_str(syntax);
-            if !current.contains(&text) && earlier.contains(&text) {
-                refusals.push(
-                    Diagnostic::error(format!(
-                        "not supported yet: a Build statement after `Build::prepare_dependency` that uses `{text}`, a local bound before that preparation; only the entry's parameters are carried across a preparation, so nothing is claimed about this program"
-                    ))
-                    .with_source_span(name.source_span()),
-                );
+            if let Some(&(definition, _)) = locals.get(name.as_str(syntax)) {
+                last_use[definition] = position;
             }
         }
-        if position <= last_end {
-            for name in uses.machines {
-                let text = name.as_str(syntax);
-                if nested.contains(&text) {
-                    refusals.push(
-                        Diagnostic::error(format!(
-                            "not supported yet: a Build statement before `Build::prepare_dependency` that names `{text}`, a nested machine of the Build entry; the entry's nested machines are checked with the statements after its last preparation, so nothing is claimed about this program"
-                        ))
-                        .with_source_span(name.source_span()),
-                    );
-                }
-            }
-        }
+        calls_to_nested.extend(
+            uses.machines
+                .into_iter()
+                .filter(|name| nested.contains(&name.as_str(syntax)))
+                .map(|name| (position, name)),
+        );
         let first_local = uses.bindings.len();
         local_bindings(syntax, node, &mut uses.bindings);
         for binding in &uses.bindings {
             let name = binding.as_str(syntax);
-            if earlier.contains(name) {
+            if locals
+                .get(name)
+                .is_some_and(|&(_, declared)| declared < phase)
+            {
                 refusals.push(
                     Diagnostic::error(format!(
                         "binding `{name}` conflicts with a local still visible across Build::prepare_dependency"
@@ -80,19 +71,53 @@ pub(super) fn check_stage_bindings(
                 );
             }
         }
-        // Arm bindings expire inside this statement. Only its own locals
-        // become visible to statements after it.
-        current.extend(
-            uses.bindings[first_local..]
-                .iter()
-                .map(|binding| binding.as_str(syntax)),
-        );
-        if ends.contains(&position) {
-            earlier.extend(current.drain());
+        for binding in &uses.bindings[first_local..] {
+            locals.insert(binding.as_str(syntax), (position, phase));
+        }
+        if preparations.get(phase) == Some(&position) {
+            phase += 1;
+        }
+    }
+    let mut live_through = 0;
+    let mut pending_preparation = false;
+    let mut ends = Vec::new();
+    let mut waits = preparations.iter().copied().peekable();
+    for (position, last) in last_use.into_iter().enumerate() {
+        // Ending a program after an authored control transfer would turn a
+        // normal return from another path into permission to run its suffix.
+        // The ordinary checker and interpreter own the rest of that control flow.
+        if matches!(
+            syntax.statements.statement(statements[position]),
+            StatementNode::Transition(_)
+                | StatementNode::Dispatch(_)
+                | StatementNode::Assembly(_)
+                | StatementNode::AuthoredAssembly(_)
+        ) {
+            break;
+        }
+        live_through = live_through.max(last);
+        let preparation = waits.next_if_eq(&position).is_some();
+        pending_preparation |= preparation;
+        if pending_preparation
+            && live_through == position
+            && (preparation || position + 1 < statements.len())
+        {
+            ends.push(position);
+            pending_preparation = false;
+        }
+    }
+    if let Some(&last_end) = ends.last() {
+        for (position, name) in calls_to_nested {
+            if position <= last_end {
+                let text = name.as_str(syntax);
+                refusals.push(Diagnostic::error(format!(
+                    "not supported yet: a Build statement before `Build::prepare_dependency` that names `{text}`, a nested machine checked with the final Build stage"
+                )).with_source_span(name.source_span()));
+            }
         }
     }
     if refusals.is_empty() {
-        Ok(())
+        Ok(ends)
     } else {
         Err(refusals)
     }
@@ -165,13 +190,17 @@ impl<'syntax> Uses<'syntax> {
                 self.expression(assignment.value);
             }
             StatementNode::Call(call) => {
-                if syntax
+                self.expression(call.callee);
+                if let Some(receiver) = syntax
                     .statements
                     .identifier_path_members(call.receiver)
-                    .is_empty()
+                    .first()
                 {
+                    self.names.push(receiver);
+                } else {
                     self.machines.push(&call.target);
                 }
+                self.names.extend(call.evidence_arguments.iter());
                 self.all(syntax.statements.expression_handles(call.arguments));
             }
             StatementNode::ProofOutputBindingStatement(binding) => self.expression(binding.call),
@@ -320,6 +349,8 @@ impl<'syntax> Uses<'syntax> {
             }
             ExpressionNode::Cast(cast) => self.expression(cast.value),
             ExpressionNode::Call(call) => {
+                self.expression(call.callee);
+                self.names.extend(call.evidence_arguments.iter());
                 if call.receiver.is_valid() {
                     self.expression(call.receiver);
                 } else {
