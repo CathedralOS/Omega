@@ -160,6 +160,12 @@ impl Scope<'_> {
     }
 }
 
+struct OwnedFieldRead {
+    site: TreeNodeId,
+    field: DeclarationId,
+    result: ValueType,
+}
+
 // Expressions, arguments and machine contracts all suspend on the same heap
 // stack, so any mix of these calls shares cycle detection and provenance.
 enum Step<'a> {
@@ -234,7 +240,7 @@ enum Step<'a> {
         site: TreeNodeId,
         carrier: ValueType,
     },
-    ProjectFields(Vec<(TreeNodeId, DeclarationId)>),
+    ProjectFields { receiver: ValueType, fields: Vec<OwnedFieldRead> },
     ReadArray,
     ArrayLength,
     ProduceZero {
@@ -584,7 +590,7 @@ impl ConstantEvaluation<'_, '_> {
                     .values
                     .push(PreparedValue::Integer(elements.len().into()));
             }
-            Step::ProjectFields(fields) => self.project_owned_fields(&fields, execution)?,
+            Step::ProjectFields { receiver, fields } => self.project_owned_fields(&receiver, &fields, execution)?,
             Step::ProduceZero { site, carrier } => self.produce_zero(site, &carrier, execution).map_err(|error| error.at_node(site))?,
             Step::Compare(token) => {
                 let right = execution.pop_integer();

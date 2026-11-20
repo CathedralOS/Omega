@@ -29,12 +29,16 @@ impl ConstantEvaluation<'_, '_> {
                 || tree.semantics_at(expression).any(|record| match record {
                     NodeSemantics::Expression(_) => false,
                     NodeSemantics::Field(selected) => selected != field.as_ref(),
+                    NodeSemantics::Obligation(o) if expression == node => !self.admits_owned_return(scope, &o.kind, carrier),
                     _ => true,
                 })
             {
                 return Err(EvaluationError::from(PreparationReason::FieldReadNeedsProof).at_node(file.node_id(expression)));
             }
-            fields.push((file.node_id(expression), field.as_ref().clone()));
+            let site = file.node_id(expression);
+            let result = checked_carrier_in_scope(tree, expression, scope)
+                .map_err(|_| EvaluationError::from(PreparationReason::OwnedFieldMismatch).at_node(site))?;
+            fields.push(OwnedFieldRead { site, field: field.as_ref().clone(), result });
             expression = step.base.node;
         }
         if fields.is_empty() {
@@ -44,27 +48,38 @@ impl ConstantEvaluation<'_, '_> {
         let root = file.node_id(expression);
         let root_carrier = checked_carrier_in_scope(tree, root.node, scope).map_err(|_| EvaluationError::from(PreparationReason::OwnedFieldWithoutRootType).at_node(file.node_id(node)))?;
         execution.steps.extend([
-            Step::ProjectFields(fields),
+            Step::ProjectFields { receiver: root_carrier.clone(), fields },
             Step::Evaluate(root, root_carrier, scope.clone()),
         ]);
         Ok(true)
     }
 
-    pub(super) fn project_owned_fields(
+    pub(super) fn project_owned_fields<'a>(
         &self,
-        projections: &[(TreeNodeId, DeclarationId)],
+        mut receiver: &'a ValueType,
+        projections: &'a [OwnedFieldRead],
         execution: &mut Execution<'_>,
     ) -> Result<(), EvaluationError> {
         let root = execution.values.pop().ok_or(UNSUPPORTED_BODY)?;
         let mut current = &root;
-        for (site, field) in projections {
-            let (shape, fields) = match current {
-                PreparedValue::Record { owner, fields } => (owner, fields),
-                PreparedValue::Sum { case, fields, .. } => (case, fields),
-                _ => return Err(UNSUPPORTED_BODY.into()),
+        for read in projections {
+            let mismatch = || EvaluationError::from(PreparationReason::OwnedFieldMismatch).at_node(read.site);
+            let shape = self.trees.static_data_shapes.get(receiver).ok_or_else(mismatch)?;
+            let (owner, _) = receiver.nominal_parts().ok_or_else(mismatch)?;
+            let (declaration, fields, carriers) = match current {
+                PreparedValue::Record { owner: actual, fields } if actual == owner && shape.cases.is_empty() => (owner, fields, &shape.fields),
+                PreparedValue::Sum { owner: actual, case, fields } if actual == owner => {
+                    let (_, payload) = shape.cases.iter().find(|(id, _)| id == case).ok_or_else(mismatch)?;
+                    (case, fields, payload)
+                }
+                _ => return Err(mismatch()),
             };
-            let index = self.owned_field_position(shape, field).map_err(|error| error.at_node(*site))?;
-            current = fields.get(index).ok_or_else(|| EvaluationError::from(PreparationReason::FieldNotInActiveValue).at_node(*site))?;
+            let slot = self.owned_field_position(declaration, &read.field).map_err(|error| error.at_node(read.site))?;
+            if carriers.get(slot) != Some(&read.result) {
+                return Err(mismatch());
+            }
+            current = fields.get(slot).ok_or_else(|| EvaluationError::from(PreparationReason::FieldNotInActiveValue).at_node(read.site))?;
+            receiver = &read.result;
         }
         execution.values.push(current.clone());
         Ok(())

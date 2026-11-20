@@ -380,3 +380,163 @@ fn a_mathematical_application_refuses_excess_arguments() {
         rule: "Mathematical terms and assembly",
     });
 }
+
+fn check_source_change(good: &str, original: &str, replacement: &str, occurrence: &str, reason: &str, rule: &str) {
+    assert_eq!(good.matches(original).count(), 1, "the change must identify one source occurrence");
+    let bad = good.replacen(original, replacement, 1);
+    check(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("main.omg", good)],
+        bad: &[("main.omg", &bad)],
+        file: "main.omg",
+        occurrence,
+        reason,
+        rule,
+    });
+}
+
+#[test]
+fn a_static_index_expression_cannot_read_a_runtime_parameter() {
+    let source = "data B<const K:u8>{} machine buf<const N:u8>(n:u8)->B<N>{B::<N>{}}";
+    check_source_change(source, "B::<N>{}", "B::<N + n>{}",
+        "N + n", "const index needs a static argument", "Applications");
+}
+
+#[test]
+fn a_value_statement_requires_an_explicit_discard() {
+    let source = "machine identity(x:u64)->u64 {x}";
+    check_source_change(source, "{x}", "{x;}",
+        "x", "value-producing statement requires an explicit discard", "Data and bindings");
+}
+
+#[test]
+fn a_type_family_argument_matches_its_subject() {
+    let source = r"let hold<A,F:A->core\Type<0>>(y:A,w:F(y),z:A):A=z;";
+    check_source_change(source, "y:A", "y:u8",
+        "y", "type-family subject has the wrong type", "Mathematical terms and assembly");
+}
+
+#[test]
+fn a_machine_cannot_satisfy_an_ordinary_machine() {
+    let source = "trait Step { machine run(x:u8)->u8; }
+machine copy(x:u8)->u8{x}
+machine selected(x:u8)->u8 satisfies Step::run {x}";
+    check_source_change(source, "satisfies Step::run", "satisfies copy",
+        "copy", "satisfaction must select a trait requirement", "Evidence and effects");
+}
+
+#[test]
+fn a_carry_declaration_cannot_repeat_an_axis() {
+    let source = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
+    check_source_change(source, "thread:any", "cpu:any",
+        "carry(suspension:allowed,cpu:same,cpu:any,address:movable,)", "repeated carry axis", "Data and bindings");
+}
+
+#[test]
+fn a_data_declaration_cannot_mix_fields_and_cases() {
+    let source = "data Item { value: u64; }";
+    check_source_change(source, "value: u64;", "value: u64; case Empty;",
+        "data Item { value: u64; case Empty; }", "data cannot contain both fields and cases", "Data and bindings");
+}
+
+#[test]
+fn a_decimal_exponent_must_be_representable() {
+    let source = "machine f() -> u8 { 1.0e0 }";
+    check_source_change(source, "1.0e0", "1.0e9223372036854775808",
+        "1.0e9223372036854775808", "decimal exponent exceeds implementation capacity", "Numbers and operators");
+}
+
+#[test]
+fn an_indirect_call_requires_a_callable_parameter() {
+    let source = "data Ready=machine()->bool reaches none crashes none; machine f(cb:Ready)->bool{cb()}";
+    check_source_change(source, "cb:Ready", "cb:bool",
+        "cb", "indirect call requires a callable value", "Calls");
+}
+
+#[test]
+fn a_reflection_query_rejects_its_own_type_arguments() {
+    let source = r"use omega\language\core\reflect; data Buffer{used:u8;} machine inspect(){let x=reflect\field(Buffer::used);}";
+    check_source_change(source, r"reflect\field(", r"reflect\field::<u8>(",
+        r"reflect\field::<u8>", "a declaration query does not take type arguments", "Calls");
+}
+
+#[test]
+fn a_case_pattern_belongs_to_the_subject_sum() {
+    let source = "data A { case X; case Y; }
+data B { case X; case Y; }
+machine inspect(subject: @A) -> bool {
+    match subject {
+        A::X -> true,
+        A::Y -> false,
+    }
+}";
+    check_source_change(source, "A::X", "B::X",
+        "B::X", "case does not belong to the subject", "Patterns and places");
+}
+
+#[test]
+fn an_access_policy_supplies_the_registered_plan_requirement() {
+    let source = r"use omega\language\core; use omega\language\core\reflect; use omega\language\core\access;
+        Rule satisfies AccessPolicy { machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {new_plan::<'t>(@schema, Issuance::Unrestricted{})} }
+        data LocalSchema{}
+        data LocalPlan{}
+        trait OtherPolicy{machine plan(s:LocalSchema)->LocalPlan;}
+        OtherRule satisfies OtherPolicy{machine plan(s:LocalSchema)->LocalPlan terminates{LocalPlan{}}}
+        data C{}
+        domain C::Locked access Rule;";
+    check_source_change(source, "access Rule", "access OtherRule",
+        "OtherRule", "selected policy does not supply the admitted plan requirement", "Access plans and progress");
+}
+
+#[test]
+fn a_call_cannot_repeat_its_block_acknowledgement() {
+    let source = "machine may_wait() blocks {}
+machine caller() { block may_wait(); }";
+    check_source_change(source, "block may_wait", "block block may_wait",
+        "block block may_wait()", "repeated or reversed call acknowledgement", "Evidence and effects");
+}
+
+#[test]
+fn a_logical_hypothesis_cannot_suspend() {
+    let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} machine use_theorem(x:u8){theorem::<lemma>(x)}";
+    check_source_change(source, "Step(y:u8) requires", "Step(y:u8) suspends requires",
+        "suspends", "logical hypothesis cannot promise executable effects", "Mathematical terms and assembly");
+}
+
+#[test]
+fn a_carry_declaration_needs_all_four_axes() {
+    let source = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
+    check_source_change(source, "address:movable,", "",
+        "carry(suspension:allowed,cpu:same,thread:any,)", "carry requires exactly four axes", "Data and bindings");
+}
+
+#[test]
+fn selecting_a_trait_member_requires_trait_evidence() {
+    let source = "trait Convert {machine keep(x:u8)->u8;} machine call<const E:Convert>(x:u8)->u8{E::keep(x)}";
+    check_source_change(source, "E:Convert", "E:bool",
+        "E::keep", "member selection requires a trait evidence binder", "Evidence and effects");
+}
+
+#[test]
+fn a_nested_indexed_move_needs_an_owned_array() {
+    let source = "data Resource{n:u8;} machine pick(a:[[Resource; 1]; 1])->Resource{move a[0][0]}";
+    check_source_change(source, "a:[[", "a:@mut [[",
+        "a[0]", "nested indexed move requires an owned fixed-array place", "Collection access");
+}
+
+#[test]
+fn a_record_pattern_needs_a_record_subject() {
+    let source = "data D{flag:bool;} machine choose<'a>(d:@D)->bool{match d {D{flag:true}->true,_->false,}}";
+    check_source_change(source, "d:@D", "d:bool",
+        "D{flag:true}", "pattern requires a record or case subject", "Patterns and places");
+}
+
+#[test]
+fn a_binding_cannot_initialize_from_a_resultless_call() {
+    let source = "machine one()->u8 { 1u8 }
+machine noop() {}
+machine demo() { let x = one(); }";
+    check_source_change(source, "let x = one()", "let x = noop()",
+        "noop()", "binding requires a value", "Data and bindings");
+}
