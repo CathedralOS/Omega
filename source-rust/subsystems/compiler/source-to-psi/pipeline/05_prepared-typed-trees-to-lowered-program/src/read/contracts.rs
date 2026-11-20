@@ -2306,9 +2306,6 @@ impl Program<'_> {
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
                 let value_type = self.storage_value_type(id, element, qualification)?;
-                let operands = self.collection_index_operand_types(id, array.record());
-                let owner = self.contract_operator_owner(id, scope)?;
-                self.complete_builtin_operator(id, owner, expression, &operands)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)

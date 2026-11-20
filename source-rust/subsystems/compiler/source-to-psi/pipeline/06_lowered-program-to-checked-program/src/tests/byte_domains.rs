@@ -831,13 +831,14 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
 }
 
 fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
+    let collection = if source_domain.is_empty() { "text" } else { "(text as -Text)" };
     format!(
         r#"
 domain [u8]::Text requires byte_observation\{predicate}(@self[..]);
 machine length(text: @[u8] in Text) -> u64 {{ text.len }}
 machine prefix_length(text: @[u8]{source_domain}, end: u64) -> u64
 requires end <= text.len {{
-    let prefix: @[u8] = @text[0..end];
+    let prefix: @[u8] = @{collection}[0..end];
     length(prefix as +Text)
 }}
 machine build_entry() {{
@@ -874,10 +875,7 @@ fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
 
 #[test]
 fn removing_a_domain_keeps_the_backing_bytes_of_a_prefix() {
-    let prefix = |predicate, bytes| {
-        sliced_cast(predicate, " in Text", bytes)
-            .replace("@text[0..end]", "@(text as -Text)[0..end]")
-    };
+    let prefix = |predicate, bytes| sliced_cast(predicate, " in Text", bytes);
     for predicate in ["no_nul", "ascii_only"] {
         assert_eq!(verdict(&prefix(predicate, r#""pl" as +Text"#)), "accepted");
     }
@@ -899,7 +897,7 @@ domain [u8]::Text requires byte_observation\no_nul(@self[..]);
 machine length(text: @[u8] in Text) -> u64 { text.len }
 machine prefix_length(text: @[u8] in Text, end: u64, remaining: u32) -> u64
 requires end <= text.len {
-    let prefix: @[u8] = @text[0..end];
+    let prefix: @[u8] = @(text as -Text)[0..end];
     let measured: u64 = length(prefix as +Text);
     transition remaining > 0 {
         true -> prefix_length(text, end, remaining - 1),
@@ -913,6 +911,7 @@ machine build_entry() {
     assert_eq!(verdict(source), "accepted");
     let unknown = source
         .replace(" in Text, end:", ", end:")
+        .replace("(text as -Text)", "text")
         .replace("\"plain\" as +Text", "\"plain\"");
     let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&unknown) else {
         panic!("an unqualified loop parameter cannot establish the slice's byte predicate");
@@ -1006,7 +1005,7 @@ data Raw { bytes: [u8; 3]; }
 data Holder { bytes: [u8; 3] in Text; }
 machine relabel(raw: @Raw) -> u8 {
     let held: Holder = Holder { bytes: raw.bytes as +Text };
-    held.bytes[0]
+    (@held.bytes as -Text)[0]
 }
 machine build_entry() {
     let raw: Raw = Raw { bytes: [65u8, 66u8, 67u8] };

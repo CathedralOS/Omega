@@ -147,7 +147,7 @@ machine entry(before: Prefix, path: @[u16; 4096] in Terminated, after: @[u16; 1]
 
 #[test]
 fn an_indexed_domain_formal_supplies_only_its_actual_array_leaf() {
-    let positive = qualified_array_input(0, "path[4095]");
+    let positive = qualified_array_input(0, "(path as -Terminated)[4095]");
     let accepted = judge(invocation(&positive, "entry")).unwrap();
     assert!(
         matches!(accepted, RouteVerdict::Accepted(_)),
@@ -155,7 +155,7 @@ fn an_indexed_domain_formal_supplies_only_its_actual_array_leaf() {
     );
 
     for negative in [
-        qualified_array_input(1, "path[4095]"),
+        qualified_array_input(1, "(path as -Terminated)[4095]"),
         qualified_array_input(0, "after[0]"),
     ] {
         let verdict = judge(invocation(&negative, "entry")).unwrap();

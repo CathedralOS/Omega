@@ -469,8 +469,8 @@ domain [u8; 2]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 machine main() crashes Trap {
     let plain: [u8; 2] = [65u8, 66u8];
     let mut bytes: [u8; 2] in Utf8 = plain as +Utf8;
-    bytes[0] = 65u8;
-    let valid: bool = byte_observation\valid_utf8(@bytes[..]);
+    (@mut bytes as -Utf8)[0] = 65u8;
+    let valid: bool = byte_observation\valid_utf8((@bytes as -Utf8)[..]);
     transition valid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
@@ -518,8 +518,10 @@ machine main() crashes Trap {
                 failure.consumed.is_some(),
                 "the write opens an actual invariant window"
             );
-            let write_start = negative_source.find("bytes[0] = 65u8;").unwrap();
-            let write_end = write_start + "bytes[0] = 65u8;".len();
+            let write_start = negative_source
+                .find("(@mut bytes as -Utf8)[0] = 65u8;")
+                .unwrap();
+            let write_end = write_start + "(@mut bytes as -Utf8)[0] = 65u8;".len();
             assert!(
                 matches!(
                     failure.site,
@@ -543,7 +545,7 @@ domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 machine whole<'bytes>(bytes: @'bytes [u8] in Utf8) -> @'bytes [u8] in Utf8
 requires bytes.len >= 1
 {
-    @bytes[..]
+    (bytes as -Utf8)[..] as +Utf8
 }
 machine main() crashes Trap {
     let bytes: @[u8] in Utf8 = whole("é" as +Utf8);
@@ -573,14 +575,28 @@ machine main() crashes Trap {
         }
         execute_observed(accepted);
     }
-    let partial = program.replace("@bytes[..]", "@bytes[1..]");
-    let refused = observed_program(&partial);
-    assert!(
-        refused.iter().any(|verdict| matches!(verdict,
-            Ok(crate::checking::RouteVerdict::FallBack(refusal))
-                if refusal.detail.contains("range domains not preserved by its actual byte backing"))),
-        "a cut inside the UTF-8 encoding must not retain its domain: {refused:?}"
+    let partial = program.replace(
+        "(bytes as -Utf8)[..] as +Utf8",
+        "(bytes as -Utf8)[1..] as +Utf8",
     );
+    let refused = observed_program(&partial);
+    assert!(!refused.is_empty());
+    for verdict in refused {
+        let Ok(crate::checking::RouteVerdict::Rejected { unproved, .. }) = verdict else {
+            panic!("a cut inside the UTF-8 encoding must fail its cast: {verdict:?}");
+        };
+        assert!(
+            unproved
+                .iter()
+                .any(|failure| failure.statement.contains("domain `[u8]::Utf8`")
+                    && failure.statement.contains("valid_utf8")
+                    && matches!(
+                        failure.site,
+                        terminal_check_tables::program::SourceOrigin::Authored(_)
+                    )),
+            "{unproved:?}"
+        );
+    }
 }
 
 #[test]
@@ -664,11 +680,11 @@ fn an_indexed_store_proves_both_prior_and_replacement_byte_contents() {
 domain [u8; 2]::Ascii requires byte_observation\ascii_only(@self[..]);
 machine put(bytes: @mut [u8; 2] in Ascii, index: u64, value: u8)
 requires index < 2, value <= 127u8
-{ bytes[index] = value; }
+{ (bytes as -Ascii)[index] = value; }
 machine main() crashes Trap {
     let mut bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
     put(@mut bytes, 1, 66u8);
-    transition bytes[0] == 65u8 && bytes[1] == 66u8 {
+    transition (@bytes as -Ascii)[0] == 65u8 && (@bytes as -Ascii)[1] == 66u8 {
         true -> {}, false -> bad()
     }
     machine bad() crashes Trap { crash Trap; }
@@ -683,8 +699,8 @@ machine main() crashes Trap {
     for negative in [
         positive.replace("index < 2, value <= 127u8", "index < 2"),
         positive.replace(
-            "{ bytes[index] = value; }",
-            "{ bytes[0] = 255u8; bytes[index] = value; }",
+            "{ (bytes as -Ascii)[index] = value; }",
+            "{ (bytes as -Ascii)[0] = 255u8; (bytes as -Ascii)[index] = value; }",
         ),
     ] {
         let verdicts = observed_program(&negative);
