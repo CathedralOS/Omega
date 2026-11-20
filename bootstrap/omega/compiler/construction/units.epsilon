@@ -93,7 +93,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state data_shape(unit: i32, index: i32, row: OmegaDataSyntax) {
-        transition row.requirement_count == 0 {
+        // A record checks its field bounds in the file that declared them.
+        transition (row.requirement_count == 0) || ((row.field_count > 0) && (row.case_count == 0)) {
             true -> retain_data(unit, index, self.construction.total.data_count + index, row)
             _ -> units(unit + 1, 0)
         }
