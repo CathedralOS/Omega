@@ -38,15 +38,14 @@ def main():
     epsilon.add_argument("evaluator", type=Path)
     epsilon.add_argument("closure", type=Path, help="packed evaluator used to build the executable")
     omega = modes.add_parser("omega", help="command that compiles and runs an Omega source file")
-    omega.add_argument("--timeout", type=int, default=1800, help="seconds for compilation and execution")
     omega.add_argument("command", nargs="+", help="runner command to which program.omg is appended")
+    for mode in (gamma, epsilon, omega):
+        mode.add_argument("--timeout", type=int, help="optional seconds per observation (default: unlimited)")
     args = parser.parse_args()
+    if args.timeout is not None and args.timeout <= 0:
+        parser.error("--timeout must be positive")
 
-    timeout = 60
     if args.rung == "omega":
-        timeout = args.timeout
-        if timeout <= 0:
-            parser.error("--timeout must be positive")
         directory = Path(__file__).resolve().with_name("omega")
         command = [*args.command, directory / "program.omg"]
         cases = [("Omega program", b"", (int((directory / "expected.txt").read_text()), b""))]
@@ -58,9 +57,9 @@ def main():
     passed = failed = 0
     for name, payload, expected in cases:
         try:
-            result = subprocess.run(command, input=payload, capture_output=True, timeout=timeout)
+            result = subprocess.run(command, input=payload, capture_output=True, timeout=args.timeout)
         except subprocess.TimeoutExpired:
-            print(f"{name}: timed out after {timeout}s", file=sys.stderr)
+            print(f"{name}: timed out after {args.timeout}s", file=sys.stderr)
         else:
             if (result.returncode, result.stdout, result.stderr) == (*expected, b""):
                 passed += 1

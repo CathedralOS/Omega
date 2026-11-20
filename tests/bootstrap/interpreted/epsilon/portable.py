@@ -7,7 +7,9 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from compiled import ROOT, delta_request, execute, gamma_request, omega_customer, reconstruct, shell
+from compiled import (
+    ROOT, add_invocation_budget, delta_request, execute, gamma_request, omega_customer, reconstruct, shell,
+)
 from conformance.vectors import (
     epsilon_envelope_observations, epsilon_historical_at_observations,
     epsilon_observations, epsilon_syntax_controls,
@@ -28,7 +30,7 @@ ENVIRONMENT = """
 
 
 def check(work, receipt_path, seconds, profile, omega):
-    reconstruct(work)
+    reconstruct(work, seconds=seconds)
     shell(ENVIRONMENT + """
         materialize_epsilon_evaluator "$1/epsilon.delta"
         require_epsilon_evaluator_entry_identity
@@ -36,7 +38,7 @@ def check(work, receipt_path, seconds, profile, omega):
     closure = (work / "epsilon.delta").read_bytes()
     evaluator = work / "reference"
     if receipt_path is None:
-        print(f"constructing canonical Epsilon receipt (limit {seconds}s)", flush=True)
+        print("constructing canonical Epsilon receipt", flush=True)
         shell(ENVIRONMENT + """
             materialize_delta_compiler "$1/compiler.gamma"
             materialize_delta_support "$1/support.bin"
@@ -104,17 +106,14 @@ def main():
                         help="also compile and run the shared Omega program through the Epsilon evaluator")
     parser.add_argument("--receipt", type=Path,
                         help="reuse an existing canonical Gamma receipt after checking its bound identity")
-    parser.add_argument("--seconds", type=int, default=900,
-                        help="time limit for receipt construction and each observation")
+    add_invocation_budget(parser)
     args = parser.parse_args()
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     directory = args.directory.resolve()
     directory.mkdir(parents=True)
     try:
         return check(directory, args.receipt, args.seconds, args.profile, args.omega)
     except subprocess.TimeoutExpired:
-        sys.exit(f"Epsilon receipt construction timed out after {args.seconds}s")
+        sys.exit(f"bootstrap construction timed out after {args.seconds}s")
 
 
 if __name__ == "__main__":

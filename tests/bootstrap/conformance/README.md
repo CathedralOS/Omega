@@ -11,6 +11,8 @@ Copy this directory with the winning chain. Run the checks from any working dire
 
 A route supplies the adapter for the interface it implements. The compiled routes also use these vectors in their differential checks. The sources in `omega/` exercise the bootstrap compiler through its existing entries. The Epsilon evaluator entry binds its packed source digest. The portable Omega `program.omg` retains its published bytes. The executable-gate controls use comma-separated Omega transition arms.
 
+The checks wait for each observation to finish. Supply `--timeout N` after the rung name to limit each observation to N seconds.
+
 Construction, seed audits, rebuild equality and route-specific limits live with the candidate. The portable checks exercise observable behavior.
 
 The Epsilon grammar spells a view `&[u8]` and a receiver `&mut self`. The default Epsilon profile exercises that grammar. Change #4220 migrated Omega borrows to `@` and also changed two Epsilon examples. The published portable vectors copied those examples. [Change #4220](https://github.com/CathedralOS/Omega/pull/4220) · [Epsilon grammar](https://github.com/CathedralOS/Omega/blob/e488ba404bf/bootstrap/interpreted/4_epsilon/LANGUAGE.md#3-grammar)
