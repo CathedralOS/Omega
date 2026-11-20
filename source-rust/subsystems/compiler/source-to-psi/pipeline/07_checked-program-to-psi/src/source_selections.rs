@@ -222,7 +222,7 @@ mod tests {
             }
         }
 
-        let text = "machine helper() { } machine build() { helper(); }";
+        let text = "const CHOSEN: bool = false; machine helper(value: bool) { } machine build() { helper(CHOSEN); }";
         let mut sources = crate::source_inputs::SourceMap::default();
         let id = sources
             .add_checked_instance(
@@ -290,6 +290,27 @@ mod tests {
         let produced = produce(Some(&captured));
         let selections = produced.source_selections().unwrap();
         selections.admit(produced.view(), &authorities).unwrap();
+        let mut constants = selections
+            .questions
+            .declarations
+            .iter()
+            .filter(|(_, row)| row.name == "CHOSEN");
+        let (constant, _) = constants
+            .next()
+            .expect("the folded constant remains a source selection");
+        assert!(constants.next().is_none());
+        let (question, _) = selections
+            .questions
+            .questions
+            .iter()
+            .find(|(_, row)| {
+                row.selected
+                    == semantic_vocabulary::source_selections::SelectionReference::Declaration(
+                        constant,
+                    )
+            })
+            .expect("the source occurrence selects its captured constant");
+        assert!(selections.allows_question(produced.view(), question));
         let helper = accepted.source().realized_machine_named("helper").unwrap();
         let helper_machine = accepted.machine_of(helper.symbol).unwrap();
         let helper_identity = produced
@@ -344,6 +365,12 @@ mod tests {
         );
         let foreign = Capture(Arc::new(sources.as_ref().clone()));
         let denied = produce(Some(&foreign));
+        assert!(
+            !denied
+                .source_selections()
+                .unwrap()
+                .allows_question(denied.view(), question)
+        );
         assert!(
             denied
                 .source_selections()
