@@ -136,7 +136,8 @@ fn fixed_call(call: &TypedCall) -> bool {
 
 #[derive(Default)]
 struct CallbackTermination<'a> {
-    pending: Vec<(usize, CallbackApplication)>,
+    // The incoming occurrence is known for direct calls within the closure.
+    pending: Vec<(usize, CallbackApplication, Option<TreeNodeId>)>,
     fact_selections: Vec<(&'a MachineEffects, CallbackApplication)>,
 }
 
@@ -280,9 +281,9 @@ impl ConstantEvaluation<'_, '_> {
             return Err(CYCLIC_INVOCATION.into());
         }
         let mut traversal = CallbackTermination::default();
-        traversal.pending.push((index, application));
+        traversal.pending.push((index, application, None));
         let mut checked = HashSet::new();
-        while let Some((index, application)) = traversal.pending.pop() {
+        while let Some((index, application, incoming)) = traversal.pending.pop() {
             if !checked.insert((index, application.clone())) {
                 continue;
             }
@@ -291,7 +292,26 @@ impl ConstantEvaluation<'_, '_> {
                 .signatures
                 .get(index)
                 .ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
-            let tree = self.tree(signature.node)?;
+            let at_entry = |reason: PreparationReason| {
+                let error = EvaluationError::from(reason);
+                match incoming {
+                    Some(node) => error.at_node(node),
+                    None => error,
+                }
+            };
+            let tree = self.tree(signature.node).map_err(|_| at_entry(UNRESOLVED_CALLBACK_CLOSURE))?;
+            let file = tree.resolved().file;
+            let node = signature.node.node;
+            if tree.resolved().declaration_at(node) != Some(&signature.machine)
+                || file.child(node, NodeKind::Body).is_none()
+                || file.generic_parameters(node).count() != application.selection.arguments.len()
+                || self.machine_effects(index).is_none()
+            {
+                return Err(at_entry(UNRESOLVED_CALLBACK_CLOSURE));
+            }
+            if tree.resolved().is_exported(node) && !signature.terminates {
+                return Err(at_entry(PreparationReason::PublicMachineWithoutTermination));
+            }
             self.admit_selected_termination(
                 index,
                 signature,
@@ -308,7 +328,7 @@ impl ConstantEvaluation<'_, '_> {
             // Follow the actual call even within a certified component. Its
             // termination certificate covers ranking; each edge supplies its
             // own callback selections and the proofs available there.
-            self.visit_callback_member(graph, index, signature, &application, execution, &mut traversal)?;
+            self.visit_callback_member(graph, index, &tree, &application, execution, &mut traversal)?;
         }
         Ok(traversal.fact_selections)
     }
@@ -317,34 +337,24 @@ impl ConstantEvaluation<'_, '_> {
         &'a self,
         graph: &LocalCallGraph<'_>,
         index: usize,
-        signature: &TypedSignature,
+        tree: &TypedTree<'_>,
         application: &CallbackApplication,
         execution: &Execution<'_>,
         traversal: &mut CallbackTermination<'a>,
     ) -> Result<(), EvaluationError> {
-        let tree = self.tree(signature.node)?;
-        let file = tree.resolved().file;
-        if file.node_id(signature.node.node) != signature.node
-            || tree.resolved().declaration_at(signature.node.node) != Some(&signature.machine)
-            || file.child(signature.node.node, NodeKind::Body).is_none()
-            || file.generic_parameters(signature.node.node).count() != application.selection.arguments.len()
-            || tree.resolved().is_exported(signature.node.node) && !signature.terminates
-            || self.machine_effects(index).is_none()
-        {
-            return Err(UNRESOLVED_CALLBACK_CLOSURE.into());
-        }
         let edges = graph.edges[index]
             .iter()
             .map(|edge| (Some(edge.callee), edge.call));
         let external = graph.external_calls[index].iter().map(|&call| (None, call));
         for (callee, call) in edges.chain(external) {
-            if call.node.file != signature.node.file
-                || call.machine.kind != NodeKind::Machine
-                || selected_call(&tree, call.node.node, call.use_site)? != Some(call)
-            {
+            if !matches_source_occurrence(tree.resolved().file, call.node, &call.site) {
                 return Err(UNRESOLVED_CALLBACK_CLOSURE.into());
             }
-            let selected = RecursiveApplication::select(call, |argument| application.selection.instantiate(argument)).ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
+            let unresolved = || EvaluationError::from(UNRESOLVED_CALLBACK_CLOSURE).at_node(call.node);
+            if call.machine.kind != NodeKind::Machine || selected_call(tree, call.node.node, call.use_site).map_err(|error| error.at_node(call.node))? != Some(call) {
+                return Err(unresolved());
+            }
+            let selected = RecursiveApplication::select(call, |argument| application.selection.instantiate(argument)).ok_or_else(unresolved)?;
             // A provider-controlled edge can change the recursive graph.
             // This closure is valid only for direct local implementations.
             let mut trait_scopes = selected
@@ -366,13 +376,13 @@ impl ConstantEvaluation<'_, '_> {
                         && (ambiguous_trait_scope || slot.requirement.trait_arguments == trait_arguments)
                 })
             {
-                return Err(UNRESOLVED_CALLBACK_CLOSURE.into());
+                return Err(unresolved());
             }
             if call.layout_query.is_some() {
                 // A typed core layout projection does not enter a machine body.
                 continue;
             }
-            let callee = callee.ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
+            let callee = callee.ok_or_else(unresolved)?;
             // Invocation rows compose executing calls. Keep the exact
             // specialization at each fact edge so callback admission can
             // inspect its dependencies even when the predicate short-circuits.
@@ -387,19 +397,19 @@ impl ConstantEvaluation<'_, '_> {
             {
                 return Err(CYCLIC_INVOCATION.into());
             }
-            let bindings = self.callback_bindings_at_edge(&tree, call, application, &selection)?;
+            let bindings = self.callback_bindings_at_edge(tree, call, application, &selection)?;
             let callee_application = CallbackApplication { selection, bindings };
             if call.use_site == CallUse::Fact {
                 let effects = self
                     .machine_effects(callee)
-                    .ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
+                    .ok_or_else(unresolved)?;
                 if !effects.invokes.is_empty() || !effects.callback_pause.is_empty() {
                     traversal
                         .fact_selections
                         .push((effects, callee_application.clone()));
                 }
             }
-            traversal.pending.push((callee, callee_application));
+            traversal.pending.push((callee, callee_application, Some(call.node)));
         }
         Ok(())
     }
@@ -473,6 +483,15 @@ impl ConstantEvaluation<'_, '_> {
             return Err(self.call_refusal(CYCLIC_INVOCATION, &execution.chain, &cycle));
         }
         Err(PreparationReason::RankedBodyNeedsProof.into())
+    }
+
+    /// Unlike an executing call, the closing graph edge need not have been
+    /// visited. Only use its site if it names that node in the caller's file.
+    pub(super) fn cycle_site<'a>(&self, cycle: &[&'a TypedCall]) -> Option<&'a omega_typed::Site> {
+        let call = cycle.last()?;
+        let (_, caller) = self.signatures().get(call.caller.as_ref()?)?;
+        let tree = self.trees.resolved().trees().nth(caller.node.file)?;
+        matches_source_occurrence(tree.file, call.node, &call.site).then_some(&call.site)
     }
 
     fn local_call_graph(&self) -> &LocalCallGraph<'_> {

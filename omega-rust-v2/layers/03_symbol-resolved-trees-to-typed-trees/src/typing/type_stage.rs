@@ -99,7 +99,7 @@ pub(crate) fn check_stage<'a>(
     let dependencies =
         super::preparation_dependencies::PreparationDependencies::collect(resolved, catalog, output, &demands, catalog.types.indices.take_blocked_nodes());
     let execution = ExecutionCalls::collect(output, &dependencies);
-    machine_effects::check_machine_effects(catalog, &execution, &dependencies, environment.boundary_slots, output)?;
+    machine_effects::check_machine_effects(&units, catalog, &execution, &dependencies, environment.boundary_slots, output)?;
     guarded_calls::record_guarded_calls(&execution, library_execution, catalog, output);
     cleanup::check_cleanup_selections(&units, catalog, &dependencies, output)?;
     trait_refinements::check_trait_refinements(catalog, &dependencies, output)?;
@@ -107,7 +107,7 @@ pub(crate) fn check_stage<'a>(
     if !allow_pending {
         catalog.types.formations.check(&catalog.types, output)?;
     }
-    let demands = dependencies.ready_demands(demands)?;
+    let demands = dependencies.ready_demands(demands, &units, &catalog.types, output)?;
     let specialized_requests = demands
         .iter()
         .filter_map(|demand| match demand {

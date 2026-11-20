@@ -31,9 +31,8 @@ pub(crate) fn check_bodies(
             }
             if node.kind == Const {
                 let id = unit.declaration(node_index)?;
-                let initializer = *node
-                    .children
-                    .last()
+                let initializer = unit.file
+                    .constant_initializer(node_index)
                     .ok_or_else(|| TypeError::unsupported(unit.file, node_index))?;
                 output.constants.push(crate::TypedConstant {
                     declaration: id.clone(),

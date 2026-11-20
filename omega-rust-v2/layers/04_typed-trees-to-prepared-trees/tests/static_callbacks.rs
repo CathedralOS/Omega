@@ -1,3 +1,6 @@
+#[path = "static_callbacks/closure.rs"]
+mod closure;
+
 use omega_preparation::{PreparedValue, prepare_source_package};
 use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::{SourcePackage, resolve_source_package};

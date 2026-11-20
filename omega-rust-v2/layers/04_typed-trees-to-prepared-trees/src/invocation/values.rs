@@ -315,20 +315,25 @@ impl ConstantEvaluation<'_, '_> {
         if self.schedule_float_cast(tree, node, carrier, scope, execution)? {
             return Ok(());
         }
-        if file.nodes[node].kind == NodeKind::Binary {
+        // A token-bearing machine can return an integer just like a named call.
+        if selected_call(tree, node, scope.call_use())?.is_some() || file.nodes[node].kind == NodeKind::Call {
+            execution
+                .steps
+                .push(Step::Invoke(file.node_id(node), carrier.clone(), scope.clone()));
+        } else if file.nodes[node].kind == NodeKind::Binary {
             let [left, right] = *file.nodes[node].children.as_slice() else {
                 return Err(UNSUPPORTED_BODY.into());
             };
             let (token, right_carrier) = selected_arithmetic(tree, node, carrier, |ty| scope.instantiate(ty))?;
             execution.steps.extend([
-                Step::ApplyInteger(range, token.into()),
+                Step::ApplyInteger {
+                    initializer_site: matches!(scope, Scope::Initializer { .. }).then_some(file.node_id(node)),
+                    range,
+                    token: token.into(),
+                },
                 Step::Evaluate(file.node_id(right), right_carrier, scope.clone()),
                 Step::Evaluate(file.node_id(left), carrier.clone(), scope.clone()),
             ]);
-        } else if selected_call(tree, node, scope.call_use())?.is_some() || file.nodes[node].kind == NodeKind::Call {
-            execution
-                .steps
-                .push(Step::Invoke(file.node_id(node), carrier.clone(), scope.clone()));
         } else if file.nodes[node].kind == NodeKind::Unary && matches!(carrier, ValueType::Integer { signed: true, .. }) {
             let [operand] = *file.nodes[node].children.as_slice() else {
                 return Err(UNSUPPORTED_BODY.into());
@@ -355,7 +360,11 @@ impl ConstantEvaluation<'_, '_> {
                 return Err(UNSUPPORTED_BODY.into());
             }
             execution.steps.extend([
-                Step::ApplyInteger(range, "-".into()),
+                Step::ApplyInteger {
+                    initializer_site: matches!(scope, Scope::Initializer { .. }).then_some(file.node_id(node)),
+                    range,
+                    token: "-".into(),
+                },
                 Step::Evaluate(file.node_id(operand), carrier.clone(), scope.clone()),
                 Step::Push(PreparedValue::Integer(0.into())),
             ]);
@@ -525,7 +534,8 @@ impl ConstantEvaluation<'_, '_> {
             let PreparedValue::Integer(value) = value else {
                 return Err(UNSUPPORTED_BODY.into());
             };
-            return fits(value.clone(), carrier).ok_or_else(|| PreparationReason::FrozenConstantOutsideCarrier.into());
+            return fits(value.clone(), carrier)
+                .ok_or_else(|| EvaluationError::from(PreparationReason::FrozenConstantOutsideCarrier).at_node(resolved.file.node_id(node)));
         }
         if let Some(argument) = self.specialized_argument(tree, node, carrier, scope)? {
             let ValueType::StaticInteger { value, carrier: actual } = argument else {

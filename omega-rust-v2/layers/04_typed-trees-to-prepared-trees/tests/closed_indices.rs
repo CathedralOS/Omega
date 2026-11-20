@@ -73,6 +73,8 @@ fn lower_array_parameter_shapes(
         .collect()
 }
 
+#[path = "closed_indices/selected_widths.rs"]
+mod selected_widths;
 #[path = "closed_indices/domain_widths.rs"]
 mod domain_widths;
 #[path = "closed_indices/domain_handoff.rs"]

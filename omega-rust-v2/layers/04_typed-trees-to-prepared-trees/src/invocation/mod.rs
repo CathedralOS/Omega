@@ -91,6 +91,27 @@ pub(super) enum Scope<'a> {
     Fact(Rc<CallBindings>),
 }
 
+/// L3's binder partition of a specialized request's closed argument tuple.
+#[derive(Clone, Copy)]
+struct InitializerArguments<'a> {
+    scopes: &'a [(DeclarationId, usize)],
+    values: &'a [ValueType],
+}
+
+impl<'a> InitializerArguments<'a> {
+    fn bindings(self) -> impl Iterator<Item = (&'a DeclarationId, &'a [ValueType])> {
+        self.scopes.iter().scan(self.values, |rest, (owner, arity)| {
+            let (arguments, tail) = rest.split_at(*arity);
+            *rest = tail;
+            Some((owner, arguments))
+        })
+    }
+
+    fn instantiate(self, value: &ValueType) -> ValueType {
+        self.bindings().fold(value.clone(), |value, (owner, args)| value.substitute(owner, args))
+    }
+}
+
 impl Scope<'_> {
     fn bindings(&self) -> &Rc<CallBindings> {
         match self {
@@ -112,16 +133,7 @@ impl Scope<'_> {
         match self {
             Self::Initializer {
                 owner_arguments, owner_scopes, ..
-            } => {
-                let mut remaining = *owner_arguments;
-                owner_scopes
-                    .iter()
-                    .fold(carrier.clone(), |carrier, (owner, arity)| {
-                        let (arguments, rest) = remaining.split_at(*arity);
-                        remaining = rest;
-                        carrier.substitute(owner, arguments)
-                    })
-            }
+            } => InitializerArguments { scopes: owner_scopes, values: owner_arguments }.instantiate(carrier),
             Self::Body(_) | Self::Fact(_) => self
                 .application()
                 .map_or_else(|| carrier.clone(), |call| call.instantiate(carrier)),
@@ -230,7 +242,7 @@ enum Step<'a> {
     Require(PreparationReason),
     CrashGuard(PreparationReason),
     CheckInvocationProof(admission::ProofRequest<'a>, Rc<CallBindings>),
-    ApplyInteger(IntegerRange, String),
+    ApplyInteger { initializer_site: Option<TreeNodeId>, range: IntegerRange, token: String },
     ApplyFloat {
         site: TreeNodeId,
         format: FloatFormat,
@@ -355,10 +367,22 @@ impl ConstantEvaluation<'_, '_> {
             .steps
             .push(Step::Evaluate(root, carrier.clone(), scope.clone()));
         while let Some(step) = execution.steps.pop() {
+            // A block or match arm in an initializer operand is still computing
+            // that operand. Entering a called machine starts a separate body scope.
+            let in_argument = match &step {
+                Step::Evaluate(_, _, scope) | Step::Block { scope, .. } | Step::Select { scope, .. } => {
+                    matches!(scope, Scope::Initializer { in_argument: true, .. })
+                }
+                _ => false,
+            };
             if let Err(error) = self.evaluate_step(step, &mut execution) {
+                let error = match error {
+                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY), None) if in_argument => UNSUPPORTED_ARGUMENT.into(),
+                    other => other,
+                };
                 return Err(match error {
                     EvaluationError::Refused(reason, Some(node)) => {
-                        EvaluationError::Located(self.diagnostic_at(node, reason, &execution.chain, &[]))
+                        EvaluationError::Located(self.diagnostic_at(&self.visited_site(node), reason, &execution.chain, &[]))
                     }
                     EvaluationError::Refused(reason, None) if !execution.chain.is_empty() => {
                         self.call_refusal(reason, &execution.chain, &[])
@@ -380,7 +404,7 @@ impl ConstantEvaluation<'_, '_> {
                 let tree = self.tree(site)?;
                 let file = tree.resolved().file;
                 let node = file.ungroup(site.node);
-                let result = if file.nodes[node].kind == NodeKind::Match {
+                if file.nodes[node].kind == NodeKind::Match {
                     if checked_carrier_in_scope(&tree, node, &scope)? != carrier {
                         return Err(UNSUPPORTED_BODY.into());
                     }
@@ -402,17 +426,16 @@ impl ConstantEvaluation<'_, '_> {
                     self.evaluate_float(&tree, site.node, &carrier, &scope, execution)
                 } else {
                     self.evaluate_integer(&tree, site.node, &carrier, &scope, execution)
-                };
-                result.map_err(|error| match error {
-                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY), None) if matches!(scope, Scope::Initializer { in_argument: true, .. }) => {
-                        UNSUPPORTED_ARGUMENT.into()
-                    }
-                    other => other,
-                })?;
+                }?;
             }
-            Step::Invoke(site, carrier, scope) => {
+            Step::Invoke(site, carrier, mut scope) => {
                 let tree = self.tree(site)?;
                 execution.chain.push(site);
+                // Further evaluation in the initializer frame computes an operand,
+                // regardless of its carrier. Contracts and bodies get their own frames.
+                if let Scope::Initializer { in_argument, .. } = &mut scope {
+                    *in_argument = true;
+                }
                 let Some(call) = selected_call(&tree, site.node, scope.call_use())? else {
                     return self.schedule_static_callback(&tree, site, &scope, &carrier, execution);
                 };
@@ -562,12 +585,18 @@ impl ConstantEvaluation<'_, '_> {
                     return Err(reason.into());
                 }
             }
-            Step::ApplyInteger(range, token) => {
+            Step::ApplyInteger { initializer_site, range, token } => {
                 let right = execution.pop_integer();
                 let left = execution.pop_integer();
-                execution
-                    .values
-                    .push(PreparedValue::Integer(range.apply(&token, left, right)?));
+                let value = range.apply(&token, left, right).map_err(|cause| {
+                    let error = EvaluationError::from(cause);
+                    // Operand evaluation can fail before a pending call enters its body.
+                    match initializer_site {
+                        Some(site) => error.at_node(site),
+                        None => error,
+                    }
+                })?;
+                execution.values.push(PreparedValue::Integer(value));
             }
             Step::ApplyFloat { site, format, operation } => self.apply_float(site, format, operation, execution)?,
             Step::CoerceFloat { site, carrier } => self.coerce_float(site, &carrier, execution)?,
@@ -661,21 +690,21 @@ impl ConstantEvaluation<'_, '_> {
         chain: &[TreeNodeId],
         cycle: &[&TypedCall],
     ) -> PreparationRefusal {
-        let site = cycle
-            .last()
-            .map_or_else(|| *chain.last().expect("visited call"), |call| call.node);
-        self.diagnostic_at(site, reason, chain, cycle)
+        if let Some(site) = self.cycle_site(cycle) {
+            return self.diagnostic_at(site, reason, chain, cycle);
+        }
+        let site = self.visited_site(*chain.last().expect("visited call"));
+        self.diagnostic_at(&site, reason, chain, cycle)
     }
 
     fn diagnostic_at(
         &self,
-        node: TreeNodeId,
+        site: &omega_typed::Site,
         reason: impl Into<RefusalCause>,
         chain: &[TreeNodeId],
         cycle: &[&TypedCall],
     ) -> PreparationRefusal {
-        let site = self.visited_site(node);
-        let mut refusal = crate::evaluation::refusal(&site, reason);
+        let mut refusal = crate::evaluation::refusal(site, reason);
         let error = &mut refusal.diagnostic;
         if chain.len() > 1 {
             error.message.push_str("\ncall chain: ");

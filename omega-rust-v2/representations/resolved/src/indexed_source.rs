@@ -40,6 +40,15 @@ impl<'a> IndexedSource<'a> {
         }
     }
 
+    /// The authored RHS of a constant, with or without a carrier annotation.
+    pub fn constant_initializer(&self, declaration: usize) -> Option<usize> {
+        let node = self.nodes.get(declaration)?;
+        if node.kind != omega_syntax::NodeKind::Const {
+            return None;
+        }
+        node.children.last().copied()
+    }
+
     pub fn ordinal(&self) -> usize {
         self.ordinal
     }
