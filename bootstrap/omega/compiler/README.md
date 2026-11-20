@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 25,006 lines / 949,618 bytes with SHA-256
-`301d9486626302c29b6de01c96022447c504fede2a76692039685fdeabaaf52c`.
+manifest materializes 25,024 lines / 950,104 bytes with SHA-256
+`a35faf842038add91a40af14d77ca687f97581fda29d4694aa101e2e56b4b283`.
 The manifest itself is 2,038 bytes, SHA-256
-`45d3a15e3acd506b726beecb41841380b7bd5d250dfc3cad31d41e9ac1c239e9`;
+`7c6f58d6210d2041d6edaaaeabbf5b639f1dcfbb9d2dbfa94a313035982e382b`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -305,10 +305,13 @@ the parser's live count before a consumer reads it. The public parser admits
 at most 16,384 type rows.
 
 Records retain declaration identity, field qualification and copy/affine
-multiplicity. The current layout gives every scalar an eight-byte word and
-fixed arrays their declared count times the element stride; this is a private
-Alpha representation, not an implementation of canonical native layout queries.
-A SourceUnit byte array therefore occupies 1 MiB. Layout recursion is bounded
+multiplicity. In the private Alpha layout, a scalar cell occupies one
+eight-byte word. A fixed array of plain `u8` stores one byte per element.
+Its indexing instructions read or write exactly one byte. The whole array is
+rounded up to a word boundary so record copies and zeroing can use whole words.
+Bounds checks use the declared element count. The `SourceUnit` byte array
+occupies 128 KiB and the construction application's 4 MiB byte array fits in
+its 4,224,576-byte `ConstructionInput` record. Layout recursion is bounded
 at 64 steps and the complete private storage arena at 16 MiB. By-value cycles,
 linear/opaque/authority-bearing types, stored references, selected cleanup and
 unsupported domains decline before allocation. An intact affine local with no
@@ -347,9 +350,9 @@ equivalence of separately spelled array value types remain unsupported.
 The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements in a reduced `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. The complete
-23,348-byte `source.omg` reaches the declaration of `SourceSet` and returns
-`Incomplete`. Its `bytes: [u8; 4194304]` field occupies 32 MiB in the current
-word layout. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
+then returns `Incomplete` at the second reference parameter of
+`source_set_add`, at file byte 6,085. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -389,7 +392,9 @@ The `--omega-storage` customer takes exact SourceId, SourceUnit, ModulePath,
 helpers now state their existing guarded bounds explicitly and remove the
 array-shell policy through checked shared/mutable views. The customer checks
 clear's preserved byte, zero/final/full append boundaries, absent reads and
-ModulePath capacity. Generic controls check disjoint mutation, captured indexed
+ModulePath capacity. It writes distinct values to the first and last two
+bytes of the application's `ConstructionInput`, then copies a nine-byte array
+inside a record and checks the neighboring field. Generic controls check disjoint mutation, captured indexed
 assignment, original-reference forwarding and explicit scalar entry contracts.
 Refusals cover missing/stale bounds, mutating guard operands, same-expression
 call invalidation, overlapping argument loans and local-backed tail transfers.

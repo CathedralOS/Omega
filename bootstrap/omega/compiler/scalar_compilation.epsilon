@@ -2208,7 +2208,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         transition (self.emit_value(self.parser.expressions[expression].payload0) == 1) &&
             (self.tape.emit_imm(1, self.field_offsets[field], 0) == 1) &&
             (self.tape.emit_rr(3, 0, 1) == 1) {
-            true -> return self.emit_address_value(self.field_types[field])
+            true -> return self.emit_address_value(self.field_types[field], self.field_extents[field])
             _ -> return 0
         }
     }
@@ -4325,7 +4325,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
             (self.emit_restore_address(49152 + row.target) == 1) &&
             (self.tape.emit_rr(2, 1, 0) == 1) &&
             (self.tape.emit_rr(2, 0, 2) == 1) &&
-            (self.emit_store_at(self.place_types[row.target], self.assignment_store_size(row.target)) == 1) {
+            (self.emit_store_at(self.place_types[row.target], self.place_value_size(row.target)) == 1) {
             true -> emit_statements(index, state_index, statement_offset + 1)
             _ -> emission_failure()
         }
@@ -4579,10 +4579,16 @@ machine OmegaScalarCompiler::scalar_type(
     }
 }
 
-// This private target layout gives every scalar one word. Fixed arrays use
-// that element stride; their declared element count and qualification remain
-// semantic properties. No native ABI, size query or external representation is
-// admitted by the diagnostic executable adapter.
+// A scalar cell holds a word. Inside a fixed array, u8 takes one byte.
+// Round the complete array up to a word so copies and zeroing can operate
+// on whole words without crossing into the next field or cell.
+machine OmegaScalarCompiler::array_element_stride(&mut self, source: &[u8], kind: i32) -> i32 {
+    transition kind {
+        8 -> return 1
+        _ -> return self.type_size(source, kind)
+    }
+}
+
 machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32) -> i32 {
     transition kind {
         1 -> return 8
@@ -4631,7 +4637,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
     state element(row: OmegaTypeReferenceSyntax, count: i32) {
         let element_kind: i32 = self.scalar_type(source, row.payload0);
         transition (element_kind > 0) && (element_kind < 400000) && (element_kind != 2) {
-            true -> extent(count, self.type_size(source, element_kind))
+            true -> extent(count, self.array_element_stride(source, element_kind))
             _ -> return 0
         }
     }
@@ -4643,7 +4649,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
     }
     state bounded(count: i32, stride: i32) {
         transition (count > 0) && (count <= 16777216 / stride) {
-            true -> return count * stride
+            true -> return ((count * stride + 7) / 8) * 8
             _ -> return 0
         }
     }
@@ -5580,7 +5586,13 @@ machine OmegaScalarCompiler::check_record_literal(
 machine OmegaScalarCompiler::emit_store_at(&mut self, kind: i32, size: i32) -> i32 {
     transition (kind >= 100000) && (kind < 400000) {
         true -> return self.emit_copy_words(size)
-        _ -> return self.tape.emit_rr(11, 1, 0)
+        _ -> scalar()
+    }
+    state scalar() {
+        transition size {
+            1 -> return self.tape.emit_rr(9, 1, 0)
+            _ -> return self.tape.emit_rr(11, 1, 0)
+        }
     }
 }
 
@@ -5667,8 +5679,8 @@ machine OmegaScalarCompiler::emit_place_address(&mut self, expression: i32) -> i
     }
 }
 
-// The parent extent covers every possible element for loans; a store copies only its selected element.
-machine OmegaScalarCompiler::assignment_store_size(&mut self, target: i32) -> i32 {
+// A loan covers the parent array. Reads and writes use the selected element width.
+machine OmegaScalarCompiler::place_value_size(&mut self, target: i32) -> i32 {
     transition self.parser.expressions[target].kind {
         OmegaExpressionKind::Indexed -> return self.index_plans[target].stride
         _ -> return self.place_extent[target]
@@ -5677,15 +5689,21 @@ machine OmegaScalarCompiler::assignment_store_size(&mut self, target: i32) -> i3
 
 machine OmegaScalarCompiler::emit_place_value(&mut self, expression: i32) -> i32 {
     transition self.emit_place_address(expression) {
-        1 -> return self.emit_address_value(self.place_types[expression])
+        1 -> return self.emit_address_value(self.place_types[expression], self.place_value_size(expression))
         _ -> return 0
     }
 }
 
-machine OmegaScalarCompiler::emit_address_value(&mut self, kind: i32) -> i32 {
+machine OmegaScalarCompiler::emit_address_value(&mut self, kind: i32, size: i32) -> i32 {
     transition (kind >= 100000) && (kind < 400000) {
         true -> return 1
-        _ -> return self.tape.emit_rr(10, 0, 0)
+        _ -> scalar()
+    }
+    state scalar() {
+        transition size {
+            1 -> return self.tape.emit_rr(8, 0, 0)
+            _ -> return self.tape.emit_rr(10, 0, 0)
+        }
     }
 }
 
@@ -5919,7 +5937,7 @@ machine OmegaScalarCompiler::check_index(
     }
     state element_stride(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax, element: i32) {
         self.index_plans[expression].element_type = element;
-        self.index_plans[expression].stride = self.type_size(source, element);
+        self.index_plans[expression].stride = self.array_element_stride(source, element);
         transition self.index_plans[expression].stride > 0 {
             true -> count(base, removed, kind, row)
             _ -> unsupported()
