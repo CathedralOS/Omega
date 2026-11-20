@@ -241,11 +241,15 @@ four-byte little-endian compiler length, the compiler and the named customer.
 | `omega-byte-classes` | `c83d09ecd745b3cc6719529a02242fbddb8b6f6fd323b2b3671de1a1e7bb2d54` | 65,013-byte Delta module, SHA-256 `bd1d5bd47e663ecf27518374302e276913543fa67bc47479439dce60c0376314` | 332.85 / 3,580.71 |
 | `omega-wrong-base` | `35959384a94471903dbf77a5110d142534937e390791b4452225fd795bd3c72a` | 16 ASCII bytes `rejected 18 2032` | 15.08 / 126.55 |
 
-These executions consumed an Epsilon compiler produced independently on a compiled
-Gamma host. The separate original-Gamma translation uses a 787,193-byte input
-with SHA-256 `4e15a439ff582761befc975f907d1d24f360cf1b4315f2ac77709f67be31bd0b`.
-The measurements below begin with the 813,584-byte compiler. The optional
-translated-Delta interpreter is separate from the default 27 selections.
+The same Beta-written interpreter ran the Gamma-written Delta compiler on the
+630,512-byte Epsilon compiler and its bound support. Its 787,193-byte input
+had SHA-256 `4e15a439ff582761befc975f907d1d24f360cf1b4315f2ac77709f67be31bd0b`.
+In 720.37 CPU seconds (9,279.88 elapsed) it emitted the 813,584-byte Gamma
+compiler above. To overlap the builds, the two Epsilon compilations began with
+a separately generated copy. Reframing both customer inputs with the
+original interpreter's bytes reproduced both complete inputs byte for byte.
+This supplies the compiler for two additional route selections with
+`--delta-interpreter gamma`, outside the default 27 selections.
 
 Linking the emitted module with the Epsilon runtime reproduced the complete
 317,906-byte original-Gamma request for translating the linked guest, SHA-256
