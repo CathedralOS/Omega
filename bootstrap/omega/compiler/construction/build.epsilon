@@ -6,6 +6,12 @@ data ConstructionBuildResult {
     // Build-local machines occupy a suffix of parser storage. Product
     // lookup sees only the prefix; helpers retain their original lexical file.
     first_machine: i32;
+    is_application: i32;
+    // Populated from the embedding's two verified roots before Build execution.
+    // Only the registered Product path can activate the selected supplier.
+    location: [u8; 4096];
+    location_length: i32;
+    registered: i32;
     machine_end: i32;
     calls_active: [i32; 4096];
     selected_targets: [i32; 6];
@@ -47,7 +53,7 @@ machine OmegaScalarCompiler::ground_builder(&mut self, source: &[u8], machine_id
         }
     }
     state parameter(id: i32, row: OmegaMachineParameterSyntax) {
-        transition (row.is_const == 0) && (row.is_self == 0) && (self.build_spelling(source, row.name, "Build") == 0) &&
+        transition (row.is_const == 0) && (row.is_self == 0) && (self.build_prelude_name(source, row.name) == 0) &&
             (self.build_target(source, row.name) < 0) {
             true -> reference(id, self.parser.type_references[row.type_reference])
             _ -> return -1
@@ -109,8 +115,9 @@ machine OmegaScalarCompiler::run_build_operation(&mut self, source: &[u8], handl
         }
     }
     state operation(name: OmegaRelativeSpan) {
-        transition self.build_spelling(source, name, "application") {
-            1 -> application()
+        transition ((self.build.is_application == 1) && (self.build_spelling(source, name, "application") == 1)) ||
+            ((self.build.is_application == 0) && (self.build_spelling(source, name, "package") == 1)) {
+            true -> application()
             _ -> binding(name)
         }
     }
@@ -142,7 +149,8 @@ machine OmegaScalarCompiler::run_build_operation(&mut self, source: &[u8], handl
         }
     }
     state bind() {
-        transition ((execute == 0) || (self.build.entry.end == 0)) && (call.argument_count == 3) && (call.machine_argument_count == 0) {
+        transition (self.build.is_application == 1) && ((execute == 0) || (self.build.entry.end == 0)) &&
+            (call.argument_count == 3) && (call.machine_argument_count == 0) {
             true -> target(self.build_path_argument(call.first_argument + 1, 2), self.build_path_argument(call.first_argument + 2, 1))
             _ -> return 0
         }
@@ -246,8 +254,10 @@ machine OmegaScalarCompiler::empty_build(&mut self, source: &[u8], start: i32, e
 // the Product and Build separately, then rejoin each inert occurrence using
 // the ordinary Product visibility resolver in the Build's file scope.
 machine OmegaScalarCompiler::check_ground_application(&mut self, source: &[u8], config: i32,
-    entry_unit: i32, requested: OmegaRelativeSpan) -> i32 {
+    entry_unit: i32, requested: OmegaRelativeSpan, application: i32) -> i32 {
     self.construction.active = 0;
+    self.build.is_application = application;
+    self.build.registered = 0;
     self.build.name.end = 0;
     self.build.entry.end = 0;
     self.build.entry_definition.end = 0;
@@ -305,7 +315,7 @@ machine OmegaScalarCompiler::check_ground_application(&mut self, source: &[u8], 
     }
     state imported(index: i32, row: OmegaUseSyntax) {
         let name: OmegaRelativeSpan = self.parser.members[row.first_member + row.member_count - 1];
-        transition (self.build_spelling(source, name, "Build") == 0) && (self.build_target(source, name) < 0) &&
+        transition (self.build_prelude_name(source, name) == 0) && (self.build_target(source, name) < 0) &&
             (self.local_build_machine(source, name) == -1) {
             true -> imports_safe(index + 1)
             _ -> return 0
@@ -320,7 +330,7 @@ machine OmegaScalarCompiler::check_ground_application(&mut self, source: &[u8], 
     state definition(index: i32, entry: i32, name: OmegaRelativeSpan) {
         self.build.calls_active[index] = 0;
         transition (self.ground_builder(source, index) >= 0) && (self.local_build_machine(source, name) == index) &&
-            (self.build_target(source, name) < 0) && (self.build_spelling(source, name, "Build") == 0) {
+            (self.build_target(source, name) < 0) && (self.build_prelude_name(source, name) == 0) {
             true -> validate(index, entry, name)
             _ -> return 0
         }
@@ -346,8 +356,17 @@ machine OmegaScalarCompiler::check_ground_application(&mut self, source: &[u8], 
     }
     state activate(entry: i32) {
         transition (entry >= 0) && (self.run_build_body(source, self.parser.sources.units[config].package, entry, 1) == 1) &&
-            (self.build.name.end > 0) && (self.build.entry.end > 0) &&
-            (self.parser.sources.equal_name(source, self.build.entry, requested) == 1) {
+            (self.build.name.end > 0) {
+            true -> role()
+            _ -> return 0
+        }
+    }
+    state role() {
+        transition application { 1 -> application_root() _ -> return self.build.entry.end == 0 }
+    }
+    state application_root() {
+        transition ((self.build.location_length == 0) || (self.build.registered == 1)) &&
+            (self.build.entry.end > 0) && (self.parser.sources.equal_name(source, self.build.entry, requested) == 1) {
             true -> entry(self.resolve_declaration(source, self.build.entry.start, self.build.entry.end, OmegaDeclarationKind::Machine))
             _ -> return 0
         }
@@ -416,9 +435,27 @@ machine OmegaScalarCompiler::visit_build_statements(&mut self, source: &[u8], pa
     state statement(offset: i32, row: OmegaStatementSyntax) {
         transition row.kind {
             OmegaStatementKind::Call -> call(offset, self.parser.call_statements[row.item_index])
+            OmegaStatementKind::LocalData -> registration(offset, self.parser.local_data_statements[row.item_index])
             _ -> finish(0)
         }
     }
+    // This profile consumes the registration result in a final immutable local.
+    // A later statement using the registration needs ordinary local execution.
+    state registration(offset: i32, row: OmegaLocalDataStatementSyntax) {
+        transition (offset + 1 == body.statement_count) && (self.build.is_application == 1) &&
+            (self.build.location_length > 0) && (self.parser.sources.equal_name(source, row.name, handle) == 0) &&
+            (row.is_mutable == 0) && (row.has_initial_value == 1) && (self.check_path_registration(source, handle, row) == 1) {
+            true -> registration_result(offset)
+            _ -> finish(0)
+        }
+    }
+    state registration_result(offset: i32) {
+        transition execute { 0 -> next(offset + 1) _ -> register(offset) }
+    }
+    state register(offset: i32) {
+        transition self.build.registered == 0 { true -> recorded(offset) _ -> finish(0) }
+    }
+    state recorded(offset: i32) { self.build.registered = 1; transition true { true -> next(offset + 1) } }
     state call(offset: i32, site: OmegaCallStatementSyntax) {
         transition site.name_member_count {
             1 -> local(offset, site, self.parser.members[site.target_member])

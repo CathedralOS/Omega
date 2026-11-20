@@ -78,14 +78,27 @@ The independent process-domain test builds an embedding with a fixed
 deployment and checks the full status alongside the Linux seed observation.
 [Standalone test](../../../tests/bootstrap/independent/process_domain.py)
 
+A standalone deployment can also supply the distinct package roots of a
+verified immutable Git snapshot. The covered application registers one Product
+dependency with `Build::dependency(builder, dependency\from_source(Source::Path { location: "…" }))`.
+The canonical location is relative to the application's root. Its target must
+own the supplied dependency package, default alias and source bytes. The
+dependency's own `Build::package` activation can select its provider. The
+remaining package supplies the trusted core default. Build-only dependencies,
+additional graph edges and overlapping package selections require further
+coverage. To prepare this embedding, pass the snapshot, immutable commit,
+request, output path and package roots in ordinal order to the origin verifier
+with `--embedding FILE`. It checks every Product and Build file against Git.
+[Origin verifier](../../../tests/bootstrap/independent/deployment_origins.py)
+
 The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,011 lines / 1,090,574 bytes with SHA-256
-`28502b7f05959a8d7e2e381658341543bd9f8c3d3b6bb281c133a5a581002343`.
-The manifest itself is 2,729 bytes, SHA-256
-`c7c2242ceef4ed6d037d3593f7c6a1dc5013d36a9e3d74d3b768dc8d33aff597`;
+The manifest materializes 28,144 lines / 1,097,998 bytes with SHA-256
+`0ba7e5a638eb79e0a31d17c055243dda75d08d45da510b994240f7bd96e0da71`.
+The manifest itself is 2,905 bytes, SHA-256
+`98cb6c5b38f65d1d8a5743c9fca778bf5bc33bb9e948e846616ca00784167441`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
