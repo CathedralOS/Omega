@@ -22,7 +22,7 @@ no observation can produce.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
+| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,447 | `d6265bba615fab3bd7d3fd3432f416e28c5668e17119d1970e9d3960b315fe4b` |
 | packed Epsilon evaluator closure | 613,769 | `c5392b0a71cbe58de5090fb888b379fa5cb3b4b598ba38d6f1a568e326ffa0ff` |
 | canonical entry `interpreter.delta` | 6,359 | `ff448bbfb09ff96bbd015c122792faf77370f66b89c0485118e7346def82e02c` |
 | Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
