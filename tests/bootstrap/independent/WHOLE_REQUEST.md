@@ -65,6 +65,60 @@ bytes for the evaluator in `entry-unit.eereq`. Both construction
 requests select Delta profile 2, which admits the combined source and product
 input and can publish a generated module larger than 4 MiB.
 
+## Parser storage for the 305-unit compiler
+
+The complete compiler needs more rows than the public OCREQ V1 profile has
+room for in several independent tables. On the 3,994,901-byte product at
+`e8ef069cde7` (SHA-256 `4dd77c669bdd7efdc3834ffb37e2072e2ccae832c040f5bdd65c56b4dd570db5`),
+the syntax of the compiler sources gives the following lower bounds for the
+Epsilon parser's representation at `7baa8d6a64c`.
+
+| Table | Minimum rows in the product | Available rows |
+| --- | ---: | ---: |
+| Roots | 5,612 | 4,096 |
+| Explicit machine states | 5,807 | 4,096 |
+| Path members | 17,145 | 16,384 |
+| Machine parameters | 25,642 | 16,384 |
+| Type nodes in parameter declarations alone | 44,059 | 16,384 |
+| Statements | 17,479 | 16,384 |
+| Expressions | 20,715 | 16,384 |
+
+The [counter](parser-capacity.rs) reads the exact unit bytes from
+`product.bin` and uses the independent V2 lexer and parser. It counted 181
+whole-unit syntax trees. For the other 124 units it retried fragments ending
+at a top-level semicolon or closing brace. It omitted 568 refused fragments.
+Each counted root is a top-level use, data or machine declaration. Each
+counted state is a nested machine with a body. Path slots include ordinary
+import components, one name per top-level machine, and simple path operands.
+Each typed parameter needs a base type row. Reference, array, slice and
+qualification wrappers in parameter types need further rows.
+
+The statement count includes local declarations, assignments and transition
+arms. The expression count includes binary, unary, index and cast nodes,
+plus literal or path operands directly beneath binary, unary and index nodes.
+Other forms can increase the storage needed. To reproduce the counts on a
+checkout with the same product sources, run these commands from its root.
+
+```sh
+python3 source/application/construction/construct.py --input /tmp/omega-product.bin
+cargo -Zscript tests/bootstrap/independent/parser-capacity.rs /tmp/omega-product.bin
+```
+
+Doubling the type-node arena still leaves it short. The checker also stores
+one checked parameter type per syntax parameter. It distinguishes locals
+from parameters using the slot number 16,384, and data, references and arrays
+using fixed numeric ranges. A construction profile with wider tables needs
+disjoint identities and matching checked storage through emission. The public
+entry must still report its specified limits and refusal coordinates.
+[Parser and checker storage](../../../bootstrap/omega/compiler/scalar_compilation.epsilon) ·
+[OCREQ provisions](../../../wiki/spec/build/compiler_request.md)
+
+A per-unit construction would instead retain a global directory of package
+and unit owners, declaration signatures and labels. It could then parse and
+check each body using local syntax indexes. Import resolution, forward calls
+and final label fixups would still see the complete program. The counts above
+measure cumulative demand. They do not establish that each unit fits on its own.
+
 ## Whole compiler result
 
 These measurements use the Omega source and construction entry at `035eddf0c5a`.
