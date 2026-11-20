@@ -87,7 +87,108 @@ checks, run `python3 tests/bootstrap/independent/successor_test.py --compile-eps
 The route writes the public Gamma receipt, Alpha tape and observations under
 `build/independent-successors/compiled-epsilon/`.
 
-### Can the whole Omega constructor fit in Alpha?
+### Running the whole Omega constructor on one tape
+
+The cold launcher used the original Gamma evaluator to compile the
+43,315-byte Alpha-targeting compiler source, SHA-256
+`afee5b7c75679386d30e483d4a627aeeca617f9c3de2dd637adc0474277cc007`.
+It produced a 207,681-byte compiler tape. Running that tape on its own
+source and repeating with its successor gave three byte-identical tapes,
+SHA-256 `c3274d349b53511e4a8bcd8624927d1d2aee3052f1212ed113234255f650f7e1`.
+
+The Gamma-to-Alpha compiler assembled the 25,733,081-byte Gamma constructor
+from `bcf71f0bbfc` into one 11,976,860-byte tape, SHA-256
+`172bd421b5c2cf334a7a5688c843e1e9dc24cefe11d7bb2b25a9d514ad17d491`.
+A seed-built Linux executable of the Gamma-to-Alpha compiler emitted this
+tape. The Alpha seed then ran the resulting constructor and both product
+tapes below. The uncompressed instructions occupy 57,004,893 bytes. The stamped program
+starts with a 340-byte Alpha decoder and a 3,840-byte dictionary. The seed
+runs the decoder itself. Programs that fit the seed directly keep their
+plain Alpha instructions. The Alpha backend grew from 3,681 to 11,814 bytes. Using the original Gamma interpreter to
+run the final constructor avoids this packing algorithm.
+
+The seed ran the packed constructor on a 111-byte Omega package. It
+produced the expected 22-byte Alpha tape, SHA-256
+`25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`,
+which exited 42 on the seed. On the 828-byte two-package wire decoder the
+same constructor produced a 1,607-byte tape, SHA-256
+`f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+That tape exited 42 with empty stdout and stderr. Removing the package edge
+returned guest exit 1 at byte 11. Appending a byte returned framing refusal 3. [Same package on original Gamma](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
+
+For a large program the compiler takes up to 240 instructions seen twice
+among the first 4,096. Each becomes one byte in the encoded stream. Tokens
+1 through 11 introduce that many literal instruction bytes, and tokens
+16 through 255 select a 16-byte dictionary record. The first byte of each
+record is the instruction's original length. Only the compiler builds
+the dictionary. The seed runs ordinary load, store and branch instructions
+to copy the indicated bytes into `[0x28000000, 0x30000000)`. The output
+buffer ends at the first address and the pair heap starts at the second.
+The decoder checks the stream end, dictionary indexes, copy lengths and
+destination end before restoring its registers and jumping to the program.
+
+The compiler resolves each branch and call for this interval while preserving
+literal integers, including integers equal to an old branch address. An
+independent expansion of the measured tape matched the original instructions,
+with exactly the placement offset added to all 3,484,036 branch and call
+addresses. The complete encoded tape must fit the original stamp even when
+the expanded instructions fit the separate code interval. Source validation
+still precedes publication, including functions that are never called.
+[Alpha encoder and decoder](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma) ·
+[Seed instructions](../../../bootstrap/alpha/SEMANTICS.md#5-transition-rules)
+
+To build and run the constructor through the normal Alpha launcher, use the
+`omega.gamma` produced by the whole-constructor construction and an empty
+output directory. The genuine standalone wire customer checks the resulting
+tape and its missing-edge and framing controls.
+
+```sh
+tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-packed-alpha /path/to/omega.gamma
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-packed-wire --constructor /tmp/omega-packed-alpha/program
+```
+
+To exercise the packed entry without assembling the Omega constructor, run
+`python3 tests/bootstrap/compiled_vm/source_test.py --compiler-only --large-alpha`.
+The control compiles 700 unused arithmetic definitions and a forward call.
+Its 21,467,587 ordinary instruction bytes produced a 5,030,606-byte tape.
+The stamped program matched byte output, a guest refusal and an arithmetic
+trap. The compiler rejected an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
+[Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
+
+#### Checking the expanded instructions
+
+The external reader walks the tape, checks instruction widths against the
+Alpha instruction set and subtracts the code base only from absolute branch
+and call targets. The seed runs above exercise the shipped decoder. On the
+11,976,860-byte tape the reader recovers 57,004,893
+ordinary bytes, including 3,484,036 targets, with SHA-256
+`bc0af6bd305ffc11ab70a416de08811e849a2ddefdb54525472e425ec9fdf66a`.
+
+```sh
+python3 tests/bootstrap/compiled_vm/packed_tape.py /tmp/omega-packed-alpha/program.tape
+```
+
+To compare every instruction against a separate straight assembly, make a
+temporary copy of the Alpha backend that publishes the ordinary instruction
+list at address zero. Its oversized output serves as a measurement file.
+Use the same Gamma customer for both assemblies.
+
+```sh
+audit_dir=$(mktemp -d)
+PYTHONPATH=tests/bootstrap python3 - <<'PYCODE' > "$audit_dir/measure.gamma"
+import sys
+from compiled import gamma_backend_source
+signature = b"(def i_publish ((fields Int) (size Int) (labels Int)) Int"
+source, _ = gamma_backend_source("alpha").rsplit(signature, 1)
+sys.stdout.buffer.write(source + signature + b"\n  (i_output fields size labels size))\n")
+PYCODE
+tests/bootstrap/linux_x86_64/bootstrap . "$audit_dir/native" "$audit_dir/measure.gamma" /path/to/omega.gamma
+python3 tests/bootstrap/compiled_vm/packed_tape.py /tmp/omega-packed-alpha/program.tape "$audit_dir/native/producer.output"
+```
+
+<a id="can-the-whole-omega-constructor-fit-in-alpha"></a>
+
+### Earlier single-tape size limits
 
 The 27,177,694-byte Gamma constructor (SHA-256
 `b2160c526041d7d695bbe133f0ef4cb9d3b2f403a5cf901e0b9cd625e5f9454f`)
@@ -376,7 +477,8 @@ Source construction artifacts and the exact source/request bytes go to ignored
 `build/source-gamma-reference/`; the accelerated source run uses
 `build/source-gamma-accelerated/`. Host-compiler tests use `build/compiled-vm/`.
 `source_test.py --seconds N` sets a positive watchdog for compiler construction,
-self-rebuilds, source compilation, and Omega execution (3,600 seconds by default).
+self-rebuilds, source compilation and Omega execution. These invocations wait
+for completion by default.
 A refused source compilation publishes no bytes. Malformed source deliberately
 traps with status 249; negative controls require that status and empty output.
 Other runtime statuses fail the gate.
@@ -384,9 +486,8 @@ Other runtime statuses fail the gate.
 Tests use the existing closure packer, identity checks, and platform seed
 stamper. The host frames byte requests and compares observations;
 Gamma, Delta, Epsilon, and Omega execution happens in the generated tapes or the
-explicitly identified reference evaluator. Gamma compilation and customer
-execution have process watchdogs; the short Beta reconstruction shell commands
-have no watchdog. A timeout makes no language judgment. The Omega allowance is
+explicitly identified reference evaluator. The short Beta reconstruction shell
+commands wait for completion. A timeout makes no language judgment. The Omega allowance is
 adjustable because checking the complete compiler is a materially larger
 workload.
 
@@ -426,6 +527,7 @@ The generated runtime owns disjoint regions of Alpha's 128 GiB address space:
 | Alpha return stack | `0x0feffff8 .. 0x10000000` | At most 131,072 active source calls plus one runtime helper (1,048,584 bytes), above the frame region |
 | Sealed input | `0x10000000 .. 0x18300000` | Check ingestion and every source read |
 | Buffered output | `0x20000000 .. 0x28000000` | Check every append; flush only after valid main result |
+| Expanded code (packed tape only) | `0x28000000 .. 0x30000000` | The decoder checks each copy and verifies the final length |
 | Immutable pairs | `0x30000000 .. 0x2000000000` | Check every 32-byte allocation |
 
 Ordinary authored traps exit 2; storage limits exit 3. Application traps and
@@ -600,9 +702,10 @@ with their bodies and signatures unchanged, through the source-built Epsilon
 tape above. The wrapper uses explicit `as +Trapping` casts and tests both
 predicates across ASCII boundaries and the upper half of `u32`.
 
-The runtime-control observation defaults to 7,200 seconds; `--seconds` on the
-source-built route and `--omega-timeout` on the development route retain explicit
-overrides. Timeout is an observation failure, not an Omega result. Additional
+The source-built runtime control runs to completion by default. It accepts an
+optional `--seconds` limit. The development route uses `--omega-timeout`
+and defaults to 7,200 seconds for this control. A timeout leaves the
+Omega result open. Additional
 source-owned cases check staged parallel transfers, skipped looping Boolean
 operands, nested calls/comparisons, domain casts, refusals and compiler reuse.
 This extends the bootstrap compiler toward an actual successor source unit;

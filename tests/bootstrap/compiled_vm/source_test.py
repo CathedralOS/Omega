@@ -14,10 +14,42 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import compiled
+import packed_tape
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def large_tape_control(work, compiler, seconds):
+    # The straight Alpha encoding of the dead definitions alone exceeds
+    # the seed hole. A bad call in the very last one must still be checked.
+    body = b"(/ 42 1)"
+    for _ in range(7):
+        body = b"(+ " + body + b" " + body + b")"
+    prefix = b"""(def $application () Int 1)
+(def main () Int (later (read 0)))
+"""
+    padding = b"".join(b"(def pad" + str(n).encode() + b" () Int " + body + b")\n"
+                       for n in range(700))
+    guest = prefix + padding + b"""(def later ((which Int)) Int
+  (if (eq which 0)
+    (let tag Int (write (second (pair -9223372036854775808 (read 1)))) (pair 42 1))
+    (if (eq which 1) (pair 17 0) (pair (/ -9223372036854775808 -1) 1))))
+"""
+    tape = work / "large.tape"
+    status, program = compiled.execute(compiler, guest, seconds)
+    assert status == 0 and 0 < len(program) <= 16_777_212
+    expanded, _, _ = packed_tape.inspect(program)
+    assert expanded > 16_777_212, "large control fits in the ordinary stamp"
+    tape.write_bytes(program)
+    executable = work / "large"
+    compiled.stamp(tape, executable)
+    for stdin, expected in ((b"\0Z", (42, b"Z")), (b"\1", (17, b"")), (b"\2", (249, b""))):
+        assert compiled.execute(executable, stdin, seconds) == expected
+    invalid = guest + b"(def unchecked () Int (missing 1))\n"
+    assert compiled.execute(compiler, invalid, seconds) == (249, b"")
+    print(f"Large Alpha tape used {len(program)} bytes and passed three guest outcomes and a late refusal.")
 
 
 def main():
@@ -33,6 +65,7 @@ def main():
                         help="execute actual SourceUnit clear and record/reference controls")
     parser.add_argument("--omega-utf8", action="store_true",
                         help="execute the actual UTF-8 decoder and checked arithmetic controls")
+    parser.add_argument("--large-alpha", action="store_true", help="compile and run a program beyond the plain tape limit")
     parser.add_argument("--compiler-only", action="store_true",
                         help="stop after compiler construction, rebuilds, and differential controls")
     args = parser.parse_args()
@@ -46,7 +79,8 @@ def main():
     compiled.reconstruct(work, seconds=args.seconds)
     request = compiled.gamma_request(source, source)
     (work / "construction.request").write_bytes(request)
-    print(f"{mode} construction: source={len(source)} bytes sha256={digest(source)}", flush=True)
+    budget = "no wall limit" if args.seconds is None else f"{args.seconds}s wall limit"
+    print(f"{mode} construction: source={len(source)} bytes sha256={digest(source)} ({budget})", flush=True)
     started = time.monotonic()
     if args.accelerated:
         import gamma
@@ -81,6 +115,8 @@ def main():
 
     compiled.controls(work, work / "reference", compiler=SourceCompiler, seconds=args.seconds)
     compiled.call_depth_controls(work, SourceCompiler, args.seconds)
+    if args.large_alpha:
+        large_tape_control(work, work / "compiler2", args.seconds)
     if args.compiler_only:
         print(f"{mode} compiler construction and controls passed", flush=True)
         return
