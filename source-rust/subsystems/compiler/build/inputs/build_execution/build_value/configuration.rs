@@ -194,7 +194,7 @@ mod tests {
         let interval = syntax
             .build_stage_source()
             .unwrap()
-            .prepare(None, &[], &Default::default(), profile.target_name(), None)
+            .prepare(None, &Default::default(), profile.target_name(), None)
             .unwrap();
         let typed = interval.program.as_ref();
         let machine = crate::build_execution::select_build_machine(typed, build_source)

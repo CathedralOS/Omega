@@ -4109,8 +4109,7 @@ use std::collections::BTreeMap;
 use terminal_psi::{BoundaryMachineResult, CompletionReceipt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TerminalEffect {
-    MemoryFence {
+pub enum TerminalEffect {    MemoryFence {
         operation: OperationId,
         kind: terminal_psi::MemoryFenceKind,
     },
@@ -4123,8 +4122,7 @@ pub enum TerminalEffect {
         result: BoundaryMachineResult,
     },
     ComponentCall {
-        operation: OperationId,
-        boundary: BoundaryMachineId,
+        site: crate::TerminalEffectWait,
         provider: terminal_psi::TerminalPsiIdentity,
         candidate: MachineId,
         instance_namespace: u64,

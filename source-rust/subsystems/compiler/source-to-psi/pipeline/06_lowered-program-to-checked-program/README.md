@@ -1280,6 +1280,15 @@ closure. Tests can call `judge` on one elaborated closure directly.
 
 ## Calls that do not return
 
+A Build helper may return a value computed by a package it prepares. While
+that package is unavailable, the checker can admit the helper through the
+preparation call with its declared result still owed. Every retained operand
+must already be available there. A retained owner keeps its disposition
+obligation, and a normal result guarantee remains due when the helper returns.
+The interpreter parks at the checked call and enters the admitted successor,
+which must preserve the result contract and supply the remaining body. Only a
+complete program can produce portable Psi bytes or native code.
+
 A call with no normal completion is a terminator: `InvokeNoNormal` for a
 machine no path of which returns, `ExternalCompletion` for the boundary
 requirement that ends the process

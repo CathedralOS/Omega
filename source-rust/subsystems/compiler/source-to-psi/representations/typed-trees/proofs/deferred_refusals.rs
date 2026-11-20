@@ -238,6 +238,9 @@ pub struct DeferredRefusal {
     /// A diagnostic reports the first refusal, but source can acquire declarations
     /// between two occurrences in the same machine.
     missing_names: Vec<SourceSpan>,
+    /// A qualified call for which this occurrence's ordinary lookup reported
+    /// no visible declaration. Its requester can explain an unavailable import.
+    pub unresolved_call_path: Option<Box<str>>,
 }
 
 impl TypedTrees {
@@ -273,9 +276,14 @@ impl TypedTrees {
         lexical_owner: SymbolHandle,
         request: DeferredRequest,
         occurrence: SourceSpan,
+        call_path: Option<Box<str>>,
     ) {
         let index = self.retain_refusal(lexical_owner, request, occurrence, "");
-        let uses = &mut self.deferred_refusals[index].missing_names;
+        let refusal = &mut self.deferred_refusals[index];
+        if request == DeferredRequest::UndeclaredCallName && refusal.source_span == occurrence {
+            refusal.unresolved_call_path = call_path;
+        }
+        let uses = &mut refusal.missing_names;
         let key = |site: &SourceSpan| (site.source_id.0, site.span.start, site.span.end);
         if let Err(position) = uses.binary_search_by_key(&key(&occurrence), key) {
             uses.insert(position, occurrence);
@@ -321,6 +329,7 @@ impl TypedTrees {
                     source_span,
                     detail: detail.into(),
                     missing_names: Vec::new(),
+                    unresolved_call_path: None,
                 },
             );
             position
@@ -469,7 +478,7 @@ mod tests {
         // A refusal alone supplies no evidence that scoped lookup missed a name.
         program.record_deferred_refusal(owner, DeferredRequest::UnresolvedCallTarget, span(2));
         for site in [span(4), span(8), span(4)] {
-            program.record_missing_name(owner, request, site);
+            program.record_missing_name(owner, request, site, None);
         }
 
         assert_eq!(

@@ -1,0 +1,34 @@
+use kit;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "promised");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registration: DependencyRegistration = Build::build_dependency(builder, request);
+    let obligation: RequiredOutput = BuildOutput::require(@mut builder.output, "answer.dat");
+    let held: @[u8] = RequiredOutput::path(@obligation);
+    let file: BuildPath = BuildOutput::resolve(@builder.output, "answer.dat");
+    let writer: i32 = BuildOutput::create(@mut builder.output, file, 0);
+    _ = BuildOutput::write(@mut builder.output, writer, "forty-two");
+    _ = BuildOutput::close(@mut builder.output, writer);
+    suspend Build::prepare_dependency(builder, registration);
+    let seven: i32 = kit\v();
+    let checked: BuildPath = BuildOutput::resolve(@builder.output, held);
+    let passed: bool = seven == 7 && held.len == 10u64;
+    let settled: OutputCompletion = BuildOutput::complete(@mut builder.output, obligation, checked);
+    settle(builder, settled);
+    transition passed {
+        true -> good(builder), _ -> wrong(builder)
+    }
+    machine good(builder: @mut Build) { Build::bind(builder, linux_x86_64\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "second_role"); }
+}
+machine settle(builder: @mut Build, settled: OutputCompletion) {
+    transition settled {
+        OutputCompletion::Sealed { receipt } -> done(),
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    machine done() {}
+    machine failed(builder: @mut Build, obligation: RequiredOutput) {
+        BuildOutput::fail(@mut builder.output, obligation, "output was not sealed");
+    }
+}

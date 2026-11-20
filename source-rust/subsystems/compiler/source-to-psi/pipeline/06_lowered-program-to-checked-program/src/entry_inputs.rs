@@ -37,7 +37,9 @@ use crate::checking::{
     terminal_machine,
 };
 
+mod inferred_calls;
 mod integer_cases;
+pub(super) use inferred_calls::InferredCalls;
 
 /// Ordinary callers precede helpers. A recursive component's internal calls
 /// are block arrivals: discover their conditions without an inductive
@@ -338,7 +340,7 @@ fn describe_calls(
     Ok(())
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum CallPosition {
     Operation { block: usize, operation: usize },
     NoNormal { block: usize },
@@ -1246,6 +1248,7 @@ fn formed(
 
 pub(super) fn require(
     elaboration: &mut Elaboration,
+    inferred: &mut InferredCalls,
     callee: MachineId,
     predicate: Proposition,
     sites: &CallSites,
@@ -1299,6 +1302,18 @@ pub(super) fn require(
     keyed.dedup_by(|left, right| left.0 == right.0);
     let clauses: Vec<_> = keyed.into_iter().map(|(_, clause)| clause).collect();
     target.contract.requires.clone_from(&clauses);
+    // Only a newly inserted clause belongs to this inference. An identical
+    // written or type-derived condition keeps its original authority.
+    let added = if clauses.len() > previous.len()
+        && elaboration.module.identities.invocation_scope().is_some()
+    {
+        clauses
+            .iter()
+            .find(|clause| !previous.contains(clause))
+            .map(|clause| inferred.add(callee, clause))
+    } else {
+        None
+    };
     // Synthesized clauses have no authored text. Keep diagnostics aligned
     // with the canonical positions of any existing authored clauses.
     if let Some(names) = elaboration.names.get_mut(callee) {
@@ -1450,6 +1465,9 @@ pub(super) fn require(
                     kind,
                     created_at: point,
                 });
+                if let Some(origin) = added {
+                    inferred.call(origin, site, obligation);
+                }
                 if sources.obligations.push(source) != obligation {
                     return Err(refusal(
                         RefusalReason::ForeignIdentity,

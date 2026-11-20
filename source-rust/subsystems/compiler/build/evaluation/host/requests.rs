@@ -56,7 +56,7 @@ pub struct TerminalBuildRequestHost {
 /// marker is the only value that names the registration: the guest holds a
 /// copy, and `Build::prepare_dependency` hands one back.
 struct Registration {
-    marker: Option<TerminalStructuralValue>,
+    marker: TerminalStructuralValue,
     purpose: DependencyPurpose,
     /// Position among the activation's requests of the same purpose, the
     /// coordinate the coordinator acquires an issued request by.
@@ -75,7 +75,7 @@ struct Registrations {
     completed_preparation: bool,
 }
 
-/// What the request host of a returned stage hands to the host of the next
+/// What the request host of a suspended stage hands to the host of the next
 /// stage of the same activation (`source-to-psi/driver/compile_build/waits`): every
 /// registration issued so far, so later registrations keep counting from
 /// them, and the log written so far. A live registration's marker follows
@@ -89,32 +89,7 @@ impl Registrations {
     fn position(&self, marker: &TerminalStructuralValue) -> Option<usize> {
         let ordinal = FIRST_REGISTRATION_IDENTITY.checked_sub(marker.opaque_identity)?;
         let index = usize::try_from(ordinal).ok()?;
-        (self.issued.get(index)?.marker.as_ref() == Some(marker)).then_some(index)
-    }
-}
-
-impl CarriedRequests {
-    pub(crate) fn registration_position(
-        &self,
-        value: &TerminalStructuralValue,
-    ) -> Result<usize, String> {
-        self.registrations.position(value).ok_or_else(|| {
-            "Build frame contains a registration this activation did not issue".into()
-        })
-    }
-
-    /// Keep the request history for ordinal accounting. Only values returned by
-    /// the preceding program remain available to authenticate the next one.
-    pub(crate) fn retain_markers<'a>(
-        &mut self,
-        returned: impl Iterator<Item = (usize, &'a TerminalStructuralValue)>,
-    ) {
-        for registration in &mut self.registrations.issued {
-            registration.marker = None;
-        }
-        for (index, marker) in returned {
-            self.registrations.issued[index].marker = Some(marker.clone());
-        }
+        (&self.issued.get(index)?.marker == marker).then_some(index)
     }
 }
 
@@ -244,7 +219,14 @@ impl TerminalBuildRequestHost {
         })
     }
 
-    pub(crate) fn adopt(&self, carried: CarriedRequests) -> Result<(), String> {
+    pub(crate) fn adopt(
+        &self,
+        mut carried: CarriedRequests,
+        prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
+    ) -> Result<(), String> {
+        for registration in &mut carried.registrations.issued {
+            super::rebind_issued_marker(prefix, &mut registration.marker)?;
+        }
         let mut registrations = self
             .registrations
             .lock()
@@ -690,7 +672,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .filter(|registration| registration.purpose == purpose)
             .count();
         registrations.issued.push(Registration {
-            marker: Some(marker.clone()),
+            marker: marker.clone(),
             purpose,
             request_ordinal,
             prepared: false,

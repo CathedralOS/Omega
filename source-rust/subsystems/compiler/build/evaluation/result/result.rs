@@ -1,5 +1,5 @@
 //! The result of a checked Build activation, including the declaration requests it issued.
-//! Package review borrows the same accepted source and the same execution observations.
+//! Its published programs expose their contracts beside the observations of the execution.
 #![forbid(unsafe_code)]
 
 mod configuration;
@@ -22,6 +22,8 @@ pub struct EvaluatedBuild {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuildSubjectValidation {
     EntryOnly,
+    /// The Build returned through a checked arm. Other arms still need an unavailable dependency.
+    CheckedAvailableDeclarations,
     Checked,
 }
 

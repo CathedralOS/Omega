@@ -686,40 +686,9 @@ pub(crate) mod graph {
     pub(crate) fn terminal_graph(machine: &terminal_psi::TerminalMachine) -> CanonicalControlGraph {
         let mut edges = Vec::new();
         for block in &machine.blocks {
-            match &block.terminator {
-                terminal_psi::Terminator::Jump { edge, target, .. } => {
-                    edges.push(CycleComponentEdge {
-                        edge: *edge,
-                        source: block.id,
-                        target: *target,
-                    });
-                }
-                terminal_psi::Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    edges.extend([when_true, when_false].map(|successor| CycleComponentEdge {
-                        edge: successor.edge,
-                        source: block.id,
-                        target: successor.target,
-                    }));
-                }
-                terminal_psi::Terminator::StructuralCase { cases, .. } => {
-                    edges.extend(cases.iter().map(|successor| CycleComponentEdge {
-                        edge: successor.edge,
-                        source: block.id,
-                        target: successor.target,
-                    }));
-                }
-                terminal_psi::Terminator::Return { .. }
-                | terminal_psi::Terminator::ReturnUnit { .. }
-                | terminal_psi::Terminator::ReturnStructural { .. }
-                | terminal_psi::Terminator::ExternalCompletion { .. }
-                | terminal_psi::Terminator::InvokeNoNormal { .. }
-                | terminal_psi::Terminator::EliminateEmpty { .. }
-                | terminal_psi::Terminator::Crash { .. } => {}
-            }
+            edges.extend(block.terminator.successor_edges().into_iter().map(|(edge, target)| CycleComponentEdge {
+                edge, source: block.id, target,
+            }));
         }
         edges.sort_unstable();
         CanonicalControlGraph {

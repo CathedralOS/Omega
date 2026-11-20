@@ -53,6 +53,7 @@ pub(crate) mod wire {
     enum EncodingRole {
         #[default]
         ClosedPublication,
+        InvocationPrefix,
         CheckingIdentity,
     }
 
@@ -64,6 +65,17 @@ pub(crate) mod wire {
     }
 
     impl Writer {
+        pub(crate) fn invocation_prefix() -> Self {
+            Self {
+                role: EncodingRole::InvocationPrefix,
+                ..Self::default()
+            }
+        }
+
+        pub(crate) fn is_invocation_prefix(&self) -> bool {
+            matches!(self.role, EncodingRole::InvocationPrefix)
+        }
+
         /// Checking keys identify rigid widths; they do not publish executable code.
         pub(crate) fn checking_identity() -> Self {
             Self {

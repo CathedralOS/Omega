@@ -78,8 +78,11 @@ impl TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct TypedTreeRoots {
-    /// An unfinished Build entry. Its final stage validates the full subject.
+    /// A prefix of this Build entry contains all nested declarations for name
+    /// resolution. The entry's call closure determines which it executes.
     pub partial_build_entry: Option<source_text::SourceSpan>,
+    /// Some checked paths finish without reaching an unavailable dependency.
+    pub partial_build_can_return: bool,
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::source_state::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
@@ -106,6 +109,7 @@ impl TypedTreeRoots {
     ) -> Self {
         Self {
             partial_build_entry: None,
+            partial_build_can_return: false,
             retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,

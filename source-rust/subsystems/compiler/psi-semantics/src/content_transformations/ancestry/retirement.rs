@@ -503,6 +503,7 @@ fn entry_claim_is_retired(
                 }
             }
             match &body.terminator {
+                Terminator::PendingNormalCompletion { .. } => return Ok(false),
                 Terminator::Return {
                     cleanup_actions, ..
                 }

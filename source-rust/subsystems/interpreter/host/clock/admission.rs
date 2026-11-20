@@ -158,8 +158,7 @@ pub(super) fn validate(
         }
     };
     // ABI geometry comes from the same published program that owns this import.
-    let closed_module = program.closed_module().map_err(|_| invalid())?;
-    let closed_types = closed_module.closed_types();
+    let closed_types = program.closed_types().map_err(|_| invalid())?;
     let mut native_signature = CallSignature {
         parameters: Vec::new(),
         result: None,

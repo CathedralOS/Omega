@@ -154,6 +154,7 @@ impl ActivatedSource {
 pub(super) fn select_retained_source(
     request: &ResolveAndTypeRequest,
     context: &SourceContext,
+    projected: &[crate::source_state::ParkedBuildLocals],
     timings: &mut crate::CompileTimings,
 ) -> Result<Option<ActivatedSource>, Vec<Diagnostic>> {
     let mut candidates = Vec::new();
@@ -167,9 +168,14 @@ pub(super) fn select_retained_source(
             continue;
         }
         let mut activation = request.sources.as_ref().clone();
+        // A helper can live outside the root file. Its parked body is a prefix
+        // of the same source text, so file identity alone cannot justify reuse.
+        let previous_projections = &typing.typed().parked_build_locals;
         activation.retain_selected_sources(|file| {
             previous.source_is_selected(file.source_id)
                 && !request.root_sources.contains(&file.source_id)
+                && !projected.iter().chain(previous_projections)
+                    .any(|frame| frame.entry.source_id == file.source_id)
         });
         let count = activation.selected_files().count();
         if count == 0 {

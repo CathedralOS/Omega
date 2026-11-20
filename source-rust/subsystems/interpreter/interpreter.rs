@@ -42,6 +42,8 @@ mod boundary_values;
 #[path = "embedding/call_observations.rs"]
 mod call_observations;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
+#[path = "embedding/continuation.rs"]
+mod continuation;
 #[path = "embedding/program.rs"]
 mod embedding;
 #[path = "instructions/calls.rs"]
@@ -144,10 +146,10 @@ pub use embedding::adapters::{
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
 pub use embedding::instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalProcessExitAdmission,
-    TerminalReturnedLoan, TerminalReturnedLoanError, TerminalStorageObservationError,
-    TerminalStorageObservationValue,
+    TerminalBindingRejection, TerminalComponentBinding, TerminalEntryCall, TerminalEntryCalls,
+    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+    TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
+    TerminalStorageObservationError, TerminalStorageObservationValue,
 };
 pub use embedding::program::{
     TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,

@@ -56,10 +56,36 @@ pub struct AssembledSyntax {
     pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
     pub generated_source_custody:
         Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, // Admitted dependency-generated sources keyed by `SourceId`.
+    pending_build_imports: Vec<source_compiler::PendingBuildImport>,
     pub build_scope_sources: HashSet<source_text::SourceId>, // Sources owned by the `Build` execution scope.
 }
 
 impl AssembledSyntax {
+    /// Resolve a diagnostic against the root's pending Build imports. A dependency
+    /// package can use the same alias in its own, independent source scope.
+    pub fn unresolved_build_import_alias(
+        &self,
+        typed: &source_compiler::representations::source_state::TypedTrees,
+        span: source_text::SourceSpan,
+    ) -> Option<&str> {
+        let root = self
+            .parsed
+            .files
+            .get(self.build_source?.entry().source_id)?;
+        let importer = self.parsed.files.get(span.source_id)?;
+        if importer.dependency_scope != source_provenance::DependencyScope::Build
+            || importer.package_identity != root.package_identity
+            || importer.package_root != root.package_root
+        {
+            return None;
+        }
+        source_compiler::PendingBuildImport::alias_at_refused_call(
+            &self.pending_build_imports,
+            typed,
+            span,
+        )
+    }
+
     pub fn build_stage_source(&self) -> Result<source_compiler::BuildStageSource, Vec<Diagnostic>> {
         let selection = self.build_source.ok_or_else(|| {
             vec![Diagnostic::error(
@@ -70,6 +96,7 @@ impl AssembledSyntax {
             parsed: self.parsed.clone(),
             build_sources: self.build_scope_sources.clone(),
             entry: selection.entry(),
+            pending_imports: self.pending_build_imports.clone(),
         })
     }
 }
@@ -281,6 +308,8 @@ impl ImmutableSourceParseCheckpoint {
         )?;
         source_scoped_top_level_bindings
             .extend(crate::source::source_imports::retain_module_import_bindings(&source_storage)?);
+        let pending_build_imports =
+            crate::source::source_imports::pending_build_imports(&source_storage);
         let root_sources = source_storage.root_sources();
         let source_file_count = source_storage.file_count();
         let build_scope_sources = source_storage
@@ -313,6 +342,7 @@ impl ImmutableSourceParseCheckpoint {
             build_source: self.build_source,
             generated_source_custody,
             build_scope_sources,
+            pending_build_imports,
         };
         Ok((source_file_count, syntax))
     }

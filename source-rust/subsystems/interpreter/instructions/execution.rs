@@ -959,6 +959,108 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn a_reinstalled_component_keeps_its_original_provider_allocation() {
+            use crate::{
+                TerminalComponentBinding, TerminalProgram, TerminalProviderBacking,
+                TerminalProviderStorageResolver,
+            };
+            use psi_provider_selections::{
+                ProviderInstallationSelection, admit_component_provider,
+            };
+            use std::rc::Rc;
+
+            struct Store(TerminalProviderBacking);
+            impl TerminalProviderStorageResolver for Store {
+                fn resolve(
+                    &self,
+                    _: &crate::TerminalProviderStorageRequest,
+                ) -> Result<
+                    Option<crate::TerminalProviderStorageSupply>,
+                    crate::TerminalEffectRejection,
+                > {
+                    Ok(None)
+                }
+            }
+            let slot = BoundaryMachineId::new(1).unwrap();
+            let candidate = MachineId::new(2).unwrap();
+            let mut fixture = crate::engine::calls::frames::tests::empty_program();
+            let fixture = std::sync::Arc::get_mut(&mut fixture).unwrap();
+            set_machine(fixture, candidate, machine(0, Vec::new()));
+            add_provider(fixture, slot);
+            let module = fixture.fixture_module_mut();
+            let mut declaration = boundary_declaration(module, slot);
+            let name = declaration.identity;
+            let nominal = declaration.owner.clone();
+            declaration.declaration = Some(terminal_psi::CheckedBoundaryCallable {
+                service_declaration: [1; 32],
+                execution: terminal_psi::CheckedBoundaryExecution::Provider,
+                method_arguments: Vec::new(),
+                source: terminal_psi::CheckedMachineDeclaration {
+                    machine: nominal.clone(),
+                    state: nominal,
+                    semantic_declaration: name,
+                    callable: name,
+                    result_type: name,
+                    parameter_types: Vec::new(),
+                    contract: [1; 32],
+                    published_may_suspend: false,
+                    published_may_block: false,
+                    specialization: None,
+                },
+            });
+            module.interfaces.boundary_machines.push(declaration);
+            let code = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+            let identity = code.identity();
+            let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+                Default::default(),
+                identity,
+                identity,
+            )
+            .unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_closed_parts(code, record, None)
+                    .unwrap();
+            let selected = admit_component_provider(
+                artifact.view(),
+                slot,
+                artifact.view(),
+                &ProviderInstallationSelection {
+                    boundary: slot,
+                    candidate,
+                    provider_identity: "graph provider".into(),
+                    provider_declaration: "graph provider".into(),
+                },
+            )
+            .unwrap();
+            let program = TerminalProgram::retain(artifact.retain_code());
+            let bind = |store: Rc<Store>| {
+                let mut supplies = TerminalRuntimeSupplies::from(selected.selection());
+                supplies.entry = Some(terminal_psi::TargetMachineCallable::Machine(candidate));
+                let mut binding = TerminalComponentBinding::new(
+                    selected.clone(),
+                    program.clone(),
+                    supplies,
+                    None,
+                )
+                .unwrap();
+                binding.bind_storage_resolver(store).unwrap();
+                binding
+            };
+            let original = Rc::new(Store(TerminalProviderBacking::new(vec![7, 11, 13, 17])));
+            original.0.lock().unwrap()[2] = 23;
+            let live = Rc::downgrade(&original);
+            let replacement = Rc::new(Store(TerminalProviderBacking::new(vec![7, 11, 13, 17])));
+            let unused = Rc::downgrade(&replacement);
+            let resumed = bind(original)
+                .for_successor_receiver(bind(replacement))
+                .unwrap();
+            assert!(unused.upgrade().is_none());
+            assert_eq!(live.upgrade().unwrap().0.retire().unwrap(), [7, 11, 23, 17]);
+            drop(resumed);
+            assert!(live.upgrade().is_none());
+        }
+
+        #[test]
         fn opaque_inputs_retain_write_only_authority_through_stored_descriptors() {
             let mut program = program();
             let catalogs = program.fixture_module_mut();
@@ -2070,6 +2172,8 @@ pub(crate) mod execution {
             crate::storage::storage_addresses::ScalarStorageAddress,
         >,
         pub(crate) next_host_atom_collection_size: usize,
+        pub(crate) exposed_address_selectors:
+            Vec<crate::storage::storage_addresses::ExposedStorageSelector>,
         pub(crate) scalar_array_values: crate::storage::scalar_array::ScalarArrayBindings,
         pub(crate) byte_sequence_values: RuntimeRows<PlaceId, ByteSequenceBinding>,
         pub(crate) primitive_loan_values:
@@ -2104,6 +2208,9 @@ pub(crate) mod execution {
     }
 
     pub(crate) struct SuspendedCall {
+        // A retired producer only witnesses a return made by this call.
+        pub(crate) retired_structural_homes:
+            Vec<(PlaceId, TerminalStructuralValue, Option<ReferenceReferent>)>,
         pub(crate) access_view_occurrences: BTreeMap<TerminalAccessViewInput, AccessViewOccurrence>,
         pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
         pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
@@ -2365,8 +2472,7 @@ pub(crate) mod execution {
             }
             self.program
                 .catalogs
-                .closed_module()?
-                .closed_types()
+                .closed_types()?
                 .scalar(scalar)
                 .map_err(
                     |cause| TerminalInterpretError::ScalarDescriptorNotRetained {
@@ -2534,6 +2640,7 @@ pub(crate) mod execution {
                 component_lent_host_atoms: RuntimeRows::new(account.as_ref()),
                 component_borrowed_addresses: RuntimeRows::new(account.as_ref()),
                 next_host_atom_collection_size: 1024,
+                exposed_address_selectors: Vec::new(),
                 scalar_array_values: crate::storage::scalar_array::ScalarArrayBindings::new(
                     account.as_ref(),
                 ),
@@ -3007,12 +3114,33 @@ pub(crate) mod execution {
             ))
         }
 
+        pub(crate) fn require_pending_completions(
+            &self,
+            watch: Option<&crate::embedding::instance::EntryCallWatch<'_>>,
+        ) -> Result<(), TerminalInterpretError> {
+            if !self
+                .program
+                .catalogs
+                .pending_normal_completions()
+                .is_empty()
+                && !watch.is_some_and(|watch| watch.covers_pending())
+                && !self.is_finished()
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "an unfinished program must arm every pending normal completion before running",
+                ));
+            }
+            Ok(())
+        }
+
         pub fn resume(
             &mut self,
             meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
-            self.resume_with_components(meter, handler, &mut ComponentBindings::new())
+            self.require_pending_completions(None)?;
+            self.resume_with_components(meter, handler, &mut ComponentBindings::new(), None)?
+                .ok_or_else(malformed)
         }
 
         pub(crate) fn resume_with_components(
@@ -3020,7 +3148,8 @@ pub(crate) mod execution {
             meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
             components: &mut ComponentBindings<'_, 'artifact>,
-        ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+            entry_cut: Option<&mut crate::embedding::instance::EntryCallWatch<'_>>,
+        ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
             if let Some(failure) = &self.failure {
                 return Err(failure.clone());
             }
@@ -3031,7 +3160,7 @@ pub(crate) mod execution {
                 Ok(())
             };
             let outcome = entry_capture
-                .and_then(|()| self.resume_operations(meter, handler, components))
+                .and_then(|()| self.resume_operations(meter, handler, components, entry_cut))
                 .map_err(|error| {
                     let operation = self
                         .program
@@ -3060,19 +3189,20 @@ pub(crate) mod execution {
             meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
             components: &mut ComponentBindings<'_, 'artifact>,
-        ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+            mut entry_cut: Option<&mut crate::embedding::instance::EntryCallWatch<'_>>,
+        ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
             if let Some(completion) = &self.external_completion {
-                return Ok(TerminalExecutionStatus::ExternalCompletion(
+                return Ok(Some(TerminalExecutionStatus::ExternalCompletion(
                     completion.clone(),
-                ));
+                )));
             }
             if self.result.is_some() {
                 self.retire_access_view_occurrences();
                 let result = self.result.clone().expect("checked above");
-                return Ok(TerminalExecutionStatus::Complete(result));
+                return Ok(Some(TerminalExecutionStatus::Complete(result)));
             }
             if let Some(crash) = &self.crash {
-                return Ok(TerminalExecutionStatus::Crashed(crash.clone()));
+                return Ok(Some(TerminalExecutionStatus::Crashed(crash.clone())));
             }
 
             let missing = self
@@ -3099,13 +3229,23 @@ pub(crate) mod execution {
             let program = std::sync::Arc::clone(&self.program);
             loop {
                 self.reclaim_orphan_scalar_records();
-                while let Some(operation) = program
-                    .verified_machine(self.current_machine)?
-                    .block(&self.current)
-                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
-                    .operations
-                    .get(self.next_operation)
-                {
+                loop {
+                    // The final call of a block completes before its terminator
+                    // transfers arguments or cleans up caller storage.
+                    if let Some(call) = entry_cut.as_deref_mut()
+                        && call.reached(self)?
+                    {
+                        return Ok(None);
+                    }
+                    let Some(operation) = program
+                        .verified_machine(self.current_machine)?
+                        .block(&self.current)
+                        .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
+                        .operations
+                        .get(self.next_operation)
+                    else {
+                        break;
+                    };
                     self.collect_retired_descriptor_storage(None);
                     let pending_component = matches!(
                         &operation.kind,
@@ -3123,7 +3263,7 @@ pub(crate) mod execution {
                         && !pending_effect
                         && let Err(error) = meter.charge_operation(operation)
                     {
-                        return meter_status(error);
+                        return meter_status(error).map(Some);
                     }
                     let selected;
                     let operation = if operation.kind.runtime_indexes().is_empty() {
@@ -3380,7 +3520,7 @@ pub(crate) mod execution {
                             if matches!(status, TerminalExecutionStatus::Complete(_)) {
                                 self.retire_access_view_occurrences();
                             }
-                            return Ok(status);
+                            return Ok(Some(status));
                         }
                     }
                     self.next_operation += 1;
@@ -3393,6 +3533,11 @@ pub(crate) mod execution {
                     .terminator;
                 self.trace_scalar_state(format_args!("before terminator {terminator:?}"));
                 let flow = match &terminator {
+                    Terminator::PendingNormalCompletion { .. } => {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "an unfinished callee reached its missing result without a checked continuation",
+                        ));
+                    }
                     // The checked actual storage path has no admitted value.
                     // Reaching it signals an invalid runtime input or engine
                     // invariant; it is neither a language crash nor a return.
@@ -3421,7 +3566,7 @@ pub(crate) mod execution {
                         if matches!(status, TerminalExecutionStatus::Complete(_)) {
                             self.retire_access_view_occurrences();
                         }
-                        return Ok(status);
+                        return Ok(Some(status));
                     }
                 }
             }

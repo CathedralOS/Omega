@@ -58,10 +58,20 @@ machine initial_amount(builder: @mut Build) -> i32 {{
 }}
 "
     );
-    check_project(name, &build, value, dependency_body, None, arguments)
+    check_project(name, &build, value, dependency_body, arguments)
 }
 
 fn check_project(
+    name: &str,
+    build: &str,
+    value: i32,
+    dependency_body: &str,
+    arguments: &[&str],
+) -> (bool, String) {
+    check_project_with_support(name, build, value, dependency_body, None, arguments)
+}
+
+fn check_project_with_support(
     name: &str,
     build: &str,
     value: i32,
@@ -148,7 +158,6 @@ machine build(builder: @mut Build) {{
         &build,
         7,
         "",
-        None,
         &["--check", "main.omg"],
     );
     assert!(compiled, "{report}");
@@ -334,7 +343,7 @@ machine build(builder: @mut Build) suspends {{
 "#
         );
         let run = |case: &str, build: &str, support: Option<&str>| {
-            check_project(
+            check_project_with_support(
                 &format!("helpers-{layout}-{case}"),
                 build,
                 7,
@@ -476,8 +485,7 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
 {helpers}
 "#
         );
-        let (ran, output) =
-            check_project(name, &build, 7, "", None, &["run", "--both", "build.omg"]);
+        let (ran, output) = check_project(name, &build, 7, "", &["run", "--both", "build.omg"]);
         assert_eq!(ran, accepted, "{output}");
         if accepted {
             assert!(
@@ -582,6 +590,487 @@ fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
 }
 
 #[test]
+fn a_field_borrow_survives_a_newly_visible_dependency() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let source = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
+        "linux_x86_64\\ProgramEntry",
+        &format!("{}\\ProgramEntry", target.target_name()),
+    );
+    let (ran, report) = check_project(
+        "borrowed-field",
+        &source,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+
+    let conflict = source.replace("$held = seven;", "gauge.amount = seven;");
+    let (ran, report) = check_project(
+        "borrowed-field-conflict",
+        &conflict,
+        7,
+        "",
+        &["--check", "main.omg"],
+    );
+    assert!(
+        !ran && report.contains("storage is changed while a conflicting reference remains live")
+            && report.contains("build.omg:19:"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_parked_helper_returns_the_value_of_the_newly_mounted_package() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg")
+        .replace("\r\n", "\n")
+        .replace(
+            "linux_x86_64\\ProgramEntry",
+            &format!("{}\\ProgramEntry", target.target_name()),
+        );
+    let wait = "suspend Build::prepare_dependency(builder, registration);";
+    let mut build = original.replace(
+        &format!("{wait}\n    let seven: i32 = kit\\v();"),
+        "let seven: i32 = suspend ready(builder, registration);",
+    );
+    assert_ne!(build, original);
+    build.push_str(&format!(
+        "\nmachine ready(builder: @mut Build, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    kit\\v()\n}}\n"
+    ));
+    let (ok, report) = check_project(
+        "helper-mounted-result",
+        &build,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    let (ok, report) = check_project(
+        "helper-mounted-result-twin",
+        &build,
+        8,
+        "",
+        &["--check", "main.omg"],
+    );
+    assert!(!ok && report.contains("project role"), "{report}");
+}
+
+#[test]
+fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let original = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(
+        "linux_x86_64\\ProgramEntry",
+        &format!("{}\\ProgramEntry", target.target_name()),
+    );
+    let wait = "suspend Build::prepare_dependency(builder, registration);";
+    for (name, inside) in [("helper-wait", false), ("helper-uses-package", true)] {
+        let mut source = original.replace(wait, "suspend ready(builder, registration);");
+        let body = if inside {
+            "builder.tests.disabled = kit\\v() == 7;"
+        } else {
+            ""
+        };
+        source.push_str(&format!("\nmachine ready(builder: @mut Build, registration: DependencyRegistration) suspends {{\n    {wait}\n    {body}\n}}\n"));
+        let (ran, report) = check_project(name, &source, 7, "", &["run", "--both", "build.omg"]);
+        assert!(
+            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            "{report}"
+        );
+    }
+}
+
+#[test]
+fn a_build_helper_in_another_file_can_use_a_prepared_type() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "prepared-helper-type",
+        false,
+    )
+    .unwrap();
+    let root = project.path();
+    std::fs::create_dir(root.join("vendor")).unwrap();
+    std::fs::create_dir(root.join("support")).unwrap();
+    std::fs::write(
+        root.join("vendor/build.omg"),
+        r#"machine build(builder: @mut Build) {
+        Build::package(builder, "scores");
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(root.join("vendor/main.omg"), "public data Score = i32;").unwrap();
+    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+    std::fs::write(
+        root.join("support/helpers.omg"),
+        r#"use kit;
+public machine score() -> i32 {
+    let seven: kit\Score = 7;
+    seven
+}"#,
+    )
+    .unwrap();
+    let build = r#"use support;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "prepared_type");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    suspend Build::prepare_dependency(builder, registered);
+    let score: i32 = support\score();
+    transition score == 7 { true -> finish(builder), _ -> wrong(builder) }
+    machine finish(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "duplicate"); }
+}"#.replace("HOST", target.target_name());
+    let run = |program: &str| {
+        std::fs::write(root.join("build.omg"), program).unwrap();
+        Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--both", "build.omg"])
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap()
+    };
+    let result = run(&build);
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        result.status.success()
+            && report.contains("native exit 0")
+            && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    let wait = "    suspend Build::prepare_dependency(builder, registered);\n";
+    let call = "    let score: i32 = support\\score();\n";
+    let early = build.replace(&format!("{wait}{call}"), &format!("{call}{wait}"));
+    assert_ne!(early, build);
+    let result = run(&early);
+    let report = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !result.status.success()
+            && report.contains("helpers.omg:3:")
+            && !report.contains("while resuming"),
+        "{report}"
+    );
+}
+
+#[test]
+fn each_transition_arm_can_prepare_its_own_dependency() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "alternative-preparations",
+        false,
+    )
+    .unwrap();
+    let root = project.path();
+    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+    for (directory, name, value) in [("left_vendor", "alpha", 7), ("right_vendor", "beta", 13)] {
+        let package = root.join(directory);
+        std::fs::create_dir(&package).unwrap();
+        std::fs::write(
+            package.join("build.omg"),
+            format!(
+                "machine build(builder: @mut Build) {{ Build::package(builder, \"{name}\"); }}"
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            package.join("main.omg"),
+            format!("public machine value() -> i32 {{ {value} }}"),
+        )
+        .unwrap();
+    }
+    let build = r#"use alpha;
+use beta;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "alternatives");
+    builder.tests.disabled = FLAG;
+    transition builder.tests.disabled {
+        true -> suspend left(builder),
+        _ -> suspend right(builder)
+    }
+    machine left(builder: @mut Build) suspends {
+        let item: DependencyRegistration = Build::build_dependency(builder, dependency\from_source(Source::Path { location: "left_vendor" }));
+        suspend Build::prepare_dependency(builder, item);
+        let actual: i32 = alpha\value();
+        transition actual == 7 { true -> done(builder), _ -> wrong(builder) }
+    }
+    machine right(builder: @mut Build) suspends {
+        let item: DependencyRegistration = Build::build_dependency(builder, dependency\from_source(Source::Path { location: "right_vendor" }));
+        suspend Build::prepare_dependency(builder, item);
+        let actual: i32 = beta\value();
+        transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
+    }
+    machine done(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "duplicate"); }
+}"#.replace("HOST", target.target_name());
+    for (flag, unused_error) in [("true", false), ("false", false), ("true", true)] {
+        let mut selected = build.replace("FLAG", flag);
+        if unused_error {
+            selected.push_str("\nmachine unused(n: u64) -> u64 { n + 1u64 }\n");
+        }
+        std::fs::write(root.join("build.omg"), selected).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--both", "build.omg"])
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if unused_error {
+            assert!(
+                !output.status.success()
+                    && report.contains("may overflow")
+                    && report.contains("unused"),
+                "{report}"
+            );
+        } else {
+            assert!(
+                output.status.success()
+                    && report.contains("native exit 0")
+                    && report.contains("interp exit: 0"),
+                "{report}"
+            );
+        }
+    }
+}
+
+#[test]
+fn resumption_preserves_arithmetic_and_float_contracts() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = r#"use kit;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "staged_proofs");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let start: i32 = pick(builder.tests.disabled);
+    let after: i32 = increment(start);
+    let measured: f64 = reading(builder.freestanding);
+    suspend Build::prepare_dependency(builder, registered);
+    let value: i32 = kit\v();
+    require_step(start, after);
+    require_small(measured);
+    Build::bind(builder, HOST\ProgramEntry, main);
+}
+machine pick(flag: bool) -> i32 ensures result >= 7 && result <= 9 { match flag { true -> 7, _ -> 9 } }
+machine increment(value: i32) -> i32 requires value <= 9 ensures result == value + 1 { value + 1 }
+machine require_step(start: i32, after: i32) requires start <= 9 && after == start + 1 {}
+machine reading(flag: bool) -> f64 ensures result >= 0.0 && result <= 0.5 { match flag { true -> 0.25, _ -> 0.5 } }
+machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
+"#.replace("HOST", target.target_name());
+    let run =
+        |name, source: &str| check_project(name, source, 7, "", &["run", "--both", "build.omg"]);
+    let (ran, report) = run("staged-proof", &build);
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    for (name, before, after, contract) in [
+        (
+            "staged-proof-arithmetic",
+            "increment(start)",
+            "increment(pick(builder.freestanding))",
+            "require_step",
+        ),
+        (
+            "staged-proof-float",
+            "reading(builder.freestanding)",
+            "0.75",
+            "require_small",
+        ),
+    ] {
+        let (ran, report) = run(name, &build.replace(before, after));
+        assert!(
+            !ran && report.contains(&format!(
+                "cannot prove requires contract for call {contract}"
+            )),
+            "{report}"
+        );
+    }
+}
+
+#[test]
+fn only_the_selected_transition_arm_waits_for_its_dependency() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = r#"use kit;
+const CHOSEN: bool = FLAG;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "conditional");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    builder.tests.disabled = CHOSEN;
+    transition builder.tests.disabled {
+        true -> suspend ready(builder, registered),
+        _ -> finish(builder)
+    }
+    machine ready(builder: @mut Build, registered: DependencyRegistration) suspends {
+        suspend Build::prepare_dependency(builder, registered);
+        let value: i32 = kit\v();
+        transition value == 7 { true -> finish(builder), _ -> wrong(builder) }
+    }
+    machine finish(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "duplicate_role"); }
+}"#.replace("HOST", target.target_name());
+    for (flag, value) in [("true", 7), ("false", 8)] {
+        let (ran, report) = check_project(
+            &format!("conditional-wait-{flag}"),
+            &build.replace("FLAG", flag),
+            value,
+            "",
+            &["run", "--both", "build.omg"],
+        );
+        assert!(
+            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            "{report}"
+        );
+    }
+    let wrong_local = build.replace("FLAG", "false").replace(
+        r"let value: i32 = kit\v();",
+        r"let value: i32 = kit\v(); let wrong_type: i32 = true;",
+    );
+    let (ran, report) = check_project(
+        "conditional-skip-known-type",
+        &wrong_local,
+        8,
+        "",
+        &["--check", "main.omg"],
+    );
+    assert!(
+        !ran && report.contains("wrong_type") && report.contains("requires `i32`"),
+        "{report}"
+    );
+    let unchecked = format!(
+        "{}\nmachine unused(n: u64) -> u64 {{ n + 1u64 }}",
+        build.replace("FLAG", "false")
+    );
+    let (ran, report) = check_project(
+        "conditional-skip-unused",
+        &unchecked,
+        8,
+        "",
+        &["--check", "main.omg"],
+    );
+    assert!(
+        !ran && report.contains("may overflow") && report.contains("unused"),
+        "{report}"
+    );
+    let (ran, report) = check_project(
+        "conditional-wait-bad",
+        &build.replace("FLAG", "true"),
+        8,
+        "",
+        &["--check", "main.omg"],
+    );
+    assert!(!ran && report.contains("project role"), "{report}");
+}
+
+#[test]
+fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparation() {
+    let before = r#"    let input: BuildPath = BuildSource::resolve(@builder.source, "main.omg");
+    let reader: i32 = BuildSource::open(@builder.source, input, 0);
+    let mut first: [u8; 1] = [0u8];
+    let first_count: i64 = BuildSource::read(@builder.source, reader, @mut first[..], 1u64);
+    let saw_first: bool = first_count == 1i64 && first[0] == 109u8;
+    let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.omg");
+    let writer: i32 = BuildOutput::create(@mut builder.output, output, 0);
+    _ = BuildOutput::write(@mut builder.output, writer, "machine joined() -> i32 { ");"#;
+    let after = r#"    let selected: i32 = kit\v();
+    let mut second: [u8; 1] = [0u8];
+    let second_count: i64 = BuildSource::read(@builder.source, reader, @mut second[..], 1u64);
+    _ = BuildSource::close(@builder.source, reader);
+    let denied: i32 = BuildSource::open(@builder.source, input, 1);
+    _ = BuildOutput::write(@mut builder.output, writer, "7i32 }");
+    _ = BuildOutput::close(@mut builder.output, writer);
+    BuildOutput::include_source(@mut builder.output, output);
+    transition selected == 7 && saw_first && second_count == 1i64 && second[0] == 97u8 && denied == -1 {
+        true -> carried(builder), _ -> wrong(builder)
+    }"#;
+    let (ran, report) = check_with_dependency_build(
+        "open-files-across-mount",
+        before,
+        after,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    let forged = after.replace(
+        "BuildOutput::include_source(@mut builder.output, output)",
+        "BuildOutput::include_source(@mut builder.output, BuildPath {})",
+    );
+    let (ran, report) = check("unissued-output-path-after-mount", before, &forged, 7);
+    assert!(
+        !ran && report.contains("filesystem value was not issued by this activation"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = include_str!("fixtures/build/run/required_output_after_mount/build.omg").replace(
+        "linux_x86_64\\ProgramEntry",
+        &format!("{}\\ProgramEntry", target.target_name()),
+    );
+    let (ran, report) = check_project(
+        "issued-output-after-mount",
+        &build,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("interp exit: 0") && report.contains("native exit 0"),
+        "{report}"
+    );
+
+    // Settling the same obligation with a fresh, guest-constructed path must fail.
+    let forged = build.replace("obligation, checked);", "obligation, BuildPath {});");
+    let (ran, report) = check_project(
+        "unissued-output-after-mount",
+        &forged,
+        7,
+        "",
+        &["--check", "build.omg"],
+    );
+    assert!(
+        !ran && report.contains("filesystem value was not issued by this activation"),
+        "{report}"
+    );
+}
+
+#[test]
+fn replacing_the_output_facet_before_a_mount_does_not_reissue_it() {
+    let (ran, report) = check(
+        "replaced-output",
+        "    builder.output = BuildOutput {};",
+        "    builder.tests.disabled = kit\\v() == 7;\n    let path: BuildPath = BuildOutput::resolve(@builder.output, \"answer.dat\");",
+        7,
+    );
+    assert!(
+        !ran && report.contains("original compiler-issued output"),
+        "{report}"
+    );
+}
+
+#[test]
 fn copies_of_an_issued_registration_still_name_the_same_request_after_a_mount() {
     let (ran, report) = check(
         "copied-registration-after-mount",
@@ -640,7 +1129,6 @@ machine build(builder: @mut Build) suspends {{
         &build,
         7,
         "",
-        None,
         &["--check", "main.omg"],
     );
     assert!(ran, "{report}");
@@ -701,7 +1189,7 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
     );
     assert!(!compiled, "{stderr}");
     assert!(
-        stderr.contains("binding `seven` conflicts with a local still visible"),
+        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:13:9"),
         "{stderr}"
     );
 }
@@ -777,12 +1265,12 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     );
     assert!(
         stderr.contains(
-            "during lowered-form checking while resuming the Build after dependency preparation"
+            "while reading the signature of `build`"
         ),
         "{stderr}"
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
-        line.strip_prefix("in package `staged`, ")
+        line.strip_prefix("at ")
             .and_then(|position| position.strip_suffix(":14:22"))
     });
     let expected_path = std::path::PathBuf::from(format!(
@@ -914,9 +1402,44 @@ machine wrong() crashes Trap { crash Trap; }
     let report = String::from_utf8_lossy(&output.stderr);
     assert!(
         !output.status.success()
-            && (report.contains("no visible declaration")
-                || report.contains("Product dependency")
-                || report.contains("product dependency")),
+            && report.contains("Alias `kit` was prepared as a Product dependency")
+            && report.contains("Build::build_dependency(builder, description)")
+            && report.contains("build.omg:6:"),
+        "{report}"
+    );
+    let unknown = leaked
+        .replace("use kit;", "use kitchen;")
+        .replace("kit\\value()", "kitchen\\value()");
+    let output = invoke(&unknown);
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success()
+            && report.contains("no visible declaration")
+            && report.contains("build.omg:6:")
+            && !report.contains("was prepared as a Product dependency"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_unused_deferred_import_warns_at_the_authored_name() {
+    let (compiled, report) = check("unused-import", "", &after("kit\\v"), 7);
+    assert!(
+        compiled && !report.contains("unused deferred Build import"),
+        "{report}"
+    );
+    let build = "use nowhere;\nmachine build(builder: @mut Build) { Build::application(builder, \"never_used\"); Build::bind(builder, linux_x86_64\\ProgramEntry, main); }\n";
+    let (compiled, report) = check_project(
+        "unused-deferred",
+        build,
+        7,
+        "",
+        &["--check", "main.omg", "--target", "linux_x86_64"],
+    );
+    assert!(
+        compiled
+            && report.contains("unused deferred Build import `nowhere`")
+            && report.contains("build.omg:1:5"),
         "{report}"
     );
 }

@@ -88,18 +88,9 @@ mod catalog_declaration;
 pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
-    pub fn returned_scalars(&self) -> &[source_compiler::ReturnedScalarFact] {
-        self.execution.returned_scalars()
-    }
-
-    /// Judges and admits the next stage of this Build and makes it the
-    /// execution that runs next. The stage is a complete Build entry to
-    /// every owner that sees it: the lowered-form checker judges it as it
-    /// judged the first, and the activation is prepared as the first was,
-    /// under the same filesystem scope and invocation account. What the
-    /// stage adds is kept with what the earlier stages left: its constant
-    /// reads, its charges, and any restricted request it is the first to
-    /// make, which needs the same consent a first stage would.
+    /// Admit the continuation in the newly prepared package scope. Its checks and
+    /// constant reads belong to this interval. Its filesystem grants and work
+    /// account belong to the activation that reached the preparation.
     pub fn continue_stage(
         &mut self,
         request: BuildStageRequest<'_>,
@@ -113,7 +104,6 @@ impl PreparedBuildEvaluation {
             anonymous_source,
         } = request;
         let typed = interval.program.as_ref();
-        let stage = &interval.plan;
         let acquisition = self
             .execution
             .unbound_acquisition
@@ -154,7 +144,6 @@ impl PreparedBuildEvaluation {
                 prepared,
                 providers,
                 selected_machine,
-                stage,
                 build_source,
                 package_inputs,
             )?;
@@ -285,6 +274,18 @@ impl PreparedBuildEvaluation {
             )])
         })?;
         let configuration = Arc::new(execution.complete(returned).map_err(failure)?);
+        let last = configuration.accepted_builds.last().ok_or_else(|| {
+            failure(vec![Diagnostic::error(
+                "the returned Build lost its checked program",
+            )])
+        })?;
+        let subject_validation = if subject_validation == BuildSubjectValidation::Checked
+            && !last.view().pending_normal_completions().is_empty()
+        {
+            BuildSubjectValidation::CheckedAvailableDeclarations
+        } else {
+            subject_validation
+        };
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
             configuration,
@@ -314,7 +315,6 @@ pub fn prepare_build_evaluation(
         artifact_only,
     } = request;
     let typed = interval.program.as_ref();
-    let stage = &interval.plan;
     let BuildExecutionInputs {
         profile: execution_profile,
         directory: build_directory,
@@ -384,7 +384,6 @@ pub fn prepare_build_evaluation(
             prepared,
             providers,
             selected_machine,
-            stage,
             &filesystem_scope,
             evaluation_sponsor.as_ref(),
             execution_profile,

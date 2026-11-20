@@ -40,7 +40,8 @@ mod product_queries;
 pub use product_queries::{ProductQueryDependency, ProductQueryInputs};
 
 pub(crate) use bindings::{
-    PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
+    PendingPackageImport, ResolvedSourceImport, pending_build_imports,
+    retain_module_import_bindings,
 };
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::EntryContractSource;

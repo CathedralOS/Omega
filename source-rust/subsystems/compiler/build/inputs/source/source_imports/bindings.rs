@@ -105,6 +105,40 @@ impl PendingPackageImport {
     }
 }
 
+/// An authored Build import without a selected declaration can become visible
+/// at a later preparation. Keep its importer so another file cannot use its scope.
+pub(crate) fn pending_build_imports(
+    storage: &SourceStorage,
+) -> Vec<source_compiler::PendingBuildImport> {
+    let mut selected = storage
+        .resolved_imports
+        .iter()
+        .map(|binding| (binding.occurrence.source.0, binding.occurrence.ordinal))
+        .collect::<Vec<_>>();
+    selected.sort_unstable();
+    let mut pending = Vec::new();
+    for (_, roots) in storage.source_roots.iter() {
+        if !storage.sources.source_is_selected(roots.source_id) {
+            continue;
+        }
+        for import in &roots.build_imports {
+            if selected
+                .binary_search(&(roots.source_id.0, import.ordinal))
+                .is_err()
+            {
+                pending.push(source_compiler::PendingBuildImport {
+                    source: roots.source_id,
+                    span: import.span,
+                    path: identifier_path_text(&import.members),
+                });
+            }
+        }
+    }
+    pending.sort_unstable_by(|a, b| (a.source.0, &a.path).cmp(&(b.source.0, &b.path)));
+    pending.dedup_by(|a, b| a.source == b.source && a.path == b.path);
+    pending
+}
+
 pub(crate) fn retain_module_import_bindings(
     storage: &SourceStorage,
 ) -> Result<Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
@@ -268,6 +302,7 @@ mod tests {
             storage.source_roots.append(SourceRoots {
                 source_id,
                 root_items: Default::default(),
+                build_imports: Vec::new(),
             });
         }
         storage.resolved_imports = vec![
@@ -303,6 +338,7 @@ mod tests {
             storage.source_roots.append(SourceRoots {
                 source_id: SourceId(index),
                 root_items: Default::default(),
+                build_imports: Vec::new(),
             });
         }
         storage.resolved_imports = vec![import(SourceId(0), "/dep/a.omg")];
@@ -325,6 +361,7 @@ mod tests {
             storage.source_roots.append(SourceRoots {
                 source_id: SourceId(index),
                 root_items: Default::default(),
+                build_imports: Vec::new(),
             });
         }
         storage.resolved_imports = vec![

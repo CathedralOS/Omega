@@ -11,8 +11,7 @@ use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
     receiver: super::build_receiver::BuildReceiver,
-    returned_scalars: Box<[source_compiler::ReturnedScalarFact]>,
-    has_next_stage: bool,
+    preparation_allows_return: Option<bool>,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -23,35 +22,16 @@ pub struct SelectedBuildMachine {
 }
 
 impl SelectedBuildMachine {
+    /// An unfinished entry can return only on an independently checked alternative.
+    pub fn preparation_allows_return(&self) -> Option<bool> {
+        self.preparation_allows_return
+    }
+
     pub fn receiver_for<'module>(
         &self,
         module: &'module terminal_psi::TerminalModule,
     ) -> Result<&'module terminal_psi::StructuralParameterDeclaration, String> {
-        self.entry_storage_for(module).map(|parameters| &parameters[0])
-    }
-
-    pub fn entry_storage_for<'module>(
-        &self,
-        module: &'module terminal_psi::TerminalModule,
-    ) -> Result<&'module [terminal_psi::StructuralParameterDeclaration], String> {
-        self.receiver.parameters_for(module)
-    }
-
-    /// Only these admitted frame homes can carry a toolchain dependency-registration marker.
-    pub fn registration_frame_positions(&self) -> impl Iterator<Item = u32> + '_ {
-        self.receiver.registration_frame_positions()
-    }
-
-    pub fn has_next_stage(&self) -> bool {
-        self.has_next_stage
-    }
-
-    pub fn returned_scalars(&self) -> &[source_compiler::ReturnedScalarFact] {
-        &self.returned_scalars
-    }
-
-    pub fn has_same_frame(&self, previous: &Self) -> bool {
-        self.receiver.has_same_frame(&previous.receiver)
+        self.receiver.parameter_for(module)
     }
 }
 
@@ -75,7 +55,6 @@ pub fn select_build_machine(
 pub fn admit_build_machine(
     prepared: &source_compiler::publication::AcceptedTerminalSource,
     machine_symbol: SymbolHandle,
-    stage: &source_compiler::BuildStage,
     filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
     let typed = prepared.source();
@@ -95,14 +74,8 @@ pub fn admit_build_machine(
             "prepared Build program lost its selected entry",
         )]
     })?;
-    let has_next_stage = typed.roots.partial_build_entry.is_some();
-    if has_next_stage != stage.next_index().is_some() {
-        return Err(vec![Diagnostic::error(
-            "Build stage plan disagrees with its checked source about whether the entry continues",
-        )]);
-    }
     let machine_name = machine.name.as_str().to_owned();
-    let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine, stage)
+    let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let normalized_callable_identity =
         typed
@@ -138,8 +111,7 @@ pub fn admit_build_machine(
     };
     Ok(SelectedBuildMachine {
         receiver,
-        has_next_stage,
-        returned_scalars: prepared.closure().returned_scalars().into(),
+        preparation_allows_return: typed.roots.partial_build_entry.map(|_| typed.roots.partial_build_can_return),
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,

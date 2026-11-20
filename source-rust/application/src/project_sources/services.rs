@@ -113,6 +113,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
     ) -> Result<ProductQueryDependency, CompileFailure> {
         let i = self.dependency(activation, request.purpose, request.request_ordinal)?;
         let (_, declaration, settled) = &self.host.settled[i];
+        let child_build_source = settled.evaluated().base_source_consumption_commitment;
         let alias = aliases(activation, request.purpose)
             .nth(request.request_ordinal)
             .ok_or_else(|| refused("Build preparation names no issued dependency"))?
@@ -122,6 +123,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             // Its Build has returned. The Product's consumer will choose its deployment.
             return Ok(ProductQueryDependency {
                 alias,
+                child_build_source,
                 inputs: settled.inputs().clone(),
                 generated: None,
             });
@@ -134,6 +136,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         )?;
         Ok(ProductQueryDependency {
             alias,
+            child_build_source,
             inputs: product
                 .package_inputs()
                 .ok_or_else(|| refused("prepared dependency lost its package source"))?
@@ -158,6 +161,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
                         .unwrap_or_else(|| declaration.package_name())
                         .to_owned(),
                     inputs: settled.inputs().clone(),
+                    child_build_source: settled.evaluated().base_source_consumption_commitment,
                     generated: None,
                 })
             })

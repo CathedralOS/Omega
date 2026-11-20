@@ -1361,7 +1361,6 @@ fn finish_reading_into<'source>(
             }
         }
     }
-    suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     elaboration.nominal_types = program.nominal_type_inputs();
     elaboration.nominal_calls =
@@ -1403,6 +1402,9 @@ fn finish_reading_into<'source>(
             .flat_map(|rows| rows.signatures.iter().map(|row| &row.storage)),
         &mut elaboration.module,
     )?;
+    // A call can forward a loan. Its published result and storage contracts
+    // must exist before a crossing can name the borrower's live backing.
+    suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;

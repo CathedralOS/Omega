@@ -218,17 +218,7 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: none of the four files describes a fixed bug or keeps code that works around one.
 - **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega packages update` peaks near 14 GB single-threaded.
 
-- **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `BuildInputs`/`BuildSource`/`BuildOutput`.
-  - Extend the [checked Build frame](source-rust/subsystems/compiler/source-to-psi/driver/compile_build/waits/frame.rs) to carry aggregate homes beyond dependency registrations, projected and reassigned loans, and proof bindings into the newly mounted scope. These bindings currently keep their original program alive until their last use. Carry predicates on floating-point values and arithmetic expressions such as `next == start + 1` across a change of scope.
-  - A preparation that is not a top-level statement of the entry (in a helper, a nested machine or a `transition` arm) prepares its dependency and gives no stage any name.
-  - A provider installed by `Build::await_provider` in one stage is not installed in a later one.
-  - Preparing a registration made with `Build::dependency` is refused; a Product dependency used from a Build stage is an unknown name there, and the scope diagnostic is only given for an unused Build import once the Build has run.
-  - A Product query made after a preparation is answered with the prepared dependencies' authored source mounted, not the source their Builds generated: a query whose author is generated code of a prepared dependency is refused as having lost its source.
-  - A stage's module is not held to package authority when the root has no package graph yet (`BuildProviderPlans::admit` skips `admit_declaration_selections` without one); only source resolution limits what it selects.
-  - An unused deferred import does not warn.
-  - Attenuated filesystem delegation and the retirement of `BuildInputs`/`BuildSource`/`BuildOutput` are untouched.
-  - The identity a staged Build's result carries (`ReturnedBuild::identity`, and the native-binding evaluation formed from it) and the accepted Build that package review reads its contracts from are its last stage's module only; the specification keeps "staged source and context identities" as "part of replay and result applicability".
-  Acceptance: the legacy Build paths are deleted.
+- **STAGED-BUILD-CAPABILITIES.** Implement [delegated filesystem authority](wiki/spec/build/scoped_execution.md#delegated-files-and-configuration) and retire `BuildInputs`, `BuildSource` and `BuildOutput`.
 
 - **NO-IMPLICIT-COMPILER-STORAGE.** Implement [compiler storage](wiki/spec/build/compiler_storage.md): keep reuse in memory within one build invocation and delete the disk caches.
   - Delete the compiled review cache (`CompiledReviewCache`), the checked source cache (`CheckedSourceCache`) and their per-user store lanes (`compiled-review-cache`, `checked-source-cache`).

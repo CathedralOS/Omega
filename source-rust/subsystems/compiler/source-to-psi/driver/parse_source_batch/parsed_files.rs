@@ -12,6 +12,7 @@ pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
     /// Present when the selected Build entry has been projected onto a prefix.
     pub(crate) partial_build_entry: Option<SourceSpan>,
+    pub(crate) partial_build_can_return: bool,
     files: Vec<ParsedFile>,
 }
 
@@ -40,6 +41,7 @@ impl SourceSyntax {
         Self {
             trees: SyntaxTrees::new(source),
             partial_build_entry: None,
+            partial_build_can_return: false,
             files: Vec::new(),
         }
     }
@@ -128,9 +130,10 @@ impl SourceItems {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct SourceImport {
     pub ordinal: usize,
+    pub span: source_text::Span,
     pub members: Vec<String>,
 }
 
@@ -163,15 +166,17 @@ impl ParsedSourceBatch {
                         .iter()
                         .enumerate()
                         .filter_map(|(offset, handle)| match syntax.root_item(*handle) {
-                            Item::Use(import) => Some(SourceImport {
-                                ordinal: unit.import_root_range.start + offset,
-                                members: syntax
-                                    .items
-                                    .identifier_path_members(import.path)
-                                    .iter()
-                                    .map(|name| name.as_str(syntax).to_owned())
-                                    .collect(),
-                            }),
+                            Item::Use(import) => {
+                                let members = syntax.items.identifier_path_members(import.path);
+                                Some(SourceImport {
+                                    ordinal: unit.import_root_range.start + offset,
+                                    span: source_text::Span::new(
+                                        members.first().expect("a parsed import has a name").source_span().span.start,
+                                        members.last().unwrap().source_span().span.end,
+                                    ),
+                                    members: members.iter().map(|name| name.as_str(syntax).to_owned()).collect(),
+                                })
+                            }
                             _ => None,
                         })
                         .collect();

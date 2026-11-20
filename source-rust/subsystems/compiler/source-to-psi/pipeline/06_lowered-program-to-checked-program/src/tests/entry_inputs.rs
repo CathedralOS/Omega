@@ -123,11 +123,19 @@ fn private_inputs_cross_an_omitted_helper_chain() {
 fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict {
     let typed = super::boundary_calls::typed(source);
     let entry = super::boundary_calls::entry(&typed);
+    let package = typed
+        .symbols
+        .source_map()
+        .unwrap()
+        .files()
+        .next()
+        .unwrap()
+        .package_identity;
     let elaboration = crate::lowering::elaborate_for(
         &typed,
         super::build_purpose::roster(
             &[entry],
-            &[],
+            &[package],
             source_provenance::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Invocation,
@@ -135,6 +143,114 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
     .unwrap();
     assert_eq!(elaboration.private_inputs.len(), expected_private);
     judge(Ok(elaboration)).unwrap()
+}
+
+#[test]
+fn a_private_result_receipt_matches_its_actual_return_and_never_its_written_clause() {
+    let source = r"
+machine entry() -> i32 { increment(7) }
+machine increment(n: i32) -> i32 requires n >= 0 && n <= 9 ensures result == n + 1 { n + 1 }
+";
+    let RouteVerdict::Accepted(accepted) = judge_source_arrivals(source, 0) else {
+        panic!("the bounded addition satisfies its written guarantee");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let module = publication.artifact.view().module();
+    let helper = &module.machines[1];
+    assert!(
+        !module.identities.proved_private_result(helper, 0),
+        "written guarantee"
+    );
+    let i = (1..helper.ensures.len())
+        .find(|&i| module.identities.proved_private_result(helper, i))
+        .unwrap_or_else(|| {
+            panic!(
+                "the concrete invocation proves the result bounds: {:?}, summary owners: {:?}",
+                helper.ensures,
+                accepted.elaboration().local_results
+            )
+        });
+    let mut stale = helper.clone();
+    stale.contract.ensures[i].proposition = Proposition::Falsehood;
+    assert!(!module.identities.proved_private_result(&stale, i));
+    let mut stale = helper.clone();
+    for block in &mut stale.blocks {
+        if let terminal_psi::Terminator::Return { value, .. } = &mut block.terminator {
+            *value = semantic_vocabulary::ValueId::new(value.get() + 1).unwrap();
+        }
+    }
+    assert!(!module.identities.proved_private_result(&stale, i));
+}
+
+#[test]
+fn published_private_inputs_remember_the_exact_calls_that_proved_them() {
+    let program = r#"
+machine entry() -> u32 {
+    let first: u32 = next(7u32);
+    next(7u32)
+    machine next(n: u32) -> u32 WRITTEN { n }
+}
+"#;
+    for (header, eligible) in [("", true), ("requires n == 7", false)] {
+        let verdict =
+            judge_source_arrivals(&program.replace("WRITTEN", header), usize::from(eligible));
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("the two calls pass seven: {verdict:?}");
+        };
+        let publication = accepted.publish_invocation().unwrap();
+        let module = publication.artifact.view().module();
+        let caller = &module.machines[0];
+        let callee = &module.machines[1];
+        let [predicate] = callee.requires.as_slice() else {
+            panic!("one inferred or written input: {:?}", callee.requires);
+        };
+        assert_eq!(
+            module.identities.inferred_input_clause(callee.id, 0),
+            eligible
+        );
+        assert_eq!(
+            module
+                .identities
+                .matches_inferred_input_clause(callee.id, 0, predicate),
+            eligible
+        );
+        assert!(!module.identities.matches_inferred_input_clause(
+            callee.id,
+            0,
+            &Proposition::Truth
+        ));
+        let calls = caller
+            .blocks
+            .iter()
+            .flat_map(|b| &b.operations)
+            .filter_map(|op| {
+                let call = op.declared_invocation()?;
+                (call.callee == semantic_vocabulary::TargetMachineCallable::Machine(callee.id))
+                    .then(|| {
+                        (
+                            semantic_vocabulary::InvocationSite::Operation(op.id),
+                            call.requirement_obligations[0],
+                        )
+                    })
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = calls.as_slice() else {
+            panic!("both calls owe the input");
+        };
+        for (&(site, own), &(_, other)) in [(first, second), (second, first)] {
+            assert_eq!(
+                module
+                    .identities
+                    .proved_inferred_input(caller.id, site, callee.id, 0, own),
+                eligible
+            );
+            assert!(
+                !module
+                    .identities
+                    .proved_inferred_input(caller.id, site, callee.id, 0, other)
+            );
+        }
+    }
 }
 
 #[test]

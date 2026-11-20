@@ -1608,6 +1608,7 @@ pub(crate) mod completion {
         }
 
         fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
+            self.retired_structural_homes = caller.retired_structural_homes;
             self.access_view_occurrences = caller.access_view_occurrences;
             self.values = caller.values;
             self.structural_values = caller.structural_values;

@@ -72,36 +72,10 @@ pub(super) fn top_level_type_symbol_for_source(
     symbols: &SymbolTable,
     name: &DiagnosticName,
 ) -> SymbolHandle {
-    if let Some(symbol) = symbols::FixedCoreDeclaration::from_name(name.as_str())
-        .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
-    {
-        return symbol;
-    }
-    let builtin = crate::source_symbols::is_builtin_type_spelling(name.as_str());
-    let declared_types: &[SymbolKind] = if builtin {
-        &[SymbolKind::BuiltinType]
-    } else {
-        &[
-            SymbolKind::BuiltinType,
-            SymbolKind::Data,
-            SymbolKind::TypeAlias,
-            SymbolKind::Machine,
-            SymbolKind::Trait,
-        ]
-    };
-    match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-        name.as_str(),
-        declared_types,
-        name.source_span(),
-        |_| true,
-    ) {
-        crate::source_symbols::SymbolLookup::Unique(symbol) => symbol,
-        crate::source_symbols::SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
-        crate::source_symbols::SymbolLookup::NotFound if builtin => SymbolHandle::invalid(),
-        crate::source_symbols::SymbolLookup::NotFound => {
-            top_level_symbol_for_source(symbols, SymbolKind::Conformance, name)
-        }
-    }
+    symbols
+        .lookup_source_type(name.as_str(), name.source_span())
+        .unique()
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 pub(super) fn top_level_symbol_for_source(

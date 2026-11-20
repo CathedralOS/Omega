@@ -121,7 +121,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     let interval = assembled
         .build_stage_source()
         .unwrap()
-        .prepare(None, &[], &Default::default(), "linux_x86_64", None)
+        .prepare(None, &Default::default(), "linux_x86_64", None)
         .expect("exact declared requirement calls reach typed preparation");
     let typed = interval.program.as_ref();
     let unresolved: Vec<_> = typed
@@ -191,5 +191,45 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
         occurrences.len(),
         4,
         "all four original target bindings survive"
+    );
+}
+
+#[test]
+fn checked_build_receives_the_import_which_waits_for_its_registration() {
+    let root = fixture_repository::root()
+        .join(
+            "source-rust/application/tests/fixtures/build/run/borrowed_field_after_mount/build.omg",
+        )
+        .canonicalize()
+        .unwrap();
+    let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
+    let mut timings = CompileTimings::default();
+    let capture = crate::capture_anonymous_compilation_source(&root).unwrap();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+        &root,
+        None,
+        Some(&capture),
+        &mut timings,
+        &mut catalogue,
+    )
+    .unwrap();
+    let (_, assembled) = checkpoint
+        .assemble(None, &mut timings, &mut catalogue)
+        .unwrap();
+    let source = assembled.build_stage_source().unwrap();
+    assert!(
+        source
+            .pending_imports
+            .iter()
+            .any(|item| item.path == "kit" && item.source == source.entry.source_id),
+        "expected the selected Build's kit import among {:?}",
+        source.pending_imports
+    );
+    let interval = source
+        .prepare(None, &Default::default(), "linux_x86_64", None)
+        .unwrap();
+    assert_eq!(
+        interval.plan.outgoing_preparation_path().map(<[_]>::len),
+        Some(1)
     );
 }

@@ -1989,6 +1989,73 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             self.nodes.expressions.get_mut(handle)
         }
 
+        /// Visit the immediate value operands of a resolved expression in their stored order.
+        pub fn visit_children(
+            &self,
+            node: &ExpressionNode,
+            mut visit: impl FnMut(ExpressionHandle),
+        ) {
+            match node {
+                ExpressionNode::Call(call) => {
+                    if call.receiver.is_valid() {
+                        visit(call.receiver);
+                    }
+                    self.expression_handles(call.arguments)
+                        .iter()
+                        .copied()
+                        .for_each(visit);
+                }
+                ExpressionNode::Binary(binary) => {
+                    [binary.left, binary.right].into_iter().for_each(visit)
+                }
+                ExpressionNode::Unary(unary) => visit(unary.operand),
+                ExpressionNode::Cast(cast) => visit(cast.value),
+                ExpressionNode::Member(member) => visit(member.receiver),
+                ExpressionNode::Borrow(borrow) => visit(borrow.target),
+                ExpressionNode::Indexed(indexed) => [indexed.collection, indexed.index]
+                    .into_iter()
+                    .for_each(visit),
+                ExpressionNode::Membership(membership) => visit(membership.value),
+                ExpressionNode::Atomic(atomic) => {
+                    [atomic.value, atomic.result].into_iter().for_each(visit)
+                }
+                ExpressionNode::Range(range) => [range.start, range.end]
+                    .into_iter()
+                    .filter(|h| h.is_valid())
+                    .for_each(visit),
+                ExpressionNode::ArrayLiteral(elements) => self
+                    .expression_handles(*elements)
+                    .iter()
+                    .copied()
+                    .for_each(visit),
+                ExpressionNode::StructLiteral(literal) => self
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value)
+                    .for_each(visit),
+                ExpressionNode::Match(dispatch) => {
+                    visit(dispatch.subject);
+                    for arm in self.match_arms(dispatch.arms) {
+                        self.match_pattern_dependencies(arm.pattern)
+                            .for_each(&mut visit);
+                        visit(arm.value);
+                    }
+                }
+                ExpressionNode::SavedSubject(saved) => {
+                    visit(self.match_subject(saved.capture).subject);
+                    visit(saved.pattern_head);
+                }
+                ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Name(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::TypeExpression(_)
+                | ExpressionNode::ZeroValue(_) => {}
+            }
+        }
+
         pub fn iter_expressions(
             &self,
         ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {

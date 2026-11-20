@@ -180,6 +180,36 @@ fn authored_build_returns_its_application_and_target_bindings() {
     assert_eq!(source.product.policy.native_bindings.len(), 4);
     assert!(source.product.native_bindings.evaluation.is_some());
     let computed = &product.evaluated().configuration;
+    let [checked_build] = computed.accepted_builds.as_slice() else {
+        panic!("this Build executes one published program");
+    };
+    assert_eq!(
+        product.evaluated().subject_validation,
+        build_execution::BuildSubjectValidation::Checked
+    );
+    let checked = checked_build.view();
+    assert!(checked.closed_module().is_some());
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = checked.module().entry else {
+        panic!("the authored Build selects a checked source machine");
+    };
+    assert!(
+        checked
+            .module()
+            .machine(entry)
+            .unwrap()
+            .declaration
+            .is_some()
+    );
+    assert_eq!(
+        source
+            .product
+            .native_bindings
+            .evaluation
+            .as_ref()
+            .unwrap()
+            .terminal_code,
+        checked.custody_identity().semantic()
+    );
     assert_eq!(computed.root_binding_requests.len(), 5);
     assert!(
         computed
@@ -284,6 +314,188 @@ fn configure_library() {
 }
 
 #[test]
+fn a_return_from_a_checked_arm_reports_the_unavailable_declarations() {
+    configure_library();
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-conditional-return",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    let entry = root.join("build.omg");
+    std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
+    std::fs::write(&entry, r#"use kit;
+machine build(builder: @mut Build) suspends {
+    Build::package(builder, "conditional");
+    builder.tests.disabled = false;
+    transition builder.tests.disabled {
+        true -> suspend later(builder),
+        _ -> done()
+    }
+    machine later(builder: @mut Build) suspends {
+        let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+        dependency\with_alias(@mut request, "kit");
+        let registered: DependencyRegistration = Build::build_dependency(builder, request);
+        suspend Build::prepare_dependency(builder, registered);
+        let value: i32 = kit\v();
+    }
+    machine done() {}
+}"#).unwrap();
+    let profile = TargetProfile::host_if_supported().unwrap();
+    let project = begin_local_project_preparation(&entry, &[profile], true).unwrap();
+    let acquired = project.acquire_root().unwrap();
+    let evaluation = prepare(
+        PlanningRequest {
+            root: &acquired.entry_path(),
+            sources: PlanningSources::Captured(acquired.source_capture()),
+            execution: BuildExecutionInputs::default(),
+            artifact_only: false,
+        },
+        Default::default(),
+        Default::default(),
+    )
+    .unwrap();
+    let mut stage = interpret(evaluation, &mut ()).unwrap();
+    let declaration = acquired.declare_build(stage.returned()).unwrap();
+    let subject = declaration.identity();
+    let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {
+        panic!("the selected arm registered no package")
+    };
+    let inputs = graph
+        .join_source_result(subject, &mut stage.source_result().unwrap())
+        .unwrap();
+    let product = stage.open_product(Some(&inputs)).unwrap();
+    let evaluated = product.evaluated();
+    assert_eq!(
+        evaluated.subject_validation,
+        build_execution::BuildSubjectValidation::CheckedAvailableDeclarations
+    );
+    let [only] = evaluated.configuration.accepted_builds.as_slice() else {
+        panic!("the selected arm returned in the first program")
+    };
+    assert!(only.view().closed_module().is_none());
+    assert!(!only.view().pending_normal_completions().is_empty());
+}
+
+#[test]
+fn later_build_admissions_keep_the_original_artifact_only_consent() {
+    use build_execution::{BuildEvaluationRequest, BuildStageRequest, RestrictedBuildGrants};
+    use package_compilation::build_execution::{RestrictedBuildOperation, RestrictedBuildRequest};
+    use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
+    use std::sync::{Arc, Mutex};
+
+    struct Consent(Arc<Mutex<Vec<RestrictedBuildRequest>>>);
+    impl RestrictedBuildGrants for Consent {
+        fn admit(
+            &mut self,
+            request: &RestrictedBuildRequest,
+        ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+            self.0.lock().unwrap().push(request.clone());
+            Ok(())
+        }
+    }
+
+    configure_library();
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-artifact-consent",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    let entry = root.join("build.omg");
+    std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
+    std::fs::write(
+        &entry,
+        r#"machine build(builder: @mut Build) {
+        Build::application(builder, "artifacts");
+        Build::artifact_only(builder);
+        _ = BuildSource::resolve(@builder.source, "main.omg");
+    }"#,
+    )
+    .unwrap();
+    let profile = TargetProfile::host_if_supported().unwrap();
+    let project = begin_local_project_preparation(&entry, &[profile], true).unwrap();
+    let acquired = project.acquire_root().unwrap();
+    let entry = acquired.entry_path();
+    let mut timings = Default::default();
+    let mut catalogue = Default::default();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare(
+        &entry,
+        None,
+        Some(acquired.source_capture()),
+        &mut timings,
+        &mut catalogue,
+    )
+    .unwrap();
+    let (_, syntax) = checkpoint
+        .assemble(None, &mut timings, &mut catalogue)
+        .unwrap();
+    let interval = syntax
+        .build_stage_source()
+        .unwrap()
+        .prepare(None, &Default::default(), profile.target_name(), None)
+        .unwrap();
+    let staging = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "build-reviewed-staging",
+        false,
+    )
+    .unwrap();
+    let sponsor = filesystem_authority::FilesystemSponsor::new(staging.path()).unwrap();
+    let owner = syntax
+        .anonymous_owner
+        .as_ref()
+        .expect("the acquired source owner");
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let mut evaluation = build_execution::prepare_build_evaluation(
+        BuildEvaluationRequest {
+            execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
+            root_path: &entry,
+            interval: &interval,
+            build_source: syntax.build_source,
+            sources: &syntax.parsed.files,
+            package_inputs: None,
+            anonymous_source: Some(owner),
+            generated_source_custody: &[],
+            execution: BuildExecutionInputs {
+                profile: Some(profile),
+                directory: Some(staging.path().join("output")),
+                filesystem_sponsor: Some(sponsor),
+                restricted_grants: Some(Box::new(Consent(Arc::clone(&requests)))),
+                ..Default::default()
+            },
+            artifact_only: true,
+        },
+        &mut timings,
+    )
+    .unwrap();
+    // Admit another checked view against the same reviewed staging root. The earlier
+    // consent covers its identical access, even after a second handoff.
+    for _ in 0..2 {
+        evaluation
+            .continue_stage(
+                BuildStageRequest {
+                    source_acquisition: None,
+                    interval: &interval,
+                    build_source: syntax.build_source,
+                    package_inputs: None,
+                    anonymous_source: Some(owner),
+                },
+                &mut timings,
+            )
+            .unwrap();
+    }
+    let requests = requests.lock().unwrap();
+    let [request] = requests.as_slice() else {
+        panic!("one activation asked for different filesystem consent: {requests:?}");
+    };
+    assert_eq!(
+        request.operation(),
+        RestrictedBuildOperation::ScopedFilesystemExecution
+    );
+    assert!(request.bounds().artifact_only());
+}
+
+#[test]
 fn dependent_continuation_runs_after_its_package_was_prepared() {
     use build_execution::host::requests::BuildDependencyPreparation;
     use build_execution::{CompileFailure, TerminalBuildActivation};
@@ -339,10 +551,11 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
             let inputs = graph
                 .join_source_result(subject, &mut returned.source_result()?)
                 .unwrap();
-            returned.open_product(Some(&inputs))?;
+            let product = returned.open_product(Some(&inputs))?;
             self.prepared += 1;
             Ok(ProductQueryDependency {
                 alias: "support".into(),
+                child_build_source: product.evaluated().base_source_consumption_commitment,
                 inputs,
                 generated: None,
             })

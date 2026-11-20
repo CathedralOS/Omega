@@ -66,7 +66,7 @@ impl PackagePolicyOccurrence {
                 self.context.purpose() != DependencyPurpose::Product
                     || binding.target != self.context.target().target_name()
                     || binding.supplier_package != self.acceptance.package()
-                    || binding.evaluation.usage.validate().is_err()
+                    || binding.evaluation.validate().is_err()
             })
         }) {
             return Err(PackageLockError::OccurrenceCoverage);

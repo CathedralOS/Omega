@@ -25,6 +25,8 @@ use std::path::PathBuf;
 pub struct ProductQueryDependency {
     pub alias: String,
     pub inputs: PackageCompilationInputs,
+    /// The package graph and sources admitted for the child's original Build, when named.
+    pub child_build_source: Option<crate::PackageSourceConsumptionCommitment>,
     /// The handoff of the dependency's own Build, when the dependency is
     /// mounted for a Build stage: the source that Build generated is part of
     /// the package the stage may call. A Product query describes authored
@@ -77,6 +79,7 @@ mod tests {
         ProductQueryDependency {
             alias: alias.into(),
             inputs,
+            child_build_source: None,
             generated: None,
         }
     }

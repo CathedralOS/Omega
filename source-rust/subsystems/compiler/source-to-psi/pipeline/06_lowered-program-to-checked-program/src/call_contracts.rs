@@ -63,7 +63,8 @@ pub(crate) fn terminator_site(terminator: &Terminator) -> Option<InvocationSite>
         Terminator::ExternalCompletion { edge, .. } => {
             Some(InvocationSite::ExternalCompletion(*edge))
         }
-        Terminator::Jump { .. }
+        Terminator::PendingNormalCompletion { .. }
+        | Terminator::Jump { .. }
         | Terminator::Conditional { .. }
         | Terminator::StructuralCase { .. }
         | Terminator::EliminateEmpty { .. }

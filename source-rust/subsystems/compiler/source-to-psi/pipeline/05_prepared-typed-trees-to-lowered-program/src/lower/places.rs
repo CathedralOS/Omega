@@ -1048,7 +1048,8 @@ fn statement_homes<'b>(
         }
         Statement::Declare { .. }
         | Statement::Witness { .. }
-        | Statement::CaptureReference { .. } => {}
+        | Statement::CaptureReference { .. }
+        | Statement::ParkedBuildLocals(..) => {}
         Statement::Dispatch {
             subject,
             arms,
@@ -4868,8 +4869,37 @@ impl<'a> Lowering<'a> {
         // descriptor prefix and evaluated selector, with no intervening effect.
         self.measured_view(&view, source)?;
         let path = self.storage_path(&steps[..=position], site, source)?;
-        let (qualifications, projected_qualifications) = self.memberships(record, qualification)?;
-        let (captured, mut exact) = self.root(
+        let memberships = self.memberships(record, qualification)?;
+        let (captured, mut exact) = self.forward_borrow(
+            block,
+            StructuralArgument {
+                place: root,
+                path,
+                access,
+            },
+            record,
+            memberships,
+            source,
+        )?;
+        let suffix = steps[position + 1..].to_vec();
+        for step in &suffix {
+            exact = self.step(exact, *step)?;
+        }
+        Ok((captured, suffix, exact))
+    }
+
+    /// The jump reborrows the same storage with the permission of the actual
+    /// operand. The destination cannot claim ownership of a borrowed root.
+    fn forward_borrow(
+        &mut self,
+        block: BlockId,
+        argument: StructuralArgument,
+        record: StructuralTypeId,
+        (qualifications, projected_qualifications): Memberships,
+        source: SourceOrigin,
+    ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let access = argument.access;
+        let (captured, exact) = self.root(
             StructuralPlaceKind::BlockParameter { block, position: 0 },
             record,
         )?;
@@ -4891,11 +4921,7 @@ impl<'a> Lowering<'a> {
         self.jump_with_structural(
             block,
             Vec::new(),
-            vec![StructuralArgument {
-                place: root,
-                path,
-                access,
-            }],
+            vec![argument],
             source,
         )?;
         self.enter(block);
@@ -4903,11 +4929,7 @@ impl<'a> Lowering<'a> {
         if access == StructuralAccess::MutableBorrow {
             self.exclusive_roots.push(captured);
         }
-        let suffix = steps[position + 1..].to_vec();
-        for step in &suffix {
-            exact = self.step(exact, *step)?;
-        }
-        Ok((captured, suffix, exact))
+        Ok((captured, exact))
     }
 
     /// Capture the destination before evaluating its index and replacement.

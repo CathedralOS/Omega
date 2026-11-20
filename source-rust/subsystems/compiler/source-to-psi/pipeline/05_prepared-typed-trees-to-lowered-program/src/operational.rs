@@ -131,7 +131,9 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
                 }
                 target(machine, arm)?;
             }
-            Statement::Declare { .. } | Statement::CaptureReference { .. } => {}
+            Statement::Declare { .. }
+            | Statement::CaptureReference { .. }
+            | Statement::ParkedBuildLocals(..) => {}
         }
     }
     Ok(())

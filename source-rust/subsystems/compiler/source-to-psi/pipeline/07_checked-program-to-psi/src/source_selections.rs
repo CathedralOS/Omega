@@ -4,8 +4,10 @@
 use psi_authorization::selection_questions::{
     InvocationSelectionConsent, SelectionAuthorities, admit_selection_questions_with_consent,
 };
-use semantic_vocabulary::SelectionQuestionId;
 use semantic_vocabulary::source_selections::SelectionQuestions;
+use semantic_vocabulary::{
+    CallableInvocationSite, MachineId, SelectionQuestionId, TargetMachineCallable,
+};
 use std::sync::Arc;
 use terminal_codec::{TerminalExecutionIdentity, TerminalExecutionView};
 
@@ -14,6 +16,7 @@ pub struct TerminalSourceSelections {
     identity: TerminalExecutionIdentity,
     questions: Arc<SelectionQuestions>,
     invocation_consent: Vec<SelectionQuestionId>,
+    captured_entry: Option<TargetMachineCallable>,
 }
 
 impl TerminalSourceSelections {
@@ -21,11 +24,13 @@ impl TerminalSourceSelections {
         artifact: TerminalExecutionView<'_>,
         questions: SelectionQuestions,
         invocation_consent: Vec<SelectionQuestionId>,
+        captured_entry: Option<TargetMachineCallable>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
             questions: Arc::new(questions),
             invocation_consent,
+            captured_entry,
         }
     }
 
@@ -34,6 +39,84 @@ impl TerminalSourceSelections {
         artifact: TerminalExecutionView<'_>,
     ) -> Option<&SelectionQuestions> {
         (self.identity == artifact.custody_identity()).then_some(self.questions.as_ref())
+    }
+
+    /// Discharge the captured-source choices made reachable by the installed
+    /// Build providers. A direct call needs its own source occurrence. A machine
+    /// value needs an actual descriptor constructed by that caller for that body.
+    pub fn admit_captured_execution(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+        entry: Option<TargetMachineCallable>,
+        calls: &[(
+            MachineId,
+            Option<CallableInvocationSite>,
+            TargetMachineCallable,
+        )],
+    ) -> Result<(), String> {
+        use semantic_vocabulary::source_selections::{
+            SelectionCallTarget, SelectionJoin, SelectionReference,
+        };
+        let packet = self
+            .questions_for(artifact)
+            .ok_or("captured Build selections belong to another invocation")?;
+        if entry.is_some() && (entry != self.captured_entry || entry != artifact.module().entry) {
+            return Err("Build entry has no consent from this source capture".into());
+        }
+        if calls.is_empty() {
+            return Ok(());
+        }
+        let mut admitted = Vec::new();
+        for join in &packet.joins {
+            let (question, caller, site, target) = match join {
+                SelectionJoin::Invocation {
+                    question,
+                    machine,
+                    site,
+                    target: SelectionCallTarget::Declared(target),
+                    ..
+                } => (*question, *machine, Some(*site), *target),
+                SelectionJoin::Descriptor {
+                    question,
+                    machine,
+                    descriptor,
+                    ..
+                } => {
+                    let value = artifact
+                        .module()
+                        .execution
+                        .callables
+                        .descriptor(*descriptor)
+                        .ok_or("captured Build descriptor has no emitted declaration")?;
+                    (
+                        *question,
+                        *machine,
+                        None,
+                        TargetMachineCallable::Machine(value.machine),
+                    )
+                }
+                _ => continue,
+            };
+            let row = packet
+                .questions
+                .get(question)
+                .ok_or("captured Build call lost its source question")?;
+            if matches!(row.selected, SelectionReference::Declaration(_))
+                && self.invocation_consent.binary_search(&question).is_ok()
+            {
+                admitted.push((caller, site, target));
+            }
+        }
+        admitted.sort_unstable();
+        if let Some(missing) = calls
+            .iter()
+            .find(|call| admitted.binary_search(call).is_err())
+        {
+            return Err(format!(
+                "captured Build call has no source consent for its exact occurrence and selected declaration: {missing:?}"
+            ));
+        }
+        Ok(())
     }
 
     pub fn admit(
@@ -74,14 +157,23 @@ mod tests {
         let first = invocation_code();
         let second = invocation_code();
         assert_eq!(first.view().identity(), second.view().identity());
-        let selections =
-            TerminalSourceSelections::new(first.view(), SelectionQuestions::default(), Vec::new());
+        let selections = TerminalSourceSelections::new(
+            first.view(),
+            SelectionQuestions::default(),
+            Vec::new(),
+            None,
+        );
         assert!(
             selections
                 .questions_for(first.retain_code().view())
                 .is_some()
         );
         assert!(selections.questions_for(second.view()).is_none());
+        assert!(
+            selections
+                .admit_captured_execution(second.view(), None, &[])
+                .is_err()
+        );
         assert!(
             selections
                 .admit(
@@ -311,6 +403,39 @@ mod tests {
             })
             .expect("the source occurrence selects its captured constant");
         assert!(selections.allows_question(produced.view(), question));
+        let view = produced.view();
+        let root = view.module().entry.unwrap();
+        let providers =
+            psi_provider_selections::admit_provider_execution_installation(view, &[], &[]).unwrap();
+        let closure = evaluation_admission::admit_declaration_selections(
+            view, None, root, &providers, None, None,
+        )
+        .unwrap();
+        assert_eq!(closure.entry, Some(root));
+        assert_eq!(closure.calls.len(), 1);
+        selections
+            .admit_captured_execution(view, closure.entry, &closure.calls)
+            .unwrap();
+        let (caller, site, target) = closure.calls[0];
+        assert!(site.is_some());
+        // Naming the helper at this call did not construct a callable descriptor.
+        assert!(
+            selections
+                .admit_captured_execution(view, closure.entry, &[(caller, None, target)])
+                .is_err()
+        );
+        assert!(
+            selections
+                .admit_captured_execution(view, Some(target), &closure.calls)
+                .is_err()
+        );
+        assert!(
+            ordinary
+                .source_selections()
+                .unwrap()
+                .admit_captured_execution(ordinary.view(), Some(root), &closure.calls)
+                .is_err()
+        );
         let helper = accepted.source().realized_machine_named("helper").unwrap();
         let helper_machine = accepted.machine_of(helper.symbol).unwrap();
         let helper_identity = produced

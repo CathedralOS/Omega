@@ -713,68 +713,13 @@ fn collect_call_target_spans(
         {
             spans.push(call.target.source_span());
         }
-        pending.extend(expression_child_handles(program, &node));
+        body_expressions(program).visit_children(&node, |child| pending.push(child));
     }
 }
 
 /* The node a handle names, copied out before a walk mutates the table. */
 fn expression_node(program: &SymbolResolvedTrees, handle: ExpressionHandle) -> ExpressionNode {
     program.tables.bodies.expressions.expression(handle).clone()
-}
-
-fn expression_child_handles(
-    program: &SymbolResolvedTrees,
-    node: &ExpressionNode,
-) -> Vec<ExpressionHandle> {
-    let table = &program.tables.bodies.expressions;
-    match node {
-        ExpressionNode::Call(call) => {
-            let mut children = Vec::new();
-            if call.receiver.is_valid() {
-                children.push(call.receiver);
-            }
-            children.extend(table.expression_handles(call.arguments).iter().copied());
-            children
-        }
-        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
-        ExpressionNode::Unary(unary) => vec![unary.operand],
-        ExpressionNode::Cast(cast) => vec![cast.value],
-        ExpressionNode::Member(member) => vec![member.receiver],
-        ExpressionNode::Borrow(borrow) => vec![borrow.target],
-        ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
-        ExpressionNode::Membership(membership) => vec![membership.value],
-        ExpressionNode::Atomic(atomic) => vec![atomic.value, atomic.result],
-        ExpressionNode::Range(range) => [range.start, range.end]
-            .into_iter()
-            .filter(|handle| handle.is_valid())
-            .collect(),
-        ExpressionNode::ArrayLiteral(elements) => table.expression_handles(*elements).to_vec(),
-        ExpressionNode::StructLiteral(literal) => table
-            .struct_fields(literal.fields)
-            .iter()
-            .map(|field| field.value)
-            .collect(),
-        ExpressionNode::Match(dispatch) => {
-            let mut children = vec![dispatch.subject];
-            for arm in table.match_arms(dispatch.arms) {
-                children.extend(table.match_pattern_dependencies(arm.pattern));
-                children.push(arm.value);
-            }
-            children
-        }
-        ExpressionNode::SavedSubject(saved) => vec![
-            table.match_subject(saved.capture).subject,
-            saved.pattern_head,
-        ],
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::TypeExpression(_)
-        | ExpressionNode::ZeroValue(_) => Vec::new(),
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1148,14 +1093,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         let child_frontier = self.expressions.len();
         self.expression_dependencies(expression)?;
         if initializer {
-            let children = expression_child_handles(
-                self.program,
-                self.program
-                    .tables
-                    .bodies
-                    .expressions
-                    .expression(expression),
-            );
+            let table = body_expressions(self.program);
+            let mut children = Vec::new();
+            table.visit_children(table.expression(expression), |child| children.push(child));
             for child in children {
                 if self.expressions[child_frontier..]
                     .iter()

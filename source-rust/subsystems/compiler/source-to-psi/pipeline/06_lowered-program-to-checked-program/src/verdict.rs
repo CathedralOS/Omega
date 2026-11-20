@@ -7,12 +7,14 @@ obligation the prover cannot discharge is a compile error for the program,
 never a slower guarded form." Omega 00 trusts every obligation of the module
 it is given and fills evidence only where a seal arrives, so a module with an
 undischarged obligation must never reach it: Omega 00 would accept that
-obligation with no evidence. `RouteVerdict` therefore has no variant for a
-partly proved closure. A closure is either accepted with every obligation
-discharged by the kernel and every use of storage established, rejected with
-one diagnostic per unproved obligation and per unestablished use, left
-incomplete because the prover has no rule for some goal's
-form, or refused whole because the route does not serve some construct in it
+obligation with no evidence. A complete closure is accepted only after the
+kernel has discharged every obligation and established every use of storage.
+When a Build helper's result depends on a package it prepares, the checker
+can accept the executed prefix with the original result still owed at its
+exact suspending call. Only the Build interpreter can receive that prefix.
+It parks there until a checked successor supplies the suffix. A program can
+also be rejected for an unproved obligation or unestablished use, left
+incomplete because the prover has no rule for a goal's form, or refused whole because the route does not serve some construct in it
 (`RefusalReason::Unsupported`). The variant is still named `FallBack`, but
 nothing falls back since the owner's ruling of 2026-11-12: the router refuses
 the compilation with an error naming the construct, and no other checker
@@ -82,6 +84,9 @@ pub enum RouteVerdict {
     /// the kernel accepted. `seals` are the operation obligations' evidence
     /// for Omega 00.
     Accepted(Box<AcceptedClosure>),
+    /// Every operation up to the marked calls has passed ordinary checking.
+    /// Completing one of these bodies requires an admitted successor.
+    AcceptedPrefix(Box<AcceptedClosure>),
     /// The program is rejected. `unproved` has one entry per obligation the
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
@@ -272,18 +277,31 @@ pub enum PublicationError {
 
 /// The exact module and evidence the lowered-form checker approved for publication.
 /// This value owns no typed tree, source correspondence or checker work tables.
+enum PublicationBody {
+    Complete(terminal_codec::ClosedTerminalModule),
+    Prefix(terminal_codec::InvocationTerminalCode),
+}
+
 pub struct CheckedPublicationModule {
-    module: terminal_codec::ClosedTerminalModule,
+    module: PublicationBody,
     seals: terminal_codec::EvidenceSeals,
 }
 
 impl CheckedPublicationModule {
     pub fn module(&self) -> &terminal_psi::TerminalModule {
-        self.module.module()
+        match &self.module {
+            PublicationBody::Complete(closed) => closed.module(),
+            PublicationBody::Prefix(prefix) => prefix.view().module(),
+        }
     }
 
     pub fn publish(self) -> Result<RoutePublication, PublicationError> {
         let Self { module, seals } = self;
+        let PublicationBody::Complete(module) = module else {
+            return Err(PublicationError::Semantic(
+                "the Build prefix still owes a checked suffix".into(),
+            ));
+        };
         let identity = module.identity();
         let record = terminal_codec::PsiOptimizationExecutionRecord::new(
             optimization::PsiOptimizationSelections::default(),
@@ -301,8 +319,13 @@ impl CheckedPublicationModule {
         self,
     ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
         let Self { module, seals } = self;
-        let artifact = terminal_codec::InvocationTerminalCode::from_closed_module(module)
-            .map_err(PublicationError::Seals)?;
+        let artifact = match module {
+            PublicationBody::Complete(closed) => {
+                terminal_codec::InvocationTerminalCode::from_closed_module(closed)
+                    .map_err(PublicationError::Seals)?
+            }
+            PublicationBody::Prefix(prefix) => prefix,
+        };
         Ok(RoutePublication { artifact, seals })
     }
 }
@@ -310,9 +333,22 @@ impl CheckedPublicationModule {
 impl AcceptedClosure {
     pub fn prepare_publication(&self) -> Result<CheckedPublicationModule, PublicationError> {
         self.validate_publication()?;
-        let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
-            .map_err(PublicationError::Seals)?;
-        let seals = module.evidence_seals(self.seals.clone());
+        let checked = &self.elaboration.module;
+        let (module, identity) = if checked.pending_normal_completions().next().is_some() {
+            let code = terminal_codec::InvocationTerminalCode::from_prefix(checked.clone())
+                .map_err(PublicationError::Seals)?;
+            let identity = code.view().identity();
+            (PublicationBody::Prefix(code), identity)
+        } else {
+            let code = terminal_codec::ClosedTerminalModule::new(checked.clone())
+                .map_err(PublicationError::Seals)?;
+            let identity = code.identity();
+            (PublicationBody::Complete(code), identity)
+        };
+        let seals = terminal_codec::EvidenceSeals {
+            module: identity,
+            seals: self.seals.clone(),
+        };
         Ok(CheckedPublicationModule { module, seals })
     }
 
@@ -510,6 +546,16 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
                 first,
                 "proof callable differs from this closure's accepted declaration",
             ));
+        }
+        // The invocation may execute only through this call. Its outstanding
+        // result cannot supply a checked body for compiler evaluation.
+        if body.blocks.iter().any(|block| matches!(
+            block.terminator, terminal_psi::Terminator::PendingNormalCompletion { .. }
+        )) {
+            if header.supplies_checked_body {
+                return Err(invalid(machine, "an unfinished Build suffix claims to supply a checked callable body"));
+            }
+            continue;
         }
         header.supplies_checked_body = true;
         if let Ok(facts) = &mut header.compiler_evaluation {
@@ -1226,7 +1272,7 @@ fn conclude(
     let Examined {
         mut elaboration,
         opaque_storage,
-        discharged,
+        mut discharged,
         affine_unestablished,
     } = examined;
     let mut unsupported = Unsupported::default();
@@ -1531,11 +1577,55 @@ fn conclude(
                 reason,
             )
         })?;
-    Ok(RouteVerdict::Accepted(Box::new(AcceptedClosure {
+    if elaboration.module.identities.invocation_scope().is_some() {
+        let inferred = std::mem::take(&mut discharged.inferred_results);
+        let results = crate::checking::result_summaries::checked_results(
+            inferred,
+            &elaboration,
+            &discharged,
+        )?;
+        elaboration
+            .module
+            .identities
+            .retain_checked_private_results(results)
+            .map_err(|detail| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    MachineId::new(1).expect("one is nonzero"),
+                    Construct::Machine,
+                    detail,
+                )
+            })?;
+        let inferred = std::mem::take(&mut discharged.inferred_calls);
+        let receipts = inferred.checked(&elaboration, &discharged)?;
+        elaboration
+            .module
+            .identities
+            .retain_checked_private_inputs(receipts)
+            .map_err(|detail| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    MachineId::new(1).expect("one is nonzero"),
+                    Construct::Machine,
+                    detail,
+                )
+            })?;
+    }
+    let pending = elaboration
+        .module
+        .pending_normal_completions()
+        .next()
+        .is_some();
+    let checked = Box::new(AcceptedClosure {
         elaboration,
         discharge: discharged,
         seals,
-    })))
+    });
+    Ok(if pending {
+        RouteVerdict::AcceptedPrefix(checked)
+    } else {
+        RouteVerdict::Accepted(checked)
+    })
 }
 
 /// A compilation refused before a verdict. Binding failures carry their own

@@ -20,6 +20,8 @@ use symbols::SymbolHandle;
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub excluded_authored_selection_occurrences: AuthoredSelectionExclusions,
+    /// Locals observed by the successor of this particular Build entry.
+    pub parked_build_locals: Vec<ParkedBuildLocals>,
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
@@ -67,6 +69,35 @@ pub struct TypedTrees {
     pub callable_identities:
         OwnedInterner<crate::source_state::type_identity::CallableIdentityTable>,
     pub type_identities: crate::source_state::type_identity::TypeIdentityTable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+pub struct ParkedBuildLocals {
+    pub entry: source_text::SourceSpan,
+    /// An implicit entry is the first state of this exact machine.
+    pub state: Option<source_text::SourceSpan>,
+    /// The authored call whose checked activation must resume before this suffix can return.
+    pub pending_completion_at: source_text::SourceSpan,
+    pub declarations: Vec<source_text::Span>,
+    /// Whole-package machine bodies that need the unavailable scope of this suffix.
+    pub deferred_subjects: Vec<source_text::SourceSpan>,
+}
+
+impl TypedTrees {
+    pub fn deferred_build_subject(&self, symbol: symbols::SymbolHandle) -> bool {
+        let Some(span) = self.symbols.symbol_source_span(symbol) else {
+            return false;
+        };
+        let key = (span.source_id.0, span.span.start, span.span.end);
+        self.parked_build_locals.iter().any(|frame| {
+            frame
+                .deferred_subjects
+                .binary_search_by_key(&key, |span| {
+                    (span.source_id.0, span.span.start, span.span.end)
+                })
+                .is_ok()
+        })
+    }
 }
 
 #[macro_use]

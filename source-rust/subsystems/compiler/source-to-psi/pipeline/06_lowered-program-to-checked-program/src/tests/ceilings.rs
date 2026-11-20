@@ -58,6 +58,7 @@ fn verdict_kind(verdict: &RouteVerdict) -> String {
     match verdict {
         RouteVerdict::Accepted(_) => "accepted".into(),
         RouteVerdict::Rejected { .. } => "rejected".into(),
+        RouteVerdict::AcceptedPrefix(_) => String::from("unfinished"),
         RouteVerdict::Incomplete(_) => "incomplete".into(),
         RouteVerdict::FallBack(refusal) => format!("{refusal:?}"),
     }

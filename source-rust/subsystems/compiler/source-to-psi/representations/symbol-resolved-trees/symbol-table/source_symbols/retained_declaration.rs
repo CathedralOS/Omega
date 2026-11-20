@@ -109,17 +109,7 @@ pub fn rejoin_declaration(
         let Some(source) = symbols.source_file(span) else {
             continue;
         };
-        if source.path != declaration.source().path
-            || source.package_root != declaration.source().package_root
-            || source.origin != declaration.source().origin
-            || source.resolution_stratum != declaration.source().resolution_stratum
-            || source.dependency_scope != declaration.source().dependency_scope
-            || declaration
-                .source()
-                .package_identity
-                .is_some_and(|owner| source.package_identity != Some(owner))
-            || source.source != declaration.source().source
-        {
+        if !source.continues_capture_of(declaration.source()) {
             continue;
         }
         if selected.is_valid() && selected != candidate {

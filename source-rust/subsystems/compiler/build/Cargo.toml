@@ -27,6 +27,7 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
+filesystem-authority = { path = "evaluation/authority/filesystem" }
 terminal-interpreter = { path = "../../interpreter" }
 package-manager = { path = "../../package-manager" }
 psi-authorization = { path = "../psi-artifact/authorization" }

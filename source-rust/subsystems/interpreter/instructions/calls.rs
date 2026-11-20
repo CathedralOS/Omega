@@ -222,6 +222,7 @@ pub(crate) mod frames {
                 }
             };
             self.call_stack.push(SuspendedCall {
+                retired_structural_homes: std::mem::take(&mut self.retired_structural_homes),
                 access_view_occurrences: std::mem::take(&mut self.access_view_occurrences),
                 loan_completions,
                 values: self.values.take(),
@@ -912,6 +913,138 @@ pub(crate) mod frames {
                 target_layouts: None,
                 scalar_geometry: None,
             })
+        }
+
+        #[test]
+        fn repeated_literals_keep_their_home_but_nested_calls_get_distinct_storage() {
+            use semantic_vocabulary::{OperationId, StructuralPlaceKind};
+            use terminal_psi::{
+                Operation, OperationKind, OperationResult, StructuralPlaceDeclaration,
+            };
+
+            let mut program = empty_program();
+            let machine = &mut Arc::get_mut(&mut program)
+                .unwrap()
+                .fixture_module_mut()
+                .machines[0];
+            let literal = PlaceId::new(3).unwrap();
+            let local = PlaceId::new(4).unwrap();
+            let ty = StructuralTypeId::new(1).unwrap();
+            machine.structural_places = vec![
+                StructuralPlaceDeclaration {
+                    id: literal,
+                    kind: StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal: 0,
+                        structural_type: ty,
+                    },
+                },
+                StructuralPlaceDeclaration {
+                    id: local,
+                    kind: StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal: 1,
+                        structural_type: ty,
+                        construction: None,
+                    },
+                },
+            ];
+            let bytes = Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Unit,
+                OperationKind::EstablishByteSequenceLiteral {
+                    destination: literal,
+                    bytes: vec![72],
+                    qualifications: Vec::new(),
+                },
+            );
+            let trivial = Operation::unsuspended(
+                OperationId::new(2).unwrap(),
+                OperationResult::Unit,
+                OperationKind::EstablishTrivialAffineLocal { destination: local },
+            );
+            let mut execution = TerminalExecution::start_with_program(
+                program,
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap();
+            let establish = |execution: &mut TerminalExecution<'_>| {
+                execution
+                    .execute_establish_byte_sequence_literal(&bytes)
+                    .unwrap();
+                execution
+                    .execute_establish_trivial_affine_local(&trivial)
+                    .unwrap();
+                let ids = [literal, local].map(|place| {
+                    execution
+                        .structural_values
+                        .get(&place)
+                        .unwrap()
+                        .opaque_identity
+                });
+                execution
+                    .execute_establish_byte_sequence_literal(&bytes)
+                    .unwrap();
+                assert_eq!(
+                    execution
+                        .structural_values
+                        .get(&literal)
+                        .unwrap()
+                        .opaque_identity,
+                    ids[0]
+                );
+                ids
+            };
+            let outer = establish(&mut execution);
+            execution
+                .suspend_with(SuspendedCallResult::Unit, Vec::new())
+                .unwrap();
+            let inner = establish(&mut execution);
+            assert_ne!(outer[0], outer[1]);
+            assert_ne!(inner[0], inner[1]);
+            assert!(inner.iter().all(|id| !outer.contains(id)));
+            for (place, id) in [literal, local].into_iter().zip(outer) {
+                assert_eq!(
+                    execution.call_stack[0]
+                        .structural_values
+                        .get(&place)
+                        .unwrap()
+                        .opaque_identity,
+                    id
+                );
+            }
+        }
+
+        #[test]
+        fn retired_producers_belong_to_the_call_that_created_them() {
+            let mut execution = TerminalExecution::start_with_program(
+                empty_program(),
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let ty = StructuralTypeId::new(1).unwrap();
+            let outer = TerminalStructuralValue::minted(50, ty, Vec::new());
+            let inner = TerminalStructuralValue::minted(51, ty, Vec::new());
+            execution
+                .retired_structural_homes
+                .push((place, outer.clone(), None));
+            execution
+                .suspend_with(SuspendedCallResult::Unit, Vec::new())
+                .unwrap();
+            assert!(execution.retired_structural_homes.is_empty());
+            execution
+                .retired_structural_homes
+                .push((place, inner, None));
+            execution
+                .finish_return(CompletedReturn::plain(TerminalExecutionResult::Unit))
+                .unwrap();
+            assert_eq!(execution.retired_structural_homes.len(), 1);
+            assert_eq!(execution.retired_structural_homes[0].1, outer);
         }
 
         #[test]
@@ -1730,8 +1863,13 @@ pub(crate) mod component_calls {
             self.commit_boundary_result(&operation.result, &receiver, returned)?;
             self.live_claims = result_claims;
             self.effects.push(TerminalEffect::ComponentCall {
-                operation: operation.id,
-                boundary: *boundary,
+                site: crate::TerminalEffectWait {
+                    program: self.program.identity.clone(),
+                    machine: self.current_machine,
+                    block: self.current,
+                    operation: operation.id,
+                    boundary: *boundary,
+                },
                 provider,
                 candidate,
                 instance_namespace,

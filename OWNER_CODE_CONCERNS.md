@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Copying a deep scalar proof expression consumes the Rust call stack
+
+- Category: One idea, several implementations.
+- Where: [Scalar expressions](source-rust/subsystems/compiler/foundation/semantic-records/src/scalar_terms.rs#L976) and [integer math expressions](source-rust/subsystems/compiler/foundation/semantic-records/src/proposition.rs#L1191).
+- Saw: The proposition vocabulary copies and compares nested logical clauses iteratively and tests 8,192 levels. Its scalar and integer-math operands derive recursive clone and equality over boxed children.
+- Cost: A checker or consumer copying one atomic clause still uses a Rust stack frame per nested arithmetic operation. The existing deep logical-clause test has a constant leaf.
+- Reported: 2026-11-20, Codex, while checking field identities in suspended Build contracts.
+
 ### Field and export judgments still describe the earlier source tree
 
 - Category: The documents disagree.

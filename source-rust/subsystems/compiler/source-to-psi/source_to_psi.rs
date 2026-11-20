@@ -7,8 +7,9 @@ mod driver;
 
 pub use compile_product::ProductDeclarations;
 pub use driver::compile_build::{
-    BuildInvocationJudgment, BuildStage, BuildStageSource, CheckedBuildInvocation,
-    ProductDeclarationSource, TypedBuildInterval,
+    BuildInvocationJudgment, BuildPreparationSite, BuildStage, BuildStageSource,
+    CheckedBuildInvocation, PendingBuildImport, ProductDeclarationSource, TypedBuildInterval,
+    checked_build_stack, locate_build_suspending_call,
 };
 pub use driver::package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 pub use driver::parse_source_batch::{
@@ -17,7 +18,6 @@ pub use driver::parse_source_batch::{
 };
 pub use driver::stage_sources::ParsedStageSources;
 pub use driver::{compile_product, compile_time_invocations, registered_tests};
-pub use lowered_program_to_checked_program::checking::ReturnedScalarFact;
 pub use representations::{PublishedTargetProgram, RuntimePermissionDeclarations, publication};
 
 pub mod representations;

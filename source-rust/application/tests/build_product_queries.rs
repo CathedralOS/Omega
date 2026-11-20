@@ -136,3 +136,70 @@ machine entry(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
         "product entry `kit::launch` is not a product declaration visible from"
     ), "{diagnostic}");
 }
+
+#[test]
+fn a_query_issued_by_a_generated_build_helper_keeps_its_source() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "generated-query-author",
+        false,
+    )
+    .unwrap();
+    let root = project.path();
+    let kit = root.join("vendor");
+    std::fs::create_dir(&kit).unwrap();
+    let generated = r#"public machine select(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
+    BuildProduct::entry(@builder.product, "launch", slot)
+}
+"#;
+    let fixture = support::repository_root().join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant/build.omg");
+    let generator = std::fs::read_to_string(fixture)
+        .unwrap()
+        .replace(
+            "Build::application(builder, \"captured_source_generated_constant\");",
+            "Build::package(builder, \"kit\");",
+        )
+        .replace("    Build::artifact_only(builder);", "")
+        .replace("31", &generated.len().to_string());
+    std::fs::write(kit.join("build.omg"), generator).unwrap();
+    std::fs::write(kit.join("asset.txt"), generated).unwrap();
+    std::fs::write(kit.join("main.omg"), "public machine launch() {}").unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        "use kit;\nmachine main() { kit\\launch(); }",
+    )
+    .unwrap();
+    let build = r#"use kit;
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "generated_query");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let mut product_request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
+    dependency\with_alias(@mut product_request, "kit");
+    let for_product: DependencyRegistration = Build::dependency(builder, product_request);
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, HOST\ProgramEntry, kit\select(builder, "HOST::ProgramEntry"));
+}
+"#.replace("HOST", target.target_name());
+    std::fs::write(root.join("build.omg"), build).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--both", "build.omg"])
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.status.success()
+            && report.contains("native exit 0")
+            && report.contains("interp exit: 0"),
+        "{report}"
+    );
+}

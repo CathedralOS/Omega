@@ -12,6 +12,7 @@ use std::sync::Arc;
 struct ReselectedSources {
     storage: SourceStorage,
     imports: ImportQueue,
+    generated: Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
     build_source: Option<BuildSourceSelection>,
 }
 
@@ -51,7 +52,10 @@ impl DeferredProductSources {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         imports.enqueue(discovered)?;
+        let generated =
+            append_stage_generated_sources(&mut storage, &mut imports, inputs, timings, catalogue)?;
         Ok(ReselectedSources {
+            generated,
             storage,
             imports,
             build_source,
@@ -71,6 +75,7 @@ impl DeferredProductSources {
             mut storage,
             mut imports,
             build_source,
+            generated: _,
         } = self.reselect(inputs, timings, catalogue)?;
         for root in checkpoint
             .product_roots
@@ -155,6 +160,7 @@ impl DeferredProductSources {
                 },
                 build_sources: build_scope_sources,
                 entry: entry.entry(),
+                pending_imports: Vec::new(),
             },
         ))
     }
@@ -185,9 +191,8 @@ impl DeferredProductSources {
             mut storage,
             mut imports,
             build_source,
+            generated: generated_source_custody,
         } = self.reselect(inputs, timings, catalogue)?;
-        let generated_source_custody =
-            append_stage_generated_sources(&mut storage, &mut imports, inputs, timings, catalogue)?;
         load_source_frontiers(
             &mut storage,
             &mut imports,
@@ -228,6 +233,7 @@ impl DeferredProductSources {
         bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
         let source_file_count = storage.file_count();
+        let pending_build_imports = crate::source::source_imports::pending_build_imports(&storage);
         let build_scope_sources = storage
             .sources
             .selected_files()
@@ -262,6 +268,7 @@ impl DeferredProductSources {
                 build_source,
                 generated_source_custody,
                 build_scope_sources,
+                pending_build_imports,
             },
         ))
     }

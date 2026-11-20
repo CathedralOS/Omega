@@ -30,9 +30,10 @@ impl BuildProviderPlans {
 
     pub(crate) fn admit(
         &self,
-        artifact: terminal_codec::TerminalExecutionView<'_>,
+        program: &source_compiler::publication::ProducedTerminalProgram,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
         use provider_admission as admission;
+        let artifact = program.view();
         let module = artifact.module();
         let adapters =
             admission::retain_selected_provider_adapters(&self.selected).map_err(failure)?;
@@ -43,22 +44,30 @@ impl BuildProviderPlans {
             .map_err(|reason| {
                 failure(format!("Build selected provider installation: {reason:?}"))
             })?;
-        if let Some(packages) = &self.packages {
-            let entry = module
-                .entry
-                .ok_or_else(|| failure("Build declaration admission has no entry"))?;
-            evaluation_admission::admit_declaration_selections(
-                artifact,
-                None,
-                entry,
-                &checked,
-                semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
-                    packages.root(),
-                ),
-                packages,
-            )
+        let entry = module
+            .entry
+            .ok_or_else(|| failure("Build declaration admission has no entry"))?;
+        let authority = self.packages.as_ref().map(|p| {
+            p.declaration_selection_authority(build_declarations::DependencyPurpose::Build)
+        });
+        let pending = evaluation_admission::admit_declaration_selections(
+            artifact,
+            None,
+            entry,
+            &checked,
+            self.packages
+                .as_ref()
+                .map(package_compilation::PackageCompilationInputs::root),
+            authority
+                .as_ref()
+                .map(|a| a as &dyn declaration_scope::DeclarationSelectionAuthority),
+        )
+        .map_err(failure)?;
+        program
+            .source_selections()
+            .ok_or_else(|| failure("Build lost its source-issued declarations"))?
+            .admit_captured_execution(artifact, pending.entry, &pending.calls)
             .map_err(failure)?;
-        }
         let program = terminal_interpreter::TerminalProgram::borrow(artifact);
         let supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {

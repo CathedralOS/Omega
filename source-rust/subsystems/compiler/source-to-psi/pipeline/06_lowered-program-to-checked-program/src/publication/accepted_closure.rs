@@ -20,19 +20,6 @@ impl AcceptedClosure {
         &self.discharge
     }
 
-    /// Scalar comparisons established on borrowed storage at every normal return of the entry.
-    pub fn returned_scalars(&self) -> &[crate::checking::ReturnedScalarFact] {
-        let Some(semantic_vocabulary::TargetMachineCallable::Machine(id)) =
-            self.elaboration.module.entry
-        else {
-            return &[];
-        };
-        self.discharge
-            .machines
-            .get(id)
-            .map_or(&[], |row| &row.returned_scalars)
-    }
-
     pub fn seals(&self) -> &[ObligationEvidenceSeal] {
         &self.seals
     }

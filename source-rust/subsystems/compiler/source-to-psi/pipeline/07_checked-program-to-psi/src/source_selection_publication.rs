@@ -118,13 +118,34 @@ pub(crate) fn prepare(
         .retain_physical_joins()
         .map_err(|error| selection_context(error, "joining emitted declarations to source"))?;
     let invocation_consent = prepared.invocation_consent(consent)?;
+    let captured_entry = module.entry.filter(|&entry| {
+        let TargetMachineCallable::Machine(id) = entry else {
+            return false;
+        };
+        let Some(consent) = consent else { return false };
+        let symbols = &source.source().symbols;
+        let Some(span) = source
+            .closure()
+            .elaboration()
+            .machines
+            .get(id)
+            .and_then(|symbol| symbols.symbol_provenance_source_span(*symbol))
+        else {
+            return false;
+        };
+        symbols.source_map().is_some_and(|map| {
+            consent.allows_selection(&map, span, span, source_provenance::DependencyScope::Build)
+        })
+    });
     Ok(PreparedSelections {
+        captured_entry,
         questions: prepared.output,
         invocation_consent,
     })
 }
 
 pub(crate) struct PreparedSelections {
+    pub(crate) captured_entry: Option<TargetMachineCallable>,
     pub(crate) questions: SelectionQuestions,
     pub(crate) invocation_consent: Vec<SelectionQuestionId>,
 }

@@ -862,7 +862,8 @@ machine main(left: @Cell, right: @Cell) -> bool suspends {
 
 #[test]
 fn a_local_borrow_keeps_its_backing_storage_in_the_public_plan() {
-    let source = r#"
+    assert_local_borrow_retains_backing(
+        r#"
 data Cell { mark: u32; }
 public machine may_wait() -> u32 suspends { 7u32 }
 machine main() -> bool suspends {
@@ -872,7 +873,46 @@ machine main() -> bool suspends {
     held.mark = seven;
     cell.mark == 7u32
 }
-"#;
+"#,
+        &[],
+    );
+}
+
+#[test]
+fn storing_a_scalar_through_a_loan_keeps_its_backing_in_the_public_plan() {
+    assert_local_borrow_retains_backing(
+        r#"
+public machine may_wait() -> u32 suspends { 7u32 }
+machine main() -> bool suspends {
+    let mut amount: u32 = 3u32;
+    let held: @mut u32 = @mut amount;
+    let seven: u32 = suspend may_wait();
+    $held = seven;
+    amount == 7u32
+}
+"#,
+        &[],
+    );
+}
+
+#[test]
+fn a_fixed_array_element_loan_retains_its_exact_index_in_the_public_plan() {
+    assert_local_borrow_retains_backing(
+        r#"
+public machine may_wait() -> u32 suspends { 7u32 }
+machine main() -> bool suspends {
+    let mut amounts: [u32; 2] = [3u32, 9u32];
+    let held: @mut u32 = @mut amounts[0u64];
+    let seven: u32 = suspend may_wait();
+    $held = seven;
+    amounts[0u64] == 7u32
+}
+"#,
+        &[terminal_psi::StructuralPathSegment::FixedIndex(0)],
+    );
+}
+
+fn assert_local_borrow_retains_backing(source: &str, path: &[terminal_psi::StructuralPathSegment]) {
     let lowered = invocation(source).unwrap();
     crate::checking::operational::judge(&lowered).unwrap();
     let module = &lowered.module;
@@ -888,6 +928,7 @@ machine main() -> bool suspends {
                 formation,
                 carrier,
                 source,
+                source_path,
                 ..
             } = loan.capture
             else {
@@ -898,6 +939,7 @@ machine main() -> bool suspends {
             else {
                 return None;
             };
+            assert_eq!(plan.loans.paths.span_or_empty(source_path), path);
             Some((formation, carrier, source, live_value, loan.access))
         })
         .expect("the local reference formation names its retained backing");
@@ -916,4 +958,87 @@ machine main() -> bool suspends {
     assert!(
         matches!(&operation.kind, terminal_psi::OperationKind::EstablishReference { source: arg, .. } if arg.place == source)
     );
+}
+
+#[test]
+fn a_later_delegation_does_not_change_a_loan_at_an_earlier_wait() {
+    let source = r#"
+data Cell { mark: u32; }
+public machine may_wait() -> u32 suspends { 7u32 }
+machine observe(cell: @Cell) -> u32 { cell.mark }
+machine main() -> bool suspends {
+    let cell: Cell = Cell { mark: 3u32 };
+    let held: @Cell = @cell;
+    let first: u32 = suspend may_wait();
+    let mark: u32 = observe(held);
+    let second: u32 = suspend may_wait();
+    held.mark == mark && first == second
+}
+"#;
+    let lowered = invocation(source).unwrap();
+    crate::checking::operational::judge(&lowered).unwrap();
+    let plans = &lowered.module.execution.suspension_call_plans;
+    let [first, second] = plans.as_slice() else {
+        panic!("two ordinary suspension calls")
+    };
+    let has_local_loan = |plan: &terminal_psi::TerminalSuspensionCallPlan| {
+        plan.loans.occurrences.iter().any(|(_, loan)| {
+            matches!(
+                loan.capture,
+                terminal_psi::TerminalSuspensionLoanCapture::Reference { .. }
+            )
+        })
+    };
+    assert!(
+        has_local_loan(first),
+        "the later call has not borrowed held at the first wait"
+    );
+    assert!(
+        !has_local_loan(second),
+        "a prior possible delegation needs separate child-lifetime evidence"
+    );
+}
+
+#[test]
+fn a_literal_established_after_the_wait_has_no_home_in_its_frontier() {
+    let source = r#"
+public machine may_wait() -> u32 suspends { 7u32 }
+machine read(first: @[u8], second: @[u8]) {}
+machine main() suspends {
+    let before: @[u8] = "before";
+    let result: u32 = suspend may_wait();
+    let after: @[u8] = "after";
+    read(before, after);
+}
+"#;
+    let lowered = invocation(source).unwrap();
+    crate::checking::operational::judge(&lowered).unwrap();
+    let module = &lowered.module;
+    let [plan] = module.execution.suspension_call_plans.as_slice() else {
+        panic!("one ordinary wait")
+    };
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.operation(plan.operation).is_some())
+        .unwrap();
+    let has_literal = |literal: &[u8]| {
+        let place = machine
+            .operations()
+            .find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::EstablishByteSequenceLiteral {
+                    destination,
+                    bytes,
+                    ..
+                } if bytes == literal => Some(*destination),
+                _ => None,
+            })
+            .expect("the checked machine contains both literal establishments");
+        plan.live_values.iter().any(|value| {
+            matches!(&value.place,
+            terminal_psi::TerminalSuspensionPlace::Structural(argument) if argument.place == place)
+        })
+    };
+    assert!(has_literal(b"before"));
+    assert!(!has_literal(b"after"));
 }

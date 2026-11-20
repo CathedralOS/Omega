@@ -477,8 +477,9 @@ fn compile_target(
     for test in test_roster {
         eprintln!("{test}");
     }
+    planned.attribute_diagnostics(&mut advisories);
+    advisories.extend_from_slice(planned.build_advisories());
     if !advisories.is_empty() {
-        planned.attribute_diagnostics(&mut advisories);
         let mut text = String::new();
         diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
         eprintln!("{text}");

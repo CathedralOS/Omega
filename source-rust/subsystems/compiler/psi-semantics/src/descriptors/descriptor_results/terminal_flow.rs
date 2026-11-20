@@ -2093,6 +2093,13 @@ fn adapt_flow(
                     )?;
                 }
             }
+            Terminator::PendingNormalCompletion { storage, .. } => {
+                // The successor still holds these descriptors and their backings
+                // at this cut. The parked machine has yet to return a result.
+                step.inputs.extend(storage.iter().map(|&place| {
+                    (Some(DescriptorLocation::whole(place)), None)
+                }));
+            }
             Terminator::ReturnStructural { source, .. } => {
                 if let Some(returns) = &mut graph.returns {
                     *failure_detail =

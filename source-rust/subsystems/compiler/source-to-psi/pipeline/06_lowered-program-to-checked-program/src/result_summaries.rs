@@ -106,6 +106,79 @@ fn foreign(id: MachineId, detail: &str) -> terminal_check_tables::Refusal {
     )
 }
 
+/// Keep the result proof only after final discharge has matched every receipt
+/// to the actual normal return. The inference candidate itself proves nothing.
+pub(super) fn checked_results(
+    inferred: Vec<(MachineId, u32, ContractClause)>,
+    program: &Elaboration,
+    discharge: &crate::checking::Discharge,
+) -> Checked<Vec<terminal_psi::InvocationPrivateResult>> {
+    let mut rows = Vec::with_capacity(inferred.len());
+    for (id, ordinal, clause) in inferred {
+        let missing = || foreign(id, "an inferred result lost its checked return evidence");
+        let machine = program.module.machine(id).ok_or_else(missing)?;
+        let tables = program.tables.machines.get(id).ok_or_else(missing)?;
+        let checked = &discharge.machines.get(id).ok_or_else(missing)?.verdicts;
+        let published = clause.obligation;
+        let stated = tables.obligations.get(published).ok_or_else(missing)?;
+        if machine.ensures.get(ordinal as usize) != Some(&clause)
+            || stated.kind != (ObligationKind::PublishedGuarantee { clause: ordinal })
+            || stated.created_at != ProgramPoint::BlockEntry(machine.entry)
+        {
+            return Err(missing());
+        }
+        let Some(Ok(crate::checking::Discharged::EveryExit(exits))) = checked.get(published) else {
+            return Err(missing());
+        };
+        let mut proved = Vec::with_capacity(exits.len());
+        for &receipt in exits {
+            let row = tables.obligations.get(receipt).ok_or_else(missing)?;
+            let ObligationKind::NormalGuarantee {
+                exit,
+                clause,
+                published: owner,
+            } = row.kind
+            else {
+                return Err(missing());
+            };
+            if owner != published
+                || clause != ordinal
+                || row.created_at != ProgramPoint::Edge(exit)
+                || !matches!(
+                    checked.get(receipt),
+                    Some(Ok(crate::checking::Discharged::Certificate(_)))
+                )
+            {
+                return Err(missing());
+            }
+            proved.push((exit, receipt));
+        }
+        proved.sort_unstable_by_key(|row| row.0);
+        if proved.is_empty() || proved.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(missing());
+        }
+        let mut returns = Vec::with_capacity(proved.len());
+        for block in &machine.blocks {
+            if let Terminator::Return { edge, value, .. } = block.terminator {
+                let index = proved
+                    .binary_search_by_key(&edge, |row| row.0)
+                    .map_err(|_| missing())?;
+                returns.push((edge, value, proved[index].1));
+            }
+        }
+        if returns.len() != proved.len() {
+            return Err(missing());
+        }
+        rows.push(terminal_psi::InvocationPrivateResult {
+            machine: id,
+            ordinal,
+            clause,
+            returns,
+        });
+    }
+    Ok(rows)
+}
+
 /// The machines `id` calls directly, in invocation order.
 fn callees(elaboration: &Elaboration, id: MachineId) -> Checked<Vec<MachineId>> {
     Ok(
@@ -302,6 +375,14 @@ fn summarize(
     let elaboration = scope.source();
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
+    if lowered
+        .blocks
+        .iter()
+        .any(|block| matches!(block.terminator, Terminator::PendingNormalCompletion { .. }))
+    {
+        // The missing suffix may yield a different result than every closed arm.
+        return Ok(());
+    }
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
         return Ok(());
     };
