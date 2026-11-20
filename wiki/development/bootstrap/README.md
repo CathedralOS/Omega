@@ -26,6 +26,14 @@ rows also retain `guest.eeout` for byte comparison. A timeout records the
 stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
 and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
 
+For a long matrix run, add `--reuse-stages` to run each distinct compiler
+invocation once. Two rows can share an intermediate artifact when both the
+executable and its complete framed input have the same SHA-256. The runner
+checks the saved output digest on reuse. Each row's `result.json` records
+the two input digests and names the original artifact in `reused_from`.
+Every row still executes its own guest. Omit the flag to rebuild each row's
+intermediate artifacts independently.
+
 Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
 supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
 `--gamma native`. The runner checks its compiler source and fixed-point
