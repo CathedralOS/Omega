@@ -140,13 +140,25 @@ Taking its first 589,824 bytes keeps all 3,872 bytes of header and rows.
 The next 585,952 bytes end inside the declared 3,947,008-byte arena, so
 guest exit 3 on this input measures staging without invoking the Omega parser.
 
-On the first 16,384 bytes of the frozen product, both native executables
-returned `0003000000` with process status 0. Peak RSS dropped from
-320,912 KiB to 231,324 KiB, and CPU time from 9.13 to 4.39 seconds. The
-original executable reached the 10 GiB RSS guard on the 589,824-byte
-prefix after 259.44 CPU seconds, with empty stdout and stderr. These runs
-use the same seed-built Linux Epsilon, Delta and Gamma compilers. Only the
-constructor source differs between the two executables.
+The grouped constructor finished staging the 576 KiB prefix inside the
+10 GiB RSS guard. It returned `0003000000` and process status 0 at EOF.
+The original constructor reached the guard on the same bytes with empty
+stdout and stderr. The table uses CPU seconds and Linux peak resident
+memory. Both executables use the same seed-built Linux Epsilon, Delta and
+Gamma compilers. Only the construction entry source differs.
+
+| Frozen input | Original | Eight-byte groups |
+| --- | --- | --- |
+| First 16,384 bytes | Exit 3, 320,912 KiB, 9.13 s | Exit 3, 231,324 KiB, 4.39 s |
+| First 589,824 bytes | Guard, 10,485,904 KiB, 259.44 s | Exit 3, 7,487,004 KiB, 211.56 s |
+
+Both constructors gave the same five-byte refusal on 16 truncations of
+the 828-byte wire-package input. The grouped constructor compiled the complete
+input to the existing 1,607-byte Alpha tape, which exited 42.
+A source merge with the directory-aware constructor from `60ddbd9c9af`
+also passed the directory-import and malformed-directory cases in the published
+Epsilon evaluator. Alpha ran the 43-byte directory-import tape to exit 42,
+and the malformed directory returned guest exit 1 at byte 37.
 
 | Linux constructor | Bytes | SHA-256 |
 | --- | ---: | --- |
