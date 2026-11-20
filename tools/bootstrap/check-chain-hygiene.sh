@@ -25,15 +25,16 @@ owner_roots() {
   # Include untracked source so a new alternate owner fails before staging.
   if [ -e "$OMEGA_REPO_ROOT/.git" ] &&
       git -C "$OMEGA_REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    owner_files=$(git -C "$OMEGA_REPO_ROOT" ls-files \
-      --cached --others --exclude-standard -- "$1") ||
+    inventory=$(git -C "$OMEGA_REPO_ROOT" ls-files -t \
+      --cached --deleted --others --exclude-standard -- "$1") ||
       fail "cannot inventory $1 owners"
-    # ls-files includes unstaged deletions. Inspect the layout on disk.
-    owner_files=$(printf '%s\n' "$owner_files" | while IFS= read -r file; do
-      if [ -e "$OMEGA_REPO_ROOT/$file" ] || [ -L "$OMEGA_REPO_ROOT/$file" ]; then
-        printf '%s\n' "$file"
-      fi
-    done)
+    # With --cached --deleted Git reports a missing file twice: once in the
+    # index and once tagged R. Keep path spellings intact, including Git quoting.
+    owner_files=$(printf '%s\n' "$inventory" | awk '
+      /^R / { removed[substr($0, 3)] = 1; next }
+      { files[substr($0, 3)] = 1 }
+      END { for (f in files) if (!(f in removed)) print f }
+    ')
   else
     # Source archives remain checkable without Git metadata or a Git binary.
     owner_files=$(find "$OMEGA_REPO_ROOT/$1" -mindepth 2 ! -type d -print | \
