@@ -12,7 +12,8 @@ A release or bootstrap input set can omit the Rust compiler when its dependency 
 | [Project build](subsystems/compiler/build/README.md) | Interpret a Build plan, supply its inputs and request the next compilation or final artifact. |
 | [Compiler](subsystems/compiler/compiler.rs) | Select the requested product. Source can produce portable Psi. Source or an authorized saved Psi artifact can request runtime admission or a native image. |
 | [Source to Psi](subsystems/compiler/source-to-psi/README.md) | Run the numbered source stages from lexing to checked Psi publication. |
-| [Portable Psi](subsystems/compiler/psi-artifact/codec/README.md) | Encode a published program as a portable `.psi` file and reopen it for a receiving host. |
+| [Psi program](subsystems/compiler/psi/README.md) | Define the machine bodies, declarations and evidence shared by source publication, interpretation and native lowering. |
+| [Psi artifacts](subsystems/compiler/psi-artifact/README.md) | Encode a published program as a portable `.psi` file and reopen it for a receiving host. |
 | [Psi to native](subsystems/compiler/psi-to-native/README.md) | Admit the program and its providers, then run the numbered native stages for the receiving target. |
 | [Interpreter](subsystems/interpreter/README.md) | Execute admitted Psi using the services supplied by its host. |
 | [Package manager](subsystems/package-manager/README.md) | Acquire package sources and maintain dependency, review and publication records. |
