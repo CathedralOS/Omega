@@ -284,7 +284,7 @@ crashes Trap
     // The arguments' substitutes become a tentative run, interned with the
     // declaration as a new application (or the existing equal one).
     machine reapply(typer: @mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
+        let first: u64 in Trapping = typer.output.types.argument_count as +Trapping;
         transition { _ -> reapply_argument(typer, root, source_span, depth, current, row, first, 0) }
     }
 
