@@ -142,7 +142,7 @@ def signature_source(base):
             (compiler + 'primitive_type', compiler + 'value_cell'),
             (compiler + 'check_signatures', compiler + 'compile'),
             (compiler + 'resolve_data', compiler + 'case_value_type'),
-            (compiler + 'layout_data', compiler + 'check_place'),
+            (compiler + 'layout_case_payload', compiler + 'check_place'),
             (compiler + 'type_size', compiler + 'byte_index_result_type'),
             (compiler + 'reference_signature', compiler + 'check_forward_reference'),
         ]),
