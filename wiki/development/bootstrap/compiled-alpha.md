@@ -93,16 +93,19 @@ The Gamma-to-Alpha compiler assembled the 25,733,081-byte Gamma constructor
 from `bcf71f0bbfc` into one 11,976,860-byte tape, SHA-256
 `172bd421b5c2cf334a7a5688c843e1e9dc24cefe11d7bb2b25a9d514ad17d491`.
 The uncompressed instructions occupy 57,004,893 bytes. The stamped program
-starts with a 340-byte Alpha decoder and a 3,840-byte dictionary. The stamped decoder runs on the seed itself. The compiler continues to publish plain Alpha
-instructions for programs that fit the seed directly. The Alpha backend grew
-from 3,681 to 11,753 authored bytes. Using the original Gamma interpreter to
+starts with a 340-byte Alpha decoder and a 3,840-byte dictionary. The seed
+runs the decoder itself. Programs that fit the seed directly keep their
+plain Alpha instructions. The Alpha backend grew from 3,681 to 11,814 bytes. Using the original Gamma interpreter to
 run the final constructor avoids this packing algorithm.
 
 The seed ran the packed constructor on a 111-byte Omega package. It
 produced the expected 22-byte Alpha tape, SHA-256
 `25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`,
-which exited 42 on the seed. A malformed package returned the original
-five-byte framing refusal. [Same package on original Gamma](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
+which exited 42 on the seed. On the 828-byte two-package wire decoder the
+same constructor produced a 1,607-byte tape, SHA-256
+`f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+That tape exited 42 with empty stdout and stderr. Appending a byte to the
+package returned framing refusal 3. [Same package on original Gamma](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
 
 For a large program the compiler takes up to 240 instructions seen twice
 among the first 4,096. Each becomes one byte in the encoded stream. Tokens
@@ -135,8 +138,12 @@ tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-packed-alpha /path/t
 python3 tests/bootstrap/independent/product_wire.py /tmp/omega-packed-wire --constructor /tmp/omega-packed-alpha/program
 ```
 
-[Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md) ·
-[Source-owned large-program controls](../../../tests/bootstrap/compiled_vm/source_test.py)
+To exercise the packed entry without assembling the Omega constructor, run
+`python3 tests/bootstrap/compiled_vm/source_test.py --compiler-only --large-alpha`.
+The control compiles 700 unused arithmetic definitions and a forward call.
+It checks byte output, a guest refusal, an arithmetic trap, and rejection
+of an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
+[Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 
 <a id="can-the-whole-omega-constructor-fit-in-alpha"></a>
 
@@ -479,6 +486,7 @@ The generated runtime owns disjoint regions of Alpha's 128 GiB address space:
 | Alpha return stack | `0x0feffff8 .. 0x10000000` | At most 131,072 active source calls plus one runtime helper (1,048,584 bytes), above the frame region |
 | Sealed input | `0x10000000 .. 0x18300000` | Check ingestion and every source read |
 | Buffered output | `0x20000000 .. 0x28000000` | Check every append; flush only after valid main result |
+| Expanded code (packed tape only) | `0x28000000 .. 0x30000000` | The decoder checks each copy and verifies the final length |
 | Immutable pairs | `0x30000000 .. 0x2000000000` | Check every 32-byte allocation |
 
 Ordinary authored traps exit 2; storage limits exit 3. Application traps and

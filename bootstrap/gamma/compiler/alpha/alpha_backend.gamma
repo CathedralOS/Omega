@@ -68,8 +68,8 @@
 ; The tape's entry copies them into the unused interval between the output
 ; buffer end and the pair heap, then enters the ordinary compiled program.
 (def i_limit () Int 16777213)
-(def alpha_code_base () Int 671088640)
-(def alpha_code_capacity () Int 134217728)
+(def alpha_code_base () Int (+ (e_output_base) (e_output_capacity)))
+(def alpha_code_capacity () Int (- (e_pair_heap_base) (alpha_code_base)))
 
 ; Each assembled instruction begins with a field containing its opcode and
 ; registers. Only imm, branches and call have a second (eight-byte) field.
