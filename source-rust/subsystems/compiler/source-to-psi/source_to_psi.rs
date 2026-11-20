@@ -11,7 +11,7 @@ pub use parse_files::{
 mod stage_sources;
 pub use stage_sources::ParsedStageSources;
 
-pub use lowered_program_to_checked_program::checking::ReturnedIntegerFact;
+pub use lowered_program_to_checked_program::checking::ReturnedScalarFact;
 mod build_invocation;
 pub mod compile_time;
 pub mod product;

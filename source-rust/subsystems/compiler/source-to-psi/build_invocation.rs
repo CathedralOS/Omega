@@ -56,7 +56,7 @@ impl BuildStageSource {
     pub fn prepare(
         self,
         previous: Option<&BuildStage>,
-        facts: &[crate::ReturnedIntegerFact],
+        facts: &[crate::ReturnedScalarFact],
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
@@ -143,7 +143,7 @@ fn prepare_stage(
     request: ResolveAndTypeRequest,
     entry: source_text::SourceSpan,
     plan: &stages::EntryPlan,
-    facts: &[crate::ReturnedIntegerFact],
+    facts: &[crate::ReturnedScalarFact],
 ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
     let prepare = |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
         let stage = plan.project(&mut request.syntax.trees, use_frame, facts)?;
