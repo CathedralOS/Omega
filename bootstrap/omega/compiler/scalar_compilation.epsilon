@@ -20,6 +20,8 @@ data OmegaCheckedValueKind {
     case NullaryCase;
     case CaseLiteral;
     case ProjectedRead;
+    case NegativeI32Literal;
+    case SignedComparison;
 }
 
 // Each call or terminal transfer has one resolved target. Its incoming list
@@ -89,6 +91,9 @@ data OmegaScalarCompiler {
     query_path: OmegaNamePath;
     address_path: OmegaNamePath;
     entry_unit: i32;
+    exit_service: i32;
+    exit_result: i32;
+    exit_primitive: i32;
     parser: OmegaParser;
     tape: AlphaTapeBuffer;
     status: OmegaScalarCompilationStatus;
@@ -119,7 +124,7 @@ data OmegaScalarCompiler {
     value_kinds: [OmegaCheckedValueKind; 16384];
     value_payloads: [i32; 16384];
     // Primitive codes retain carrier and policy: 1 bool, 2 Unit, 8 plain u8,
-    // 32 plain u32, 64 plain u64, 288 Trapping u32, 320 Trapping u64,
+    // 32 plain u32, 33 plain i32, 64 plain u64, 288 Trapping u32, 320 Trapping u64,
     // 576 Wrapping u64. Compound codes below
     // retain their declaration/type-row identity. Zero is never admitted.
     state_types: [i32; 4096];
@@ -853,7 +858,7 @@ machine OmegaScalarCompiler::primitive_type(
     state named(row: OmegaTypeReferenceSyntax) {
         transition self.span_equals(source, row.payload0, row.payload1, "bool") {
             1 -> return 1
-            _ -> return self.unsigned_carrier(source, row.payload0, row.payload1)
+            _ -> return self.integer_carrier(source, row.payload0, row.payload1)
         }
     }
     state constrained(row: OmegaTypeReferenceSyntax) {
@@ -868,7 +873,7 @@ machine OmegaScalarCompiler::primitive_type(
 
 // Type names and integer suffixes share these executable carrier identities.
 // A retained suffix outside this subset cannot become an anonymous integer.
-machine OmegaScalarCompiler::unsigned_carrier(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+machine OmegaScalarCompiler::integer_carrier(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
     transition self.span_equals(source, start, end, "u8") {
         1 -> return 8
         _ -> word()
@@ -876,6 +881,12 @@ machine OmegaScalarCompiler::unsigned_carrier(&mut self, source: &[u8], start: i
     state word() {
         transition self.span_equals(source, start, end, "u32") {
             1 -> return 32
+            _ -> signed_word()
+        }
+    }
+    state signed_word() {
+        transition self.span_equals(source, start, end, "i32") {
+            1 -> return 33
             _ -> wide()
         }
     }
@@ -890,7 +901,7 @@ machine OmegaScalarCompiler::unsigned_carrier(&mut self, source: &[u8], start: i
 machine OmegaScalarCompiler::literal_carrier(&mut self, source: &[u8], row: OmegaExpressionSyntax) -> i32 {
     transition row.payload2 == 0 {
         true -> return 0
-        _ -> landed(self.unsigned_carrier(source, row.payload2, row.payload1))
+        _ -> landed(self.integer_carrier(source, row.payload2, row.payload1))
     }
     state landed(carrier: i32) {
         transition carrier == 0 { true -> return -1 _ -> return carrier }
@@ -945,7 +956,7 @@ machine OmegaScalarCompiler::parameter_type(
 machine OmegaScalarCompiler::scan_integer(&mut self, source: &[u8], row: OmegaExpressionSyntax, expected: i32) {
     transition row.payload2 == 0 {
         true -> self.scan_scalar_literal(source, row.payload0, row.payload1, expected)
-        _ -> fixed(self.unsigned_carrier(source, row.payload2, row.payload1))
+        _ -> fixed(self.integer_carrier(source, row.payload2, row.payload1))
     }
     state fixed(carrier: i32) {
         transition carrier == 0 { true -> unsupported() _ -> destination(carrier) }
@@ -988,7 +999,8 @@ machine OmegaScalarCompiler::scan_scalar_literal(
         }
     }
     state finish(high: i32, low: i32) {
-        transition (expected == 32) || (expected == 64) || ((expected == 8) && (high == 0) && (low < 256)) {
+        transition (expected == 32) || (expected == 64) || ((expected == 33) && (high < 32768)) ||
+            ((expected == 8) && (high == 0) && (low < 256)) {
             true -> encode(high, low)
             _ -> out_of_range()
         }
@@ -1186,6 +1198,13 @@ machine OmegaScalarCompiler::expression_type(
     state unary(row: OmegaUnaryExpressionSyntax) {
         transition row.operator {
             OmegaUnaryOperatorKind::LogicalNot -> return 1
+            OmegaUnaryOperatorKind::Negate -> magnitude_type(self.parser.expressions[row.operand])
+            _ -> return 0
+        }
+    }
+    state magnitude_type(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Integer -> return self.literal_carrier(source, row)
             _ -> return 0
         }
     }
@@ -1366,7 +1385,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state integer(row: OmegaExpressionSyntax) {
-        transition (expected == 8) || (expected == 32) || (expected == 64) {
+        transition (expected == 8) || (expected == 32) || (expected == 33) || (expected == 64) {
             true -> integer_scan(row)
             _ -> rejected(row.payload0)
         }
@@ -1419,6 +1438,12 @@ machine OmegaScalarCompiler::check_value(
     state unresolved_call(call: OmegaCallExpressionSyntax) {
         transition call.has_receiver {
             1 -> unresolved_receiver(call, self.parser.expressions[call.receiver])
+            _ -> bare_call(call)
+        }
+    }
+    state bare_call(call: OmegaCallExpressionSyntax) {
+        transition self.requires_service_installation(source, 0, 0, call.target) {
+            1 -> return 0
             _ -> rejected(call.target.start)
         }
     }
@@ -1699,7 +1724,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state anonymous_left(row: OmegaBinaryExpressionSyntax, right: i32) {
-        transition (right == 8) || (right == 32) || (right == 64) || (self.is_policy_word(right) == 1) {
+        transition (right == 8) || (right == 32) || (right == 33) || (right == 64) || (self.is_policy_word(right) == 1) {
             true -> operands_types(row, right % 256, right)
             _ -> rejected(row.operator_start)
         }
@@ -1711,7 +1736,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state anonymous_right(row: OmegaBinaryExpressionSyntax, left: i32) {
-        transition (left == 8) || (left == 32) || (left == 64) || (self.is_policy_word(left) == 1) {
+        transition (left == 8) || (left == 32) || (left == 33) || (left == 64) || (self.is_policy_word(left) == 1) {
             true -> operands_types(row, left, left % 256)
             _ -> rejected(row.operator_start)
         }
@@ -1719,7 +1744,20 @@ machine OmegaScalarCompiler::check_value(
     state comparison_same(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
         transition left == right {
             true -> comparison_operator(row, left)
+            _ -> mixed_comparison(row, left, right)
+        }
+    }
+    state mixed_comparison(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
+        transition (left == 33) || (right == 33) {
+            true -> signed_peer(row, left, right)
             _ -> comparison_policy(row, left, right)
+        }
+    }
+    state signed_peer(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
+        // u8 and u32 fit Alpha's signed comparison after zero extension.
+        transition (left == 8) || (left == 32) || (right == 8) || (right == 32) {
+            true -> operands_types(row, left, right)
+            _ -> unsupported(row.operator_start)
         }
     }
     state comparison_policy(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
@@ -1758,14 +1796,74 @@ machine OmegaScalarCompiler::check_value(
     state operands_types(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
         transition (self.check_value(source, owner, state_index, before, row.left, left) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, right) == 1) {
-            true -> retain(OmegaCheckedValueKind::BooleanBinary, self.parser.expressions[expression].payload0)
+            true -> comparison_kind(left, right)
             _ -> return 0
+        }
+    }
+    state comparison_kind(left: i32, right: i32) {
+        transition (left == 33) || (right == 33) {
+            true -> retain(OmegaCheckedValueKind::SignedComparison, self.parser.expressions[expression].payload0)
+            _ -> retain(OmegaCheckedValueKind::BooleanBinary, self.parser.expressions[expression].payload0)
         }
     }
     state unary(row: OmegaUnaryExpressionSyntax) {
         transition row.operator {
             OmegaUnaryOperatorKind::LogicalNot -> logical_not(row)
+            OmegaUnaryOperatorKind::Negate -> negate(row)
             _ -> constant()
+        }
+    }
+    state negate(row: OmegaUnaryExpressionSyntax) {
+        transition expected == 33 {
+            true -> signed_magnitude(row, self.parser.expressions[row.operand])
+            _ -> constant()
+        }
+    }
+    state signed_magnitude(row: OmegaUnaryExpressionSyntax, operand: OmegaExpressionSyntax) {
+        transition operand.kind {
+            OmegaExpressionKind::Integer -> magnitude(row.operator_start, operand)
+            _ -> unsupported(row.operator_start)
+        }
+    }
+    state magnitude(start: i32, operand: OmegaExpressionSyntax) {
+        transition self.literal_carrier(source, operand) {
+            0 -> digits(start, operand.payload0, operand.payload1)
+            33 -> digits(start, operand.payload0, operand.payload2)
+            _ -> wrong_carrier(operand)
+        }
+    }
+    state wrong_carrier(operand: OmegaExpressionSyntax) {
+        transition self.literal_carrier(source, operand) < 0 {
+            true -> unsupported(operand.payload0)
+            _ -> rejected(operand.payload0)
+        }
+    }
+    state digits(start: i32, first: i32, end: i32) {
+        self.scan_scalar_literal(source, first, end, 32);
+        transition self.literal_status {
+            1 -> negate_word(start, self.literal_value)
+            2 -> unsupported(start)
+            _ -> literal_range(start)
+        }
+    }
+    state negate_word(start: i32, magnitude: i32) {
+        // scan_scalar_literal returns the raw u32 pattern. 2^31 is the sole
+        // negative in-range pattern and already encodes the desired minimum.
+        transition magnitude == -2147483648 {
+            true -> retain(OmegaCheckedValueKind::NegativeI32Literal, magnitude)
+            _ -> negate_small(start, magnitude)
+        }
+    }
+    state negate_small(start: i32, magnitude: i32) {
+        transition magnitude {
+            0 -> retain(OmegaCheckedValueKind::Literal, 0)
+            _ -> nonzero_magnitude(start, magnitude)
+        }
+    }
+    state nonzero_magnitude(start: i32, magnitude: i32) {
+        transition magnitude > 0 {
+            true -> retain(OmegaCheckedValueKind::NegativeI32Literal, 0 - magnitude)
+            _ -> literal_range(start)
         }
     }
     state logical_not(row: OmegaUnaryExpressionSyntax) {
@@ -1790,7 +1888,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state carrier_cast(row: OmegaCastExpressionSyntax, target: i32) {
-        transition (target == 8) || (target == 32) || (target == 64) {
+        transition (target == 8) || (target == 32) || (target == 33) || (target == 64) {
             true -> carrier_result(row, target)
             _ -> unsupported(row.start)
         }
@@ -1809,7 +1907,9 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state carrier_widen(row: OmegaCastExpressionSyntax, target: i32, kind: i32) {
-        transition ((kind == 8) || (kind == 32)) && (kind < target) {
+        // Every u8 fits i32, u32 and u64. Only u64 contains every u32.
+        transition ((kind == 8) && ((target == 32) || (target == 33) || (target == 64))) ||
+            ((kind == 32) && (target == 64)) {
             true -> cast_value(row.value, kind)
             _ -> carrier_source_domain(row, kind)
         }
@@ -2222,11 +2322,14 @@ machine OmegaScalarCompiler::emit_value_store(&mut self, cell: i32) -> i32 {
 machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     transition self.value_kinds[expression] {
         OmegaCheckedValueKind::Literal -> return self.tape.emit_imm(0, self.value_payloads[expression], 0)
+        OmegaCheckedValueKind::NegativeI32Literal -> return self.tape.emit_imm(0, self.value_payloads[expression], -1)
         OmegaCheckedValueKind::NullaryCase -> return self.emit_case_value(expression)
         OmegaCheckedValueKind::CaseLiteral -> return self.emit_record_literal(expression)
         OmegaCheckedValueKind::Call -> call(self.parser.call_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::BooleanBinary -> return self.emit_boolean_binary(expression,
-            self.parser.binary_expressions[self.value_payloads[expression]])
+            self.parser.binary_expressions[self.value_payloads[expression]], 0)
+        OmegaCheckedValueKind::SignedComparison -> return self.emit_boolean_binary(expression,
+            self.parser.binary_expressions[self.value_payloads[expression]], 1)
         OmegaCheckedValueKind::LogicalNot -> logical_not()
         OmegaCheckedValueKind::RepresentationCast -> return self.emit_value(self.value_payloads[expression])
         OmegaCheckedValueKind::Place -> return self.emit_place_value(expression)
@@ -2301,7 +2404,7 @@ machine OmegaScalarCompiler::emit_word_operands(
 }
 
 machine OmegaScalarCompiler::emit_boolean_binary(
-    &mut self, expression: i32, row: OmegaBinaryExpressionSyntax
+    &mut self, expression: i32, row: OmegaBinaryExpressionSyntax, signed_order: i32
 ) -> i32 {
     transition row.operator {
         OmegaBinaryOperatorKind::And -> return self.emit_short_circuit(row, 13)
@@ -2312,8 +2415,19 @@ machine OmegaScalarCompiler::emit_boolean_binary(
         // An expression owns one scratch word, disjoint from parameters,
         // locals and staged arguments. No ordinary call cycle is admitted,
         // so a nested right operand cannot re-enter this expression's owner.
-        transition (self.emit_word_operands(expression, row) == 1) &&
-            (self.tape.emit_imm(3, 0, -2147483648) == 1) &&
+        transition self.emit_word_operands(expression, row) {
+            1 -> ordering()
+            _ -> return 0
+        }
+    }
+    state ordering() {
+        transition signed_order {
+            1 -> comparison()
+            _ -> unsigned_bias()
+        }
+    }
+    state unsigned_bias() {
+        transition (self.tape.emit_imm(3, 0, -2147483648) == 1) &&
             (self.tape.emit_rr(3, 0, 3) == 1) &&
             (self.tape.emit_rr(3, 2, 3) == 1) {
             true -> comparison()
@@ -2867,6 +2981,9 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 }
 
 machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
+    self.exit_service = -1;
+    self.exit_primitive = -1;
+    self.exit_result = -1;
     self.entry_unit = entry_unit;
     self.status = OmegaScalarCompilationStatus::Pending;
     self.diagnostic_offset = 0;
@@ -2928,7 +3045,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state check_known_roots() {
-        transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count + self.parser.use_count + self.parser.boundary_trait_count) &&
+        transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count + self.parser.use_count +
+            self.parser.boundary_trait_count + self.parser.implementation_count + self.parser.boundary_machine_count) &&
             (self.parser.machine_count > 0) && (self.entry_unit >= 0) &&
             (self.entry_unit < self.parser.sources.unit_count) {
             true -> imports()
@@ -2943,6 +3061,12 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state pooled_imports() {
         transition self.validate_imports(source) {
+            1 -> terminal_suppliers()
+            _ -> return
+        }
+    }
+    state terminal_suppliers() {
+        transition self.check_terminal_suppliers(source) {
             1 -> reset_storage(0)
             _ -> return
         }
@@ -3010,6 +3134,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition (self.resolve_machine(source, name.start, name.end) < 0) &&
             (self.span_equals(source, name.start, name.end, "u8") == 0) &&
             (self.span_equals(source, name.start, name.end, "u32") == 0) &&
+            (self.span_equals(source, name.start, name.end, "i32") == 0) &&
             (self.span_equals(source, name.start, name.end, "u64") == 0) &&
             (self.span_equals(source, name.start, name.end, "bool") == 0) &&
             (self.word_policy(source, name.start, name.end) == 0) {
@@ -3089,6 +3214,9 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state root_kind(index: i32) {
         transition self.parser.roots[index].kind {
             OmegaRootKind::Machine -> non_machine_root(index + 1)
+            OmegaRootKind::Implementation -> incomplete(4, self.parser.implementations[self.parser.roots[index].item_index].start)
+            OmegaRootKind::BoundaryMachine -> incomplete(4,
+                self.parser.owned_machines[self.parser.boundary_machines[self.parser.roots[index].item_index]].start)
             OmegaRootKind::Data -> non_machine_root(index + 1)
             OmegaRootKind::Domain -> incomplete(4, self.parser.domains[self.parser.roots[index].item_index].keyword_start)
             OmegaRootKind::BoundaryTrait -> incomplete(4, self.parser.boundary_traits[self.parser.roots[index].item_index].boundary_keyword.start)
@@ -4631,6 +4759,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
         2 -> return 8
         8 -> return 8
         32 -> return 8
+        33 -> return 8
         64 -> return 8
         288 -> return 8
         320 -> return 8
@@ -4709,6 +4838,7 @@ machine OmegaScalarCompiler::type_copy(&mut self, source: &[u8], kind: i32) -> i
         2 -> return 1
         8 -> return 1
         32 -> return 1
+        33 -> return 1
         64 -> return 1
         288 -> return 1
         320 -> return 1

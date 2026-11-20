@@ -1,0 +1,208 @@
+// The core process terminal is a declaration in the toolchain core root.
+// Checking a provider's authored body neither selects it nor installs an
+// execution domain. A v1 caller can carry these sources without exit power.
+machine OmegaScalarCompiler::core_root_name(
+    &mut self, source: &[u8], name: OmegaRelativeSpan, spelling: &[u8]
+) -> i32 {
+    let unit: i32 = self.parser.sources.unit_at(name.start);
+    transition unit >= 0 {
+        true -> owner(self.parser.sources.units[unit])
+        _ -> return 0
+    }
+    state owner(unit: OmegaSourceUnit) {
+        return (self.parser.sources.packages[unit.package].role == 1) &&
+            (unit.module_member_count == 0) && (self.span_equals(source, name.start, name.end, spelling) == 1);
+    }
+}
+
+// Supplied names share a scope with ordinary declarations. Count resolution
+// candidates across files in that module, including private declarations.
+machine OmegaScalarCompiler::supplier_name_count(
+    &mut self, source: &[u8], name: OmegaRelativeSpan, kind: OmegaDeclarationKind
+) -> i32 {
+    transition true { true -> scan(self.parser.sources.unit_at(name.start), 0, 0) }
+    state scan(unit: i32, index: i32, count: i32) {
+        transition index < self.declaration_count(kind) {
+            true -> candidate(unit, index, count, self.declaration_name(kind, index))
+            _ -> return count
+        }
+    }
+    state candidate(unit: i32, index: i32, count: i32, other: OmegaRelativeSpan) {
+        let matches: i32 = (self.parser.sources.equal_name(source, name, other) == 1) &&
+            (self.same_module(source, unit, self.parser.sources.unit_at(other.start)) == 1);
+        transition true { true -> scan(unit, index + 1, count + matches) }
+    }
+}
+
+machine OmegaScalarCompiler::unique_supplier_name(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
+    return (self.parser.reserved_namespace(source, name.start, name.end) == 0) &&
+        (self.supplier_name_count(source, name, OmegaDeclarationKind::Machine) == 0) &&
+        (self.supplier_name_count(source, name, OmegaDeclarationKind::Data) == 0) &&
+        (self.supplier_name_count(source, name, OmegaDeclarationKind::Service) == 0) &&
+        (self.supplier_name_count(source, name, OmegaDeclarationKind::BoundaryMachine) +
+            self.supplier_name_count(source, name, OmegaDeclarationKind::Implementation) == 1);
+}
+
+machine OmegaScalarCompiler::check_terminal_suppliers(&mut self, source: &[u8]) -> i32 {
+    self.exit_service = -1;
+    self.exit_result = -1;
+    self.exit_primitive = -1;
+    transition self.parser.boundary_machine_count + self.parser.implementation_count > 0 {
+        true -> service(0)
+        _ -> return 1
+    }
+    state service(index: i32) {
+        transition index < self.parser.boundary_trait_count {
+            true -> named(index, self.parser.boundary_traits[index])
+            _ -> primitive(0)
+        }
+    }
+    state named(index: i32, row: OmegaBoundaryTraitSyntax) {
+        transition (row.is_public == 1) && (row.requirement_count == 1) &&
+            (self.core_root_name(source, row.name, "ProcessExit") == 1) {
+            true -> operation(index, self.parser.boundary_requirements[row.first_requirement])
+            _ -> service(index + 1)
+        }
+    }
+    state operation(index: i32, row: OmegaBoundaryRequirementSyntax) {
+        transition self.span_equals(source, row.name.start, row.name.end, "exit_process") {
+            1 -> result(index, self.terminal_signature(source, row.first_parameter, row.parameter_count,
+                row.has_return_type, row.return_type, row.predicate_count, 1))
+            _ -> service(index + 1)
+        }
+    }
+    state result(index: i32, type_index: i32) {
+        transition (type_index >= 0) && (self.core_root_name(source, self.parser.data_items[type_index].name, "Never") == 1) {
+            true -> remember(index, type_index)
+            _ -> service(index + 1)
+        }
+    }
+    state remember(index: i32, type_index: i32) {
+        self.exit_service = index;
+        self.exit_result = type_index;
+        transition true { true -> service(index + 1) }
+    }
+    state primitive(index: i32) {
+        transition index < self.parser.boundary_machine_count {
+            true -> boundary_item(index, self.parser.owned_machines[self.parser.boundary_machines[index]])
+            _ -> implementation(0)
+        }
+    }
+    state boundary_item(index: i32, row: OmegaMachineSyntax) {
+        let name: OmegaRelativeSpan = self.parser.members[row.first_path_member];
+        transition (self.exit_service >= 0) && (row.is_public == 1) && (row.is_boundary == 1) &&
+            (row.path_member_count == 1) && (row.is_bodyless == 1) && (row.has_target == 0) &&
+            (self.core_root_name(source, name, "ProcessExitPrimitive") == 1) {
+            true -> binding(index, row, name)
+            _ -> unsupported(row.start)
+        }
+    }
+    state binding(index: i32, row: OmegaMachineSyntax, name: OmegaRelativeSpan) {
+        transition (self.unique_supplier_name(source, name) == 1) &&
+            (self.exit_member_contract(source, row, 1) == 1) {
+            true -> remember_primitive(index)
+            _ -> rejected(name.start)
+        }
+    }
+    state remember_primitive(index: i32) {
+        self.exit_primitive = index;
+        transition true { true -> primitive(index + 1) }
+    }
+    state implementation(index: i32) {
+        transition index < self.parser.implementation_count {
+            true -> provider(index, self.parser.implementations[index])
+            _ -> return 1
+        }
+    }
+    state provider(index: i32, row: OmegaImplementationSyntax) {
+        transition (self.exit_primitive >= 0) && (self.resolve_declaration(source, row.trait_name.start,
+            row.trait_name.end, OmegaDeclarationKind::Service) == self.exit_service) {
+            true -> member_count(index, row)
+            _ -> unsupported(row.name.start)
+        }
+    }
+    state member_count(index: i32, row: OmegaImplementationSyntax) {
+        transition (row.member_count == 1) && (self.unique_supplier_name(source, row.name) == 1) {
+            true -> member(index, self.parser.owned_machines[row.first_member])
+            _ -> rejected(row.name.start)
+        }
+    }
+    state member(index: i32, row: OmegaMachineSyntax) {
+        let name: OmegaRelativeSpan = self.parser.members[row.first_path_member];
+        transition (row.path_member_count == 1) && (row.is_boundary == 0) && (row.has_target == 0) &&
+            (row.is_bodyless == 0) && (self.span_equals(source, name.start, name.end, "exit_process") == 1) &&
+            (self.exit_member_contract(source, row, 0) == 1) {
+            true -> body(index, self.parser.machine_states[row.first_state], name)
+            _ -> rejected(name.start)
+        }
+    }
+    state body(index: i32, entry: OmegaMachineStateSyntax, name: OmegaRelativeSpan) {
+        transition self.forwards_exit_status(source, entry) {
+            1 -> implementation(index + 1)
+            _ -> unsupported(name.start)
+        }
+    }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
+}
+
+machine OmegaScalarCompiler::exit_member_contract(
+    &mut self, source: &[u8], member: OmegaMachineSyntax, primitive: i32
+) -> i32 {
+    let entry: OmegaMachineStateSyntax = self.parser.machine_states[member.first_state];
+    return (member.state_count == 1) &&
+        (self.terminal_signature(source, entry.first_parameter, entry.parameter_count,
+            entry.has_return_type, entry.return_type, entry.requirement_count, 1) == self.exit_result) &&
+        (self.terminal_promises(source, self.exit_service, member.first_clause, member.clause_count, primitive) == 1);
+}
+
+// The checked member must invoke the resolved core primitive once, passing
+// its own parameter as the entire argument. An arbitrary expression or an
+// intervening statement needs ordinary provider-body checking.
+machine OmegaScalarCompiler::forwards_exit_status(
+    &mut self, source: &[u8], entry: OmegaMachineStateSyntax
+) -> i32 {
+    transition entry.statement_count == 1 {
+        true -> statement(self.parser.statements[entry.first_statement])
+        _ -> return 0
+    }
+    state statement(row: OmegaStatementSyntax) {
+        transition row.kind {
+            OmegaStatementKind::Call -> call(self.parser.call_statements[row.item_index])
+            _ -> return 0
+        }
+    }
+    state call(row: OmegaCallStatementSyntax) {
+        let name: OmegaRelativeSpan = self.parser.members[row.target_member];
+        transition (row.acknowledgements == 0) && (row.receiver_starts_at_self == 0) &&
+            (row.receiver_member_count + 1 == row.name_member_count) && (row.machine_argument_count == 0) &&
+            (row.argument_count == 1) && (self.forwarded_primitive(source, self.parser.members[row.first_receiver_member].start,
+                name.end) == 1) {
+            true -> argument(self.parser.expressions[self.parser.call_arguments[row.first_argument]])
+            _ -> return 0
+        }
+    }
+    state argument(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Path -> path(row)
+            _ -> return 0
+        }
+    }
+    state path(row: OmegaExpressionSyntax) {
+        transition row.path_kind {
+            OmegaPathExpressionKind::Name -> parameter(row)
+            _ -> return 0
+        }
+    }
+    state parameter(row: OmegaExpressionSyntax) {
+        return (row.payload1 == 1) && (row.payload3 == 1) && (self.parser.sources.equal_name(source,
+            self.parser.members[row.payload0], self.parser.machine_parameters[entry.first_parameter].name) == 1);
+    }
+}
+
+// A local or imported ordinary callee with the same spelling prevents
+// treating this body as a primitive call.
+machine OmegaScalarCompiler::forwarded_primitive(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    return (self.resolve_machine(source, start, end) == -1) &&
+        (self.resolve_declaration(source, start, end, OmegaDeclarationKind::BoundaryMachine) == self.exit_primitive);
+}
