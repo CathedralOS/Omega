@@ -44,8 +44,7 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
     };
     let named =
         StageValidatorRequest::from_exact_names(["FixedFrameCorrespondence"], false).unwrap();
-    let (product, rows) =
-        compiler::compile_with_validators(native, &named).unwrap();
+    let (product, rows) = compiler::compile_with_validators(native, &named).unwrap();
     let Artifact::Native(product) = product else {
         panic!("expected the requested native product")
     };
@@ -67,8 +66,7 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
         entry_memory: &[],
     };
     let all = StageValidatorRequest::from_exact_names([], true).unwrap();
-    let (admitted, rows) =
-        compiler::compile_with_validators(runtime(), &all).unwrap();
+    let (admitted, rows) = compiler::compile_with_validators(runtime(), &all).unwrap();
     assert!(matches!(admitted, Artifact::Runtime(_)));
     assert_eq!(rows.len(), 3);
     assert!(

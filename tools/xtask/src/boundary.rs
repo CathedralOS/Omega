@@ -1846,7 +1846,10 @@ mod tests {
     #[test]
     fn native_consumers_can_read_build_accounting_but_cannot_run_the_project_build() {
         let evaluation = "source-rust/subsystems/compiler/build/evaluation";
-        assert!(under(&format!("{evaluation}/accounting/contracts"), PERMITTED_OWNERS));
+        assert!(under(
+            &format!("{evaluation}/accounting/contracts"),
+            PERMITTED_OWNERS
+        ));
         assert!(!under(evaluation, PERMITTED_OWNERS));
         assert!(!under(&format!("{evaluation}/result"), PERMITTED_OWNERS));
     }
