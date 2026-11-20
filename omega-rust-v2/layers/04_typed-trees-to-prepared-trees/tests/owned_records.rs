@@ -4,6 +4,8 @@ use omega_typer::{TypeError, resolve_source_package};
 
 #[path = "owned_records/static_values.rs"]
 mod static_values;
+#[path = "owned_records/value_witness.rs"]
+mod value_witness;
 
 fn package(source: &str) -> omega_typer::SourcePackage<'_> {
     let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
@@ -122,8 +124,36 @@ fn field_initializers_evaluate_in_authored_order() {
                   machine add(a:u8,b:u8)->u8 {a+b}
                   machine mul(a:u8,b:u8)->u8 {a*b}
                   const VALUE:Pair=Pair{second:mul(200,2),first:add(255,1)};";
-    let error = prepare(source).unwrap_err().message;
-    assert!(error.contains("exact multiplication exceeds"), "{error}");
+    let fields = "second:mul(200,2),first:add(255,1)";
+    for (order, call, reason, message) in [
+        (
+            fields,
+            "mul(200,2)",
+            omega_preparation::PreparationReason::MultiplicationOutsideCarrier,
+            "exact multiplication exceeds its selected integer carrier",
+        ),
+        (
+            "first:add(255,1),second:mul(200,2)",
+            "add(255,1)",
+            omega_preparation::PreparationReason::AdditionOutsideCarrier,
+            "exact addition exceeds its selected integer carrier",
+        ),
+    ] {
+        let source = source.replace(fields, order);
+        let failure = omega_preparation::prepare_source_package_diagnosed(&package(&source)).unwrap_err();
+        let start = source.find(call).unwrap();
+        spec_corpus::observe_handoff!(
+            "authored-field-evaluation-order/refusal",
+            spec_corpus::assert_preparation_refusal!(
+                failure,
+                omega_preparation::RefusalCause::Preparation(reason),
+                "app",
+                "main.omg",
+                (start, start + call.len()),
+                format!("static evaluation cannot admit this invocation: {message}"),
+            ),
+        );
+    }
 }
 
 #[test]

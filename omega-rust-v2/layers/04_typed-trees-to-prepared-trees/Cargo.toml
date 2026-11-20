@@ -12,6 +12,7 @@ omega-program-contracts = { path = "../../contracts/program" }
 omega-syntax = { path = "../../representations/syntax" }
 omega-resolved = { path = "../../representations/resolved" }
 omega-typed = { path = "../../representations/typed" }
+omega-toolchain = { path = "../../toolchain" }
 omega-typer = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 num-bigint = "0.4"
 num-rational = "0.4"

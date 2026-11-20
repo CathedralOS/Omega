@@ -51,17 +51,23 @@ fn private_route_free_bodies_publish_an_effect_row_not_an_authored_clause() {
         machine arithmetic(n:u8)->u8{n +! 1u8} machine may_trap()->u8{arithmetic(255u8)}
         machine opaque()->u8 crashes Trap {1u8} machine via_opaque()->u8{opaque()}
         data Safe=machine()->u8 crashes none; data Open=machine()->u8;
-        machine safe<const F:Safe>()->u8{F()} machine open<const F:Open>()->u8{F()}";
+        machine safe<const F:Safe>()->u8{F()} machine open<const F:Open>()->u8{F()}
+        machine cycle()->u8{cycle()}";
     let stage = check(&[("crashes.omg", source)]).unwrap();
-    let effects = |name| &stage.machine_effects.iter().find(|row| row.machine.path == name).unwrap().crash_ceiling;
-    for name in ["one", "via", "safe"] {
-        assert_eq!(effects(name).as_deref(), Some(&[][..]), "{name}");
-        assert!(stage.signatures.iter().find(|sig| sig.machine.path == name).unwrap().crash_ceiling.is_none());
+    let empty = Some(&[][..]);
+    let trap = Some(&[omega_typer::CrashCause::Trap][..]);
+    for (name, effects, interface) in [
+        ("one", empty, None), ("via", empty, None), ("safe", empty, None),
+        ("arithmetic", None, None), ("may_trap", None, None), ("via_opaque", None, None),
+        ("open", None, None), ("cycle", None, None), ("opaque", trap, trap),
+    ] {
+        let signature = stage.signatures.iter().find(|sig| sig.machine.path == name).unwrap();
+        let row = stage.machine_effects.iter().find(|row| row.machine == signature.machine).unwrap();
+        spec_corpus::observe_handoff!(
+            "closed-callback-crash-bound/producer",
+            assert_eq!((row.crash_ceiling.as_deref(), signature.crash_ceiling.as_deref()), (effects, interface), "{name}")
+        );
     }
-    for name in ["arithmetic", "may_trap", "via_opaque", "open"] {
-        assert!(effects(name).is_none(), "unknown must not publish an empty crash bound: {name}");
-    }
-    assert_eq!(effects("opaque").as_deref(), Some(&[omega_typer::CrashCause::Trap][..]));
 }
 
 #[test]
@@ -655,7 +661,17 @@ fn a_result_domain_can_be_declared_before_its_parent() {
 #[test]
 fn service_reach_uses_the_declared_boundary_trait_in_all_files() {
     let run = |header, body| check(&[("a.omg", body), ("z.omg", header)]);
-    run("public boundary trait Sensor{}", "machine f() reaches Sensor {}").unwrap();
+    let stage = run("public boundary trait Sensor{}", "machine f() reaches Sensor {}").unwrap();
+    let [signature] = stage.signatures.as_slice() else { panic!("expected the signature for f") };
+    let [effect] = stage.machine_effects.as_slice() else { panic!("expected the effect row for f") };
+    spec_corpus::observe_handoff!("boundary-service-reach/producer", {
+        let [service] = effect.reach.as_slice() else { panic!("expected one reachable service") };
+        assert_eq!(effect.machine, signature.machine);
+        assert_eq!(signature.reach.as_deref(), Some(effect.reach.as_slice()));
+        assert_eq!(service.service.path, "Sensor");
+        assert_eq!(service.service.package, signature.machine.package);
+        assert!(service.arguments.is_empty());
+    });
     run("trait Base{} boundary trait Sensor:Base{}", "machine f() reaches Sensor {}").unwrap();
     for header in ["trait Sensor{}", "trait boundary{} trait Sensor:boundary{}"] {
         let error = run(header, "machine f() reaches Sensor {}").unwrap_err();

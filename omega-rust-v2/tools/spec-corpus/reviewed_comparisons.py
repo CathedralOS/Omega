@@ -55,15 +55,27 @@ def record(report, suite, target, current_test, line):
     if parts[1] in receipts:
         if not failed or receipts[parts[1]] != parts[2]:
             report["measurement_errors"].append(f"duplicate reviewed comparison: {parts[1]}")
+            if not failed:
+                receipts[parts[1]] = None
     else:
         receipts[parts[1]] = parts[2]
 
 
-def apply(report, outlines):
+def test_results(report):
+    """Require a single libtest result for the exact suite, target and test."""
+    results = {}
+    for stage, suite in report["suites"].items():
+        for row in suite.get("tests", []):
+            key = stage, row["target"].replace("\\", "/"), row["test"]
+            results[key] = "ambiguous" if key in results else row["status"]
+    return results
+
+
+def apply(report, outlines, unconfirmed_fixtures=()):
     receipts = report.get("reviewed_comparisons", {})
     cutoff = report.get("last_layer", "L4")
-    tests = {(stage, row["target"].replace("\\", "/"), row["test"]): row["status"]
-             for stage, suite in report["suites"].items() for row in suite.get("tests", [])}
+    tests = test_results(report)
+    observed = set()
     errors = report["measurement_errors"]
     counts = {"registered": len(registrations()), "observed": 0, "outside_run": 0}
     report["reviewed_registration_counts"] = counts
@@ -84,7 +96,8 @@ def apply(report, outlines):
         if registration.comparison.startswith("fixture/"):
             fixture = registration.comparison.removeprefix("fixture/")
             goldens = report.get("handoff_observations", {}).get("goldens", {})
-            expression = fixture if goldens.get(f"{registration.suite}/{fixture}") == registration.test else None
+            key = f"{registration.suite}/{fixture}"
+            expression = fixture if key not in unconfirmed_fixtures and goldens.get(key) == registration.test else None
         failure = report.get("failed_comparisons", {}).get(registration.comparison)
         if failure:
             entry.setdefault("failed_checks", []).append(f"{site} · {registration.comparison} · {failure}")
@@ -97,7 +110,9 @@ def apply(report, outlines):
             errors.append(f"missing reviewed comparison: {registration.comparison} ({site}, test {result or 'absent'})")
         else:
             counts["observed"] += 1
+            observed.add(registration)
             bucket = entry.setdefault(registration.side, [])
             # The document's fixture column can name the very same comparison.
             if expression not in bucket:
                 bucket.append(f"{site} · {expression}")
+    return observed

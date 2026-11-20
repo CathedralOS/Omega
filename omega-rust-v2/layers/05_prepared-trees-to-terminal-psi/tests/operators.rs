@@ -137,7 +137,10 @@ fn unused_operators_retain_the_home_and_the_exact_forwarded_operand() {
                 .find(|d| d.declaration.path == domain_name)
                 .unwrap();
             let binding = machine.operator.as_ref().unwrap();
-            assert_eq!(binding.home.as_ref(), Some(&domain.declaration));
+            spec_corpus::observe_handoff!(
+                "lowered-operator-home/consumer",
+                assert_eq!(binding.home.as_ref(), Some(&domain.declaration)),
+            );
             assert_eq!(binding.token, "+");
             let owner = if first { name } else { "other" };
             assert_eq!(binding.site.file, "operators.omg");

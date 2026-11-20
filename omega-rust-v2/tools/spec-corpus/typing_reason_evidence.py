@@ -7,7 +7,6 @@ PREFIX = "OMEGA_TYPING_REASON_INVENTORY"
 EMITTER = ("tests/typing_reasons.rs", "declared_typing_reasons")
 
 
-
 def take_cause(fields):
     if fields and TYPING_REASON.fullmatch(fields[-1]):
         return fields.pop()
@@ -39,8 +38,7 @@ def attach(inventory, site, observation, test, role):
         return
     if not cause and site["constructor"] != "for_reason":
         return
-    if (not cause or site["constructor"] != "for_reason" or observation.get("phase", "refused") != "refused"
-            or (role == "package" and typing_reasons().get(test) != cause)):
+    if not cause or site["constructor"] != "for_reason" or observation.get("phase", "refused") != "refused":
         inventory["errors"].append(f"{test}: missing, misplaced or unexpected typing reason: {cause}")
         return
     site.setdefault("reason_returns", []).append({"cause": cause, "reason": observation["reason"], "test": test, "role": role})
@@ -49,15 +47,22 @@ def attach(inventory, site, observation, test, role):
 def measure(report, inventory):
     roster = report.get("typing_reason_roster", {})
     outcomes = [r["status"] for r in report["suites"]["L3"]["tests"] if (r["target"].replace("\\", "/"), r["test"]) == EMITTER]
-    absent = sorted(set(typing_reasons().values()) - roster.keys())
-    if absent or report.get("invalid_typing_reason_roster") or outcomes != ["ok"]:
+    try:
+        expected = typing_reasons()
+    except (ValueError, OSError) as error:
+        inventory["errors"].append(f"cannot verify typing reason registrations: {error}")
+        return {"measured": False}
+    absent = sorted(set(expected.values()) - roster.keys())
+    if not roster or absent or report.get("invalid_typing_reason_roster") or outcomes != ["ok"]:
         inventory["errors"].append("missing valid passing TypingReason::ALL inventory" + (": " + ", ".join(absent) if absent else ""))
         return {"measured": False}
     causes = {key: {"reason": text, "package": [], "stage": []} for key, text in roster.items()}
     for site in inventory["rows"]:
         for row in site.get("reason_returns", []):
             entry = causes.get(row["cause"])
-            if not entry or entry["reason"] != row["reason"]:
+            if row["role"] == "package" and expected.get(row["test"]) != row["cause"]:
+                inventory["errors"].append(f"{row['test']}: unexpected typing reason: {row['cause']}")
+            elif not entry or entry["reason"] != row["reason"]:
                 inventory["errors"].append(f"{row['test']}: undeclared typing cause or inconsistent rendering: {row['cause']}")
             elif row["test"] not in entry[row["role"]]:
                 entry[row["role"]].append(row["test"])

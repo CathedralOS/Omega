@@ -347,6 +347,58 @@ fn fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field() 
 }
 
 #[test]
+fn intrinsic_array_length_checks_its_result_before_freezing_the_whole_array() {
+    use omega_preparation::{CheckedPreparationEvidence, PreparationAnswers, PreparationReason, RefusalCause, prepare_typing_pass_with_cause};
+    use omega_typed::TypedTrees;
+    use omega_typer::{TypingEnvironment, TypingProgress, type_source_package_for_preparation};
+
+    for length in [2, 256] {
+        let code = format!("const BUF:[u8;{length}]=\"{}\"; const NS:[u64;1]=[BUF.len];", "x".repeat(length));
+        let source = package(&code);
+        for narrow in [false, true] {
+            let TypingProgress::Complete(trees) = type_source_package_for_preparation(&source, &TypingEnvironment::default()).unwrap() else {
+                panic!("expected complete typing");
+            };
+            let resolved = trees.resolved().clone();
+            let mut facts = trees.into_facts();
+            let ns = facts.constants.iter_mut().find(|c| c.declaration.path == "NS").unwrap();
+            let answer = ns.declaration.clone();
+            if narrow {
+                let byte = ValueType::Integer { signed: false, width: Some(8) };
+                ns.initializer.carrier = ValueType::Array(Box::new(byte.clone()), 1);
+                let length_op = facts.operations.iter_mut().find(|op| op.token == ".len").unwrap();
+                length_op.result = byte.clone();
+                for expression in &mut facts.expressions {
+                    if expression.node == length_op.node {
+                        expression.ty = byte.clone();
+                    } else if expression.node == ns.initializer.node {
+                        expression.ty = ns.initializer.carrier.clone();
+                    }
+                }
+            }
+            let first_local = facts.obligations.iter().position(|o| o.site.package == "app").unwrap_or(facts.obligations.len());
+            let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+            let pass = prepare_typing_pass_with_cause(&progress, &[], None, CheckedPreparationEvidence::default());
+            if narrow {
+                let Err(error) = pass else { panic!("expected refusal at BUF.len") };
+                let start = code.find("BUF.len").unwrap();
+                spec_corpus::assert_preparation_cause!(
+                    error,
+                    RefusalCause::Preparation(PreparationReason::UnsupportedBody),
+                    "app",
+                    "main.omg",
+                    (start, start + "BUF.len".len()),
+                    "static evaluation cannot admit this invocation: the selected body is outside the supported static evaluation fragment",
+                );
+                continue;
+            }
+            let PreparationAnswers::Frozen { constants, .. } = pass.unwrap().answers else { panic!("expected frozen constants") };
+            assert_eq!(constants[&answer], PreparedValue::Array([PreparedValue::Integer(length.into())].into()));
+        }
+    }
+}
+
+#[test]
 fn owned_tuple_snapshot_preserves_each_component_and_its_type() {
     let source = package("const PAIR=(true,7u8);");
     let prepared = prepare_source_package(&source).unwrap();

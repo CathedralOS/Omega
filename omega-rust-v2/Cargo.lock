@@ -137,6 +137,7 @@ dependencies = [
  "omega-resolver",
  "omega-syntax",
  "omega-target-contract",
+ "omega-toolchain",
  "omega-typed",
  "omega-typer",
  "spec-corpus",

@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[path = "target_layout/intrinsic.rs"]
+mod intrinsic;
+
 use omega_preparation::{
     CheckedPreparationEvidence, LayoutExtent, LayoutGeometry, PreparationAnswers, PreparationFailure, PreparationProgress, PreparedTrees, RefusalCause, SelectedLayout, TargetIdentity,
     TargetObservation, TargetSemantics, TargetSemanticsError, prepare_source_package, prepare_source_package_diagnosed_with_inputs, prepare_source_package_for_target,

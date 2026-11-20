@@ -126,7 +126,7 @@ impl Scope<'_> {
         }
     }
 
-    fn instantiate(
+    pub(super) fn instantiate(
         &self,
         carrier: &ValueType,
     ) -> ValueType {
@@ -440,7 +440,9 @@ impl ConstantEvaluation<'_, '_> {
                     return self.schedule_static_callback(&tree, site, &scope, &carrier, execution);
                 };
                 if let Some(query) = call.layout_query {
-                    if scope.instantiate(&call.result) != carrier
+                    if omega_toolchain::core_interface().layout_query(&call.machine) != Some(query)
+                        || carrier != collection_reads::COUNT_CARRIER
+                        || scope.instantiate(&call.result) != carrier
                         || !call.operands.is_empty()
                         || !call.enclosing_arguments.is_empty()
                         || call.evidence.is_some()

@@ -492,16 +492,19 @@ fn a_target_contract_layout_refusal_is_forwarded_unchanged() {
     .unwrap();
     let reason = "the selected target has no validated layout for the type";
     let message = format!("{ADMISSION}{reason}");
-    assert_refusal(
-        LAYOUT,
-        Some(&target),
-        Expected {
-            phase: Phase::Preparation,
-            cause: RefusalCause::TargetLayout(reason),
-            reason,
-            range: last(LAYOUT, LAYOUT_QUERY),
-            message: &message,
-        },
+    spec_corpus::observe_handoff!(
+        "target-layout-cause/producer",
+        assert_refusal(
+            LAYOUT,
+            Some(&target),
+            Expected {
+                phase: Phase::Preparation,
+                cause: RefusalCause::TargetLayout(reason),
+                reason,
+                range: last(LAYOUT, LAYOUT_QUERY),
+                message: &message,
+            },
+        ),
     );
 }
 
@@ -510,16 +513,19 @@ fn an_integer_primitive_refusal_is_forwarded_unchanged() {
     let source = "machine shift(n:u7,k:u64)->u7{n << k} const VALUE:u7=shift(7,7);";
     let reason = "static shift count outside carrier width";
     let message = format!("{ADMISSION}{reason}");
-    assert_refusal(
-        source,
-        None,
-        Expected {
-            phase: Phase::Preparation,
-            cause: RefusalCause::IntegerPrimitive(reason),
-            reason,
-            range: last(source, "shift(7,7)"),
-            message: &message,
-        },
+    spec_corpus::observe_handoff!(
+        "integer-primitive-cause/producer",
+        assert_refusal(
+            source,
+            None,
+            Expected {
+                phase: Phase::Preparation,
+                cause: RefusalCause::IntegerPrimitive(reason),
+                reason,
+                range: last(source, "shift(7,7)"),
+                message: &message,
+            },
+        ),
     );
 }
 

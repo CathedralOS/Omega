@@ -2,6 +2,10 @@ use super::*;
 use omega_program_contracts::CollectionPrimitive;
 use omega_typed::{Access, Projection};
 
+// Fixed-array length and the two layout projections produce counts, not
+// arbitrary integers that happen to fit the requested carrier.
+pub(super) const COUNT_CARRIER: ValueType = ValueType::Integer { signed: false, width: Some(64) };
+
 impl ConstantEvaluation<'_, '_> {
     pub(super) fn schedule_array_read<'a>(
         &self,
@@ -95,9 +99,11 @@ impl ConstantEvaluation<'_, '_> {
         };
         let base = file.node_id(file.ungroup(base));
         let base_type = checked_carrier_in_scope(tree, base.node, scope)?;
+        if *result != COUNT_CARRIER || operation.result != *result {
+            return Err(EvaluationError::from(UNSUPPORTED_BODY).at_node(file.node_id(node)));
+        }
         if !matches!(base_type, ValueType::Array(..))
             || !matches!(operation.operands.as_slice(), [ty] if scope.instantiate(ty) == base_type)
-            || operation.result != *result
             || tree
                 .semantics_at(node)
                 .any(|record| !matches!(record, NodeSemantics::Expression(_) | NodeSemantics::Operation(_)))
