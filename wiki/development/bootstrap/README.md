@@ -97,7 +97,7 @@ on this source tree. [Receipts](interpreted-gamma-matrix.md#replay-the-compiled-
 
 ### Omega compiler byte classifier
 
-**18/27 routes** ran the classifier and refused its wrong-type twin.
+**19/27 routes** ran the classifier and refused its wrong-type twin.
 
 The positive program runs the production lexer’s byte classifier on all 256
 byte values and checks twelve answers per byte. Its twin passes an integer to
@@ -109,7 +109,7 @@ completed positive receipt for that cell.
 | Gamma | Delta | Epsilon interpreter | Epsilon to Alpha | Epsilon to Linux |
 | --- | --- | --- | --- | --- |
 | Interpreter | Interpreter | Open | Open | Open |
-| Interpreter | Alpha | Open | Open | Open |
+| Interpreter | Alpha | Both | Open | Open |
 | Interpreter | Linux | Both | Open | Open |
 | Alpha | Interpreter | Open | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
@@ -140,6 +140,11 @@ positive producer and complete framed-input digests before invoking that
 producer with the twin. The original Gamma interpreter’s Linux-Delta result
 has its own frozen inventory at `5144ec25e81` and two independently
 executed EEREQ requests. [Original-interpreter receipts](interpreted-gamma-matrix.md)
+
+The original Gamma interpreter also built the 2,204,117-byte Alpha evaluator
+from the sources in change #4593. All three Gamma hosts emitted the same tape.
+It ran the all-byte classifier and its wrong-base twin on the seed.
+[Three-host comparison](interpreted-gamma-matrix.md#original-gamma-builds-the-classifiers-alpha-evaluator)
 
 To repeat the experiment with the pinned compiler sources, use a fresh
 checkout of the positive runner and select the two test files that added the
