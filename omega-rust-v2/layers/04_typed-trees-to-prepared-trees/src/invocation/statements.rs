@@ -155,7 +155,7 @@ impl ConstantEvaluation<'_, '_> {
                         site,
                         statement: statement + 1,
                         carrier,
-                        bindings,
+                        scope: scope.clone(),
                     },
                     Step::Discard,
                     Step::Evaluate(file.node_id(operand), operand_carrier, scope),

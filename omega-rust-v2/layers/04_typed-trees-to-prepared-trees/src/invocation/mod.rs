@@ -709,7 +709,11 @@ fn checked_carrier_in_scope(
         }
     }
     let carrier = scope.instantiate(landing_type.or(expression_type).ok_or(UNSUPPORTED_BODY)?);
-    if !matches!(carrier, ValueType::Bool | ValueType::NoResult) && !is_aggregate(&carrier) && IntegerRange::for_type(&carrier).is_none() && FloatFormat::for_type(&carrier).is_none() {
+    if !matches!(carrier, ValueType::Bool | ValueType::NoResult)
+        && !is_aggregate(&carrier)
+        && IntegerRange::for_type(&carrier).is_none()
+        && FloatFormat::for_type(&carrier).is_none()
+    {
         return Err(UNSUPPORTED_BODY.into());
     }
     Ok(carrier)
