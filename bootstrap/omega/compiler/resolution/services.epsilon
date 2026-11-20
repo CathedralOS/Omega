@@ -9,7 +9,7 @@ machine OmegaScalarCompiler::check_service_declarations(&mut self, source: &[u8]
         }
     }
     state shape(index: i32, row: OmegaBoundaryTraitSyntax) {
-        transition row.requirement_count == 0 {
+        transition (row.requirement_count == 0) || (self.declares_terminal_requirement(source, index) == 1) {
             true -> name(index, row.name)
             _ -> unsupported(row.boundary_keyword.start)
         }
@@ -189,4 +189,129 @@ machine OmegaScalarCompiler::check_service_calls(&mut self) -> i32 {
         transition true { true -> machine_at(index, position + 1) }
     }
     state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+}
+
+// Default-domain evidence belongs to the selected data declaration. Only a
+// fieldless record with the single literal predicate false is covered here.
+machine OmegaScalarCompiler::empty_record(&mut self, row: OmegaDataSyntax) -> i32 {
+    transition (row.case_count == 0) && (row.field_count == 0) && (row.requirement_count == 1) {
+        true -> literal(self.parser.expressions[self.parser.requirements[row.first_requirement].expression])
+        _ -> return 0
+    }
+    state literal(value: OmegaExpressionSyntax) {
+        transition value.kind {
+            OmegaExpressionKind::Boolean -> return value.payload0 == 0
+            _ -> return 0
+        }
+    }
+}
+
+// This declaration profile includes the canonical ProcessExit contract.
+// A matching shape identifies a typed requirement, never a supplied operation.
+machine OmegaScalarCompiler::declares_terminal_requirement(
+    &mut self, source: &[u8], service: i32
+) -> i32 {
+    let row: OmegaBoundaryTraitSyntax = self.parser.boundary_traits[service];
+    transition row.requirement_count == 1 {
+        true -> requirement(self.parser.boundary_requirements[row.first_requirement])
+        _ -> return 0
+    }
+    state requirement(row: OmegaBoundaryRequirementSyntax) {
+        transition (row.parameter_count == 1) && (row.has_return_type == 1) &&
+            (row.predicate_count == 0) && (row.clause_count == 3) {
+            true -> parameter(row, self.parser.machine_parameters[row.first_parameter])
+            _ -> return 0
+        }
+    }
+    state parameter(row: OmegaBoundaryRequirementSyntax, parameter: OmegaMachineParameterSyntax) {
+        transition (parameter.is_mutable == 0) && (parameter.is_const == 0) && (parameter.is_self == 0) {
+            true -> parameter_type(row, self.parser.type_references[parameter.type_reference])
+            _ -> return 0
+        }
+    }
+    state parameter_type(row: OmegaBoundaryRequirementSyntax, parameter: OmegaTypeReferenceSyntax) {
+        transition parameter.kind {
+            OmegaTypeReferenceKind::Named -> integer(row, parameter)
+            _ -> return 0
+        }
+    }
+    state integer(row: OmegaBoundaryRequirementSyntax, parameter: OmegaTypeReferenceSyntax) {
+        transition self.span_equals(source, parameter.payload0, parameter.payload1, "i32") {
+            1 -> result(row, self.parser.type_references[row.return_type])
+            _ -> return 0
+        }
+    }
+    state result(row: OmegaBoundaryRequirementSyntax, result: OmegaTypeReferenceSyntax) {
+        transition result.kind {
+            OmegaTypeReferenceKind::Named -> record(row, self.resolve_data(source, result.payload0, result.payload1))
+            _ -> return 0
+        }
+    }
+    state record(row: OmegaBoundaryRequirementSyntax, index: i32) {
+        transition (index >= 0) && (self.empty_record(self.parser.data_items[index]) == 1) &&
+            ((self.parser.boundary_traits[service].is_public == 0) || (self.parser.data_items[index].is_public == 1)) {
+            true -> clause(row, 0, 0)
+            _ -> return 0
+        }
+    }
+    // Three different clauses establish the reach, crash and progress promises.
+    state clause(row: OmegaBoundaryRequirementSyntax, offset: i32, promises: i32) {
+        transition offset < row.clause_count {
+            true -> kind(row, offset, promises, self.parser.machine_clauses[row.first_clause + offset])
+            _ -> return promises == 7
+        }
+    }
+    state kind(row: OmegaBoundaryRequirementSyntax, offset: i32, promises: i32, contract: OmegaMachineClauseSyntax) {
+        transition contract.kind {
+            OmegaMachineClauseKind::Reaches -> reach(row, offset, promises, contract)
+            OmegaMachineClauseKind::CrashesNone -> clause(row, offset + 1, promises | 2)
+            OmegaMachineClauseKind::EventualTermination -> clause(row, offset + 1, promises | 4)
+            _ -> return 0
+        }
+    }
+    state reach(row: OmegaBoundaryRequirementSyntax, offset: i32, promises: i32, contract: OmegaMachineClauseSyntax) {
+        transition contract.member_count == 1 {
+            true -> reach_name(row, offset, promises, self.parser.members[contract.first_member])
+            _ -> return 0
+        }
+    }
+    state reach_name(row: OmegaBoundaryRequirementSyntax, offset: i32, promises: i32, name: OmegaRelativeSpan) {
+        transition (self.span_equals(source, name.start, name.end, "none") == 0) &&
+            (self.resolve_declaration(source, name.start, name.end, OmegaDeclarationKind::Service) == service) {
+            true -> clause(row, offset + 1, promises | 1)
+            _ -> return 0
+        }
+    }
+}
+
+// Only Owner::member can select a requirement. The receiver path must resolve
+// in the requester's namespace and the final name must belong to that owner.
+// The construction request supplies no process-domain authority or provider.
+machine OmegaScalarCompiler::requires_service_installation(
+    &mut self, source: &[u8], first: i32, count: i32, name: OmegaRelativeSpan
+) -> i32 {
+    transition count > 0 {
+        true -> separator(self.parser.members[first].start, self.parser.members[first + count - 1].end)
+        _ -> return 0
+    }
+    state separator(start: i32, end: i32) {
+        transition self.read_query(source, start, name.end) {
+            2 -> owner(self.resolve_declaration(source, start, end, OmegaDeclarationKind::Service))
+            _ -> return 0
+        }
+    }
+    state owner(index: i32) {
+        transition index >= 0 {
+            true -> requirement(self.parser.boundary_traits[index])
+            _ -> return 0
+        }
+    }
+    state requirement(row: OmegaBoundaryTraitSyntax) {
+        transition (row.requirement_count == 1) &&
+            (self.parser.sources.equal_name(source, name, self.parser.boundary_requirements[row.first_requirement].name) == 1) {
+            true -> uninstalled(row.boundary_keyword.start)
+            _ -> return 0
+        }
+    }
+    state uninstalled(coordinate: i32) { self.record_incomplete(4, coordinate); return 1; }
 }

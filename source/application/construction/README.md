@@ -65,7 +65,9 @@ optional checked `crashes Trap` or `crashes none` ceiling. An explicit
 body with `crashes none` fails checking.
 On normal return the Alpha tape exits with the byte result or zero for Unit.
 This application’s resultless `entry_start` reads stdin and calls Console
-and ProcessExit. Lowering those calls requires their checked service bindings.
+and ProcessExit. The frontend resolves ground service ceilings and checks
+them over selected calls. To emit these boundary operations, the compiler
+also needs the target’s selected provider and process-entry environment.
 
 ## Closed source-set input
 

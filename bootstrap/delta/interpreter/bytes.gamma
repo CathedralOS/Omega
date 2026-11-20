@@ -15,15 +15,32 @@
             (di_byte_at (second value) (- index split))))
         (if (eq tag 3) (read (+ value index)) (fail))))))
 
-(def di_publish ((bytes Int) (index Int) (end Int)) Int
-  (if (eq index end) (pair 0 1)
-    (let emitted Int (write (di_byte_at bytes index))
-      (di_publish bytes (+ index 1) end))))
+; Empty children add no bytes. Discard them here so a shared rope can never
+; make the publisher revisit a chain of empty wrappers for each byte.
+(def di_concat ((left Int) (right Int)) Int
+  (if (eq (first left) 0) right
+    (if (eq (first right) 0) left ($dbc left right))))
+
+; Walk the result once, saving the right child of each concatenation.
+; Only an input leaf reads the request, starting at its sealed guest offset.
+(def di_publish ((bytes Int) (count Int) (pending Int)) Int
+  (let ((node Int (second bytes)) (tag Int (first node)) (value Int (second node)))
+    (if (eq tag 2)
+      (di_publish (first value) (+ count 1) (pair (second value) pending))
+      (let emitted Int
+        (if (eq tag 0) 0
+          (if (eq tag 1) (write value) (di_write_input value (+ value (first bytes)))))
+        (if (eq count 0) (pair 0 1)
+          (di_publish (first pending) (- count 1) (second pending)))))))
+
+(def di_write_input ((offset Int) (end Int)) Int
+  (if (eq offset end) 0
+    (let emitted Int (write (read offset)) (di_write_input (+ offset 1) end))))
 
 (def di_literal ((index Int) (end Int) (value Int)) Int
   (if (eq index end) value
     (let byte Int (source_read index)
       (if (byte_literal_escape_marker byte)
         (di_literal (+ index 2) end
-          ($dbc value ($dbs (byte_literal_escape_value (source_read (+ index 1))))))
-        (di_literal (+ index 1) end ($dbc value ($dbs byte)))))))
+          (di_concat value ($dbs (byte_literal_escape_value (source_read (+ index 1))))))
+        (di_literal (+ index 1) end (di_concat value ($dbs byte)))))))

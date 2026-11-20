@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 24,811 lines / 940,833 bytes with SHA-256
-`0466e276d2f1efd2366370467b064467072ba9ce6f060d7767c1a177c0e724c8`.
-The manifest itself is 2,038 bytes, SHA-256
-`683caedea1e1a3ada0832779ac5ef64883db608cba306632afbab032525cbced`;
+manifest materializes 25,128 lines / 955,079 bytes with SHA-256
+`b33fd0b72610ce42c18964a642e560c39d1977832bb1b2862c1886b5b6df0282`.
+The manifest itself is 2,039 bytes, SHA-256
+`06015b23764ed2ae81c826c2092d7441fdb3339f1bc0fc350463fdf457a69299`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -217,9 +217,12 @@ all admitted state transfers stay within the owner, so mixed transfer/call
 cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
 No admitted source operation converts these private addresses to numeric values.
 Numeric comparisons bias both unsigned words by the high bit before Alpha's
-signed comparison, preserving unsigned order. Decimal literals currently cover
-`0..4294967295`; larger `u64` spellings remain explicitly
-unsupported. For plain `u32` addition, the compiler tracks which bits may be set
+signed comparison, preserving unsigned order. A decimal expression with an
+explicit `u8`, `u32`, or `u64` suffix retains that carrier through storage,
+calls, domain casts, and returns. A mismatched destination rejects at the
+literal. Other valid integer carriers retain their spelling in the parser and
+remain outside executable coverage. Decimal values currently cover
+`0..4294967295`; larger `u64` values remain outside this range. For plain `u32` addition, the compiler tracks which bits may be set
 in each operand and admits disjoint masks. It admits multiplication by a value
 whose only possible values are zero and one power of two if shifting the other
 mask cannot discard a bit. These proofs apply to byte widening and immutable
@@ -305,10 +308,13 @@ the parser's live count before a consumer reads it. The public parser admits
 at most 16,384 type rows.
 
 Records retain declaration identity, field qualification and copy/affine
-multiplicity. The current layout gives every scalar an eight-byte word and
-fixed arrays their declared count times the element stride; this is a private
-Alpha representation, not an implementation of canonical native layout queries.
-A SourceUnit byte array therefore occupies 1 MiB. Layout recursion is bounded
+multiplicity. In the private Alpha layout, a scalar cell occupies one
+eight-byte word. A fixed array of plain `u8` stores one byte per element.
+Its indexing instructions read or write exactly one byte. The whole array is
+rounded up to a word boundary so record copies and zeroing can use whole words.
+Bounds checks use the declared element count. The `SourceUnit` byte array
+occupies 128 KiB and the construction application's 4 MiB byte array fits in
+its 4,224,576-byte `ConstructionInput` record. Layout recursion is bounded
 at 64 steps and the complete private storage arena at 16 MiB. By-value cycles,
 linear/opaque/authority-bearing types, stored references, selected cleanup and
 unsupported domains decline before allocation. An intact affine local with no
@@ -347,9 +353,9 @@ equivalence of separately spelled array value types remain unsupported.
 The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements in a reduced `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. The complete
-23,348-byte `source.omg` reaches the declaration of `SourceSet` and returns
-`Incomplete`. Its `bytes: [u8; 4194304]` field occupies 32 MiB in the current
-word layout. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
+then returns `Incomplete` at the second reference parameter of
+`source_set_add`, at file byte 6,085. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -389,7 +395,9 @@ The `--omega-storage` customer takes exact SourceId, SourceUnit, ModulePath,
 helpers now state their existing guarded bounds explicitly and remove the
 array-shell policy through checked shared/mutable views. The customer checks
 clear's preserved byte, zero/final/full append boundaries, absent reads and
-ModulePath capacity. Generic controls check disjoint mutation, captured indexed
+ModulePath capacity. It writes distinct values to the first and last two
+bytes of the application's `ConstructionInput`, then copies a nine-byte array
+inside a record and checks the neighboring field. Generic controls check disjoint mutation, captured indexed
 assignment, original-reference forwarding and explicit scalar entry contracts.
 Refusals cover missing/stale bounds, mutating guard operands, same-expression
 call invalidation, overlapping argument loans and local-backed tail transfers.
@@ -527,8 +535,22 @@ declarations across a package edge and runs the resulting tape on Alpha.
 [Service checker](resolution/services.epsilon) ·
 [Construction suite](../../../tests/bootstrap/independent/service_reach.py)
 
-An operation-bearing boundary still returns `Incomplete` at its boundary
-keyword until the checker can validate its requirements and provider authority.
+A boundary may declare one terminal operation taking an ordinary `i32` and
+returning a fieldless record whose sole default predicate is the literal
+`false`. The checker resolves its result under the boundary's source unit.
+Its requirement publishes the owner's service reach, `crashes none` and
+`terminates`. Calling the uninstalled requirement returns `Incomplete` at
+its boundary keyword. The construction packet supplies no provider or
+process-domain authority.
+
+The same proof of an empty default domain applies to ordinary checked
+machines. A machine returning such a type can end in a checked Trap or
+transfer to another non-returning machine. Calls still check their arguments
+and propagate blocking, reach and crash obligations. On Alpha the transfer
+jumps to the checked callee without pushing a return address. Zero
+initialization and record literals cannot establish a value of the empty
+type. [Published no-return](../../../wiki/spec/language/state_contracts.md#published-no-return) ·
+[Uninhabited types](../../../wiki/spec/language/data_and_literals.md#the-uninhabited-type-never)
 [Core ProcessExit](../../../source/library/core/process_exit.omg) ·
 [Process-exit contract](../../../wiki/spec/language/process_exit.md)
 
@@ -563,7 +585,7 @@ and terminal expression statements over the retained primary path/literal slice,
 plus a restricted canonical transition core.
 Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
-value arguments are exact name/self paths, booleans, unsuffixed nonnegative
+value arguments are exact name/self paths, booleans, nonnegative
 decimal integers, or string tokens represented by tagged expression nodes;
 the same lane accepts shallow named struct literals over those primary field
 values. Zero arguments and trailing commas are supported. Calls may also own a
@@ -574,9 +596,9 @@ lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
 place path followed by zero or more indexes, each with a path, decimal, or
 canonical range over the retained path/decimal bound slice; current values are
-self-member paths, qualified-name paths, booleans, unsuffixed nonnegative
+self-member paths, qualified-name paths, booleans, nonnegative
 decimal integer literals, or strings. Integer
-spelling is retained by source span and is not evaluated during parsing;
+nodes retain the complete source span and the start of any explicit carrier suffix;
 strings retain the exact token span and scanner-proven decoded byte length
 without a decoded-byte mirror. Assignment values, local initializers, ordinary
 call arguments, and transition subjects share one bounded precedence reducer
@@ -611,7 +633,7 @@ remain incomplete until the shared postfix and field-expression paths admit
 them. The implicit entry state and every
 authored `state` own independent parameter, return-type, and contiguous mixed-
 statement spans. A retained transition has either no subject or one precedence-
-correct subject over path, boolean, and unsuffixed nonnegative decimal integer
+correct subject over path, boolean, and nonnegative decimal integer
 primaries, and expands each
 boolean, integer, or wildcard arm into an ordinary statement targeting one
 named state. Arms also retain bare name paths and qualified two-member case
@@ -653,7 +675,7 @@ The carrier span ends at `T` and the outer span ends at `D`. A bare sign
 following a cast starts a domain entry. Parentheses permit arithmetic on its
 result. Multiple domain entries and the retired `as T in D` refuse.
 One terminal expression statement may close a state directly. Its current
-values are a self/name/member path, boolean, unsuffixed nonnegative decimal
+values are a self/name/member path, boolean, nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,
 or canonical range operands, and such a primary may continue through the shared
 binary-operator reducer — including a statement-leading path — with `}`
