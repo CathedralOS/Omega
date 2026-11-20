@@ -21,6 +21,16 @@ pub const RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host";
 pub const RETAINED_IMAGE_RUNTIME: &str = "source-rust/subsystems/interpreter/host/retained-image";
 pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host/native-worker";
 
+const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
+const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi-artifact";
+const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi-execution-inputs";
+const PSI_SEMANTICS: &str = "source-rust/subsystems/compiler/psi-semantics";
+const NUMERICS: &str = "source-rust/subsystems/compiler/foundation/numerics";
+const INTERPRETER: &str = "source-rust/subsystems/interpreter";
+// Each of these owners is available to both pipelines. None may call either compiler.
+const SHARED_PSI: &[&str] = &[PSI_RECORDS, PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, NUMERICS];
+const PSI_CONSUMERS: &[&str] = &[PSI_ARTIFACT, PSI_EXECUTION_INPUTS, PSI_SEMANTICS, INTERPRETER];
+
 // The native driver's own package is admitted separately. Runtime consumers
 // may read the declared native contracts without gaining the driver entrance.
 pub const PERMITTED_OWNERS: &[&str] = &[
@@ -29,10 +39,10 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/verification",
     "source-rust/subsystems/compiler/psi-to-native/targets",
     "source-rust/subsystems/compiler/psi-to-native/representations",
-    "source-rust/subsystems/compiler/psi",
-    "source-rust/subsystems/compiler/psi-artifact",
-    "source-rust/subsystems/compiler/psi-execution-inputs",
-    "source-rust/subsystems/compiler/psi-semantics",
+    PSI_RECORDS,
+    PSI_ARTIFACT,
+    PSI_EXECUTION_INPUTS,
+    PSI_SEMANTICS,
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
     "source-rust/subsystems/compiler/build/evaluation/accounting",
@@ -43,7 +53,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/build/evaluation/values",
     "source-rust/subsystems/compiler/build/providers",
     "source-rust/subsystems/compiler/build/settings/behavior-exclusions",
-    "source-rust/subsystems/interpreter",
+    INTERPRETER,
 ];
 
 const SOURCE_COMPILER: &str = "source-rust/subsystems/compiler/source-to-psi";
@@ -539,7 +549,6 @@ pub fn dependency_violations(
 /// cannot contain a compiler, and neither compiler may run the other through a helper.
 pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     const SOURCE: &str = "source-rust/subsystems/compiler/source-to-psi";
-    const FORMAT: &str = "source-rust/subsystems/compiler/psi";
     const BUILD: &str = "source-rust/subsystems/compiler/build";
     const NATIVE: &str = native_stages::DRIVER;
 
@@ -557,32 +566,39 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
             let Some(path) = &dep.path else { continue };
             let dependency = normalize_relative(root, Path::new(path))?;
             if dep.kind.as_deref() == Some("dev") {
-                if under(&owner, &[SOURCE, FORMAT]) && under(&dependency, &[NATIVE]) {
+                if (under(&owner, &[SOURCE]) || under(&owner, SHARED_PSI)) && under(&dependency, &[NATIVE]) {
                     violations.push(format!(
                         "{} -> {}: a source or Psi test imports native compilation ({dependency})",
                         package.name, dep.name
                     ));
+                } else if under(&owner, SHARED_PSI)
+                    && (under(&dependency, &[SOURCE, BUILD]) || dependency == PRODUCT_COORDINATOR)
+                {
+                    violations.push(format!("{} -> {}: a Psi test imports compilation or Build ({dependency})", package.name, dep.name));
+                } else if under(&owner, &[PSI_RECORDS]) && under(&dependency, PSI_CONSUMERS) {
+                    violations.push(format!("{} -> {}: a Psi record test imports an artifact or execution owner ({dependency})", package.name, dep.name));
                 }
             } else {
                 edges.entry(owner.clone()).or_default().push(dependency);
             }
         }
     }
-    for (owner, forbidden) in [
-        (SOURCE, &[NATIVE][..]),
-        (FORMAT, &[SOURCE, NATIVE, BUILD][..]),
-        (NATIVE, &[SOURCE][..]),
+    for (owners, forbidden, forbidden_packages) in [
+        (&[SOURCE][..], &[NATIVE][..], &[][..]),
+        (SHARED_PSI, &[SOURCE, NATIVE, BUILD][..], &[PRODUCT_COORDINATOR][..]),
+        (&[PSI_RECORDS][..], PSI_CONSUMERS, &[][..]),
+        (&[NATIVE][..], &[SOURCE][..], &[][..]),
     ] {
         let mut pending = VecDeque::new();
         let mut seen = BTreeSet::new();
         for (path, name) in &packages {
-            if under(path, &[owner]) {
+            if under(path, owners) {
                 pending.push_back((path.as_str(), name.to_string()));
                 seen.insert(path.as_str());
             }
         }
         if pending.is_empty() {
-            return Err(format!("compiler boundary has no package: {owner}"));
+            return Err(format!("compiler boundary has no package under {}", owners.join(", ")));
         }
         while let Some((path, chain)) = pending.pop_front() {
             for next in edges.get(path).into_iter().flatten() {
@@ -595,11 +611,11 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
                 let chain = format!("{chain} -> {next_name}");
                 // Native admission reads the published record. Keep walking its dependencies
                 // so a record cannot hide a call back into the source compiler.
-                let reads_publication = owner == NATIVE
+                let reads_publication = owners == [NATIVE]
                     && path == NATIVE_PROVIDER_DEMAND
                     && next == SOURCE_PROVIDER_PUBLICATION;
                 if (under(next, forbidden) && !reads_publication)
-                    || (owner == FORMAT && next == PRODUCT_COORDINATOR)
+                    || forbidden_packages.contains(&next.as_str())
                 {
                     violations.push(format!("forbidden compiler dependency: {chain} ({next})"));
                 } else {
@@ -1970,26 +1986,64 @@ mod tests {
 
     #[test]
     fn psi_record_readers_do_not_reach_project_build_or_the_compiler_facade() {
-        let psi = "source-rust/subsystems/compiler/psi";
         let build = "source-rust/subsystems/compiler/build/evaluation/receipts";
-        let metadata = Metadata {
+        let native = native_stages::DRIVER;
+        let codec = format!("{PSI_ARTIFACT}/codec");
+        let providers = format!("{PSI_EXECUTION_INPUTS}/providers");
+        let predicates = format!("{PSI_SEMANTICS}/closed-predicates");
+        let helper = "shared/helper";
+        for owner in [codec.as_str(), providers.as_str(), predicates.as_str(), NUMERICS] {
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![
+                    pkg("psi", PSI_RECORDS, &[]),
+                    pkg("reader", owner, &[
+                        ("helper", helper, None),
+                        ("native", native, Some("dev")),
+                    ]),
+                    pkg("helper", helper, &[
+                        ("facade", PRODUCT_COORDINATOR, None),
+                        ("receipts", build, Some("build")),
+                        ("source", SOURCE_COMPILER, None),
+                    ]),
+                    pkg("facade", PRODUCT_COORDINATOR, &[]),
+                    pkg("receipts", build, &[]),
+                    pkg("source", SOURCE_COMPILER, &[]),
+                    pkg("native", native, &[]),
+                ],
+            };
+            let violations = pipeline_dependency_violations(&metadata).unwrap();
+            for chain in ["reader -> helper -> facade", "reader -> helper -> receipts",
+                          "reader -> helper -> source", "reader -> native: a source or Psi test"] {
+                assert!(violations.iter().any(|row| row.contains(chain)), "{owner}: {violations:?}");
+            }
+            assert_eq!(violations.len(), 4, "{owner}: {violations:?}");
+        }
+    }
+
+    #[test]
+    fn artifact_and_execution_read_psi_records_in_one_direction() {
+        let codec = format!("{PSI_ARTIFACT}/codec");
+        let entry = format!("{PSI_EXECUTION_INPUTS}/entry-memory");
+        let mut metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
-                pkg("psi", psi, &[]),
-                pkg("codec", &format!("{psi}/codec"), &[("psi", psi, None)]),
-                pkg("authorized", &format!("{psi}/authorization"), &[("codec", &format!("{psi}/codec"), None)]),
-                pkg("providers", &format!("{psi}/providers"), &[("helper", "shared/helper", None)]),
-                pkg("helper", "shared/helper", &[("facade", PRODUCT_COORDINATOR, None), ("receipts", build, Some("build"))]),
-                pkg("facade", PRODUCT_COORDINATOR, &[]),
-                pkg("receipts", build, &[]),
+                pkg("psi", PSI_RECORDS, &[]),
+                pkg("codec", &codec, &[("psi", PSI_RECORDS, None)]),
+                pkg("entry-memory", &entry, &[("psi", PSI_RECORDS, None)]),
                 pkg("source", SOURCE_COMPILER, &[]),
                 pkg("native", native_stages::DRIVER, &[]),
+                pkg("helper", "shared/helper", &[("codec", &codec, None)]),
             ],
         };
+        assert!(pipeline_dependency_violations(&metadata).unwrap().is_empty());
+        metadata.packages[0] = pkg("psi", PSI_RECORDS, &[
+            ("helper", "shared/helper", None), ("entry-memory", &entry, Some("dev")),
+        ]);
         let violations = pipeline_dependency_violations(&metadata).unwrap();
         assert_eq!(violations.len(), 2, "{violations:?}");
-        assert!(violations.iter().any(|row| row.contains("providers -> helper -> facade")));
-        assert!(violations.iter().any(|row| row.contains("providers -> helper -> receipts")));
+        assert!(violations.iter().any(|row| row.contains("psi -> helper -> codec")));
+        assert!(violations.iter().any(|row| row.contains("psi -> entry-memory")));
     }
 
     #[test]
