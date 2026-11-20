@@ -46,6 +46,9 @@ The frozen 4,107,257-byte Omega signature-checking program
 during grammar at byte 3,132,226. With the construction provision the compiler
 published 5,819,889 bytes of Gamma (SHA-256
 `5bfd4417a851ca411730364a88935511494847cd8a80392e110ec895273a1e11`).
+The reconstructed Gamma interpreter ran that receipt. Its eight-byte
+observation, `002a000000010200`, matched both direct Delta execution and
+the Epsilon evaluator, including guest exit 42.
 [Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)
 
 To exercise the last complete parser frame and the next frame in each profile,
