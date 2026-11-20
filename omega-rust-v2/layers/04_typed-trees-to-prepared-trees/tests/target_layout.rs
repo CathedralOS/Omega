@@ -364,3 +364,88 @@ fn a_specialized_initializer_closes_the_call_before_entering_the_layout_helper()
     );
     assert_eq!(prepared.target_observations().len(), 2);
 }
+
+#[test]
+fn a_typed_layout_query_requires_one_closed_subject() {
+    use omega_preparation::{PreparationReason, PreparedValue, prepare_typing_pass_with_cause};
+    use omega_typed::TypedTrees;
+    use omega_typer::TypingProgress;
+
+    let code = r"use omega\language\core;
+const ANSWER:u64 = core\size_of::<u16>();
+machine probe<T>()->u64 { core\size_of::<T>() }";
+    let occurrence = r"core\size_of::<u16>()";
+    let start = code.find(occurrence).unwrap();
+    let source = resolve(code);
+    let target = identity("selected");
+    let capsule = TargetSemantics::new(target.clone(), [layout(&target, WORD, LayoutExtent::Fixed(2), Some(2))], []).unwrap();
+
+    for expected in [
+        None,
+        Some((
+            PreparationReason::NotOneLayoutQuery,
+            "static evaluation cannot admit this invocation: the request does not select one core layout query",
+        )),
+        Some((
+            PreparationReason::LayoutQueryNeedsClosedType,
+            "static evaluation cannot admit this invocation: the layout query needs a closed type application",
+        )),
+    ] {
+        let TypingProgress::Complete(trees) = type_source_package_for_preparation(&source, &TypingEnvironment::default()).unwrap() else {
+            panic!("expected complete typing");
+        };
+        let [constant] = trees.constants.as_slice() else {
+            panic!("expected one constant");
+        };
+        let answer = constant.declaration.clone();
+        let root = constant.initializer.node;
+        let resolved = trees.resolved().clone();
+        let mut facts = trees.into_facts();
+        let donor = facts
+            .calls
+            .iter()
+            .find(|call| call.node != root && call.layout_query == Some(LayoutQuery::Size))
+            .expect("typed query in probe");
+        let [open] = donor.type_arguments.as_slice() else {
+            panic!("expected one donor subject");
+        };
+        assert!(open.contains_parameter());
+        let open = open.clone();
+
+        let mut calls = facts.calls.iter_mut().filter(|call| call.node == root);
+        let call = calls.next().unwrap();
+        assert!(calls.next().is_none());
+        assert_eq!(call.layout_query, Some(LayoutQuery::Size));
+        assert_eq!(call.type_arguments, [WORD]);
+        match expected {
+            None => {}
+            Some((PreparationReason::NotOneLayoutQuery, _)) => call.type_arguments.clear(),
+            Some(_) => call.type_arguments[0] = open,
+        }
+
+        // Library obligations retain node IDs in the library forest.
+        let first_local = facts
+            .obligations
+            .iter()
+            .position(|obligation| obligation.site.package == "app")
+            .unwrap_or(facts.obligations.len());
+        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+        let result = prepare_typing_pass_with_cause(&progress, &[], Some(&capsule), CheckedPreparationEvidence::default());
+        if let Some((reason, message)) = expected {
+            let Err(error) = result else { panic!("expected preparation refusal") };
+            spec_corpus::assert_preparation_cause!(
+                error,
+                RefusalCause::Preparation(reason),
+                "app",
+                "main.omg",
+                (start, start + occurrence.len()),
+                message,
+            );
+        } else {
+            let PreparationAnswers::Frozen { constants, .. } = result.unwrap().answers else {
+                panic!("expected frozen constants");
+            };
+            assert_eq!(constants[&answer], PreparedValue::Integer(2.into()));
+        }
+    }
+}

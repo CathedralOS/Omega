@@ -151,7 +151,7 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
 
     statuses = {}
     for test in report.get("suites", {}).get("L3", {}).get("tests", []):
-        statuses.setdefault((test["target"].replace("\\", "/"), test["test"]), []).append(test["status"])
+        statuses.setdefault((test["target"].replace("\\", "/"), test["test"].removesuffix(" - should panic")), []).append(test["status"])
     invalid = {tuple(key) for key in report.get("invalid_typing_returns", [])}
     goldens = report.get("handoff_observations", {}).get("goldens", {})
     checked_fixtures = {}

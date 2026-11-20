@@ -19,7 +19,7 @@ class TypingSitesTests(unittest.TestCase):
         report = {"suites": {"L3": {"tests": []}}, "measurement_errors": []}
         for test, line, col, phase, status in [("domain", 3, 5, "refused", "ok"), ("case", 3, 35, "refused", "ok"),
                                                ("pending", 4, 5, "pending", "ok"), ("fails", 3, 5, "refused", "FAILED")]:
-            report["suites"]["L3"]["tests"].append({"test": test, "target": "tests/x.rs", "status": status})
+            report["suites"]["L3"]["tests"].append({"test": test + " - should panic" if test in ("case", "fails") else test, "target": "tests/x.rs", "status": status})
             record_return(report, "L3", "tests/x.rs", ("tests/x.rs", test),
                           f"OMEGA_TYPING_RETURN\t\t{SOURCE}/a.rs\t{line}\t{col}\t{phase}\tapp\tf.omg\t0\t1\t3\tbad")
         attach_witnesses(inventory, report)

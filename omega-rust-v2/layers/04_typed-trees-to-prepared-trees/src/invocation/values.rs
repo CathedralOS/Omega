@@ -17,7 +17,7 @@ impl ConstantEvaluation<'_, '_> {
             return Ok(false);
         }
         if root.file != file.node_id(node).file || checked_carrier_in_scope(tree, node, scope)? != *carrier {
-            return Err(PreparationReason::OwnedFieldMismatch.into());
+            return Err(EvaluationError::from(PreparationReason::OwnedFieldMismatch).at_node(file.node_id(node)));
         }
         let mut fields = Vec::with_capacity(path.len());
         let mut expression = node;
@@ -32,9 +32,9 @@ impl ConstantEvaluation<'_, '_> {
                     _ => true,
                 })
             {
-                return Err(PreparationReason::FieldReadNeedsProof.into());
+                return Err(EvaluationError::from(PreparationReason::FieldReadNeedsProof).at_node(file.node_id(expression)));
             }
-            fields.push(field.as_ref().clone());
+            fields.push((file.node_id(expression), field.as_ref().clone()));
             expression = step.base.node;
         }
         if fields.is_empty() {
@@ -42,7 +42,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         fields.reverse();
         let root = file.node_id(expression);
-        let root_carrier = checked_carrier_in_scope(tree, root.node, scope).map_err(|_| PreparationReason::OwnedFieldWithoutRootType)?;
+        let root_carrier = checked_carrier_in_scope(tree, root.node, scope).map_err(|_| EvaluationError::from(PreparationReason::OwnedFieldWithoutRootType).at_node(file.node_id(node)))?;
         execution.steps.extend([
             Step::ProjectFields(fields),
             Step::Evaluate(root, root_carrier, scope.clone()),
@@ -52,19 +52,19 @@ impl ConstantEvaluation<'_, '_> {
 
     pub(super) fn project_owned_fields(
         &self,
-        projections: &[DeclarationId],
+        projections: &[(TreeNodeId, DeclarationId)],
         execution: &mut Execution<'_>,
     ) -> Result<(), EvaluationError> {
         let root = execution.values.pop().ok_or(UNSUPPORTED_BODY)?;
         let mut current = &root;
-        for field in projections {
+        for (site, field) in projections {
             let (shape, fields) = match current {
                 PreparedValue::Record { owner, fields } => (owner, fields),
                 PreparedValue::Sum { case, fields, .. } => (case, fields),
                 _ => return Err(UNSUPPORTED_BODY.into()),
             };
-            let index = self.owned_field_position(shape, field)?;
-            current = fields.get(index).ok_or(UNSUPPORTED_BODY)?;
+            let index = self.owned_field_position(shape, field).map_err(|error| error.at_node(*site))?;
+            current = fields.get(index).ok_or_else(|| EvaluationError::from(PreparationReason::FieldNotInActiveValue).at_node(*site))?;
         }
         execution.values.push(current.clone());
         Ok(())
