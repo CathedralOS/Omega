@@ -311,7 +311,7 @@ def omega_control_customer(work, timeout):
     digits = (stage / "digits.omg").read_bytes()
     declarations = []
     for unit, name in ((lexer, b"is_identifier_start"), (lexer, b"is_identifier_continue"),
-                       (digits, b"lexer_digit_in_base")):
+                       (digits, b"lexer_digit_in_base"), (digits, b"lexer_digit_value")):
         start = unit.index(b"machine " + name + b"(")
         end = unit.index(b"\n}", start) + 2
         declarations.append(unit[start:end])
@@ -424,6 +424,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, 42, 43, 44, 45),
         (42, -4, 42, 42),
         (42, 42, 42, 42, 42, 42, -4, 42),
+        (42, 42, 42),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
@@ -456,7 +457,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         assert offset == len(observation), "unexpected publication after the final artifact"
         print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
     if batch is None:
-        print("Omega UTF-8: fifty-three executables, 28 decoder boundaries, six arithmetic traps, three explicit traps, seventy-three refusal/reset checks passed in twelve fresh processes", flush=True)
+        print("Omega UTF-8: fifty-six executables, 28 decoder boundaries, six arithmetic traps, three explicit traps, eighty-three refusal/reset checks passed in thirteen fresh processes", flush=True)
 
 
 def reconstruct(work, *, seconds=None):

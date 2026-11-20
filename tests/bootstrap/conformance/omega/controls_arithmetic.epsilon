@@ -37,6 +37,7 @@ machine Main::main(&mut self) {
             9 -> batch_9()
             10 -> batch_10()
             11 -> batch_11()
+            12 -> batch_12()
             _ -> self.console.exit_process(99)
         }
     }
@@ -249,6 +250,22 @@ machine Main::main(&mut self) {
         self.positive("machine main()->u8 crashes none {transition{_->route(42)} machine route(n:u8)->u8 crashes none {n}}",42,215);
     }
 
+    state batch_12() {
+        // Modular results retain their domain. Each operand runs once, left to right.
+        self.positive("machine word(n:u64)->u64 in Wrapping crashes none {n as +Wrapping} machine main()->u8 {let zero:u64 in Wrapping=word(0);let max:u64 in Wrapping=zero-1;let plain:u64=max as -Wrapping;transition plain > 4294967295 && max+1==zero && max*max==1 && 0-max==1 {true->pass(),_->miss()} machine pass()->u8{42} machine miss()->u8{7}}",42,220);
+        self.positive("data Cell [copy] {n:u64 in Wrapping;} machine next(c:@mut Cell)->u64 in Wrapping {let old:u64 in Wrapping=c.n;c.n=old+1;old} machine main()->u8 {let mut c:Cell;c.n=4 as +Wrapping;let answer:u64 in Wrapping=next(@mut c)-next(@mut c);transition answer+1==0 && c.n==6 {true->pass(),_->miss()} machine pass()->u8 {42} machine miss()->u8 {7}}",42,221);
+        self.refusal("machine word(n:u64)->u64 in Wrapping crashes none {n as +Wrapping} machine mix(a:u64 in Wrapping,b:u64 in Trapping)->u64 in Wrapping{a-b} machine main()->u8 {42}",1,222);
+        self.refusal("machine mix(a:u64 in Wrapping,b:u64 in Trapping)->bool{a==b} machine main()->u8 {42}",1,223);
+        self.refusal("machine mix(a:u64 in Wrapping)->u64 {a as -Trapping} machine main()->u8 {42}",1,224);
+        self.refusal("machine mix(a:u64)->u64 in Wrapping {a as +Trapping} machine main()->u8 {42}",1,225);
+        self.refusal("machine mix(a:u64)->u64 in Wrapping {a} machine main()->u8 {42}",1,226);
+        self.refusal("machine mix(a:u64 in Wrapping,b:u32)->u64 in Wrapping{b+a} machine main()->u8 {42}",1,227);
+        self.refusal("machine mix(a:u32 in Wrapping)->u32 in Wrapping {a} machine main()->u8 {42}",2,228);
+        self.refusal("machine mix(a:u64 in Saturating)->u64 in Saturating {a} machine main()->u8 {42}",2,229);
+        self.refusal("machine risky()->u64 in Wrapping crashes Trap {0 as +Wrapping} machine sum(x:u64 in Wrapping)->u64 in Wrapping crashes none {x+risky()} machine main()->u8{42}",2,231);
+        self.refusal("data Wrapping [copy] {n:u8;} machine main()->u8 {42}",2,232);
+        self.positive("machine word(n:u64)->u64 in Wrapping crashes none {n as +Wrapping} machine main()->u8 {let one:u64 in Wrapping=word(1);let three:u64=3;transition three-one==2 && one+three==4 {true->pass(),_->miss()} machine pass()->u8{42} machine miss()->u8{7}}",42,230);
+    }
 }
 machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
     self.compiler.compile(source, "main");

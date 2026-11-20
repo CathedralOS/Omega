@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,368 lines / 874,168 bytes with SHA-256
-`4270e6d761b2dc9895c8a8ebcb120567d440ffcf8aec73b81d8242223976f74f`.
+manifest materializes 23,384 lines / 875,411 bytes with SHA-256
+`407c59807e63abc5e28b5ea5748753bcc1fcdcaf4f474b6949eb380a7e0c2a00`.
 The manifest itself is 1,698 bytes, SHA-256
-`f686da661aaed6fb43309cee770910aeff43de4f4c9d005aebf23d41c25af9ac`;
+`446bee61e15836cda23f583d1ed1a257dc5ba42ac035aeeab3dd97fa65cf1c2f`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -116,7 +116,8 @@ nonzero. The implementation remains under construction; Epsilon source
 acceptance alone does not establish compilation of the Omega compiler closure.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records, copy sums with supported payloads,
+machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`,
+`u64 in Trapping`, `u64 in Wrapping`, copy records, copy sums with supported payloads,
 and Unit results. Omitted results independently mean Unit; a nested declaration
 never inherits its enclosing machine's result. Initialized and zero-established
 locals retain their declared types, and mutable bindings permit checked stores.
@@ -199,14 +200,17 @@ word addition is then exact; unproved plain arithmetic remains unsupported.
 Qualified `u32 in Trapping` supports addition, subtraction and multiplication;
 qualified `u64 in Trapping` supports addition and subtraction. Each selected
 core operator checks overflow or underflow and realizes an abnormal Alpha Trap.
-The qualified operand selects the family; a same-carrier plain peer is allowed,
-and a receiving annotation never inserts qualification. `u64` multiplication
+Qualified `u64 in Wrapping` supports addition, subtraction and multiplication
+modulo 2^64. These operations introduce no crash effect and retain the policy
+on the result. The qualified operand selects the family; a same-carrier plain peer is allowed,
+and a receiving annotation never inserts qualification. Trapping `u64` multiplication
 and the remaining runtime operators decline explicitly. Named checked-value
 variants retain the selected realization; operands evaluate once, left to right,
 with private scratch preserving a captured left value across a right-hand call. Comparisons retain carrier/policy identity rather
 than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
-`as -Trapping` express the supported domain changes. Core comparisons admit a
+`as -Trapping`, or `as +Wrapping` and `as -Wrapping` on `u64`, express the
+supported domain changes. Core comparisons admit a
 plain peer of the same carrier, as specified by the policy-domain operator
 family; that does not qualify the peer. Carrier casts accept plain `u8`, `u32` and `u64` identity,
 anonymous landing within the supported literal range, and exact widening

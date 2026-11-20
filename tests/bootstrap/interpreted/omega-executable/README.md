@@ -70,13 +70,15 @@ short-circuit Boolean control preserve those types. All bodies and arms are
 checked before emission; reentrant ordinary-call graphs and unsupported
 facilities refuse without publishing a partial tape. Copy records, zero-established
 affine locals, projected field writes, Unit completion and scoped record-reference
-parameters now support the actual SourceUnit clear helper. Runtime numeric arithmetic beyond proved unsigned addition and checked Trapping `u32` add/subtract/multiply or `u64` add/subtract, richer domains
-and machine clauses beyond explicit entry requirements remain outside this slice. The compiler README specifies the precise storage and loan boundaries.
+parameters now support the actual SourceUnit clear helper. Arithmetic includes proved
+unsigned operations, checked Trapping `u32` add/subtract/multiply and `u64`
+add/subtract, and Wrapping `u64` add/subtract/multiply. The compiler README specifies the precise storage and loan boundaries.
 
 The source-built compiled peer also exposes `--omega-control`. It takes exact
-identifier-predicate declarations from the real lexer source and appends
+identifier and numeric digit declarations from the real lexer source and appends
 [lexer_controls.omg](../../conformance/omega/lexer_controls.omg), which exercises ASCII interval edges
-and high `u32` inputs. [controls_control.epsilon](../../conformance/omega/controls_control.epsilon)
+and high `u32` inputs, every byte against four numeric bases, and digit values
+at both ends of the decimal, uppercase and lowercase ranges. [controls_control.epsilon](../../conformance/omega/controls_control.epsilon)
 compiles that input plus generic parallel-transfer, comparison, short-circuit,
 and refusal/reset controls. The harness executes every emitted artifact through
 the Alpha seed. The compiler has no special case for this customer.
@@ -230,7 +232,9 @@ valid/invalid UTF-8 boundaries and an absent large index. The companion
 [controls_arithmetic.epsilon](../../conformance/omega/controls_arithmetic.epsilon) checks arithmetic
 limits, six abnormal overflow/underflow traps, left-value capture across a
 mutating right operand, short-circuit suppression, reference forwarding and
-seventy-four refusal/reset checks. The nested crash controls cover declared
+refusal recovery. Wrapping controls exercise all 64 bits, preserve the left
+value across a mutating right call, and reject mixed-policy operands and
+implicit qualification changes. The nested crash controls cover declared
 and inferred routes, disconnected helpers, cyclic transfers, contract order
 and refusal recovery. The terminal-call cases exercise precedence,
 grouping, nested calls, left-to-right argument evaluation, skipped and selected
@@ -244,7 +248,7 @@ The carrier-cast batches compare the combined and parenthesized domain additions
 execute a mutating operand once, and trap on overflow after preserving a full
 unsigned 64-bit value.
 
-Eleven fresh evaluator processes bound cumulative allocation. The first receives
+Each batch uses a fresh evaluator process to bound cumulative allocation. The first receives
 the full decoder source. Each refusal batch reuses one compiler instance and
-ends with a successful compilation. The host stamps and runs all forty-five
-published tapes, distinguishing Linux SIGILL from a normal process exit.
+ends with a successful compilation. The host stamps and runs every
+published tape, distinguishing Linux SIGILL from a normal process exit.
