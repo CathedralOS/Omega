@@ -150,6 +150,11 @@ machine Main::main(&mut self) {
         self.refusal("data C{x:u8;} machine pair(a:@mut C,b:@C){} machine main()->u8{let mut c:C;pair(@mut c,@c);42}", 1, 101);
         self.refusal("data C{x:u8;} data P{c:C;} machine pair(a:@P,b:@mut C){} machine main()->u8{let mut p:P;pair(@p,@mut p.c);42}", 1, 102);
         self.refusal("data C{x:u8;} machine outer(a:@mut C,b:@mut C){transition{_->pair(a,a)} machine pair(x:@mut C,y:@mut C){}} machine main()->u8{42}", 1, 103);
+        // A call headed by a scalar binding cannot jump to the hidden helper.
+        self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{transition{_->label()}} machine label()->u8{7}}", 1, 104);
+        self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{label();42} machine label(){}}", 1, 105);
+        self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{let value:u8=label();value} machine label()->u8{7}}", 1, 106);
+        self.refusal("machine main()->u8{transition{_->run(42)} machine run(label:u8)->u8{let label:u8=7;label} machine label()->u8{7}}", 1, 107);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }
