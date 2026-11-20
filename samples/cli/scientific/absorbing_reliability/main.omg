@@ -31,8 +31,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine setup(main: @mut Main) {
-        main.variant = (main.input[0] as u64 in Wrapping) - 48;
-        main.horizon = (main.input[1] as u64 in Wrapping) - 48;
+        main.variant = (main.input[0] as u64 +Wrapping) - 48;
+        main.horizon = (main.input[1] as u64 +Wrapping) - 48;
         domain\process\initialize(@mut main.process, main.variant);
         main.step = 0;
         Console::write_line("step healthy degraded failed survival denominator");

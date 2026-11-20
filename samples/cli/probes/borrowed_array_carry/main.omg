@@ -24,7 +24,7 @@ machine write_bytes(out: @mut [u8; 17], value: u8, width: u64) -> u64 {
     machine write_digit(out: @mut [u8; 17], value: u8, width: u64, position: u64) -> u64 {
         out[position] = value;
         transition {
-            _ -> fill(out, value, width, ((position as u64 in Wrapping) + 1) as u64)
+            _ -> fill(out, value, width, ((position as +Wrapping) + 1) as u64)
         }
     }
 }

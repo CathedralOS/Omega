@@ -174,39 +174,26 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
             Identifier::generated(target_label_text),
         );
     input = rest;
-    let mut domain = ArithmeticDomain::Exact;
     let mut semantic_domain = arena::HandleSpan::empty();
     let mut semantic_domain_arguments = arena::HandleSpan::empty();
     if input.at_contextual("in") {
+        if !form.is_recast() {
+            return Err(input.error_here(
+                "the value cast `as T in D` is retired. Add a domain with `as +D`, or use `as T +D` when changing carrier",
+            ));
+        }
         let after_in = input.take_contextual("in")?;
         let (domain_name, rest) = crate::types::references::parse_static_name(after_in)?;
-        match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
-            Some(_) if form.is_recast() => {
-                return Err(input.error_here(
-                        "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
-                    ));
-            }
-            Some(parsed) => domain = parsed,
-            None => {
-                syntax_trees
-                    .expressions
-                    .append_identifier_path_member_to_span(
-                        &mut semantic_domain,
-                        domain_name.clone(),
-                    );
-                let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
-                semantic_domain_arguments = arguments;
-                input = rest;
-            }
+        if ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)).is_some() {
+            return Err(input.error_here(
+                "a recast re-views a place's bytes and takes no arithmetic domain",
+            ));
         }
-        if semantic_domain.is_empty() {
-            if rest.at_punctuation(PunctuationKind::Less) {
-                return Err(
-                    rest.error_here("compiler arithmetic domains do not take index arguments")
-                );
-            }
-            input = rest;
-        }
+        syntax_trees.expressions.append_identifier_path_member_to_span(
+            &mut semantic_domain,
+            domain_name,
+        );
+        (semantic_domain_arguments, input) = parse_domain_argument_handles(syntax_trees, rest)?;
     }
     expression = syntax_trees
         .expressions
@@ -214,7 +201,7 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
             value: expression,
             target_type,
             target_label,
-            domain,
+            domain: ArithmeticDomain::Exact,
             semantic_domain,
             semantic_domain_arguments,
             form,
@@ -227,11 +214,6 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
             return Err(
                 input.error_here("a recast re-views a place's bytes and takes no domain entries")
             );
-        }
-        if domain != ArithmeticDomain::Exact || !semantic_domain.is_empty() {
-            return Err(input.error_here(
-                        "a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both",
-                    ));
         }
         (expression, input) = parse_cast_entries(syntax_trees, expression, input, true)?;
     }

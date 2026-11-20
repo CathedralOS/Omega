@@ -53,7 +53,7 @@ machine walk_descriptors(main: @mut Main) reaches ProcessExit + Console crashes 
     }
     machine tally(main: @mut Main, off: u32, pages: u64) requires off <= 32 reaches ProcessExit + Console crashes Trap {
         let counted: u32 in Wrapping =
-            narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
+            narrow_u64_to_u32_wrapping(pages) as u32 +Wrapping;
         main.total = main.total + counted;
         transition { _ -> step(main, off) }
     }

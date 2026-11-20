@@ -10,7 +10,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> calculate(context, 0),
-        ByteRead::Byte { value } -> calculate(context, value as u64 in Wrapping)
+        ByteRead::Byte { value } -> calculate(context, value as u64 +Wrapping)
     }
     machine calculate(context: @mut Main, value: u64 in Wrapping) {
         let probability: Fraction = Fraction { numerator: value, denominator: 252 };

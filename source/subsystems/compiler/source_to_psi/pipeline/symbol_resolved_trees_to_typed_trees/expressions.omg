@@ -241,7 +241,7 @@ crashes Trap
         let handle: u64 in Trapping = typer_intern(typer, reference_row, expression.source_span);
         set_expression_type(@mut typer.output, index, handle);
         let length: u64 in Trapping = quoted_length(sources, expression.source_span);
-        typing_set_value(@mut typer.output, index, exact_integer_of(length as u64 in Wrapping));
+        typing_set_value(@mut typer.output, index, exact_integer_of(length as u64 +Wrapping));
         let roster: u64 in Trapping = quoted_roster(sources, expression.source_span);
         set_roster(@mut typer.output, index, roster);
     }

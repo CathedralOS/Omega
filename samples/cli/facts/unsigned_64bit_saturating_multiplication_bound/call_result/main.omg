@@ -7,8 +7,8 @@ machine compute_sat_prod(l: u64, r: u64) -> u64
     requires r >= 5u64 && r <= 10u64
     ensures result >= 50u64 && result <= 200u64
 {
-    let a: u64 in Saturating = l as u64 in Saturating;
-    let b: u64 in Saturating = r as u64 in Saturating;
+    let a: u64 in Saturating = l as +Saturating;
+    let b: u64 in Saturating = r as +Saturating;
     let p_sat: u64 in Saturating = a * b;
     p_sat as u64
 }

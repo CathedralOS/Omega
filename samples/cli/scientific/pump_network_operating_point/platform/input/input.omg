@@ -63,7 +63,7 @@ crashes Trap
     }
     machine accumulate(input: @mut Input, value: i32) {
         input.digits = input.digits + 1;
-        input.magnitude = input.magnitude * 10 + (value as i64 in Wrapping) - 48;
+        input.magnitude = input.magnitude * 10 + (value as i64 +Wrapping) - 48;
         input.active = true;
         input.digit_seen = true;
         transition { _ -> next(input) }

@@ -261,8 +261,8 @@ use omega\language\core\narrow_i64_to_u64_wrapping;
 data Time [copy] { seconds: i64; }
 machine difference(time: @Time, earlier: Time) -> u64 in Wrapping {
     let seconds: u64 in Wrapping =
-        (narrow_i64_to_u64_wrapping(time.seconds) as u64 in Wrapping)
-        - (narrow_i64_to_u64_wrapping(earlier.seconds) as u64 in Wrapping);
+        (narrow_i64_to_u64_wrapping(time.seconds) as +Wrapping)
+        - (narrow_i64_to_u64_wrapping(earlier.seconds) as +Wrapping);
     seconds
 }
 "#,

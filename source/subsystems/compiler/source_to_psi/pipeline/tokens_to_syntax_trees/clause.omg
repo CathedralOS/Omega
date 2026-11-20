@@ -1118,7 +1118,7 @@ crashes Trap
     }
 
     machine stage(parser: @mut Parser, subject: u64 in Trapping) {
-        parser.ranked_subjects[parser.ranked_subject_count] = subject as u64 in Trapping;
+        parser.ranked_subjects[parser.ranked_subject_count] = subject;
         parser.ranked_subject_count = parser.ranked_subject_count + 1;
     }
 

@@ -55,7 +55,7 @@ crashes Trap
         }
     }
     machine accumulate(protocol: @mut Protocol, value: i32) -> bool {
-        let digit: i32 in Wrapping = value as i32 in Wrapping;
+        let digit: i32 in Wrapping = value as i32 +Wrapping;
         protocol.accumulator = protocol.accumulator * 10 + digit - 48;
         protocol.started = true;
         protocol.digits = true;
@@ -235,7 +235,7 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0
     {
         let mantissa: i32 = I32::from_f64(scaled);
-        integer(protocol, mantissa as i32 in Wrapping);
+        integer(protocol, mantissa as +Wrapping);
         Console::write("e");
         integer(protocol, exponent - 8);
     }

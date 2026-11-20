@@ -53,7 +53,7 @@ reaches Console {
         }
     }
     machine emit_pixel(image: @Image, position: i32 in Wrapping) {
-        let label: i32 in Wrapping = image.labels[position] as i32 in Wrapping;
+        let label: i32 in Wrapping = image.labels[position] as i32 +Wrapping;
         number(label);
         transition (position + 1) % image.width == 0 {
             true -> newline(image, position),

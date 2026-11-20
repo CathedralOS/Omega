@@ -11,7 +11,7 @@ machine roll_event(
     random: @mut RandomState,
     event: @mut RoomEvent
 ) {
-    let roll: u32 in Wrapping = range(@mut room_events.rng, random, 100) as u32 in Wrapping;
+    let roll: u32 in Wrapping = range(@mut room_events.rng, random, 100) as u32 +Wrapping;
     apply_event(room_events, depth, random, event, roll);
 
 }

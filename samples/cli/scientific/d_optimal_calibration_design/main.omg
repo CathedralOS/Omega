@@ -92,7 +92,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition digits < 2 { true -> append(main, value, sign, digits, character), _ -> invalid(main) }
     }
     machine append(main: @mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, digits: i64 in Wrapping, character: i32) {
-        transition { _ -> block read(main, value*10+(character as i64 in Wrapping)-48, sign, 1, digits+1) }
+        transition { _ -> block read(main, value*10+(character as i64 +Wrapping)-48, sign, 1, digits+1) }
     }
     machine separator(main: @mut Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
                     digits: i64 in Wrapping, character: i32) {

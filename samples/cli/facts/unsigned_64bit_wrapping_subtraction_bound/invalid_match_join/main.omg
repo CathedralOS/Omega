@@ -5,8 +5,8 @@
 machine choose_wrapping(flag: bool, lhs: u64, rhs: u64) -> u64
 requires lhs >= 80u64 && lhs <= 121u64 && rhs >= 20u64 && rhs <= 40u64
 {
-    let w_lhs: u64 in Wrapping = lhs as u64 in Wrapping;
-    let w_rhs: u64 in Wrapping = rhs as u64 in Wrapping;
+    let w_lhs: u64 in Wrapping = lhs as +Wrapping;
+    let w_rhs: u64 in Wrapping = rhs as +Wrapping;
     let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
     let diff: u64 = diff_wrap as u64;
     match flag {

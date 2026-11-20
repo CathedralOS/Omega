@@ -19,9 +19,9 @@ data Main { items: [i32; 3]; filter: Filter; }
 
 machine tally(buf: @mut [i32; 3], filter: @Filter) -> i32 in Wrapping {
     buf[2] = filter.keep;
-    let a: i32 in Wrapping = buf[0] as i32 in Wrapping;
-    let b: i32 in Wrapping = buf[1] as i32 in Wrapping;
-    let c: i32 in Wrapping = buf[2] as i32 in Wrapping;
+    let a: i32 in Wrapping = buf[0] as i32 +Wrapping;
+    let b: i32 in Wrapping = buf[1] as i32 +Wrapping;
+    let c: i32 in Wrapping = buf[2] as i32 +Wrapping;
     a + b + c
 }
 

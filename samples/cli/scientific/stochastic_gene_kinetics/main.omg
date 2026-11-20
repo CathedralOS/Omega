@@ -134,10 +134,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine collect(main: @mut Main) {
-        let sum_x_next: u64 in Saturating = (main.sum_x as u64 in Saturating) + (main.model.x as u64 in Saturating); main.sum_x = sum_x_next as u64;
-        let sum_x2_next: u64 in Saturating = (main.sum_x2 as u64 in Saturating) + (main.model.x as u64 in Saturating) * (main.model.x as u64 in Saturating); main.sum_x2 = sum_x2_next as u64;
-        let sum_y_next: u64 in Saturating = (main.sum_y as u64 in Saturating) + (main.model.y as u64 in Saturating); main.sum_y = sum_y_next as u64;
-        let sum_y2_next: u64 in Saturating = (main.sum_y2 as u64 in Saturating) + (main.model.y as u64 in Saturating) * (main.model.y as u64 in Saturating); main.sum_y2 = sum_y2_next as u64;
+        let sum_x_next: u64 in Saturating = (main.sum_x as u64 +Saturating) + (main.model.x as u64 +Saturating); main.sum_x = sum_x_next as u64;
+        let sum_x2_next: u64 in Saturating = (main.sum_x2 as u64 +Saturating) + (main.model.x as u64 +Saturating) * (main.model.x as u64 +Saturating); main.sum_x2 = sum_x2_next as u64;
+        let sum_y_next: u64 in Saturating = (main.sum_y as u64 +Saturating) + (main.model.y as u64 +Saturating); main.sum_y = sum_y_next as u64;
+        let sum_y2_next: u64 in Saturating = (main.sum_y2 as u64 +Saturating) + (main.model.y as u64 +Saturating) * (main.model.y as u64 +Saturating); main.sum_y2 = sum_y2_next as u64;
         transition main.model.x {
             0 -> bucket_zero(main),
             1 -> bucket_one(main),
@@ -145,11 +145,11 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             _ -> bucket_three(main)
         }
     }
-    machine bucket_zero(main: @mut Main) { let zero_next: u64 in Saturating = (main.zero as u64 in Saturating) + 1; main.zero = zero_next as u64; transition { _ -> next(main) } }
-    machine bucket_one(main: @mut Main) { let one_next: u64 in Saturating = (main.one as u64 in Saturating) + 1; main.one = one_next as u64; transition { _ -> next(main) } }
-    machine bucket_two(main: @mut Main) { let two_next: u64 in Saturating = (main.two as u64 in Saturating) + 1; main.two = two_next as u64; transition { _ -> next(main) } }
-    machine bucket_three(main: @mut Main) { let three_plus_next: u64 in Saturating = (main.three_plus as u64 in Saturating) + 1; main.three_plus = three_plus_next as u64; transition { _ -> next(main) } }
-    machine next(main: @mut Main) { let replicate_next: u64 in Saturating = (main.replicate as u64 in Saturating) + 1; main.replicate = replicate_next as u64; transition { _ -> replicate(main) } }
+    machine bucket_zero(main: @mut Main) { let zero_next: u64 in Saturating = (main.zero as u64 +Saturating) + 1; main.zero = zero_next as u64; transition { _ -> next(main) } }
+    machine bucket_one(main: @mut Main) { let one_next: u64 in Saturating = (main.one as u64 +Saturating) + 1; main.one = one_next as u64; transition { _ -> next(main) } }
+    machine bucket_two(main: @mut Main) { let two_next: u64 in Saturating = (main.two as u64 +Saturating) + 1; main.two = two_next as u64; transition { _ -> next(main) } }
+    machine bucket_three(main: @mut Main) { let three_plus_next: u64 in Saturating = (main.three_plus as u64 +Saturating) + 1; main.three_plus = three_plus_next as u64; transition { _ -> next(main) } }
+    machine next(main: @mut Main) { let replicate_next: u64 in Saturating = (main.replicate as u64 +Saturating) + 1; main.replicate = replicate_next as u64; transition { _ -> replicate(main) } }
     machine summarize(main: @mut Main) {
         Console::write("ensemble n="); integer(main.replicate);
         Console::write(" seed_end="); integer(main.model.seed);

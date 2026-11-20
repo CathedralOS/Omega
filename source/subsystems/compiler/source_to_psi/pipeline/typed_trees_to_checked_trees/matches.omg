@@ -92,7 +92,7 @@ crashes Trap
     {
         let match_handle: u64 = checker.matches[index];
         let event: u64 = checker.match_events[index];
-        fire_events(checker, syntax, resolution, typing, handle, match_handle as u64 in Trapping, index, event as u64 in Trapping, checking);
+        fire_events(checker, syntax, resolution, typing, handle, match_handle as u64 +Trapping, index, event as u64 +Trapping, checking);
         transition { _ -> next(checker, syntax, resolution, typing, handle, index, checking) }
     }
 

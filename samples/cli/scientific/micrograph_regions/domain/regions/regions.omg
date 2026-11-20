@@ -14,7 +14,7 @@ public machine label_regions(image: @mut Image) -> bool {
         }
     }
     machine candidate(image: @mut Image, position: i32 in Wrapping) -> bool {
-        let intensity: i32 in Wrapping = image.pixels[position] as i32 in Wrapping;
+        let intensity: i32 in Wrapping = image.pixels[position] as i32 +Wrapping;
         let label: i32 = image.labels[position];
         transition intensity >= image.threshold && label == 0 {
             true -> seed(image, position),
@@ -36,7 +36,7 @@ public machine label_regions(image: @mut Image) -> bool {
         }
     }
     machine cell(image: @mut Image, seed: i32 in Wrapping) -> bool {
-        let cell: i32 in Wrapping = image.queue[image.head] as i32 in Wrapping;
+        let cell: i32 in Wrapping = image.queue[image.head] as i32 +Wrapping;
         image.head = image.head + 1;
         transition { _ -> offsets(image, seed, cell, 0) }
     }
@@ -71,7 +71,7 @@ public machine label_regions(image: @mut Image) -> bool {
         }
     }
     machine inspect(image: @mut Image, seed: i32 in Wrapping, cell: i32 in Wrapping, direction: i32 in Wrapping, neighbour: i32 in Wrapping) -> bool {
-        let intensity: i32 in Wrapping = image.pixels[neighbour] as i32 in Wrapping;
+        let intensity: i32 in Wrapping = image.pixels[neighbour] as i32 +Wrapping;
         let label: i32 = image.labels[neighbour];
         transition intensity >= image.threshold && label == 0 {
             true -> capacity(image, seed, cell, direction, neighbour),
@@ -112,7 +112,7 @@ public machine measure(image: @Image, label: i32 in Wrapping, region: @mut Regio
         }
     }
     machine inspect(image: @Image, label: i32 in Wrapping, region: @mut Region, position: i32 in Wrapping) {
-        let found: i32 in Wrapping = image.labels[position] as i32 in Wrapping;
+        let found: i32 in Wrapping = image.labels[position] as i32 +Wrapping;
         transition found == label {
             true -> add(image, label, region, position),
             false -> scan(image, label, region, position + 1)

@@ -36,7 +36,7 @@ crashes Trap
         }
     }
     machine accumulate(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
-        let next: i64 in Wrapping = accumulated * 10 + (byte as i64 in Wrapping) - 48;
+        let next: i64 in Wrapping = accumulated * 10 + (byte as i64 +Wrapping) - 48;
         transition { _ -> scan(next, digits + 1, negative, true) }
     }
     machine finish(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Parsed {

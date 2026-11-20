@@ -44,19 +44,19 @@ machine main() reaches ProcessExit + Console invokes Console blocks crashes Trap
         transition value >= 2 && value <= 32 { true -> block set_particles(reader, distribution, value), _ -> invalid() }
     }
     machine set_particles(reader: @mut InputReader, distribution: @mut Distribution, value: i32) {
-        distribution.particles = value as i32 in Wrapping; transition { _ -> block read(reader, distribution, 2) }
+        distribution.particles = value as +Wrapping; transition { _ -> block read(reader, distribution, 2) }
     }
     machine snapshots(reader: @mut InputReader, distribution: @mut Distribution, value: i32) {
         transition value >= 1 && value <= 8 { true -> block set_snapshots(reader, distribution, value), _ -> invalid() }
     }
     machine set_snapshots(reader: @mut InputReader, distribution: @mut Distribution, value: i32) {
-        distribution.snapshots = value as i32 in Wrapping; transition { _ -> block read(reader, distribution, 3) }
+        distribution.snapshots = value as +Wrapping; transition { _ -> block read(reader, distribution, 3) }
     }
     machine bins(reader: @mut InputReader, distribution: @mut Distribution, value: i32) {
         transition value >= 1 && value <= 16 { true -> block set_bins(reader, distribution, value), _ -> invalid() }
     }
     machine set_bins(reader: @mut InputReader, distribution: @mut Distribution, value: i32) {
-        distribution.bins = value as i32 in Wrapping; transition { _ -> block read(reader, distribution, 4) }
+        distribution.bins = value as +Wrapping; transition { _ -> block read(reader, distribution, 4) }
     }
     machine body(reader: @mut InputReader, distribution: @mut Distribution, position: i32 in Wrapping, value: i32) {
         transition position < 4 + distribution.bins {

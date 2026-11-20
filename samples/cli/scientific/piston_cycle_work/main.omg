@@ -41,7 +41,7 @@ crashes Trap
         }
     }
     machine delimiter(application: @mut Application, value: i32) {
-        let wrapped: i32 in Wrapping = value as i32 in Wrapping;
+        let wrapped: i32 in Wrapping = value as +Wrapping;
         application.selection = (wrapped - 48) as i32;
         let tail: ByteRead = block Console::read_byte();
         transition tail {

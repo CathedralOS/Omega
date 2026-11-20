@@ -22,13 +22,13 @@
 trait ExactInteger {
     machine form(value: f64) -> u8
     requires value == 3.0
-    ensures (value as u8 in Wrapping) == 3u8;
+    ensures (value as u8 +Wrapping) == 3u8;
 }
 
 machine concrete_form(value: f64) -> u8 in Wrapping
 requires value == 3.0
 {
-    value as u8 in Wrapping
+    value as u8 +Wrapping
 }
 
 data Main { hits: i32 in Wrapping; }

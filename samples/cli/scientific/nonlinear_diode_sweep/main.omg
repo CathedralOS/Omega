@@ -54,7 +54,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine configure(main: @mut Main) {
         let start: f64 = main.protocol.fields[0] as f64;
         let stop: f64 = main.protocol.fields[1] as f64;
-        let count: i32 in Wrapping = main.protocol.fields[2] as i32 in Wrapping;
+        let count: i32 in Wrapping = main.protocol.fields[2] as i32 +Wrapping;
         let intervals: i32 = (count - 1) as i32;
         let divisor: f64 = intervals as f64;
         main.source_start = start / 1000.0;
@@ -63,7 +63,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.source_index = 0.0;
         main.position = 0;
         main.points = count;
-        main.budget = main.protocol.fields[8] as i32 in Wrapping;
+        main.budget = main.protocol.fields[8] as i32 +Wrapping;
         main.converged = 0;
         main.failed = 0;
         main.circuit.resistance = main.protocol.fields[3] as f64;

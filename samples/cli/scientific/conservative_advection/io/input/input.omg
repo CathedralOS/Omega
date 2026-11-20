@@ -36,7 +36,7 @@ public machine parse(input:@mut Input) -> bool reaches Console invokes Console b
   transition character >= 48 && character <= 57 { true -> digit(input,bytes,character), false -> symbol(input,bytes,character) }
  }
  machine digit(input:@mut Input,bytes:u32 in Saturating,character:i32) -> bool {
-  let value:u64 in Wrapping=(character as u64 in Wrapping)-48;
+  let value:u64 in Wrapping=(character as u64 +Wrapping)-48;
   input.active=true;
   transition input.exponent_mode { true -> exponent(input,bytes,value), false -> mantissa(input,bytes,value) }
  }
@@ -51,7 +51,7 @@ public machine parse(input:@mut Input) -> bool reaches Console invokes Console b
   transition { _ -> read(input,bytes+1) }
  }
  machine exponent(input:@mut Input,bytes:u32 in Saturating,value:u64 in Wrapping) -> bool {
-  let next:i32 in Wrapping=input.exponent*10+(value as i32 in Wrapping);
+  let next:i32 in Wrapping=input.exponent*10+(value as -Wrapping as i32 +Wrapping);
   transition input.exponent_digits < 3 && next <= 400 { true -> append_exponent(input,bytes,next), false -> bad() }
  }
  machine append_exponent(input:@mut Input,bytes:u32 in Saturating,next:i32 in Wrapping) -> bool {

@@ -71,9 +71,7 @@ impl Program<'_> {
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");
         }
-        // The typed trees hold `value as T in Wrapping` as the carrier `T`
-        // with the policy beside it (`cast.domain`); a target written as a
-        // constrained type goes through the type route like any other.
+        // A represented scalar conversion carries its target and policy separately.
         use numerics::arithmetic::ArithmeticDomain;
         let named = Policy::of_domain(cast.domain);
         let target = match (self.value_type(id, cast.target_type)?, named) {
@@ -96,19 +94,9 @@ impl Program<'_> {
                 Unserved::Typing("cast result type"),
             ));
         }
-        // An anonymous operand has no carrier of its own; landing it is the
-        // numeric landing rules' work, outside this family. The one such
-        // operand read here is a literal cast into a policy: `5 as u32 in
-        // Wrapping` is `(5 as u32)` with the policy added (domains.md,
-        // "Carrier casts": "The cast may add domains to the result"), so
-        // the literal lands in the carrier the cast names, in range or not
-        // at all (numeric_values.md: no policy destination can "repair an
-        // out-of-range initial value").
-        let landing = if named.is_some() && self.wholly_anonymous(cast.value) {
-            target.scalar()
-        } else {
-            None
-        };
+        // An explicit carrier supplies the landing type for an anonymous
+        // numeric operand, including the carrier step before a named domain.
+        let landing = target.scalar().filter(|_| self.wholly_anonymous(cast.value));
         let operand = self.expression(id, slots, cast.value, landing.map(ValueType::plain))?;
         let source_type = match operand.result {
             Some(source_type @ ValueType::Scalar(..)) => source_type,

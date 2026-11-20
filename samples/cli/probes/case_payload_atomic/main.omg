@@ -13,7 +13,7 @@ machine observe(choice: @Choice) -> u32 in Wrapping
 requires choice in Choice::Cell
 {
     let resident_atomic_observed: u32 = choice.counter.load(NoOrdering);
-    let resident: u32 in Wrapping = resident_atomic_observed as u32 in Wrapping;
+    let resident: u32 in Wrapping = resident_atomic_observed as +Wrapping;
     transition { _ -> (resident) }
 }
 data Main { hits: i32 in Wrapping; }

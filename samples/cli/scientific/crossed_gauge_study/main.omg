@@ -93,7 +93,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine store(main: @mut Main, index: i32 in Wrapping, value: i32) {
-        main.study.values[index] = (value as i32 in Wrapping) - 48;
+        main.study.values[index] = (value as i32 +Wrapping) - 48;
         main.study.present[index] = 1 as +Wrapping;
         transition { _ -> block read(main, index + 1) }
     }

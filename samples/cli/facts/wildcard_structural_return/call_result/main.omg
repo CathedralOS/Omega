@@ -7,7 +7,7 @@ data Packet [copy]
 { case Value(payload: u64); }
 
 machine produce(counter: @mut u64) -> Packet {
-    $counter = (($counter as u64 in Wrapping) + 1) as u64;
+    $counter = (($counter as u64 +Wrapping) + 1) as u64;
     Packet::Value { payload: 7u64 }
 }
 

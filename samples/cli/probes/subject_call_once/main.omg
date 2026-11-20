@@ -16,7 +16,7 @@
 data Tally { calls: u64; }
 
 machine Main::roll(tally: @mut Tally) -> bool {
-    tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
+    tally.calls = ((tally.calls as u64 +Wrapping) + 1) as u64;
     transition { _ -> false }
 }
 

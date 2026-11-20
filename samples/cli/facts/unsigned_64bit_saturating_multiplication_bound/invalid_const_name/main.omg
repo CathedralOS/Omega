@@ -14,8 +14,8 @@ machine multiply_const(lhs: u64, rhs: u64) -> i32
     requires lhs >= LHS_MIN && lhs <= LHS_MAX
     requires rhs >= RHS_MIN && rhs <= RHS_MAX
 {
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
+    let a: u64 in Saturating = lhs as +Saturating;
+    let b: u64 in Saturating = rhs as +Saturating;
     let p_sat: u64 in Saturating = a * b;
     let prod: u64 = p_sat as u64;
     let headroom: u64 = PROD_MAX - prod;

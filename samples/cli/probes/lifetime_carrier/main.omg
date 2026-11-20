@@ -24,7 +24,7 @@ machine transform<'storage>(carrier: Carrier<'storage>) -> Carrier<'storage> {
         false -> preserve(carrier)
     }
     machine increment(carrier: Carrier<'storage>) -> Carrier<'storage> {
-        Carrier { marker: ((carrier.marker as i32 in Wrapping) + 1) as i32, reference: carrier.reference }
+        Carrier { marker: ((carrier.marker as i32 +Wrapping) + 1) as i32, reference: carrier.reference }
     }
     machine preserve(carrier: Carrier<'storage>) -> Carrier<'storage> { carrier }
 }

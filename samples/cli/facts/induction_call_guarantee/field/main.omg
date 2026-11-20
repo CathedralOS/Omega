@@ -35,7 +35,7 @@ data Holder [copy] { n: u64; }
 
 machine main() crashes Trap {
     let holder: Holder = Holder { n: 4 };
-    let n: u64 in Wrapping = holder.n as u64 in Wrapping;
+    let n: u64 in Wrapping = holder.n as u64 +Wrapping;
     let total: u64 in Wrapping = use(n);
     let direct: bool = observe(total, n);
     transition hold(direct) {

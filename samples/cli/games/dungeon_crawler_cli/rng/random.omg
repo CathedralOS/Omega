@@ -26,7 +26,7 @@ machine range(
 requires exclusive_max > 0
 ensures result < exclusive_max
 {
-    let raw: u32 in Wrapping = next_u32(state) as u32 in Wrapping;
+    let raw: u32 in Wrapping = next_u32(state) as u32 +Wrapping;
 
     transition {
         _ -> ((raw % exclusive_max) as u32)
@@ -41,7 +41,7 @@ machine chance(
     ) -> bool
 requires denominator > 0
 {
-    let roll: u32 in Wrapping = range(random, state, denominator) as u32 in Wrapping;
+    let roll: u32 in Wrapping = range(random, state, denominator) as u32 +Wrapping;
 
     transition {
         _ -> (roll < numerator)

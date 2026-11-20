@@ -37,7 +37,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine store(main: @mut Main, raster: @mut Raster, count: i32 in Wrapping, value: i32) {
-        raster.heights[count] = (value as i32 in Wrapping) - 48;
+        raster.heights[count] = (value as +Wrapping) - 48;
         transition { _ -> block read(main, raster, count + 1) }
     }
     machine finish_input(main: @mut Main, raster: @mut Raster, count: i32 in Wrapping) {

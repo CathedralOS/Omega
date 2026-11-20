@@ -22,16 +22,16 @@ Settler satisfies Settlement {
     machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32 {
         let code: i32 = receipt.code;
         drop(receipt);
-        (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
+        (((prefix as +Wrapping) + (code as +Wrapping)) + (suffix as +Wrapping)) as i32
     }
 }
 
 machine forward(prefix: i32, receipt: Receipt, suffix: i32) -> i32 reaches Settlement {
-    ((Settlement::settle(prefix, receipt, suffix) as i32 in Wrapping) + (1 as i32 +Wrapping)) as i32
+    ((Settlement::settle(prefix, receipt, suffix) as i32 +Wrapping) + (1 as i32 +Wrapping)) as i32
 }
 
 machine direct(receipt: Receipt) -> i32 reaches Settlement {
-    ((Settlement::settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 +Wrapping)) as i32
+    ((Settlement::settle(2, receipt, 3) as i32 +Wrapping) + (1 as i32 +Wrapping)) as i32
 }
 
 data Main { hits: i32 in Wrapping; }

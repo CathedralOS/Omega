@@ -42,7 +42,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         let count: i32 in Saturating = I32::from_f64(standards);
         let unknown_count: i32 in Saturating = I32::from_f64(unknowns);
         transition F64::from_i32(count as i32) == standards && F64::from_i32(unknown_count as i32) == unknowns {
-            true -> block configure(application, count as i32 in Wrapping, unknown_count as i32 in Wrapping), _ -> invalid(application)
+            true -> block configure(application, count as i32 +Wrapping, unknown_count as i32 +Wrapping), _ -> invalid(application)
         }
     }
     machine configure(application: @mut Application, count: i32 in Wrapping, unknowns: i32 in Wrapping) {

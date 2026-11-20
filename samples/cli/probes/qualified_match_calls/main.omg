@@ -14,7 +14,7 @@
 domain<const Axis: u64> i64::Coordinate<Axis>;
 
 machine mark(value: i64) -> i64 in Coordinate<7> {
-    value as i64 in Coordinate<7>
+    value as +Coordinate<7>
 }
 
 machine relay(value: i64 in Coordinate<7>) -> i64 in Coordinate<7> {

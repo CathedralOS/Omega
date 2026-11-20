@@ -28,7 +28,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     let c: Cell = Cell { values: [4, 9], count: 7 };
     let d: Cell = Worker::clone(@c);
-    main.hits = main.hits + (d.values[1] as i32 in Wrapping);
+    main.hits = main.hits + (d.values[1] as i32 +Wrapping);
 }
 
 // The entry owns ordinary local state; selection supplies no context.

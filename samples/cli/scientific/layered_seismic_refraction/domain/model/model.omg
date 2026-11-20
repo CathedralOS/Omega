@@ -11,7 +11,7 @@ machine flight(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 i
  let distance: f64 = offset as f64;
  let speed: f64 = velocity as f64;
  let duration: f64 = distance / speed;
- duration as f64 in TravelTime
+ duration as +TravelTime
 }
 public machine direct_time(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 in TravelTime {
  flight(offset, velocity)

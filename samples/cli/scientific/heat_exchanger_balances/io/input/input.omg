@@ -36,7 +36,7 @@ public machine parse(raw: @mut Raw) -> bool reaches Console invokes Console bloc
         }
     }
     machine digit(raw: @mut Raw, accumulator: u32 in Saturating, bytes: u32, character: i32) -> bool {
-        let digit: u32 in Saturating = narrow_i32_to_u32_trapping(character) as u32 in Saturating;
+        let digit: u32 in Saturating = narrow_i32_to_u32_trapping(character) as u32 +Saturating;
         let next: u32 in Saturating = accumulator * 10 + digit - 48;
         transition next <= 200 {
             true -> read(raw, next, true, bytes + 1),

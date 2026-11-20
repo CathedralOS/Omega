@@ -45,10 +45,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine balanced(main: @mut Main, input: @TransportInput) {
-        let supply: i32 in Wrapping = (input.values[0] as i32 in Wrapping)
-            + (input.values[1] as i32 in Wrapping) + (input.values[2] as i32 in Wrapping);
-        let demand: i32 in Wrapping = (input.values[3] as i32 in Wrapping)
-            + (input.values[4] as i32 in Wrapping) + (input.values[5] as i32 in Wrapping);
+        let supply: i32 in Wrapping = (input.values[0] as i32 +Wrapping)
+            + (input.values[1] as i32 +Wrapping) + (input.values[2] as i32 +Wrapping);
+        let demand: i32 in Wrapping = (input.values[3] as i32 +Wrapping)
+            + (input.values[4] as i32 +Wrapping) + (input.values[5] as i32 +Wrapping);
         transition supply == demand {
             true -> optimize(main, input),
             false -> infeasible(main, supply, demand)

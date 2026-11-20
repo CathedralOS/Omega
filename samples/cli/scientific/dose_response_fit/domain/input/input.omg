@@ -81,7 +81,7 @@ crashes Trap
     }
     machine accumulate(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                      digits: i32 in Wrapping, negative: bool) -> Token {
-        let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
+        let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 +Wrapping) - 48;
         transition updated <= 1000000 {
             true -> next(reader, updated, digits + 1, negative),
             _ -> Token::Invalid
@@ -141,7 +141,7 @@ crashes Trap
         }
     }
     machine count(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
-        observations.count = value as i32 in Wrapping;
+        observations.count = value as +Wrapping;
         transition value >= 8 && value <= 32 {
             true -> noise(reader, observations),
             _ -> false

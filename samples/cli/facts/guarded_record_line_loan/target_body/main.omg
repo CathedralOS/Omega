@@ -41,8 +41,8 @@ X86Inspect satisfies SelectedInspect {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-            application.ledger.count = count as u64 in Wrapping;
-            ((line[0] as u64 in Wrapping) + application.ledger.count) == 42
+            application.ledger.count = count as u64 +Wrapping;
+            ((line[0] as u64 +Wrapping) + application.ledger.count) == 42
     }
 }
 
@@ -51,8 +51,8 @@ ArmInspect satisfies SelectedInspect {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-            application.ledger.count = count as u64 in Wrapping;
-            ((line[0] as u64 in Wrapping) + application.ledger.count) == 42
+            application.ledger.count = count as u64 +Wrapping;
+            ((line[0] as u64 +Wrapping) + application.ledger.count) == 42
     }
 }
 

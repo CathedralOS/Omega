@@ -14,7 +14,7 @@ machine consume(claim: Claim in Issued & Label) -> u64 {
 }
 machine exercise(select: bool) -> u64 {
     let claim: Claim in Issued = Claim { value: 29 };
-    let tagged: Claim in Tagged = claim as Claim in Tagged;
+    let tagged: Claim in Tagged = claim as Claim +Tagged;
     consume(tagged)
 }
 

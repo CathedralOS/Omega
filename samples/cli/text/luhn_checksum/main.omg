@@ -37,8 +37,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine proc(main: @mut Main) {
-        main.d = main.digits[main.r] as i32 in Wrapping;
-        main.par = (main.r % 2) as i32 in Wrapping;
+        main.d = main.digits[main.r] as i32 +Wrapping;
+        main.par = (main.r % 2) as i32 +Wrapping;
         transition main.par == 1 {
             true -> block double_it(main),
             false -> block accumulate(main)

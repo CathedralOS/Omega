@@ -32,7 +32,7 @@ crashes Trap
         }
     }
     machine append(value: i64 in Saturating, digits: u64 in Saturating, byte: i32) -> Token {
-        let digit: i64 in Saturating = (byte as i64 in Saturating) - 48;
+        let digit: i64 in Saturating = (byte as i64 +Saturating) - 48;
         transition { _ -> block scan(value * 10 + digit, digits + 1) }
     }
     machine finish(value: i64 in Saturating, digits: u64 in Saturating) -> Token {

@@ -51,10 +51,10 @@ public machine report(frame: @Frame, result: @Balance) reaches ProcessExit + Con
 invokes Console
 {
     Console::write("loads=");
-    number(frame.values[0] as i64 in Wrapping); Console::write(",");
-    number(frame.values[1] as i64 in Wrapping); Console::write(",");
-    number(frame.values[2] as i64 in Wrapping); Console::write(",");
-    number(frame.values[3] as i64 in Wrapping);
+    number(frame.values[0] as i64 +Wrapping); Console::write(",");
+    number(frame.values[1] as i64 +Wrapping); Console::write(",");
+    number(frame.values[2] as i64 +Wrapping); Console::write(",");
+    number(frame.values[3] as i64 +Wrapping);
     Console::write(" force="); number(result.force);
     Console::write(" moments="); number(result.moment_x); Console::write(","); number(result.moment_y);
     Console::write(" residuals="); number(result.force_residual); Console::write(","); number(result.x_residual); Console::write(","); number(result.y_residual);

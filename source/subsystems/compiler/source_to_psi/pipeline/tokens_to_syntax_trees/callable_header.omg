@@ -210,13 +210,13 @@ crashes Trap
         let mut frame: CallableHeaderFrame = top_header_frame(parser);
         frame.contract.first_clause = parser.output.clause_count as +Trapping;
         frame.contract.clause_count = (parser.header_clause_count as +Trapping)
-            - (frame.first_clause as u64 in Trapping);
+            - (frame.first_clause as u64 +Trapping);
         frame.contract.contract_count = (parser.header_contract_count as +Trapping)
-            - (frame.first_contract as u64 in Trapping);
+            - (frame.first_contract as u64 +Trapping);
         frame.contract.first_contract = header_child_first(parser, frame.contract.contract_count);
         frame.contract.source_span.span.end = parser.token_end;
         replace_header_frame(parser, frame);
-        transition { _ -> publish_clause(parser, input, frame.first_clause as u64 in Trapping) }
+        transition { _ -> publish_clause(parser, input, frame.first_clause as u64 +Trapping) }
     }
 
     machine publish_clause(parser: @mut Parser, input: @TokenStream, index: u64 in Trapping) {
@@ -242,7 +242,7 @@ crashes Trap
     machine publish_contracts(parser: @mut Parser, input: @TokenStream) {
         let frame: CallableHeaderFrame = top_header_frame(parser);
         parser.header_clause_count = frame.first_clause;
-        transition { _ -> publish_contract(parser, input, frame.first_contract as u64 in Trapping) }
+        transition { _ -> publish_contract(parser, input, frame.first_contract as u64 +Trapping) }
     }
 
     machine publish_contract(parser: @mut Parser, input: @TokenStream, index: u64 in Trapping) {

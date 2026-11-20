@@ -22,7 +22,7 @@ machine occupied(job: @Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
         }
     }
     machine read(job: @Job, index: i32 in Wrapping) -> i32 in Wrapping {
-        job.mask[index] as i32 in Wrapping
+        job.mask[index] as i32 +Wrapping
     }
 }
 machine cover(job: @mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
@@ -40,7 +40,7 @@ machine cover(job: @mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
         }
     }
     machine write(job: @mut Job, index: i32 in Wrapping) -> bool {
-        let previous: i32 in Wrapping = job.covered[index] as i32 in Wrapping;
+        let previous: i32 in Wrapping = job.covered[index] as i32 +Wrapping;
         job.covered[index] = (previous + 1) as i32;
         true
     }
@@ -166,8 +166,8 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         }
     }
     machine audit_read(job: @mut Job, index: i32 in Wrapping) -> bool {
-        let mask: i32 in Wrapping = job.mask[index] as i32 in Wrapping;
-        let visits: i32 in Wrapping = job.covered[index] as i32 in Wrapping;
+        let mask: i32 in Wrapping = job.mask[index] as i32 +Wrapping;
+        let visits: i32 in Wrapping = job.covered[index] as i32 +Wrapping;
         transition mask == 1 {
             true -> region_cell(job, index, visits),
             _ -> outside_cell(job, index, visits)

@@ -8,7 +8,7 @@ data Event {
 }
 
 machine tick(count: @mut u64) -> Bonus {
-    $count = (($count as u64 in Wrapping) + 1) as u64;
+    $count = (($count as u64 +Wrapping) + 1) as u64;
     Bonus { value: $count }
 }
 

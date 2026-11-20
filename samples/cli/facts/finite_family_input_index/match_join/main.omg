@@ -31,7 +31,7 @@ Other satisfies Family {
 }
 machine input(slot: @mut u32, observations: @mut [u32; 5]) -> u32
 {
-    observations[4] = ((observations[4] as u32 in Wrapping) + 1) as u32;
+    observations[4] = ((observations[4] as u32 +Wrapping) + 1) as u32;
     7
 }
 machine create(selected: dyn Family, width: u32, observations: @mut [u32; 5]) -> Indexed<16>

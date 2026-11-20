@@ -34,7 +34,7 @@ machine work() -> i32 {
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: @mut Main) {
-    main.hits = work() as i32 in Wrapping;
+    main.hits = work() as i32 +Wrapping;
 }
 
 // The entry owns ordinary local state; selection supplies no context.

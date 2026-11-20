@@ -38,7 +38,7 @@ crashes Trap
     }
     machine append(input: @mut Input, digits: u32, negative: bool, byte: i32)
     requires digits < 5 {
-        input.value = input.value * 10 + (byte as i32 in Saturating) - 48;
+        input.value = input.value * 10 + (byte as i32 +Saturating) - 48;
         transition { _ -> block scan(input, digits + 1, negative, true) }
     }
     machine finish(input: @mut Input, digits: u32, negative: bool) {

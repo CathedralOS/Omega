@@ -29,11 +29,11 @@ public machine solve_transport(input: @TransportInput, plan: @mut TransportPlan)
         let second: i32 in Wrapping = candidate / 100 % 10;
         let fourth: i32 in Wrapping = candidate / 10 % 10;
         let fifth: i32 in Wrapping = candidate % 10;
-        let third: i32 in Wrapping = (input.values[0] as i32 in Wrapping) - first - second;
-        let sixth: i32 in Wrapping = (input.values[1] as i32 in Wrapping) - fourth - fifth;
-        let seventh: i32 in Wrapping = (input.values[3] as i32 in Wrapping) - first - fourth;
-        let eighth: i32 in Wrapping = (input.values[4] as i32 in Wrapping) - second - fifth;
-        let ninth: i32 in Wrapping = (input.values[2] as i32 in Wrapping) - seventh - eighth;
+        let third: i32 in Wrapping = (input.values[0] as i32 +Wrapping) - first - second;
+        let sixth: i32 in Wrapping = (input.values[1] as i32 +Wrapping) - fourth - fifth;
+        let seventh: i32 in Wrapping = (input.values[3] as i32 +Wrapping) - first - fourth;
+        let eighth: i32 in Wrapping = (input.values[4] as i32 +Wrapping) - second - fifth;
+        let ninth: i32 in Wrapping = (input.values[2] as i32 +Wrapping) - seventh - eighth;
         transition third >= 0 && sixth >= 0 && seventh >= 0 && eighth >= 0 && ninth >= 0
                    && third + sixth + ninth == input.values[5] {
             true -> objective(input, plan, candidate, first, second, third, fourth, fifth, sixth, seventh, eighth, ninth),
@@ -44,11 +44,11 @@ public machine solve_transport(input: @TransportInput, plan: @mut TransportPlan)
                     first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping,
                     fourth: i32 in Wrapping, fifth: i32 in Wrapping, sixth: i32 in Wrapping,
                     seventh: i32 in Wrapping, eighth: i32 in Wrapping, ninth: i32 in Wrapping) -> bool {
-        let cost: i32 in Wrapping = first * (input.values[6] as i32 in Wrapping)
-            + second * (input.values[7] as i32 in Wrapping) + third * (input.values[8] as i32 in Wrapping)
-            + fourth * (input.values[9] as i32 in Wrapping) + fifth * (input.values[10] as i32 in Wrapping)
-            + sixth * (input.values[11] as i32 in Wrapping) + seventh * (input.values[12] as i32 in Wrapping)
-            + eighth * (input.values[13] as i32 in Wrapping) + ninth * (input.values[14] as i32 in Wrapping);
+        let cost: i32 in Wrapping = first * (input.values[6] as i32 +Wrapping)
+            + second * (input.values[7] as i32 +Wrapping) + third * (input.values[8] as i32 +Wrapping)
+            + fourth * (input.values[9] as i32 +Wrapping) + fifth * (input.values[10] as i32 +Wrapping)
+            + sixth * (input.values[11] as i32 +Wrapping) + seventh * (input.values[12] as i32 +Wrapping)
+            + eighth * (input.values[13] as i32 +Wrapping) + ninth * (input.values[14] as i32 +Wrapping);
         transition !plan.found || cost < plan.total {
             true -> retain(input, plan, candidate, cost, first, second, third, fourth, fifth, sixth, seventh, eighth, ninth),
             false -> enumerate(input, plan, candidate + 1)

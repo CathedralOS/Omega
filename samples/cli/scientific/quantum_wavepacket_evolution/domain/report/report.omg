@@ -49,7 +49,7 @@ reaches Console {
         Console::write("-");
         // Unsigned modular negation also handles the full signed minimum.
         let bits: u64 = narrow_i64_to_u64_wrapping(value);
-        let magnitude: u64 in Wrapping = 0 - (bits as u64 in Wrapping);
+        let magnitude: u64 in Wrapping = 0 - (bits as +Wrapping);
         unsigned(magnitude as u64);
     }
     machine positive(value: i64) {
@@ -72,7 +72,7 @@ reaches Console {
     machine emit(value: u64, divisor: u64, digit: u64)
     requires divisor > 0
     {
-        let byte: u64 in Wrapping = (digit as u64 in Wrapping) + 48;
+        let byte: u64 in Wrapping = (digit as +Wrapping) + 48;
         Console::write_byte(narrow_u64_to_i32_saturating(byte as u64));
         transition divisor >= 10 {
             true -> digits(value, divisor / 10, true),

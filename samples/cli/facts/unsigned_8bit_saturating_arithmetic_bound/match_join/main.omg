@@ -6,8 +6,8 @@ machine add_match_join(lhs: u8, rhs: u8, choose: bool) -> i32
     requires lhs >= 40u8 && lhs <= 80u8
     requires rhs >= 10u8 && rhs <= 20u8
 {
-    let a: u8 in Saturating = lhs as u8 in Saturating;
-    let b: u8 in Saturating = rhs as u8 in Saturating;
+    let a: u8 in Saturating = lhs as +Saturating;
+    let b: u8 in Saturating = rhs as +Saturating;
     let sum: u8 = match choose {
         true -> (a + b) as u8,
         false -> (a + b) as u8

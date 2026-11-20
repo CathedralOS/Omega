@@ -45,7 +45,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine digit(main: @mut Main, count: u64, position: u64 in Wrapping,
                 token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping, byte: u8) {
         transition digits < 2 {
-            true -> parse(main, count, position+1, token, value*10+(byte as u64 in Wrapping)-48, digits+1),
+            true -> parse(main, count, position+1, token, value*10+(byte as u64 +Wrapping)-48, digits+1),
             false -> invalid(main)
         }
     }

@@ -19,8 +19,8 @@ machine get_rhs() -> i64 ensures result >= 5 && result <= 10 {
 machine sat_call_result() -> i64 {
     let lhs: i64 = get_lhs();
     let rhs: i64 = get_rhs();
-    let a: i64 in Wrapping = lhs as i64 in Wrapping;
-    let b: i64 in Wrapping = rhs as i64 in Wrapping;
+    let a: i64 in Wrapping = lhs as +Wrapping;
+    let b: i64 in Wrapping = rhs as +Wrapping;
     let wrap_prod: i64 in Wrapping = a * b;
     let prod: i64 = wrap_prod as i64;
     verify_prod(prod)

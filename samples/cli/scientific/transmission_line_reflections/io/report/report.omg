@@ -45,7 +45,7 @@ invokes Console
         // The named conversion explicitly truncates; an Exact recast would
         // instead owe preservation of the fractional value.
         let converted: i64 = I64::from_f64(scaled);
-        integer(converted as i64 in Saturating);
+        integer(converted as +Saturating);
     }
     machine invalid() { Console::write_line("ERROR numeric output range"); ProcessExit::exit_process(70); }
 }
@@ -56,7 +56,7 @@ reaches ProcessExit + Console
 invokes Console
 {
     Console::write("W,");
-    integer(tick as i64 in Saturating);
+    integer(tick as i64 +Saturating);
     field(tree.record.junction_left_in);
     field(tree.record.junction_right_in);
     field(tree.record.junction_left_out);
@@ -67,13 +67,13 @@ invokes Console
     field(tree.record.load_out);
     Console::write_byte(10);
     Console::write("V,");
-    integer(tick as i64 in Saturating);
+    integer(tick as i64 +Saturating);
     field(tree.record.source_voltage);
     field(tree.record.junction_voltage);
     field(tree.record.load_voltage);
     Console::write_byte(10);
     Console::write("E,");
-    integer(tick as i64 in Saturating);
+    integer(tick as i64 +Saturating);
     field(tree.supplied);
     field(tree.source_heat);
     field(tree.load_heat);

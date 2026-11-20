@@ -841,7 +841,7 @@ machine Main::main(main: @mut Main) reaches
         transition main.button_code <= 9 { true -> button_digit_label(main, window), _ -> button_operator_label(main, window) }
     }
     machine button_digit_label(main: @mut Main, window: Window) {
-        main.draw_digit = main.button_code as i32 in Saturating;
+        main.draw_digit = main.button_code as i32 +Saturating;
         main.local_x = main.button_lx - 4;
         main.local_y = main.button_ly - 1;
         transition { _ -> button_segment_a(main, window) }
@@ -1036,7 +1036,7 @@ requires
         main.error = 0;
         main.pending = 0;
         main.accumulator = 0;
-        main.current = digit as i32 in Saturating;
+        main.current = digit as +Saturating;
         main.typing = 1;
     }
     machine digit_dispatch(main: @mut Main, digit: i32)
@@ -1047,7 +1047,7 @@ requires
     machine digit_start(main: @mut Main, digit: i32)
     requires digit >= 0 && digit <= 9
     {
-        main.current = digit as i32 in Saturating;
+        main.current = digit as +Saturating;
         main.typing = 1;
     }
     machine digit_append(main: @mut Main, digit: i32)
@@ -1056,7 +1056,7 @@ requires
         // Fused Saturating mul/add in operand position lower correctly since
         // the 2026-07-09d operand-position domain lowering (the clamp happens
         // at each operation node before the modulo).
-        main.current = ((main.current * (10 as i32 +Saturating)) + (digit as i32 in Saturating)) % (10000 as i32 +Saturating);
+        main.current = ((main.current * (10 as i32 +Saturating)) + (digit as +Saturating)) % (10000 as i32 +Saturating);
     }
 }
 

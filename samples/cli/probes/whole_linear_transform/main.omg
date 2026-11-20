@@ -23,7 +23,7 @@ machine transform(inventory: Inventory) -> Inventory {
     machine increment(inventory: Inventory) -> Inventory {
         let slots: i32 = inventory.slots;
         drop(inventory);
-        Inventory { slots: ((slots as i32 in Wrapping) + 1) as i32 }
+        Inventory { slots: ((slots as +Wrapping) + 1) as i32 }
     }
     machine preserve(inventory: Inventory) -> Inventory { inventory }
 }

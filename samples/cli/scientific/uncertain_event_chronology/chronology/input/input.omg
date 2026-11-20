@@ -34,7 +34,7 @@ public machine parse(bytes: @[u8; 32], count: u64, model: @mut Chronology) -> bo
     requires index >= 0
     requires index < 19
     {
-        let value: i32 in Wrapping = byte as i32 in Wrapping;
+        let value: i32 in Wrapping = byte as i32 +Wrapping;
         digits.values[index] = (value - 48) as i32;
         transition { _ -> digit(bytes, model, digits, index + 1) }
     }
@@ -46,7 +46,7 @@ public machine parse(bytes: @[u8; 32], count: u64, model: @mut Chronology) -> bo
         model.lag = [digits.values[9],digits.values[12],digits.values[15],digits.values[18]];
         model.enabled = [0,0,0,0];
         transition digits.values[0] <= digits.values[1] && digits.values[2] <= digits.values[3] && digits.values[4] <= digits.values[5] && digits.values[6] <= 4 {
-            true -> edge(model, digits.values[6] as i32 in Wrapping, 0),
+            true -> edge(model, digits.values[6] as i32 +Wrapping, 0),
             false -> false
         }
     }

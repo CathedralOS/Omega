@@ -49,8 +49,8 @@ machine main() reaches ProcessExit + Console {
     machine calculate(sites: i32, activity: i32, bond: i32, topology: i32) {
         let mut lattice: Lattice;
         lattice.sites = narrow_i32_to_u64_trapping(sites - 48);
-        lattice.activity = narrow_i32_to_u64_trapping(activity - 48) as u64 in Trapping;
-        lattice.bond = narrow_i32_to_u64_trapping(bond - 48) as u64 in Trapping;
+        lattice.activity = narrow_i32_to_u64_trapping(activity - 48) as u64 +Trapping;
+        lattice.bond = narrow_i32_to_u64_trapping(bond - 48) as u64 +Trapping;
         lattice.periodic = topology == 114;
         enumerate(@mut lattice);
         Console::write_line("weighted_lattice v1");

@@ -66,8 +66,8 @@ public machine enumerate(pedigree: @Pedigree, result: @mut Inference) {
     }
     machine observation(pedigree: @Pedigree, result: @mut Inference, code: i32 in Wrapping,
                       person: i32 in Wrapping, weight: i32 in Wrapping) {
-        let genotype: i32 in Wrapping = result.genotypes[person] as i32 in Wrapping;
-        let observed: i32 in Wrapping = pedigree.observed[person] as i32 in Wrapping;
+        let genotype: i32 in Wrapping = result.genotypes[person] as i32 +Wrapping;
+        let observed: i32 in Wrapping = pedigree.observed[person] as i32 +Wrapping;
         let enabled: i32 = result.active[person];
         let bit: i32 in Wrapping = genotype_bit(genotype);
         transition enabled == 0 || (observed / bit) % 2 == 1 {
@@ -77,8 +77,8 @@ public machine enumerate(pedigree: @Pedigree, result: @mut Inference) {
     }
     machine parent(pedigree: @Pedigree, result: @mut Inference, code: i32 in Wrapping,
                  person: i32 in Wrapping, weight: i32 in Wrapping, genotype: i32 in Wrapping) {
-        let father: i32 in Wrapping = pedigree.father[person] as i32 in Wrapping;
-        let mother: i32 in Wrapping = pedigree.mother[person] as i32 in Wrapping;
+        let father: i32 in Wrapping = pedigree.father[person] as i32 +Wrapping;
+        let mother: i32 in Wrapping = pedigree.mother[person] as i32 +Wrapping;
         transition father == 0 {
             true -> founder(pedigree, result, code, person, weight, genotype),
             _ -> ancestry(pedigree, result, code, person, weight, genotype, father - 1, mother - 1)
@@ -100,8 +100,8 @@ public machine enumerate(pedigree: @Pedigree, result: @mut Inference) {
     machine child(pedigree: @Pedigree, result: @mut Inference, code: i32 in Wrapping,
                 person: i32 in Wrapping, weight: i32 in Wrapping, genotype: i32 in Wrapping,
                 father: i32 in Wrapping, mother: i32 in Wrapping) {
-        let paternal: i32 in Wrapping = result.genotypes[father] as i32 in Wrapping;
-        let maternal: i32 in Wrapping = result.genotypes[mother] as i32 in Wrapping;
+        let paternal: i32 in Wrapping = result.genotypes[father] as i32 +Wrapping;
+        let maternal: i32 in Wrapping = result.genotypes[mother] as i32 +Wrapping;
         let factor: i32 in Wrapping = transmission(paternal, maternal, genotype);
         transition factor > 0 {
             true -> weigh(pedigree, result, code, person + 1, weight * factor),
@@ -122,7 +122,7 @@ public machine enumerate(pedigree: @Pedigree, result: @mut Inference) {
     }
     machine slot(pedigree: @Pedigree, result: @mut Inference, code: i32 in Wrapping,
                weight: i32 in Wrapping, person: i32 in Wrapping) {
-        let genotype: i32 in Wrapping = result.genotypes[person] as i32 in Wrapping;
+        let genotype: i32 in Wrapping = result.genotypes[person] as i32 +Wrapping;
         let position: i32 in Wrapping = person * 3 + genotype;
         transition position >= 0 && position < 18 {
             true -> accumulate(pedigree, result, code, weight, person, position),
@@ -131,7 +131,7 @@ public machine enumerate(pedigree: @Pedigree, result: @mut Inference) {
     }
     machine accumulate(pedigree: @Pedigree, result: @mut Inference, code: i32 in Wrapping,
                      weight: i32 in Wrapping, person: i32 in Wrapping, position: i32 in Wrapping) {
-        let previous: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
+        let previous: i32 in Wrapping = result.marginals[position] as i32 +Wrapping;
         result.marginals[position] = (previous + weight) as i32;
         transition { _ -> marginal(pedigree, result, code, weight, person + 1) }
     }

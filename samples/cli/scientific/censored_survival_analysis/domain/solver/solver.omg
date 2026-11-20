@@ -57,8 +57,8 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
     machine update(records: @Records, group: i32 in Wrapping, table: @mut Table, logrank: @mut Logrank, survival: f64, greenwood: f64, time: f64, risk: i32 in Wrapping, event: i32 in Wrapping, censor: i32 in Wrapping, risk0: i32 in Wrapping, event0: i32 in Wrapping) {
         // A found time belongs to a selected record, hence risk is positive.
         // Every distinct-time factor is <=32 and strictly decreases thereafter.
-        product(@mut table.numerator, narrow_i32_to_u64_wrapping((risk - event) as i32) as u64 in Wrapping);
-        product(@mut table.denominator, narrow_i32_to_u64_wrapping(risk as i32) as u64 in Wrapping);
+        product(@mut table.numerator, narrow_i32_to_u64_wrapping((risk - event) as i32) as u64 +Wrapping);
+        product(@mut table.denominator, narrow_i32_to_u64_wrapping(risk as i32) as u64 +Wrapping);
         let n: f64 = F64::from_i32(risk as i32);
         let d: f64 = F64::from_i32(event as i32);
         let next_survival: f64 = survival * (n - d) / n;

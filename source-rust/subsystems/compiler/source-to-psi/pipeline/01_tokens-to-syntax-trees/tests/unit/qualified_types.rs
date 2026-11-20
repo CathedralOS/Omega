@@ -7,7 +7,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
         for cast in [false, true] {
             let text = if cast {
                 format!(
-                    "machine convert(value: u64) {{ let tagged: u64 = value as u64 in Tagged<{spelling}>; }}"
+                    "machine convert(value: u64) {{ let tagged: u64 = value as +Tagged<{spelling}>; }}"
                 )
             } else {
                 format!("data Packet {{ value: u64 in policy\\Tagged<{spelling}>; }}")
@@ -81,4 +81,22 @@ fn a_module_path_can_end_in_a_static_member_or_generic_call() {
         machine caller() { net\wire\send::<u8>(); }";
     let tokens = Lexer::new(text).tokenize().unwrap();
     crate::parse_syntax_trees(&tokens).unwrap();
+}
+
+#[test]
+fn value_casts_require_explicit_domain_entries() {
+    for target in ["u64 in Wrapping", "u64 in Marker", "u64 in Family<true>"] {
+        let source = format!("machine m(x: u64) {{ let y = x as {target}; }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let error = crate::parse_syntax_trees(&tokens).expect_err("retired value cast");
+        assert!(error.message.contains("`as T in D` is retired"), "{error:?}");
+    }
+    for source in [
+        "machine m(x: u64) { let y: u64 in Marker = x as +Marker; }",
+        "machine m(x: u8) { let y: u64 in Wrapping = x as u64 +Wrapping; }",
+        "machine m(x: @u64) { let y = x as @u8 in Marker; }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        crate::parse_syntax_trees(&tokens).expect("distinct type, cast, and recast grammar");
+    }
 }

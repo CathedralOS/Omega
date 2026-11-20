@@ -6,8 +6,8 @@ const LHS: u64 = 121u64;
 const RHS: u64 = 20u64;
 
 machine compute_const() -> i32 {
-    let w_lhs: u64 in Wrapping = LHS as u64 in Wrapping;
-    let w_rhs: u64 in Wrapping = RHS as u64 in Wrapping;
+    let w_lhs: u64 in Wrapping = LHS as +Wrapping;
+    let w_rhs: u64 in Wrapping = RHS as +Wrapping;
     let diff_wrap: u64 in Wrapping = w_lhs - w_rhs;
     let diff: u64 = diff_wrap as u64;
     let headroom: u64 = 100u64 - diff;

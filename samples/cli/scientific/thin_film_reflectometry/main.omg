@@ -41,7 +41,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         let layer_integer: i32 in Saturating = I32::from_f64(layers);
         let count_integer: i32 in Saturating = I32::from_f64(count);
         transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64::from_i32(layer_integer as i32) && count == F64::from_i32(count_integer as i32) {
-            true -> block configure(application, ambient, substrate, layer_integer as i32 in Wrapping, count_integer as i32 in Wrapping),
+            true -> block configure(application, ambient, substrate, layer_integer as -Saturating +Wrapping, count_integer as -Saturating +Wrapping),
             _ -> invalid(application)
         }
     }

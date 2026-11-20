@@ -253,7 +253,7 @@ crashes Trap
     machine stored(checker: @mut Checker, place: Place) -> u64 in Trapping {
         let index: u64 = checker.place_count;
         store_place(checker, index, place);
-        let position: u64 in Trapping = index as u64 in Trapping;
+        let position: u64 in Trapping = index as u64 +Trapping;
         let next: u64 in Trapping = position + 1;
         checker.place_count = next as u64;
         set_domain_mark(checker, position, DomainMark::Unseen);

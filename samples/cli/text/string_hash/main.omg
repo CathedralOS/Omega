@@ -45,7 +45,7 @@ machine hash_text(text: @[u8; 5] in Utf8) -> u32 in Wrapping {
     requires position >= 0
     {
         let byte: u8 = text[position];
-        let widened: u32 in Wrapping = widen_u8_to_u32(byte) as u32 in Wrapping;
+        let widened: u32 in Wrapping = widen_u8_to_u32(byte) as u32 +Wrapping;
         let mixed: u32 in Wrapping = hash ^ widened;
         let next_hash: u32 in Wrapping = mixed * 16777619;
         transition position < 8 {

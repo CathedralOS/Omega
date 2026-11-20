@@ -25,8 +25,8 @@ machine complete_jobs(selected: Job, waiting: Job) -> u32 {
     let unused: u32 = complete_ticket(waiting.ticket);
     transition (number == 9 && label == 10 && worker == 1)
         || (number == 8 && label == 20 && worker == 2) {
-        true -> (((number as u32 in Wrapping) + (label as u32 in Wrapping))
-            + (worker as u32 in Wrapping)) as u32,
+        true -> (((number as +Wrapping) + (label as u32 +Wrapping))
+            + (worker as +Wrapping)) as u32,
         false -> 0
     }
 }

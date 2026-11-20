@@ -38,7 +38,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     machine configure(application: @mut Application, length: f64, threshold: f64, levels: f64, depth: i32 in Wrapping) {
         let size: i32 in Saturating = I32::from_f64(length);
         let selected: i32 in Saturating = I32::from_f64(levels);
-        application.length = size as i32 in Wrapping; application.levels = selected as i32 in Wrapping;
+        application.length = size as -Saturating +Wrapping; application.levels = selected as -Saturating +Wrapping;
         application.depth = depth; application.threshold = threshold;
         application.index = 0; application.input_energy = 0.0;
         transition { _ -> block read(application) }

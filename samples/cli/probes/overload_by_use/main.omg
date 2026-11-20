@@ -20,7 +20,7 @@
 domain i32::Logged;
 
 machine walk(n: i32) -> i32 in Logged {
-    n as i32 in Logged
+    n as +Logged
 }
 
 machine walk(n: i32) {

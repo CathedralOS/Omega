@@ -222,7 +222,7 @@ public machine members_count<'graph>(members: @SchemaMembers<'graph>) -> u64 cra
             // Each increment consumes eight bytes from a finite slice. The
             // total is bounded by its original byte length divided by eight;
             // the defined arithmetic never reaches its wrap point.
-            true -> scan(graph, tail, role, ((count as u64 in Wrapping) + 1u64) as u64),
+            true -> scan(graph, tail, role, ((count as +Wrapping) + 1u64) as -Wrapping),
             false -> scan(graph, tail, role, count)
         }
     }

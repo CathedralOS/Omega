@@ -41,7 +41,7 @@ public machine analyze(records: @mut Beamforming) -> u64 {
         records.enabled[channel] = enabled;
         records.horizontal[channel] = horizontal;
         records.vertical[channel] = vertical;
-        records.active = records.active + enabled as i64 in Wrapping;
+        records.active = records.active + enabled as i64 +Wrapping;
         transition { _ -> sample(records, channel, base, 0) }
     }
     machine sample(records: @mut Beamforming, channel: u64, base: u64, position: u64) -> u64
@@ -64,7 +64,7 @@ public machine analyze(records: @mut Beamforming) -> u64 {
                     position: u64, amplitude: u64) -> u64
     requires channel < 3 requires base <= 24 requires position < 8
     requires amplitude <= 8 {
-        records.samples[channel][position] = (amplitude as i64 in Wrapping) - 4;
+        records.samples[channel][position] = (amplitude as i64 +Wrapping) - 4;
         let next: u64 = position + 1;
         transition next < 8 {
             true -> sample(records, channel, base, next),

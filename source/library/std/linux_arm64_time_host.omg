@@ -14,8 +14,8 @@ public data LinuxArm64TimeHostInstant { seconds: i64; nanoseconds: i64; }
 public machine linux_arm64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u64 {
     let seconds_unsigned: u64 = narrow_i64_to_u64_saturating(seconds);
     let nanoseconds_unsigned: u64 = narrow_i64_to_u64_saturating(nanoseconds);
-    let scaled: u64 in Wrapping = (seconds_unsigned as u64 in Wrapping) * 1000000000;
-    let total: u64 in Wrapping = scaled + (nanoseconds_unsigned as u64 in Wrapping);
+    let scaled: u64 in Wrapping = (seconds_unsigned as +Wrapping) * 1000000000;
+    let total: u64 in Wrapping = scaled + (nanoseconds_unsigned as +Wrapping);
     total as u64
 }
 public LinuxArm64TimeHost satisfies TimeHost {

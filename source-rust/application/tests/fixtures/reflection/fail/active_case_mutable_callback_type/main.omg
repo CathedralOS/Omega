@@ -11,19 +11,19 @@ data Envelope [copy] { before: u64; choice: Choice; after: u64; }
 data Trace { calls: u64; order: u64; }
 
 machine report_case(trace: @mut Trace, selected: @reflect\CaseInfo) {
-    trace.calls = ((trace.calls as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
-    trace.order = ((selected.stable_number as u64 in Wrapping)
-                 + (selected.declaration_position as u64 in Wrapping)) as u64;
+    trace.calls = ((trace.calls as +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
+    trace.order = ((selected.stable_number as +Wrapping)
+                 + (selected.declaration_position as +Wrapping)) as -Wrapping;
 }
 
 // Multiplying before each addition makes the visit order visible.
 machine report_field<Kind>(trace: @mut Trace, field: @reflect\FieldInfo, value: @Kind)
 requires Kind == u64
 {
-    trace.calls = ((trace.calls as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
-    trace.order = ((trace.order as u64 in Wrapping) * (31u64 as u64 +Wrapping)
-                 + (($value as u64) as u64 in Wrapping)
-                 + (field.stable_number as u64 in Wrapping)) as u64;
+    trace.calls = ((trace.calls as +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
+    trace.order = ((trace.order as +Wrapping) * (31u64 as u64 +Wrapping)
+                 + (($value as u64) as +Wrapping)
+                 + (field.stable_number as +Wrapping)) as -Wrapping;
 }
 
 machine observe(choice: @Choice, calls: u64, order: u64) crashes Trap {
@@ -49,10 +49,10 @@ machine shared_cases() crashes Trap {
 machine edit_field<Kind>(trace: @mut Trace, field: @reflect\FieldInfo, value: @mut Kind)
 requires Kind == u32
 {
-    trace.calls = ((trace.calls as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
+    trace.calls = ((trace.calls as +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
     let seen: u64 = $value as u64;
-    trace.order = ((trace.order as u64 in Wrapping) * (31u64 as u64 +Wrapping)
-                 + (seen as u64 in Wrapping)) as u64;
+    trace.order = ((trace.order as +Wrapping) * (31u64 as u64 +Wrapping)
+                 + (seen as +Wrapping)) as -Wrapping;
     let next: u64 = match field.stable_number { 20u64 -> 85u64, _ -> seen };
     $value = next;
 }

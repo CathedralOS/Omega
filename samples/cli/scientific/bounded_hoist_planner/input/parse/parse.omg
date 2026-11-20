@@ -20,7 +20,7 @@ public machine parse(bytes: @[u8; 11], plan: @mut Plan) -> bool {
         }
     }
     machine store(bytes: @[u8; 11], plan: @mut Plan, digits: @mut [i32 in Saturating; 10], index: u64, byte: u8) -> bool {
-        digits[index] = (byte as i32 in Saturating) - 48;
+        digits[index] = (byte as i32 +Saturating) - 48;
         transition index < 10 {
             true -> digit(bytes, plan, digits, index + 1),
             false -> false

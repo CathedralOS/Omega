@@ -38,7 +38,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine edges(main: @mut Main, count: i32 in Saturating, index: u64) requires index <= 6 {
-        transition (index as i32 in Saturating) < count {
+        transition (index as i32 +Saturating) < count {
             true -> block edge_input(main, count, index),
             false -> block end_input(main)
         }
@@ -57,8 +57,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires index <= 6 requires source < 3 requires destination < 3 {
         transfer(@mut main.web, source, destination, intake, efficiency);
         Console::write_line("flow source destination raw assimilated loss");
-        number(source as i32 in Saturating);
-        number(destination as i32 in Saturating);
+        number(source as i32 +Saturating);
+        number(destination as i32 +Saturating);
         number(intake * 100);
         number(intake * efficiency);
         number(intake * (100 - efficiency));
@@ -75,7 +75,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let balance: i32 in Saturating = residual(@main.web, node);
         let shortage: i32 in Saturating = deficit(balance);
         Console::write_line("node intake assimilated outgoing residual deficit surplus");
-        number(node as i32 in Saturating);
+        number(node as i32 +Saturating);
         number(main.web.intake[node]);
         number(main.web.assimilated[node]);
         number(main.web.outgoing[node]);

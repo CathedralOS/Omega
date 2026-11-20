@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) {
         _ -> other(main, pair)
     }
     machine chosen(main: @mut Main, pair: Pair) {
-        main.hits = (consume(pair.left) as i32 in Wrapping) + (consume(pair.right) as i32 in Wrapping);
+        main.hits = (consume(pair.left) as i32 +Wrapping) + (consume(pair.right) as i32 +Wrapping);
     }
     machine other(main: @mut Main, pair: Pair) {
         main.hits = -1;

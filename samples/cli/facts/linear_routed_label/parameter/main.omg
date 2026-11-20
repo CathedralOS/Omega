@@ -13,7 +13,7 @@ machine consume(claim: Claim in Issued & Label) -> u64 {
     observed
 }
 machine label(claim: Claim in Issued) -> u64 {
-    let tagged: Claim in Tagged = claim as Claim in Tagged;
+    let tagged: Claim in Tagged = claim as Claim +Tagged;
     consume(tagged)
 }
 machine exercise(select: bool) -> u64 { label(issue(29)) }

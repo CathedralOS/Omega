@@ -673,7 +673,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
         }
     }
     machine capacity(fit: @mut Fit, position: i32 in Wrapping, side: i32, value: f64, error: f64) -> bool {
-        let slot: i32 in Wrapping = position * 2 + side as i32 in Wrapping;
+        let slot: i32 in Wrapping = position * 2 + side as +Wrapping;
         transition position >= 0 && position < 4 && slot >= 0 && slot < 8 {
             true -> store(fit, position, slot, side, value, error),
             _ -> false

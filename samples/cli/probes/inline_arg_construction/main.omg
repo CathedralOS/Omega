@@ -19,7 +19,7 @@ data Envelope { pair: Pair; }
 machine settle(pair: Pair) -> i32 {
     let left: Receipt = pair.left;
     let right: Receipt = pair.right;
-    let total: i32 = ((left.code as i32 in Wrapping) + (right.code as i32 in Wrapping)) as i32;
+    let total: i32 = ((left.code as i32 +Wrapping) + (right.code as i32 +Wrapping)) as i32;
     drop(left);
     drop(right);
     total

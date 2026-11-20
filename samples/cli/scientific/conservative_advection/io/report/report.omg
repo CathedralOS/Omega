@@ -23,7 +23,7 @@ public machine scaled(value:f64,offset:i64 in Wrapping) reaches ProcessExit + Co
  }
  machine bounded(scaled:f64,exponent:i64 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {
   let mantissa:i64=I64::from_f64(scaled);
-  io\decimal\number(mantissa as i64 in Wrapping); io\decimal\number(exponent-15);
+  io\decimal\number(mantissa as +Wrapping); io\decimal\number(exponent-15);
  }
  machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }
@@ -42,7 +42,7 @@ public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower
  transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,power+parts.exponent-15,lower,lower_power,upper,upper_power,lower_value,lower_value_power,upper_value,upper_value_power), false -> failure() }
  machine bounded(scaled:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {
   let signed:i64=I64::from_f64(scaled);
-  let coefficient:u64 in Wrapping=narrow_i64_to_u64_saturating(signed) as u64 in Wrapping;
+  let coefficient:u64 in Wrapping=narrow_i64_to_u64_saturating(signed) as u64 +Wrapping;
   transition model\courant\compare_decimal(coefficient,power,lower,lower_power) < 0 { true -> near(scaled,power,lower,lower_power,lower_value,lower_value_power), false -> upper(coefficient,power,upper,upper_power,scaled,upper_value,upper_value_power) }
  }
  machine upper(coefficient:u64 in Wrapping,power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,scaled:f64,upper_value:f64,upper_value_power:i32 in Wrapping) {
@@ -59,8 +59,8 @@ public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower
   transition relative >= 0.999999999999 && relative <= 1.000000000001 { true -> emit(coefficient,endpoint_power), false -> failure() }
  }
  machine emit(coefficient:u64 in Wrapping,power:i32 in Wrapping) {
-  io\decimal\number(narrow_u64_to_i64_saturating(coefficient as u64) as i64 in Wrapping);
-  io\decimal\number(power as i64 in Wrapping);
+  io\decimal\number(narrow_u64_to_i64_saturating(coefficient as u64) as i64 +Wrapping);
+  io\decimal\number(power as -Wrapping as i64 +Wrapping);
  }
  machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }

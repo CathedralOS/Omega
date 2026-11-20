@@ -20,7 +20,7 @@ public machine load(envelope: @mut Envelope, packet: @input\Packet) -> bool {
     }
     machine header(envelope: @mut Envelope, packet: @input\Packet) -> bool {
         let bound: i32 = packet.values[0];
-        let count: i32 in Wrapping = packet.values[1] as i32 in Wrapping;
+        let count: i32 in Wrapping = packet.values[1] as i32 +Wrapping;
         transition bound > 0 && bound <= 100 && count >= 0 && count <= 8
                 && packet.count == 2 + count * 3 {
             true -> initialize(envelope, packet, bound, count),

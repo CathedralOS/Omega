@@ -185,8 +185,8 @@ machine compute_cell_0(context: @mut Main) {
     cell_is_bit(@context.g.board, 1);
     cell_is_bit(@context.g.board, 4);
     cell_is_bit(@context.g.board, 5);
-    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[4] + context.g.board[5]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[0] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[4] + context.g.board[5]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[0] as i32 +Wrapping;
     transition n == 3 {
         true -> live_0(context),
         _ -> check_cur_0(context, cur, n)
@@ -215,8 +215,8 @@ machine compute_cell_1(context: @mut Main) {
     cell_is_bit(@context.g.board, 4);
     cell_is_bit(@context.g.board, 5);
     cell_is_bit(@context.g.board, 6);
-    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[2] + context.g.board[4] + context.g.board[5] + context.g.board[6]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[1] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[2] + context.g.board[4] + context.g.board[5] + context.g.board[6]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[1] as i32 +Wrapping;
     transition n == 3 {
         true -> live_1(context),
         _ -> check_cur_1(context, cur, n)
@@ -245,8 +245,8 @@ machine compute_cell_2(context: @mut Main) {
     cell_is_bit(@context.g.board, 5);
     cell_is_bit(@context.g.board, 6);
     cell_is_bit(@context.g.board, 7);
-    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[3] + context.g.board[5] + context.g.board[6] + context.g.board[7]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[2] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[3] + context.g.board[5] + context.g.board[6] + context.g.board[7]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[2] as i32 +Wrapping;
     transition n == 3 {
         true -> live_2(context),
         _ -> check_cur_2(context, cur, n)
@@ -273,8 +273,8 @@ machine compute_cell_3(context: @mut Main) {
     cell_is_bit(@context.g.board, 2);
     cell_is_bit(@context.g.board, 6);
     cell_is_bit(@context.g.board, 7);
-    let n: i32 in Wrapping = (context.g.board[2] + context.g.board[6] + context.g.board[7]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[3] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[2] + context.g.board[6] + context.g.board[7]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[3] as i32 +Wrapping;
     transition n == 3 {
         true -> live_3(context),
         _ -> check_cur_3(context, cur, n)
@@ -303,8 +303,8 @@ machine compute_cell_4(context: @mut Main) {
     cell_is_bit(@context.g.board, 5);
     cell_is_bit(@context.g.board, 8);
     cell_is_bit(@context.g.board, 9);
-    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[1] + context.g.board[5] + context.g.board[8] + context.g.board[9]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[4] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[1] + context.g.board[5] + context.g.board[8] + context.g.board[9]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[4] as i32 +Wrapping;
     transition n == 3 {
         true -> live_4(context),
         _ -> check_cur_4(context, cur, n)
@@ -338,8 +338,8 @@ machine compute_cell_5(context: @mut Main) {
     cell_is_bit(@context.g.board, 9);
     cell_is_bit(@context.g.board, 10);
     let n: i32 in Wrapping = (context.g.board[0] + context.g.board[1] + context.g.board[2] + context.g.board[4]
-               + context.g.board[6] + context.g.board[8] + context.g.board[9] + context.g.board[10]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[5] as i32 in Wrapping;
+               + context.g.board[6] + context.g.board[8] + context.g.board[9] + context.g.board[10]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[5] as i32 +Wrapping;
     transition n == 3 {
         true -> live_5(context),
         _ -> check_cur_5(context, cur, n)
@@ -373,8 +373,8 @@ machine compute_cell_6(context: @mut Main) {
     cell_is_bit(@context.g.board, 10);
     cell_is_bit(@context.g.board, 11);
     let n: i32 in Wrapping = (context.g.board[1] + context.g.board[2] + context.g.board[3] + context.g.board[5]
-               + context.g.board[7] + context.g.board[9] + context.g.board[10] + context.g.board[11]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[6] as i32 in Wrapping;
+               + context.g.board[7] + context.g.board[9] + context.g.board[10] + context.g.board[11]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[6] as i32 +Wrapping;
     transition n == 3 {
         true -> live_6(context),
         _ -> check_cur_6(context, cur, n)
@@ -403,8 +403,8 @@ machine compute_cell_7(context: @mut Main) {
     cell_is_bit(@context.g.board, 6);
     cell_is_bit(@context.g.board, 10);
     cell_is_bit(@context.g.board, 11);
-    let n: i32 in Wrapping = (context.g.board[2] + context.g.board[3] + context.g.board[6] + context.g.board[10] + context.g.board[11]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[7] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[2] + context.g.board[3] + context.g.board[6] + context.g.board[10] + context.g.board[11]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[7] as i32 +Wrapping;
     transition n == 3 {
         true -> live_7(context),
         _ -> check_cur_7(context, cur, n)
@@ -433,8 +433,8 @@ machine compute_cell_8(context: @mut Main) {
     cell_is_bit(@context.g.board, 9);
     cell_is_bit(@context.g.board, 12);
     cell_is_bit(@context.g.board, 13);
-    let n: i32 in Wrapping = (context.g.board[4] + context.g.board[5] + context.g.board[9] + context.g.board[12] + context.g.board[13]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[8] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[4] + context.g.board[5] + context.g.board[9] + context.g.board[12] + context.g.board[13]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[8] as i32 +Wrapping;
     transition n == 3 {
         true -> live_8(context),
         _ -> check_cur_8(context, cur, n)
@@ -468,8 +468,8 @@ machine compute_cell_9(context: @mut Main) {
     cell_is_bit(@context.g.board, 13);
     cell_is_bit(@context.g.board, 14);
     let n: i32 in Wrapping = (context.g.board[4] + context.g.board[5] + context.g.board[6] + context.g.board[8]
-               + context.g.board[10] + context.g.board[12] + context.g.board[13] + context.g.board[14]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[9] as i32 in Wrapping;
+               + context.g.board[10] + context.g.board[12] + context.g.board[13] + context.g.board[14]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[9] as i32 +Wrapping;
     transition n == 3 {
         true -> live_9(context),
         _ -> check_cur_9(context, cur, n)
@@ -503,8 +503,8 @@ machine compute_cell_10(context: @mut Main) {
     cell_is_bit(@context.g.board, 14);
     cell_is_bit(@context.g.board, 15);
     let n: i32 in Wrapping = (context.g.board[5] + context.g.board[6] + context.g.board[7] + context.g.board[9]
-               + context.g.board[11] + context.g.board[13] + context.g.board[14] + context.g.board[15]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[10] as i32 in Wrapping;
+               + context.g.board[11] + context.g.board[13] + context.g.board[14] + context.g.board[15]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[10] as i32 +Wrapping;
     transition n == 3 {
         true -> live_10(context),
         _ -> check_cur_10(context, cur, n)
@@ -533,8 +533,8 @@ machine compute_cell_11(context: @mut Main) {
     cell_is_bit(@context.g.board, 10);
     cell_is_bit(@context.g.board, 14);
     cell_is_bit(@context.g.board, 15);
-    let n: i32 in Wrapping = (context.g.board[6] + context.g.board[7] + context.g.board[10] + context.g.board[14] + context.g.board[15]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[11] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[6] + context.g.board[7] + context.g.board[10] + context.g.board[14] + context.g.board[15]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[11] as i32 +Wrapping;
     transition n == 3 {
         true -> live_11(context),
         _ -> check_cur_11(context, cur, n)
@@ -561,8 +561,8 @@ machine compute_cell_12(context: @mut Main) {
     cell_is_bit(@context.g.board, 8);
     cell_is_bit(@context.g.board, 9);
     cell_is_bit(@context.g.board, 13);
-    let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[13]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[12] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[13]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[12] as i32 +Wrapping;
     transition n == 3 {
         true -> live_12(context),
         _ -> check_cur_12(context, cur, n)
@@ -591,8 +591,8 @@ machine compute_cell_13(context: @mut Main) {
     cell_is_bit(@context.g.board, 10);
     cell_is_bit(@context.g.board, 12);
     cell_is_bit(@context.g.board, 14);
-    let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[10] + context.g.board[12] + context.g.board[14]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[13] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[10] + context.g.board[12] + context.g.board[14]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[13] as i32 +Wrapping;
     transition n == 3 {
         true -> live_13(context),
         _ -> check_cur_13(context, cur, n)
@@ -621,8 +621,8 @@ machine compute_cell_14(context: @mut Main) {
     cell_is_bit(@context.g.board, 11);
     cell_is_bit(@context.g.board, 13);
     cell_is_bit(@context.g.board, 15);
-    let n: i32 in Wrapping = (context.g.board[9] + context.g.board[10] + context.g.board[11] + context.g.board[13] + context.g.board[15]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[14] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[9] + context.g.board[10] + context.g.board[11] + context.g.board[13] + context.g.board[15]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[14] as i32 +Wrapping;
     transition n == 3 {
         true -> live_14(context),
         _ -> check_cur_14(context, cur, n)
@@ -649,8 +649,8 @@ machine compute_cell_15(context: @mut Main) {
     cell_is_bit(@context.g.board, 10);
     cell_is_bit(@context.g.board, 11);
     cell_is_bit(@context.g.board, 14);
-    let n: i32 in Wrapping = (context.g.board[10] + context.g.board[11] + context.g.board[14]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = context.g.board[15] as i32 in Wrapping;
+    let n: i32 in Wrapping = (context.g.board[10] + context.g.board[11] + context.g.board[14]) as i32 +Wrapping;
+    let cur: i32 in Wrapping = context.g.board[15] as i32 +Wrapping;
     transition n == 3 {
         true -> live_15(context),
         _ -> check_cur_15(context, cur, n)
@@ -729,7 +729,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     step(context);
 
     // Checksum the next board: should be 4 (4 alive cells).
-    let sum: i32 in Wrapping = checksum(context) as i32 in Wrapping;
+    let sum: i32 in Wrapping = checksum(context) as i32 +Wrapping;
     let code: i32 in Wrapping = sum + context.g.offset;
 
     transition code == 70 {

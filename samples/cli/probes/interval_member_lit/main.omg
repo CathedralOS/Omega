@@ -17,7 +17,7 @@ machine Main::main(main: @mut Main) {
         Command::Off -> bad(main)
     }
     machine apply(main: @mut Main, amount: i32 in Ten) {
-        main.hits = main.hits + (scale(amount) as i32 in Wrapping);
+        main.hits = main.hits + (scale(amount) as i32 +Wrapping);
     }
     machine bad(main: @mut Main) { }
 }

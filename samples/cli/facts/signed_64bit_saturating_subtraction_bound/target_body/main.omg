@@ -32,8 +32,8 @@ X86SubtractTarget satisfies SelectedSubtractTarget {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80i64 && lhs <= 120i64 requires rhs >= 20i64 && rhs <= 40i64
     {
         SelectedBodyCheck::require_tag(17u64);
-        let a: i64 in Saturating = lhs as i64 in Saturating;
-        let b: i64 in Saturating = rhs as i64 in Saturating;
+        let a: i64 in Saturating = lhs as +Saturating;
+        let b: i64 in Saturating = rhs as +Saturating;
         let d_sat: i64 in Saturating = a - b;
         let diff: i64 = d_sat as i64;
         let headroom: i64 = 100i64 - diff;
@@ -54,8 +54,8 @@ ArmSubtractTarget satisfies SelectedSubtractTarget {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 80i64 && lhs <= 120i64 requires rhs >= 20i64 && rhs <= 40i64
     {
         SelectedBodyCheck::require_tag(29u64);
-        let a: i64 in Saturating = lhs as i64 in Saturating;
-        let b: i64 in Saturating = rhs as i64 in Saturating;
+        let a: i64 in Saturating = lhs as +Saturating;
+        let b: i64 in Saturating = rhs as +Saturating;
         let d_sat: i64 in Saturating = a - b;
         let diff: i64 = d_sat as i64;
         let headroom: i64 = 100i64 - diff;

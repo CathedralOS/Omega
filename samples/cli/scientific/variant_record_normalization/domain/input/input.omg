@@ -18,7 +18,7 @@ machine character(line: @[u8; 64], count: u64 in Wrapping, index: u64 in Wrappin
         _ -> 0
     }
     machine read(line: @[u8; 64], index: u64 in Wrapping) -> u64 in Wrapping {
-        line[index] as u64 in Wrapping
+        line[index] as u64 +Wrapping
     }
 }
 public machine parse(line: @[u8; 64], count: u64 in Wrapping, input: @mut Input) {

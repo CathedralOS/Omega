@@ -32,7 +32,7 @@ satisfies Access::plan
 data Main { pair: Pair; hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.pair.readable = 3;
-    main.hits = main.hits + (main.pair.readable as i32 in Wrapping);
+    main.hits = main.hits + (main.pair.readable as i32 +Wrapping);
 }
 
 // The entry owns ordinary local state; selection supplies no context.

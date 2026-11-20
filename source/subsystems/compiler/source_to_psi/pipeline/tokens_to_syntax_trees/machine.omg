@@ -336,7 +336,7 @@ crashes Trap
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         parser.machine_parent = parser.machine_current + 1;
-        parser.machine_start = token.start as u64 in Trapping;
+        parser.machine_start = token.start as u64 +Trapping;
         parser.machine_is_public = false;
         parser.machine_has_target = false;
         parser.machine_target_start = 0;

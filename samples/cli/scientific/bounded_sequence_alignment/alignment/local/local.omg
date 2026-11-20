@@ -147,9 +147,9 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
         result.candidate = 0;
         result.direction = 0;
         let up_values: [i32; 17] = copy_row(@result.scores, diagonal_row);
-        let diagonal: i32 in Wrapping = (up_values[diagonal_column] as i32 in Wrapping) + result.substitution;
-        let up: i32 in Wrapping = (up_values[up_column] as i32 in Wrapping) - 2;
-        let left: i32 in Wrapping = (read_score(@result.scores, left_row, left_column) as i32 in Wrapping) - 2;
+        let diagonal: i32 in Wrapping = (up_values[diagonal_column] as i32 +Wrapping) + result.substitution;
+        let up: i32 in Wrapping = (up_values[up_column] as i32 +Wrapping) - 2;
+        let left: i32 in Wrapping = (read_score(@result.scores, left_row, left_column) as i32 +Wrapping) - 2;
         transition { _ -> choose_diagonal(first, second, result, diagonal, up, left) }
     }
     machine choose_diagonal(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mut Alignment, diagonal: i32 in Wrapping, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {

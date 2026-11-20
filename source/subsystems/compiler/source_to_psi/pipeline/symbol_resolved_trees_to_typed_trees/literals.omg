@@ -112,7 +112,7 @@ crashes Trap
         any: bool
     ) -> u64 in Trapping {
         let source_byte: u8 = source_set_byte_or_nul(sources, span.source, index);
-        let value: u64 in Trapping = source_byte as u64 in Trapping;
+        let value: u64 in Trapping = source_byte as u64 +Trapping;
         transition source_byte == 92 {
             true -> escaped(sources, span, index, end, pending, low, high, utf8, nul_free, ascii, any),
             _ -> decoded(sources, span, index + 1, end, value, pending, low, high, utf8, nul_free, ascii, any)
@@ -288,7 +288,7 @@ crashes Trap
         114 -> answer(13),
         116 -> answer(9),
         48 -> answer(0),
-        _ -> answer(kind as u64 in Trapping)
+        _ -> answer(kind as u64 +Trapping)
     }
 
     machine answer(byte: u64 in Trapping) -> u64 in Trapping {
@@ -300,7 +300,7 @@ crashes Trap
 machine hex_value(byte: u8) -> u64 in Trapping
 crashes Trap
 {
-    let value: u64 in Trapping = byte as u64 in Trapping;
+    let value: u64 in Trapping = byte as u64 +Trapping;
     transition value >= 48 && value <= 57 {
         true -> answer(value - 48),
         _ -> letter(value)

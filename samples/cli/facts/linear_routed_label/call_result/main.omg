@@ -14,7 +14,7 @@ machine consume(claim: Claim in Issued & Label) -> u64 {
 }
 machine forward(claim: Claim in Issued) -> Claim in Issued { claim }
 machine exercise(select: bool) -> u64 {
-    let tagged: Claim in Tagged = forward(issue(29)) as Claim in Tagged;
+    let tagged: Claim in Tagged = forward(issue(29)) as Claim +Tagged;
     consume(tagged)
 }
 

@@ -14,7 +14,7 @@ machine Main::main(main: @mut Main) {
         Lookup::Missing -> bad(main)
     }
     machine good(main: @mut Main, value: u64) {
-        main.hits = main.hits + (value as i32 in Wrapping);
+        main.hits = main.hits + (value as i32 +Wrapping);
     }
     machine bad(main: @mut Main) { }
 }

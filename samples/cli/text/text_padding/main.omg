@@ -37,7 +37,7 @@ data Main {
 machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("text_padding: computes right-padding to a 16-column width from carrier length");
     main.message = "ALERT temp";
-    main.padding = 16 - (narrow_u64_to_i32_saturating(main.message.len) as i32 in Saturating);
+    main.padding = 16 - (narrow_u64_to_i32_saturating(main.message.len) as i32 +Saturating);
     Console::write_line(main.message);
 
     transition { _ -> block done(main) }

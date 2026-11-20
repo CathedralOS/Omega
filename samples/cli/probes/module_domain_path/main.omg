@@ -24,7 +24,7 @@ data Main {
 
 machine Main::main(main: @mut Main) {
     main.hits = 0;
-    transition measure(3 as u64 in units\u64::Distance, 4) {
+    transition measure(3 as u64 +units\u64::Distance, 4) {
         true -> pass(main),
         _ -> fail(main)
     }

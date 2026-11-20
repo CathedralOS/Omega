@@ -267,8 +267,8 @@ machine verify_workload(sets: @mut DisjointSet) -> bool {
     machine checksum_step(sets: @mut DisjointSet, index: u64, acc: u64 in Wrapping) -> bool
     requires index < 64 {
         let rep: u64 = find(sets, index);
-        let rep_wrapping: u64 in Wrapping = (rep as u64) as u64 in Wrapping;
-        let idx_wrapping: u64 in Wrapping = index as u64 in Wrapping;
+        let rep_wrapping: u64 in Wrapping = (rep as u64) as u64 +Wrapping;
+        let idx_wrapping: u64 in Wrapping = index as +Wrapping;
         let next_acc: u64 in Wrapping = acc * 131 + rep_wrapping + idx_wrapping * 7;
         transition { _ -> checksum_loop(sets, index + 1, next_acc) }
     }

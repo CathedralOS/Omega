@@ -35,18 +35,18 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.text = "12+34";
 
     // First operand from text[0..1].
-    main.a = widen_u8_to_i32(main.text[0]) as i32 in Wrapping;
+    main.a = widen_u8_to_i32(main.text[0]) as i32 +Wrapping;
     main.a = main.a - 48;
     main.a = main.a * 10;
-    main.tmp = widen_u8_to_i32(main.text[1]) as i32 in Wrapping;
+    main.tmp = widen_u8_to_i32(main.text[1]) as i32 +Wrapping;
     main.tmp = main.tmp - 48;
     main.a = main.a + main.tmp;
 
     // Second operand from text[3..4].
-    main.b = widen_u8_to_i32(main.text[3]) as i32 in Wrapping;
+    main.b = widen_u8_to_i32(main.text[3]) as i32 +Wrapping;
     main.b = main.b - 48;
     main.b = main.b * 10;
-    main.tmp = widen_u8_to_i32(main.text[4]) as i32 in Wrapping;
+    main.tmp = widen_u8_to_i32(main.text[4]) as i32 +Wrapping;
     main.tmp = main.tmp - 48;
     main.b = main.b + main.tmp;
 

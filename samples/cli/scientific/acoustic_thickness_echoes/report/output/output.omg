@@ -41,7 +41,7 @@ public machine write_echo(index: u64 in Saturating, result: EchoResult) reaches 
 invokes Console
 {
     Console::write("echo ");
-    write_number(narrow_u64_to_i64_saturating(index as u64) as i64 in Saturating);
+    write_number(narrow_u64_to_i64_saturating(index as u64) as i64 +Saturating);
     Console::write(" ");
     transition {
         result.matches == 0 -> unmatched(),

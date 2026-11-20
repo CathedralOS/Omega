@@ -97,7 +97,7 @@ machine distance(search: @mut MazeSearch) -> i32 {
         }
     }
     machine read_cell(search: @mut MazeSearch) -> i32 {
-        let cell: i32 in Wrapping = search.queue[search.head] as i32 in Wrapping;
+        let cell: i32 in Wrapping = search.queue[search.head] as i32 +Wrapping;
         search.head = search.head + 1;
         search.count = search.count - 1;
         transition { _ -> direction(search, cell, 0) }
@@ -111,8 +111,8 @@ machine distance(search: @mut MazeSearch) -> i32 {
     }
     machine neighbour(search: @mut MazeSearch, cell: i32 in Wrapping,
                     direction_index: i32 in Wrapping) -> i32 {
-        let row_offset: i32 in Wrapping = search.row_offsets[direction_index] as i32 in Wrapping;
-        let column_offset: i32 in Wrapping = search.column_offsets[direction_index] as i32 in Wrapping;
+        let row_offset: i32 in Wrapping = search.row_offsets[direction_index] as i32 +Wrapping;
+        let column_offset: i32 in Wrapping = search.column_offsets[direction_index] as i32 +Wrapping;
         let row: i32 in Wrapping = cell / 5 + row_offset;
         let column: i32 in Wrapping = cell % 5 + column_offset;
         transition row >= 0 && row < 5 && column >= 0 && column < 5 {
@@ -153,7 +153,7 @@ machine distance(search: @mut MazeSearch) -> i32 {
     }
     machine visit(search: @mut MazeSearch, cell: i32 in Wrapping,
                 direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
-        let distance: i32 in Wrapping = search.distances[cell] as i32 in Wrapping;
+        let distance: i32 in Wrapping = search.distances[cell] as i32 +Wrapping;
         search.distances[neighbour_index] = (distance + 1) as i32;
         search.queue[search.tail] = neighbour_index as i32;
         search.tail = search.tail + 1;
@@ -206,7 +206,7 @@ machine render_row(search: @MazeSearch, line: @mut [u8; 16] in Ascii,
                  row: i32 in Wrapping, column_index: i32 in Wrapping,
                  cell_index: i32 in Wrapping, first: i32 in Wrapping,
                  second: i32 in Wrapping) -> bool {
-        let distance: i32 in Wrapping = search.distances[cell_index] as i32 in Wrapping;
+        let distance: i32 in Wrapping = search.distances[cell_index] as i32 +Wrapping;
         let tens: i32 in Wrapping = distance / 10;
         let ones: i32 in Wrapping = distance % 10;
         let ones_byte: u8 = narrow_i32_to_u8_trapping((ones + 48) as i32);

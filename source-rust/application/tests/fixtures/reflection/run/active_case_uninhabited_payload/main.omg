@@ -9,14 +9,14 @@ data Outcome<T, E> {
 }
 
 machine report_case(calls: @mut u64, selected: @reflect\CaseInfo) {
-    $calls = (($calls as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
+    $calls = (($calls as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
 }
 
 machine edit_field<Kind>(calls: @mut u64, field: @reflect\FieldInfo, value: @mut Kind)
 requires Kind == u64
 {
-    $value = (($value as u64 in Wrapping) + (17u64 as u64 +Wrapping)) as u64;
-    $calls = (($calls as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64;
+    $value = (($value as u64 +Wrapping) + (17u64 as u64 +Wrapping)) as -Wrapping;
+    $calls = (($calls as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
 }
 
 machine main() crashes Trap {

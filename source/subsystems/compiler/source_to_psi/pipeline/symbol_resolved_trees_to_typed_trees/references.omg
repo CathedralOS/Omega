@@ -312,7 +312,7 @@ crashes Trap
     ) {
         let value: LiteralValue = literal_value(syntax, reference.literal);
         let mut row: TypeRow = type_row_of(TypeKind::StaticInteger);
-        row.length = value.magnitude as u64 in Trapping;
+        row.length = value.magnitude as u64 +Trapping;
         transition value.valid && !value.has_suffix {
             true -> intern(typer, sources, syntax, resolution, index, reference, row),
             _ -> literal_rejected(typer, reference)

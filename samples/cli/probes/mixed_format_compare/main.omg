@@ -8,7 +8,7 @@
 //     false: LHS is the f32 plateau value, RHS is exact.
 //   * `widen(1.5f32) == 1.5` — f32→f64 widening is always
 //     exact.
-//   * `calls = ((calls as u64 in Wrapping) + 1) as u64`
+//   * `calls = ((calls as +Wrapping) + 1) as -Wrapping`
 //     — domain-cast + erase around an increment gives
 //     wrapping count semantics through a `&mut` param.
 //
@@ -26,7 +26,7 @@ machine widen(value: f32) -> f64 { value as f64 }
 machine identity(value: f32) -> f32 { value }
 
 machine compare(calls: @mut u64) -> Observations {
-    $calls = (($calls as u64 in Wrapping) + 1) as u64;
+    $calls = (($calls as u64 +Wrapping) + 1) as u64;
     Observations {
         widened: widen(1.5f32) == 1.5,
         rounded: identity(16777216.0f32) == 16777216.0 + 1.0

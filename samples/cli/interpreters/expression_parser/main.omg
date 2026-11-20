@@ -107,7 +107,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine store_digit(main: @mut Main) {
-        let digit: i32 in Wrapping = main.byte as i32 in Wrapping;
+        let digit: i32 in Wrapping = main.byte as i32 +Wrapping;
         main.values[main.value_count] = digit - 48;
         main.value_count = main.value_count + 1;
         main.position = main.position + 1;

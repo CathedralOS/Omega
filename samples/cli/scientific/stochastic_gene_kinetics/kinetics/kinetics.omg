@@ -8,7 +8,7 @@ public data Model {
     status: u64; channel: u64;
 }
 public machine draw(model: @mut Model) -> f64 {
-    let product: u64 in Wrapping = (model.seed as u64 in Wrapping) * 16807;
+    let product: u64 in Wrapping = (model.seed as u64 +Wrapping) * 16807;
     model.seed = (product as u64) % 2147483647;
     transition { _ -> uniform(model.seed) }
     machine uniform(value: u64) -> f64 {

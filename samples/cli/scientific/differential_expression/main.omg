@@ -41,7 +41,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine store_group(main: @mut Main, index: i32 in Wrapping, cases: i32 in Wrapping, value: i32) requires index >= 0 && index < 6 {
         main.study.groups[index] = value;
-        transition { _ -> metadata(main, index + 1, cases + value as i32 in Wrapping) }
+        transition { _ -> metadata(main, index + 1, cases + value as +Wrapping) }
     }
     machine replicates(main: @mut Main, cases: i32 in Wrapping) {
         transition cases >= 2 && cases <= 4 {

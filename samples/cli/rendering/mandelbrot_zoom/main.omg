@@ -103,7 +103,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         }
     }
     machine write_pixel(main: @mut Main) {
-        main.ch = main.palette[main.idx] as u8 in Wrapping;
+        main.ch = main.palette[main.idx] as u8 +Wrapping;
         main.row[main.x] = main.ch as u8;
         main.x = main.x + 1;
         transition { _ -> block col_loop(main) }

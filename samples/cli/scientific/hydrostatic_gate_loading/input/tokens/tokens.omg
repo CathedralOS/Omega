@@ -52,7 +52,7 @@ crashes Trap
         }
     }
     machine append(reader: @mut Reader, value: i32) {
-        reader.value = reader.value * 10 + ((value as i64 in Wrapping) - 48);
+        reader.value = reader.value * 10 + ((value as i64 +Wrapping) - 48);
         reader.digits = reader.digits + 1;
         transition { _ -> block scan(reader) }
     }

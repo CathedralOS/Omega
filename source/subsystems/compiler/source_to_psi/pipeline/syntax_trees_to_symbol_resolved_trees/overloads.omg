@@ -217,7 +217,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
-        let overload: bool = resolver_same_module(sources, family.value as u64 in Trapping,
+        let overload: bool = resolver_same_module(sources, family.value as u64 +Trapping,
             item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition visible && !overload {
             true -> ambiguous(),

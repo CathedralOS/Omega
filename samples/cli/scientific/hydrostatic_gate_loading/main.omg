@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         false -> invalid()
     }
     machine header(application: @mut Application) {
-        application.profile.count = application.reader.value as u64 in Wrapping;
+        application.profile.count = application.reader.value as u64 +Wrapping;
         block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 8 {
             true -> block gamma(application),
@@ -50,7 +50,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine gamma(application: @mut Application) {
-        application.level_count = application.reader.value as u64 in Wrapping;
+        application.level_count = application.reader.value as u64 +Wrapping;
         block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 20000 {
             true -> block hinge(application),
@@ -145,7 +145,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         application.first_moment = 0.0;
         application.hinge_moment = 0.0;
         application.wetted_count = 0;
-        Console::write("LEVEL "); write_integer(index as i64 in Wrapping);
+        Console::write("LEVEL "); write_integer(index as -Wrapping as i64 +Wrapping);
         Console::write(" water_um="); write_scaled(application.levels[index]);
         Console::write_line("");
         transition { _ -> segment(application, index, 0) }
@@ -172,7 +172,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         application.first_moment = application.first_moment + load.first_moment;
         application.hinge_moment = application.hinge_moment + load.hinge_moment;
         application.wetted_count = application.wetted_count + 1;
-        Console::write("WET "); write_integer(segment_index as i64 in Wrapping);
+        Console::write("WET "); write_integer(segment_index as -Wrapping as i64 +Wrapping);
         Console::write(" lower_um="); write_scaled(wet.lower);
         Console::write(" upper_um="); write_scaled(wet.upper);
         Console::write(" lower_width_um="); write_scaled(wet.lower_width);

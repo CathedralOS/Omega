@@ -60,8 +60,8 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     requires index >= 0
     requires index < 4
     {
-        let source: i32 in Wrapping = model.source[index] as i32 in Wrapping;
-        let destination: i32 in Wrapping = model.destination[index] as i32 in Wrapping;
+        let source: i32 in Wrapping = model.source[index] as i32 +Wrapping;
+        let destination: i32 in Wrapping = model.destination[index] as i32 +Wrapping;
         transition source >= 0 && source < 3 && destination >= 0 && destination < 3 {
             true -> constraint(model, result, code, times, index, source, destination),
             false -> done()
@@ -77,9 +77,9 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     requires destination >= 0
     requires destination < 3
     {
-        let start: i32 in Wrapping = times.ticks[source] as i32 in Wrapping;
-        let finish: i32 in Wrapping = times.ticks[destination] as i32 in Wrapping;
-        let lag: i32 in Wrapping = model.lag[index] as i32 in Wrapping;
+        let start: i32 in Wrapping = times.ticks[source] as i32 +Wrapping;
+        let finish: i32 in Wrapping = times.ticks[destination] as i32 +Wrapping;
+        let lag: i32 in Wrapping = model.lag[index] as i32 +Wrapping;
         transition finish >= start + lag {
             true -> edge(model, result, code, times, index + 1),
             false -> candidate(model, result, code + 1)

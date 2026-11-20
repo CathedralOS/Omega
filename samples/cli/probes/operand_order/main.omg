@@ -19,13 +19,13 @@ data Score [copy] { value: u64; }
 data Ordered [copy] { first: u64; second: u64; }
 
 machine + Score::add(left: Score, right: Score) -> u64 in Wrapping {
-    (left.value as u64 in Wrapping) + (right.value as u64 in Wrapping)
+    (left.value as u64 +Wrapping) + (right.value as u64 +Wrapping)
 }
 
 machine forward<Value>(value: Value) -> Value { value }
 
 machine tick(count: @mut u64) -> u64 {
-    $count = (($count as u64 in Wrapping) + 1) as u64;
+    $count = (($count as u64 +Wrapping) + 1) as u64;
     $count
 }
 
@@ -52,7 +52,7 @@ machine Main::main(main: @mut Main) {
         _ -> Main::fail(main)
     }
     machine pass(main: @mut Main) {
-        main.total = forward::<u64>(main.count) as u64 in Wrapping;
+        main.total = forward::<u64>(main.count) as u64 +Wrapping;
         main.hits = 1;
     }
     machine fail(main: @mut Main) { main.hits = -1; }

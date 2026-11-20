@@ -55,7 +55,7 @@ crashes Trap
     }
     machine append(reader: @mut Reader, byte: i32, sign: f64, accumulated: i64 in Wrapping,
                  digits: i32 in Wrapping, point: bool, fractional: i32 in Wrapping) -> Number {
-        let next: i64 in Wrapping = accumulated * 10 + ((byte - 48) as i64 in Wrapping);
+        let next: i64 in Wrapping = accumulated * 10 + ((byte - 48) as i64 +Wrapping);
         transition point { true -> following(reader, sign, next, digits + 1, true, fractional + 1),
                            _ -> following(reader, sign, next, digits + 1, false, fractional) }
     }
@@ -100,7 +100,7 @@ crashes Trap
                           fractional: i32 in Wrapping, negative: bool, exponent: i32 in Wrapping, digits: i32 in Wrapping) -> Number {
         let observed: i32 = block character(reader);
         transition { _ -> exponent_digit(reader, observed, sign, accumulated, fractional, negative,
-                     exponent * 10 + (byte as i32 in Wrapping) - 48, digits + 1) }
+                     exponent * 10 + (byte as i32 +Wrapping) - 48, digits + 1) }
     }
     machine exponent_end(byte: i32, sign: f64, accumulated: i64 in Wrapping,
                        fractional: i32 in Wrapping, negative: bool, exponent: i32 in Wrapping, digits: i32 in Wrapping) -> Number {

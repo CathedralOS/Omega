@@ -56,7 +56,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine digit_write(main: @mut Main) {
         main.ch = main.d + 48;
-        main.byte = narrow_u32_to_u8_wrapping(main.ch as u32) as u8 in Wrapping;
+        main.byte = narrow_u32_to_u8_wrapping(main.ch as u32) as u8 +Wrapping;
         main.out[main.p] = main.byte as u8;
         main.place = main.place / 10;
         main.p = main.p + 1;

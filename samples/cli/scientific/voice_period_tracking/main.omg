@@ -54,7 +54,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         }
     }
     machine store(main: @mut Main, value: i32) {
-        let sample: i32 in Wrapping = (value as i32 in Wrapping) - 48;
+        let sample: i32 in Wrapping = (value as +Wrapping) - 48;
         main.samples[main.length] = sample;
         main.minimum = match sample < main.minimum { true -> sample, _ -> main.minimum };
         main.maximum = match sample > main.maximum { true -> sample, _ -> main.maximum };

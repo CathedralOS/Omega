@@ -12,7 +12,7 @@ machine multiply(grid:@mut domain\grid\Grid, direction:bool) {
  }
  machine begin(grid:@mut domain\grid\Grid,direction:bool,index:u64 in Saturating) {
   grid.image[index%144]=0.0;
-  transition { _ -> csr_entry(grid,direction,index,grid.offsets[index%145] as u64 in Saturating) }
+  transition { _ -> csr_entry(grid,direction,index,grid.offsets[index%145] as u64 +Saturating) }
  }
  machine csr_entry(grid:@mut domain\grid\Grid,direction:bool,index:u64 in Saturating,position:u64 in Saturating) {
   transition position < grid.offsets[(index+1)%145] && position < 720 {

@@ -45,7 +45,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition F64::from_i32(steps) == count { true -> configure(main, steps), false -> range(main) }
     }
     machine configure(main: @mut Main, steps: i32) {
-        main.steps = steps as i32 in Wrapping;
+        main.steps = steps as i32 +Wrapping;
         main.step = 0; main.time = 0.0;
         main.orbit.parameter = main.protocol.fields[0];
         main.orbit.x = main.protocol.fields[1]; main.orbit.y = main.protocol.fields[2];

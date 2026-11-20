@@ -69,7 +69,7 @@ crashes Trap
     }
 
     machine found(handle: u64) -> u64 in Trapping {
-        handle as u64 in Trapping
+        handle as u64 +Trapping
     }
 
     machine absent() -> u64 in Trapping {
@@ -466,7 +466,7 @@ crashes Trap
     }
 
     machine read(typer: @Typer, depth: u64 in Trapping) -> u64 in Trapping {
-        typer.work[depth] as u64 in Trapping
+        typer.work[depth] as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -502,7 +502,7 @@ crashes Trap
     }
 
     machine read(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping {
-        typer.memo[handle] as u64 in Trapping
+        typer.memo[handle] as u64 +Trapping
     }
 
     machine unchanged(handle: u64 in Trapping) -> u64 in Trapping {

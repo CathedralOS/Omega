@@ -27,7 +27,7 @@ public machine parse(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens)
     }
     machine byte(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                position: i32 in Wrapping, value: i32 in Wrapping, active: bool) -> bool {
-        let observed: i32 in Wrapping = text.bytes[position] as i32 in Wrapping;
+        let observed: i32 in Wrapping = text.bytes[position] as i32 +Wrapping;
         transition observed >= 48 && observed <= 57 {
             true -> digit(text, length, tokens, position, value * 10 + observed - 48),
             _ -> separator(text, length, tokens, position, value, active, observed)

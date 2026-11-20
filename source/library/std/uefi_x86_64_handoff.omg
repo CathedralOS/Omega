@@ -248,7 +248,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
         // Allocation can itself grow the map. Reserve strictly more than the
         // reported requirement, including when it was already page-aligned.
         uefi_os_handoff_cycle.legs.pages = (((uefi_os_handoff_cycle.legs.map_size
-            as u64 in Saturating) / EFI_PAGE_BYTES) + 1) as u64;
+            as u64 +Saturating) / EFI_PAGE_BYTES) + 1) as u64;
         uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle);
         transition { _ -> release(uefi_os_handoff_cycle) }
     }
@@ -278,7 +278,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     machine adopt(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         uefi_os_handoff_cycle.legs.map = uefi_os_handoff_cycle.legs.next_map;
         uefi_os_handoff_cycle.legs.map_pages = uefi_os_handoff_cycle.legs.pages;
-        uefi_os_handoff_cycle.legs.map_capacity = ((uefi_os_handoff_cycle.legs.pages as u64 in Saturating)
+        uefi_os_handoff_cycle.legs.map_capacity = ((uefi_os_handoff_cycle.legs.pages as u64 +Saturating)
             * EFI_PAGE_BYTES) as u64;
         // Adoption transfers the staged allocation into the current owner.
         uefi_os_handoff_cycle.legs.next_map = 0;
@@ -319,7 +319,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     }
 
     machine retry(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
-        uefi_os_handoff_cycle.remaining = ((uefi_os_handoff_cycle.remaining as u64 in Saturating) - 1) as u64;
+        uefi_os_handoff_cycle.remaining = ((uefi_os_handoff_cycle.remaining as u64 +Saturating) - 1) as u64;
         transition { _ -> acquire(uefi_os_handoff_cycle) }
     }
 

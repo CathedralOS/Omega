@@ -57,7 +57,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine accumulate(main: @mut Main, value: i32)
     requires main.digits >= 0 && main.digits < 7 {
-        main.token = main.token * 10 + (value as i32 in Wrapping) - 48;
+        main.token = main.token * 10 + (value as +Wrapping) - 48;
         main.digits = main.digits + 1;
         transition main.token <= 1000000 {
             true -> block read(main),
@@ -150,7 +150,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine weight(main: @mut Main)
     requires main.index >= 0 && main.index < 8 {
-        main.total = main.total + (main.input[main.index + 5] as i32 in Wrapping);
+        main.total = main.total + (main.input[main.index + 5] as i32 +Wrapping);
         transition fails(@main.terms, main.input[0], main.index) {
             true -> failed_weight(main),
             _ -> next_weight(main)
@@ -158,7 +158,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine failed_weight(main: @mut Main)
     requires main.index >= 0 && main.index < 8 {
-        main.failure = main.failure + (main.input[main.index + 5] as i32 in Wrapping);
+        main.failure = main.failure + (main.input[main.index + 5] as i32 +Wrapping);
         transition { _ -> next_weight(main) }
     }
     machine next_weight(main: @mut Main)
@@ -237,7 +237,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine marginal(main: @mut Main, off: i32, on: i32)
     requires main.index >= 0 && main.index < 8 {
-        main.marginal = main.marginal + (main.input[main.index + 5] as i32 in Wrapping);
+        main.marginal = main.marginal + (main.input[main.index + 5] as i32 +Wrapping);
         transition { _ -> repair(main, off, on) }
     }
     machine repair(main: @mut Main, off: i32, on: i32) {
@@ -248,7 +248,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine add_repair(main: @mut Main, on: i32)
     requires main.index >= 0 && main.index < 8 {
-        main.repaired = main.repaired + (main.input[main.index + 5] as i32 in Wrapping);
+        main.repaired = main.repaired + (main.input[main.index + 5] as i32 +Wrapping);
         transition { _ -> force(main, on) }
     }
     machine force(main: @mut Main, on: i32) {
@@ -259,7 +259,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine add_force(main: @mut Main)
     requires main.index >= 0 && main.index < 8 {
-        main.forced = main.forced + (main.input[main.index + 5] as i32 in Wrapping);
+        main.forced = main.forced + (main.input[main.index + 5] as i32 +Wrapping);
         transition { _ -> next_audit(main) }
     }
     machine next_audit(main: @mut Main)

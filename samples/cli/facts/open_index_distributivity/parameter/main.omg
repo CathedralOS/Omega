@@ -56,7 +56,7 @@ Canonical satisfies IndexSemiring
 machine rearrange<const A: u64, const B: u64, const C: u64, Algebra satisfies IndexSemiring>(
     raw: i64
 ) -> i64 {
-    let source: i64 in Indexed<A * (B + C)> = raw as i64 in Indexed<A * (B + C)>;
+    let source: i64 in Indexed<A * (B + C)> = raw as +Indexed<A * (B + C)>;
     let moved: i64 in Indexed<A * B + A * C> = source;
     moved as i64
 }

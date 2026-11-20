@@ -52,7 +52,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine read_byte(main: @mut Main) {
         main.b = main.data[main.i];
-        main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
+        main.bw = widen_u8_to_u32(main.b) as u32 +Wrapping;
         main.hi = main.bw / 16;
         main.lo = main.bw - (main.hi * 16);
         transition {
@@ -135,7 +135,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine read_glyph(main: @mut Main) {
         main.b = main.data[main.i];
-        main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
+        main.bw = widen_u8_to_u32(main.b) as u32 +Wrapping;
         transition main.bw >= 32 && main.bw < 127 {
             true -> keep_glyph(main),
             _ -> dot_glyph(main)

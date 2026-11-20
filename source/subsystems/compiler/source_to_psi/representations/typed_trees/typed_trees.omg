@@ -418,7 +418,7 @@ crashes Trap
 {
     let numerator: ExactInteger = typing_value(typing, index);
     let denominator: u64 in Trapping = typing_denominator(typing, index);
-    Rational { numerator: numerator, denominator: denominator as u64 in Wrapping }
+    Rational { numerator: numerator, denominator: denominator as -Trapping +Wrapping }
 }
 
 // A quoted literal's predicate roster (`rosters`); zero for any other
@@ -433,7 +433,7 @@ crashes Trap
 
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
         let stored: u64 = typing.rosters[index];
-        stored as u64 in Trapping
+        stored as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -476,7 +476,7 @@ crashes Trap
     }
 
     machine fraction(stored: u64) -> u64 in Trapping {
-        stored as u64 in Trapping
+        stored as +Trapping
     }
 
     machine integral() -> u64 in Trapping {
@@ -695,7 +695,7 @@ crashes Trap
     }
 
     machine read(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping {
-        table.arguments[index] as u64 in Trapping
+        table.arguments[index] as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -772,7 +772,7 @@ crashes Trap
     }
 
     machine store(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping {
-        let handle: u64 in Trapping = table.row_count as u64 in Trapping;
+        let handle: u64 in Trapping = table.row_count as u64 +Trapping;
         table.rows[handle] = row;
         table.row_count = table.row_count + 1;
         transition { _ -> result(handle) }

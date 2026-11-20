@@ -32,7 +32,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine length(main: @mut Main, input: @Input, count: u64) {
         transition count <= 256 {
-            true -> parse_request(main, input, count as i32 in Wrapping),
+            true -> parse_request(main, input, count as i32 +Wrapping),
             _ -> invalid(main)
         }
     }

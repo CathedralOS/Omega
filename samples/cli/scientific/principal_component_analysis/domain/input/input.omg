@@ -13,7 +13,7 @@ invokes Console reaches Console blocks crashes Trap {
  machine receive(input: @mut Input) {
   transition block Console::read_byte() {
    ByteRead::Eof -> finish(input),
-   ByteRead::Byte { value } -> bound(input, value as i32 in Wrapping)
+   ByteRead::Byte { value } -> bound(input, value as i32 +Wrapping)
   }
  }
  machine bound(input: @mut Input, value: i32 in Wrapping) {
@@ -74,7 +74,7 @@ machine input_flush(input: @mut Input) {
   }
  }
  machine end_mantissa(input: @mut Input, value: f64, negative: bool, digits: u64 in Wrapping, fraction: u64 in Wrapping) {
-  transition digits > 0 { true -> scale(input, value, negative, 0 - (narrow_u64_to_i32_saturating(fraction as u64) as i32 in Wrapping)), false -> invalid(input) }
+  transition digits > 0 { true -> scale(input, value, negative, 0 - (narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)), false -> invalid(input) }
  }
  machine exponent_sign(input: @mut Input, index: u64 in Wrapping, value: f64, negative: bool, fraction: u64 in Wrapping) {
   transition index < input.length && index < 64 { true -> exponent_start(input, index, value, negative, fraction), false -> invalid(input) }
@@ -100,7 +100,7 @@ machine input_flush(input: @mut Input) {
   transition digits > 0 && power <= 1000 { true -> signed_power(input, value, negative, fraction, minus, power), false -> invalid(input) }
  }
  machine signed_power(input: @mut Input, value: f64, negative: bool, fraction: u64 in Wrapping, minus: bool, power: i32 in Wrapping) {
-  transition minus { true -> scale(input, value, negative, 0 - power - (narrow_u64_to_i32_saturating(fraction as u64) as i32 in Wrapping)), false -> scale(input, value, negative, power - (narrow_u64_to_i32_saturating(fraction as u64) as i32 in Wrapping)) }
+  transition minus { true -> scale(input, value, negative, 0 - power - (narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)), false -> scale(input, value, negative, power - (narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)) }
  }
  machine scale(input: @mut Input, value: f64, negative: bool, power: i32 in Wrapping) {
   transition { power > 0 -> scale(input, value * 10.0, negative, power - 1), power < 0 -> scale(input, value / 10.0, negative, power + 1), _ -> signed_value(input, value, negative) }
