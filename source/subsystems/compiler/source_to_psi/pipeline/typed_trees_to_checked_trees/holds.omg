@@ -625,7 +625,7 @@ crashes Trap
         transition { _ -> arm(checker, syntax, index + 1) }
     }
     machine initialized(checker: @mut Checker, syntax: @SyntaxTrees) {
-        let remaining: u64 in Trapping = syntax.expression_count as u64 in Trapping;
+        let remaining: u64 in Trapping = syntax.expression_count as +Trapping;
         transition { _ -> propagate(checker, syntax, remaining) }
     }
     machine propagate(checker: @mut Checker, syntax: @SyntaxTrees, remaining: u64 in Trapping) {

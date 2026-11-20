@@ -122,8 +122,8 @@ crashes Trap
     ) {
         let prior_item: MachineItem = machine_item(syntax, prior);
         let same: bool = same_machine_signature(resolver, sources, syntax, index, prior);
-        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as u64 in Trapping,
-            prior_item.name.source_span.source.value as u64 in Trapping);
+        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as -Trapping as u64 +Trapping,
+            prior_item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition same && same_module {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateMachine, item.name),
             _ -> overloads(resolver, sources, syntax, index, item, prior + 1)

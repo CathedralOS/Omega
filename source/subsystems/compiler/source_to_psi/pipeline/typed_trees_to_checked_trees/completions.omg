@@ -28,8 +28,8 @@ public data NumericCompletion [copy] {
 public machine derive_completions(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing)
 crashes Trap
 {
-    let nodes: u64 in Trapping = syntax.machine_count as u64 in Trapping;
-    let expressions: u64 in Trapping = syntax.expression_count as u64 in Trapping;
+    let nodes: u64 in Trapping = syntax.machine_count as +Trapping;
+    let expressions: u64 in Trapping = syntax.expression_count as +Trapping;
     invocation_graph_initialize(@mut checker.invocations, nodes, expressions);
     checker.collecting_completion = false;
     transition { _ -> clear(checker, syntax, resolution, typing, 0) }
@@ -80,7 +80,7 @@ crashes Trap
     machine selected(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, offset: u64 in Trapping)
     requires offset < 10240
     {
-        let index: u64 in Trapping = checker.invocations.order[offset] as u64 in Trapping;
+        let index: u64 in Trapping = checker.invocations.order[offset] as +Trapping;
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body && item.has_return_type && index < 10240 {
             true -> typed(checker, syntax, resolution, typing, offset, index, item),

@@ -227,7 +227,7 @@ crashes Trap
         type_handle: u64 in Trapping,
         carrier: BuiltinType
     ) -> u64 in Trapping {
-        let subject: u64 in Trapping = checker.subject_count as u64 in Trapping;
+        let subject: u64 in Trapping = checker.subject_count as +Trapping;
         transition subject < 64 {
             true -> numbered(checker, kind, handle, parent, type_handle, carrier, subject),
             _ -> full(checker)
@@ -901,7 +901,7 @@ public machine copy_fields(checker: @mut Checker, typing: @Typing, target: u64 i
 crashes Trap
 {
     copy_pending(checker, typing, target, source);
-    let end: u64 in Trapping = checker.place_count as u64 in Trapping;
+    let end: u64 in Trapping = checker.place_count as +Trapping;
     transition target > 0 && source > 0 && target != source {
         true -> next(checker, typing, target, source, 0, end),
         _ -> done()

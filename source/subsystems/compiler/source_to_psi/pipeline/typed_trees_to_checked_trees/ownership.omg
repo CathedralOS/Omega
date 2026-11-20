@@ -1283,7 +1283,7 @@ crashes Trap
 machine own_match_events(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping)
 crashes Trap
 {
-    let count: u64 in Trapping = checker.ownership.match_count as u64 in Trapping;
+    let count: u64 in Trapping = checker.ownership.match_count as +Trapping;
     transition { _ -> next(checker, syntax, resolution, typing, handle, count) }
 
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, remaining: u64 in Trapping) {
@@ -1495,7 +1495,7 @@ crashes Trap
         index: u64 in Trapping,
         place: u64 in Trapping
     ) {
-        let position: u64 in Trapping = checker.ownership.joining.count as u64 in Trapping;
+        let position: u64 in Trapping = checker.ownership.joining.count as +Trapping;
         let kept: bool = moved_set_add(@mut checker.ownership.joining, place);
         transition kept {
             true -> first_vote(checker, syntax, resolution, typing, slot, expression, index, position),

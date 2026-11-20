@@ -112,7 +112,7 @@ crashes Trap
 public machine import_target(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem) -> ImportTarget
 crashes Trap
 {
-    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as u64 in Trapping);
+    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
     let mounted: bool = names_toolchain_mount(sources, syntax, use_item);
     transition mounted {
         true -> toolchain(sources, 0),
@@ -243,7 +243,7 @@ crashes Trap
 machine undeclared_dependency(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget) -> bool
 crashes Trap
 {
-    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as u64 in Trapping);
+    let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as -Trapping as u64 +Trapping);
     let member: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member);
     let spelling: SourceSpan = member.source_span;
     transition target.found && target.selector_count == 0 {
@@ -585,11 +585,11 @@ public data DeclarationPath [copy] {
 
 public machine declaration_count(syntax: @SyntaxTrees, kind: DeclarationKind) -> u64 in Trapping {
     transition kind {
-        DeclarationKind::Data -> count(syntax.data_count as u64 in Trapping),
-        DeclarationKind::Trait -> count(syntax.trait_count as u64 in Trapping),
-        DeclarationKind::Conformance -> count(syntax.conformance_count as u64 in Trapping),
-        DeclarationKind::Constant -> count(syntax.constant_count as u64 in Trapping),
-        DeclarationKind::Proposition -> count(syntax.proposition_count as u64 in Trapping)
+        DeclarationKind::Data -> count(syntax.data_count as +Trapping),
+        DeclarationKind::Trait -> count(syntax.trait_count as +Trapping),
+        DeclarationKind::Conformance -> count(syntax.conformance_count as +Trapping),
+        DeclarationKind::Constant -> count(syntax.constant_count as +Trapping),
+        DeclarationKind::Proposition -> count(syntax.proposition_count as +Trapping)
     }
 
     machine count(value: u64 in Trapping) -> u64 in Trapping {

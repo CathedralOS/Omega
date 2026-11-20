@@ -38,7 +38,7 @@ crashes Trap
     }
 
     machine implementation_name(parser: @mut Parser, input: @TokenStream) {
-        parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
         take_current(parser, input);
         parser.declaration_name_start = parser.token_start;
         parser.declaration_name_end = parser.token_end;
@@ -58,7 +58,7 @@ crashes Trap
     }
 
     machine satisfies_word(parser: @mut Parser, input: @TokenStream) {
-        parser.declaration_generic_count = (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic;
+        parser.declaration_generic_count = (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic;
         let relation: bool = at_word(parser, input, "satisfies");
         transition relation {
             true -> trait_application(parser, input),
@@ -78,7 +78,7 @@ crashes Trap
 
     machine body(parser: @mut Parser, input: @TokenStream) {
         expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedConformanceBody);
-        parser.declaration_first_machine = parser.output.machine_count as u64 in Trapping;
+        parser.declaration_first_machine = parser.output.machine_count as +Trapping;
         transition parser.output.accepted {
             true -> member(parser, input),
             _ -> done()
@@ -143,7 +143,7 @@ crashes Trap
     }
 
     machine retain(parser: @mut Parser) {
-        let conformance: u64 in Trapping = parser.output.conformance_count as u64 in Trapping;
+        let conformance: u64 in Trapping = parser.output.conformance_count as +Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.conformances[parser.output.conformance_count] = ConformanceItem {
             name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
@@ -151,7 +151,7 @@ crashes Trap
             generic_parameter_count: parser.declaration_generic_count,
             trait_type: parser.declaration_type,
             first_machine: parser.declaration_first_machine,
-            machine_count: (parser.output.machine_count as u64 in Trapping) - parser.declaration_first_machine,
+            machine_count: (parser.output.machine_count as +Trapping) - parser.declaration_first_machine,
             is_public: parser.declaration_is_public,
             source_span: span
         };

@@ -107,8 +107,8 @@ crashes Trap
     machine compare(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
         let earlier_item: DomainItem = syntax_trees_domain_item(syntax, earlier);
         let named: bool = spans_equal(sources, item.name.source_span, earlier_item.name.source_span);
-        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as u64 in Trapping,
-            earlier_item.name.source_span.source.value as u64 in Trapping);
+        let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as -Trapping as u64 +Trapping,
+            earlier_item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition named && same_module {
             true -> carriers(resolver, sources, syntax, index, item, earlier, earlier_item),
             _ -> prior(resolver, sources, syntax, index, item, earlier + 1)

@@ -139,8 +139,8 @@ crashes Trap
         let other: RootName = root_name(syntax, prior);
         let named: bool = spans_equal(sources, declared.name.source_span, other.name.source_span);
         let owner_named: bool = spans_equal(sources, declared.owner.source_span, other.owner.source_span);
-        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
-            other.name.source_span.source.value as u64 in Trapping);
+        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
+            other.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition declared.space == other.space && named && declared.has_owner == other.has_owner
             && (!declared.has_owner || owner_named) && same_module {
             true -> duplicate(resolver, declared, other),
@@ -181,8 +181,8 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         let spelled: bool = machine_spells(resolution, sources, item, index, declared.has_owner,
             declared.owner.source_span, declared.name.source_span);
-        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
-            item.name.source_span.source.value as u64 in Trapping);
+        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
+            item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition spelled && same_module {
             true -> taken(),
             _ -> machine_at(resolution, sources, syntax, declared, index + 1)
@@ -199,8 +199,8 @@ crashes Trap
     machine owner_named(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         let item: DataItem = syntax_trees_data_item(syntax, index);
         let named: bool = spans_equal(sources, item.name.source_span, declared.owner.source_span);
-        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
-            item.name.source_span.source.value as u64 in Trapping);
+        let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as -Trapping as u64 +Trapping,
+            item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition named && same_module {
             true -> case_at(sources, syntax, declared, index, item, 0),
             _ -> owner_data(sources, syntax, declared, index + 1)

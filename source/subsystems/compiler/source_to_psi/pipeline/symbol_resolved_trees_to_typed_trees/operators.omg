@@ -192,8 +192,8 @@ crashes Trap
         item: MachineItem
     ) -> bool {
         let is_public: bool = machine_public(resolution, syntax, item, candidate);
-        let use_unit: u64 in Trapping = expression.source_span.source.value as u64 in Trapping;
-        let declared_unit: u64 in Trapping = item.name.source_span.source.value as u64 in Trapping;
+        let use_unit: u64 in Trapping = expression.source_span.source.value as -Trapping as u64 +Trapping;
+        let declared_unit: u64 in Trapping = item.name.source_span.source.value as -Trapping as u64 +Trapping;
         let own: bool = resolver_same_package(sources, use_unit, declared_unit);
         transition is_public || own {
             true -> operands(typer, syntax, expression, item),

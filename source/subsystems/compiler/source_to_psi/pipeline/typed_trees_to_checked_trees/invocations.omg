@@ -126,7 +126,7 @@ crashes Trap
     machine slot(graph: @mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool
     requires owner < 10240 && expression < 131072
     {
-        let retained: u64 in Trapping = graph.slots[expression] as u64 in Trapping;
+        let retained: u64 in Trapping = graph.slots[expression] as +Trapping;
         transition retained > 0 {
             true -> existing(graph, owner, target, retained - 1),
             false -> available(graph, owner, expression, target)
@@ -169,7 +169,7 @@ crashes Trap
     machine reversed(graph: @mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, callee: u64 in Trapping) -> bool
     requires callee < 10240
     {
-        let next: u64 in Trapping = graph.reverse_first[callee] as u64 in Trapping;
+        let next: u64 in Trapping = graph.reverse_first[callee] as +Trapping;
         transition { _ -> publish(graph, owner, expression, target, next) }
     }
     machine publish(graph: @mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, reverse_next: u64 in Trapping) -> bool {
@@ -182,7 +182,7 @@ crashes Trap
     machine bounded(graph: @mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, reverse_next: u64 in Trapping, index: u64 in Trapping) -> bool
     requires owner < 10240 && expression < 131072 && index < 32768
     {
-        let next: u64 in Trapping = graph.first[owner] as u64 in Trapping;
+        let next: u64 in Trapping = graph.first[owner] as +Trapping;
         graph.edges[index] = InvocationEdge { owner: owner, expression: expression, target: target, next: next, reverse_next: reverse_next, examined: false, non_increasing: false, strict: false };
         let handle: u64 in Trapping = index + 1;
         graph.first[owner] = handle as u64;
@@ -237,7 +237,7 @@ crashes Trap
     machine start(graph: @mut InvocationGraph, node: u64 in Trapping) -> bool
     requires node < 10240
     {
-        let first: u64 in Trapping = graph.first[node] as u64 in Trapping;
+        let first: u64 in Trapping = graph.first[node] as +Trapping;
         graph.visited[node] = true;
         graph.work_nodes[0] = node as u64;
         graph.work_edges[0] = first as u64;
@@ -259,7 +259,7 @@ crashes Trap
     machine cursor(graph: @mut InvocationGraph, next_root: u64 in Trapping, index: u64 in Trapping) -> bool
     requires index < 10240
     {
-        let retained: u64 in Trapping = graph.work_edges[index] as u64 in Trapping;
+        let retained: u64 in Trapping = graph.work_edges[index] as +Trapping;
         transition retained > 0 {
             true -> edge(graph, next_root, index, retained - 1),
             false -> finish(graph, next_root, index)
@@ -304,7 +304,7 @@ crashes Trap
     machine push(graph: @mut InvocationGraph, next_root: u64 in Trapping, node: u64 in Trapping, index: u64 in Trapping) -> bool
     requires node < 10240 && index < 10240
     {
-        let first: u64 in Trapping = graph.first[node] as u64 in Trapping;
+        let first: u64 in Trapping = graph.first[node] as +Trapping;
         graph.visited[node] = true;
         graph.work_nodes[index] = node as u64;
         graph.work_edges[index] = first as u64;
@@ -347,7 +347,7 @@ crashes Trap
     machine component_node(graph: @mut InvocationGraph, index: u64 in Trapping) -> bool
     requires index < 10240
     {
-        let node: u64 in Trapping = graph.order[index] as u64 in Trapping;
+        let node: u64 in Trapping = graph.order[index] as +Trapping;
         transition node < graph.node_count && node < 10240 {
             true -> unclaimed(graph, index, node),
             false -> invalid(graph)
@@ -381,7 +381,7 @@ crashes Trap
     machine claimed(graph: @mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping, identity: u64 in Trapping, next_edge: u64 in Trapping, frame: u64 in Trapping, component_index: u64 in Trapping) -> bool
     requires node < 10240 && frame < 10240 && component_index < 10240
     {
-        let size: u64 in Trapping = graph.component_sizes[component_index] as u64 in Trapping;
+        let size: u64 in Trapping = graph.component_sizes[component_index] as +Trapping;
         let next: u64 = graph.component_first[component_index];
         graph.component_next[node] = next;
         graph.component_first[component_index] = (node + 1) as u64;
@@ -406,7 +406,7 @@ crashes Trap
     machine reverse_node(graph: @mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, frame: u64 in Trapping) -> bool
     requires frame < 10240
     {
-        let node: u64 in Trapping = graph.work_nodes[frame] as u64 in Trapping;
+        let node: u64 in Trapping = graph.work_nodes[frame] as +Trapping;
         graph.work_count = frame;
         transition node < 10240 {
             true -> reverse_first(graph, next_component, identity, node),
@@ -416,7 +416,7 @@ crashes Trap
     machine reverse_first(graph: @mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, node: u64 in Trapping) -> bool
     requires node < 10240
     {
-        let first: u64 in Trapping = graph.reverse_first[node] as u64 in Trapping;
+        let first: u64 in Trapping = graph.reverse_first[node] as +Trapping;
         transition { _ -> reverse_edges(graph, next_component, identity, first) }
     }
     machine reverse_edges(graph: @mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, cursor: u64 in Trapping) -> bool {
@@ -463,7 +463,7 @@ crashes Trap
     machine selected(graph: @InvocationGraph, node: u64 in Trapping) -> u64 in Trapping
     requires node < 10240
     {
-        graph.components[node] as u64 in Trapping
+        graph.components[node] as +Trapping
     }
 }
 
@@ -477,7 +477,7 @@ crashes Trap
     machine slot(graph: @InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping
     requires expression < 131072
     {
-        let handle: u64 in Trapping = graph.slots[expression] as u64 in Trapping;
+        let handle: u64 in Trapping = graph.slots[expression] as +Trapping;
         transition handle > 0 && handle <= graph.edge_count && handle <= 32768 {
             true -> selected(graph, owner, handle, handle - 1),
             false -> 0
@@ -582,8 +582,8 @@ crashes Trap
     machine components(graph: @mut InvocationGraph, index: u64 in Trapping, selected: InvocationEdge, target: u64 in Trapping, owner: u64 in Trapping) -> bool
     requires owner < 10240 && target < 10240
     {
-        let source: u64 in Trapping = graph.components[owner] as u64 in Trapping;
-        let destination: u64 in Trapping = graph.components[target] as u64 in Trapping;
+        let source: u64 in Trapping = graph.components[owner] as +Trapping;
+        let destination: u64 in Trapping = graph.components[target] as +Trapping;
         transition source > 0 && source == destination && source <= 10240 {
             true -> internal(graph, index, selected, target, owner, source - 1),
             false -> edges(graph, index + 1)
@@ -603,7 +603,7 @@ crashes Trap
     machine residual(graph: @mut InvocationGraph, index: u64 in Trapping, target: u64 in Trapping) -> bool
     requires target < 10240
     {
-        let degree: u64 in Trapping = graph.work_edges[target] as u64 in Trapping;
+        let degree: u64 in Trapping = graph.work_edges[target] as +Trapping;
         graph.work_edges[target] = (degree + 1) as u64;
         transition { _ -> edges(graph, index + 1) }
     }
@@ -637,7 +637,7 @@ crashes Trap
     machine queued(graph: @mut InvocationGraph, cursor: u64 in Trapping) -> bool
     requires cursor < 10240
     {
-        let node: u64 in Trapping = graph.work_nodes[cursor] as u64 in Trapping;
+        let node: u64 in Trapping = graph.work_nodes[cursor] as +Trapping;
         transition node < 10240 {
             true -> outgoing(graph, cursor, node),
             false -> invalid(graph)
@@ -646,7 +646,7 @@ crashes Trap
     machine outgoing(graph: @mut InvocationGraph, cursor: u64 in Trapping, node: u64 in Trapping) -> bool
     requires node < 10240
     {
-        let first: u64 in Trapping = graph.first[node] as u64 in Trapping;
+        let first: u64 in Trapping = graph.first[node] as +Trapping;
         transition { _ -> successor(graph, cursor, first) }
     }
     machine successor(graph: @mut InvocationGraph, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
@@ -681,7 +681,7 @@ crashes Trap
     machine decrement(graph: @mut InvocationGraph, cursor: u64 in Trapping, next: u64 in Trapping, target: u64 in Trapping) -> bool
     requires target < 10240
     {
-        let degree: u64 in Trapping = graph.work_edges[target] as u64 in Trapping;
+        let degree: u64 in Trapping = graph.work_edges[target] as +Trapping;
         transition degree > 0 {
             true -> decremented(graph, cursor, next, target, degree - 1),
             false -> invalid(graph)
@@ -712,7 +712,7 @@ crashes Trap
     machine retained(graph: @mut InvocationGraph, node: u64 in Trapping) -> bool
     requires node < 10240
     {
-        let component: u64 in Trapping = graph.components[node] as u64 in Trapping;
+        let component: u64 in Trapping = graph.components[node] as +Trapping;
         transition !graph.visited[node] && component > 0 && component <= 10240 {
             true -> cyclic_residual(graph, node, component - 1),
             false -> remaining(graph, node + 1)

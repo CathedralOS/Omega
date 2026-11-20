@@ -117,7 +117,7 @@ crashes Trap
     machine read(checker: @Checker, offset: u64 in Trapping) -> u64 in Trapping
     requires offset < 128
     {
-        checker.path_counts[offset] as u64 in Trapping
+        checker.path_counts[offset] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -344,7 +344,7 @@ crashes Trap
 
     machine path(checker: @mut Checker, typing: @Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         let path: ArrivalPath = arrival_path(checker, offset, index);
-        let expected: u64 in Trapping = checker.subject_count as u64 in Trapping;
+        let expected: u64 in Trapping = checker.subject_count as +Trapping;
         let root: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0);
         let place: u64 in Trapping = enter_path(checker, typing, root, path);
         let entry: Place = place_or_absent(checker, place);

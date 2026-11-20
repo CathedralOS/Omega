@@ -884,7 +884,7 @@ crashes Trap
     machine first(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        let order: u64 in Trapping = checker.discovered as u64 in Trapping;
+        let order: u64 in Trapping = checker.discovered as +Trapping;
         let next: u64 in Trapping = order + 1;
         checker.arrivals[offset] = checker.contribution;
         checker.reached[offset] = true;
@@ -908,7 +908,7 @@ crashes Trap
     machine loosened(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        let count: u64 in Trapping = checker.loosenings[offset] as u64 in Trapping;
+        let count: u64 in Trapping = checker.loosenings[offset] as +Trapping;
         let next: u64 in Trapping = count + 1;
         checker.loosenings[offset] = next as u64;
         let back: bool = back_edge(checker, offset);
@@ -1396,7 +1396,7 @@ crashes Trap
     machine read(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
-        checker.callers[index] as u64 in Trapping
+        checker.callers[index] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1415,7 +1415,7 @@ crashes Trap
     machine read(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
-        checker.callees[index] as u64 in Trapping
+        checker.callees[index] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1428,7 +1428,7 @@ crashes Trap
 machine back_edge(checker: @Checker, offset: u64 in Trapping) -> bool
 crashes Trap
 {
-    let walking: u64 in Trapping = checker.walking as u64 in Trapping;
+    let walking: u64 in Trapping = checker.walking as +Trapping;
     transition walking > 0 && walking <= 128 && offset < 128 {
         true -> compared(checker, offset, walking - 1),
         _ -> forward()
@@ -1495,7 +1495,7 @@ public machine body_handle(checker: @Checker, slot: u64 in Trapping) -> u64 in T
 crashes Trap
 {
     transition slot < checker.body_count && slot < 128 {
-        true -> checker.bodies[slot] as u64 in Trapping,
+        true -> checker.bodies[slot] as +Trapping,
         false -> invalid()
     }
     machine invalid() -> u64 in Trapping { crash Trap; }

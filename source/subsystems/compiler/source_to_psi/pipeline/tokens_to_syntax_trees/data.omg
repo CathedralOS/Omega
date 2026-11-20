@@ -56,10 +56,10 @@ crashes Trap
 
     machine keyword(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
-        parser.data_first_member = parser.output.data_member_count as u64 in Trapping;
-        parser.data_first_field = parser.output.field_count as u64 in Trapping;
-        parser.data_first_case = parser.output.case_count as u64 in Trapping;
-        parser.data_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        parser.data_first_member = parser.output.data_member_count as +Trapping;
+        parser.data_first_field = parser.output.field_count as +Trapping;
+        parser.data_first_case = parser.output.case_count as +Trapping;
+        parser.data_first_generic = parser.output.generic_parameter_count as +Trapping;
         parser.data_multiplicity = DataMultiplicity::Affine;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDataName);
         transition parser.output.accepted {
@@ -111,7 +111,7 @@ crashes Trap
     }
 
     machine boundary_end(parser: @mut Parser, input: @TokenStream) {
-        parser.data_first_clause = parser.output.clause_count as u64 in Trapping;
+        parser.data_first_clause = parser.output.clause_count as +Trapping;
         parser.data_clause_count = 0;
         expect_punctuation(parser, input, PunctuationKind::Semicolon,
             ParseDiagnosticCode::ExpectedBoundaryDataEnd
@@ -132,7 +132,7 @@ crashes Trap
 
     machine body(parser: @mut Parser, input: @TokenStream) {
         parser.data_first_clause = parser.clause_first;
-        parser.data_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
+        parser.data_clause_count = (parser.output.clause_count as +Trapping) - parser.clause_first;
         expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedDataBody);
         transition parser.output.accepted {
             true -> member(parser, input),
@@ -157,7 +157,7 @@ crashes Trap
     }
 
     machine retired(parser: @mut Parser, input: @TokenStream) {
-        let owner: u64 in Trapping = parser.output.data_count as u64 in Trapping;
+        let owner: u64 in Trapping = parser.output.data_count as +Trapping;
         parse_retired_identity(parser, input, RetiredIdentityOwner::Declaration,
             owner, true);
         transition parser.output.accepted {
@@ -274,8 +274,8 @@ crashes Trap
     // `record_erased` call may write anywhere in `parser`, so the guarded
     // counts are kept as values and advanced from them.
     machine field_stored(parser: @mut Parser, input: @TokenStream, type_reference: u64 in Trapping) {
-        let field: u64 in Trapping = parser.output.field_count as u64 in Trapping;
-        let member: u64 in Trapping = parser.output.data_member_count as u64 in Trapping;
+        let field: u64 in Trapping = parser.output.field_count as +Trapping;
+        let member: u64 in Trapping = parser.output.data_member_count as +Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.member_start, parser.token_end);
         let field_end: u64 in Trapping = parser.token_end;
         record_erased(parser, ErasedBindingKind::Field, field, field_end);
@@ -315,7 +315,7 @@ crashes Trap
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCaseName);
         parser.member_name_start = parser.name_start;
         parser.member_name_end = parser.name_end;
-        parser.case_first_payload_field = parser.output.payload_field_count as u64 in Trapping;
+        parser.case_first_payload_field = parser.output.payload_field_count as +Trapping;
         transition parser.output.accepted {
             true -> case_payload(parser, input),
             _ -> done()
@@ -352,7 +352,7 @@ crashes Trap
     }
 
     machine payload_retired(parser: @mut Parser, input: @TokenStream) {
-        let owner: u64 in Trapping = parser.output.case_count as u64 in Trapping;
+        let owner: u64 in Trapping = parser.output.case_count as +Trapping;
         parse_retired_identity(parser, input, RetiredIdentityOwner::Payload,
             owner, false);
         transition parser.output.accepted {
@@ -519,7 +519,7 @@ crashes Trap
         more: bool
     ) {
         // `payload` keeps the caller's guarded count across `record_erased`.
-        let payload: u64 in Trapping = parser.output.payload_field_count as u64 in Trapping;
+        let payload: u64 in Trapping = parser.output.payload_field_count as +Trapping;
         record_erased(parser, ErasedBindingKind::PayloadField, payload, field_end);
         parser.output.payload_fields[payload] = DataField {
             name: identifier_span(parser, start, end),
@@ -551,7 +551,7 @@ crashes Trap
 
     machine case_end(parser: @mut Parser, input: @TokenStream) {
         let first_clause: u64 in Trapping = parser.clause_first;
-        let clause_count: u64 in Trapping = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
+        let clause_count: u64 in Trapping = (parser.output.clause_count as +Trapping) - parser.clause_first;
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDataCaseEnd);
         transition parser.output.accepted {
             true -> case_retained(parser, input, first_clause, clause_count),
@@ -577,7 +577,7 @@ crashes Trap
         first_clause: u64 in Trapping,
         clause_count: u64 in Trapping
     ) {
-        let data_case: u64 in Trapping = parser.output.case_count as u64 in Trapping;
+        let data_case: u64 in Trapping = parser.output.case_count as +Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.member_start, parser.token_end);
         parser.output.cases[parser.output.case_count] = DataCase {
             name: identifier_span(parser, parser.member_name_start, parser.member_name_end),
@@ -585,7 +585,7 @@ crashes Trap
             identity: parser_source_span(parser, parser.member_identity_start, parser.member_identity_end),
             identity_literal: parser.member_identity_literal,
             first_payload_field: parser.case_first_payload_field,
-            payload_field_count: (parser.output.payload_field_count as u64 in Trapping) - parser.case_first_payload_field,
+            payload_field_count: (parser.output.payload_field_count as +Trapping) - parser.case_first_payload_field,
             first_clause: first_clause,
             clause_count: clause_count,
             source_span: span
@@ -615,19 +615,19 @@ crashes Trap
     // The caller guards both counts in one condition; storing `data_count`
     // ends that fact, so the guarded root count is kept as a value.
     machine retain(parser: @mut Parser) {
-        let data_index: u64 in Trapping = parser.output.data_count as u64 in Trapping;
-        let root: u64 in Trapping = parser.output.root_count as u64 in Trapping;
+        let data_index: u64 in Trapping = parser.output.data_count as +Trapping;
+        let root: u64 in Trapping = parser.output.root_count as +Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.data_item_start, parser.token_end);
         parser.output.data_items[parser.output.data_count] = DataItem {
             name: identifier_span(parser, parser.data_name_start, parser.data_name_end),
             first_generic_parameter: parser.data_first_generic,
-            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.data_first_generic,
+            generic_parameter_count: (parser.output.generic_parameter_count as +Trapping) - parser.data_first_generic,
             first_member: parser.data_first_member,
-            member_count: (parser.output.data_member_count as u64 in Trapping) - parser.data_first_member,
+            member_count: (parser.output.data_member_count as +Trapping) - parser.data_first_member,
             first_field: parser.data_first_field,
-            field_count: (parser.output.field_count as u64 in Trapping) - parser.data_first_field,
+            field_count: (parser.output.field_count as +Trapping) - parser.data_first_field,
             first_case: parser.data_first_case,
-            case_count: (parser.output.case_count as u64 in Trapping) - parser.data_first_case,
+            case_count: (parser.output.case_count as +Trapping) - parser.data_first_case,
             first_clause: parser.data_first_clause,
             clause_count: parser.data_clause_count,
             multiplicity: parser.data_multiplicity,

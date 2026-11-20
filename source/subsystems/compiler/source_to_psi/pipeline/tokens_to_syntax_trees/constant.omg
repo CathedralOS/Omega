@@ -120,7 +120,7 @@ crashes Trap
     }
 
     machine retain(parser: @mut Parser, type_reference: u64 in Trapping, value: u64 in Trapping) {
-        let constant: u64 in Trapping = parser.output.constant_count as u64 in Trapping;
+        let constant: u64 in Trapping = parser.output.constant_count as +Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.constants[parser.output.constant_count] = ConstantItem {
             has_owner: parser.declaration_has_owner,

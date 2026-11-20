@@ -569,7 +569,7 @@ crashes Trap
     }
 
     machine read(resolution: @NameResolution, row: u64 in Trapping) -> u64 in Trapping {
-        resolution.domain_items[row] as u64 in Trapping
+        resolution.domain_items[row] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -718,7 +718,7 @@ public machine ranking_measure(resolution: @NameResolution, clause: u64 in Trapp
     machine read(resolution: @NameResolution, clause: u64 in Trapping) -> u64 in Trapping
     requires clause < 2048
     {
-        resolution.ranking_measures[clause] as u64 in Trapping
+        resolution.ranking_measures[clause] as +Trapping
     }
 
     machine none() -> u64 in Trapping {
@@ -754,7 +754,7 @@ public machine component_field(resolution: @NameResolution, member: u64 in Trapp
     machine read(resolution: @NameResolution, member: u64 in Trapping) -> u64 in Trapping
     requires member < 32000
     {
-        resolution.component_fields[member] as u64 in Trapping
+        resolution.component_fields[member] as +Trapping
     }
 
     machine none() -> u64 in Trapping {

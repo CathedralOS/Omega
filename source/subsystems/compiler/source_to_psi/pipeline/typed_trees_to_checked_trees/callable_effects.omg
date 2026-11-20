@@ -61,7 +61,7 @@ crashes Trap
     machine node(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, cursor: u64 in Trapping) -> bool
     requires cursor < 10240
     {
-        let owner: u64 in Trapping = checker.invocations.work_nodes[cursor] as u64 in Trapping;
+        let owner: u64 in Trapping = checker.invocations.work_nodes[cursor] as +Trapping;
         transition owner < checker.invocations.node_count && owner < 10240 {
             true -> bounded(checker, syntax, resolution, required, cursor, owner),
             false -> false
@@ -72,7 +72,7 @@ crashes Trap
     {
         let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
         transition callable_clause_ceiling(syntax, required, clauses) {
-            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as u64 in Trapping),
+            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as +Trapping),
             false -> false
         }
     }

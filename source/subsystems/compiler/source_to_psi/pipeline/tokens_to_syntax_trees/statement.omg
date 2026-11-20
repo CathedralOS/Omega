@@ -32,7 +32,7 @@ use representations\tokens\TokenStream;
 public machine parse_statements(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode)
 crashes Trap
 {
-    parser.body_first_statement = parser.output.statement_count as u64 in Trapping;
+    parser.body_first_statement = parser.output.statement_count as +Trapping;
     transition { _ -> next(parser, input, unsupported) }
 
     machine next(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
@@ -264,7 +264,7 @@ crashes Trap
         has_value: bool,
         value: u64 in Trapping
     ) {
-        let local: u64 in Trapping = parser.output.statement_count as u64 in Trapping;
+        let local: u64 in Trapping = parser.output.statement_count as +Trapping;
         let local_end: u64 in Trapping = parser.token_end;
         record_erased(parser, ErasedBindingKind::Local, local, local_end);
         let statement: Statement = Statement {
@@ -444,7 +444,7 @@ crashes Trap
         subject: u64 in Trapping
     ) {
         take_current(parser, input);
-        parser.transition_first_arm = parser.output.arm_count as u64 in Trapping;
+        parser.transition_first_arm = parser.output.arm_count as +Trapping;
         transition { _ -> arm(parser, input, unsupported, has_subject, subject) }
     }
 
@@ -568,7 +568,7 @@ crashes Trap
         subject: u64 in Trapping,
         pattern: u64 in Trapping
     ) {
-        parser.pattern_first_field = parser.output.pattern_field_count as u64 in Trapping;
+        parser.pattern_first_field = parser.output.pattern_field_count as +Trapping;
         let braced: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         parser.arm_has_fields = braced;
         transition braced {
@@ -782,7 +782,7 @@ crashes Trap
         pattern: u64 in Trapping
     ) {
         take_current(parser, input);
-        let count: u64 in Trapping = (parser.output.pattern_field_count as u64 in Trapping) - parser.pattern_first_field;
+        let count: u64 in Trapping = (parser.output.pattern_field_count as +Trapping) - parser.pattern_first_field;
         transition { _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
             parser.pattern_first_field, count) }
     }
@@ -1103,7 +1103,7 @@ crashes Trap
             target: 0,
             cause: CrashCause::Trap,
             first_arm: parser.transition_first_arm,
-            arm_count: (parser.output.arm_count as u64 in Trapping) - parser.transition_first_arm,
+            arm_count: (parser.output.arm_count as +Trapping) - parser.transition_first_arm,
             source_span: parser_source_span(parser, parser.statement_start, parser.token_end)
         };
         transition { _ -> store(parser, input, unsupported, statement) }
