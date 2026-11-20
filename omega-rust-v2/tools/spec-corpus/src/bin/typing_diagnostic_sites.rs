@@ -114,7 +114,7 @@ fn classify(
     args: &Args,
 ) -> (&'static str, String) {
     match (name, args.len()) {
-        ("at", 3) | ("for_site", 2) | ("new", 4) => message(args.last().expect("argument count checked")),
+        ("at", 3) | ("for_site", 2) | ("for_reason", 2) | ("new", 4) => message(args.last().expect("argument count checked")),
         // The production fallback template is not a rule; it is reported once per call site.
         ("unsupported", 2) => ("unsupported", String::new()),
         ("waiting", 2) => ("pending", String::new()),

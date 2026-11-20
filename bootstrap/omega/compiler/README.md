@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,621 lines / 1,021,861 bytes with SHA-256
-`63d09a4da8bddc0d70714001985bdc47b82719ecd16fb28fc78ad9f6ccf722e4`.
+The manifest materializes 26,627 lines / 1,023,525 bytes with SHA-256
+`869dd52ed285d47569720bd0748f9181644cfbd4d97bd0b613b409c88b134220`.
 The manifest itself is 2,381 bytes, SHA-256
-`6e08f056b438c0cdde354824af9a7165993ff44f803353a9091896000ccc202a`;
+`f8f16068cb72136c994d774daf0a8696275846c4042272515aef246c744ae275`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -639,7 +639,9 @@ value arguments are exact name/self paths, booleans, nonnegative
 decimal integers, or string tokens represented by tagged expression nodes;
 the same lane accepts shallow named struct literals over those primary field
 values. Zero arguments and trailing commas are supported. Calls may also own a
-separate nonempty `<...>` lane of path-only static machine arguments. Qualified
+separate nonempty `::<...>` list of path-only static operands. Each call keeps
+its own list even when a value argument is another generic call. A plain
+`<` enters the comparison grammar. Qualified
 paths are retained exactly; const arguments, evidence projections, nested
 static applications, lifetime arguments, and empty or trailing-comma static
 lanes remain incomplete. Ordinary assignments retain
@@ -719,11 +721,14 @@ optional receiver handle. Call arguments retain the existing primary slice and
 reuse the same reducer.
 Casts reuse the expression and type engines for assignments, locals and
 both kinds of call argument. A carrier target retains its type handle.
-An explicit domain addition or removal retains its domain span. In
+Each explicit domain addition, removal or retention keeps its domain span. In
 `value as T +D` the added-domain row owns the completed carrier expression.
 The carrier span ends at `T` and the outer span ends at `D`. A bare sign
 following a cast starts a domain entry. Parentheses permit arithmetic on its
-result. Multiple domain entries and the retired `as T in D` refuse.
+result. A single `as` accounts for all its entries together. The scalar
+compiler checks the input and output arithmetic policies before evaluating
+the operand once. Both `-Trapping +Wrapping` and `+Wrapping -Trapping`
+therefore exchange policies on a u64. A second `as` starts a separate cast.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,

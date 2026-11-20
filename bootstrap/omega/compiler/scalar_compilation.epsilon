@@ -29,6 +29,12 @@ data OmegaCheckedValueKind {
 
 // Each call or terminal transfer has one resolved target. Its incoming list
 // carries the source state and the marker written at that invocation.
+data OmegaCastPolicyStatus {
+    case Complete;
+    case UnsupportedDomain;
+    case ConflictingEntries;
+}
+
 data OmegaStateInvocation {
     caller: i32;
     next: i32;
@@ -216,6 +222,11 @@ data OmegaScalarCompiler {
     // 1 is a complete low word, 5 a full u64 needing its nonzero high word.
     // 2 lies outside the subset, 3 exceeds the carrier, and 4 has a different carrier.
     literal_status: i32;
+    // A domain-only cast describes each end of one representation-preserving operation.
+    cast_operand: i32;
+    cast_input_policy: i32;
+    cast_output_policy: i32;
+    cast_policy_error: i32;
     // Every ordinary call in every state contributes an edge. State transfers
     // stay inside their owner machine. Refusing cycles therefore prevents a
     // live invocation's private cells from being re-entered or overwritten.
@@ -947,6 +958,72 @@ machine OmegaScalarCompiler::is_policy_word(&mut self, kind: i32) -> i32 {
     transition (kind == 288) || (kind == 320) || (kind == 576) { true -> return 1 _ -> return 0 }
 }
 
+// Read every entry of the same 'as' before choosing the operand's type.
+// Trapping and Wrapping are mutually exclusive. An unrecognized domain needs
+// its own establishment rules and cannot be accounted for as either policy.
+machine OmegaScalarCompiler::read_cast_policies(&mut self, source: &[u8],
+    last: i32) -> OmegaCastPolicyStatus {
+    let first: i32 = self.parser.cast_expressions[last].first_entry;
+    self.cast_operand = self.parser.cast_expressions[first].value;
+    transition true { true -> entry(first, 0, 0) }
+    state entry(index: i32, incoming: i32, outgoing: i32) {
+        let current: OmegaCastExpressionSyntax = self.parser.cast_expressions[index];
+        self.cast_policy_error = current.domain.start;
+        let policy: i32 = self.word_policy(source, current.domain.start, current.domain.end);
+        transition policy == 0 {
+            true -> return OmegaCastPolicyStatus::UnsupportedDomain
+            _ -> unique(index, incoming, outgoing, policy)
+        }
+    }
+    state unique(index: i32, incoming: i32, outgoing: i32, policy: i32) {
+        transition (policy == incoming) || (policy == outgoing) {
+            true -> return OmegaCastPolicyStatus::ConflictingEntries
+            _ -> operation(index, incoming, outgoing, policy)
+        }
+    }
+    state operation(index: i32, incoming: i32, outgoing: i32, policy: i32) {
+        transition self.parser.cast_expressions[index].kind {
+            OmegaCastKind::AddDomain -> add(index, incoming, outgoing, policy)
+            OmegaCastKind::RemoveDomain -> remove(index, incoming, outgoing, policy)
+            OmegaCastKind::KeepDomain -> keep(index, incoming, outgoing, policy)
+            _ -> return OmegaCastPolicyStatus::UnsupportedDomain
+        }
+    }
+    state add(index: i32, incoming: i32, outgoing: i32, policy: i32) {
+        transition outgoing == 0 {
+            true -> next(index, incoming, policy)
+            _ -> return OmegaCastPolicyStatus::ConflictingEntries
+        }
+    }
+    state remove(index: i32, incoming: i32, outgoing: i32, policy: i32) {
+        transition incoming == 0 {
+            true -> next(index, policy, outgoing)
+            _ -> return OmegaCastPolicyStatus::ConflictingEntries
+        }
+    }
+    state keep(index: i32, incoming: i32, outgoing: i32, policy: i32) {
+        transition (incoming == 0) && (outgoing == 0) {
+            true -> next(index, policy, policy)
+            _ -> return OmegaCastPolicyStatus::ConflictingEntries
+        }
+    }
+    state next(index: i32, incoming: i32, outgoing: i32) {
+        transition index < last {
+            true -> entry(index + 1, incoming, outgoing)
+            _ -> finish(incoming, outgoing)
+        }
+    }
+    state finish(incoming: i32, outgoing: i32) {
+        self.cast_input_policy = incoming;
+        self.cast_output_policy = outgoing;
+        return OmegaCastPolicyStatus::Complete;
+    }
+}
+
+machine OmegaScalarCompiler::cast_word(&mut self, carrier: i32, policy: i32) -> i32 {
+    transition policy == 0 { true -> return carrier _ -> return self.policy_word(carrier, policy) }
+}
+
 machine OmegaScalarCompiler::parameter_type(
     &mut self, source: &[u8], parameter_index: i32
 ) -> i32 {
@@ -1244,23 +1321,20 @@ machine OmegaScalarCompiler::expression_type(
         }
     }
     state cast_domain(row: OmegaCastExpressionSyntax) {
-        let policy: i32 = self.word_policy(source, row.domain.start, row.domain.end);
-        let kind: i32 = self.expression_type(source, owner, state_index, before, row.value);
-        transition row.kind {
-            OmegaCastKind::AddDomain -> added(self.policy_word(kind, policy))
-            _ -> removed(kind, policy)
-        }
-    }
-    state added(kind: i32) {
-        // Anonymous operands need a carrier from their receiving context.
-        transition kind != 0 { true -> return kind _ -> return -1 }
-    }
-    state removed(kind: i32, policy: i32) {
-        transition (self.is_policy_word(kind) == 1) && (kind == self.policy_word(kind % 256, policy)) {
-            true -> return kind % 256
+        transition self.read_cast_policies(source, self.parser.expressions[expression].payload0) {
+            OmegaCastPolicyStatus::Complete -> cast_source(self.cast_operand, self.cast_input_policy, self.cast_output_policy)
             _ -> return -1
         }
     }
+    state cast_source(operand: i32, incoming: i32, outgoing: i32) {
+        let kind: i32 = self.expression_type(source, owner, state_index, before, operand);
+        transition (kind > 0) && (kind == self.cast_word(kind % 256, incoming)) {
+            true -> cast_result(self.cast_word(kind % 256, outgoing))
+            _ -> return -1
+        }
+    }
+    state cast_result(kind: i32) { transition kind > 0 { true -> return kind _ -> return -1 } }
+
 }
 
 machine OmegaScalarCompiler::check_value_arguments(
@@ -1985,28 +2059,16 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state domain_cast(row: OmegaCastExpressionSyntax) {
-        let policy: i32 = self.word_policy(source, row.domain.start, row.domain.end);
-        transition policy != 0 {
-            true -> domain_operation(row, policy)
-            _ -> unsupported(row.domain.start)
+        transition self.read_cast_policies(source, self.parser.expressions[expression].payload0) {
+            OmegaCastPolicyStatus::Complete -> cast_policies(row, self.cast_operand, self.cast_input_policy, self.cast_output_policy)
+            OmegaCastPolicyStatus::ConflictingEntries -> rejected(self.cast_policy_error)
+            OmegaCastPolicyStatus::UnsupportedDomain -> unsupported(self.cast_policy_error)
         }
     }
-    state domain_operation(row: OmegaCastExpressionSyntax, policy: i32) {
-        transition row.kind {
-            OmegaCastKind::AddDomain -> domain_add(row, policy)
-            OmegaCastKind::RemoveDomain -> domain_remove(row, self.policy_word(expected, policy))
-            _ -> unsupported(row.start)
-        }
-    }
-    state domain_add(row: OmegaCastExpressionSyntax, policy: i32) {
-        transition (self.is_policy_word(expected) == 1) && (expected == self.policy_word(expected % 256, policy)) {
-            true -> cast_value(row.value, expected % 256)
-            _ -> rejected(row.start)
-        }
-    }
-    state domain_remove(row: OmegaCastExpressionSyntax, qualified: i32) {
-        transition qualified != 0 {
-            true -> cast_value(row.value, qualified)
+    state cast_policies(row: OmegaCastExpressionSyntax, operand: i32, incoming: i32, outgoing: i32) {
+        let source_type: i32 = self.cast_word(expected % 256, incoming);
+        transition (source_type > 0) && (self.cast_word(expected % 256, outgoing) == expected) {
+            true -> cast_value(operand, source_type)
             _ -> rejected(row.start)
         }
     }

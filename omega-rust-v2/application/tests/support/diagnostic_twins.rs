@@ -46,11 +46,19 @@ pub fn check_input(
     case: Case<'_>,
     pending: Option<&str>,
 ) {
+    check_with_reason(case, pending, None);
+}
+
+pub fn check_with_reason(
+    case: Case<'_>,
+    pending: Option<&str>,
+    expected_reason: Option<omega_typer::TypingReason>,
+) {
     let thread = std::thread::current();
     let name = thread.name().unwrap();
     let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../target/diagnostic-twins")
-        .join(format!("{}-{}-{name}", std::process::id(), case.layer));
+        .join(format!("{}-{}-{}", std::process::id(), case.layer, name.replace("::", "-")));
     fs::create_dir_all(&directory).unwrap();
     for (variant, files) in [("good", case.good), ("bad", case.bad)] {
         let directory = directory.join(variant);
@@ -122,9 +130,12 @@ pub fn check_input(
         assert_eq!((error.package.as_str(), error.file.as_str()), ("root", case.file), "{name}");
         assert_eq!(error.span, omega_lexer::SourceSpan::new(start, end), "{name}");
         assert_eq!(error.message, case.reason, "{name}");
+        let actual = error.reason();
+        assert_eq!(actual, expected_reason, "{name}: typed refusal cause");
+        let checked_cause = actual.map_or_else(String::new, |cause| format!("\t{}", cause.identity()));
         let origin = error.diagnostic_origin();
         format!(
-            "\t{}\t{}\t{}",
+            "\t{}\t{}\t{}{checked_cause}",
             spec_corpus::diagnostic_field(&origin.file().replace('\\', "/")),
             origin.line(),
             origin.column()

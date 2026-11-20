@@ -1,32 +1,16 @@
 """Package CLI refusals exercised for rules in the resolver, typer and preparation contracts."""
-import csv
 import os
 from pathlib import Path
 import re
+import typing_reason_evidence
 import preparation_reason_evidence
 import resolver_kind_evidence
 from diagnostic_fields import unescape
+from diagnostic_registrations import BINARIES, registrations
 from handoff_evidence import DOCUMENTS
 
 
-BINARIES = {"L2": "resolver_cases", "L3": "typing_cases", "L4": "preparation_cases"}
 PRODUCERS = {"L2": {"resolver"}, "L3": {"typer"}, "L4": {"preparation", "preparation (target input)"}}
-
-
-def registrations():
-    path = Path(__file__).with_name("diagnostic_rules.tsv")
-    with path.open(encoding="utf-8", newline="") as file:
-        reader = csv.reader(file, delimiter="\t", quoting=csv.QUOTE_NONE)
-        if next(reader, None) != ["layer", "test", "rule"]:
-            raise ValueError(f"{path.name}: invalid header")
-        rows = {}
-        for stage, test, rule in reader:
-            if stage not in BINARIES or not test or not rule or (stage, test) in rows:
-                raise ValueError(f"{path.name}: invalid diagnostic registration {stage} {test} {rule}")
-            rows[stage, test] = rule
-    if set(stage for stage, _ in rows) != BINARIES.keys():
-        raise ValueError(f"{path.name}: missing layer")
-    return rows
 
 
 def measure(report, log, registered):
@@ -48,8 +32,9 @@ def measure(report, log, registered):
         elif line.startswith("OMEGA_RULE_DIAGNOSTIC"):
             try:
                 tag, stage, test, rule, producer, file, start, end, row, col, upstream, *origin, length, encoded = line.split("\t")
-                compiler_site = None
+                compiler_site = cause = None
                 if stage == "L3":
+                    cause = typing_reason_evidence.take_cause(origin) if len(origin) == 4 else None
                     path, rust_line, rust_column = origin
                     if not path or int(rust_line) < 1 or int(rust_column) < 1:
                         raise ValueError("invalid Rust diagnostic origin")
@@ -72,6 +57,8 @@ def measure(report, log, registered):
                                  "byte_column": int(col), "input": upstream, "producer": producer, "reason": reason}
                 if compiler_site is not None:
                     observed[key]["compiler_site"] = compiler_site
+                if cause:
+                    observed[key]["typing_reason"] = cause
             except (KeyError, ValueError) as error:
                 errors.append(f"invalid contract diagnostic in {target}::{current}: {error}: {line}")
                 # The harness identifies the emitter even when the record names a different test.

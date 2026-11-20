@@ -6,6 +6,29 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod inferred_crashes;
 
+fn check_direct_pause(
+    effects: PauseEffects,
+    acknowledgements: PauseEffects,
+    ceiling: Option<crate::DeclaredPauseBounds>,
+) -> Result<(), crate::DirectCallPauseError> {
+    use crate::DirectCallPauseError::*;
+    if effects.suspend && !acknowledgements.suspend {
+        return Err(MissingSuspendAcknowledgement);
+    }
+    if effects.block && !acknowledgements.block {
+        return Err(MissingBlockAcknowledgement);
+    }
+    if let Some(ceiling) = ceiling {
+        if effects.suspend && ceiling.suspend == Some(false) {
+            return Err(ExceedsSuspensionCeiling);
+        }
+        if effects.block && ceiling.block == Some(false) {
+            return Err(ExceedsBlockingCeiling);
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn check_machine_effects(
     units: &[crate::declarations::resolved_source_file::ResolvedSourceFile<'_>],
     catalog: &DeclarationCatalog<'_>,
@@ -18,22 +41,8 @@ pub(crate) fn check_machine_effects(
     for &index in &graph.direct {
         let c = &out.calls[index];
         let specialized = specialize(c, &formulas, catalog).upper();
-        let err = |m: &str| TypeError::for_site(&c.site, m);
-        if specialized.suspend && !c.acknowledgements.suspend {
-            return Err(err("call requires a suspend acknowledgement"));
-        }
-        if specialized.block && !c.acknowledgements.block {
-            return Err(err("call requires a block acknowledgement"));
-        }
-        if let Some(caller) = &c.caller {
-            let ceiling = catalog.signatures[caller].pause;
-            if specialized.suspend && ceiling.suspend == Some(false) {
-                return Err(err("call exceeds the machine's suspension ceiling"));
-            }
-            if specialized.block && ceiling.block == Some(false) {
-                return Err(err("call exceeds the machine's blocking ceiling"));
-            }
-        }
+        let ceiling = c.caller.as_ref().map(|caller| catalog.signatures[caller].pause);
+        check_direct_pause(specialized, c.acknowledgements, ceiling).map_err(|cause| TypeError::for_reason(&c.site, cause))?;
     }
     let mut reach = catalog
         .signatures

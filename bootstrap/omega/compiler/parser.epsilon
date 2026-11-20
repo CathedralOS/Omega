@@ -325,6 +325,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.statement_name_member_count = 0;
     self.statement_starts_at_self = 0;
     self.call_first_machine_argument = 0;
+    self.call_machine_argument_count = 0;
     self.call_first_argument = 0;
     self.call_context = OmegaCallParseContext::Statement;
     self.call_end = 0;
@@ -378,6 +379,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.cast_start = 0;
     self.cast_type_reference = 0;
     self.cast_kind = OmegaCastKind::Carrier;
+    self.cast_first_entry = 0;
+    self.cast_after_carrier = 0;
     self.cast_domain_start = 0;
     self.cast_domain_end = 0;
     self.cast_end = 0;
@@ -594,6 +597,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             141 -> implementation_trait_name()
             142 -> implementation_body()
             143 -> implementation_member()
+            144 -> statement_after_double_colon()
+            145 -> expression_after_double_colon()
             129 -> domain_carrier_token()
             130 -> domain_name_token()
             131 -> domain_tail_token()
@@ -1058,6 +1063,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             141 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitName, source.len, source.len)
             142 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitBody, source.len, source.len)
             143 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitMemberOrEnd, source.len, source.len)
+            144 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathMember, source.len, source.len)
+            145 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedExpressionPathMember, source.len, source.len)
             129 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainCarrier, source.len, source.len)
             130 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainName, source.len, source.len)
             131 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainEnd, source.len, source.len)
@@ -3676,6 +3683,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_value_expression = self.expression_result;
         self.cast_start = self.expression_result_start;
         self.cast_kind = OmegaCastKind::Carrier;
+        self.cast_first_entry = self.cast_expression_count;
+        self.cast_after_carrier = 0;
         self.cast_type_reference = 0;
         self.cast_domain_start = 0;
         self.cast_domain_end = 0;
@@ -5368,6 +5377,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.statement_first_path_member = self.member_count;
         self.statement_path_member_count = 0;
         self.call_first_machine_argument = self.static_machine_argument_count;
+        self.call_machine_argument_count = 0;
         self.call_first_argument = self.call_argument_count;
         self.expression_frame_value_count = 0;
         self.expression_frame_operator_count = 0;
@@ -5444,8 +5454,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> next_statement_path_member()
             OmegaPunctuationKind::Backslash -> qualify_statement_path()
-            OmegaPunctuationKind::ColonColon -> qualify_statement_path()
-            OmegaPunctuationKind::Less -> begin_statement_call_static_arguments()
+            OmegaPunctuationKind::ColonColon -> after_double_colon(144)
+            OmegaPunctuationKind::Less -> begin_statement_path_expression(2)
             OmegaPunctuationKind::LeftParen -> begin_statement_call()
             OmegaPunctuationKind::LeftBrace -> begin_statement_struct_literal()
             OmegaPunctuationKind::Equal -> begin_statement_path_expression(2)
@@ -5475,6 +5485,58 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
+    // A double colon followed by an angle bracket starts explicit operands
+    // for this callee. Otherwise the same separator introduces a member.
+    state after_double_colon(continuation: i32) {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(continuation) }
+    }
+    state statement_after_double_colon() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> statement_colon_punctuation()
+            _ -> statement_colon_member()
+        }
+    }
+    state statement_colon_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Less -> begin_statement_call()
+            _ -> statement_path_member_token()
+        }
+    }
+    state statement_colon_member() {
+        transition (self.statement_starts_at_self == 0) &&
+            (self.statement_name_member_count == self.statement_path_member_count) {
+            true -> select_statement_member()
+            _ -> incomplete_root()
+        }
+    }
+    state select_statement_member() {
+        self.statement_name_member_count = self.statement_name_member_count + 1;
+        transition true { true -> statement_path_member_token() }
+    }
+    state expression_after_double_colon() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> expression_colon_punctuation()
+            _ -> expression_colon_member()
+        }
+    }
+    state expression_colon_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Less -> begin_call_expression_from_path()
+            _ -> path_expression_member_token()
+        }
+    }
+    state expression_colon_member() {
+        transition self.argument_path_kind {
+            OmegaPathExpressionKind::Name -> select_expression_member()
+            _ -> incomplete_root()
+        }
+    }
+    state select_expression_member() {
+        self.argument_name_member_count = self.argument_name_member_count + 1;
+        transition true { true -> path_expression_member_token() }
+    }
+
     state qualify_statement_path() {
         transition (self.statement_starts_at_self == 0) &&
             (self.statement_name_member_count == self.statement_path_member_count) {
@@ -5502,10 +5564,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
-    state begin_statement_call_static_arguments() {
-        self.call_context = OmegaCallParseContext::Statement;
-        transition true { true -> retain_statement_call_path() }
-    }
 
     state begin_statement_call() {
         self.call_context = OmegaCallParseContext::Statement;
@@ -6030,6 +6088,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state finish_call_static_arguments() {
+        // Nested value calls can append their own static operands later.
+        self.call_machine_argument_count = self.static_machine_argument_count - self.call_first_machine_argument;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(53) }
     }
@@ -6423,7 +6483,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> path_expression_member_access()
             OmegaPunctuationKind::Backslash -> path_expression_name_qualification()
-            OmegaPunctuationKind::ColonColon -> path_expression_name_qualification()
+            OmegaPunctuationKind::ColonColon -> after_double_colon(145)
             OmegaPunctuationKind::LeftBrace -> path_expression_left_brace()
             OmegaPunctuationKind::Comma -> retain_comma_terminated_path()
             OmegaPunctuationKind::RightParen ->
@@ -6451,7 +6511,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::EqualEqual -> retain_framed_operator_path()
             OmegaPunctuationKind::ExclamationEqual ->
                 retain_framed_operator_path()
-            OmegaPunctuationKind::Less -> path_expression_less()
+            OmegaPunctuationKind::Less -> retain_framed_operator_path()
             OmegaPunctuationKind::LessEqual -> retain_framed_operator_path()
             OmegaPunctuationKind::Greater -> retain_framed_operator_path()
             OmegaPunctuationKind::GreaterEqual -> retain_framed_operator_path()
@@ -6530,34 +6590,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> retain_path_expression() }
     }
 
-    state path_expression_less() {
-        transition self.expression_consumer {
-            OmegaExpressionConsumer::TransitionResult -> retain_framed_operator_path()
-            OmegaExpressionConsumer::LocalDataInitialValue ->
-                path_expression_angle()
-            OmegaExpressionConsumer::Requirement ->
-                retain_framed_operator_path()
-            OmegaExpressionConsumer::TransitionSubject ->
-                retain_framed_operator_path()
-            OmegaExpressionConsumer::AssignmentValue ->
-                retain_framed_operator_path()
-            OmegaExpressionConsumer::CallArgument ->
-                retain_framed_operator_path()
-            OmegaExpressionConsumer::IndexedIndex -> retain_framed_operator_path()
-            OmegaExpressionConsumer::StructFieldValue -> retain_framed_operator_path()
-            OmegaExpressionConsumer::ExpressionStatement -> retain_framed_operator_path()
-            _ -> incomplete_root()
-        }
-    }
-
-    state path_expression_angle() {
-        transition self.static_call_ahead(source, self.scan.next_cursor) {
-            0 -> retain_framed_operator_path()
-            1 -> begin_call_expression_from_path()
-            _ -> internal_failure()
-        }
-    }
-
     state begin_call_expression_from_path() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::Requirement ->
@@ -6569,27 +6601,16 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_call_expression_path()
             OmegaExpressionConsumer::CallArgument ->
-                check_nested_call_frame()
-            OmegaExpressionConsumer::StructFieldValue -> check_nested_call_frame()
+                nested_call_capacity()
+            OmegaExpressionConsumer::StructFieldValue -> nested_call_capacity()
             OmegaExpressionConsumer::AssignmentValue -> retain_call_expression_path()
-            OmegaExpressionConsumer::IndexedIndex -> check_nested_call_frame()
+            OmegaExpressionConsumer::IndexedIndex -> nested_call_capacity()
             _ -> incomplete_root()
         }
     }
 
     // Calls are ordinary primaries even after a prefix, group or operator.
     // Argument entry suspends those stacks before it reuses their storage.
-    state check_nested_call_frame() {
-        transition true { true -> nested_call_punctuation() }
-    }
-
-    state nested_call_punctuation() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftParen -> nested_call_capacity()
-            _ -> incomplete_root()
-        }
-    }
-
     state nested_call_capacity() {
         transition self.call_parse_frame_count < 128 {
             true -> save_enclosing_call()
@@ -6601,6 +6622,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state save_enclosing_call() {
         let frame: i32 = self.call_parse_frame_count;
         self.call_parse_frames[frame].first_machine_argument = self.call_first_machine_argument;
+        self.call_parse_frames[frame].machine_argument_count = self.call_machine_argument_count;
         self.call_parse_frames[frame].context = self.call_context;
         self.call_parse_frames[frame].result_consumer = self.call_result_consumer;
         self.call_parse_frames[frame].first_path_member = self.call_first_path_member;
@@ -6624,6 +6646,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.call_name_member_count = self.argument_name_member_count;
         self.call_start = self.members[self.argument_first_path_member].start;
         self.call_first_machine_argument = self.static_machine_argument_count;
+        self.call_machine_argument_count = 0;
         self.call_first_argument = self.call_argument_count;
         transition true { true -> retain_call_acknowledgements() }
     }
@@ -7549,7 +7572,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.call_expressions[
             self.call_expression_count
         ].machine_argument_count =
-            self.static_machine_argument_count - self.call_first_machine_argument;
+            self.call_machine_argument_count;
         self.call_expressions[self.call_expression_count].first_argument =
             self.call_first_argument;
         self.call_expressions[self.call_expression_count].argument_count =
@@ -7602,6 +7625,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.call_parse_frame_count = self.call_parse_frame_count - 1;
         let frame: OmegaCallParseFrame = self.call_parse_frames[self.call_parse_frame_count];
         self.call_first_machine_argument = frame.first_machine_argument;
+        self.call_machine_argument_count = frame.machine_argument_count;
         self.call_context = frame.context;
         self.call_result_consumer = frame.result_consumer;
         self.call_first_path_member = frame.first_path_member;
@@ -7661,7 +7685,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.call_statements[self.call_statement_count].first_machine_argument =
             self.call_first_machine_argument;
         self.call_statements[self.call_statement_count].machine_argument_count =
-            self.static_machine_argument_count - self.call_first_machine_argument;
+            self.call_machine_argument_count;
         self.call_statements[self.call_statement_count].first_argument =
             self.call_first_argument;
         self.call_statements[self.call_statement_count].argument_count =
@@ -9429,7 +9453,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state type_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Equal -> cast_retention_boundary()
+            OmegaPunctuationKind::Equal -> cast_domain_marker(OmegaCastKind::KeepDomain)
             OmegaPunctuationKind::Plus -> cast_domain_marker(OmegaCastKind::AddDomain)
             OmegaPunctuationKind::Minus -> cast_domain_marker(OmegaCastKind::RemoveDomain)
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
@@ -9440,13 +9464,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 self.scan.token_start,
                 self.scan.token_end
             )
-        }
-    }
-
-    state cast_retention_boundary() {
-        transition self.type_consumer {
-            OmegaTypeConsumer::Cast -> incomplete_root()
-            _ -> type_end_failure(self.scan.token_start, self.scan.token_end)
         }
     }
 
@@ -10189,21 +10206,14 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state cast_type_end() {
+        self.cast_after_carrier = 1;
         self.cast_kind = OmegaCastKind::Carrier;
         self.cast_type_reference = 0;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Plus -> retain_cast_after_end(0)
-            _ -> validate_cast_end_punctuation(0)
-        }
-    }
-
-    state validate_cast_end_punctuation(after_domain: i32) {
-        // After a domain entry, another sign begins a second entry.
-        // Arithmetic on the resulting value requires a parenthesized cast.
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Plus -> incomplete_root()
             OmegaPunctuationKind::Minus -> incomplete_root()
-            _ -> cast_expression_end(after_domain)
+            OmegaPunctuationKind::Equal -> incomplete_root()
+            _ -> cast_expression_end(0)
         }
     }
     state cast_expression_end(after_domain: i32) {
@@ -10231,7 +10241,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::PipePipe -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::LeftBracket -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::RightBracket -> retain_cast_after_end(after_domain)
-            OmegaPunctuationKind::Equal -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::DotDot -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::DotDotEqual -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
@@ -10302,7 +10311,16 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Backslash -> next_cast_domain_member()
             OmegaPunctuationKind::ColonColon -> next_cast_domain_member()
-            _ -> validate_cast_end_punctuation(1)
+            OmegaPunctuationKind::Plus -> retain_cast_expression()
+            OmegaPunctuationKind::Minus -> finish_domain_only_entry()
+            OmegaPunctuationKind::Equal -> finish_domain_only_entry()
+            _ -> cast_expression_end(1)
+        }
+    }
+    state finish_domain_only_entry() {
+        transition self.cast_after_carrier {
+            0 -> retain_cast_expression()
+            _ -> incomplete_root()
         }
     }
     state next_cast_domain_member() {
@@ -10341,6 +10359,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_expressions[self.cast_expression_count].target_type =
             self.cast_type_reference;
         self.cast_expressions[self.cast_expression_count].kind = self.cast_kind;
+        self.cast_expressions[self.cast_expression_count].first_entry = self.cast_first_entry;
         self.cast_expressions[self.cast_expression_count].domain.start =
             self.cast_domain_start;
         self.cast_expressions[self.cast_expression_count].domain.end =
@@ -10371,16 +10390,22 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state finish_cast_at_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Plus -> add_domain_to_carrier_result()
+            OmegaPunctuationKind::Plus -> next_domain_entry(OmegaCastKind::AddDomain)
+            OmegaPunctuationKind::Minus -> next_domain_entry(OmegaCastKind::RemoveDomain)
+            OmegaPunctuationKind::Equal -> next_domain_entry(OmegaCastKind::KeepDomain)
             _ -> primary_expression_end_punctuation()
         }
     }
-
-    state add_domain_to_carrier_result() {
-        // The carrier conversion owns the original operand. Adding one domain
-        // views the result exactly as an explicit second cast would.
+    state next_domain_entry(kind: OmegaCastKind) {
         self.cast_value_expression = self.expression_result;
-        transition true { true -> begin_domain_cast(OmegaCastKind::AddDomain) }
+        transition self.cast_kind {
+            OmegaCastKind::Carrier -> first_carrier_addition(kind)
+            _ -> begin_domain_cast(kind)
+        }
+    }
+    state first_carrier_addition(kind: OmegaCastKind) {
+        self.cast_first_entry = self.cast_expression_count;
+        transition true { true -> begin_domain_cast(kind) }
     }
 
     state local_data_type_end() {
@@ -11053,94 +11078,6 @@ machine OmegaParser::append_boolean_expression(&mut self, value: i32) {
     self.expressions[self.expression_count].payload4 = 0;
     self.expressions[self.expression_count].payload5 = 0;
     self.expression_count = self.expression_count + 1;
-}
-
-// A path followed by '<' can begin either a comparison or the supported static
-// argument list. Probe only that list's existing Path grammar through the same
-// lexer, then restore the original '<' observation before ordinary parsing.
-machine OmegaParser::static_call_ahead(&mut self, source: &[u8], cursor: i32) -> i32 {
-    let original: OmegaLexScan = self.scan;
-    let result: i32 = self.scan_static_call_suffix(source, cursor);
-    self.scan = original;
-    return result;
-}
-
-machine OmegaParser::scan_static_call_suffix(&mut self, source: &[u8], cursor: i32) -> i32 {
-    transition true { true -> scan(cursor, 0) }
-    state scan(position: i32, mode: i32) {
-        self.scan.scan_preflighted_stage(source, position);
-        transition self.scan.internal_failure {
-            0 -> accepted(position, mode)
-            _ -> return 2
-        }
-    }
-    state accepted(position: i32, mode: i32) {
-        transition self.scan.accepted {
-            1 -> token(position, mode)
-            _ -> return 0
-        }
-    }
-    state token(position: i32, mode: i32) {
-        transition self.scan.has_token {
-            0 -> return 0
-            _ -> progress(position, mode)
-        }
-    }
-    state progress(position: i32, mode: i32) {
-        transition (self.scan.next_cursor > position) && (self.scan.next_cursor <= source.len) {
-            true -> trivia(mode)
-            _ -> return 2
-        }
-    }
-    state trivia(mode: i32) {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Whitespace -> scan(self.scan.next_cursor, mode)
-            OmegaTokenKind::LineComment -> scan(self.scan.next_cursor, mode)
-            OmegaTokenKind::BlockComment -> scan(self.scan.next_cursor, mode)
-            _ -> part(mode)
-        }
-    }
-    state part(mode: i32) {
-        transition mode {
-            0 -> path()
-            1 -> separator()
-            _ -> open()
-        }
-    }
-    state path() {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Identifier -> scan(self.scan.next_cursor, 1)
-            OmegaTokenKind::Keyword -> scan(self.scan.next_cursor, 1)
-            _ -> return 0
-        }
-    }
-    state separator() {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Punctuation -> separator_kind()
-            _ -> return 0
-        }
-    }
-    state separator_kind() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Backslash -> scan(self.scan.next_cursor, 0)
-            OmegaPunctuationKind::ColonColon -> scan(self.scan.next_cursor, 0)
-            OmegaPunctuationKind::Comma -> scan(self.scan.next_cursor, 0)
-            OmegaPunctuationKind::Greater -> scan(self.scan.next_cursor, 2)
-            _ -> return 0
-        }
-    }
-    state open() {
-        transition self.scan.token_kind {
-            OmegaTokenKind::Punctuation -> open_kind()
-            _ -> return 0
-        }
-    }
-    state open_kind() {
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftParen -> return 1
-            _ -> return 0
-        }
-    }
 }
 
 data OmegaParserScanResult {
