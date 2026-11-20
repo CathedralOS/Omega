@@ -262,7 +262,9 @@ reaches ProcessExit + Console crashes Trap
 // components must be ASCII identifiers and cannot shadow the receiver or a
 // builtin type. A basename only identifies a file.
 machine identifier_letter(byte: u8) -> bool {
-    byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte == 95
+    let uppercase: bool = byte >= 65 && byte <= 90;   // A through Z
+    let lowercase: bool = byte >= 97 && byte <= 122;  // a through z
+    uppercase || lowercase || byte == 95              // underscore
 }
 
 machine directory_name(name: @[u8]) -> bool crashes Trap {
@@ -275,8 +277,9 @@ machine directory_name(name: @[u8]) -> bool crashes Trap {
     {
         let byte: u8 = name[0];
         let letter: bool = identifier_letter(byte);
+        let integer_prefix: bool = byte == 105 || byte == 117;  // i or u
         transition letter {
-            true -> next(name, 1, byte == 105 || byte == 117),
+            true -> next(name, 1, integer_prefix),
             _ -> no()
         }
     }
@@ -290,7 +293,7 @@ machine directory_name(name: @[u8]) -> bool crashes Trap {
     requires index < name.len
     {
         let byte: u8 = name[index];
-        let digit: bool = byte >= 48 && byte <= 57;
+        let digit: bool = byte >= 48 && byte <= 57;  // 0 through 9
         let letter: bool = identifier_letter(byte);
         transition digit || letter {
             true -> next(name, index + 1, integer_family && digit),
@@ -325,9 +328,9 @@ reaches ProcessExit + Console crashes Trap
     {
         let value: u8 = path[index];
         transition value {
-            0 -> malformed(),
-            92 -> malformed(),
-            47 -> directory(path, name, start, index),
+            0 -> malformed(),  // NUL
+            92 -> malformed(), // Backslash is outside the POSIX wire spelling.
+            47 -> directory(path, name, start, index), // Forward slash ends a directory.
             _ -> scan(path, name, start, index + 1)
         }
     }
@@ -351,6 +354,7 @@ reaches ProcessExit + Console crashes Trap
     machine append_separator(path: @[u8], name: @mut ModulePath, start: u64, end: u64)
     requires start <= end, end < path.len
     {
+        // ModulePath joins components with a backslash.
         let retained: bool = module_path_append(name, 92);
         transition retained {
             true -> copy(path, name, start, end),
