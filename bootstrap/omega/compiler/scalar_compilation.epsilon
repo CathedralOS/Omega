@@ -1269,7 +1269,8 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state indexed() {
-        transition (expected == 8) || ((expected >= 100000) && (expected < 104096)) {
+        transition (expected == 8) || (expected == 64) ||
+            ((expected >= 100000) && (expected < 104096)) {
             true -> indexed_place()
             _ -> unsupported(self.diagnostic_offset)
         }
@@ -3190,7 +3191,10 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state check_local(index: i32, state_index: i32, statement_offset: i32,
         local: OmegaLocalDataStatementSyntax) {
         let kind: i32 = self.scalar_type(source, local.type_reference);
-        transition (kind > 0) && (kind != 2) && (kind < 200000) {
+        let default_word_array: i32 = (local.has_initial_value == 0) &&
+            (kind >= 200000) && (kind < 216384) &&
+            (self.scalar_type(source, self.parser.type_references[kind - 200000].payload0) == 64);
+        transition ((kind > 0) && (kind != 2) && (kind < 200000)) || default_word_array {
             true -> local_name(index, state_index, statement_offset, local)
             _ -> incomplete(4, local.start)
         }
@@ -5506,6 +5510,7 @@ machine OmegaScalarCompiler::copy_index_element(&mut self, source: &[u8], refere
     let kind: i32 = self.scalar_type(source, reference);
     transition kind {
         8 -> return 8
+        64 -> return 64
         _ -> record(kind)
     }
     state record(kind: i32) {
