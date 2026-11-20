@@ -439,7 +439,11 @@ def omega_utf8_customer(work, timeout, batch=None):
     digits = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/digits.omg").read_bytes()
     start = digits.index(b"machine hex_digit_value(")
     end = digits.index(b"\n}", start) + 2
-    programs = {0: program, 13: digits[start:end] + b"\n" + (gate / "hex_digit_controls.omg").read_bytes()}
+    programs = {
+        0: program,
+        13: digits[start:end] + b"\n" + (gate / "hex_digit_controls.omg").read_bytes(),
+        15: (gate / "fixed_array_loans.omg").read_bytes(),
+    }
     # Each refusal batch runs positives before and after the refusals on the same compiler.
     expected_batches = (
         (42,),
@@ -457,6 +461,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, 42, 42, 42, 42),
         (42, -4, 42),
         (42, 42, 42, 42, 42, 42),
+        (42, 42, 42, 42, 42),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
