@@ -101,6 +101,13 @@ outputs in the table. The Beta-built Gamma interpreter received the complete
 Gamma source plus the valid 829-byte wire-package input. Its 480-second
 wall limit expired with empty output.
 
+The Linux executable compiled the portable Omega fixture into a 50-byte Alpha
+tape and the two-package wire decoder into a 1,607-byte tape. Each matched the
+Epsilon evaluator and exited 42 on the seed. On the full 3,955,617-byte
+product, a 10 GiB resident-memory guard stopped the native executable after
+194.5 seconds with empty output. This run produced neither a product tape nor
+a compiler diagnostic. [Wire program and refusal controls](#product-wire-package-through-the-construction-entry)
+
 The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.
