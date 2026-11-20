@@ -188,8 +188,11 @@ let next_health: i32 = player.health - amount;
 player.health = next_health;
 ```
 
-A local is a temporary binding, not stored state. A nested machine that needs
-one receives it as an argument.
+Use a fresh name for a local. With a parameter `amount`, the `let amount`
+above would be an error, even inside a nested block. The same rule protects a
+visible generic value parameter such as `const amount: u32`. Once a block
+ends, another block can use its local names again. A nested machine receives
+any runtime value it needs as an argument.
 
 Integer widths are explicit: `u13` and `i257` are unsigned and signed carriers
 with those numerical widths. Generic code can write `u<N>` or `i<N>`;

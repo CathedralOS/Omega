@@ -326,3 +326,121 @@ File
         '{'
         '}'
       '}'
+  Machine
+    'machine'
+    Path 'match_port'
+    Params
+      '('
+      Param
+        'code'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Tail
+        Match
+          'match'
+          PathExpression 'code'
+          '{'
+          Arm
+            ValuePattern
+              Literal '0'
+            '->'
+            Body
+              '{'
+              Let
+                'let'
+                BindingPattern 'port'
+                ':'
+                PathType 'u32'
+                '='
+                Literal '1'
+                ';'
+              Tail
+                PathExpression 'port'
+              '}'
+          ','
+          Arm
+            WildcardPattern '_'
+            '->'
+            Body
+              '{'
+              Let
+                'let'
+                BindingPattern 'port'
+                ':'
+                PathType 'u32'
+                '='
+                Literal '2'
+                ';'
+              Tail
+                PathExpression 'port'
+              '}'
+          ','
+          '}'
+      '}'
+  Machine
+    'machine'
+    Path 'transition_port'
+    Params
+      '('
+      Param
+        'code'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Transition
+        'transition'
+        PathExpression 'code'
+        '{'
+        Arm
+          ValuePattern
+            Literal '0'
+          '->'
+          Body
+            '{'
+            Let
+              'let'
+              BindingPattern 'port'
+              ':'
+              PathType 'u32'
+              '='
+              Literal '1'
+              ';'
+            Tail
+              PathExpression 'port'
+            '}'
+        ','
+        Arm
+          WildcardPattern '_'
+          '->'
+          Literal '2'
+        ','
+        '}'
+      '}'
+  Machine
+    'machine'
+    Path 'acknowledge'
+    Params '(' ')'
+    Body
+      '{'
+      ExpressionStatement
+        Match
+          'match'
+          '{'
+          Arm
+            WildcardPattern '_'
+            '->'
+            Body '{' '}'
+          '}'
+        ';'
+      '}'

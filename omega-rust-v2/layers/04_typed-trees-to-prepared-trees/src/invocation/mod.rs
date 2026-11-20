@@ -160,7 +160,7 @@ enum Step<'a> {
         site: TreeNodeId,
         statement: usize,
         carrier: ValueType,
-        bindings: Rc<CallBindings>,
+        scope: Scope<'a>,
     },
     Bind {
         binder: usize,
@@ -442,8 +442,8 @@ impl ConstantEvaluation<'_, '_> {
                 site,
                 statement,
                 carrier,
-                bindings,
-            } => self.schedule_statement(site, statement, carrier, bindings, execution)?,
+                scope,
+            } => self.schedule_statement(site, statement, carrier, scope, execution)?,
             Step::Bind {
                 binder,
                 carrier,
@@ -709,7 +709,7 @@ fn checked_carrier_in_scope(
         }
     }
     let carrier = scope.instantiate(landing_type.or(expression_type).ok_or(UNSUPPORTED_BODY)?);
-    if carrier != ValueType::Bool && !is_aggregate(&carrier) && IntegerRange::for_type(&carrier).is_none() && FloatFormat::for_type(&carrier).is_none() {
+    if !matches!(carrier, ValueType::Bool | ValueType::NoResult) && !is_aggregate(&carrier) && IntegerRange::for_type(&carrier).is_none() && FloatFormat::for_type(&carrier).is_none() {
         return Err(UNSUPPORTED_BODY.into());
     }
     Ok(carrier)

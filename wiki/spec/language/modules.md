@@ -136,11 +136,11 @@ nor exposes other declarations of the domain's package.
 
 ## Resolution
 
-Name resolution considers, in order:
+Name resolution considers the following in order.
 
-1. Local bindings.
+1. Local bindings visible at the use, including arm bindings under the [local name rule](state_contracts.md#bindings-and-arrivals).
 2. State parameters.
-3. Machine parameters.
+3. Machine parameters, including visible generic value binders.
 4. Imported names.
 5. Fully qualified package/module paths within the occurrence's declared dependency scope.
 

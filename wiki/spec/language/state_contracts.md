@@ -113,14 +113,14 @@ declaration order and flattening. Both ordinary and terminal calls invoke the
 selected machine with ordinary explicit parameters. Context records and their
 borrows are supplied like other arguments; no receiver or enclosing activation
 is retained or rebound implicitly.
-A name is declared at most once among one machine's parameters and the locals
-of its own body, excluding the bodies of machines nested in it: a second `let`
-of the same name is rejected, whether or not the first is still in use. The
-check compares resolved identifiers, not rendered text. Pattern bindings in
-different arms of one match may reuse a name; within one arm they follow the
-same rule.
-An ordinary terminal value or permitted implicit Unit
-completion ends the invocation and owes its declared result/return contract.
+
+A runtime parameter or local cannot reuse the name of a visible value parameter
+or local, including a `const` generic value binder. Check resolved identifiers at
+every `let` and [pattern binding](patterns.md#bare-names-in-dispatch-arms), including
+duplicates within one pattern. Last use leaves the name in scope. Disjoint arms or
+blocks may reuse names. Types and package or imported constants may share their spelling.
+
+An ordinary terminal value or permitted implicit Unit completion ends the invocation and owes its declared result/return contract.
 
 A transition explicitly supplies the target machine's arguments. Executable uses
 name the exact invocation's parameters or preceding local bindings; arrival

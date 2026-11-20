@@ -4,7 +4,6 @@ machine names(machine: u32, data: u32, match: u32, transition: u32, let: u32, bl
     let use = match + transition;
     let if = let + block;
     let mut = move;
-    let mut mut = mut;
     data = 3;
     machine.run();
     block(use);
@@ -14,6 +13,11 @@ machine names(machine: u32, data: u32, match: u32, transition: u32, let: u32, bl
     asm = public;
     use(e.owner);
     suspend
+}
+
+machine mutable_name(move: u32) -> u32 {
+    let mut mut = move;
+    mut
 }
 
 data machine {

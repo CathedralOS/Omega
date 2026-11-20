@@ -278,11 +278,12 @@ invokes its entry, not a saved activation or a private point inside its body.
 Nested declarations are not separately package-exportable; package export of an
 enclosing machine does not export its helpers.
 
-Each nested machine has its own runtime parameters and locals. Runtime bindings
-of an enclosing invocation are out of scope. A visible package declaration
-therefore remains available by its bare name even when an enclosing parameter
-or local has the same name. To use the enclosing runtime value, pass it
-explicitly, including references, capabilities and lifetime-bearing values.
+Each nested machine has its own runtime parameters and locals. An enclosing
+invocation's runtime bindings are out of scope, so a helper may reuse their
+names or read a visible package constant that shares one. Pass any runtime
+value the helper needs explicitly, including references, capabilities and
+lifetime-bearing values. A visible enclosing generic value binder stays in
+scope and reserves its name under the [local binding rule](state_contracts.md#bindings-and-arrivals).
 
 A named evidence output declared in a machine's `ensures` (such as
 `selected` in `ensures Outcome::Success -> { selected: … }`) is assigned only in

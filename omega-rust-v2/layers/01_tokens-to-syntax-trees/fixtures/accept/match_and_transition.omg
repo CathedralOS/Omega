@@ -28,3 +28,21 @@ machine one_line(n: u32) -> u32 {
 machine no_arms(n: Never) {
     transition n {}
 }
+
+machine match_port(code: u32) -> u32 {
+    match code {
+        0 -> { let port: u32 = 1; port },
+        _ -> { let port: u32 = 2; port },
+    }
+}
+
+machine transition_port(code: u32) -> u32 {
+    transition code {
+        0 -> { let port: u32 = 1; port },
+        _ -> 2,
+    }
+}
+
+machine acknowledge() {
+    match { _ -> {} };
+}

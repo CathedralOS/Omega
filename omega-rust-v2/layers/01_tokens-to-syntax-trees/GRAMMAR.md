@@ -383,7 +383,7 @@ mathematical declarations and in machine parameters
     transition = 'transition' subject? '{' arms '}'
     subject    = expression                      with no record literal at its top level
     arms       = arm % ','
-    arm        = pattern '->' expression
+    arm        = pattern '->' (expression | body)
 
 - **`match` and `transition` have one grammar** (decision 3). They differ in
   position only: `transition` is the form at the end of a body, where the
@@ -393,6 +393,8 @@ mathematical declarations and in machine parameters
   (decision 2). Newlines never matter. An arm has no marker of its own to say
   where the next one starts, which is what a clause gets from the next clause
   word; the comma is that marker.
+- A braced arm uses the ordinary body grammar. Its locals are scoped to that
+  arm, its tail supplies its result, and an empty body supplies Unit.
 - With no subject, each pattern is a condition or `_`
   (language/state_contracts.md:442).
 - A subject cannot be a record literal unless it is in parentheses, since
@@ -638,7 +640,7 @@ error it must produce. 23 accept, 103 reject.
 | types | `types`, `reference_to_reference`, `job_queue` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `logical_and_as_type`, `ampersand_reference_type` |
 | header clauses | `clauses` | `semicolon_before_body`, `comma_before_body`, `clause_without_predicate`, `terminates_by_without_measure`, `reaches_without_type`, `registers_without_value`, `clobbers_without_name`, `record_literal_in_clause` |
 | statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
-| match, transition | `match_and_transition` | `missing_arm_comma`, `missing_arm_comma_in_transition`, `fat_arrow_arm`, `arm_without_result`, `arm_result_is_block`, `match_without_arms`, `record_literal_as_subject`, `transition_as_expression` |
+| match, transition | `match_and_transition` | `missing_arm_comma`, `missing_arm_comma_in_transition`, `fat_arrow_arm`, `arm_without_result`, `block_as_initializer`, `match_without_arms`, `record_literal_as_subject`, `transition_as_expression` |
 | patterns | `patterns` | `record_pattern_rest_not_last`, `field_pattern_as_without_name` |
 | binary operators | `expressions_binary` | `missing_operand`, `two_operators`, `chained_relational_comparison`, `chained_equality_comparison`, `comparison_of_a_comparison`, `comparison_as_right_operand`, `range_written_as_mathematics` |
 | right shift | `right_shift` | `right_shift_with_space` |
@@ -772,7 +774,6 @@ added.
 - Expressions: an `if` guard on an arm, `Name { fields } if condition -> ...`;
   an evidence lane in calls `f(a, b; evidence)`; `&state`
   borrows; `zero_value<T>()`; `utf16 "..."`.
-- An arm whose result is an empty block, `-> {}`.
 - Clauses: `stack N bytes`, `reaches A + B`, `reaches <= Bound`, labelled
   predicates `requires name: pred`.
 - Optional semicolons after data members.

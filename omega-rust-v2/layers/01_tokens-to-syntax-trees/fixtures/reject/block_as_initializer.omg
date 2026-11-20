@@ -1,0 +1,1 @@
+machine invalid() { let port = { 42 }; }

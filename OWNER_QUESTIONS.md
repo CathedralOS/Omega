@@ -64,8 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. Does a bare word in an arm pattern compare against a parameter or local of that name?
-
-In `machine f(x: u32, v: u32) -> u32 { match v { x -> x, _ -> 0 } }`, should the arm compare `v` with the parameter `x`, or bind a new name `x` that holds `v`? The same question applies to a local from `let x = 3;` and to a generic value binder such as `<const N: u32>`. The answer decides whether adding a parameter can silently turn a catch-all arm into an equality test.
-
-This question predates the published [bare names in dispatch arms](wiki/spec/language/patterns.md#bare-names-in-dispatch-arms) rule. Under that rule, `x` binds the subject even when an existing name has that spelling. A qualified constant tests its value. The [resolver contract](omega-rust-v2/layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) records the matching implementation. [PR #4482](https://github.com/CathedralOS/Omega/pull/4482) originally published the rule in the experimental workspace's copy.
+None currently recorded.

@@ -231,10 +231,16 @@ domain alternatives use first-match order; unordered union proofs do not.
 
 ## Bare names in dispatch arms
 
-In a `match` or `transition` with a subject, an ordinary bare name such as
-`x` binds the subject (or the positional component being matched) for that
-arm. Adding a local, import or constant named `x` leaves the binding intact.
-To match a named constant by value, write its qualified path, as in
-`limits\x -> 1`. This arm covers the matching value. The literals `true`
-and `false` test their Boolean values. In a dispatch without a subject, an
-arm condition such as `ready -> 1` reads the existing value of `ready`.
+In a `match` or `transition` with a subject, an ordinary bare name binds
+the subject or positional component for that arm. For example, in
+`match received { count -> count }` the arm binds every received value.
+If `count` already names a visible parameter or local, the binding is a
+[declaration error](state_contracts.md#bindings-and-arrivals). This includes
+a visible `const count: u32` generic parameter. To compare with an existing
+value, write the equality explicitly, as in `received == count`.
+
+A package or imported constant named `count` permits the same bare binding.
+To test a constant by value, write its qualified path, as in
+`limits\count -> 1`. The literals `true` and `false` test their Boolean
+values. In a dispatch without a subject, an arm condition such as
+`ready -> 1` reads the existing value of `ready`.

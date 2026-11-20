@@ -13,7 +13,12 @@ let category: i32 = match code {
 };
 ```
 
-The subject is evaluated once. Each arm produces the same type.
+The subject is evaluated once. Each arm produces the same type. In
+`match received { amount -> amount }`, the bare word `amount` binds every
+received value. If a parameter or local named `amount` is already visible,
+the compiler rejects the binding. To compare the two values, write
+`received == amount`. To match a package constant, use a qualified pattern
+such as `limits\amount`. Separate arms can reuse a binding name.
 
 ## Transition
 
@@ -95,10 +100,11 @@ When a pattern cannot fail, bind with `let` instead of a one-arm match:
 
 ```omega
 let Command { command_id as _, op as operation } = command;
-let (_, operation) = command;        // the same, by position
 ```
 
-A `let` pattern that could fail is rejected; use `match` for that.
+The positional spelling is `let (_, operation) = command;`. Either form
+introduces `operation`, so choose a fresh name if one is already visible.
+Use `match` for a pattern that could fail.
 
 ## Arms carry facts
 
