@@ -11,6 +11,8 @@ machine OmegaSourceSet::single(&mut self, length: i32) {
     self.units[0].package = 0;
     self.units[0].start = 0;
     self.units[0].end = length;
+    self.units[0].path.start = 0;
+    self.units[0].path.end = 0;
 }
 
 machine OmegaSourceSet::equal_name(
@@ -35,12 +37,16 @@ machine OmegaSourceSet::equal_name(
 }
 
 machine OmegaSourceSet::identifier(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
-    transition (name.start >= 0) && (name.start < name.end) && (name.end <= source.len) {
-        true -> byte(name.start)
+    return self.identifier_range(source, name.start, name.end);
+}
+
+machine OmegaSourceSet::identifier_range(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    transition (start >= 0) && (start < end) && (end <= source.len) {
+        true -> byte(start)
         _ -> return 0
     }
     state byte(index: i32) {
-        transition index < name.end {
+        transition index < end {
             true -> classify(index, source[index])
             _ -> return 1
         }
@@ -48,7 +54,7 @@ machine OmegaSourceSet::identifier(&mut self, source: &[u8], name: OmegaRelative
     state classify(index: i32, value: i32) {
         transition ((value >= 65) && (value <= 90)) ||
             ((value >= 97) && (value <= 122)) || (value == 95) ||
-            ((index > name.start) && (value >= 48) && (value <= 57)) {
+            ((index > start) && (value >= 48) && (value <= 57)) {
             true -> byte(index + 1)
             _ -> return 0
         }
@@ -139,7 +145,8 @@ machine OmegaSourceSet::valid(&mut self, source: &[u8]) -> i32 {
     }
     state unit_shape(index: i32, previous_end: i32, row: OmegaSourceUnit) {
         transition (row.package >= 0) && (row.package < self.package_count) &&
-            (row.start >= previous_end) && (row.end >= row.start) && (row.end <= source.len) {
+            (row.start >= previous_end) && (row.end >= row.start) && (row.end <= source.len) &&
+            (row.path.start >= 0) && (row.path.end >= row.path.start) && (row.path.end <= source.len) {
             true -> unit(index + 1, row.end)
             _ -> return 0
         }

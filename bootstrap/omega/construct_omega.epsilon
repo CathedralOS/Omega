@@ -1,6 +1,6 @@
 // Construction application for the bootstrap compiler; separate from public OCREQ.
 // Integer rows frame exact bytes and invocation ownership. The compiler alone
-// parses modules/imports and chooses bindings; only the selected entry name is sent.
+// derives namespaces from logical paths and resolves imports.
 // Exit 0 publishes Alpha bytes. Compiler refusals exit 1 (invalid), 2 (outside
 // the supported subset), or 3 (capacity), publishing the absolute source-byte
 // coordinate as four little-endian bytes. Malformed framing exits 3 without
@@ -19,6 +19,7 @@ data Main {
     length: i32;
     entry_unit: i32;
     entry_name: OmegaRelativeSpan;
+    has_paths: i32;
 }
 
 machine Main::word(&mut self) -> i32 {
@@ -38,19 +39,50 @@ machine Main::word(&mut self) -> i32 {
     }
 }
 
+// The product's ModulePath holds 256 bytes. A long basename uses no namespace space.
+machine Main::namespace_fits(&mut self, path: OmegaRelativeSpan) -> i32 {
+    transition true { true -> suffix(path.end - 1) }
+    state suffix(index: i32) {
+        transition index - path.start > 256 {
+            true -> byte(index)
+            _ -> return 1
+        }
+    }
+    state byte(index: i32) {
+        transition self.source[index] == '/' {
+            true -> return 0
+            _ -> suffix(index - 1)
+        }
+    }
+}
+
 machine Main::main(&mut self) {
-    self.compiler.parser.sources.package_count = self.word();
-    self.compiler.parser.sources.dependency_count = self.word();
-    self.compiler.parser.sources.unit_count = self.word();
-    self.entry_unit = self.word();
-    self.entry_name.start = self.word();
-    self.entry_name.end = self.word();
-    self.length = self.word();
-    transition (self.compiler.parser.sources.package_count <= 64) &&
-        (self.compiler.parser.sources.dependency_count <= 256) &&
-        (self.compiler.parser.sources.unit_count <= 512) && (self.length <= 4194304) {
-        true -> package(0)
-        _ -> self.console.exit_process(3)
+    let first: i32 = self.word();
+    transition first {
+        0 -> version(self.word())
+        _ -> header(first, false)
+    }
+    state version(number: i32) {
+        transition number {
+            1 -> header(self.word(), true)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state header(packages: i32, has_paths: i32) {
+        self.has_paths = has_paths;
+        self.compiler.parser.sources.package_count = packages;
+        self.compiler.parser.sources.dependency_count = self.word();
+        self.compiler.parser.sources.unit_count = self.word();
+        self.entry_unit = self.word();
+        self.entry_name.start = self.word();
+        self.entry_name.end = self.word();
+        self.length = self.word();
+        transition (packages > 0) && (packages <= 64) &&
+            (self.compiler.parser.sources.dependency_count <= 256) &&
+            (self.compiler.parser.sources.unit_count <= 512) && (self.length <= 4194304) {
+            true -> package(0)
+            _ -> self.console.exit_process(3)
+        }
     }
     state package(index: i32) {
         transition index < self.compiler.parser.sources.package_count {
@@ -87,6 +119,22 @@ machine Main::main(&mut self) {
         self.compiler.parser.sources.units[index].package = self.word();
         self.compiler.parser.sources.units[index].start = self.word();
         self.compiler.parser.sources.units[index].end = self.word();
+        transition self.has_paths {
+            true -> path(index)
+            _ -> unit(index + 1)
+        }
+    }
+    state path(index: i32) {
+        let start: i32 = self.word();
+        let end: i32 = self.word();
+        transition (start < end) && (end <= self.length) {
+            true -> retain_path(index, start, end)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state retain_path(index: i32, start: i32, end: i32) {
+        self.compiler.parser.sources.units[index].path.start = start;
+        self.compiler.parser.sources.units[index].path.end = end;
         transition true { true -> unit(index + 1) }
     }
     state source_byte(index: i32) {
@@ -114,7 +162,19 @@ machine Main::main(&mut self) {
     state entry() {
         transition self.compiler.parser.sources.identifier(
             self.source.as_slice[0..self.length], self.entry_name) {
-            1 -> compile()
+            1 -> path_limit(0)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state path_limit(index: i32) {
+        transition (self.has_paths == 1) && (index < self.compiler.parser.sources.unit_count) {
+            true -> unit_path(index)
+            _ -> compile()
+        }
+    }
+    state unit_path(index: i32) {
+        transition self.namespace_fits(self.compiler.parser.sources.units[index].path) {
+            1 -> path_limit(index + 1)
             _ -> self.console.exit_process(3)
         }
     }

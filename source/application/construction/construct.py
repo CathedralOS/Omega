@@ -37,7 +37,7 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def encode(packages, edges, units, entry_unit, entry_name):
+def encode(packages, edges, units, entry_unit, entry_name, *, paths=None):
     """Shared explicit row contract; source-unit contents are never changed."""
     buffer = bytearray()
 
@@ -51,11 +51,15 @@ def encode(packages, edges, units, entry_unit, entry_name):
                  for requester, target, alias in edges]
     entry_start, entry_end = retain(entry_name)
     unit_rows = [(package, *retain(data)) for package, data in units]
+    if paths is not None:
+        # Keep source coordinates independent of the lengths of the filenames.
+        unit_rows = [(*row, *retain(path.encode('utf-8')))
+                     for row, path in zip(unit_rows, paths, strict=True)]
     if len(package_rows) > 64 or len(edge_rows) > 256 or len(unit_rows) > 512:
         raise ValueError('constructor row capacity exceeded')
     if len(buffer) > 4194304:
         raise ValueError('constructor byte capacity exceeded')
-    words = [len(package_rows), len(edge_rows), len(unit_rows), entry_unit,
+    words = ([] if paths is None else [0, 1]) + [len(package_rows), len(edge_rows), len(unit_rows), entry_unit,
              entry_start, entry_end, len(buffer)]
     for rows in (package_rows, edge_rows, unit_rows):
         for row in rows:
@@ -87,7 +91,9 @@ def compiler_input():
     entry_unit = paths.index(ENTRY)
     wire, packages, edges, units = encode(
         [(name, role) for name, _, role in PACKAGES], EDGES,
-        [(package, data) for package, _, data in sources], entry_unit, ENTRY_NAME)
+        [(package, data) for package, _, data in sources], entry_unit, ENTRY_NAME,
+        paths=[Path(path).relative_to(PACKAGES[package][1]).as_posix()
+               for package, path, _ in sources])
     manifest = {
         'contract': 'closed-source-set construction; not OCREQ admission',
         'target': 'Alpha', 'entry_unit': entry_unit, 'entry_name': ENTRY_NAME.decode(),
@@ -98,7 +104,8 @@ def compiler_input():
         'edges': [list(row) for row in edges],
         'build_declarations_not_executed': declarations,
         'units': [{'id': index, 'package': package, 'path': path,
-                   'start': row[1], 'end': row[2], 'sha256': digest(data)}
+                   'start': row[1], 'end': row[2], 'path_start': row[3], 'path_end': row[4],
+                   'sha256': digest(data)}
                   for index, ((package, path, data), row) in enumerate(zip(sources, units))],
     }
     return wire, manifest

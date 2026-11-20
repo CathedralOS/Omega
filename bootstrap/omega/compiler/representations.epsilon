@@ -234,7 +234,7 @@ data OmegaUseSyntax {
 }
 
 // Invocation supplies package ownership and direct dependency aliases. Source
-// text supplies modules and imports. Unit byte ranges are disjoint immutable
+// paths supply namespaces and source text supplies imports. Unit byte ranges are disjoint immutable
 // views in one buffer; sharing that buffer never shares a lexical/import scope.
 data OmegaSourcePackage {
     name: OmegaRelativeSpan;
@@ -252,9 +252,9 @@ data OmegaSourceUnit {
     package: i32;
     start: i32;
     end: i32;
+    path: OmegaRelativeSpan;
     first_module_member: i32;
     module_member_count: i32;
-    has_module: i32;
 }
 
 data OmegaSourceSet {
@@ -318,7 +318,6 @@ data OmegaTypeConsumer {
 }
 
 data OmegaPathDestination {
-    case Module;
     case Use;
     case Machine;
 }
@@ -932,6 +931,8 @@ data OmegaParseDiagnosticCode {
     case ExpectedMembershipEnd;
     case ExpectedDataFieldEnd;
     case ExpectedBorrowOperand;
+    case InvalidSourcePath;
+    case RetiredModuleHeader;
 }
 
 data OmegaParserResource {
@@ -1019,7 +1020,6 @@ data OmegaSuspendedExpressionSlot {
 data OmegaParser {
     sources: OmegaSourceSet;
     unit_index: i32;
-    unit_first_root: i32;
     scan: OmegaLexScan;
     // Only Complete authorizes consumers to inspect rows below the matching
     // count. Failure/incomplete may leave unowned prefixes; reset invalidates
