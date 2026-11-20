@@ -3194,6 +3194,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaTokenKind::Punctuation -> transition_subject_punctuation()
             OmegaTokenKind::Identifier -> begin_named_transition_subject()
             OmegaTokenKind::Integer -> begin_integer_transition_subject()
+            OmegaTokenKind::StringLiteral -> retain_string_expression()
             OmegaTokenKind::Keyword -> transition_subject_keyword()
             _ -> incomplete_root()
         }
