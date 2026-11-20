@@ -265,23 +265,6 @@ and observation identities, compares every output byte, then runs the common
 Alpha tape and requires exit 42 with empty output. The timeout applies to
 each evaluator separately.
 
-For the complete request storage unit, pass a compiled construction executable.
-The test frames `main.omg` and the unchanged `request.omg` as two source files
-in one package.
-
-```sh
-python3 tests/bootstrap/independent/request_clear.py --staging-constructor /path/to/constructor --timeout 1800
-```
-
-The caller stages 42 and reads byte zero. Changing only the read offset to one
-produces an Alpha Trap (Linux SIGILL). Changing only the staged byte to `true`
-produces a compile-time rejection at that token. On the 2,082-byte product
-unit, the two executable cases each produced 2,071 bytes of Alpha tape and the
-rejection pointed at arena byte 143. The test recomputes the token coordinate
-from the current caller and construction frame. A fourth caller starts at full
-capacity. Staging one more byte must advance `observed` to 65,537, keep
-`length` at 65,536 and preserve the last stored byte.
-
 At `e488ba404bf` on Linux x86-64, the checked-in Linux construction driver
 built the Alpha-hosted evaluator from the seed and admitted Beta tape in
 192.870 seconds. All three Gamma compiler tapes matched. The constructed
@@ -312,6 +295,55 @@ The resulting 1,350-byte program exited 42 on Alpha.
 
 The [whole construction input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 exercises all product sources and the evaluator’s sealed-input provision.
+
+### Stage and read a byte with the native Omega constructor
+
+For the complete request storage unit, pass a compiled construction executable.
+The test frames `main.omg` and the unchanged `request.omg` as two source files
+in one package.
+
+```sh
+python3 tests/bootstrap/independent/request_clear.py --staging-constructor /path/to/constructor --timeout 1800
+```
+
+The caller stages 42 and reads byte zero. Changing only the read offset to one
+produces an Alpha Trap (Linux SIGILL). Changing only the staged byte to `true`
+produces a compile-time rejection at that token. On the 2,082-byte product
+unit, the two executable cases each produced 2,071 bytes of Alpha tape and the
+rejection pointed at arena byte 143. The test recomputes the token coordinate
+from the current caller and construction frame. A fourth caller starts at full
+capacity. Staging one more byte must advance `observed` to 65,537, keep
+`length` at 65,536 and preserve the last stored byte.
+
+The Linux x86-64 constructor built from Omega compiler revision
+`807099e8790` compiled the complete 2,082-byte request unit (SHA-256
+`bdc293370165c8cc6b92de1e17e77d261956f2a70bc6683e276dc47f15dde4c1`).
+The 883,526-byte Epsilon source includes the public construction entry. Its
+SHA-256 was `6fcc6d17e45ab53205f964f16cbfb0d21591812339fa411ff773c46b6ed13031`.
+The Epsilon compiler and storage runtime from the head of PR #4584
+(`d7b67e70954`), the Delta construction profile and the Gamma Linux backend
+produced the 55,348,424-byte constructor (SHA-256 `381c4b2bc372ac0f0e23ad001a3e89f541cb6f80cc434934ab1f8912105ac175`).
+[Build a native constructor](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
+
+For the `stage-first` caller, the constructor read a 2,382-byte packet
+(SHA-256 `b355eff899789463165edc9a2188016808eb1aa3d27b41d19793a140ec1a2cfb`).
+It published 2,076 bytes (SHA-256
+`42ce29ec6fd6873db56be0da0599f1b7d26e563e529f58d4e8ba34cce5e2a2ec`).
+The 2,071-byte tape following the five-byte success header had SHA-256
+`955589ac5af9b1a49df301d6f0953e6cb03b20e6208476a0de2815b82e214c27`.
+The checked-in Alpha seed ran it and exited 42 with empty output.
+
+Changing the staged argument from `42` to `true` gave the constructor a
+2,384-byte packet (SHA-256
+`a03975bc9eed13c327c855ec3622816d1b198de029fb0b97c66142215ce40717`).
+It returned exactly `00010000008f000000`, a rejection at byte 143, the first
+byte of `true`. The independent Epsilon model ran the same compiler source
+and matched both complete observations byte for byte.
+
+| Native constructor input | CPU seconds | Peak RSS (KiB) |
+| --- | ---: | ---: |
+| Stage and read 42 | 96.75 | 2,323,252 |
+| Stage a Boolean | 91.88 | 1,908,136 |
 
 ## Host checks
 

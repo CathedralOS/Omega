@@ -97,19 +97,21 @@ def check_output(name, output, expected, work, timeout):
     if isinstance(expected, bytes):
         if output != expected:
             raise SystemExit(f"{name}: expected {expected.hex()}, got {output[:40].hex()}")
-        print(f"{name}: rejection at source byte {int.from_bytes(expected[5:], 'little')}")
+        coordinate = int.from_bytes(output[5:], "little")
+        print(f"{name}: rejection at source byte {coordinate}, observation={output.hex()}")
         return
     if len(output) <= 5 or output[:5] != bytes(5):
         raise SystemExit(f"{name}: expected a successful compilation, got {output[:40].hex()}")
     tape = work / f"{name}.tape"
-    tape.write_bytes(output[5:])
+    payload = output[5:]
+    tape.write_bytes(payload)
     program = work / name
     stamp(tape, program)
     actual = execute(program, timeout=timeout)
     if actual != (expected, b""):
         raise SystemExit(f"{name}: expected exit {expected} and empty stdout, got {actual!r}")
     outcome = signal.Signals(-expected).name if expected < 0 else f"exit {expected}"
-    print(f"{name}: {tape.stat().st_size} Alpha bytes, {outcome}", flush=True)
+    print(f"{name}: {len(payload)} Alpha bytes, {outcome}, sha256={sha256(payload).hexdigest()}", flush=True)
 
 
 def main() -> None:
