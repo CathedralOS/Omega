@@ -12,7 +12,6 @@ pub fn collect_root_bindings(
     typed: &TypedTrees,
     executed: &[ProductEntryBinding],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
-    let typed = typed.product_declarations();
     let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
     let mut diagnostics = Vec::new();
     for binding in executed {

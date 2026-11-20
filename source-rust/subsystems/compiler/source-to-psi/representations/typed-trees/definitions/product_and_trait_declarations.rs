@@ -1353,8 +1353,7 @@ pub mod product_operand {
     }
 
     impl<'program> ProductDeclarationLookup<'program> {
-        pub fn new(typed: &'program TypedTrees, roles: &[ProductOperandKind]) -> Self {
-            let program = typed.product_declarations();
+        pub fn new(program: &'program TypedTrees, roles: &[ProductOperandKind]) -> Self {
             Self {
                 program,
                 declarations: program.build_product_declaration_index(roles),

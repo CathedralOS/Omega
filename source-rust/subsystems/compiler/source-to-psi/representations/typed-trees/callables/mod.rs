@@ -1,0 +1,12 @@
+//! Machines, calls and the applications that specialize their signatures.
+
+pub mod callable_lifetimes;
+pub(crate) mod callable_copies;
+pub mod callable_signature_shapes;
+pub mod callable_values;
+pub(crate) mod machine_specializations;
+pub mod runtime_callable_identity;
+pub(crate) mod callable_applications;
+pub(crate) mod calls_and_control_flow;
+pub(crate) mod private_callback_slots;
+pub mod source_call_occurrences;

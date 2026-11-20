@@ -2196,7 +2196,6 @@ impl Lowerer<'_> {
 fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) -> TypedTrees {
     let TypedTrees {
         identity: _,
-        product_declaration_frontier: _,
         excluded_authored_selection_occurrences,
         roots,
         tables,

@@ -69,7 +69,7 @@ type metadata is not an assignment judgment.
 Source activation (`SeededTypingBase::activate_sources`) narrows a retained
 typing to the program written in the selected sources. It reads no verdict: the
 typed representation's own
-[declaration projection](../../representations/typed-trees/src/declaration_projection.rs)
+[declaration projection](../../representations/typed-trees/storage/declaration_projection.rs)
 keeps the selected files' declarations and the declarations the compiler derived
 for them, and the resolved roots follow what remains.
 

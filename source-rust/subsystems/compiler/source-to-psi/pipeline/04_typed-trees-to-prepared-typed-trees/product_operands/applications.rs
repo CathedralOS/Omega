@@ -183,7 +183,6 @@ impl Lower<'_> {
         let declaration = symbols.rejoin_product_occurrence(declaration);
         let mut found = self
             .program
-            .product_declarations()
             .data_definitions()
             .iter()
             .map(|data| data.symbol)
