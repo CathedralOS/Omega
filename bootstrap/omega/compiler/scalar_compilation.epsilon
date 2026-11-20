@@ -23,6 +23,8 @@ data OmegaCheckedValueKind {
     case WideLiteral;
     case NegativeI32Literal;
     case SignedComparison;
+    case SharedByteRange;
+    case SharedByteRead;
 }
 
 // Each call or terminal transfer has one resolved target. Its incoming list
@@ -87,6 +89,7 @@ data OmegaFixedIndexPlan {
 }
 
 data OmegaScalarCompiler {
+    byte_ranges: [OmegaByteRange; 16384];
     construction: OmegaConstructionDirectory;
     import_bindings: [OmegaImportBinding; 4096];
     query_path: OmegaNamePath;
@@ -1334,7 +1337,7 @@ machine OmegaScalarCompiler::check_value(
         OmegaExpressionKind::Path -> path()
         OmegaExpressionKind::Indexed -> indexed()
         OmegaExpressionKind::Projection -> member(row, self.expression_type(source, owner, state_index, before, row.payload0))
-        OmegaExpressionKind::Borrow -> return self.check_borrow(source, state_index, before, expression, expected)
+        OmegaExpressionKind::Borrow -> borrow(row)
         OmegaExpressionKind::StructLiteral -> return self.check_record_literal(source, owner, state_index, before, expression, expected)
         OmegaExpressionKind::Call -> call(self.parser.call_expressions[row.payload0])
         OmegaExpressionKind::Integer -> integer(row)
@@ -1357,7 +1360,39 @@ machine OmegaScalarCompiler::check_value(
             _ -> return self.check_place_value(source, state_index, before, expression, expected)
         }
     }
+    state borrow(row: OmegaExpressionSyntax) {
+        transition expected == omega_shared_byte_slice() {
+            true -> explicit_range(row)
+            _ -> return self.check_borrow(source, state_index, before, expression, expected)
+        }
+    }
+    state explicit_range(row: OmegaExpressionSyntax) {
+        transition row.payload1 == 0 {
+            true -> return self.check_byte_range(source, state_index, before, expression, row.payload0)
+            _ -> unsupported(row.payload2)
+        }
+    }
     state indexed() {
+        transition expected == omega_shared_byte_slice() {
+            true -> return self.check_byte_range(source, state_index, before, expression, expression)
+            _ -> indexed_element()
+        }
+    }
+    state indexed_element() {
+        let row: OmegaIndexedExpressionSyntax = self.parser.indexed_expressions[self.parser.expressions[expression].payload0];
+        let slot: i32 = self.byte_slice_parameter(source, state_index, before, row.base);
+        transition slot >= 0 {
+            true -> byte_read(row, slot)
+            _ -> fixed_element()
+        }
+    }
+    state byte_read(row: OmegaIndexedExpressionSyntax, slot: i32) {
+        transition expected == 8 {
+            true -> return self.check_shared_byte_read(source, state_index, before, expression, row, slot)
+            _ -> rejected(row.start)
+        }
+    }
+    state fixed_element() {
         transition (expected == 8) || (expected == 64) ||
             ((expected >= 100000) && (expected < 104096)) {
             true -> indexed_place()
@@ -2324,7 +2359,8 @@ machine OmegaScalarCompiler::emit_value_load(&mut self, cell: i32) -> i32 {
         _ -> return 0
     }
     state value() {
-        transition (self.cell_types[cell] >= 100000) && (self.cell_types[cell] < 400000) {
+        transition ((self.cell_types[cell] >= 100000) && (self.cell_types[cell] < 400000)) ||
+            (self.cell_types[cell] == omega_shared_byte_slice()) {
             true -> return 1
             _ -> return self.tape.emit_rr(10, 0, 0)
         }
@@ -2367,6 +2403,8 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::IndexedRead -> return self.emit_place_value(expression)
         OmegaCheckedValueKind::ProjectedRead -> member(self.value_payloads[expression])
         OmegaCheckedValueKind::ForwardedReference -> return self.emit_value_load(self.value_payloads[expression])
+        OmegaCheckedValueKind::SharedByteRange -> return self.emit_byte_range(expression)
+        OmegaCheckedValueKind::SharedByteRead -> return self.emit_shared_byte_read(expression)
         OmegaCheckedValueKind::ExactWordArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::WrappingArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
@@ -2902,7 +2940,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
         transition ((kind > 0) && (kind != 2) && (kind < 200000) &&
             (self.type_copy(source, kind) == 1)) ||
             ((kind >= 400000) && (kind < 404096)) ||
-            ((kind >= 500000) && (kind < 504096)) {
+            ((kind >= 500000) && (kind < 504096)) || (kind == omega_shared_byte_slice()) {
             true -> parameter_storage(index, offset, slot, kind)
             _ -> unsupported(self.parser.machine_parameters[slot].name.start)
         }
@@ -4748,6 +4786,13 @@ machine OmegaScalarCompiler::scalar_type(
     state referent(row: OmegaTypeReferenceSyntax, target: OmegaTypeReferenceSyntax) {
         transition target.kind {
             OmegaTypeReferenceKind::Named -> reference_name(row, target)
+            OmegaTypeReferenceKind::Slice -> slice(row, target)
+            _ -> return 0
+        }
+    }
+    state slice(row: OmegaTypeReferenceSyntax, target: OmegaTypeReferenceSyntax) {
+        transition (row.payload1 == 0) && (self.primitive_type(source, target.payload0) == 8) {
+            true -> return omega_shared_byte_slice()
             _ -> return 0
         }
     }
@@ -4815,6 +4860,12 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
         }
     }
     state reference() {
+        transition kind == omega_shared_byte_slice() {
+            true -> return 16
+            _ -> record_reference()
+        }
+    }
+    state record_reference() {
         transition ((kind >= 400000) && (kind < 404096)) ||
             ((kind >= 500000) && (kind < 504096)) {
             true -> return 8
@@ -5448,6 +5499,29 @@ machine OmegaScalarCompiler::check_place(
         }
     }
     state mutable_reference(row: OmegaExpressionSyntax, kind: i32) {
+        transition kind == omega_shared_byte_slice() {
+            true -> slice(row)
+            _ -> record_reference(row, kind)
+        }
+    }
+    state slice(row: OmegaExpressionSyntax) {
+        transition row.payload1 == 2 {
+            true -> metadata(self.parser.members[row.payload0 + 1])
+            _ -> unsupported()
+        }
+    }
+    state metadata(name: OmegaRelativeSpan) {
+        transition self.span_equals(source, name.start, name.end, "len") {
+            1 -> length()
+            _ -> unsupported()
+        }
+    }
+    state length() {
+        self.place_offsets[expression] = 8;
+        self.place_writable[expression] = 0;
+        transition true { true -> retain(64) }
+    }
+    state record_reference(row: OmegaExpressionSyntax, kind: i32) {
         transition (kind >= 500000) && (kind < 504096) {
             true -> referent(row, kind - 500000, 1)
             _ -> members(row, 1, kind)
@@ -5783,7 +5857,7 @@ machine OmegaScalarCompiler::check_record_literal(
 // Copy one checked value: r0 is its scalar word or aggregate source address;
 // r1 is the already captured destination. No source expression is reevaluated.
 machine OmegaScalarCompiler::emit_store_at(&mut self, kind: i32, size: i32) -> i32 {
-    transition (kind >= 100000) && (kind < 400000) {
+    transition ((kind >= 100000) && (kind < 400000)) || (kind == omega_shared_byte_slice()) {
         true -> return self.emit_copy_words(size)
         _ -> scalar()
     }
@@ -5974,7 +6048,10 @@ machine OmegaScalarCompiler::index_result_type(
 ) -> i32 {
     let row: OmegaIndexedExpressionSyntax = self.parser.indexed_expressions[
         self.parser.expressions[expression].payload0];
-    transition true { true -> collection(row.base) }
+    transition self.byte_slice_parameter(source, state_index, before, row.base) >= 0 {
+        true -> return 8
+        _ -> collection(row.base)
+    }
     state collection(base: i32) {
         let value: OmegaExpressionSyntax = self.parser.expressions[base];
         transition value.kind {
@@ -6063,9 +6140,16 @@ machine OmegaScalarCompiler::check_index(
     self.index_plans[expression].owner_state = state_index;
     self.index_plans[expression].before = before;
     self.index_plans[expression].access = access;
-    transition self.require_cell(source, 49152 + expression, 8) {
-        1 -> collection(row.base)
-        _ -> return 0
+    transition (access == 1) && (self.byte_slice_parameter(source, state_index, before, row.base) >= 0) {
+        true -> read_only(row)
+        _ -> storage(row)
+    }
+    state read_only(row: OmegaIndexedExpressionSyntax) { self.record_reject(-1, 4, row.start); return 0; }
+    state storage(row: OmegaIndexedExpressionSyntax) {
+        transition self.require_cell(source, 49152 + expression, 8) {
+            1 -> collection(row.base)
+            _ -> return 0
+        }
     }
     state collection(base: i32) {
         let value: OmegaExpressionSyntax = self.parser.expressions[base];
@@ -6358,6 +6442,20 @@ machine OmegaScalarCompiler::check_forward_reference(
     state place(slot: i32) {
         self.place_roots[expression] = slot;
         self.place_offsets[expression] = 0;
+        transition expected == omega_shared_byte_slice() {
+            true -> slice(slot)
+            _ -> record(slot)
+        }
+    }
+    state slice(slot: i32) {
+        self.place_extent[expression] = 16;
+        self.place_types[expression] = expected;
+        self.place_indirect[expression] = 0;
+        self.place_writable[expression] = 0;
+        self.place_fields[expression] = -1;
+        transition true { true -> capacity(slot) }
+    }
+    state record(slot: i32) {
         self.place_extent[expression] = self.data_sizes[expected % 100000];
         self.place_types[expression] = 100000 + expected % 100000;
         self.place_indirect[expression] = 1;
@@ -6639,7 +6737,12 @@ machine OmegaScalarCompiler::pure_value(&mut self, expression: i32) -> i32 {
         OmegaExpressionKind::Unary -> return self.pure_value(self.parser.unary_expressions[self.parser.expressions[expression].payload0].operand)
         OmegaExpressionKind::Binary -> binary(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaExpressionKind::Indexed -> indexed(self.parser.indexed_expressions[self.parser.expressions[expression].payload0])
+        OmegaExpressionKind::Range -> range(self.parser.range_expressions[self.parser.expressions[expression].payload0])
         _ -> return 0
+    }
+    state range(row: OmegaRangeExpressionSyntax) {
+        return ((row.has_start == 0) || (self.pure_value(row.start) == 1)) &&
+            ((row.has_end == 0) || (self.pure_value(row.end) == 1));
     }
     state binary(row: OmegaBinaryExpressionSyntax) {
         transition (self.pure_value(row.left) == 1) && (self.pure_value(row.right) == 1) {
@@ -6859,6 +6962,38 @@ machine OmegaScalarCompiler::check_call_bounds(
         }
     }
     state reference(index: i32, bound: OmegaEntryBound, argument: i32) {
+        transition self.parameter_types[bound.root] == omega_shared_byte_slice() {
+            true -> slice(index, bound, argument)
+            _ -> record(index, bound, argument)
+        }
+    }
+    state slice(index: i32, bound: OmegaEntryBound, argument: i32) {
+        transition bound.offset == 8 {
+            true -> length(index, bound, argument)
+            _ -> unsupported()
+        }
+    }
+    state length(index: i32, bound: OmegaEntryBound, argument: i32) {
+        transition self.value_kinds[argument] {
+            OmegaCheckedValueKind::SharedByteRange -> known(index, bound, self.byte_ranges[argument].length)
+            OmegaCheckedValueKind::ForwardedReference -> forward(index, bound, self.value_payloads[argument])
+            _ -> unsupported()
+        }
+    }
+    state known(index: i32, bound: OmegaEntryBound, length: i32) {
+        transition (length >= bound.minimum) && ((bound.maximum < 0) || (length <= bound.maximum)) {
+            true -> requirement(index + 1)
+            _ -> unsupported()
+        }
+    }
+    state forward(index: i32, bound: OmegaEntryBound, slot: i32) {
+        transition self.prove_place_bound(source, state_index, before, slot, 8, -1, 64,
+            bound.minimum, bound.maximum, guard, truth) {
+            1 -> requirement(index + 1)
+            _ -> unsupported()
+        }
+    }
+    state record(index: i32, bound: OmegaEntryBound, argument: i32) {
         transition self.value_kinds[argument] {
             OmegaCheckedValueKind::Borrow -> referent(index, bound, self.value_payloads[argument])
             OmegaCheckedValueKind::ForwardedReference -> referent(index, bound, argument)
