@@ -23,7 +23,7 @@ use representations\tokens\TokenStream;
 public machine parse_clauses(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner)
 crashes Trap
 {
-    parser.clause_first = parser.output.clause_count as u64 in Trapping;
+    parser.clause_first = parser.output.clause_count as +Trapping;
     transition { _ -> next(parser, input, owner) }
 
     machine next(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
@@ -131,7 +131,7 @@ crashes Trap
     machine clause(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         take_current(parser, input);
         parser.clause_start = parser.token_start;
-        parser.clause_first_member = parser.output.member_count as u64 in Trapping;
+        parser.clause_first_member = parser.output.member_count as +Trapping;
         transition kind {
             ClauseKind::Reaches -> reached(parser, input, owner),
             ClauseKind::Invokes -> invokes_binding(parser, input, owner),
@@ -150,7 +150,7 @@ crashes Trap
     // trait names no requirement: whole-trait satisfaction belongs to a named
     // conformance.
     machine satisfied_trait(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
-        parser.clause_first_argument = parser.output.type_argument_count as u64 in Trapping;
+        parser.clause_first_argument = parser.output.type_argument_count as +Trapping;
         parser.clause_argument_count = 0;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedSatisfiesTrait);
         transition parser.output.accepted {
@@ -179,7 +179,7 @@ crashes Trap
     }
 
     machine satisfied_path(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, qualified: bool) {
-        let members: u64 in Trapping = (parser.output.member_count as u64 in Trapping) - parser.clause_first_member;
+        let members: u64 in Trapping = (parser.output.member_count as +Trapping) - parser.clause_first_member;
         transition qualified {
             true -> satisfied_next(parser, input, owner),
             _ -> satisfied_complete(parser, input, owner, members >= 2)
@@ -303,7 +303,7 @@ crashes Trap
     // `terminates` promises termination; `by` adds the ranking witness,
     // which a refinement, narrowing only the promise, never carries.
     machine termination(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
-        parser.clause_first_argument = parser.output.argument_count as u64 in Trapping;
+        parser.clause_first_argument = parser.output.argument_count as +Trapping;
         parser.clause_argument_count = 0;
         parser.ranked_subject_count = 0;
         let ranked: bool = at_word(parser, input, "by");
@@ -466,7 +466,7 @@ crashes Trap
 
     machine rank_range_node(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, clause: Clause, lower: u64 in Trapping, inclusive: bool, upper: u64 in Trapping) {
         let start: Expression = syntax_trees_expression(@parser.output, lower);
-        let handle: u64 in Trapping = parser.output.expression_count as u64 in Trapping;
+        let handle: u64 in Trapping = parser.output.expression_count as +Trapping;
         let name: IdentifierSpan = identifier_span(parser, 0, 0);
         let span: SourceSpan = parser_source_span(parser, start.source_span.span.start, parser.token_end);
         let node: Expression = Expression {
@@ -764,7 +764,7 @@ crashes Trap
     machine next_fact(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let token: Token = input.tokens[parser.current_index];
         parser.clause_start = token.start;
-        parser.clause_first_member = parser.output.member_count as u64 in Trapping;
+        parser.clause_first_member = parser.output.member_count as +Trapping;
         transition kind {
             ClauseKind::Satisfies -> satisfied_trait(parser, input, owner),
             _ -> fact(parser, input, owner, kind)
@@ -947,7 +947,7 @@ machine clause_row(parser: @Parser, kind: ClauseKind, end: u64 in Trapping) -> C
     Clause {
         kind: kind,
         first_member: parser.clause_first_member,
-        member_count: (parser.output.member_count as u64 in Trapping) - parser.clause_first_member,
+        member_count: (parser.output.member_count as +Trapping) - parser.clause_first_member,
         cause: CrashCause::Trap,
         expression: 0,
         has_expression: false,
@@ -1003,7 +1003,7 @@ machine satisfies_clause(parser: @Parser, end: u64 in Trapping) -> Clause {
     Clause {
         kind: ClauseKind::Satisfies,
         first_member: parser.clause_first_member,
-        member_count: (parser.output.member_count as u64 in Trapping) - parser.clause_first_member,
+        member_count: (parser.output.member_count as +Trapping) - parser.clause_first_member,
         cause: CrashCause::Trap,
         expression: 0,
         has_expression: false,
@@ -1132,8 +1132,8 @@ crashes Trap
 machine commit_subjects(parser: @mut Parser, input: @TokenStream)
 crashes Trap
 {
-    parser.clause_first_argument = parser.output.argument_count as u64 in Trapping;
-    parser.clause_argument_count = parser.ranked_subject_count as u64 in Trapping;
+    parser.clause_first_argument = parser.output.argument_count as +Trapping;
+    parser.clause_argument_count = parser.ranked_subject_count as +Trapping;
     transition { _ -> next(parser, input, 0) }
 
     machine next(parser: @mut Parser, input: @TokenStream, cursor: u64 in Trapping) {
@@ -1155,7 +1155,7 @@ crashes Trap
     machine copy(parser: @mut Parser, input: @TokenStream, cursor: u64 in Trapping)
     requires cursor < 8, parser.output.argument_count < 65536
     {
-        parser.output.arguments[parser.output.argument_count] = parser.ranked_subjects[cursor] as u64 in Trapping;
+        parser.output.arguments[parser.output.argument_count] = parser.ranked_subjects[cursor];
         parser.output.argument_count = parser.output.argument_count + 1;
         transition { _ -> next(parser, input, cursor + 1) }
     }

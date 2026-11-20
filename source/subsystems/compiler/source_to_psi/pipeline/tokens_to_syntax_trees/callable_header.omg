@@ -50,7 +50,7 @@ crashes Trap
 
     machine stage_capacity(parser: @mut Parser, input: @TokenStream) {
         let total: u64 in Trapping =
-            (parser.output.clause_count as u64 in Trapping) + (parser.header_clause_count as u64 in Trapping);
+            (parser.output.clause_count as +Trapping) + (parser.header_clause_count as +Trapping);
         transition total <= 2048 {
             true -> stage_clause(parser, input, parser.clause_first),
             _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
@@ -98,8 +98,8 @@ crashes Trap
     }
 
     machine requirement_capacity(parser: @mut Parser, input: @TokenStream) {
-        let total: u64 in Trapping = (parser.output.contract_count as u64 in Trapping)
-            + (parser.header_contract_count as u64 in Trapping) + (parser.header_depth as u64 in Trapping);
+        let total: u64 in Trapping = (parser.output.contract_count as +Trapping)
+            + (parser.header_contract_count as +Trapping) + (parser.header_depth as +Trapping);
         transition total <= 256 {
             true -> requirement(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::ContractCapacityExceeded)
@@ -111,7 +111,7 @@ crashes Trap
         parser.contract_start = token.start;
         take_current(parser, input);
         take_current(parser, input);
-        parser.contract_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        parser.contract_first_generic = parser.output.generic_parameter_count as +Trapping;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedContractName);
         parser.contract_name_start = parser.name_start;
         parser.contract_name_end = parser.name_end;
@@ -132,7 +132,7 @@ crashes Trap
     machine generic_parameters(parser: @mut Parser, input: @TokenStream) {
         parse_generic_parameters(parser, input);
         let count: u64 in Trapping =
-            (parser.output.generic_parameter_count as u64 in Trapping) - parser.contract_first_generic;
+            (parser.output.generic_parameter_count as +Trapping) - parser.contract_first_generic;
         transition parser.output.accepted {
             true -> signature(parser, input, count),
             _ -> done()
@@ -208,10 +208,10 @@ crashes Trap
 
     machine publish(parser: @mut Parser, input: @TokenStream) {
         let mut frame: CallableHeaderFrame = top_header_frame(parser);
-        frame.contract.first_clause = parser.output.clause_count as u64 in Trapping;
-        frame.contract.clause_count = (parser.header_clause_count as u64 in Trapping)
+        frame.contract.first_clause = parser.output.clause_count as +Trapping;
+        frame.contract.clause_count = (parser.header_clause_count as +Trapping)
             - (frame.first_clause as u64 in Trapping);
-        frame.contract.contract_count = (parser.header_contract_count as u64 in Trapping)
+        frame.contract.contract_count = (parser.header_contract_count as +Trapping)
             - (frame.first_contract as u64 in Trapping);
         frame.contract.first_contract = header_child_first(parser, frame.contract.contract_count);
         frame.contract.source_span.span.end = parser.token_end;
@@ -308,7 +308,7 @@ machine header_child_first(parser: @Parser, count: u64 in Trapping) -> u64 in Tr
 
     machine empty() -> u64 in Trapping { 0 }
     machine present(parser: @Parser) -> u64 in Trapping {
-        parser.output.contract_count as u64 in Trapping
+        parser.output.contract_count as +Trapping
     }
 }
 

@@ -363,7 +363,7 @@ crashes Trap
     machine path(parser: @mut Parser, input: @TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         parser.path_start = token.start;
-        parser.path_first_member = parser.output.member_count as u64 in Trapping;
+        parser.path_first_member = parser.output.member_count as +Trapping;
         take_current(parser, input);
         let qualified: bool = at_path_separator(parser, input);
         transition qualified {
@@ -422,7 +422,7 @@ crashes Trap
     }
 
     machine path_node(parser: @mut Parser, input: @TokenStream) {
-        let count: u64 in Trapping = (parser.output.member_count as u64 in Trapping) - parser.path_first_member;
+        let count: u64 in Trapping = (parser.output.member_count as +Trapping) - parser.path_first_member;
         let node: Expression = Expression {
             kind: ExpressionKind::Path,
             operator: OperatorKind::None,
@@ -513,7 +513,7 @@ crashes Trap
 
     machine membership_value(parser: @mut Parser, input: @TokenStream) {
         let value: u64 in Trapping = pop_operand(parser);
-        let first_domain: u64 in Trapping = parser.output.name_path_count as u64 in Trapping;
+        let first_domain: u64 in Trapping = parser.output.name_path_count as +Trapping;
         take_current(parser, input);
         transition { _ -> membership_domain(parser, input, value, first_domain, OperatorKind::None) }
     }
@@ -620,7 +620,7 @@ crashes Trap
             left: value,
             right: 0,
             first: first_domain,
-            count: (parser.output.name_path_count as u64 in Trapping) - first_domain,
+            count: (parser.output.name_path_count as +Trapping) - first_domain,
             flag: false,
             name: identifier_span(parser, 0, 0),
             type_reference: 0,
@@ -1546,7 +1546,7 @@ crashes Trap
     // Children precede their parent, so an expression's subtree is the
     // contiguous run from its first child's first row to itself.
     machine store(parser: @mut Parser, input: @TokenStream, node: Expression) {
-        let handle: u64 in Trapping = parser.output.expression_count as u64 in Trapping;
+        let handle: u64 in Trapping = parser.output.expression_count as +Trapping;
         transition node.kind {
             ExpressionKind::Name -> stored(parser, input, node, handle, handle),
             ExpressionKind::Path -> stored(parser, input, node, handle, handle),
@@ -1857,7 +1857,7 @@ crashes Trap
 {
     let frame: ExpressionFrame = ExpressionFrame {
         kind: kind,
-        operator_base: parser.expression_operator_depth as u64 in Trapping,
+        operator_base: parser.expression_operator_depth as +Trapping,
         pending_base: parser_pending_base(parser, kind),
         callee: callee,
         field_start: 0,
@@ -1913,7 +1913,7 @@ crashes Trap
     machine push(parser: @mut Parser, input: @TokenStream, has_start: bool, start: u64 in Trapping, inclusive: bool, begin: u64 in Trapping) {
         let frame: ExpressionFrame = ExpressionFrame {
             kind: ExpressionFrameKind::RangeEnd,
-            operator_base: parser.expression_operator_depth as u64 in Trapping,
+            operator_base: parser.expression_operator_depth as +Trapping,
             pending_base: parser_pending_base(parser, ExpressionFrameKind::RangeEnd),
             callee: start,
             field_start: 0,
@@ -1955,15 +1955,15 @@ machine parser_pending_base(parser: @Parser, kind: ExpressionFrameKind) -> u64 i
     }
 
     machine fields(parser: @Parser) -> u64 in Trapping {
-        parser.pending_field_count as u64 in Trapping
+        parser.pending_field_count as +Trapping
     }
 
     machine arms(parser: @Parser) -> u64 in Trapping {
-        parser.pending_arm_count as u64 in Trapping
+        parser.pending_arm_count as +Trapping
     }
 
     machine arguments(parser: @Parser) -> u64 in Trapping {
-        parser.pending_argument_count as u64 in Trapping
+        parser.pending_argument_count as +Trapping
     }
 }
 
@@ -2186,8 +2186,8 @@ crashes Trap
 machine commit_arms(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping)
 crashes Trap
 {
-    parser.committed_first = parser.output.match_arm_count as u64 in Trapping;
-    parser.committed_count = (parser.pending_arm_count as u64 in Trapping) - base;
+    parser.committed_first = parser.output.match_arm_count as +Trapping;
+    parser.committed_count = (parser.pending_arm_count as +Trapping) - base;
     transition { _ -> next(parser, input, base, base) }
 
     machine next(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
@@ -2309,8 +2309,8 @@ crashes Trap
 machine commit_arguments(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping)
 crashes Trap
 {
-    parser.committed_first = parser.output.argument_count as u64 in Trapping;
-    parser.committed_count = (parser.pending_argument_count as u64 in Trapping) - base;
+    parser.committed_first = parser.output.argument_count as +Trapping;
+    parser.committed_count = (parser.pending_argument_count as +Trapping) - base;
     transition { _ -> next(parser, input, base, base) }
 
     machine next(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
@@ -2332,7 +2332,7 @@ crashes Trap
     machine copy(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
     requires cursor < 256, parser.output.argument_count < 65536
     {
-        parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor] as u64 in Trapping;
+        parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor];
         parser.output.argument_count = parser.output.argument_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }
     }
@@ -2363,8 +2363,8 @@ crashes Trap
 machine commit_fields(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping)
 crashes Trap
 {
-    parser.committed_first = parser.output.construct_field_count as u64 in Trapping;
-    parser.committed_count = (parser.pending_field_count as u64 in Trapping) - base;
+    parser.committed_first = parser.output.construct_field_count as +Trapping;
+    parser.committed_count = (parser.pending_field_count as +Trapping) - base;
     transition { _ -> next(parser, input, base, base) }
 
     machine next(parser: @mut Parser, input: @TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
@@ -2444,7 +2444,7 @@ crashes Trap
     machine read(parser: @Parser, top: u64) -> u64 in Trapping
     requires top <= 63
     {
-        parser.expression_operands[top] as u64 in Trapping
+        parser.expression_operands[top]
     }
 
     machine invalid() -> u64 in Trapping {

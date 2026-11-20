@@ -29,7 +29,7 @@ crashes Trap
 
     machine keyword(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
-        parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPropositionName);
         transition parser.output.accepted {
             true -> named(parser, input),
@@ -153,12 +153,12 @@ crashes Trap
     }
 
     machine retain(parser: @mut Parser, body: PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
-        let proposition: u64 in Trapping = parser.output.proposition_count as u64 in Trapping;
+        let proposition: u64 in Trapping = parser.output.proposition_count as +Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.propositions[parser.output.proposition_count] = PropositionItem {
             name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
-            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic,
+            generic_parameter_count: (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic,
             first_parameter: parser.declaration_first_parameter,
             parameter_count: parser.declaration_parameter_count,
             body: body,

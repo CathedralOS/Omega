@@ -243,7 +243,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, row: u64 in Trapping) -> u64 in Trapping {
-        typing.reference_types[row] as u64 in Trapping
+        typing.reference_types[row] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -277,7 +277,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
-        typing.expression_types[index] as u64 in Trapping
+        typing.expression_types[index] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -497,7 +497,7 @@ crashes Trap
         _ -> invalid()
     }
     machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
-        typing.fractional_origins[index] as u64 in Trapping
+        typing.fractional_origins[index] as +Trapping
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
@@ -628,7 +628,7 @@ crashes Trap
     }
 
     machine read(typing: @Typing, field: u64 in Trapping) -> u64 in Trapping {
-        typing.binder_types[field] as u64 in Trapping
+        typing.binder_types[field] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {

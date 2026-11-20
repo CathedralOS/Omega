@@ -316,7 +316,7 @@ crashes Trap
     requires index < 128
     {
         checker.assumption_count = index;
-        checker.assumptions[index] as u64 in Trapping
+        checker.assumptions[index] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {

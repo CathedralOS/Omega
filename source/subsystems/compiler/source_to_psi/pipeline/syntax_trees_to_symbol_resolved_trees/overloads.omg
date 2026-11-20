@@ -218,7 +218,7 @@ crashes Trap
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
         let overload: bool = resolver_same_module(sources, family.value as u64 in Trapping,
-            item.name.source_span.source.value as u64 in Trapping);
+            item.name.source_span.source.value as -Trapping as u64 +Trapping);
         transition visible && !overload {
             true -> ambiguous(),
             _ -> rival(resolution, sources, syntax, owned, owner, name, found, family, index + 1)

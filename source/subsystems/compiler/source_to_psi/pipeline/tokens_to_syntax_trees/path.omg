@@ -11,7 +11,7 @@ use representations\tokens\TokenStream;
 public machine parse_name_path(parser: @mut Parser, input: @TokenStream, missing: ParseDiagnosticCode)
 crashes Trap
 {
-    let first_member: u64 in Trapping = parser.output.member_count as u64 in Trapping;
+    let first_member: u64 in Trapping = parser.output.member_count as +Trapping;
     expect_name(parser, input, missing);
     transition parser.output.accepted {
         true -> member(parser, input, first_member, parser.name_start),
@@ -53,10 +53,10 @@ crashes Trap
     }
 
     machine retain(parser: @mut Parser, first_member: u64 in Trapping, start: u64 in Trapping) {
-        parser.name_path_result = parser.output.name_path_count as u64 in Trapping;
+        parser.name_path_result = parser.output.name_path_count as +Trapping;
         parser.output.name_paths[parser.output.name_path_count] = NamePath {
             first_member: first_member,
-            member_count: (parser.output.member_count as u64 in Trapping) - first_member,
+            member_count: (parser.output.member_count as +Trapping) - first_member,
             source_span: parser_source_span(parser, start, parser.name_end)
         };
         parser.output.name_path_count = parser.output.name_path_count + 1;

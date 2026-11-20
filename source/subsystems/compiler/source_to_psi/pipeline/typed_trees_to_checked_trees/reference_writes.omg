@@ -43,7 +43,7 @@ crashes Trap
     writes.count = 0;
     writes.view_count = 0;
     writes.view_head = 0;
-    writes.end = checker.place_count as u64 in Trapping;
+    writes.end = checker.place_count as +Trapping;
     open_reference_writes(@mut writes);
     enqueue_reference_write(@mut writes, root);
     seed_reference_view_write(checker, syntax, @mut writes, root, release);
