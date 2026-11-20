@@ -200,6 +200,34 @@ python3 tests/bootstrap/route.py /tmp/whole-compiler-direct-delta \
   --epsilon-interpreter delta --case omega-constructor
 ```
 
+At `c6d64f0f3c4`, both named routes below built the complete 899,962-byte
+Epsilon-written Omega compiler and ran it on the same 111-byte package.
+Both produced the same 22-byte Alpha program, which exited 42 with empty
+stdout and stderr. Only the host running the Epsilon-to-Delta compiler changed.
+
+| Gamma / Delta / Epsilon | Epsilon-to-Delta compiler | CPU seconds for the 899,962-byte source | Peak KiB |
+| --- | --- | ---: | ---: |
+| native / native / native | 3,021,878-byte Linux executable | 85.23 | 3,690,508 |
+| native / alpha / native | 2,782,676-byte Alpha tape | 624.53 | 3,690,044 |
+
+The Linux-hosted Gamma compiler built its Alpha-targeting backend and used
+it to emit the Epsilon compiler tape, SHA-256
+`07da9f5c0049797971e256760b9251f9336f393ccd00940830106f9555041dab`.
+Stamping that tape reproduced the exact Alpha executable that compiled the
+whole source. Its 18,259,583-byte Delta response matched the Linux compiler’s
+output byte for byte. Both rows reused the matching translation and final
+56,583,468-byte Linux constructor by complete executable, input and output
+digests. Each row ran that constructor and the program it emitted. This
+comparison checks the Epsilon compiler across hosts. Both routes still
+require the Linux backend to build the final constructor.
+
+To repeat the hybrid route, run
+
+```sh
+python3 tests/bootstrap/route.py /tmp/whole-compiler-alpha-host \
+  --gamma native --delta alpha --epsilon native --case omega-constructor
+```
+
 ## Running the compiled Omega constructor as Gamma on the seed
 
 The Alpha VM built the complete Epsilon-written bootstrap compiler and ran

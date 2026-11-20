@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,343 lines / 1,010,450 bytes with SHA-256
-`c14e9d2c979682a4a00ff3d6564edb0124fdd56335b8cdd5e81a84d475f8efd2`.
-The manifest itself is 2,380 bytes, SHA-256
-`77011b4863104e5e91357074725868452cce659dbd88f0765e2b6630a51d4755`;
+The manifest materializes 26,553 lines / 1,019,242 bytes with SHA-256
+`f120584bded56f5a2070e6c6f693695996d242d88a8c002d9cf6b6386077cbbd`.
+The manifest itself is 2,381 bytes, SHA-256
+`daf83dbbbeb74f844a68eb9e96510d841f41aedd554fb12b660655fd628f68ed`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -356,7 +356,11 @@ array local without an initializer uses zero-initialized storage and the same
 checked selectors and element stride as a record field.
 
 A machine taking `@[u8]` can read the live length of a shared byte slice.
-A literal index needs a proved lower bound on that length. Callers can borrow
+A literal index needs a proved lower bound on that length. A scalar index
+can also carry the declared requirement `index < bytes.len`. At each call
+or transfer the compiler checks the two actual arguments. An in-range literal,
+a matching strict guard or the caller's requirement on the same pair can
+establish the relation. Another slice or index cannot supply it. Callers can borrow
 a whole packed byte array or a half-open subrange with literal endpoints,
 including an empty range. The descriptor carries the original address and
 the live length in two words. The caller retains the shared loan through
@@ -374,8 +378,8 @@ a keyword-spelled field and the field beside the last element. The complete
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
 machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
-Its entry checker next encounters the parameter-to-parameter requirement
-`index < spelling.len` in the nested reader. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+It checks the nested reader's `index < spelling.len` requirement and then
+reaches body checking in the earlier `source_set_add` machine. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
