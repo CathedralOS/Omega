@@ -9,16 +9,7 @@ Start at [package.rs](package.rs): it builds the
 package graph, checks source roots and dependency bindings, and separates
 shared source from target-specific attachments.
 
-[source_assembly.rs](source/source_assembly.rs) prepares the immutable
-source and parse checkpoint and assembles one source forest for resolution. It
-accepts a child package's sources before attaching generated dependencies,
-resolves deferred imports, and loads entry contracts and the Build prelude
-through Psi 00/01, using one ordered loading loop for both disk discovery and
-exact inputs. It never runs a Build machine or checks a program, so the
-compiler and prefix consumers call it without depending on Build evaluation. An activation's `GeneratedSourceExtension::parse`
-uses the same loading and parsing stages. It reattaches the exact base before
-parsing and keeps one forest per generated unit; between Build execution and
-resolution the compiler never rereads bytes or places source instances.
+[Source assembly](source/assembly/mod.rs) builds one parsed forest from the captured files, scoped imports and generated sources. [The checkpoint](source/assembly/checkpoint.rs) keeps Product roots deferred until the Build settles. [Resumed assembly](source/assembly/resumed.rs) reselects those same captured sources for a Build continuation or a declaration query. The query returns the source needed to describe Product declarations.
 
 [build_execution/build_admission.rs](build_execution/build_admission.rs)
 selects the Build machine the source declares, rejects reach into runtime

@@ -1,0 +1,195 @@
+//! Build and Product source ownership through preparation, query and publication.
+
+#[path = "../../../../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
+use super::ImmutableSourceParseCheckpoint;
+use artifacts::compile_timings::CompileTimings;
+use source_admission::{SourceOrigin, SourceResolutionStratum};
+use std::path::Path;
+use std::sync::Arc;
+
+#[test]
+fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
+    let root = fixture_repository::root()
+        .join("tests/fixtures/calls/run/scalar_contract_route_exit/main.omg")
+        .canonicalize()
+        .expect("the existing scalar fixture's exact source path");
+    let core = crate::source::source_imports::bundled_core_root().unwrap();
+    let indexing = core.join("indexing/indexing.omg");
+    let collection_source = |parsed: &source_compiler::ParsedStageSources, scope| {
+        let files = parsed
+            .files
+            .selected_files()
+            .filter(|file| file.path == indexing && file.dependency_scope == scope)
+            .collect::<Vec<_>>();
+        let [file] = files.as_slice() else {
+            panic!("one captured collection catalog in {scope:?}, found {files:?}")
+        };
+        assert_eq!(file.package_root, core);
+        assert_eq!(file.origin, SourceOrigin::Toolchain);
+        assert_eq!(file.resolution_stratum, SourceResolutionStratum::Base);
+        assert_eq!(
+            file.source.as_ref(),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/indexing/indexing.omg"
+            ))
+        );
+        file.source_id
+    };
+    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+    let mut timings = CompileTimings::default();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+        &root,
+        None,
+        None,
+        &mut timings,
+        &mut catalogue,
+    )
+    .expect("the existing program's source capture");
+    let (_, mut build) = checkpoint
+        .assemble(None, &mut timings, &mut catalogue)
+        .expect("the initial Build source assembly");
+    let build_source = collection_source(&build.parsed, source_provenance::DependencyScope::Build);
+    assert!(!build.parsed.files.selected_files().any(|file| {
+        file.path == indexing
+            && file.dependency_scope == source_provenance::DependencyScope::Product
+    }));
+    let continuation = build
+        .product_sources
+        .take()
+        .expect("Product stays deferred");
+    let query = continuation
+        .assemble_query(
+            &crate::source::source_imports::ProductQueryInputs::new(None, vec![]).unwrap(),
+            &mut timings,
+            &mut catalogue,
+        )
+        .expect("a paused Build's query uses its captured Product sources");
+    let query_source =
+        collection_source(query.parsed(), source_provenance::DependencyScope::Product);
+    assert_ne!(build_source, query_source);
+    let (_, product) = continuation
+        .assemble(None, &[], &mut timings, &mut catalogue)
+        .expect("the final Product source assembly");
+    let product_source =
+        collection_source(&product.parsed, source_provenance::DependencyScope::Product);
+    assert_ne!(build_source, product_source);
+    // An exact immutable dependency may retain its Product coordinate;
+    // it is the authored consumer occurrence that each assembly renews.
+    assert_eq!(query_source, product_source);
+    let consumer = |parsed: &source_compiler::ParsedStageSources| {
+        let sources = parsed
+            .files
+            .selected_files()
+            .filter(|file| {
+                file.path == root
+                    && file.origin == SourceOrigin::User
+                    && file.dependency_scope == source_provenance::DependencyScope::Product
+            })
+            .map(|file| file.source_id)
+            .collect::<Vec<_>>();
+        assert_eq!(sources.len(), 1, "one actual authored Product root");
+        assert!(parsed.roots.contains(&sources[0]));
+        sources[0]
+    };
+    assert_ne!(consumer(query.parsed()), consumer(&product.parsed));
+}
+
+#[test]
+fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
+    // Read the existing program and the production Build prelude through
+    // the normal source owner. Preparing their calls supplies no receiver,
+    // provider, invocation verdict or host activation ticket.
+    let root = fixture_repository::root()
+        .join("tests/fixtures/generics/run/implementation_parameter_contract/build.omg");
+    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+    let mut timings = CompileTimings::default();
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+        &root,
+        None,
+        None,
+        &mut timings,
+        &mut catalogue,
+    )
+    .expect("the original program's source capture");
+    let (_, assembled) = checkpoint
+        .assemble(None, &mut timings, &mut catalogue)
+        .expect("the ordinary Build source and real toolchain prelude");
+    let sources = Arc::clone(&assembled.parsed.files);
+    let (prepared, _) = assembled
+        .build_stage_source()
+        .unwrap()
+        .prepare(0, &Default::default(), "linux_x86_64", None)
+        .expect("exact declared requirement calls reach typed preparation");
+    let typed = prepared.typed();
+    let unresolved: Vec<_> = typed
+        .deferred_refusals
+        .iter()
+        .filter(|row| {
+            row.request == source_compiler::source_state::deferred_refusals::DeferredRequest::UnresolvedCallTarget
+                && sources.file_at(row.source_span).is_some_and(|file| {
+                    file.path == root || (file.origin == SourceOrigin::Toolchain
+                        && source_admission::source_identity::is_build_prelude_path(&file.path))
+                })
+        })
+        .map(|row| {
+            (
+                typed.symbols.display_path(row.declaration, "::"),
+                sources.file_at(row.source_span).map(|file| &file.path),
+                row.source_span,
+                &row.detail,
+            )
+        })
+        .collect();
+    assert!(
+        unresolved.is_empty(),
+        "Build calls retain their declarations: {unresolved:?}"
+    );
+    let mut occurrences = Vec::new();
+    for (_, expression) in typed.expression_table.expression_entries() {
+        let source_compiler::source_state::expression::ExpressionNode::Call(call) = expression
+        else {
+            continue;
+        };
+        if !call.build_selection.is_valid() {
+            continue;
+        }
+        let request = typed
+            .expression_table
+            .build_selection_request(call.build_selection)
+            .expect("a captured Build call keeps its real selection request");
+        let source_compiler::declaration_selection::BuildSelectionRequest::Entry(binding) = request
+        else {
+            continue;
+        };
+        let (owner, signature) = typed
+            .trait_machine_signature(call.target_symbol)
+            .expect("the protocol call retains its exact requirement declaration");
+        let owner_source = typed
+            .symbols
+            .symbol_source_span(owner.symbol)
+            .and_then(|span| sources.file_at(span))
+            .expect("the requirement retains its real toolchain source");
+        assert_eq!(owner_source.path, Path::new("<build-prelude>"));
+        assert_eq!(owner_source.origin, SourceOrigin::Toolchain);
+        assert_eq!(signature.symbol, call.target_symbol);
+        let authored = sources
+            .file_at(binding.source_span)
+            .expect("the Build request retains its authored source");
+        assert!(
+            authored.path.ends_with(
+                "tests/fixtures/generics/run/implementation_parameter_contract/build.omg"
+            )
+        );
+        occurrences.push(binding.source_span);
+    }
+    occurrences.sort_by_key(|span| (span.source_id.0, span.span.start, span.span.end));
+    occurrences.dedup();
+    assert_eq!(
+        occurrences.len(),
+        4,
+        "all four original target bindings survive"
+    );
+}

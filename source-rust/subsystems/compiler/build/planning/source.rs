@@ -379,11 +379,9 @@ impl PlanningSource {
             .1;
         if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
             let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
-            let frontier = source.build_stage_source()?.prepare_product_query(
-                &self.preparation,
-                self.profile.target_name(),
-                authority,
-            )?;
+            let frontier =
+                source_compiler::ProductDeclarationSource::new(source.build_stage_source()?)
+                    .prepare(&self.preparation, self.profile.target_name(), authority)?;
             let declaration = evaluated
                 .configuration
                 .selected_build_declaration

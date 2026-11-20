@@ -11,7 +11,7 @@ Both standalone and package-aware compilations must prove which exact source byt
 Provenance:
 - Anonymous source owner derivation (`AnonymousSourceCapture`): `source/anonymous_owner.rs`.
 - Canonical host filesystem mode and symlink target helpers: `source/canonical_fs.rs`.
-- Source forest assembly (`ImmutableSourceParseCheckpoint`, `DeferredProductSources`, `AssembledSyntax`): `source/source_assembly.rs`.
+- Source forest assembly (`ImmutableSourceParseCheckpoint`, `DeferredProductSources`, `AssembledSyntax`): `source/assembly/mod.rs`.
 - Source consumption commitments and custody (`PackageCompilationSubject`, `BuildSourceCustody`, `CheckedSourceCustody`): `source/source_consumption.rs`.
 - Import discovery, frontier storage, and module bindings: `source/source_imports.rs`.
 - Canonical `Build` source snapshots and physical capture: `source/source_snapshot.rs`.
@@ -21,7 +21,7 @@ Provenance:
 pub(crate) mod anonymous_owner;
 pub(crate) mod canonical_fs;
 mod entry;
-pub mod source_assembly;
+pub mod assembly;
 pub(crate) mod source_consumption;
 pub mod source_imports;
 pub(crate) mod source_snapshot;

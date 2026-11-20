@@ -74,7 +74,7 @@ impl PlanningSource {
                 &mut self.timings,
                 &mut *self.preparation.catalogue()?,
             )?;
-            let source = assembled.build_stage_source()?.prepare_product_query(
+            let source = assembled.prepare(
                 &self.preparation,
                 self.profile.target_name(),
                 self.original
