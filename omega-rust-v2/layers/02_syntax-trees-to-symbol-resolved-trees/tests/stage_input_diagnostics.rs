@@ -138,6 +138,54 @@ fn parsed_sources_whose_tokens_or_text_do_not_index_the_tree_are_refused() {
 }
 
 #[test]
+fn a_stale_parse_that_omits_a_meaningful_suffix_is_refused() {
+    let files = [
+        ("app", "combat/main.omg", "machine main() {}"),
+        ("app", "combat/main.omg", "machine main() {} machine helper() {}"),
+        ("app", "combat/main.omg", "machine main() {} // trailing trivia"),
+    ];
+    with_sources(&files, |sources| {
+        let complete = &sources[1..2];
+        accept(complete, &[]);
+        let stage = resolve_stage(complete, &[]).unwrap();
+        let tree = stage.trees().next().unwrap();
+        assert!(
+            tree.definitions()
+                .any(|(span, id)| { id.package == "app" && id.path == "combat\\helper" && span == SourceSpan::new(18, 37) })
+        );
+
+        let prefix_tree_with = |i: usize| StageSource {
+            package: sources[i].package,
+            source: ParsedSource {
+                tree: sources[0].source.tree,
+                ..sources[i].source
+            },
+        };
+        // Reusing the same prefix tree is harmless when no meaningful token was added.
+        accept(&[prefix_tree_with(2)], &[]);
+        let prefix_tree_and_tokens = StageSource {
+            package: sources[1].package,
+            source: ParsedSource {
+                tree: sources[0].source.tree,
+                tokens: sources[0].source.tokens,
+                ..sources[1].source
+            },
+        };
+        for inconsistent in [prefix_tree_with(1), prefix_tree_and_tokens] {
+            let error = refuse(&[inconsistent], &[]);
+            diagnostic_kind::assert_refusal(
+                &error,
+                NameErrorKind::InconsistentParsedSource,
+                "app",
+                "combat/main.omg",
+                whole_file(),
+                "inconsistent parsed source",
+            );
+        }
+    });
+}
+
+#[test]
 fn a_package_admits_each_logical_path_once() {
     let distinct_paths = [("app", "combat/main.omg", "machine run() {}"), ("app", "combat/other.omg", "machine walk() {}")];
     with_sources(&distinct_paths, |sources| accept(sources, &[]));

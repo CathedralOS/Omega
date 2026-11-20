@@ -443,3 +443,24 @@ fn positional_rest_refuses_more_components_and_a_second_rest() {
         assert_eq!(error.get_span().slice(text.as_bytes()), Some(b",".as_slice()));
     }
 }
+
+#[test]
+fn an_indexed_tree_has_one_root_and_uses_the_original_token_positions() {
+    use omega_parser::{SyntaxTree, TreeEvent};
+
+    let text = "  machine f() {}";
+    let tokens = lex(text.as_bytes()).unwrap();
+    let tree = parse_file(text.as_bytes(), &tokens).unwrap();
+    assert!(tree.index(text, &tokens).is_some());
+    let mut shifted = tree.get_meaningful_token_indices().to_vec();
+    shifted[0] = 0; // Points to the leading whitespace instead of the first word.
+    let misplaced = SyntaxTree::new(tree.get_events().to_vec(), shifted);
+    assert!(misplaced.index(text, &tokens).is_none());
+
+    let blank = parse_file(b"", &[]).unwrap();
+    assert!(blank.index("", &[]).is_some());
+    assert!(SyntaxTree::new(Vec::new(), Vec::new()).index("", &[]).is_none());
+    let mut events = blank.get_events().to_vec();
+    events.extend([TreeEvent::Open(NodeKind::File), TreeEvent::Close]);
+    assert!(SyntaxTree::new(events, Vec::new()).index("", &[]).is_none());
+}
