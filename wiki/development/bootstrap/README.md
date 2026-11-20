@@ -27,11 +27,14 @@ compiler runs, where it runs, and which runtime handoff is required. Interpreted
 Add `--delta-interpreter gamma` to translate Delta and interpret the emitted
 Gamma, as in the original interpreted route. [Route runner](../../../tests/bootstrap/route.py)
 
-Use `--case omega-byte-classes` to run the Omega compiler’s byte classifier
-on all 256 input bytes. Its Epsilon entry writes twelve answers per byte,
-including digit membership in four bases both directly and through a function
-taking the named enum. This command checks every answer and exit 42 on all
-three Epsilon routes.
+### Check one layer on native hosts
+
+To check Epsilon in isolation, build Gamma and Delta for Linux and vary only
+Epsilon. The interpreter still executes the Epsilon source. Running its host
+as native code avoids nesting the lower interpreters for each test. This
+command runs the Omega compiler’s byte classifier on all 256 inputs. It checks
+twelve answers per byte, including digit membership in four bases directly
+and through a function taking the named enum, plus exit 42 on all three routes.
 
 ```sh
 python3 tests/bootstrap/route.py /tmp/omega-bytes --gamma native --delta native --epsilon all --case omega-byte-classes --reuse-stages
@@ -45,11 +48,25 @@ compiler records its complete ASCII response in `compiler.response` and reports
 `expected-rejection` before building a guest. The batch compares error code 18
 and the byte offset of the call head across all three choices.
 
+Apply the same procedure to Delta with `--gamma native --delta all --epsilon native`.
+For a full-chain check, run the chosen lower stages from the seed on the same
+inputs. Keep the fast run and the replay identified by their actual hosts.
+The separate Gamma construction tests also offer an explicit `--accelerated`
+mode that uses a Python compiler during development.
+[Acceleration contract](../../../bootstrap/CONTRACT.md#acceleration-and-native-execution) · [Gamma construction tests](../../../tests/bootstrap/compiled_vm/source_test.py)
+
+### Run records and reuse
+
 Each run needs a new output directory and the repository's built `xtask` for
 source manifests. Each row retains its source, input, intermediate artifacts,
-and `result.json` with the stages, times, input hashes, generated artifact hashes and outcome. In a batch, each row logs live progress in `stages.log`. Rows that receive a binary Epsilon observation retain `guest.eeout` for byte comparison. A timeout records the
-stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
-and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
+and `result.json` with the stages, times, input hashes, generated artifact hashes
+and outcome. In a batch, each row logs live progress in `stages.log`. Rows that
+receive a binary Epsilon observation retain `guest.eeout` for byte comparison.
+By default the runner waits for each invocation to finish. Set `--seconds N` to
+budget an individual producer or guest invocation on a shared machine. If the
+limit expires, the row records the stage and returns 124. Its observation stays
+open. Other failures exit 1. Batch runs finish the other rows and display the
+Epsilon choices side by side. Completed custom runs must agree on the observation hash.
 
 For a long matrix run, add `--reuse-stages` to run each distinct compiler
 invocation once. Two rows can share an intermediate artifact when both the
@@ -129,12 +146,21 @@ returned `02 12 f0 07 00 00`. Both compiler targets stopped at their shared
 frontend with the complete response `rejected 18 2032`. Each positive
 compiled target ran the generated guest. [Source and oracle](../../../tests/bootstrap/independent/epsilon/enum_test.py)
 
-For a quick review, start with the Linux Gamma row, which completed every
-pair. The Alpha-hosted Gamma compiler itself runs as a tape on the same VM
-as the seed. Those two Gamma compilers share a frontend. The
-original Beta-written Gamma interpreter gives a separate implementation of
-Gamma semantics, making its completed comparisons especially informative.
-[Gamma implementations and shared source](../../../bootstrap/gamma/README.md)
+For a source audit, start with what each Gamma choice adds to a cold build from Alpha and Beta.
+
+| Gamma host | What the reviewer follows |
+| --- | --- |
+| Interpreter | The Beta-written Gamma evaluator runs the next stage's Gamma source directly on the seed VM. |
+| Alpha | The evaluator first runs the Gamma compiler. Review its frontend, lowering and tape emitter, then follow the emitted tape on the same VM. |
+| Linux | The evaluator first runs the Gamma compiler. Review the same frontend and lowering, then the x86-64 emitter, ELF layout and generated program's Linux calls. |
+
+Follow the actual downstream stages as well. For example, original Gamma can
+run the Delta interpreter directly, but emitting an Alpha guest brings the
+tape emitter into that route. The two compiled Gamma hosts share code, so
+agreement with the separately written evaluator checks something their agreement
+alone cannot. The table above counts completed classifier observations. A
+whole-chain audit also has to follow Delta and Epsilon through the chosen path.
+[Gamma sources](../../../bootstrap/gamma/README.md) · [Route stages](../../../tests/bootstrap/route.py)
 
 On the four-byte control, the Alpha-hosted direct Delta interpreter running
 the Epsilon interpreter produced the expected 53 bytes in 267.92 CPU seconds.
@@ -162,7 +188,10 @@ executed EEREQ requests. [Original-interpreter receipts](interpreted-gamma-matri
 
 The original Gamma interpreter also built the 2,204,117-byte Alpha evaluator
 from the sources in change #4593. All three Gamma hosts emitted the same tape.
-It ran the all-byte classifier and its wrong-base twin on the seed.
+The interpreter took 6,574 elapsed seconds to emit it, compared with 404 on
+the Alpha-hosted compiler and 54 on Linux. Waiting for the interpreter let
+the reviewer check emission through a separately written implementation of
+Gamma. The common tape ran the all-byte classifier and its wrong-base twin on the seed.
 [Three-host comparison](interpreted-gamma-matrix.md#original-gamma-builds-the-classifiers-alpha-evaluator)
 
 On the `93ad7259148` bootstrap tree, original Gamma also ran the Delta

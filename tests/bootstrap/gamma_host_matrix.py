@@ -3,8 +3,8 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from compiled import (ROOT, delta_request, executable, execute, gamma_backend_source, gamma_program,
-                      gamma_request, pack, pack_delta_compiler, produce, shell)
+from compiled import (ROOT, add_invocation_budget, delta_request, executable, execute, gamma_backend_source,
+                      gamma_program, gamma_request, pack, pack_delta_compiler, produce, shell)
 from conformance.vectors import epsilon_observations, epsilon_request, epsilon_syntax_controls
 
 
@@ -33,7 +33,7 @@ def check_product_word(work, closure, seconds):
     # The matrix has already checked both constructions of each target evaluator.
     evaluators = {"alpha": "alpha-to-alpha-epsilon.vm", "linux": "linux-to-linux-epsilon.bin"}
     for target, evaluator in evaluators.items():
-        print(f"Running the wire decoder compiler on {target} (limit {seconds}s)", flush=True)
+        print(f"Running the wire decoder compiler on {target}", flush=True)
         output = produce(work / evaluator, request, work / f"{target}-wire.observation", seconds)
         if output[:5] != bytes(5) or len(output) == 5:
             raise RuntimeError(f"{target}: no successful wire compiler output, prefix {output[:40].hex()}")
@@ -54,10 +54,8 @@ def main():
     parser.add_argument("output", type=Path, help="new directory for all four rows")
     parser.add_argument("--epsilon", action="store_true", help="also construct and exercise the full Epsilon evaluator")
     parser.add_argument("--wire", action="store_true", help="also run the Omega product wire decoder on both evaluators")
-    parser.add_argument("--seconds", type=int, default=1800, help="timeout per invocation")
+    add_invocation_budget(parser)
     args = parser.parse_args()
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     work = args.output.resolve()
     work.mkdir(parents=True, exist_ok=False)
     hosts = {"alpha": args.alpha.resolve(), "linux": args.linux.resolve()}

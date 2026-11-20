@@ -10,12 +10,22 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from compiled import add_invocation_budget
 from independent.epsilon.composition import linked_program
 from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
 from route import MODES, ROOT, Program, Route, execute_route, observation_kind
 
 
 class RouteTests(unittest.TestCase):
+    def test_matrix_invocation_budget_is_opt_in(self):
+        parser = argparse.ArgumentParser(exit_on_error=False)
+        add_invocation_budget(parser)
+        self.assertIsNone(parser.parse_args([]).seconds)
+        self.assertEqual(parser.parse_args(["--seconds", "12"]).seconds, 12)
+        for value in ("0", "-1", "invalid"):
+            with self.subTest(value=value), self.assertRaises(argparse.ArgumentError):
+                parser.parse_args(["--seconds", value])
+
     def test_matrix_reuses_only_identical_producer_invocations_and_runs_each_guest(self):
         with tempfile.TemporaryDirectory() as temp, patch("route.invoke", return_value=b"output") as invoke:
             root = Path(temp)
