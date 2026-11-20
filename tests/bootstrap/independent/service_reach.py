@@ -223,6 +223,45 @@ def provider_cases():
     yield trial('unsigned-to-signed-unproved', b'machine status(x:u32)->i32{x as i32} machine main()->u8{42}',
                 (2, 0, b'x as i32'))
 
+
+def byte_output_cases():
+    encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
+    core = (ROOT / 'source/library/core/numeric_conversion.omg').read_bytes()
+    signature = b'public machine narrow_i32_to_u8_wrapping('
+    start = core.index(signature)
+    function = core[start:core.index(b'\n}', start) + 2]
+
+    def trial(name, source, outcome):
+        packet, _, _, rows = encode([('app', 0)], [], [(0, source)], 0, b'main', paths=['main.omg'])
+        if isinstance(outcome, tuple):
+            code, spelling = outcome
+            outcome = b'\0' + struct.pack('<II', code, rows[0][1] + source.index(spelling))
+        return name, packet, outcome
+
+    # The standalone driver supplies the actual core routine, then runs each
+    # result on Alpha. Byte conversion itself has no Console or process reach.
+    values = [-2147483648, -2147483647, -257, -256, -255, -1, 0, 1,
+              127, 128, 255, 256, 257, 65535, 2147483647]
+    comparisons = ' && '.join(f'narrow_i32_to_u8_wrapping({n}) == {n % 256}' for n in values)
+    yield trial('core-write-byte-conversion', function + b'\nmachine main()->u8 {transition ' +
+                comparisons.encode() + b' {true -> yes(), _ -> no()} '
+                b'machine yes()->u8{42} machine no()->u8{9}}', 42)
+    yield trial('radix-mask', b'machine f(x:i32)->u8{(0B1111_1111 & x) as u8} machine main()->u8 {'
+                b'let wide:u64=0xFFFF_FFFF_FFFF_FFFFu64; transition f(-0O401) == 255 && '
+                b'wide > 0xFFFF_FFFFu32 && 0o52u8 == 0b10_1010u8 '
+                b'{true -> yes(), _ -> no()} machine yes()->u8{42} machine no()->u8{9}}', 42)
+    yield trial('full-positive-mask', b'machine f(x:i32)->i32{x & 0x7FFF_FFFF} '
+                b'machine main()->u8 {transition f(-1)==2147483647i32 && f(-2147483648)==0 '
+                b'{true -> yes(), _ -> no()} machine yes()->u8{42} machine no()->u8{9}}', 42)
+    yield trial('zero-mask-still-evaluates', b'machine fail()->i32 crashes Trap {crash Trap;} '
+                b'machine main()->u8 crashes Trap {(0i32 & fail()) as u8}', 'trap')
+    yield trial('unproved-byte-cast', b'machine f(x:i32)->u8{x as u8} machine main()->u8{f(7)}', (2, b'x as'))
+    yield trial('nine-bit-mask', b'machine f(x:i32)->u8{(x & 0x1FF) as u8} machine main()->u8{f(7)}', (2, b'(x &'))
+    yield trial('noncontiguous-mask', b'machine f(x:i32)->u8{(x & 0xAA) as u8} machine main()->u8{f(7)}', (2, b'&'))
+    yield trial('overflow-hex', b'machine main()->u8{0x100u8}', (1, b'0x100'))
+    yield trial('overflow-wide-hex', b'machine main()->u8{let x:u64=0x1_0000_0000_0000_0000u64;42}', (1, b'0x1'))
+    yield trial('hex-carrier', b'machine main()->u8{0x2Au32}', (1, b'0x2A'))
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path, help='new directory for input, results and Alpha tapes')
@@ -238,7 +277,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases(), *provider_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")

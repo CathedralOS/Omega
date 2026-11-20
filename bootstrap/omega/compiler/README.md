@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,688 lines / 1,026,168 bytes with SHA-256
-`3f3ee13521a16ff84a415cf209096233bdbbc6a7978004506db997c7846ed2cd`.
+The manifest materializes 26,795 lines / 1,031,761 bytes with SHA-256
+`8bc16c29cf64e78128722a935607123698bb49e509284719a6ac76c346585bc8`.
 The manifest itself is 2,381 bytes, SHA-256
-`8cd036e685c4fd879be10b1a126aab9e18f8b1f226d4630522c49deb98dafd8f`;
+`ab7d537dd33bfed54702f367b371e365eb527f0829546d5b6b951ea034dee280`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -204,6 +204,13 @@ coverage bound, not an Omega carrier inferred from the destination. Fractional,
 negative, and wider intermediates return `Incomplete`; division never silently
 truncates. Anonymous remainder and width-dependent bitwise/shift operations
 also return `Incomplete`. Typed operations need their own checked lowering.
+
+For plain `u64` subtraction, the compiler checks both operands as `u64`
+and proves the result is nonnegative. In `capacity - used`, a declared
+ceiling on `used` can establish the proof. In `value - count`, a floor on
+`value` can establish it. Subtracting zero preserves every bit of a `u64`.
+The interval checker accepts nonnegative literal endpoints through
+2,147,483,647. A wider literal cannot supply an endpoint from its low word.
 A direct out-of-range `u8` literal and division by zero reject. Full rational
 folding, broader explicit landing, and other typed runtime operations remain work.
 
@@ -222,13 +229,18 @@ An `i32` value retains its sign through local storage, parameters, and returns.
 Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
 Comparisons between unsigned words bias both operands by the high bit first.
 The construction writer can widen any output byte with `as i32`. A narrowing
-from an unrestricted `u32` has no such proof. A decimal expression with an
+from an unrestricted `u32` has no such proof. The core output helper
+`(value & 0xFF) as u8` uses its mask to prove the result is within `0..255`.
+For `i32`, a literal mask of contiguous low ones admits either operand order.
+The Alpha emitter evaluates the other operand once, then normalizes signed
+remainder modulo `mask + 1`. Integer expressions accept binary, octal, decimal
+and hexadecimal spellings and digit separators. An expression with an
 explicit `u8`, `u32`, `i32`, or `u64` suffix
 retains that carrier through storage,
 calls, domain casts, and returns. A mismatched destination rejects at the
 literal. Other valid integer carriers retain their spelling in the parser and
-remain outside executable coverage. Signed decimal literals cover
-`-2147483648..2147483647`. The compiler accepts unsigned decimal literals through
+remain outside executable coverage. Signed literals cover
+`-2147483648..2147483647`. The compiler accepts unsigned literals through
 18446744073709551615 for `u64` and emits both words in one Alpha immediate.
 Narrow integer predicates and index bounds require the complete magnitude to
 fit their proof representation. For plain `u32` addition, the compiler tracks which bits may be set
@@ -376,8 +388,10 @@ Mutable slices, dynamic range endpoints, other domains and structural
 equivalence of separately spelled array value types remain outside this profile.
 
 The storage test runs the production `path_length` on two nonzero `SourceRange`
-elements in a reduced `SourceSet`. It checks a copy taken before a write,
-a keyword-spelled field and the field beside the last element. The complete
+elements of the production `SourceSet`. It checks a copy taken before a write,
+a keyword-spelled field and the field beside the last element. It evaluates
+both capacity differences from `source_set_add` at the boundary and with an
+extra source byte or path byte. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
@@ -651,7 +665,7 @@ separate target and value handles. Their current target grammar is a self/name
 place path followed by zero or more indexes, each with a path, decimal, or
 canonical range over the retained path/decimal bound slice; current values are
 self-member paths, qualified-name paths, booleans, nonnegative
-decimal integer literals, or strings. Integer
+integer literals, or strings. Integer
 nodes retain the complete source span and the start of any explicit carrier suffix;
 strings retain the exact token span and scanner-proven decoded byte length
 without a decoded-byte mirror. Assignment values, local initializers, ordinary

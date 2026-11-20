@@ -7802,14 +7802,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
+    // Integer tokens of every lexer-admitted radix retain the same source
+    // interval and suffix boundary. The selected carrier checks the magnitude.
     state check_integer_expression() {
-        transition self.scan.numeric_base {
-            OmegaNumericBase::Decimal -> check_decimal_integer_expression()
-            _ -> incomplete_root()
-        }
-    }
-
-    state check_decimal_integer_expression() {
         transition (self.scan.numeric_empty_digits == 0) && (self.scan.numeric_has_exponent == 0) &&
             ((self.scan.numeric_has_suffix == 0) || omega_integer_suffix(
                 source[self.scan.numeric_suffix_start..self.scan.token_end], "18446744073709551615")) {
@@ -8883,18 +8878,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaTokenKind::Identifier -> begin_named_assignment_value()
             OmegaTokenKind::Integer -> check_integer_expression()
             OmegaTokenKind::StringLiteral -> retain_string_expression()
-            OmegaTokenKind::Keyword -> requirement_keyword()
+            OmegaTokenKind::Keyword -> assignment_keyword_value()
             OmegaTokenKind::Punctuation -> requirement_punctuation()
             _ -> missing_requirement()
-        }
-    }
-
-    state requirement_keyword() {
-        transition self.scan.keyword {
-            OmegaKeywordKind::SelfValue -> begin_self_assignment_value()
-            OmegaKeywordKind::True -> retain_boolean_expression(1)
-            OmegaKeywordKind::False -> retain_boolean_expression(0)
-            _ -> incomplete_root()
         }
     }
 

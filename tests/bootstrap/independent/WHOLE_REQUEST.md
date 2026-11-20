@@ -254,6 +254,17 @@ python3 tests/bootstrap/route.py /tmp/whole-compiler-alpha-host \
   --gamma native --delta alpha --epsilon native --case omega-constructor
 ```
 
+The `native / native / interpret` row also passed at `c6d64f0f3c4`. The
+Linux Epsilon evaluator read the exact same 899,962 bytes of constructor
+source and the 111-byte package in a 900,125-byte EEREQ, SHA-256
+`ca73c3ba79fe0a3bbaacb3492fb1dbdd5c26fa6493b102c97b255ddc1260fd7f`.
+The route checked the producer, input and output digests before reusing the
+1,959,969-byte evaluator. It then ran the evaluator on the full request.
+In 216.92 elapsed seconds it returned the same 27 bytes as the compiled
+constructors. The generated 22-byte tape ran on the seed and exited 42 with
+empty stdout and stderr. To reproduce, run the first command in this section
+with `--epsilon interpret`.
+
 ## Running the compiled Omega constructor as Gamma on the seed
 
 The Alpha VM built the complete Epsilon-written bootstrap compiler and ran

@@ -256,6 +256,10 @@ machine Main::main(&mut self) {
         self.positive("machine main()->u8 {transition{_->good()} machine good()->u8 {42} machine unused(n:u32 in Trapping)->bool crashes none {n==1}}",42,213);
         self.positive("machine main()->u8 crashes Trap {transition{_->route()} machine route()->u8 crashes Trap {crash Trap;}}",0,214);
         self.positive("machine main()->u8 crashes none {transition{_->route(42)} machine route(n:u8)->u8 crashes none {n}}",42,215);
+        // The source checker uses a parameter named target in a bound.
+        self.positive("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires target<2 {let mut b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(1)}",42,150);
+        self.refusal("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires target<2 {let mut b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(2)}",2,151);
+        self.refusal("data Buffer {bytes:[u8;2];} machine read(target:u64)->u8 requires missing<2 {let mut b:Buffer;b.bytes[1]=42;b.bytes[target]} machine main()->u8{read(1)}",1,152);
     }
 
     state batch_12() {

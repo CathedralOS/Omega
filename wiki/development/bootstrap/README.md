@@ -1,5 +1,17 @@
 # Bootstrap experiments
 
+## Construction status
+
+After the shared Alpha and Beta steps, route names give the Gamma, Delta and Epsilon modes in that order.
+
+| What runs | Verified result | Evidence |
+| --- | --- | --- |
+| Omega lexer byte classifier and its wrong-type twin | **23 of 27** routes checked all 256 bytes and refused the twin at byte 2,032. | [Per-route results](#omega-compiler-byte-classifier) |
+| Complete Epsilon-written Omega compiler on the same 111-byte package | **Three named routes** emitted an identical 22-byte Alpha tape that exited 42. Two compiled the constructor (`native/native/native`, `native/alpha/native`), and one evaluated its Epsilon source (`native/native/interpret`). | [Pinned inputs and executions](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#compare-the-complete-omega-compiler-across-routes) |
+| Omega compiler rebuilding itself from `source/` | **Open.** The first compiler built from the full source must rebuild itself from the same frozen input. | [Self-rebuild acceptance](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#verify-the-omega-self-rebuild) |
+
+Four classifier pairs remain open. With both Gamma and Delta interpreted, all three Epsilon modes need a completed pair. On `alpha/interpret/interpret` the refusal passed and the all-256-byte execution remains open.
+
 For measured before-and-after examples of the Gamma scanner, Epsilon keywords and evaluator wire entry, see the [source audit comparison](source-audit.md).
 
 ## Select a route
