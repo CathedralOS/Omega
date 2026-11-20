@@ -48,12 +48,15 @@ The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.m
 
 ## Whole Omega compiler
 
-The complete construction input used here contains 304 Omega source units
-in seven packages. Its 3,955,617 bytes fit the constructor's source-input
-provision. Packaging it with the Epsilon-written bootstrap compiler for the
-evaluator takes 4,807,765 bytes. Both stock targets returned outer status
-253 with empty output at the Delta adapter's 4 MiB input check. A native
-evaluator rebuilt with an 8 MiB input limit reached the constructor on a
-same-size control. The real request ran for 480 s on that evaluator and
-published neither an artifact nor a compiler diagnostic before the watchdog.
-[Product input](../../../source/application/construction/construct.py) · [Evaluator experiment](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
+The 852,096-byte Epsilon bootstrap compiler and its construction entry compile
+to an 18,365,364-byte Delta program including the storage runtime. Delta checked
+the entire program and counted 26,398,215 bytes of Gamma. The construction
+profile admits that output. [Compiled route and byte identities](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#whole-compiler-result)
+
+The product input contains 304 Omega source units in seven packages. Its
+3,955,617 bytes become a 4,807,765-byte request when sent with the Epsilon
+compiler source to the evaluator. Both original conformance targets refused
+that packet at their 4 MiB input limit. The construction-profile Linux
+evaluator reached the guest on a same-length malformed request. The earlier
+480-second run on the full valid input produced no compiler outcome.
+[Constructor input](../../../source/application/construction/construct.py) · [Interpreted measurements](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
