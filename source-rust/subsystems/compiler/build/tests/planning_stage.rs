@@ -14,6 +14,69 @@ use std::sync::OnceLock;
 use target::TargetProfile;
 
 #[test]
+fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
+    use semantic_vocabulary::source_selections::ProductTarget;
+    use source_declarations::declaration_selection::BuildOperation;
+
+    configure_library();
+    let standard =
+        std::fs::read_to_string(fixture_repository::root().join("source/library/std/build.omg"))
+            .unwrap();
+    let exit =
+        "Build::select_provider::<ProcessExit, NativeProcessExit>(builder, alpha_bootstrap);";
+    let console = "Build::select_provider::<Console, AlphaConsole>(builder, alpha_bootstrap);";
+    assert_eq!(standard.matches(exit).count(), 1);
+    assert_eq!(standard.matches(console).count(), 1);
+    for (source, expected) in [
+        (standard.as_str(), vec!["AlphaConsole", "NativeProcessExit"]),
+        (&standard.replace(exit, ""), vec!["AlphaConsole"]),
+        (&standard.replace(console, ""), vec!["NativeProcessExit"]),
+    ] {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "std-alpha-service-selections",
+            false,
+        )
+        .unwrap();
+        let root = temp.path().join("build.omg");
+        std::fs::write(&root, source).unwrap();
+        let project =
+            begin_local_project_preparation(&root, &[TargetProfile::AlphaBootstrap], true).unwrap();
+        let acquired = project.acquire_root().unwrap();
+        let prepared = prepare(
+            PlanningRequest {
+                root: &acquired.entry_path(),
+                sources: PlanningSources::Captured(acquired.source_capture()),
+                execution: BuildExecutionInputs::default(),
+                artifact_only: false,
+            },
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let evaluated = interpret(prepared, &mut ())
+            .unwrap()
+            .complete(None)
+            .unwrap();
+        let mut alpha = Vec::new();
+        for event in &evaluated.configuration.product_selection_requests {
+            if event.target == Some(ProductTarget::AlphaBootstrap)
+                && event.request.operation == BuildOperation::ProviderSelection
+            {
+                let [service, provider] = event.request.operands.as_ref() else {
+                    panic!("provider selection needs its service and provider");
+                };
+                if matches!(service.path.as_str(), "Console" | "ProcessExit") {
+                    assert!(event.selecting_machine.is_some());
+                    alpha.push(provider.path.as_str());
+                }
+            }
+        }
+        alpha.sort_unstable();
+        assert_eq!(alpha, expected);
+    }
+}
+
+#[test]
 fn authored_build_returns_its_application_and_target_bindings() {
     configure_library();
     let fixture = fixture_repository::root()
