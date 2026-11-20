@@ -34,6 +34,7 @@ data Main {
     // Build and Product file ordinals belong to separate scopes.
     build_units: [ConstructionBuildSource; 512];
     build_entries: [i32; 64];
+    package_roots: [OmegaRelativeSpan; 64];
 }
 
 machine Main::word(&mut self) -> i32 {
@@ -80,11 +81,21 @@ machine Main::main(&mut self) {
 // Compare the entire frame before reading its header. This rejoins every
 // owner, source, path, Build selection and root and preserves their custody.
 machine Main::construct_standalone(&mut self, deployment: &[u8]) {
+    self.construct_deployment(deployment, "");
+}
+
+// Roots are supplied by the embedding alongside the exact deployment. Each
+// root owns its verified Product and Build source bytes in the fixed snapshot.
+machine Main::construct_deployment(&mut self, deployment: &[u8], roots: &[u8]) {
     self.has_builds = 0;
     self.build_count = 0;
+    self.compiler.build.location_length = 0;
     transition deployment.len == 0 {
-        true -> frame()
+        true -> guest_only()
         _ -> custody(self.console.remaining_input)
+    }
+    state guest_only() {
+        transition roots.len == 0 { true -> frame() _ -> self.console.exit_process(3) }
     }
     state custody(request: &[u8]) {
         transition self.compiler.span_equals(request, 0, request.len, deployment) {
@@ -264,7 +275,7 @@ machine Main::construct_standalone(&mut self, deployment: &[u8]) {
         }
     }
     state replay(source: &[u8], requester: i32) {
-        transition self.checked_application_build(source, requester) {
+        transition self.replay_deployment(source, requester, roots) {
             1 -> resolved(source, self.compiler.build.entry_definition)
             _ -> pending(requester)
         }
@@ -453,7 +464,7 @@ machine Main::checked_application_build(&mut self, source: &[u8], owner: i32) ->
     state activation(package: i32) {
         transition package < self.compiler.parser.sources.package_count {
             true -> activated(package, self.build_units[self.build_entries[package]])
-            _ -> scope(self.compiler.parser.sources.unit_count, self.build_units[self.build_entries[owner]])
+            _ -> scope(self.build_units[self.build_entries[owner]])
         }
     }
     state activated(package: i32, row: ConstructionBuildSource) {
@@ -462,14 +473,221 @@ machine Main::checked_application_build(&mut self, source: &[u8], owner: i32) ->
             _ -> return 0
         }
     }
-    state scope(count: i32, row: ConstructionBuildSource) {
-        self.compiler.parser.sources.units[count].package = row.supplier;
-        self.compiler.parser.sources.units[count].path = row.path;
-        self.compiler.parser.sources.units[count].start = row.start;
-        self.compiler.parser.sources.units[count].end = row.end;
-        self.compiler.parser.sources.unit_count = count + 1;
-        let result: i32 = self.compiler.check_ground_application(source, count, self.entry_unit, self.entry_name);
-        self.compiler.parser.sources.unit_count = count;
-        return result;
+    state scope(row: ConstructionBuildSource) {
+        return self.run_scoped_build(source, row, 1);
     }
+}
+
+// One registered Product dependency is covered. The other activated package is
+// the trusted core's empty default. Each authored Build runs in its own scope.
+machine Main::replay_deployment(&mut self, source: &[u8], owner: i32, roots: &[u8]) -> i32 {
+    transition self.compiler.parser.sources.dependency_count {
+        0 -> return self.checked_application_build(source, owner)
+        1 -> graph(self.compiler.parser.sources.dependencies[0])
+        _ -> return 0
+    }
+    state graph(edge: OmegaSourceDependency) {
+        transition (self.compiler.parser.sources.package_count == 3) && (self.build_count == 3) &&
+            (self.compiler.parser.sources.unit_count < 512) && (self.compiler.parser.sources.packages[owner].role == 0) &&
+            (edge.requester == owner) && (edge.target != owner) && (self.compiler.parser.sources.packages[edge.target].role != 1) &&
+            (self.compiler.parser.sources.equal_name(source, edge.alias, self.compiler.parser.sources.packages[edge.target].name) == 1) &&
+            (self.read_package_roots(roots) == 1) && (self.relative_location(roots, self.package_roots[owner], self.package_roots[edge.target]) == 1) {
+            true -> files(edge.target, 0)
+            _ -> return 0
+        }
+    }
+    state files(supplier: i32, index: i32) {
+        transition index < 3 {
+            true -> file(supplier, index, self.build_units[self.build_entries[index]])
+            _ -> application(supplier)
+        }
+    }
+    state file(supplier: i32, index: i32, row: ConstructionBuildSource) {
+        transition row.supplier == index {
+            true -> owner_file(supplier, index, row)
+            _ -> return 0
+        }
+    }
+    state owner_file(supplier: i32, index: i32, row: ConstructionBuildSource) {
+        transition (index == owner) || (index == supplier) {
+            true -> root(supplier, index, row)
+            _ -> core(supplier, index, row)
+        }
+    }
+    state root(supplier: i32, index: i32, row: ConstructionBuildSource) {
+        transition self.compiler.span_equals(source, row.path.start, row.path.end, "build.omg") {
+            1 -> files(supplier, index + 1)
+            _ -> return 0
+        }
+    }
+    state core(supplier: i32, index: i32, row: ConstructionBuildSource) {
+        transition (self.compiler.parser.sources.packages[index].role == 1) &&
+            (self.compiler.span_equals(source, row.path.start, row.path.end, "defaults/build.omg") == 1) &&
+            (self.compiler.empty_build(source, row.start, row.end) == 1) {
+            true -> files(supplier, index + 1)
+            _ -> return 0
+        }
+    }
+    state application(supplier: i32) {
+        transition self.run_scoped_build(source, self.build_units[self.build_entries[owner]], 1) {
+            1 -> dependency(supplier, self.compiler.build.entry_definition, self.compiler.build.slot_definition,
+                self.compiler.build.provider_definition, self.compiler.build.primitive_definition, self.chosen_targets())
+            _ -> return 0
+        }
+    }
+    state dependency(supplier: i32, entry: OmegaRelativeSpan, slot: OmegaRelativeSpan,
+        provider: OmegaRelativeSpan, primitive: OmegaRelativeSpan, app_targets: i32) {
+        self.compiler.build.location_length = 0;
+        transition self.run_scoped_build(source, self.build_units[self.build_entries[supplier]], 0) {
+            1 -> overlap(entry, slot, provider, primitive, app_targets)
+            _ -> return 0
+        }
+    }
+    state overlap(entry: OmegaRelativeSpan, slot: OmegaRelativeSpan, provider: OmegaRelativeSpan,
+        primitive: OmegaRelativeSpan, app_targets: i32) {
+        // Overlapping package choices need the general composition judgment.
+        transition (self.chosen_targets() & app_targets) == 0 {
+            true -> compose(entry, slot, provider, primitive)
+            _ -> return 0
+        }
+    }
+    state compose(entry: OmegaRelativeSpan, slot: OmegaRelativeSpan, provider: OmegaRelativeSpan, primitive: OmegaRelativeSpan) {
+        self.compiler.build.entry_definition = entry;
+        transition slot.end > 0 { true -> retain(slot, provider, primitive) _ -> return 1 }
+    }
+    state retain(slot: OmegaRelativeSpan, provider: OmegaRelativeSpan, primitive: OmegaRelativeSpan) {
+        self.compiler.build.slot_definition = slot;
+        self.compiler.build.provider_definition = provider;
+        self.compiler.build.primitive_definition = primitive;
+        return 1;
+    }
+}
+
+machine Main::chosen_targets(&mut self) -> i32 {
+    transition true { true -> next(0, 1, 0) }
+    state next(target: i32, bit: i32, chosen: i32) {
+        transition target < 6 {
+            true -> next(target + 1, bit * 2, chosen + self.compiler.build.selected_targets[target] * bit)
+            _ -> return chosen
+        }
+    }
+}
+
+machine Main::run_scoped_build(&mut self, source: &[u8], row: ConstructionBuildSource, application: i32) -> i32 {
+    let count: i32 = self.compiler.parser.sources.unit_count;
+    self.compiler.parser.sources.units[count].package = row.supplier;
+    self.compiler.parser.sources.units[count].path = row.path;
+    self.compiler.parser.sources.units[count].start = row.start;
+    self.compiler.parser.sources.units[count].end = row.end;
+    self.compiler.parser.sources.unit_count = count + 1;
+    let result: i32 = self.compiler.check_ground_application(source, count, self.entry_unit, self.entry_name, application);
+    self.compiler.parser.sources.unit_count = count;
+    return result;
+}
+
+// External roots use one NUL-terminated canonical relative path per package,
+// in the approved request's package order. An empty or repeated root refuses.
+machine Main::read_package_roots(&mut self, roots: &[u8]) -> i32 {
+    transition true { true -> root(0, 0) }
+    state root(index: i32, start: i32) {
+        transition index == self.compiler.parser.sources.package_count {
+            true -> return start == roots.len
+            _ -> component(index, start, start, start)
+        }
+    }
+    state component(index: i32, start: i32, first: i32, cursor: i32) {
+        transition cursor < roots.len { true -> byte(index, start, first, cursor, roots[cursor]) _ -> return 0 }
+    }
+    state byte(index: i32, start: i32, first: i32, cursor: i32, value: i32) {
+        transition (value == 0) || (value == '/') { true -> end(index, start, first, cursor, value) _ -> letter(index, start, first, cursor, value) }
+    }
+    state letter(index: i32, start: i32, first: i32, cursor: i32, value: i32) {
+        transition ((value >= 'a') && (value <= 'z')) || ((value >= 'A') && (value <= 'Z')) ||
+            ((value >= '0') && (value <= '9')) || (value == '-') || (value == '_') || (value == '.') {
+            true -> component(index, start, first, cursor + 1)
+            _ -> return 0
+        }
+    }
+    state end(index: i32, start: i32, first: i32, cursor: i32, value: i32) {
+        transition (cursor > first) && (self.compiler.span_equals(roots, first, cursor, ".") == 0) &&
+            (self.compiler.span_equals(roots, first, cursor, "..") == 0) {
+            true -> separator(index, start, cursor, value)
+            _ -> return 0
+        }
+    }
+    state separator(index: i32, start: i32, cursor: i32, value: i32) {
+        transition value { 0 -> unique(index, start, cursor, 0) _ -> component(index, start, cursor + 1, cursor + 1) }
+    }
+    state unique(index: i32, start: i32, end: i32, previous: i32) {
+        transition previous < index {
+            true -> earlier(index, start, end, previous, self.package_roots[previous])
+            _ -> save(index, start, end)
+        }
+    }
+    state earlier(index: i32, start: i32, end: i32, previous: i32, row: OmegaRelativeSpan) {
+        transition self.compiler.span_equals(roots, start, end, roots[row.start..row.end]) {
+            1 -> return 0
+            _ -> unique(index, start, end, previous + 1)
+        }
+    }
+    state save(index: i32, start: i32, end: i32) {
+        self.package_roots[index].start = start; self.package_roots[index].end = end;
+        transition true { true -> root(index + 1, end + 1) }
+    }
+}
+
+machine Main::root_component_end(&mut self, roots: &[u8], start: i32, end: i32) -> i32 {
+    transition true { true -> next(start) }
+    state next(cursor: i32) {
+        transition (cursor < end) && (roots[cursor] != '/') {
+            true -> next(cursor + 1)
+            _ -> return cursor
+        }
+    }
+}
+
+// The canonical relative locator traverses the remaining requester components
+// with ".." and then copies the supplier suffix. The spelling must agree with
+// the authored path. Other valid path normalizations remain outside this subset.
+machine Main::relative_location(&mut self, roots: &[u8], from: OmegaRelativeSpan, to: OmegaRelativeSpan) -> i32 {
+    self.compiler.build.location_length = 0;
+    transition true { true -> common(from.start, to.start) }
+    state common(a: i32, b: i32) {
+        transition (a < from.end) && (b < to.end) {
+            true -> compare(a, b, self.root_component_end(roots, a, from.end), self.root_component_end(roots, b, to.end))
+            _ -> ascend(a, b)
+        }
+    }
+    state compare(a: i32, b: i32, ae: i32, be: i32) {
+        transition self.compiler.span_equals(roots, a, ae, roots[b..be]) {
+            1 -> common(ae + 1, be + 1)
+            _ -> ascend(a, b)
+        }
+    }
+    state ascend(a: i32, b: i32) {
+        transition a < from.end { true -> parent(a, b) _ -> suffix(b) }
+    }
+    state parent(a: i32, b: i32) {
+        transition self.location_component("..") { 1 -> ascend(self.root_component_end(roots, a, from.end) + 1, b) _ -> return 0 }
+    }
+    state suffix(b: i32) {
+        transition b < to.end { true -> return self.location_component(roots[b..to.end]) _ -> return self.compiler.build.location_length > 0 }
+    }
+}
+
+machine Main::location_component(&mut self, bytes: &[u8]) -> i32 {
+    let count: i32 = self.compiler.build.location_length;
+    transition (bytes.len > 0) && (bytes.len <= 4096 - count) { true -> separator(count) _ -> return 0 }
+    state separator(count: i32) {
+        transition count > 0 { true -> slash(count) _ -> copy(0, 0) }
+    }
+    state slash(count: i32) {
+        transition bytes.len < 4096 - count { true -> append_slash(count) _ -> return 0 }
+    }
+    state append_slash(count: i32) { self.compiler.build.location[count] = '/'; transition true { true -> copy(count + 1, 0) } }
+    state copy(start: i32, cursor: i32) {
+        transition cursor < bytes.len { true -> append(start, cursor) _ -> done(start + cursor) }
+    }
+    state append(start: i32, cursor: i32) { self.compiler.build.location[start + cursor] = bytes[cursor]; transition true { true -> copy(start, cursor + 1) } }
+    state done(end: i32) { self.compiler.build.location_length = end; return 1; }
 }

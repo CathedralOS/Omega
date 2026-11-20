@@ -8,16 +8,21 @@ from service_reach import (ROOT, add_invocation_budget, epsilon_request, execute
                            pack, rooted_application_cases, stamp)
 
 
-def embedding(library, deployment):
+def epsilon_literal(data):
+    return b'"' + b''.join(bytes([byte]) if 32 <= byte < 127 and byte not in (34, 92)
+                           else f'\\x{byte:02x}'.encode() for byte in data) + b'"'
+
+
+def embedding(library, deployment, roots=b''):
     # The immutable argument belongs to the embedding. Guest input has its own
     # transport and cannot select the argument or modify the entry source.
     entry = (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
     hook = b'self.construct_standalone("");'
     if entry.count(hook) != 1:
         raise ValueError('standalone embedding hook changed')
-    literal = b''.join(bytes([byte]) if 32 <= byte < 127 and byte not in (34, 92)
-                       else f'\\x{byte:02x}'.encode() for byte in deployment)
-    return library + entry.replace(hook, b'self.construct_standalone("' + literal + b'");')
+    declaration = (b'self.construct_deployment(' + epsilon_literal(deployment) + b', ' + epsilon_literal(roots) + b');'
+                   if roots else b'self.construct_standalone(' + epsilon_literal(deployment) + b');')
+    return library + entry.replace(hook, declaration)
 
 
 DEPLOYMENTS = {
