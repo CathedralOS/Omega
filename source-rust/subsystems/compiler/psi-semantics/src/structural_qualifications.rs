@@ -382,39 +382,9 @@ impl<'a> DefaultRequirements<'a> {
                 origin: DefaultClause::Type(position),
             });
         }
-        let memberships = self.declared.at(root, path);
         let mut named = Vec::new();
-        for id in memberships.whole {
-            let row = self
-                .domains
-                .binary_search_by_key(&id, |row| row.id)
-                .ok()
-                .map(|position| &self.domains[position])
-                .ok_or_else(|| self.error("a default requirement names an absent domain"))?;
-            if row.carrier != carrier {
-                return Err(self.error("a named default requirement has a different carrier"));
-            }
-            let closure = row.required_domain_closure(self.domains).ok_or_else(|| {
-                self.error("a named default has incomplete membership requirements")
-            })?;
-            for domain in closure {
-                if !domain.complete_predicate_theory || domain.content_projection.is_some() {
-                    return Err(
-                        self.error("a named default has no complete storage predicate theory")
-                    );
-                }
-                if domain.predicate.is_some() || domain.byte_predicate.is_some() {
-                    if path
-                        .iter()
-                        .any(|step| matches!(step, StructuralPathSegment::Referent))
-                    {
-                        return Err(
-                            self.error("a reference display is not a lender's declared default")
-                        );
-                    }
-                    named.push(domain.id);
-                }
-            }
+        for id in self.declared.at(root, path).whole {
+            named.extend(self.domain_clauses(id, carrier, path)?);
         }
         named.sort_unstable();
         named.dedup();
@@ -425,6 +395,45 @@ impl<'a> DefaultRequirements<'a> {
             origin: DefaultClause::Domain(id),
         }));
         Ok(result)
+    }
+
+    /// Predicate clauses owed by storage with a declared domain at this path.
+    fn domain_clauses(
+        &self,
+        id: StructuralDomainId,
+        carrier: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Judged<Vec<StructuralDomainId>> {
+        let mut named = Vec::new();
+        let row = self
+            .domains
+            .binary_search_by_key(&id, |row| row.id)
+            .ok()
+            .map(|position| &self.domains[position])
+            .ok_or_else(|| self.error("a default requirement names an absent domain"))?;
+        if row.carrier != carrier {
+            return Err(self.error("a named default requirement has a different carrier"));
+        }
+        let closure = row
+            .required_domain_closure(self.domains)
+            .ok_or_else(|| self.error("a named default has incomplete membership requirements"))?;
+        for domain in closure {
+            if !domain.complete_predicate_theory || domain.content_projection.is_some() {
+                return Err(self.error("a named default has no complete storage predicate theory"));
+            }
+            if domain.predicate.is_some() || domain.byte_predicate.is_some() {
+                if path
+                    .iter()
+                    .any(|step| matches!(step, StructuralPathSegment::Referent))
+                {
+                    return Err(
+                        self.error("a reference display is not a lender's declared default")
+                    );
+                }
+                named.push(domain.id);
+            }
+        }
+        Ok(named)
     }
 
     /// The complete declared defaults at one actual storage occurrence.
@@ -473,10 +482,9 @@ impl<'a> DefaultRequirements<'a> {
 
     fn projected_beneath(&self, root: PlaceId, path: &[StructuralPathSegment]) -> bool {
         self.declared.row(root).is_some_and(|row| {
-            row.2
-                .projected
-                .iter()
-                .any(|qualified| qualified.path.starts_with(path))
+            row.2.projected.iter().any(|qualified| {
+                StructuralPathQualification::selected_suffix(&qualified.path, path).is_some()
+            })
         })
     }
 
@@ -499,24 +507,32 @@ impl<'a> DefaultRequirements<'a> {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
-                if self.type_has_defaults(*element)? {
-                    // Nested type defaults genuinely apply to each element.
-                    for index in 0..*length {
-                        path.push(StructuralPathSegment::FixedIndex(index));
-                        self.walk(root, path, *element, zero, active, result)?;
-                        path.pop();
-                    }
-                } else if let Some(row) = self.declared.row(root) {
-                    // No default can mention a plain element. Visit only the
-                    // actual indexed qualification occurrences, never all bytes.
-                    let mut selected = Vec::new();
+                let mut all = self.type_has_defaults(*element)?;
+                let mut selected = Vec::new();
+                if let Some(row) = self.declared.row(root) {
                     for qualified in &row.2.projected {
-                        if !qualified.path.starts_with(path) {
+                        let Some(suffix) =
+                            StructuralPathQualification::selected_suffix(&qualified.path, path)
+                        else {
                             continue;
-                        }
-                        match qualified.path.get(path.len()) {
+                        };
+                        match suffix.first() {
                             Some(StructuralPathSegment::FixedIndex(index)) if *index < *length => {
-                                selected.push(*index)
+                                selected.push(*index);
+                            }
+                            Some(StructuralPathSegment::AllElements) => {
+                                // A marker adds no storage predicate, regardless of array length.
+                                let leaf = crate::qualification_path_carrier(
+                                    self.types.iter(),
+                                    *element,
+                                    &suffix[1..],
+                                )
+                                .ok_or_else(|| {
+                                    self.error("a default inventory names an absent element path")
+                                })?;
+                                all |= !self
+                                    .domain_clauses(qualified.domain, leaf, &qualified.path)?
+                                    .is_empty();
                             }
                             None => {}
                             _ => {
@@ -526,13 +542,19 @@ impl<'a> DefaultRequirements<'a> {
                             }
                         }
                     }
-                    selected.sort_unstable();
-                    selected.dedup();
-                    for index in selected {
-                        path.push(StructuralPathSegment::FixedIndex(index));
-                        self.walk(root, path, *element, zero, active, result)?;
-                        path.pop();
-                    }
+                }
+                selected.sort_unstable();
+                selected.dedup();
+                let visit = |index| {
+                    path.push(StructuralPathSegment::FixedIndex(index));
+                    let result = self.walk(root, path, *element, zero, active, result);
+                    path.pop();
+                    result
+                };
+                if all {
+                    (0..*length).try_for_each(visit)?;
+                } else {
+                    selected.into_iter().try_for_each(visit)?;
                 }
             }
             // A symbolic zero has no individual element coordinates. The

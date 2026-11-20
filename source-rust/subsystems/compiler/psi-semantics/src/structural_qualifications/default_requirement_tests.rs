@@ -247,6 +247,75 @@ fn plain_arrays_do_not_enumerate_elements_for_default_inventory() {
 }
 
 #[test]
+fn a_universal_marker_leaves_only_the_sparse_element_predicate() {
+    use StructuralPathSegment::{AllElements, FixedIndex};
+
+    let types = types(u64::MAX);
+    let mut marker = domain(types[0].id);
+    marker.predicate = None;
+    let mut predicated = domain(types[0].id);
+    predicated.id = StructuralDomainId::new(2).unwrap();
+    let mut machine = machine();
+    let index = u64::MAX - 1;
+    machine.structural_parameters[0].projected_qualifications = vec![
+        StructuralPathQualification {
+            path: vec![AllElements],
+            domain: marker.id,
+        },
+        StructuralPathQualification {
+            path: vec![FixedIndex(index)],
+            domain: predicated.id,
+        },
+    ];
+    let domains = [marker, predicated];
+    let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+    let rows = defaults.declared().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].path, [FixedIndex(index)]);
+    assert_eq!(rows[0].origin, DefaultClause::Domain(domains[1].id));
+}
+
+#[test]
+fn a_nested_element_predicate_reaches_each_concrete_storage_path_once() {
+    use StructuralPathSegment::{AllElements, FixedIndex};
+
+    let mut types = types(3);
+    types.push(ty(
+        3,
+        StructuralTypeShape::FixedArray {
+            element: types[1].id,
+            length: ArrayExtent::Literal(2),
+        },
+    ));
+    let domains = [domain(types[0].id)];
+    let mut machine = machine();
+    let parameter = &mut machine.structural_parameters[0];
+    parameter.structural_type = types[2].id;
+    for path in [
+        vec![AllElements, AllElements],
+        vec![FixedIndex(1), FixedIndex(2)],
+    ] {
+        parameter
+            .projected_qualifications
+            .push(StructuralPathQualification {
+                path,
+                domain: domains[0].id,
+            });
+    }
+    let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+    let paths = defaults
+        .declared()
+        .unwrap()
+        .into_iter()
+        .map(|row| row.path)
+        .collect::<Vec<_>>();
+    let expected = (0..2)
+        .flat_map(|outer| (0..3).map(move |inner| vec![FixedIndex(outer), FixedIndex(inner)]))
+        .collect::<Vec<_>>();
+    assert_eq!(paths, expected);
+}
+
+#[test]
 fn reference_display_does_not_become_a_lender_default() {
     let mut types = types(2);
     types.push(ty(
