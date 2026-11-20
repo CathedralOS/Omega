@@ -213,7 +213,7 @@ machine OmegaScalarCompiler::terminal_signature(
     has_result: i32, return_type: i32, predicate_count: i32, is_public: i32
 ) -> i32 {
     transition (parameter_count == 1) && (has_result == 1) && (predicate_count == 0) {
-        true -> parameter(self.parser.machine_parameters[first_parameter])
+        true -> parameter(self.parser.machine_parameters[self.parameter_syntax_row(first_parameter)])
         _ -> return -1
     }
     state parameter(row: OmegaMachineParameterSyntax) {

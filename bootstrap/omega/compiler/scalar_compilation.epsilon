@@ -1010,7 +1010,7 @@ machine OmegaScalarCompiler::parameter_type(
     &mut self, source: &[u8], parameter_index: i32
 ) -> i32 {
     let parameter: OmegaMachineParameterSyntax =
-        self.parser.machine_parameters[parameter_index];
+        self.parser.machine_parameters[self.parameter_syntax_row(parameter_index)];
     let kind: i32 = self.scalar_type(source, parameter.type_reference);
     // The parser's legacy mutable flag also marks exclusive reference access.
     // Referent authority comes from the Reference type, not carrier mutability;
@@ -1161,7 +1161,7 @@ machine OmegaScalarCompiler::value_cell(
     state parameter_name(offset: i32) {
         let body: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         let slot: i32 = body.first_parameter + offset;
-        let name: OmegaRelativeSpan = self.parser.machine_parameters[slot].name;
+        let name: OmegaRelativeSpan = self.parser.machine_parameters[self.parameter_syntax_row(slot)].name;
         transition self.span_equals(source, start, end, source[name.start..name.end]) {
             1 -> return slot
             _ -> parameter(offset + 1)
@@ -3147,21 +3147,27 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
             ((kind >= 500000) && (kind < 504096)) || (omega_array_reference_row(kind) >= 0) ||
             (kind == omega_shared_byte_slice()) {
             true -> parameter_storage(index, offset, slot, kind)
-            _ -> unsupported(self.parser.machine_parameters[slot].name.start)
+            _ -> unsupported(self.parser.machine_parameters[self.parameter_syntax_row(slot)].name.start)
         }
     }
     state parameter_storage(index: i32, offset: i32, slot: i32, kind: i32) {
         transition self.reference_signature(source, owner, index, kind) {
             1 -> allocate_parameter(index, offset, slot, kind)
-            _ -> unsupported(self.parser.machine_parameters[slot].name.start)
+            _ -> unsupported(self.parser.machine_parameters[self.parameter_syntax_row(slot)].name.start)
         }
     }
     // Every call and transfer checks its arguments from left to right.
     // The caller keeps each reference loan live while it checks later
     // arguments, so an exclusive parameter cannot alias another parameter.
     state allocate_parameter(index: i32, offset: i32, slot: i32, kind: i32) {
+        transition (self.construction.compact_parameters == 1) && (slot >= self.construction.total.root_parameters) {
+            true -> parameter_scope(index, offset, self.parser.machine_parameters[self.parameter_syntax_row(slot)].name)
+            _ -> permanent_parameter(index, offset, slot, kind)
+        }
+    }
+    state permanent_parameter(index: i32, offset: i32, slot: i32, kind: i32) {
         transition self.require_cell(source, slot, kind) {
-            1 -> parameter_scope(index, offset, self.parser.machine_parameters[slot].name)
+            1 -> parameter_scope(index, offset, self.parser.machine_parameters[self.parameter_syntax_row(slot)].name)
             _ -> return 0
         }
     }
@@ -3174,7 +3180,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     state parameter_names(index: i32, offset: i32, name: OmegaRelativeSpan, previous: i32) {
         transition previous < offset {
             true -> parameter_compare(index, offset, name, previous,
-                self.parser.machine_parameters[self.state_first_parameter(index) + previous].name)
+                self.parser.machine_parameters[self.parameter_syntax_row(self.state_first_parameter(index) + previous)].name)
             _ -> parameter(index, offset + 1)
         }
     }
@@ -4650,8 +4656,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state start_unit_bodies(unit: i32) {
         self.load_construction_unit(source, unit);
         transition self.parser.status {
-            OmegaParserStatus::Complete -> check_machine(self.construction.unit_first)
+            OmegaParserStatus::Complete -> nested_parameters(unit)
             _ -> internal()
+        }
+    }
+    state nested_parameters(unit: i32) {
+        transition self.prepare_nested_parameters(source, unit) {
+            1 -> check_machine(self.construction.unit_first)
+            _ -> return
         }
     }
 

@@ -136,6 +136,7 @@ def cases():
     yield from nominal_sum_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
+    yield from nested_parameter_cases(encode)
 
 
 def copy_declaration(definitions, name):
@@ -331,6 +332,34 @@ def nominal_array_cases(encode):
     data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
     yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
 
+
+
+
+def nested_parameter_cases(encode):
+    # The caller keeps 42 while the callee's nested machine receives 7.
+    # Another 16,384 parameters in other files force reuse of nested slots.
+    caller = (b'machine main()->u8{transition{_->relay(42)}'
+              b'\n    machine relay(kept:u8)->u8 {let observed:u8=other(7);'
+              b'transition observed==7{true->kept,_->observed}}}')
+    callee = b'machine other(input:u8)->u8{transition{_->local(input)}machine local(value:u8)->u8{value}}'
+    sources = [caller, callee]
+    parameters = ','.join(f'p{i}:u8' for i in range(16))
+    for unit in range(64):
+        machines = [f'machine state{i}({parameters})->u8{{p0}}' for i in range(16)]
+        sources.append(('\n'.join([f'machine group{unit}()->u8{{0', *machines, '}'])).encode())
+    paths = [f'file{i}.omg' for i in range(len(sources))]
+    for bad in (False, True):
+        units = sources.copy()
+        if bad:
+            prefix, body = units[-1].rsplit(b'{p0}', 1)
+            units[-1] = prefix + b'{other_slot}' + body
+        packet, _, _, rows = encode([('app', 0)], [], [(0, unit) for unit in units],
+                                    0, b'main', paths=paths)
+        if bad:
+            position = rows[-1][1] + units[-1].index(b'other_slot')
+            yield 'nested-parameters-last-reference', packet, struct.pack('<BII', 0, 1, position)
+        else:
+            yield 'nested-parameters-across-files', packet, 42
 
 
 def nested_state_cases(encode):
