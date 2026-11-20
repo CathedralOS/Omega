@@ -84,10 +84,10 @@ not a replacement public request protocol.
 
 The internal `compile_set(source, entry_unit, entry)` customer accepts a bounded
 source set: at most 64 package identities, 256 direct dependency aliases and 512
-source units. Each unit has invocation-owned package membership and an exact
-byte range. The parser checks that unit independently and reads its optional
-specified `module name::path;` header. Module-less files of one package share
-one logical module; physical paths supply no namespace. Types and calls retain
+source units. Each unit has invocation-owned package membership, an exact
+source interval and a logical package-relative path. The parser keeps each
+parent directory component for name resolution and refuses a legacy `module`
+header. Files in one package directory share a namespace. Types and calls retain
 their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
 
@@ -97,7 +97,7 @@ Repeated imports of one identity are allowed, while competing imported names
 refuse. Qualified names require the requester's own package or a direct
 requester-local dependency alias, with public visibility across packages.
 Public field and call-interface types cannot expose private records. The
-current subset handles explicitly declared modules, free machines and named
+current subset handles directory namespaces, free machines and named
 records; it does not add attached declarations, reexports, overload selection,
 or full build/request admission. The single-view API is the one-unit case.
 Every supplied declaration is checked, including unused units and bodies.

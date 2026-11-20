@@ -66,8 +66,10 @@ def main():
             raise SystemExit("entry source changed after the constructor captured it")
         builder = runpy.run_path(str(constructor))
         packages = [(name, role) for name, _, role in builder["PACKAGES"]]
+        package_root = builder["PACKAGES"][entry["package"]][1]
+        logical_path = Path(entry["path"]).relative_to(package_root).as_posix()
         stdin, _, _, _ = builder["encode"](packages, builder["EDGES"], [(entry["package"], source)],
-                                            0, builder["ENTRY_NAME"])
+                                            0, builder["ENTRY_NAME"], paths=[logical_path])
         write(work, "entry-unit.bin", stdin)
         write(work, "entry-unit.eereq", epsilon_request(evaluator, guest, stdin))
 

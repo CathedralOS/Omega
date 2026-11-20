@@ -29,8 +29,8 @@ machine OmegaScalarCompiler::declaration_public(
 }
 
 // The syntax parser has already validated these exact bytes. Reuse its scanner
-// to retain path members, including legal trivia around `::`, instead of
-// introducing a second spelling parser in lookup or the host packer.
+// to retain free declaration names, including trivia around a backslash.
+// A double colon selects a static member, outside free declaration lookup.
 machine OmegaScalarCompiler::read_query(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
     self.query_path.count = 0;
     transition (start >= 0) && (start < end) && (end <= source.len) {
@@ -76,7 +76,7 @@ machine OmegaScalarCompiler::read_query(&mut self, source: &[u8], start: i32, en
     state separator(need_member: i32) {
         transition self.parser.scan.punctuation {
             OmegaPunctuationKind::Backslash -> separator_position(need_member)
-            OmegaPunctuationKind::ColonColon -> separator_position(need_member)
+            OmegaPunctuationKind::ColonColon -> return 2
             _ -> return 0
         }
     }
@@ -400,6 +400,19 @@ machine OmegaScalarCompiler::validate_imports(&mut self, source: &[u8]) -> i32 {
         }
     }
     state address(index: i32, row: OmegaUseSyntax) {
+        let start: i32 = self.parser.members[row.first_member].start;
+        let end: i32 = self.parser.members[row.first_member + row.member_count - 1].end;
+        transition self.read_query(source, start, end) {
+            1 -> free_import(index, row)
+            2 -> static_import(start)
+            _ -> fail(row.start)
+        }
+    }
+    state static_import(offset: i32) {
+        self.record_incomplete(4, offset);
+        return 0;
+    }
+    state free_import(index: i32, row: OmegaUseSyntax) {
         transition self.import_address(row, 0) {
             1 -> declarations(index, row, self.parser.sources.units[self.parser.sources.unit_at(row.start)].package)
             _ -> fail(row.start)
