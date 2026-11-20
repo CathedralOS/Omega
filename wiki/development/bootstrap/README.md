@@ -345,7 +345,7 @@ capacity limit in the independent Epsilon model.
 | Gamma route | What completed on the real bootstrap compiler | What limits the route |
 | --- | --- | --- |
 | Interpreter | Ran the Alpha-produced 26,354,274-byte constructor. It compiled a 111-byte Omega package into a 22-byte tape that exited 42 on the seed. | Source and nesting fit. The 305-unit application remains open on this interpreter. |
-| Compile to Alpha | Ran the 11,976,860-byte constructor on the seed. Its tiny-package tape (22 bytes) and linked wire tape (1,607 bytes) both exited 42. Both wire refusals matched the native route. [Receipts](compiled-alpha.md#running-the-whole-omega-constructor-on-one-tape) | Large tapes add a 340-byte Alpha decoder and an instruction dictionary to review. The 305-unit application still needs a successful run. |
+| Compile to Alpha | Ran the 11,976,860-byte constructor on the seed. Its tiny-package tape (22 bytes) and linked wire tape (1,607 bytes) both exited 42. Both wire refusals matched the native route. [Receipts](compiled-alpha.md#running-the-whole-omega-constructor-on-one-tape) | Packing adds 8,233 authored bytes to the Gamma compiler (23.5%). The seed runs a 340-byte decoder. The 305-unit application still needs a successful run. |
 | Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | The full-product run at `6e2b05e9599` crossed 24 GiB before writing a result. Reusing temporary pairs has since cut peak memory for building the constructor from 4.44 to 1.61 GiB. The full-product run is still open. |
 
 The first self-build milestone is an Alpha tape for
