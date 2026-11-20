@@ -4,12 +4,22 @@
 // Exit 0 publishes Alpha bytes. Compiler refusals exit 1 (invalid), 2 (outside
 // the supported subset), or 3 (capacity), publishing the absolute source-byte
 // coordinate as four little-endian bytes. Malformed framing exits 3 without
-// a coordinate. This application does not claim public OCREQ admission.
+// a coordinate. V2 carries separate Build sources and selects each package's
+// Build file. Build execution is required before publishing a v2 tape.
+// This application does not claim public OCREQ admission.
 boundary trait Console {
     machine exit_process(return_code: i32) -> never;
     machine write_byte(value: i32);
     machine read_byte() -> i32;
     machine write_line(text: &[u8]);
+}
+
+// A Build source is retained in its supplying package's separate scope.
+data ConstructionBuildSource {
+    supplier: i32;
+    start: i32;
+    end: i32;
+    path: OmegaRelativeSpan;
 }
 
 data Main {
@@ -19,6 +29,11 @@ data Main {
     entry_unit: i32;
     entry_name: OmegaRelativeSpan;
     has_paths: i32;
+    build_count: i32;
+    has_builds: i32;
+    // Build and Product file ordinals belong to separate scopes.
+    build_units: [ConstructionBuildSource; 512];
+    build_entries: [i32; 64];
 }
 
 machine Main::word(&mut self) -> i32 {
@@ -56,6 +71,8 @@ machine Main::namespace_fits(&mut self, source: &[u8], path: OmegaRelativeSpan) 
 }
 
 machine Main::main(&mut self) {
+    self.has_builds = 0;
+    self.build_count = 0;
     let first: i32 = self.word();
     transition first {
         0 -> version(self.word())
@@ -64,8 +81,13 @@ machine Main::main(&mut self) {
     state version(number: i32) {
         transition number {
             1 -> header(self.word(), true)
+            2 -> build_header()
             _ -> self.console.exit_process(3)
         }
+    }
+    state build_header() {
+        self.has_builds = 1;
+        transition true { true -> header(self.word(), true) }
     }
     state header(packages: i32, has_paths: i32) {
         self.has_paths = has_paths;
@@ -79,6 +101,19 @@ machine Main::main(&mut self) {
         transition (packages > 0) && (packages <= 64) &&
             (self.compiler.parser.sources.dependency_count <= 256) &&
             (self.compiler.parser.sources.unit_count <= 512) && (self.length <= 4194304) {
+            true -> build_layout()
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state build_layout() {
+        transition self.has_builds {
+            1 -> build_count(self.word())
+            _ -> package(0)
+        }
+    }
+    state build_count(count: i32) {
+        self.build_count = count;
+        transition (count > 0) && (count <= 512) && (self.entry_unit < self.compiler.parser.sources.unit_count) {
             true -> package(0)
             _ -> self.console.exit_process(3)
         }
@@ -111,7 +146,7 @@ machine Main::main(&mut self) {
     state unit(index: i32) {
         transition index < self.compiler.parser.sources.unit_count {
             true -> unit_row(index)
-            _ -> arena(self.console.remaining_input)
+            _ -> selection(0)
         }
     }
     state unit_row(index: i32) {
@@ -136,6 +171,41 @@ machine Main::main(&mut self) {
         self.compiler.parser.sources.units[index].path.end = end;
         transition true { true -> unit(index + 1) }
     }
+    state selection(requester: i32) {
+        transition (self.has_builds == 1) && (requester < self.compiler.parser.sources.package_count) {
+            true -> selected(requester, self.word(), self.word())
+            _ -> build_unit(0)
+        }
+    }
+    state selected(requester: i32, owner: i32, unit: i32) {
+        transition (owner == requester) && (unit < self.build_count) {
+            true -> retain_selection(requester, unit)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state retain_selection(requester: i32, unit: i32) {
+        self.build_entries[requester] = unit;
+        transition true { true -> selection(requester + 1) }
+    }
+    state build_unit(index: i32) {
+        transition index < self.build_count {
+            true -> build_row(index)
+            _ -> arena(self.console.remaining_input)
+        }
+    }
+    state build_row(index: i32) {
+        self.build_units[index].supplier = self.word();
+        self.build_units[index].start = self.word();
+        self.build_units[index].end = self.word();
+        self.build_units[index].path.start = self.word();
+        self.build_units[index].path.end = self.word();
+        let row: ConstructionBuildSource = self.build_units[index];
+        transition (row.supplier < self.compiler.parser.sources.package_count) && (row.start <= row.end) &&
+            (row.end <= self.length) && (row.path.start < row.path.end) && (row.path.end <= self.length) {
+            true -> build_unit(index + 1)
+            _ -> self.console.exit_process(3)
+        }
+    }
     state arena(source: &[u8]) {
         transition source.len == self.length {
             true -> entry(source)
@@ -151,8 +221,25 @@ machine Main::main(&mut self) {
     state path_limit(source: &[u8], index: i32) {
         transition (self.has_paths == 1) && (index < self.compiler.parser.sources.unit_count) {
             true -> unit_path(source, index)
+            _ -> scoped(source)
+        }
+    }
+    state scoped(source: &[u8]) {
+        transition self.has_builds {
+            1 -> check_builds(source)
             _ -> compile(source)
         }
+    }
+    state check_builds(source: &[u8]) {
+        transition (self.compiler.parser.sources.valid(source) == 1) && (self.valid_builds(source) == 1) {
+            true -> pending(self.compiler.parser.sources.units[self.entry_unit].package)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state pending(requester: i32) {
+        // A valid Build inventory still needs admitted execution. Anchor the
+        // missing coverage at this entry package's selected Build source.
+        transition true { true -> refusal(2, self.build_units[self.build_entries[requester]].start, 0) }
     }
     state unit_path(source: &[u8], index: i32) {
         transition self.namespace_fits(source, self.compiler.parser.sources.units[index].path) {
@@ -190,5 +277,90 @@ machine Main::main(&mut self) {
     state byte(index: i32) {
         self.console.write_byte(self.compiler.tape.bytes[index]);
         transition true { true -> publish(index + 1) }
+    }
+}
+
+// This is a canonical package-relative file path, not a runtime module name.
+// Each component is nonempty and cannot be a traversal. NUL and backslash
+// cannot enter the captured path. Source acquisition supplies its exact bytes.
+machine Main::valid_build_path(&mut self, path: &[u8]) -> i32 {
+    transition true { true -> scan(0, 0) }
+    state scan(start: i32, cursor: i32) {
+        transition cursor < path.len {
+            true -> byte(start, cursor, path[cursor])
+            _ -> component(start, cursor, 0)
+        }
+    }
+    state byte(start: i32, cursor: i32, value: i32) {
+        transition value {
+            0 -> return 0
+            '\\' -> return 0
+            '/' -> component(start, cursor, 1)
+            _ -> scan(start, cursor + 1)
+        }
+    }
+    state component(start: i32, end: i32, more: i32) {
+        transition (start < end) && (self.compiler.span_equals(path, start, end, ".") == 0) &&
+            (self.compiler.span_equals(path, start, end, "..") == 0) {
+            true -> next(end, more)
+            _ -> return 0
+        }
+    }
+    state next(end: i32, more: i32) {
+        transition more { 1 -> scan(end + 1, end + 1) _ -> return 1 }
+    }
+}
+
+machine Main::has_build_file(&mut self, source: &[u8], limit: i32, supplier: i32, path: &[u8]) -> i32 {
+    transition true { true -> scan(0) }
+    state scan(index: i32) {
+        transition index < limit {
+            true -> file(index, self.build_units[index])
+            _ -> return 0
+        }
+    }
+    state file(index: i32, row: ConstructionBuildSource) {
+        transition (row.supplier == supplier) && (self.compiler.span_equals(source, row.path.start, row.path.end, path) == 1) {
+            true -> return 1
+            _ -> scan(index + 1)
+        }
+    }
+}
+
+machine Main::valid_builds(&mut self, source: &[u8]) -> i32 {
+    transition true { true -> unit(0) }
+    state unit(index: i32) {
+        transition index < self.build_count {
+            true -> file(index, self.build_units[index])
+            _ -> entry(0)
+        }
+    }
+    state file(index: i32, row: ConstructionBuildSource) {
+        let path: &[u8] = source[row.path.start..row.path.end];
+        transition (self.valid_build_path(path) == 1) && (self.has_build_file(source, index, row.supplier, path) == 0) {
+            true -> unit(index + 1)
+            _ -> return 0
+        }
+    }
+    state entry(requester: i32) {
+        transition requester < self.compiler.parser.sources.package_count {
+            true -> selected(requester, self.build_units[self.build_entries[requester]])
+            _ -> return 1
+        }
+    }
+    state selected(requester: i32, row: ConstructionBuildSource) {
+        transition (row.supplier == requester) && (self.compiler.span_equals(source, row.path.start, row.path.end, "build.omg") == 1) {
+            true -> entry(requester + 1)
+            _ -> fallback(requester, row)
+        }
+    }
+    // The already checked source set has at most one role-1 core package.
+    state fallback(requester: i32, row: ConstructionBuildSource) {
+        transition (self.compiler.parser.sources.packages[row.supplier].role == 1) &&
+            (self.compiler.span_equals(source, row.path.start, row.path.end, "defaults/build.omg") == 1) &&
+            (self.has_build_file(source, self.build_count, requester, "build.omg") == 0) {
+            true -> entry(requester + 1)
+            _ -> return 0
+        }
     }
 }
