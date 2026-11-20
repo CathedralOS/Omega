@@ -410,6 +410,11 @@ def omega_utf8_customer(work, timeout, batch=None):
     (work / "utf8-program.omg").write_bytes(program)
     # Fresh evaluator processes bound cumulative immutable allocation without
     # changing compiler inputs or the lifetime of any refusal/reset sequence.
+    # The final batch exercises the hex conversion used by the product lexer.
+    digits = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/digits.omg").read_bytes()
+    start = digits.index(b"machine hex_digit_value(")
+    end = digits.index(b"\n}", start) + 2
+    programs = {0: program, 13: digits[start:end] + b"\n" + (gate / "hex_digit_controls.omg").read_bytes()}
     # Each refusal batch runs positives before and after the refusals on the same compiler.
     expected_batches = (
         (42,),
@@ -425,11 +430,12 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, -4, 42, 42),
         (42, 42, 42, 42, 42, 42, -4, 42),
         (42, 42, 42),
+        (42, -4, 42),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
         assert 0 <= selected < len(expected_batches), selected
-        payload = bytes([selected]) + (program if selected == 0 else b"")
+        payload = bytes([selected]) + programs.get(selected, b"")
         request = epsilon_request((work / "epsilon.delta").read_bytes(), source, payload)
         (work / f"utf8-{selected}-request.bin").write_bytes(request)
         print(f"Omega UTF-8 batch {selected}: {len(source)} Epsilon bytes; {len(payload)} input bytes; allowance {timeout}s", flush=True)
@@ -457,7 +463,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         assert offset == len(observation), "unexpected publication after the final artifact"
         print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
     if batch is None:
-        print("Omega UTF-8: fifty-six executables, 28 decoder boundaries, six arithmetic traps, three explicit traps, eighty-three refusal/reset checks passed in thirteen fresh processes", flush=True)
+        print("Omega UTF-8: fifty-nine executables, 28 decoder boundaries, seven arithmetic traps, three explicit traps, eighty-nine refusal/reset checks passed in fourteen fresh processes", flush=True)
 
 
 def reconstruct(work, *, seconds=None):

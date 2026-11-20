@@ -38,6 +38,7 @@ machine Main::main(&mut self) {
             10 -> batch_10()
             11 -> batch_11()
             12 -> batch_12()
+            13 -> batch_13()
             _ -> self.console.exit_process(99)
         }
     }
@@ -265,6 +266,19 @@ machine Main::main(&mut self) {
         self.refusal("machine risky()->u64 in Wrapping crashes Trap {0 as +Wrapping} machine sum(x:u64 in Wrapping)->u64 in Wrapping crashes none {x+risky()} machine main()->u8{42}",2,231);
         self.refusal("data Wrapping [copy] {n:u8;} machine main()->u8 {42}",2,232);
         self.positive("machine word(n:u64)->u64 in Wrapping crashes none {n as +Wrapping} machine main()->u8 {let one:u64 in Wrapping=word(1);let three:u64=3;transition three-one==2 && one+three==4 {true->pass(),_->miss()} machine pass()->u8{42} machine miss()->u8{7}}",42,230);
+    }
+    state batch_13() {
+        // Real hex_digit_value checks both ends of each ASCII range and the sentinel.
+        self.positive(self.source.as_slice[0..self.length],42,233);
+        // Weaker, opposite and invalidated bounds cannot discharge a crash or a call.
+        self.refusal("machine f(n:u32 in Trapping)->u32 in Trapping crashes none requires n>=47 {n-48} machine main()->u8{42}",2,234);
+        self.refusal("machine f(n:u32 in Trapping)->u32 in Trapping crashes none requires n<=48 {n-48} machine main()->u8{42}",2,235);
+        self.refusal("machine take(n:u64)->u8 requires n<2 {42} machine send(n:u64)->u8 requires n>=1 {take(n)} machine main()->u8{send(2)}",2,236);
+        self.refusal("machine main()->u8{send(47)} machine send(n:u64)->u8{transition n>=48 {true->miss(),_->take(n)} machine take(n:u64)->u8 requires n>=48 {42} machine miss()->u8{7}}",2,237);
+        self.refusal("data Cell {key:u32 in Trapping; padding:u8;} machine read(cell:@mut Cell)->u32 in Trapping crashes none requires cell.key>=48 { cell.key=0 as +Trapping; cell.key-48 } machine main()->u8 {42}",2,238);
+        self.refusal("machine zero(cell:@mut Cell) {cell.key=0 as +Trapping;} data Cell {key:u32 in Trapping; padding:u8;} machine read(cell:@mut Cell)->u32 in Trapping crashes none requires cell.key>=48 { zero(cell); cell.key-48 } machine main()->u8 {42}",2,239);
+        self.positive("machine bad(n:u32 in Trapping)->u32 in Trapping crashes Trap requires n>=47 {n-48} machine main()->u8 crashes Trap {let under:u32 in Trapping=bad(47 as +Trapping);42}",0,240);
+        self.positive("machine main()->u8{send(49)} machine send(n:u64)->u8{transition 48<n {true->take(n),_->miss()} machine take(n:u64)->u8 requires n>47 {42} machine miss()->u8{7}}",42,241);
     }
 }
 machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
