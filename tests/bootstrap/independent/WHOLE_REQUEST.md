@@ -149,11 +149,19 @@ Gamma compilers. Only the construction entry source differs.
 
 | Frozen input | Original | Eight-byte groups |
 | --- | --- | --- |
+| Header and rows only (3,872 bytes) | Exit 3, 72,976 KiB, 1.20 s | Exit 3, 72,988 KiB, 1.09 s |
 | First 16,384 bytes | Exit 3, 320,912 KiB, 9.13 s | Exit 3, 231,324 KiB, 4.39 s |
 | First 589,824 bytes | Guard, 10,485,904 KiB, 259.44 s | Exit 3, 7,487,004 KiB, 211.56 s |
 
+After subtracting the header-only measurement, the grouped constructor
+used 12.65 KiB of additional peak RSS per staged arena byte on both
+completed prefixes. On the complete frozen 3,950,880-byte product, the
+10 GiB guard stopped it after 369.47 CPU seconds with empty stdout and
+stderr. The complete run produced no tape or compiler diagnostic.
+
 Both constructors gave the same five-byte refusal on 16 truncations of
-the 828-byte wire-package input. The grouped constructor compiled the complete
+the 828-byte wire-package input. Source bytes `0x00`, `0x80` and `0xff`
+each produced the same compiler refusal at byte 30. The grouped constructor compiled the complete
 input to the existing 1,607-byte Alpha tape, which exited 42.
 A source merge with the directory-aware constructor from `60ddbd9c9af`
 also passed the directory-import and malformed-directory cases in the published
