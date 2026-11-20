@@ -196,3 +196,17 @@ entry-unit packet and returned `0001000000a9000000`. This is Exit 1 at packed
 byte 169, the first `use` in the unit. Only the construction package supplies
 a source unit in this control. The earlier 8 MiB evaluator run on that packet
 stopped at its 480-second deadline.
+
+Two further controls preserved every package, source range and packet length.
+They changed a single byte of the entry source in guest stdin and ran the
+stock Linux-native Epsilon evaluator with the same compiler and constructor.
+
+| Entry-source change | Stock evaluator observation |
+| --- | --- |
+| First byte replaced with `0xff` | Exit 1 at packed byte 169 in 121.7 s wall, 63.9 s CPU, 565,244 KiB peak RSS. |
+| Final newline replaced with NUL | Empty output after 257.3 s wall and 190.6 s CPU. The supervisor stopped the process at 2,081,020 KiB peak RSS to retain 2 GiB of shared memory headroom. |
+
+The parser validates UTF-8 and tokenizes the entire unit before parsing its
+first declaration. The last-byte NUL therefore measures work before syntax
+parsing. Its complete runtime and refusal coordinate remain unmeasured.
+[Parser entry](../../../bootstrap/omega/compiler/parser.epsilon)
