@@ -181,6 +181,39 @@ fn named_and_indirect_parameters_decide_whether_to_read_a_borrowed_field() {
 }
 
 #[test]
+fn grouped_fields_passed_by_value_keep_the_transfer_on_the_projection() {
+    use omega_typer::ObligationKind::{CopyRead, RestoreBorrowed};
+
+    for (property, access, replace) in [(" [copy]", "@", ""), ("", "@mut ", "h.item=B{n:0};")] {
+        let source = format!(
+            "data B{property} {{n:u8;}} data H{{item:B;}} data W{{b:B;}} machine wrap(b:B)->W{{W{{b:b}}}} machine run(h:{access}H)->W{{let w=wrap((h.item));{replace}w}}"
+        );
+        let resolved = support::resolve_packages(&[("game", "read.omg", &source)], &[]);
+        let typed = omega_typer::type_stage(&resolved).unwrap();
+        let tree = typed.trees().next().unwrap();
+        let file = tree.resolved().file;
+        let [call] = typed.calls.as_slice() else { panic!("expected one named call") };
+        assert_eq!(call.machine.path, "wrap");
+        let [operand] = call.operands.as_slice() else { panic!("expected one grouped operand") };
+        assert_eq!(operand.site.span.slice(source.as_bytes()), Some(b"(h.item)".as_slice()));
+        let field = file.node_id(file.ungroup(operand.node.node));
+        let mut transfers = typed.obligations.iter().filter(|o| matches!(o.kind, CopyRead(_) | RestoreBorrowed { .. }));
+        let transfer = transfers.next().expect("field passed by value");
+        assert!(transfers.next().is_none());
+        assert_eq!(transfer.node, field);
+        assert_eq!(transfer.site.span.slice(source.as_bytes()), Some(b"h.item".as_slice()));
+        match (&transfer.kind, access) {
+            (CopyRead(ty), "@") => assert_eq!(ty.to_string(), "game\\B"),
+            (RestoreBorrowed { place, ty }, "@mut ") => {
+                assert_eq!(*place, field);
+                assert_eq!(ty.to_string(), "game\\B");
+            }
+            _ => panic!("{access}: {transfer:?}"),
+        }
+    }
+}
+
+#[test]
 fn a_record_field_value_pattern_reads_the_field_of_a_named_lifetime_subject() {
     for reference in ["@", "@'a "] {
         let source = format!("data D{{flag:bool;}} machine choose<'a>(d:{reference}D)->bool{{match d {{D{{flag:true}}->true,_->false,}}}}");

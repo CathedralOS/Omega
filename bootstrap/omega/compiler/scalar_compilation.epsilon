@@ -111,6 +111,12 @@ data OmegaFixedIndexPlan {
     bound_limit: i32;
 }
 
+// The Alpha tape stores each checked scalar value as two little-endian words.
+data OmegaIntegerGuard {
+    low: i32;
+    high: i32;
+}
+
 data OmegaScalarCompiler {
     build: ConstructionBuildResult;
     // A nonempty site belongs to the independently supplied standalone
@@ -189,6 +195,7 @@ data OmegaScalarCompiler {
     case_name_buckets: [i32; 16384];
     case_name_count: i32;
     case_guard_ordinals: [i32; 16384];
+    integer_guards: [OmegaIntegerGuard; 16384];
     case_coverage: [i32; 16384];
     // Each pattern field retains its case-owned slot. Only the current
     // arm's target can resolve its binding names (zero means no arm).
@@ -3058,6 +3065,32 @@ machine OmegaScalarCompiler::check_case_transition(
     state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
 }
 
+// A bare literal guard takes its magnitude from the same scanner and carrier
+// as an expression. Preserve the complete word for ordered comparisons.
+machine OmegaScalarCompiler::check_integer_guard(&mut self, source: &[u8], index: i32,
+    row: OmegaTransitionStatementSyntax, kind: i32) -> i32 {
+    transition kind == 1 {
+        true -> rejected()
+        _ -> scan()
+    }
+    state scan() {
+        self.scan_scalar_literal(source, row.guard_start, row.guard_end, kind);
+        transition self.literal_status {
+            1 -> checked()
+            5 -> checked()
+            3 -> rejected()
+            _ -> incomplete()
+        }
+    }
+    state checked() {
+        self.integer_guards[index].low = self.literal_value;
+        self.integer_guards[index].high = self.literal_high;
+        return 1;
+    }
+    state rejected() { self.record_reject(-1, 4, row.guard_start); return 0; }
+    state incomplete() { self.record_incomplete(4, row.guard_start); return 0; }
+}
+
 // Evaluate a dynamic subject once. Every target terminates the current
 // activation; later guards are reached only by the preceding failed guard.
 machine OmegaScalarCompiler::emit_dynamic_transition(
@@ -3104,10 +3137,19 @@ machine OmegaScalarCompiler::emit_dynamic_transition(
         }
     }
     state subject_kind(cursor: i32, subject: i32, row_index: i32, next: i32) {
-        transition self.cell_types[49152 + subject] >= 100000 {
-            true -> case_guard(cursor, subject, row_index, next)
-            _ -> branch(cursor, subject, row_index, next,
+        transition self.parser.transition_statements[row_index].guard_kind {
+            OmegaTransitionGuardKind::Boolean -> branch(cursor, subject, row_index, next,
                 self.parser.transition_statements[row_index].guard_boolean)
+            OmegaTransitionGuardKind::Integer -> integer_guard(cursor, subject, row_index, next,
+                self.integer_guards[row_index])
+            _ -> case_guard(cursor, subject, row_index, next)
+        }
+    }
+    state integer_guard(cursor: i32, subject: i32, row_index: i32, next: i32, value: OmegaIntegerGuard) {
+        transition (self.tape.emit_imm(2, value.low, value.high) == 1) &&
+            (self.emit_comparison_result(16, 0, 2, 1) == 1) {
+            true -> branch(cursor, subject, row_index, next, 1)
+            _ -> return 0
         }
     }
     state case_guard(cursor: i32, subject: i32, row_index: i32, next: i32) {
@@ -4257,7 +4299,10 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state dynamic_type(index: i32, state_index: i32, first: i32, last: i32, subject: i32, kind: i32) {
         transition kind {
-            1 -> dynamic_value(index, state_index, first, last, subject)
+            1 -> dynamic_value(index, state_index, first, last, subject, kind)
+            8 -> dynamic_value(index, state_index, first, last, subject, kind)
+            32 -> dynamic_value(index, state_index, first, last, subject, kind)
+            64 -> dynamic_value(index, state_index, first, last, subject, kind)
             _ -> dynamic_sum(index, state_index, first, last, kind)
         }
     }
@@ -4281,8 +4326,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state dynamic_value(index: i32, state_index: i32, statement_offset: i32,
-        run_end: i32, subject: i32) {
-        transition self.check_value(source, index, state_index, statement_offset, subject, 1) {
+        run_end: i32, subject: i32, kind: i32) {
+        transition self.check_value(source, index, state_index, statement_offset, subject, kind) {
             1 -> dynamic_arm(index, state_index, statement_offset, run_end, statement_offset, 0)
             _ -> return
         }
@@ -4300,8 +4345,24 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         arm: i32, covered: i32, row: OmegaTransitionStatementSyntax) {
         transition row.guard_kind {
             OmegaTransitionGuardKind::Always -> dynamic_target(index, state_index, first, last, arm, 3)
-            OmegaTransitionGuardKind::Boolean -> dynamic_boolean(index, state_index, first, last, arm, covered, row.guard_boolean)
+            OmegaTransitionGuardKind::Boolean -> dynamic_boolean_type(index, state_index, first, last, arm, covered, row)
+            OmegaTransitionGuardKind::Integer -> dynamic_integer(index, state_index, first, last, arm, covered, row)
             _ -> incomplete(4, row.guard_start)
+        }
+    }
+    state dynamic_boolean_type(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row: OmegaTransitionStatementSyntax) {
+        transition self.cell_types[49152 + row.subject] == 1 {
+            true -> dynamic_boolean(index, state_index, first, last, arm, covered, row.guard_boolean)
+            _ -> reject(-1, 4, row.guard_start)
+        }
+    }
+    state dynamic_integer(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row: OmegaTransitionStatementSyntax) {
+        let row_index: i32 = self.parser.statements[self.parser.machine_states[state_index].first_statement + arm].item_index;
+        transition self.check_integer_guard(source, row_index, row, self.cell_types[49152 + row.subject]) {
+            1 -> dynamic_target(index, state_index, first, last, arm, covered)
+            _ -> return
         }
     }
     state dynamic_boolean(index: i32, state_index: i32, first: i32, last: i32,

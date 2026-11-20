@@ -33,18 +33,21 @@ impl BodyTyper<'_, '_> {
         access: &Access,
         ty: &ValueType,
     ) -> Result<(), TypeError> {
+        // The written operand is the diagnostic site. The transfer itself happens
+        // at the place inside any grouping, even when deferred by call selection.
+        let file = self.unit.file;
+        let place = file.ungroup(node_index);
         match access {
             Access::Write => Err(TypeError::at(self.unit.file, node_index, "cannot read through a write-only reference")),
             _ if self.copy_eligible(ty) => {
-                self.record_obligation(node_index, ObligationKind::CopyRead(ty.clone()));
+                self.record_obligation(place, ObligationKind::CopyRead(ty.clone()));
                 Ok(())
             }
             Access::Mut => {
-                let file = self.unit.file;
                 self.record_obligation(
-                    node_index,
+                    place,
                     ObligationKind::RestoreBorrowed {
-                        place: file.node_id(file.ungroup(node_index)),
+                        place: file.node_id(place),
                         ty: ty.clone(),
                     },
                 );

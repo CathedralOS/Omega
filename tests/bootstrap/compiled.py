@@ -343,7 +343,7 @@ def omega_control_customer(work, timeout):
     (work / "control-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 42, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 0, 42, 42, 42, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42)):
+    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 42, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 0, 42, 42, 42, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
