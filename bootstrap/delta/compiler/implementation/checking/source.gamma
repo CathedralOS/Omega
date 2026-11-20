@@ -65,66 +65,55 @@
               index
               (token_word_end (+ index 1)))))))))
 
-; Callers check the token length before comparing its bytes.
-(def source_chars2 ((at Int) (a Int) (b Int)) Int
-  (if (eq (source_read at) a) (eq (source_read (+ at 1)) b) 0))
-
-(def source_chars3 ((at Int) (a Int) (b Int) (c Int)) Int
-  (if (eq (source_read at) a) (source_chars2 (+ at 1) b c) 0))
-
-(def source_chars4 ((at Int) (a Int) (b Int) (c Int) (d Int)) Int
-  (if (eq (source_read at) a) (source_chars3 (+ at 1) b c d) 0))
-
-(def source_chars5 ((at Int) (a Int) (b Int) (c Int) (d Int) (e Int)) Int
-  (if (eq (source_read at) a) (source_chars4 (+ at 1) b c d e) 0))
-
-(def source_chars6 ((at Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int)) Int
-  (if (eq (source_read at) a) (source_chars5 (+ at 1) b c d e f) 0))
+; The declared names consist of nonzero printable ASCII. Compare the low
+; byte first and require the input and the name to finish together.
+(def token_word ((at Int) (end Int) (word Int)) Int
+  (if (eq at end) (eq word 0)
+    (if (eq word 0) 0
+      (if (eq (source_read at) (% word 256))
+        (token_word (+ at 1) end (/ word 256)) 0))))
 
 (def token_data ((start Int) (end Int)) Int
-  (if (eq (- end start) 4) (source_chars4 start 'd' 'a' 't' 'a') 0))
+  (token_word start end 'data'))
 
 (def token_def ((start Int) (end Int)) Int
-  (if (eq (- end start) 3) (source_chars3 start 'd' 'e' 'f') 0))
+  (token_word start end 'def'))
 
 (def token_main ((start Int) (end Int)) Int
-  (if (eq (- end start) 4) (source_chars4 start 'm' 'a' 'i' 'n') 0))
+  (token_word start end 'main'))
 
 (def token_match ((start Int) (end Int)) Int
-  (if (eq (- end start) 5) (source_chars5 start 'm' 'a' 't' 'c' 'h') 0))
+  (token_word start end 'match'))
 
 (def token_let ((start Int) (end Int)) Int
-  (if (eq (- end start) 3) (source_chars3 start 'l' 'e' 't') 0))
+  (token_word start end 'let'))
 
 (def token_int ((start Int) (end Int)) Int
-  (if (eq (- end start) 3) (source_chars3 start 'I' 'n' 't') 0))
+  (token_word start end 'Int'))
 
 (def token_if ((start Int) (end Int)) Int
-  (if (eq (- end start) 2) (source_chars2 start 'i' 'f') 0))
+  (token_word start end 'if'))
 
 (def token_eq ((start Int) (end Int)) Int
-  (if (eq (- end start) 2) (source_chars2 start 'e' 'q') 0))
+  (token_word start end 'eq'))
 
 (def token_lt ((start Int) (end Int)) Int
-  (if (eq (- end start) 2) (source_chars2 start 'l' 't') 0))
+  (token_word start end 'lt'))
 
 (def token_bytes ((start Int) (end Int)) Int
-  (if (eq (- end start) 5) (source_chars5 start 'B' 'y' 't' 'e' 's') 0))
+  (token_word start end 'Bytes'))
 
 (def bytes_builtin_kind ((start Int) (end Int)) Int
-  (let length Int (- end start)
-    (if (lt length 9) 0
-      (if (source_chars6 start 'b' 'y' 't' 'e' 's' '_')
-        (bytes_suffix_kind (+ start 6) (- length 6)) 0))))
+  (if (lt (- end start) 9) 0
+    (if (token_word start (+ start 6) 'bytes_')
+      (bytes_suffix_kind (+ start 6) end) 0)))
 
-(def bytes_suffix_kind ((at Int) (length Int)) Int
-  (if (eq length 3) (if (source_chars3 at 'g' 'e' 't') 4 0)
-    (if (eq length 5) (if (source_chars5 at 'e' 'm' 'p' 't' 'y') 1 0)
-      (if (eq length 6)
-        (if (source_chars6 at 's' 'i' 'n' 'g' 'l' 'e') 2
-          (if (source_chars6 at 'l' 'e' 'n' 'g' 't' 'h') 3
-            (if (source_chars6 at 'c' 'o' 'n' 'c' 'a' 't') 5 0)))
-        0))))
+(def bytes_suffix_kind ((at Int) (end Int)) Int
+  (if (token_word at end 'empty') 1
+    (if (token_word at end 'single') 2
+      (if (token_word at end 'length') 3
+        (if (token_word at end 'get') 4
+          (if (token_word at end 'concat') 5 0))))))
 
 (def bytes_builtin_arity_plus_one ((start Int) (end Int)) Int
   (let kind Int (bytes_builtin_kind start end)

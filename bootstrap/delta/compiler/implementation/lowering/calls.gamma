@@ -52,7 +52,7 @@
         (gamma_function head)))))
 
 (def lowering_bytes_head ((kind Int)) Int
-  (let ((prefix Int (if (if (compilation_profile) (eq kind 4) 0) 6451236 6448164))
-        (last Int (if (eq kind 1) 101 (if (eq kind 2) 115
-            (if (eq kind 3) 108 (if (eq kind 4) 103 99))))))
+  (let ((prefix Int (if (if (compilation_profile) (eq kind 4) 0) '$pb' '$db'))
+        (last Int (if (eq kind 1) 'e' (if (eq kind 2) 's'
+            (if (eq kind 3) 'l' (if (eq kind 4) 'g' 'c'))))))
     (gamma_word (+ prefix (* last 16777216)) 4)))

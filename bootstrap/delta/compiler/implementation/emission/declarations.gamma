@@ -1,5 +1,5 @@
 (def emit_definition ((definition Int) (publish Int) (written Int)) Int
-  (let ((prefix Int (emit_ascii 139156874280 5 publish written))
+  (let ((prefix Int (emit_ascii '(def ' 5 publish written))
         (name Int (emit_gamma_atom (gamma_definition_name definition) publish prefix))
         (separator Int (emit_character '\s' publish name))
         (open Int (emit_character '(' publish separator))

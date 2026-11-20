@@ -43,14 +43,14 @@
       (emit_ascii_bytes (/ packed 256) (- remaining 1)))))
 
 (def emit_application_marker ((publish Int) (written Int)) Int
-  (let ((first_chunk Int (emit_ascii 8097793326564336680 8 publish written))
-        (second_chunk Int (emit_ascii 8028075772393122928 8 publish first_chunk))
-        (third_chunk Int (emit_ascii 8389723558316089454 8 publish second_chunk)))
-    (emit_ascii 170471712 4 publish third_chunk)))
+  (let ((first_chunk Int (emit_ascii '(def ' 5 publish written))
+        (second_chunk Int (emit_ascii '$applica' 8 publish first_chunk))
+        (third_chunk Int (emit_ascii 'tion () ' 8 publish second_chunk)))
+    (emit_ascii 'Int 1)\n' 7 publish third_chunk)))
 
 (def emit_prefixed_function_name
   ((start Int) (end Int) (publish Int) (written Int)) Int
-  (let prefix Int (emit_ascii 1600413535 4 publish written)
+  (let prefix Int (emit_ascii '__d_' 4 publish written)
     (emit_span start end publish prefix)))
 
 (def emit_function_name
@@ -60,13 +60,13 @@
     (emit_prefixed_function_name start end publish written)))
 
 (def emit_int_word ((publish Int) (written Int)) Int
-  (emit_ascii 7630409 3 publish written))
+  (emit_ascii 'Int' 3 publish written))
 
 (def emit_decimal ((value Int) (publish Int) (written Int)) Int
   (if (lt value 10)
-    (emit_character (+ 48 value) publish written)
+    (emit_character (+ '0' value) publish written)
     (let prefix Int (emit_decimal (/ value 10) publish written)
-      (emit_character (+ 48 (% value 10)) publish prefix))))
+      (emit_character (+ '0' (% value 10)) publish prefix))))
 
 ; Final-child chains retain a scalar suffix, not one pair per close.
 (def emit_closes ((count Int) (publish Int) (written Int)) Int

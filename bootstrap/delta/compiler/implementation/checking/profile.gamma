@@ -1,8 +1,7 @@
 ; Entry existence is an option, not a declaration-collection requirement.
 ; Only an accepted ordinary frontend reaches this profile-specific phase.
 (def find_main_metadata ((globals Int)) Int
-  ; Little-endian bytes m a i n.
-  (name_trie_find_packed_option (global_functions globals) 4 1852399981))
+  (name_trie_find_packed_option (global_functions globals) 4 'main'))
 
 (def reject_entry_schema ((metadata Int)) Int
   (let ((declaration Int (- (function_metadata_owner metadata) 1))

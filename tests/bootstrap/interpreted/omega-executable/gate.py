@@ -97,8 +97,8 @@ def main():
     require_identity("Epsilon", epsilon, 613769,
                      "c5392b0a71cbe58de5090fb888b379fa5cb3b4b598ba38d6f1a568e326ffa0ff")
     delta_compiler = (directory / "delta_compiler.gamma").read_bytes()
-    require_identity("Delta compiler", delta_compiler, 153051,
-                     "ceb6e8bfe734e581afcdf1b06a07093d3f6a6cb5b9673b0ced907d184dfef3f4")
+    require_identity("Delta compiler", delta_compiler, 152036,
+                     "e5193db48e77870186495e7c68b7187f53692a819e65e894b37c3bfeb76f9b08")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
     require_identity("D", compiler, 876834,
                      "b5a8801d7d9f17b6efff1ba0bd644a8a25a789ba9d9396d531352e66423da639")
