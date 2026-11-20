@@ -40,6 +40,30 @@ class Invalid(ValueError):
     pass
 
 
+def quoted_word(text, at):
+    """Decode up to eight bytes from a quoted Gamma integer."""
+    decoded = bytearray()
+    at += 1
+    while at < len(text):
+        char = text[at]
+        at += 1
+        if char == "'":
+            if decoded:
+                return int.from_bytes(decoded, "little"), at
+            break
+        if len(decoded) == 8:
+            break
+        if char == "\\":
+            if at == len(text) or text[at] not in "ns":
+                break
+            char = "\n" if text[at] == "n" else " "
+            at += 1
+        elif ord(char) < 32:
+            break
+        decoded.append(ord(char))
+    raise Invalid("malformed character literal")
+
+
 def parse(source):
     """Parse authored lists; comments and character literals are lexical forms."""
     if any(b not in (9, 10, 13) and not 32 <= b <= 126 for b in source):
@@ -70,15 +94,7 @@ def parse(source):
             at += 1
             continue
         if c == "'":
-            if text[at:at + 4] in ("'\\n'", "'\\s'"):
-                token = 10 if text[at + 2] == "n" else 32
-                at += 4
-            elif (at + 2 < len(text) and text[at + 2] == "'"
-                  and 32 <= ord(text[at + 1]) <= 126 and text[at + 1] not in "'\\"):
-                token = ord(text[at + 1])
-                at += 3
-            else:
-                raise Invalid("malformed character literal")
+            token, at = quoted_word(text, at)
         else:
             end = at
             while end < len(text) and not text[end].isspace() and text[end] not in "();":

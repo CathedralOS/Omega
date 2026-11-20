@@ -108,35 +108,32 @@
           (p_number begin end (+ index 1) (+ (* value 10) (- byte '0')) negative)
           (pair 2 (pair begin end)))))))
 
-; Gamma reserves apostrophe (39) and backslash (92) inside character literals.
-; Token results retain the next source offset beside the parsed node.
+; One to eight quoted ASCII bytes form an Int, first byte least significant.
 (def p_character ((begin Int)) Int
-  (if (lt (+ begin 2) (input))
-    (let byte Int (read (+ begin 1))
-      (if (eq byte 92)
-        (p_escape begin)
-        (if (eq (read (+ begin 2)) 39)
-          (if (eq byte 39)
-            (p_fail)
-            (if (lt byte '\s')
-              (p_fail)
-              (if (lt byte 127)
-                (pair (+ begin 3) (pair 1 byte))
-                (p_fail))))
-          (p_fail))))
-    (p_fail)))
+  (p_characters (+ begin 1) 8 0 1))
 
-(def p_escape ((begin Int)) Int
-  (if (lt (+ begin 3) (input))
-    (if (eq (read (+ begin 3)) 39)
-      (let byte Int (read (+ begin 2))
-        (if (eq byte 'n')
-          (pair (+ begin 4) (pair 1 '\n'))
-          (if (eq byte 's')
-            (pair (+ begin 4) (pair 1 '\s'))
-            (p_fail))))
-      (p_fail))
-    (p_fail)))
+(def p_characters ((index Int) (remaining Int) (value Int) (place Int)) Int
+  (if (eq index (input)) (p_fail)
+    (let byte Int (read index)
+      (if (eq byte 39)
+        (if (eq remaining 8) (p_fail) (pair (+ index 1) (pair 1 value)))
+        (if (eq remaining 0) (p_fail)
+          (if (eq byte 92)
+            (p_escape (+ index 1) remaining value place)
+            (if (lt byte '\s') (p_fail)
+              (if (lt byte 127)
+                (p_next_character index remaining value place byte)
+                (p_fail)))))))))
+
+(def p_next_character ((index Int) (remaining Int) (value Int) (place Int) (byte Int)) Int
+  (p_characters (+ index 1) (- remaining 1) (+ value (* place byte)) (* place 256)))
+
+(def p_escape ((index Int) (remaining Int) (value Int) (place Int)) Int
+  (if (eq index (input)) (p_fail)
+    (let byte Int (read index)
+      (if (eq byte 'n') (p_next_character index remaining value place '\n')
+        (if (eq byte 's') (p_next_character index remaining value place '\s')
+          (p_fail))))))
 
 (def p_token ((begin Int)) Int
   (if (eq (read begin) 39)

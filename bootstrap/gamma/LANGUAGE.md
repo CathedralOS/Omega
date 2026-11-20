@@ -14,7 +14,7 @@ program      := function+
 function     := (def NAME (parameter*) Int expression)
 parameter    := (NAME Int)
 expression   := INTEGER
-              | CHARACTER
+              | QUOTED_WORD
               | NAME
               | (if expression expression expression)
               | (let NAME Int expression expression)
@@ -29,8 +29,9 @@ expression   := INTEGER
               | (second expression)
 OP           := + | - | * | / | % | eq | lt
 binding      := (NAME Int expression)
-CHARACTER    := printable ASCII between single quotes
-              | '\n' | '\s'
+QUOTED_WORD  := "'" quoted-byte{1,8} "'"
+quoted-byte  := printable ASCII other than apostrophe or backslash
+              | \n | \s
 ```
 
 Function declarations are mutually visible and unique. Exactly one nullary
@@ -59,9 +60,13 @@ depth is measured on authored lists, not on a conceptual nested-let expansion.
 `Int` is one 64-bit word interpreted as signed where required. Runtime words may
 also carry private immutable pair references produced only by `pair`. Decimal
 integer literals accumulate modulo $2^{64}$; a leading minus computes modular
-negation. Character literals produce their ASCII byte value; `\s` denotes a
-space so emitted layout remains visible in source. `if` selects its second expression when its condition is nonzero
-and its third expression when zero. Calls evaluate arguments from left to right.
+negation. A quoted word packs one to eight bytes into an `Int`, least significant byte
+first. For example, `'if'` has the value `(+ 'i' (* 256 'f'))`. Each escape counts
+as one byte. `\n` denotes a newline and `\s` denotes a space. Unused high
+bytes are zero. The closing apostrophe is required even after eight bytes.
+
+`if` selects its second expression when its condition is nonzero and its
+third expression when zero. Calls evaluate arguments from left to right.
 Functions and lexical scopes isolate their bindings.
 
 `pair` evaluates two expressions left-to-right and returns one immutable pair.

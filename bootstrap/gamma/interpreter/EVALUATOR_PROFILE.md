@@ -207,17 +207,18 @@ exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or work
 bound; a nonterminating program diverges.
 
 The selected implementation is
-[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,657-line,
-48,008-byte addressed Beta program assembling to an 8,447-byte Alpha tape. Its
+[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,662-line,
+48,303-byte addressed Beta program assembling to an 8,447-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  7730e0e4f075d55a55e032b83da04d2a62a16a987f52198b7283ff74f62067d8
-Alpha tape   11905b825000be79e78548a47e3016516eefac5bb5a9f696114349dbda99aaf2
+Beta source  a588fd718cd1f86a97f55e2f83368b80c5063f233296b091ec7c1561c768a5a6
+Alpha tape   b2d35f99f8886985306dba1c5bc5309fb2c389b1c80b1fe79b79ed69f7042a0a
 ```
 
-The tokenizer and expression parser share one character reader. It accepts one
-printable ASCII byte or one of the two escapes, `\n` and `\s`. Function,
+The tokenizer and expression parser share one character reader. It packs one
+to eight decoded bytes into one little-endian integer. A printable ASCII
+byte, `\n` or `\s` contributes one byte. Function,
 parameter and let names must be symbols. These checks also run inside unused
 functions before the program executes.
 
