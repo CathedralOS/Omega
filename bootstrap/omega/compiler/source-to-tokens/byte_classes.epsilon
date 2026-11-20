@@ -1,29 +1,23 @@
 
 machine omega_is_whitespace(byte: i32) -> i32 {
-    transition byte {
-        9 -> return 1
-        10 -> return 1
-        13 -> return 1
-        32 -> return 1
-        _ -> return 0
-    }
+    return (byte == '\t') || (byte == '\n') || (byte == '\r') || (byte == ' ');
 }
 
 machine omega_is_identifier_start(byte: i32) -> i32 {
-    transition byte == 95 {
+    transition byte == '_' {
         true -> return 1
         _ -> upper()
     }
 
     state upper() {
-        transition (byte >= 65) && (byte <= 90) {
+        transition (byte >= 'A') && (byte <= 'Z') {
             true -> return 1
             _ -> lower()
         }
     }
 
     state lower() {
-        transition (byte >= 97) && (byte <= 122) {
+        transition (byte >= 'a') && (byte <= 'z') {
             true -> return 1
             _ -> return 0
         }
@@ -37,7 +31,7 @@ machine omega_is_identifier_continue(byte: i32) -> i32 {
     }
 
     state digit() {
-        transition (byte >= 48) && (byte <= 57) {
+        transition (byte >= '0') && (byte <= '9') {
             true -> return 1
             _ -> return 0
         }
@@ -45,21 +39,21 @@ machine omega_is_identifier_continue(byte: i32) -> i32 {
 }
 
 machine omega_hex_value(byte: i32) -> i32 {
-    transition (byte >= 48) && (byte <= 57) {
-        true -> return byte - 48
+    transition (byte >= '0') && (byte <= '9') {
+        true -> return byte - '0'
         _ -> lower()
     }
 
     state lower() {
-        transition (byte >= 97) && (byte <= 102) {
-            true -> return byte - 87
+        transition (byte >= 'a') && (byte <= 'f') {
+            true -> return byte - 'a' + 10
             _ -> upper()
         }
     }
 
     state upper() {
-        transition (byte >= 65) && (byte <= 70) {
-            true -> return byte - 55
+        transition (byte >= 'A') && (byte <= 'F') {
+            true -> return byte - 'A' + 10
             _ -> return -1
         }
     }
@@ -67,51 +61,9 @@ machine omega_hex_value(byte: i32) -> i32 {
 
 machine omega_digit_in_base(byte: i32, base: OmegaNumericBase) -> i32 {
     transition base {
-        OmegaNumericBase::Binary -> binary()
-        OmegaNumericBase::Octal -> octal()
-        OmegaNumericBase::Decimal -> decimal()
-        OmegaNumericBase::Hexadecimal -> hex()
-    }
-
-    state binary() {
-        transition (byte >= 48) && (byte <= 49) {
-            true -> return 1
-            _ -> return 0
-        }
-    }
-
-    state octal() {
-        transition (byte >= 48) && (byte <= 55) {
-            true -> return 1
-            _ -> return 0
-        }
-    }
-
-    state decimal() {
-        transition (byte >= 48) && (byte <= 57) {
-            true -> return 1
-            _ -> return 0
-        }
-    }
-
-    state hex() {
-        transition (byte >= 48) && (byte <= 57) {
-            true -> return 1
-            _ -> hex_upper()
-        }
-    }
-
-    state hex_upper() {
-        transition (byte >= 65) && (byte <= 70) {
-            true -> return 1
-            _ -> hex_lower()
-        }
-    }
-
-    state hex_lower() {
-        transition (byte >= 97) && (byte <= 102) {
-            true -> return 1
-            _ -> return 0
-        }
+        OmegaNumericBase::Binary -> return (byte >= '0') && (byte <= '1')
+        OmegaNumericBase::Octal -> return (byte >= '0') && (byte <= '7')
+        OmegaNumericBase::Decimal -> return (byte >= '0') && (byte <= '9')
+        OmegaNumericBase::Hexadecimal -> return omega_hex_value(byte) >= 0
     }
 }
