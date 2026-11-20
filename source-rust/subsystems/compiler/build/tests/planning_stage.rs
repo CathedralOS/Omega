@@ -140,8 +140,10 @@ fn authored_build_returns_its_application_and_target_bindings() {
     let artifact = output.retained_native_artifact().unwrap();
     assert!(artifact.image().output().bytes.starts_with(b"\x7fELF"));
     let module = artifact.psi_artifact().semantic_module();
-    assert!(module.program_entry_contract("linux_x86_64").is_some());
-    assert!(module.program_entry_contract("alpha_bootstrap").is_none());
+    let [entry] = module.interfaces.program_entry_contracts.as_slice() else {
+        panic!("the selected Linux entry must be the only published physical entry");
+    };
+    assert_eq!(entry.target, "linux_x86_64");
     let [boundary] = module.interfaces.boundary_machines.as_slice() else {
         panic!("getpid must be the only reached native requirement");
     };
