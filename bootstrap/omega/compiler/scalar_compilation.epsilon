@@ -67,6 +67,13 @@ data OmegaScalarCompilationStatus {
     case InternalFailure;
 }
 
+data OmegaIndexBoundKind {
+    case Unproved;
+    case Literal;
+    case ValueInterval;
+    case BooleanArm;
+}
+
 // The closed core catalog selects a by-copy read (schema 1) or an exclusive
 // indexed place (schema 2) at the exact fixed-array type, element and length.
 // This compiler realizes u8 and copy-record elements with admitted layouts.
@@ -96,7 +103,9 @@ data OmegaFixedIndexPlan {
     parent_extent: i32;
     access: i32;
     removed_trapping: i32;
-    bound_kind: i32;
+    bound_kind: OmegaIndexBoundKind;
+    // A branch cites its transition row (predicate and truth). Other bounds
+    // cite the checked selector expression.
     bound_source: i32;
     bound_limit: i32;
 }
@@ -184,6 +193,8 @@ data OmegaScalarCompiler {
     // arm's target can resolve its binding names (zero means no arm).
     pattern_field_slots: [i32; 16384];
     pattern_scope: i32;
+    // Set only while checking one target of a checked Boolean transition.
+    active_boolean_arm: i32;
     // Compound identities are canonical within this single-source adapter:
     // nominal records/sums 100000+declaration, arrays 200000+type-row, qualified arrays
     // 300000+type-row, shared/mutable record refs 400000/500000+declaration.
@@ -3296,6 +3307,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     self.diagnostic_offset = 0;
     self.literal_offset = 0;
     self.transition_anchor = 0;
+    self.active_boolean_arm = -1;
     self.pattern_scope = 0;
     self.selected_machine = -1;
     self.outcome_tag = 0;
@@ -4299,8 +4311,11 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state dynamic_target(index: i32, state_index: i32, first: i32, last: i32, arm: i32, covered: i32) {
-        transition self.check_transition_target(source, index, state_index, first,
-            self.parser.statements[self.parser.machine_states[state_index].first_statement + arm].item_index) {
+        let statement: i32 = self.parser.machine_states[state_index].first_statement + arm;
+        self.active_boolean_arm = self.parser.statements[statement].item_index;
+        let checked: i32 = self.check_transition_target(source, index, state_index, first, self.active_boolean_arm);
+        self.active_boolean_arm = -1;
+        transition checked {
             1 -> dynamic_arm(index, state_index, first, last, arm + 1, covered)
             _ -> return
         }
@@ -6799,10 +6814,8 @@ machine OmegaScalarCompiler::check_index(
     state rejected() { self.record_reject(-1, 4, self.diagnostic_offset); return 0; }
 }
 
-// This first bounds realization uses only immutable literal meaning or a
-// declared scalar-field predicate preserved by every admitted write. No stale
-// flow fact or caller-specific assumption survives a mutation here. Richer
-// inferred private requirements remain a separate, explicit coverage boundary.
+// A fixed index must fit on every path that evaluates it. Keep the branch
+// proof inside the selected arm and match the index by its parameter identity.
 machine OmegaScalarCompiler::check_index_bound(
     &mut self, source: &[u8], expression: i32, selector: i32
 ) -> i32 {
@@ -6813,18 +6826,40 @@ machine OmegaScalarCompiler::check_index_bound(
     }
     state literal(value: i32) {
         transition (value >= 0) && (value < self.index_plans[expression].extent) {
-            true -> retain(1, selector, value)
+            true -> retain(OmegaIndexBoundKind::Literal, selector, value)
             _ -> rejected()
         }
     }
     state contextual() {
         let plan: OmegaFixedIndexPlan = self.index_plans[expression];
         transition self.prove_ceiling(source, plan.owner_state, plan.before, selector, plan.extent - 1) {
-            1 -> retain(3, selector, plan.extent - 1)
+            1 -> retain(OmegaIndexBoundKind::ValueInterval, selector, plan.extent - 1)
+            _ -> branch(plan)
+        }
+    }
+    state branch(plan: OmegaFixedIndexPlan) {
+        transition self.active_boolean_arm >= 0 {
+            true -> guarded(plan, self.parser.transition_statements[self.active_boolean_arm],
+                self.u64_index_parameter(source, plan.owner_state, plan.before, plan.selector))
             _ -> unsupported()
         }
     }
-    state retain(kind: i32, origin: i32, bound: i32) {
+    state guarded(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32) {
+        transition row.guard_kind {
+            OmegaTransitionGuardKind::Boolean -> target(plan, row, index)
+            _ -> unsupported()
+        }
+    }
+    state target(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32) {
+        transition (index >= 0) && (self.pure_value(row.subject) == 1) &&
+            (self.pure_transition_target(row) == 1) &&
+            (self.guard_bound(index, 0, 0, plan.extent - 1,
+                row.subject, row.guard_boolean) == 1) {
+            true -> retain(OmegaIndexBoundKind::BooleanArm, self.active_boolean_arm, plan.extent - 1)
+            _ -> unsupported()
+        }
+    }
+    state retain(kind: OmegaIndexBoundKind, origin: i32, bound: i32) {
         self.index_plans[expression].bound_kind = kind;
         self.index_plans[expression].bound_source = origin;
         self.index_plans[expression].bound_limit = bound;
@@ -6857,16 +6892,21 @@ machine OmegaScalarCompiler::retain_index_loan(&mut self, expression: i32) -> i3
 // selector-field mutation cannot redirect the pending store.
 machine OmegaScalarCompiler::emit_index_address(&mut self, expression: i32) -> i32 {
     let plan: OmegaFixedIndexPlan = self.index_plans[expression];
-    transition ((plan.schema == 1) || (plan.schema == 2)) &&
-        (plan.element_type == self.place_types[expression]) && (plan.stride > 0) &&
-        (plan.extent > 0) && (plan.extent <= 16777216 / plan.stride) &&
-        ((plan.bound_kind == 1) || (plan.bound_kind == 2) || (plan.bound_kind == 3)) &&
-        (plan.bound_limit >= 0) && (plan.bound_limit < plan.extent) &&
-        (plan.parent_root == self.place_roots[plan.collection]) &&
-        (plan.parent_offset == self.place_offsets[plan.collection]) &&
-        (plan.parent_extent == self.place_extent[plan.collection]) {
-        true -> capture(plan)
-        _ -> return self.tape.fail_internal(expression)
+    transition plan.bound_kind {
+        OmegaIndexBoundKind::Unproved -> return self.tape.fail_internal(expression)
+        _ -> layout(plan)
+    }
+    state layout(plan: OmegaFixedIndexPlan) {
+        transition ((plan.schema == 1) || (plan.schema == 2)) &&
+            (plan.element_type == self.place_types[expression]) && (plan.stride > 0) &&
+            (plan.extent > 0) && (plan.extent <= 16777216 / plan.stride) &&
+            (plan.bound_limit >= 0) && (plan.bound_limit < plan.extent) &&
+            (plan.parent_root == self.place_roots[plan.collection]) &&
+            (plan.parent_offset == self.place_offsets[plan.collection]) &&
+            (plan.parent_extent == self.place_extent[plan.collection]) {
+            true -> capture(plan)
+            _ -> return self.tape.fail_internal(expression)
+        }
     }
     state capture(plan: OmegaFixedIndexPlan) {
         transition (self.emit_place_address(plan.collection) == 1) &&
@@ -7096,7 +7136,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state slice_parameters(row: OmegaBinaryExpressionSyntax) {
-        let index: i32 = self.slice_index_parameter(source, state_index, 0, row.left);
+        let index: i32 = self.u64_index_parameter(source, state_index, 0, row.left);
         let slice: i32 = self.slice_length_parameter(source, state_index, 0, row.right);
         transition (index >= 0) && (slice >= 0) && (self.bound_total < 16384) {
             true -> retain_slice(index, slice)
@@ -7314,6 +7354,31 @@ machine OmegaScalarCompiler::pure_value(&mut self, expression: i32) -> i32 {
     }
 }
 
+// Reusing the guard requires every expression evaluated in this target
+// to preserve it, including arguments evaluated before the indexed read.
+machine OmegaScalarCompiler::pure_transition_target(&mut self, row: OmegaTransitionStatementSyntax) -> i32 {
+    transition row.target_kind {
+        OmegaTransitionTargetKind::Result -> return self.pure_value(row.result_expression)
+        OmegaTransitionTargetKind::Machine -> return self.pure_arguments(row.first_argument, row.argument_count)
+        OmegaTransitionTargetKind::Terminal -> return 1
+    }
+}
+machine OmegaScalarCompiler::pure_arguments(&mut self, first: i32, count: i32) -> i32 {
+    transition true { true -> next(0) }
+    state next(offset: i32) {
+        transition offset < count {
+            true -> argument(offset)
+            _ -> return 1
+        }
+    }
+    state argument(offset: i32) {
+        transition self.pure_value(self.parser.call_arguments[first + offset]) {
+            1 -> next(offset + 1)
+            _ -> return 0
+        }
+    }
+}
+
 machine OmegaScalarCompiler::preserve_entry_place(&mut self, state_index: i32, before: i32, root: i32, offset: i32) -> i32 {
     transition self.entry_effects_preserve(state_index, before, root, offset) {
         1 -> next(0)
@@ -7475,20 +7540,9 @@ machine OmegaScalarCompiler::check_call_bounds(
         _ -> guarded()
     }
     state guarded() {
-        transition (guard < 0) || (self.pure_value(guard) == 1) {
-            true -> pure_argument(0)
-            _ -> unsupported()
-        }
-    }
-    state pure_argument(index: i32) {
-        transition index < count {
-            true -> pure(index, self.parser.call_arguments[first_argument + index])
-            _ -> requirement(0)
-        }
-    }
-    state pure(index: i32, argument: i32) {
-        transition self.pure_value(argument) {
-            1 -> pure_argument(index + 1)
+        transition ((guard < 0) || (self.pure_value(guard) == 1)) &&
+            (self.pure_arguments(first_argument, count) == 1) {
+            true -> requirement(0)
             _ -> unsupported()
         }
     }

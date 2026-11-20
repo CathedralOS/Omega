@@ -194,6 +194,13 @@ machine Main::main(&mut self) {
         self.refusal("data Count requires n<=512, {n:u64;} machine mark(p:@mut Count,i:u64 in Trapping) requires i<512 {p.n=(i+1) as -Trapping;} machine main()->u8{let mut p:Count;mark(@mut p,512 as +Trapping);42}", 2, 140);
         // Five times two exceeds seven even though five plus two fits.
         self.refusal("data Count requires n<=7, {n:u32;} machine store(p:@mut Count,i:u32 in Trapping) requires i<=5 {p.n=(i*2) as -Trapping;} machine main()->u8{let mut p:Count;store(@mut p,5u32 as +Trapping);42}", 2, 141);
+        // A branch proves a bound only for its own index, on the matching side.
+        self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<=2 {true->b.a[i],_->0}} machine main()->u8{42}", 2, 142);
+        self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<2 {true->b.a[j],_->0}} machine main()->u8{42}", 2, 143);
+        self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<2 {true->b.a[i],_->b.a[i]}} machine main()->u8{42}", 2, 144);
+        self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<2 {false->b.a[i],_->0}} machine main()->u8{42}", 2, 145);
+        self.refusal("data B {a:[u8;2];} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<4294967298u64 {true->b.a[i],_->0}} machine main()->u8{42}", 2, 146);
+        self.refusal("data B {a:[u8;2];} machine f()->u8{0} machine pick(b:@B,i:u64,j:u64)->u8 {transition i<2 {true->read(f(),b.a[i]),_->0} machine read(x:u8,y:u8)->u8{y}} machine main()->u8{42}", 2, 147);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }
