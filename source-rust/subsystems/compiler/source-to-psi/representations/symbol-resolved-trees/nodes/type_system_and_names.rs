@@ -627,7 +627,7 @@ pub mod type_system {
                 self.nodes.type_references.get(handle)
             }
 
-            pub fn unresolved_source_names(
+            pub(crate) fn unresolved_source_names(
                 &self,
             ) -> impl Iterator<Item = source_text::SourceSpan> + '_ {
                 self.nodes.type_references.iter().filter_map(|(_, node)| {

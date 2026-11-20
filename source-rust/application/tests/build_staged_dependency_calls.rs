@@ -310,7 +310,7 @@ machine build(builder: @mut Build) suspends {{
 }}
 "#
         );
-        let run = |case, build: &str, support: Option<&str>| {
+        let run = |case: &str, build: &str, support: Option<&str>| {
             check_project(
                 &format!("helpers-{layout}-{case}"),
                 build,
@@ -339,24 +339,43 @@ machine build(builder: @mut Build) suspends {{
             "{layout}: {output}"
         );
 
-        // The only dependency reference in this helper is a type. No call
-        // to the prepared package can cause the planner to choose the wait.
-        let uses_type = r"let item: kit\Number = kit\Number { value: 7 }; item.value";
-        let type_helper = |text: &str| text.replace(r"kit\v()", uses_type);
-        let type_support = support.as_deref().map(type_helper);
-        let (ran, output) = run("type-after", &type_helper(&build), type_support.as_deref());
-        assert!(
-            ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
-            "{layout}: {output}"
-        );
-        let (ran, output) = run("type-before", &type_helper(&early), type_support.as_deref());
-        assert!(
-            !ran && output.contains("type without a symbol")
-                && output.contains("read_count")
-                && output.contains(file)
-                && !output.contains("while resuming"),
-            "{layout}: {output}"
-        );
+        // No call to the prepared package can make either type use available.
+        for (form, expression, diagnostic) in [
+            (
+                "annotation",
+                r"let item: kit\Number = kit\Number { value: 7 }; item.value",
+                "type without a symbol",
+            ),
+            (
+                "constructor",
+                r"(kit\Number { value: 7 }).value",
+                "member without a field symbol",
+            ),
+        ] {
+            let type_helper = |text: &str| text.replace(r"kit\v()", expression);
+            let type_support = support.as_deref().map(type_helper);
+            let (ran, output) = run(
+                &format!("{form}-after"),
+                &type_helper(&build),
+                type_support.as_deref(),
+            );
+            assert!(
+                ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+                "{layout} {form}: {output}"
+            );
+            let (ran, output) = run(
+                &format!("{form}-before"),
+                &type_helper(&early),
+                type_support.as_deref(),
+            );
+            assert!(
+                !ran && output.contains(diagnostic)
+                    && output.contains("read_count")
+                    && output.contains(file)
+                    && !output.contains("while resuming"),
+                "{layout} {form}: {output}"
+            );
+        }
 
         for (case, unused, diagnostic) in [
             (

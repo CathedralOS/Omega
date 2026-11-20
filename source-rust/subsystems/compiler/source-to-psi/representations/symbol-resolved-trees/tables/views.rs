@@ -24,6 +24,25 @@ impl SymbolResolvedTrees {
         &self.tables.bodies.expressions
     }
 
+    /// A constructor can name its data type even when no annotation mentions it.
+    pub fn unresolved_type_names(&self) -> impl Iterator<Item = SourceSpan> + '_ {
+        let constructor_names =
+            self.expression_table()
+                .iter_expressions()
+                .filter_map(|(_, node)| {
+                    let expression::ExpressionNode::StructLiteral(literal) = node else {
+                        return None;
+                    };
+                    (!literal.type_symbol.is_valid() && literal.type_name.is_source_backed())
+                        .then(|| literal.type_name.source_span())
+                });
+        self.tables
+            .types
+            .references
+            .unresolved_source_names()
+            .chain(constructor_names)
+    }
+
     pub(crate) fn expression_table_mut(&mut self) -> &mut expression::ExpressionTable {
         &mut self.tables.bodies.expressions
     }
