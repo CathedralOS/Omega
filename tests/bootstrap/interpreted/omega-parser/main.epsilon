@@ -164,7 +164,7 @@ machine Main::main(&mut self) {
     self.check_incomplete(12, 15);
 
     self.parser.parse_view("machine p() { x = 0x1; }");
-    self.check_incomplete(18, 21);
+    self.check_complete();
 
     self.parser.parse_view("data R { a: [u8; 0x2]; }");
     self.check_incomplete(17, 20);
