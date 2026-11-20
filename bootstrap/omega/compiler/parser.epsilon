@@ -7692,9 +7692,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state check_decimal_integer_expression() {
-        transition (self.scan.numeric_empty_digits == 0) &&
-            (self.scan.numeric_has_suffix == 0) &&
-            (self.scan.numeric_has_exponent == 0) {
+        transition (self.scan.numeric_empty_digits == 0) && (self.scan.numeric_has_exponent == 0) &&
+            ((self.scan.numeric_has_suffix == 0) || omega_integer_suffix(
+                source[self.scan.numeric_suffix_start..self.scan.token_end], "18446744073709551615")) {
             true -> retain_integer_expression()
             _ -> incomplete_root()
         }
@@ -7737,7 +7737,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPathExpressionKind::Name;
         self.expressions[self.expression_count].payload0 = self.scan.token_start;
         self.expressions[self.expression_count].payload1 = self.scan.token_end;
-        self.expressions[self.expression_count].payload2 = 0;
+        self.expressions[self.expression_count].payload2 = self.scan.numeric_suffix_start;
         self.expressions[self.expression_count].payload3 = 0;
         self.expressions[self.expression_count].payload4 = 0;
         self.expressions[self.expression_count].payload5 = 0;
@@ -11048,5 +11048,45 @@ machine OmegaParser::scan_significant_token(&mut self, source: &[u8]) -> OmegaPa
     state advance_trivia() {
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan() }
+    }
+}
+
+// A concrete carrier spells a sign letter followed by a canonical positive
+// decimal u64 width. The bare letters denote unbounded integer carriers.
+machine omega_integer_suffix(spelling: &[u8], maximum_width: &[u8]) -> i32 {
+    transition (spelling.len >= 1) && (spelling.len <= maximum_width.len + 1) {
+        true -> sign()
+        _ -> return 0
+    }
+    state sign() {
+        transition (spelling[0] == 'u') || (spelling[0] == 'i') {
+            true -> width()
+            _ -> return 0
+        }
+    }
+    state width() {
+        transition spelling.len == 1 {
+            true -> return 1
+            _ -> first_digit()
+        }
+    }
+    state first_digit() {
+        transition spelling[1] != '0' {
+            true -> digit(1, spelling.len == maximum_width.len + 1)
+            _ -> return 0
+        }
+    }
+    state digit(index: i32, at_limit: i32) {
+        transition index < spelling.len {
+            true -> check(index, at_limit, spelling[index])
+            _ -> return 1
+        }
+    }
+    state check(index: i32, at_limit: i32, byte: i32) {
+        transition (byte >= '0') && (byte <= '9') &&
+            ((at_limit == 0) || (byte <= maximum_width[index - 1])) {
+            true -> digit(index + 1, at_limit && (byte == maximum_width[index - 1]))
+            _ -> return 0
+        }
     }
 }

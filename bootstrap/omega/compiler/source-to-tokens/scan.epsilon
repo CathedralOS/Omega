@@ -3,6 +3,7 @@ machine OmegaLexScan::reset(&mut self, cursor: i32) {
     self.accepted = 1;
     self.has_token = 0;
     self.internal_failure = 0;
+    self.numeric_suffix_start = 0;
     self.numeric_empty_digits = 0;
     self.numeric_has_suffix = 0;
     self.numeric_has_exponent = 0;
@@ -896,6 +897,7 @@ machine OmegaLexScan::consume_suffix(
     }
 
     state consume(index: i32) {
+        self.numeric_suffix_start = index;
         self.numeric_has_suffix = 1;
         transition true {
             true -> rest(index + 1)

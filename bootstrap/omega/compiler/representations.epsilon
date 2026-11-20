@@ -207,6 +207,7 @@ data OmegaLexScan {
     next_cursor: i32;
     numeric_empty_digits: i32;
     numeric_has_suffix: i32;
+    numeric_suffix_start: i32;
     numeric_has_exponent: i32;
     numeric_empty_exponent: i32;
     decoded_length: i32;
@@ -828,8 +829,8 @@ data OmegaStructLiteralSyntax {
 // starts at `self`, and payload3 records the qualified-Name prefix length before
 // any runtime member chain; path_kind distinguishes Name, bare SelfValue, and
 // Member. Boolean payload0 is its value and payload1/payload2 retain the
-// authored span. Integer payload0/payload1 retain its authored span; this first
-// numeric slice admits only unsuffixed nonnegative decimal spelling. String
+// authored span. Integer payload0/payload1 retain its complete token span;
+// payload2 is the start of its explicit carrier suffix, or zero when anonymous. String
 // payload0/payload1 retain the authored token span and payload2 its decoded
 // byte length. Membership uses payload0 for the value expression, payload1/
 // payload2 for the domain path-member span, and payload3/payload4 for the exact

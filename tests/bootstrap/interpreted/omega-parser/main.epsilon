@@ -26,6 +26,24 @@ machine Main::main(&mut self) {
     self.check_syntax_refused(12, 12);
     self.parser.parse_view("domain<T> T::D;");
     self.check_incomplete(6, 7);
+    // Even a carrier outside the executable subset keeps its complete token and suffix.
+    self.parser.parse_view("machine p()->u8 {42u18446744073709551615}");
+    self.check_complete();
+    assert self.parser.expressions[0].payload0 == 17;
+    assert self.parser.expressions[0].payload1 == 40;
+    assert self.parser.expressions[0].payload2 == 19;
+    self.parser.parse_view("machine p()->u8 {42u18446744073709551616}");
+    self.check_incomplete(17, 40);
+    self.parser.parse_view("machine p()->u8 {42u08}");
+    self.check_incomplete(17, 22);
+    self.parser.parse_view("machine p()->u8 {42wrong}");
+    self.check_incomplete(17, 24);
+    self.parser.parse_view("machine p()->u8 {42i0}");
+    self.check_incomplete(17, 21);
+    self.parser.parse_view("machine p()->u8 {42}");
+    self.check_complete();
+    assert self.parser.expressions[0].payload2 == 0;
+
     self.check_boundary_traits(
         "public boundary trait Service { machine stop(code:i32)->Never reaches Service crashes none terminates; machine stop()->u8; } boundary trait Other {} machine entry()->u8{42}"
     );

@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 24,929 lines / 946,631 bytes with SHA-256
-`2af9b666a4a338f021aaf30af045378e5a1ce57a0c43d820c6e49a4dfb59dc5a`.
+manifest materializes 25,006 lines / 949,618 bytes with SHA-256
+`301d9486626302c29b6de01c96022447c504fede2a76692039685fdeabaaf52c`.
 The manifest itself is 2,038 bytes, SHA-256
-`729140dfb0061e23ec5be1c640f4f778737776960916c32f809f72a2d5a85ae7`;
+`45d3a15e3acd506b726beecb41841380b7bd5d250dfc3cad31d41e9ac1c239e9`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -214,9 +214,12 @@ all admitted state transfers stay within the owner, so mixed transfer/call
 cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
 No admitted source operation converts these private addresses to numeric values.
 Numeric comparisons bias both unsigned words by the high bit before Alpha's
-signed comparison, preserving unsigned order. Decimal literals currently cover
-`0..4294967295`; larger `u64` spellings remain explicitly
-unsupported. For plain `u32` addition, the compiler tracks which bits may be set
+signed comparison, preserving unsigned order. A decimal expression with an
+explicit `u8`, `u32`, or `u64` suffix retains that carrier through storage,
+calls, domain casts, and returns. A mismatched destination rejects at the
+literal. Other valid integer carriers retain their spelling in the parser and
+remain outside executable coverage. Decimal values currently cover
+`0..4294967295`; larger `u64` values remain outside this range. For plain `u32` addition, the compiler tracks which bits may be set
 in each operand and admits disjoint masks. It admits multiplication by a value
 whose only possible values are zero and one power of two if shifting the other
 mask cannot discard a bit. These proofs apply to byte widening and immutable
@@ -574,7 +577,7 @@ and terminal expression statements over the retained primary path/literal slice,
 plus a restricted canonical transition core.
 Each call owns a flattened receiver-member span, an exact target
 member, and a contiguous span of argument expression handles. Its current
-value arguments are exact name/self paths, booleans, unsuffixed nonnegative
+value arguments are exact name/self paths, booleans, nonnegative
 decimal integers, or string tokens represented by tagged expression nodes;
 the same lane accepts shallow named struct literals over those primary field
 values. Zero arguments and trailing commas are supported. Calls may also own a
@@ -585,9 +588,9 @@ lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
 place path followed by zero or more indexes, each with a path, decimal, or
 canonical range over the retained path/decimal bound slice; current values are
-self-member paths, qualified-name paths, booleans, unsuffixed nonnegative
+self-member paths, qualified-name paths, booleans, nonnegative
 decimal integer literals, or strings. Integer
-spelling is retained by source span and is not evaluated during parsing;
+nodes retain the complete source span and the start of any explicit carrier suffix;
 strings retain the exact token span and scanner-proven decoded byte length
 without a decoded-byte mirror. Assignment values, local initializers, ordinary
 call arguments, and transition subjects share one bounded precedence reducer
@@ -622,7 +625,7 @@ remain incomplete until the shared postfix and field-expression paths admit
 them. The implicit entry state and every
 authored `state` own independent parameter, return-type, and contiguous mixed-
 statement spans. A retained transition has either no subject or one precedence-
-correct subject over path, boolean, and unsuffixed nonnegative decimal integer
+correct subject over path, boolean, and nonnegative decimal integer
 primaries, and expands each
 boolean, integer, or wildcard arm into an ordinary statement targeting one
 named state. Arms also retain bare name paths and qualified two-member case
@@ -664,7 +667,7 @@ The carrier span ends at `T` and the outer span ends at `D`. A bare sign
 following a cast starts a domain entry. Parentheses permit arithmetic on its
 result. Multiple domain entries and the retired `as T in D` refuse.
 One terminal expression statement may close a state directly. Its current
-values are a self/name/member path, boolean, unsuffixed nonnegative decimal
+values are a self/name/member path, boolean, nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,
 or canonical range operands, and such a primary may continue through the shared
 binary-operator reducer — including a statement-leading path — with `}`
