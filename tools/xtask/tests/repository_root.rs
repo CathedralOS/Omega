@@ -85,11 +85,17 @@ fn shared_binary_audits_another_checkout_from_a_nested_directory() {
 }
 
 #[test]
-fn outside_checkout_invocation_refuses_without_creating_an_audit() {
+fn unrelated_checkout_invocation_refuses_without_creating_an_audit() {
     let invocation = Invocation::new(false);
+    invocation.git(&["init", "-q"]);
     let output = invocation.audit(false);
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("no Omega workspace contains"));
+    assert_eq!(output.status.code(), Some(2));
+    let expected = format!(
+        "Git checkout {} is not an Omega workspace",
+        invocation.0.canonicalize().unwrap().display()
+    );
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains(&expected), "{diagnostic}");
     assert!(!invocation.0.join("audit.json").exists());
 }
 
