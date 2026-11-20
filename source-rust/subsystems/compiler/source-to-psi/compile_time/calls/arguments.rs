@@ -2,7 +2,6 @@
 //! existing lowered checker can establish its argument domains and callee
 //! requirements; this constructor supplies no acceptance or source authority.
 
-use symbol_resolved_trees_to_typed_trees::data_applications;
 use crate::compile_time::BuildTimeValue;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataField, DataMember, DataMemberIdentity};
@@ -14,6 +13,7 @@ use crate::source_state::machine::Machine;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::data_applications;
 use symbols::{SymbolHandle, SymbolKind};
 
 fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
