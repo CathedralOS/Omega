@@ -120,9 +120,12 @@ The original interpreter accepts a 137,363,456-byte framed input. At
 30,349,179 bytes the generated Gamma, its length and the 305-unit product
 fit that input boundary. This source has 8,005 declarations against a limit
 of 2,097,152 and at most 148 nested lists inside a declaration against a
-limit of 255. The interpreter scans tokens in the source buffer. It executed this entire
-generated constructor with an empty product input in 21.09 CPU seconds,
-returning the same five bytes as native (guest exit 3). The 305-unit execution on the original interpreter remains open. [Evaluator limits](../../../bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md) · [Reconstruct this Gamma source](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
+limit of 255. The interpreter scans tokens in the source buffer. It executed
+the whole generated constructor on empty input in 21.09 CPU seconds and
+returned the same five bytes as native (guest exit 3). With the freshly
+Alpha-produced Gamma and a 111-byte Omega package, it emitted the 22-byte
+tape that exited 42 on the seed. The 305-unit execution on the original
+interpreter remains open. [Evaluator limits](../../../bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md) · [Replay the compiler and small package on the seed](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
 
 <details>
 <summary>Count the two source forms on the generated omega.gamma</summary>

@@ -155,6 +155,81 @@ reject the same import when its dependency edge is removed. The next pass
 could reparse a body with local syntax indexes and emit against global
 declaration labels. The two controls above measure only their own units.
 
+## Running the compiled Omega constructor as Gamma on the seed
+
+The Alpha VM built the complete Epsilon-written bootstrap compiler and ran
+it on a 111-byte Omega package. It emitted a 22-byte tape that ran on the
+same seed and exited 42. This package contains one Omega machine. Building
+the 305-unit Omega-written compiler is a separate, open check on this route.
+
+At `c6d64f0f3c4`, the Epsilon compiler running as Alpha tape compiled the
+899,962-byte Epsilon-written Omega constructor. Its 18,259,583-byte output,
+including the `compiled-storage` line, matched the Linux Epsilon compiler's
+output byte for byte (SHA-256
+`465430c3d84dea4b9373469e040e9a3bb43c88b46d0c0c36138563aa70a780f3`).
+The Alpha run took 624.53 CPU seconds and peaked at 3,690,044 KiB. The
+storage runtime and entry yielded 18,358,296 bytes of Delta. The
+Alpha-hosted Delta compiler translated them in 1,213.36 CPU seconds and
+peaked at 2,067,836 KiB. Its 26,354,274 bytes of Gamma matched the native
+Delta compiler's output byte for byte, SHA-256
+`215cd20cbc51fcdff281fb1075c474fc0afe3f4d1b89d141c18a974da6cd19cd`.
+
+From the pinned Linux x86-64 checkout, start in a fresh directory with
+`OMEGA_XTASK_BIN` pointing to a built `xtask`. The cold launcher runs the
+Alpha seed, reconstructs Beta and Gamma, builds the Delta compiler on Alpha,
+and uses it to construct the Epsilon compiler on Alpha.
+
+```sh
+set -e
+work=$(mktemp -d)
+python3 tests/bootstrap/independent/whole_request.py "$work/inputs"
+tests/bootstrap/linux_x86_64/bootstrap --alpha --delta . "$work/alpha" "$work/inputs/compiler.dcreq"
+"$work/alpha/successor" < "$work/inputs/whole.epsilon" > "$work/module.out"
+python3 tests/bootstrap/independent/whole_request.py "$work/inputs" --frame-result "$work/module.out"
+"$work/alpha/program" < "$work/inputs/omega.dcreq" > "$work/omega.gamma"
+```
+
+Give the generated Gamma to the original interpreter that the launcher built
+from Beta. This avoids emitting an Alpha tape for the constructor itself,
+which exceeds the seed’s tape capacity. The constructor can still emit an
+Alpha tape for a smaller Omega program. The host's `xtask` packs the declared
+source members. The shell and Python frame inputs, check the results and
+insert tapes into the seed. The seed runs every
+language implementation. [Source audit and tape-size bound](../../../wiki/development/bootstrap/source-audit.md#why-the-full-constructor-changes-the-host-choice)
+
+```sh
+PYTHONPATH=tests/bootstrap python3 - "$work" <<'PY'
+from pathlib import Path
+import runpy
+import sys
+from compiled import execute, gamma_request, stamp
+
+work = Path(sys.argv[1])
+encode = runpy.run_path("source/application/construction/construct.py")["encode"]
+source = b"machine main() -> u8 { 42 }\n"
+packet, _, _, _ = encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+(work / "small.product").write_bytes(packet)
+request = gamma_request((work / "omega.gamma").read_bytes(), packet)
+status, result = execute(work / "alpha/gamma-evaluator", request, timeout=None)
+(work / "small.observation").write_bytes(result)
+assert status == 0 and len(result) > 5 and result[:5] == bytes(5), (status, result[:40])
+tape = work / "small.tape"
+tape.write_bytes(result[5:])
+guest = work / "small.vm"
+stamp(tape, guest)
+assert execute(guest, timeout=None) == (42, b"")
+PY
+```
+
+The original interpreter consumed the freshly emitted Gamma and the Omega
+package together as a 26,354,389-byte request (SHA-256
+`d41fb115e93b27e6eb9bc72ba577367bb3c4a381beeffb73d0b8e4f955f4f044`).
+It took 413.87 CPU seconds, returned host status zero and wrote five zero
+bytes followed by the tape. That tape had SHA-256
+`25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`.
+The full 27-byte response also matched the Linux constructor's response.
+Neither the interpreter nor the final seed execution wrote to stderr.
+
 ## Whole compiler result
 
 These measurements use the Omega source and construction entry at `035eddf0c5a`.
