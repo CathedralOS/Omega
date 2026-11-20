@@ -1128,6 +1128,7 @@ fn bind_type_occurrences(
                 SignatureInputs::of(templates, templates.items.state_signature(*signature));
             let mut children = inputs.types.clone();
             for &(scope, expression) in &inputs.expressions {
+                let prior_unresolved = expressions.unresolved.len();
                 let references = expression_bindings::bind_const_expression(
                     templates,
                     selection,
@@ -1137,6 +1138,13 @@ fn bind_type_occurrences(
                     expressions,
                     Some((&inputs, scope)),
                 );
+                // A fact may call a predicate or select a qualified declaration.
+                // Retain its authored scope for ordinary signature resolution.
+                for reference in expressions.unresolved.drain(prior_unresolved..) {
+                    expressions
+                        .declaration_references
+                        .push(templates.expressions.source_span(reference));
+                }
                 children.extend(references.into_iter().map(|reference| (scope, reference)));
             }
             for (scope, child) in children {
@@ -1603,14 +1611,17 @@ mod type_alias_tests {
     #[test]
     fn a_generic_alias_supplies_an_open_static_machine_contract() {
         let syntax = normalized(
-            "data Predicate<T> = machine(value: T) -> bool;
+            "machine admissible<T>(value: T) -> bool { true }
+             data Predicate<T> = machine(value: T) -> bool requires admissible(value);
              machine accepts<const Test: Predicate<u32>>(value: u32) -> bool { Test(value) }",
         )
         .unwrap();
         let machine = syntax
             .root_items()
             .find_map(|item| match item {
-                Item::Machine(machine) => Some(machine),
+                Item::Machine(machine) if machine.name.as_str(&syntax) == "accepts" => {
+                    Some(machine)
+                }
                 _ => None,
             })
             .unwrap();
