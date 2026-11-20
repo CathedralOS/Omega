@@ -122,10 +122,28 @@ The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.
 
+## Reading the source arena
+
+After reading the package and unit rows, the [Epsilon constructor](../../../bootstrap/omega/construct_omega.epsilon)
+borrows the unread console bytes. Comparing the view length with the declared
+arena size detects both truncation and trailing input. Namespace checking and
+compilation read directly from that immutable view. The seal on the original
+input supplies the backing for its lifetime.
+
+A compiled Linux framing control read a four-byte length, checked the unread
+view length and reported the first, middle and last bytes. Using all 3,994,901
+bytes of the `c6d64f0f3c4` product packet as its arena, it returned
+`00 2a 00 00 00 00 20 67` with peak RSS of 29,408 KiB. Removing or appending
+one byte gave `00 03 00 00 00` in both cases. With a 65,536-byte arena cut
+seven bytes short, the former eight-byte copy loop used 732,544 KiB and the
+view used 13,528 KiB. These controls measure framing through a seed-built
+native program. The whole compiler also allocates while parsing and checking.
+[Cursor and bounds controls](../conformance/README.md)
+
 ## Staging the 304-unit construction input
 
-The constructor now copies eight bytes from the console in one machine
-state. The previous loop visited three states for every source byte.
+The earlier constructor copied eight bytes from the console in one machine
+state. Its predecessor visited three states for every source byte.
 The declared four-mebibyte array bounds every write. Console EOF is stable,
 so a missing byte anywhere in a group makes its last read return `-1`.
 The constructor discards that group and exits 3 with no payload. It checks

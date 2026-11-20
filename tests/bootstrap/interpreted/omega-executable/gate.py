@@ -94,8 +94,8 @@ def main():
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 614177,
-                     "1f312cf3857c137930fa07b1dcae31a9bb6f844e0ed9f78a3c228f824b5b0292")
+    require_identity("Epsilon", epsilon, 615652,
+                     "691122629a7f47ab7a929289a1ec33aae27577b9a955b874c06a8fe444e86ab2")
     delta_compiler = (directory / "delta_compiler.gamma").read_bytes()
     require_identity("Delta compiler", delta_compiler, 152036,
                      "e5193db48e77870186495e7c68b7187f53692a819e65e894b37c3bfeb76f9b08")

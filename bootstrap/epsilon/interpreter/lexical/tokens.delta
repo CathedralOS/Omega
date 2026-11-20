@@ -75,11 +75,11 @@
     (EpsilonKeyword "transition" 16
       NoEpsilonKeywords)))))))))))))))))))
 
-(def epsilon_keyword_matches
+(def epsilon_source_matches_bytes
   ((source EpsilonSourceView) (start Int) (word Bytes) (index Int) (length Int)) Int
   (if (eq index length) 1
     (if (eq (epsilon_source_byte source (+ start index)) (bytes_get word index))
-      (epsilon_keyword_matches source start word (+ index 1) length) 0)))
+      (epsilon_source_matches_bytes source start word (+ index 1) length) 0)))
 
 (def epsilon_find_keyword
   ((source EpsilonSourceView) (start Int) (length Int) (words EpsilonKeywordList)) Int
@@ -89,7 +89,7 @@
       (let wordLength Int (bytes_length word)
         (if (lt length wordLength) 1
           (if (if (eq length wordLength)
-                (epsilon_keyword_matches source start word 0 length) 0)
+                (epsilon_source_matches_bytes source start word 0 length) 0)
             code
             (epsilon_find_keyword source start length rest)))))))
 

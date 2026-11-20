@@ -23,10 +23,10 @@ bound, or restores an Epsilon Alpha backend.
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,447 | `b2d35f99f8886985306dba1c5bc5309fb2c389b1c80b1fe79b79ed69f7042a0a` |
-| packed Epsilon evaluator closure | 614,177 | `1f312cf3857c137930fa07b1dcae31a9bb6f844e0ed9f78a3c228f824b5b0292` |
+| packed Epsilon evaluator closure | 615,652 | `691122629a7f47ab7a929289a1ec33aae27577b9a955b874c06a8fe444e86ab2` |
 | execution driver `execution_driver.delta` | 2,150 | `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa` |
 | Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
-| reconstructed evaluator receipt | 710,829 | `4d48a2d2d2a2ee32b2ca2b17b81c5569314efdf99fbbb09d20629676e349ecef` |
+| reconstructed evaluator receipt | 712,603 | `0155e1ae30f168f955c1e23e0c69017215cbf53f8eb2ea990bbd454da631fbc2` |
 
 Compilation of the packed evaluator plus driver plus the bound support
 section through the bound Delta compiler (`DCREQ`, profile 1) reconstructs
@@ -45,7 +45,7 @@ declared result buffer.
 The edge consumes one Gamma evaluator request:
 
 ```text
-0..4    little-endian u32 receipt length = 710,829
+0..4    little-endian u32 receipt length = 712,603
 4..     exact receipt bytes
 ...     sealed input = the private driver frame:
 
@@ -101,8 +101,8 @@ counter names its owner, limit, refusal observation, and witness.
 Two bounds therefore dominate this composition by construction:
 
 - The adapter's 4,194,304-byte sealed-input bound binds before the request
-  extent can: the largest admitted request is `4 + 710,829 + 4,194,304 =
-  4,905,137` bytes, far below 137,363,456. The request extent refuses only
+  extent can: the largest admitted request is `4 + 712,603 + 4,194,304 =
+  4,906,911` bytes, far below 137,363,456. The request extent refuses only
   requests the adapter would already refuse, so it is a dominated outer
   bound - still pinned by the executed adjacent witness.
 - The adapter's 4,194,304-byte output bound binds before the evaluator's

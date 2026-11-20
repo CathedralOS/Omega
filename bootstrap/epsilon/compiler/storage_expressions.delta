@@ -233,7 +233,9 @@
             (EpsilonDeltaCompiled "(epsilon_evaluator_array_length field_value field_store field_output)")
             (if (epsilon_name_is_as_slice source member)
               (EpsilonDeltaCompiled "(epsilon_evaluator_as_slice field_value field_place field_store field_output)")
-              (EpsilonDeltaInternal (epsilon_expression_start expression)))))
+              (if (epsilon_name_is_remaining_input source member)
+                (EpsilonDeltaCompiled "(epsilon_evaluator_remaining_input field_store field_output)")
+                (EpsilonDeltaInternal (epsilon_expression_start expression))))))
         ((OneEpsilonResolvedFieldReference owner field)
           (match owner
             ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)

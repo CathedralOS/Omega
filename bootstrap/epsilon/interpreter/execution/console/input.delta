@@ -10,3 +10,16 @@
               (EpsilonRuntimeStoreState nextIdentifier roots
                 (EpsilonRuntimeConsoleInputAt input (+ cursor 1))) output)
             (epsilon_evaluator_integer -1 store output)))))))
+
+; The view holds the sealed input and its present cursor. A later single-byte
+; read advances only the store's cursor. Existing views keep their bounds.
+(def epsilon_evaluator_remaining_input ((store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match store
+    ((EpsilonRuntimeStoreState nextIdentifier roots consoleInput)
+      (match consoleInput
+        ((EpsilonRuntimeConsoleInputAt input cursor)
+          (EpsilonEvaluatorValue
+            (EpsilonRuntimeViewValue (EpsilonRuntimeViewAt
+              (EpsilonRuntimeLiteralBacking input) (EpsilonU8Type 0 0) cursor (bytes_length input)))
+            NoEpsilonRuntimePlace store output))))))

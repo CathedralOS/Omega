@@ -410,6 +410,12 @@ operations and no implicit sugar for the receiver-qualified calls.
 
 The execution adapter supplies the one `Console` capability and sealed input.
 `read_byte` returns the next byte as `0..255`, then returns stable `-1` at EOF.
+`console.remaining_input` yields an immutable `&[u8]` over the bytes from the
+current cursor through the end of the sealed guest input. Evaluating this
+field leaves the cursor in place. Later reads advance the cursor and earlier
+views retain their original bounds and bytes. At EOF the view is empty.
+Ordinary view indexing, slicing and escape rules apply. The field is available
+on the sealed `Console` capability without an authored member declaration.
 `write_byte` appends exactly one byte and traps as `ByteRange` outside
 `0..255`. `write_line` appends its exact view bytes followed by byte 10.
 `exit_process` terminates after all earlier writes with the exact semantic

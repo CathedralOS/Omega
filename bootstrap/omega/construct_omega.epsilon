@@ -15,7 +15,6 @@ boundary trait Console {
 data Main {
     console: Console;
     compiler: OmegaScalarCompiler;
-    source: [u8; 4194304];
     length: i32;
     entry_unit: i32;
     entry_name: OmegaRelativeSpan;
@@ -40,7 +39,7 @@ machine Main::word(&mut self) -> i32 {
 }
 
 // The product's ModulePath holds 256 bytes. A long basename uses no namespace space.
-machine Main::namespace_fits(&mut self, path: OmegaRelativeSpan) -> i32 {
+machine Main::namespace_fits(&mut self, source: &[u8], path: OmegaRelativeSpan) -> i32 {
     transition true { true -> suffix(path.end - 1) }
     state suffix(index: i32) {
         transition index - path.start > 256 {
@@ -49,7 +48,7 @@ machine Main::namespace_fits(&mut self, path: OmegaRelativeSpan) -> i32 {
         }
     }
     state byte(index: i32) {
-        transition self.source[index] == '/' {
+        transition source[index] == '/' {
             true -> return 0
             _ -> suffix(index - 1)
         }
@@ -112,7 +111,7 @@ machine Main::main(&mut self) {
     state unit(index: i32) {
         transition index < self.compiler.parser.sources.unit_count {
             true -> unit_row(index)
-            _ -> source_byte(0)
+            _ -> arena(self.console.remaining_input)
         }
     }
     state unit_row(index: i32) {
@@ -137,83 +136,33 @@ machine Main::main(&mut self) {
         self.compiler.parser.sources.units[index].path.end = end;
         transition true { true -> unit(index + 1) }
     }
-    // Reads after EOF also return -1. Check the last read in each group before
-    // advancing. Bytes in an incomplete group are private and discarded on exit 3.
-    state source_byte(index: i32) {
-        transition index + 8 <= self.length {
-            true -> copy_group(index)
-            _ -> tail(index)
-        }
-    }
-    state copy_group(index: i32) {
-        self.source[index] = self.console.read_byte() & 255;
-        self.source[index + 1] = self.console.read_byte() & 255;
-        self.source[index + 2] = self.console.read_byte() & 255;
-        self.source[index + 3] = self.console.read_byte() & 255;
-        self.source[index + 4] = self.console.read_byte() & 255;
-        self.source[index + 5] = self.console.read_byte() & 255;
-        self.source[index + 6] = self.console.read_byte() & 255;
-        let last: i32 = self.console.read_byte();
-        self.source[index + 7] = last & 255;
-        transition (last >= 0) && (index + 16 <= self.length) {
-            true -> copy_group(index + 8)
-            _ -> group_end(index + 8, last)
-        }
-    }
-    state group_end(index: i32, last: i32) {
-        transition last >= 0 {
-            true -> tail(index)
+    state arena(source: &[u8]) {
+        transition source.len == self.length {
+            true -> entry(source)
             _ -> self.console.exit_process(3)
         }
     }
-    state tail(index: i32) {
-        transition index < self.length {
-            true -> copy_byte(index)
-            _ -> end()
-        }
-    }
-    state copy_byte(index: i32) {
-        let next: i32 = self.console.read_byte();
-        self.source[index] = next & 255;
-        transition (next >= 0) && (index + 1 < self.length) {
-            true -> copy_byte(index + 1)
-            _ -> copied(next)
-        }
-    }
-    state copied(last: i32) {
-        transition last >= 0 {
-            true -> end()
+    state entry(source: &[u8]) {
+        transition self.compiler.parser.sources.identifier(source, self.entry_name) {
+            1 -> path_limit(source, 0)
             _ -> self.console.exit_process(3)
         }
     }
-    state end() {
-        transition self.console.read_byte() == -1 {
-            true -> entry()
-            _ -> self.console.exit_process(3)
-        }
-    }
-    state entry() {
-        transition self.compiler.parser.sources.identifier(
-            self.source.as_slice[0..self.length], self.entry_name) {
-            1 -> path_limit(0)
-            _ -> self.console.exit_process(3)
-        }
-    }
-    state path_limit(index: i32) {
+    state path_limit(source: &[u8], index: i32) {
         transition (self.has_paths == 1) && (index < self.compiler.parser.sources.unit_count) {
-            true -> unit_path(index)
-            _ -> compile()
+            true -> unit_path(source, index)
+            _ -> compile(source)
         }
     }
-    state unit_path(index: i32) {
-        transition self.namespace_fits(self.compiler.parser.sources.units[index].path) {
-            1 -> path_limit(index + 1)
+    state unit_path(source: &[u8], index: i32) {
+        transition self.namespace_fits(source, self.compiler.parser.sources.units[index].path) {
+            1 -> path_limit(source, index + 1)
             _ -> self.console.exit_process(3)
         }
     }
-    state compile() {
-        self.compiler.compile_set(self.source.as_slice[0..self.length], self.entry_unit,
-            self.source.as_slice[self.entry_name.start..self.entry_name.end]);
+    state compile(source: &[u8]) {
+        self.compiler.compile_set(source, self.entry_unit,
+            source[self.entry_name.start..self.entry_name.end]);
         transition self.compiler.status {
             OmegaScalarCompilationStatus::Complete -> publish(0)
             OmegaScalarCompilationStatus::Reject -> refusal(1, self.compiler.outcome_coordinate, 0)
