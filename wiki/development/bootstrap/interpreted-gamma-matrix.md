@@ -12,12 +12,23 @@ and stdin SHA-256 is
 `bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83`.
 The Alpha seed executed the 8,575-byte Beta-written Gamma interpreter tape,
 SHA-256 `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a`.
+The stamped reference executable had SHA-256
+`7f781f2ad3fe2b2985ad6d8392053a151a8ad5e9f538b058e42d6eae06fc6781`.
 
 ## Replay the compiled guest
 
-The existing seed-built Linux route compiled the Epsilon guest to Delta and
-translated it to 81,742 bytes of Gamma, SHA-256
+The earlier seed-built Epsilon compiler emitted a 3,247-byte module, SHA-256
+`b440b5d18c3abc5d68e2e440211693f32a3bfda5a46ae470be61d7b9a1e60e1a`.
+Linking it to the checked-in Delta runtime on the pinned checkout reproduced
+the 99,270-byte Delta program, SHA-256
+`ac68099996a7883be50ad711d058fcd92a048cafafd433250e8375cd19101467`.
+Interpreted Gamma then ran the Delta compiler on that program and produced the
+81,742-byte Gamma source in 460.200 wall seconds, SHA-256
 `cbd56e337c1d0c2374ba36fdfff71f1cebe5a2cc1b8d912a5a68d6b0843718bf`.
+The 151,983-byte Delta compiler source had SHA-256
+`27d81dff55aba5302ab3170715dfc1b082ab414519788695fffc657031d3da1e`. The 4,301-byte support section had SHA-256
+`439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243`.
+
 The freshly rebuilt Gamma interpreter executed that program directly. It also
 ran both Gamma backends on the same program and reproduced both compiled-host
 artifacts byte for byte. All three executions published the expected six bytes
@@ -29,9 +40,10 @@ with outer process status zero.
 | Alpha seed | 487,013-byte tape, SHA-256 `bec94d12b72c3f1ebe1b5a246df1677f2c17515a5a4592422b78fb0770b80298` | 793.966 s | 0.585 s |
 | Linux x86-64 | 260,706-byte ELF, SHA-256 `fb9bf95cd4e572c67d6d024c8f698847de8a8ff9be802cd9c7d485dcf44a2dd2` | 558.226 s | 0.021 s |
 
-These replays cover final execution and target compilation. Construction of
-the Epsilon compiler and translation of the guest were reused from earlier
-compiled rows. Times were measured on a shared host.
+These measurements join three stages by exact bytes. The target compilers
+used a saved Gamma file that matched the fresh Delta translation. The
+Epsilon-to-module result came from the earlier compiled route. Times were
+measured on a shared host.
 
 Set `interpreted` to the earlier `interpret-native-interpret` output directory
 and `compiled` to the `native-native-native` directory. The former retains the
@@ -47,7 +59,14 @@ python3 tests/bootstrap/route.py "$interpreted" --gamma interpret --delta native
 python3 tests/bootstrap/route.py "$compiled" --gamma native --delta native --epsilon native --seconds 1500
 ```
 
-Run the replay against the retained artifacts.
+For the Delta translation, frame `subject.delta` and `support.bin` with
+the runner's `delta_request` (profile 1). Pass that request as input to
+`xtask gamma-invoke` with `$compiled/delta.gamma` as source and the rebuilt
+reference as evaluator. The complete input to the reference was 255,574
+bytes, SHA-256 `e848666217551587fdb2ddbd4a346d73dda5f79fbe7f1cc5563e87d3975ab29b`.
+[Request framing](../../../tests/bootstrap/compiled.py)
+
+Run the final replays against the retained artifacts.
 
 ```sh
 target/debug/xtask gamma-invoke --evaluator "$interpreted/reference" \
