@@ -418,19 +418,19 @@ machine OmegaOutcomeFrame::encode(
         transition (space != 4) && ((package_ordinal != 0) ||
             (unit_ordinal != 0)) {
             true -> return 0
-            _ -> write_identity()
+            _ -> write_identity(0, "\xFFOCOUT\x01\x00")
         }
     }
 
-    state write_identity() {
-        self.bytes[0] = 255;
-        self.bytes[1] = 79;
-        self.bytes[2] = 67;
-        self.bytes[3] = 79;
-        self.bytes[4] = 85;
-        self.bytes[5] = 84;
-        self.bytes[6] = 1;
-        self.bytes[7] = 0;
+    state write_identity(index: i32, identity: &[u8]) {
+        self.bytes[index] = identity[index];
+        transition index + 1 < identity.len {
+            true -> write_identity(index + 1, identity)
+            _ -> write_fields()
+        }
+    }
+
+    state write_fields() {
         self.bytes[8] = tag;
         self.bytes[9] = space;
         self.bytes[10] = 0;

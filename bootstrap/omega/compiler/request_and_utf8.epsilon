@@ -1,16 +1,7 @@
-
-// The eight OCREQ identity bytes, in order. Used by the envelope's per-byte
-// scan so a mismatch anchors at the first differing request byte.
-machine omega_ocreq_identity_byte(index: i32) -> i32 {
-    transition index {
-        0 -> return 79
-        1 -> return 67
-        2 -> return 82
-        3 -> return 69
-        4 -> return 81
-        5 -> return 1
-        _ -> return 0
-    }
+// Callers check the four-byte extent and the high bit before reading.
+machine omega_request_u32(request: &[u8], at: i32) -> i32 {
+    return request[at] + (request[at + 1] * 256) +
+        (request[at + 2] * 65536) + (request[at + 3] * 16777216);
 }
 
 // Validate the byte-exact D25 outer frame without inventing the subject or
@@ -40,7 +31,7 @@ machine OmegaRequestEnvelope::frame_ocreq(
     }
 
     state identity(index: i32) {
-        transition request[index] == omega_ocreq_identity_byte(index) {
+        transition request[index] == "OCREQ\x01\x00\x00"[index] {
             true -> identity_next(index)
             _ -> reject(index)
         }
@@ -75,16 +66,8 @@ machine OmegaRequestEnvelope::frame_ocreq(
     }
 
     state decode_lengths() {
-        let subject_length: i32 =
-            request[8] +
-            (request[9] * 256) +
-            (request[10] * 65536) +
-            (request[11] * 16777216);
-        let invocation_length: i32 =
-            request[12] +
-            (request[13] * 256) +
-            (request[14] * 65536) +
-            (request[15] * 16777216);
+        let subject_length: i32 = omega_request_u32(request, 8);
+        let invocation_length: i32 = omega_request_u32(request, 12);
         transition subject_length <= request.len - 16 {
             true -> retain_subject(subject_length, invocation_length)
             _ -> reject(8)
@@ -164,10 +147,7 @@ machine OmegaRequestStructure::take_u32(&mut self, request: &[u8]) -> i32 {
     }
 
     state value() {
-        let result: i32 = request[self.cursor] +
-            (request[self.cursor + 1] * 256) +
-            (request[self.cursor + 2] * 65536) +
-            (request[self.cursor + 3] * 16777216);
+        let result: i32 = omega_request_u32(request, self.cursor);
         self.cursor = self.cursor + 4;
         return result;
     }
