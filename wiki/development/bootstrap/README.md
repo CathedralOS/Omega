@@ -100,7 +100,7 @@ has therefore completed on **23/27** routes across the recorded snapshots.
 
 ### Omega compiler byte classifier
 
-**20/27 routes** ran the classifier and refused its wrong-type twin.
+**21/27 routes** ran the classifier and refused its wrong-type twin.
 
 The positive program runs the production lexer’s byte classifier on all 256
 byte values and checks twelve answers per byte. Its twin passes an integer to
@@ -113,7 +113,7 @@ the full positive is unfinished. **Open** has neither completed observation.
 | --- | --- | --- | --- | --- |
 | Interpreter | Interpreter | Open | Open | Open |
 | Interpreter | Alpha | Both | Open | Open |
-| Interpreter | Linux | Both | Refusal | Both |
+| Interpreter | Linux | Both | Both | Both |
 | Alpha | Interpreter | Refusal | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
 | Alpha | Linux | Both | Both | Both |
@@ -183,7 +183,7 @@ the original Gamma interpreter lowered the 161,036-byte linked guest
 to 170,792 bytes of Gamma (`fc0b8d972176…`). A complete
 row also requires the target backend and an execution of its output.
 
-The Linux executable (468,679 bytes, `fc95d11d86c8…`) ran the classifier on all 256 inputs and matched the full 3,077-byte observation. The Linux executable matches the one built from the 93ad sources byte for byte, although the two Gamma inputs differ by 11 bytes in length.
+The Linux executable (468,679 bytes, `fc95d11d86c8…`) and Alpha tape (880,161 bytes, `d260052ecef6…`) ran the classifier on all 256 inputs and matched the full 3,077-byte observation. The Linux executable matches the one built from the 93ad sources byte for byte, although the two Gamma inputs differ by 11 bytes in length.
 
 To repeat the experiment with the pinned compiler sources, use a fresh
 checkout of the positive runner and select the two test files that added the
@@ -315,6 +315,15 @@ old conversion separately gave five type refusals. The native Rust peer
 also checked the high bits and generation stamps against the original array
 sizes. The full run of this later input is unfinished.
 [Five stores, controls and product manifest](https://github.com/CathedralOS/Omega/pull/4652)
+
+The follow-up compiler added checked reads and writes for bare `u64`
+elements. The exact five right-hand sides with the original array
+declarations produced a 2,467-byte Alpha tape that exited 42. Reverting
+the handle conversion gave a refusal at byte 746. Its storage suite ran
+16 tapes and checked 50 refusals or resets. At `76e6ca6e5ba` the complete
+constructor source is 899,962 bytes (`9cc609b6e968…`). The whole-input
+measurements below use the preceding 899,660-byte constructor.
+[Indexed storage change](https://github.com/CathedralOS/Omega/pull/4654)
 
 | Run on the seed-built toolchain | Observed result |
 | --- | --- |
