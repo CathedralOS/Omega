@@ -64,6 +64,22 @@ impl PlanningSource {
             .and_then(|inputs| inputs.with_prepared_build_dependencies(prepared.to_vec()))
             .and_then(|inputs| inputs.with_named_source(named))
             .map_err(refusal)?;
+        let inputs = match query.operation {
+            TerminalBuildQueryOperation::Entry
+            | TerminalBuildQueryOperation::Schema
+            | TerminalBuildQueryOperation::Provider => {
+                let author = self
+                    .initial
+                    .typed()
+                    .symbols
+                    .source_file(query.occurrence)
+                    .ok_or_else(|| {
+                        refusal("Product query lost its authored source occurrence".into())
+                    })?;
+                inputs.with_declaration_path(author, query.occurrence.span, &query.path)
+            }
+            _ => inputs,
+        };
         if self
             .query_frontier
             .as_ref()

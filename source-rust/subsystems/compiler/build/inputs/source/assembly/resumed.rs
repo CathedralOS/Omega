@@ -86,6 +86,16 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
+        for path in inputs.declaration_sources(&mut storage)? {
+            imports.seed(path, source_provenance::DependencyScope::Product);
+        }
+        load_source_frontiers(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
         let core_root = crate::source::source_imports::bundled_core_root()?;
         seed_core_vocabulary(
             &mut imports,

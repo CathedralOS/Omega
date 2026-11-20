@@ -8,6 +8,9 @@
 // settling the root `Build`. Anonymous roots remain unbound; an already-issued
 // named declaration supplies the acquired owner for its exact captured source.
 
+mod declaration;
+use declaration::DeclarationLookup;
+
 use super::LogicalSourceDiscovery as _;
 use super::bindings::{ImportOccurrence, ResolvedSourceImport};
 use super::paths::{is_bundled_core_path, is_bundled_omega_path};
@@ -239,6 +242,7 @@ pub struct ProductQueryInputs {
     /// comes from the original graph or the requests joined for this query.
     named_source: Option<PackageCompilationInputs>,
     dependencies: Vec<ProductQueryDependency>,
+    declaration: Option<DeclarationLookup>,
     /// The build dependencies a staged Build has prepared, by the alias its
     /// Build sources import them under (`for_build_stage`). A Product query
     /// mounts none.
@@ -276,6 +280,7 @@ impl ProductQueryInputs {
         Self {
             original,
             named_source: None,
+            declaration: None,
             dependencies,
             build_dependencies: Vec::new(),
         }
