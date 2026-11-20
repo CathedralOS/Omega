@@ -50,18 +50,6 @@ pub fn prepare_export(
     provider_bindings::bind(proposal, authorization, issue_scope(request)?)
 }
 
-pub fn entry_scalar_demand(
-    proposal: &TerminalNativeRealizationProposal,
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
-) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
-    let demand = prepare_program(proposal, authorization, &[])?
-        .scalar_application_demand(proposal.target_profile())?;
-    Ok(
-        verified_optimization_input::requires_scalar_values(authorization.artifact(), &demand)
-            .then_some(demand),
-    )
-}
-
 /// An independently lowered callable inherits the selected providers of its owning execution.
 pub struct BoundNativeCallable<'a> {
     proposal: &'a TerminalNativeRealizationProposal,

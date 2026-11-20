@@ -114,7 +114,7 @@ fn produce(
                 proposal,
                 &execution,
                 &private_entry_ram,
-                scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed }),
+                scalars.as_deref().map(|completed| artifact_lowering::NativeScalarApplications { completed }),
             )
         }?;
         let prepared = {
@@ -151,7 +151,7 @@ fn produce(
         let planning = image::plan_callables::NativeProgramPlanningRequest {
             proposal,
             execution: &execution,
-            scalar_applications: scalars,
+            scalar_applications: scalars.as_deref(),
             admission: &admission,
             optimization_selections: request.optimization_selections,
             budget: request::native_optimization_budget(),

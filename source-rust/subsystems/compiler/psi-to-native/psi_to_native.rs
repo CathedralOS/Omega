@@ -23,7 +23,7 @@ use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
 use driver::request::NativeCompileRequest;
-use driver::inputs::published_application::complete_entry_scalars;
+use driver::inputs::scalars::ScalarInputs;
 use verified_optimization_input::RetainedTerminalArtifact;
 
 /// Integration tests can supply an already retained input to isolate admission or
@@ -36,7 +36,7 @@ pub mod test_support {
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
     pub use crate::driver::request::NativeCompileRequest;
-    pub use crate::driver::inputs::published_application::complete_entry_scalars;
+    pub use crate::driver::inputs::scalars::ScalarInputs;
 }
 
 /// Emit the requested native image from a published Psi program.
@@ -167,7 +167,7 @@ impl NativeProgram {
                 "prepared Psi compilation lost its native proposal",
             )]
         })?;
-        let scalars = complete_entry_scalars(terminal.authorization(), proposal, accounting)?;
+        let mut receipts = Vec::new();
         let optimizations = proposal.post_terminal_optimizations().selections().clone();
         let request = NativeCompileRequest {
             retain_native_stage_inputs,
@@ -180,8 +180,10 @@ impl NativeProgram {
             image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
             imports: &[],
             components: &[],
-            scalars: scalars.as_ref(),
+            scalars: ScalarInputs::Evaluate(&mut receipts),
         };
-        finish(terminal, request).map_err(|(_, diagnostics)| diagnostics)
+        let product = finish(terminal, request);
+        accounting.extend(receipts);
+        product.map_err(|(_, diagnostics)| diagnostics)
     }
 }

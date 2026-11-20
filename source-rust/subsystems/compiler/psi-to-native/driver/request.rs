@@ -25,8 +25,8 @@ pub struct NativeCompileRequest<'request> {
     pub image_request: ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
     pub components: &'request [crate::driver::inputs::components::ComponentCompilation<'request>],
-    /// Completed scalar values read by the program entry.
-    pub scalars: Option<&'request psi_scalar_applications::AdmittedScalarApplications>,
+    /// How this request supplies the scalar values read by its selected execution.
+    pub scalars: super::inputs::scalars::ScalarInputs<'request>,
 }
 
 impl NativeCompileRequest<'_> {
