@@ -42,7 +42,7 @@ The runner saves the guest's result in `guest.output`.
 ```sh
 python3 tests/bootstrap/interpreted/delta/interpreter.py "$work/direct" \
     --host linux --profile construction --runner "$work/compiled/gamma-compiler" \
-    --source "$work/omega.delta" --stdin "$work/product.bin" --seconds 1200
+    --source "$work/omega.delta" --stdin "$work/product.bin"
 ```
 
 The interpreted route passes the Epsilon source and the product input together

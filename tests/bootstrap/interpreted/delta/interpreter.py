@@ -8,7 +8,9 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from compiled import ROOT, execute, gamma_program, gamma_request as frame, pack, reconstruct, shell
+from compiled import (
+    ROOT, add_invocation_budget, execute, gamma_program, gamma_request as frame, pack, reconstruct, shell,
+)
 from conformance.vectors import epsilon_observations, epsilon_syntax_controls
 from interpreted.delta.character_literals import character_programs, invalid_characters
 
@@ -117,7 +119,7 @@ def main():
     parser.add_argument("directory", type=Path)
     parser.add_argument("--host", choices=("gamma", "alpha", "linux"), required=True)
     parser.add_argument("--runner", type=Path, help="already constructed Gamma compiler for Alpha or Linux")
-    parser.add_argument("--seconds", type=int, default=120, help="wall limit for each operation")
+    add_invocation_budget(parser)
     parser.add_argument("--epsilon", action="store_true", help="run the checked Delta-written Epsilon evaluator")
     parser.add_argument("--epsilon-case", help="run one named portable Epsilon observation")
     parser.add_argument("--profile", choices=PROFILE_MEMBERS, default="conformance")
@@ -128,15 +130,13 @@ def main():
         parser.error("--stdin requires --source")
     if args.source and (args.epsilon or args.epsilon_case):
         parser.error("choose --source or the Epsilon observations")
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     if (args.runner is None) != (args.host == "gamma"):
         parser.error("--runner is required only for the Alpha and Linux compiler hosts")
     work = args.directory.resolve()
     work.mkdir(parents=True)
     source = materialize(work, args.profile)
     if args.host == "gamma":
-        reconstruct(work)
+        reconstruct(work, seconds=args.seconds)
         host_runner = work / "reference"
         artifact = None
     else:
