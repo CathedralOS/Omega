@@ -5,7 +5,7 @@ from pathlib import Path
 import struct
 import time
 
-from compiled import ROOT, execute, pack, pack_delta_compiler, shell, stamp
+from compiled import ROOT, delta_request, execute, pack, pack_delta_compiler, shell, stamp
 from conformance.vectors import epsilon_observations, epsilon_request, epsilon_syntax_controls
 from independent.source_test import source as gamma_source
 
@@ -28,10 +28,6 @@ def executable(artifact, target):
     program = artifact.with_suffix(".vm")
     stamp(artifact, program)
     return program
-
-
-def delta_request(subject, support):
-    return b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject + support
 
 
 def check_epsilon(row, compiler, delta_program, target, request, closure, work, seconds):
