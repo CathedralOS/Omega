@@ -119,13 +119,13 @@ fn construction_uses_evidence_for_its_exact_fields_and_typed_occurrence() {
     for constant in ["OTHER_OCCURRENCE", "FALSE"] {
         assert!(matches!(
             evaluator.evaluate_value_request(find(constant), None),
-            Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF))),
+            Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF), None)),
         ));
     }
     evaluator.nominal.establishments[0].fields = [PreparedValue::Integer(4.into())].into();
     assert!(matches!(
         evaluator.evaluate_value_request(find("ALLOWED"), None),
-        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF))),
+        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF), None)),
     ));
 
     evaluator.nominal.establishments[0].fields = [PreparedValue::Integer(3.into())].into();
@@ -138,7 +138,7 @@ fn construction_uses_evidence_for_its_exact_fields_and_typed_occurrence() {
     unrelated_pass.trees = &other_trees;
     assert!(matches!(
         unrelated_pass.evaluate_value_request(find("ALLOWED"), None),
-        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF))),
+        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF), None)),
     ));
 }
 
@@ -181,7 +181,7 @@ fn a_constructor_proof_replays_its_target_dependency() {
     evaluator.target = Some(&changed);
     assert!(matches!(
         evaluator.evaluate_value_request(request, None),
-        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF)))
+        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF), None))
     ));
     assert!(evaluator.observations.borrow().is_empty());
     evaluator.target = Some(&original);
@@ -340,7 +340,7 @@ fn construction_proof_is_bound_to_one_closed_application() {
         let error = evaluator
             .evaluate_value_request(request(other), None)
             .expect_err("a sibling application needs its own proof");
-        let EvaluationError::AtCall(refusal) = error else {
+        let EvaluationError::Located(refusal) = error else {
             panic!("expected a refusal at {other}, got {error:?}")
         };
         // Typed input: the supplied proof names one application's carrier.

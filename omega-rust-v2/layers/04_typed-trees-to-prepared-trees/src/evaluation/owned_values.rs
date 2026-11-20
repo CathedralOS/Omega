@@ -358,12 +358,14 @@ impl ConstantEvaluation<'_, '_> {
         node: usize,
         carrier: &ValueType,
     ) -> Result<Option<&PreparedValue>, EvaluationError> {
+        let reference = tree.resolved().file.node_id(node);
+        let at_read = |reason: PreparationReason| EvaluationError::Refused(reason.into(), Some(reference));
         let mut selected = None;
         for record in tree.semantics_at(node) {
             if let NodeSemantics::Constant(id) = record
                 && selected.replace(id).is_some()
             {
-                return Err(PreparationReason::AmbiguousConstantReference.into());
+                return Err(at_read(PreparationReason::AmbiguousConstantReference));
             }
         }
         let Some(id) = selected else { return Ok(None) };
@@ -378,16 +380,16 @@ impl ConstantEvaluation<'_, '_> {
         let definition = self
             .definitions
             .get(id)
-            .ok_or(PreparationReason::ConstantWithoutInitializer)?;
+            .ok_or_else(|| at_read(PreparationReason::ConstantWithoutInitializer))?;
         if &definition.initializer.carrier != carrier {
-            return Err(PreparationReason::ConstantCarrierMismatch.into());
+            return Err(at_read(PreparationReason::ConstantCarrierMismatch));
         }
         self.values
             .get(id)
             .map(Some)
             .ok_or_else(|| EvaluationError::NeedsConstant {
                 declaration: id.clone(),
-                reference: tree.resolved().file.node_id(node),
+                reference,
             })
     }
 }

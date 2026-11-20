@@ -182,14 +182,24 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                         .ok_or_else(|| refusal(&request.expression, PreparationReason::NoCanonicalIndexIdentity).into());
                 }
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
-                Err(EvaluationError::AtCall(error)) => return Err(error.into()),
-                Err(EvaluationError::Refused(reason)) => return Err(refusal(&request.expression, reason).into()),
+                Err(EvaluationError::Located(error)) => return Err(error.into()),
+                Err(EvaluationError::Refused(reason, node)) => return Err(self.request_refusal(request, node, reason).into()),
                 Err(EvaluationError::NeedsConstant { declaration, reference }) => {
                     let definition = self.definition(&declaration, reference)?;
                     self.materialize(definition, false)?;
                 }
             }
         }
+    }
+
+    fn request_refusal(
+        &self,
+        request: &omega_typed::StaticValueRequest,
+        node: Option<omega_resolved::TreeNodeId>,
+        reason: crate::RefusalCause,
+    ) -> PreparationRefusal {
+        let site = node.map(|node| self.visited_site(node));
+        refusal(site.as_ref().unwrap_or(&request.expression), reason)
     }
 
     fn definition(
@@ -227,8 +237,8 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                 }
                 Err(EvaluationError::OpenTarget(error)) if retain_open_recipes => break Arc::new(error.diagnostic),
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
-                Err(EvaluationError::AtCall(error)) => return Err(error.into()),
-                Err(EvaluationError::Refused(reason)) => return Err(refusal(&request.expression, reason).into()),
+                Err(EvaluationError::Located(error)) => return Err(error.into()),
+                Err(EvaluationError::Refused(reason, node)) => return Err(self.request_refusal(request, node, reason).into()),
                 Err(EvaluationError::NeedsConstant { declaration, reference }) => {
                     let dependency = self.definition(&declaration, reference)?;
                     if let Some(reason) = self.open_target_constants.get(&dependency.declaration) {

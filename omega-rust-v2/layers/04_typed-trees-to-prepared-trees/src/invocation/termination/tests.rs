@@ -593,7 +593,7 @@ fn evidence_for_a_body_edge_does_not_authorize_a_distinct_call_in_an_argument() 
     let error = evaluation
         .admit_termination(index, signature, nested_call, &body, &tree, &execution)
         .unwrap_err();
-    assert!(matches!(error, EvaluationError::Refused(RefusalCause::Preparation(CYCLIC_INVOCATION))));
+    assert!(matches!(error, EvaluationError::Refused(RefusalCause::Preparation(CYCLIC_INVOCATION), None)));
 }
 
 pub(crate) fn countdown_evidence<'stage, 'text>(trees: &'stage TypedTrees<'text>) -> crate::CheckedPreparationEvidence<'stage, 'text> {
