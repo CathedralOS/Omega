@@ -125,10 +125,11 @@ def compile_program(work, source, name="subject", *, compiler, realize=stamp):
 
 def call_depth_controls(work, compiler, seconds, realize=stamp):
     # Main and the initial dive occupy two of the 131,072 Gamma frames.
-    # The last admitted frame executes arithmetic and allocates and projects a pair.
+    # The last admitted frame uses both projections and nested pair allocation.
     depth_source = b"""
 (def $application () Int 1)
-(def dive ((n Int)) Int (if n (+ 0 (dive (- n 1))) (first (pair (* 6 7) 7))))
+(def dive ((n Int)) Int
+  (if n (+ 0 (dive (- n 1))) (second (pair 7 (first (pair (* 6 7) 7))))))
 (def main () Int
   (let ((prefix Int (write 88)) (result Int (dive (+ 131070 (read 0))))
         (sent Int (write result))) (pair 0 1)))
@@ -146,7 +147,14 @@ def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
     lookalikes = """(def firsT ((p Int)) Int (second p))
 (def $applicatiox ((n Int)) Int (+ n 1))
 (def main () Int (firsT (pair 0 ($applicatiox 41))))"""
-    cases = [*GAMMA_CASES, ("forward calls with common prefixes", names, b"", (0, b"*")),
+    # The two tagged slots are 256 bytes apart, so truncating a slot offset
+    # to one byte overwrites the first pair when storing the last.
+    padding = " ".join(f"(padding{i} Int 0)" for i in range(15))
+    distant_pair = f"""(def main () Int
+      (let ((low Int (pair 40 3)) {padding} (high Int (pair 1 2)))
+        (+ (first low) (second high))))"""
+    cases = [*GAMMA_CASES, ("tagged frame slots 256 bytes apart", distant_pair, b"", (0, b"*")),
+             ("forward calls with common prefixes", names, b"", (0, b"*")),
              ("names differing at the last byte of a keyword", lookalikes, b"", (0, b"*"))]
     for label, text, payload, expected in cases:
         source = text.encode("ascii")
