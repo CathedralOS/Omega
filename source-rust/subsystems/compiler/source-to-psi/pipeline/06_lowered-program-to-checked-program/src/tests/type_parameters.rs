@@ -2211,6 +2211,49 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
 }
 
 #[test]
+fn a_callable_alias_checks_its_clauses_and_closes_at_a_storage_use() {
+    for (clauses, missing) in [
+        ("reaches none", "write crashes"),
+        ("crashes none", "write reaches"),
+    ] {
+        let alias = format!("data Callback = machine(value: u32) -> u32 {clauses};");
+        let standalone = format!("{alias} machine main() {{}}");
+        let formed = judge_prepared_source(&standalone);
+        assert!(
+            !formed.is_empty()
+                && formed
+                    .iter()
+                    .all(|v| matches!(v, Ok(RouteVerdict::Accepted(_))))
+        );
+
+        let storage = format!("{alias} data Slot {{ callback: Callback; }} machine main() {{}}");
+        let verdicts = judge_prepared_source(&storage);
+        assert!(
+            verdicts
+                .iter()
+                .any(|v| matches!(v, Ok(RouteVerdict::FallBack(reason))
+            if reason.detail.contains(missing))),
+            "storage must diagnose {missing}"
+        );
+    }
+    for signature in [
+        "data Callback = machine(value: u32) -> u32 requires value;",
+        "data Callback<T> = machine(value: u32, item: T) -> u32 requires value;",
+    ] {
+        let invalid = judge_prepared_source(&format!("{signature} machine main() {{}}"));
+        assert!(invalid.iter().any(|verdict| {
+            let failure = match verdict {
+                Ok(RouteVerdict::FallBack(failure))
+                | Err(crate::checking::CompilationRefusal::Elaboration(failure)) => failure,
+                _ => return false,
+            };
+            failure.detail.contains("the signature of `Callback`") && failure.source_span.is_some()
+        }), "an unused alias must diagnose its own ill-formed predicate: {invalid:?}");
+    }
+
+}
+
+#[test]
 fn a_selected_callback_keeps_its_exact_applied_record_result() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

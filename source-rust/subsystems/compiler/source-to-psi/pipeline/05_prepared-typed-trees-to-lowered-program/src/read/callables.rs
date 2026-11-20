@@ -27,6 +27,80 @@ fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
 }
 
 impl<'t> Program<'t> {
+    /// An alias names the contract, so its signature and clauses form with the
+    /// same omission rules as a static requirement. Only a storage position
+    /// needs a runtime contract row.
+    pub(super) fn callable_alias_declaration(
+        &mut self,
+        machine: MachineId,
+        source: RuntimeCallableContractHandle,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        typed
+            .runtime_callable_contract_identity(source, &[])
+            .map_err(|reason| unavailable(machine, reason.to_string()))?;
+        let signature = &typed.runtime_callable_contract(source).signature;
+        self.declared_requirement_signature(machine, signature, &[])?;
+        Ok(())
+    }
+
+    /// Form the expanded signature in the alias's own binder scope. This
+    /// check has no executable entry and publishes no runtime callable value.
+    pub(crate) fn generic_callable_alias(
+        &mut self,
+        alias: &crate::source_state::type_aliases::TypeAliasDefinition,
+    ) -> Checked<()> {
+        use crate::source_state::data::{DataProperties, TypeParameterKind};
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        let typed = self.typed;
+        let parameters = typed
+            .data_type_parameters
+            .span(alias.type_parameters)
+            .ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("stale type alias parameters"),
+                )
+            })?;
+        if parameters.iter().any(|parameter| {
+            parameter.kind != TypeParameterKind::Type
+                || parameter.bounds != DataProperties::default()
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).parent != alias.symbol
+        }) || !alias.lifetime_parameters.is_empty()
+            || !alias.conformance_bounds.is_empty()
+        {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("type alias with unsupported binders"),
+            ));
+        }
+        let Some(TypeReferenceNode::Callable { contract }) = typed
+            .contains_type_reference(alias.expansion)
+            .then(|| typed.type_reference_table.type_reference(alias.expansion))
+        else {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("type alias without a callable signature"),
+            ));
+        };
+        self.scope = super::type_parameters::rigid_type_scope(parameters);
+        self.generic_binders
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        std::sync::Arc::make_mut(&mut self.source_scope)
+            .rigid_parameters
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        self.reading_schema = true;
+        self.served(diagnostic, alias.symbol)?;
+        self.callable_alias_declaration(diagnostic, *contract)
+            .map_err(|failure| self.read_failure_at(failure, alias.symbol, "the signature"))?;
+        self.admitted_declarations.include(alias.symbol);
+        Ok(())
+    }
+
     pub(super) fn callable_type(
         &mut self,
         machine: MachineId,
@@ -77,7 +151,7 @@ impl<'t> Program<'t> {
         {
             return Err(unavailable(
                 machine,
-                "runtime callable has an open crash ceiling",
+                "runtime callable has an open crash ceiling; write crashes",
             ));
         }
         self.callables.resolving.push(source);

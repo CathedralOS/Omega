@@ -575,28 +575,53 @@ impl Program<'_> {
                 )))?;
             }
         }
-        // `data RegisterStorage = LayoutStorage<Registers, RegisterLayout>;`
-        // is its expansion: the same type, with the same representation and
-        // obligations (generics.md, "Transparent type aliases"). A closed
-        // alias is judged by reading that expansion as a value type. A
-        // generic alias has no type until an application fixes its
-        // binders, and nothing judges it as written yet.
+        // A transparent alias is checked at declaration. A callable contract
+        // may leave ceilings open here. Its expanded type is checked again in
+        // the position where a parameter, field or other value uses it.
         for alias in typed.type_aliases() {
             if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
                 continue;
             }
-            if !alias.lifetime_parameters.is_empty()
-                || !alias.type_parameters.is_empty()
-                || !alias.conformance_bounds.is_empty()
-            {
+            self.served(entry, alias.symbol)?;
+            if !alias.lifetime_parameters.is_empty() || !alias.conformance_bounds.is_empty() {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
                     Unserved::Declaration("generic type alias"),
                 ));
             }
+            if !typed.contains_type_reference(alias.expansion) {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("stale alias expansion"),
+                ));
+            }
+            match typed.type_reference_table.type_reference(alias.expansion) {
+                crate::source_state::types::TypeReferenceNode::Callable { .. }
+                    if !alias.type_parameters.is_empty() =>
+                {
+                    self.generic_templates.push(alias.symbol);
+                    continue;
+                }
+                crate::source_state::types::TypeReferenceNode::Callable { contract } => {
+                    self.callable_alias_declaration(entry, *contract)
+                        .map_err(|failure| {
+                            self.read_failure_at(failure, alias.symbol, "the signature")
+                        })?;
+                }
+                _ if alias.type_parameters.is_empty() => {
+                    self.value_type(entry, alias.expansion)?;
+                }
+                _ => {
+                    return Err(refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Declaration("generic type alias"),
+                    ));
+                }
+            }
             self.admitted_declarations.include(alias.symbol);
-            self.value_type(entry, alias.expansion)?;
         }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
