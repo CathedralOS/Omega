@@ -76,12 +76,12 @@ machine build(builder: @mut Build) suspends {
 }
 ";
 
-/// Each top-level wait ends a stage. The nested machines and the closing
-/// dispatch stay with the last one: its `let` and the dispatch statement that owns both arms.
+/// Each top-level wait ends a stage. The nested names stay visible in each stage.
+/// The final stage owns the closing dispatch and its two arms.
 #[test]
 fn an_entry_is_divided_at_each_top_level_preparation() {
-    assert_eq!(stage(STAGED, 0), Ok((3, 3, 0)));
-    assert_eq!(stage(STAGED, 1), Ok((3, 2, 0)));
+    assert_eq!(stage(STAGED, 0), Ok((3, 3, 2)));
+    assert_eq!(stage(STAGED, 1), Ok((3, 2, 2)));
     assert_eq!(stage(STAGED, 2), Ok((3, 2, 2)));
     assert!(stage(STAGED, 3).is_err());
 }
@@ -181,10 +181,8 @@ machine build(builder: @mut Build) suspends {
     assert_eq!(stage(disjoint, 1), Ok((2, 1, 0)));
 }
 
-/// The entry's nested machines are checked with the last stage, so an
-/// earlier stage cannot name one.
 #[test]
-fn a_stage_before_the_last_cannot_name_a_nested_machine() {
+fn both_stages_can_name_the_same_nested_machine() {
     let text = "
 machine build(builder: @mut Build) suspends {
     helper(builder);
@@ -194,16 +192,8 @@ machine build(builder: @mut Build) suspends {
     machine helper(builder: @mut Build) { }
 }
 ";
-    let refusal = stage(text, 0).unwrap_err();
-    assert!(
-        refusal.starts_with("not supported yet:") && refusal.contains("`helper`"),
-        "{refusal}"
-    );
-    assert_eq!(
-        refusal.lines().count(),
-        1,
-        "the call after the wait is fine"
-    );
+    assert_eq!(stage(text, 0), Ok((2, 3, 1)));
+    assert_eq!(stage(text, 1), Ok((2, 1, 1)));
 }
 
 #[test]

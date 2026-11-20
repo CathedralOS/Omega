@@ -356,9 +356,8 @@ impl Program<'_> {
         Ok(())
     }
 
-    /// Makes every subject declaration a root of the elaboration. `entry`
-    /// only attributes a refusal: a declaration that is not a machine has no
-    /// `MachineId` of its own.
+    /// Root the requested declarations for checking. A Build prefix can also
+    /// reach a nested declaration through an ordinary call from its entry.
     pub fn subject_declarations(
         &mut self,
         entry: MachineId,
@@ -371,6 +370,17 @@ impl Program<'_> {
             return Ok(());
         }
         let typed = self.typed;
+        // The prefix retains its lexical environment. A demanded nested body
+        // enters through ordinary calls. The final stage roots them all.
+        let prefix = typed.roots.partial_build_entry.filter(|&span| {
+            purpose == DependencyScope::Build
+                && self.publication == terminal_codec::TerminalPublication::Invocation
+                && self
+                    .symbols
+                    .get(entry)
+                    .and_then(|symbol| typed.symbols.symbol_source_span(*symbol))
+                    == Some(span)
+        });
         // Each declaration is one unit: while the compilation collects
         // refusals (`collected`), a refused one is recorded and the next is
         // read (`keep`).
@@ -405,6 +415,11 @@ impl Program<'_> {
                     return Ok(());
                 }
                 if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
+                    return Ok(());
+                }
+                if prefix.is_some_and(|owner| {
+                    crate::source_state::source_subjects::nested_in(typed, machine.symbol, owner)
+                }) {
                     return Ok(());
                 }
                 if self.select_native_provider(entry, machine.symbol)? {
