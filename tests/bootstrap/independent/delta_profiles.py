@@ -43,6 +43,21 @@ def run(delta, gamma, work, full_output):
         members.append(member)
     support = b''.join(members)
 
+    # A complete header reports its first mismatching identity byte. A short
+    # header reports physical EOF before any of its fields can be trusted.
+    frame = header(1, 0)
+    for end in range(len(frame)):
+        check(execute(delta, frame[:end], 1), failure(1, 4, 1, end), f'truncated header at {end}')
+    for offset in range(8):
+        broken = bytearray(frame)
+        broken[offset] ^= 1
+        check(execute(delta, broken, 1), failure(1, 4, 1, offset), f'changed identity at {offset}')
+    broken = bytearray(frame)
+    broken[2] ^= 1
+    broken[5] ^= 1
+    check(execute(delta, broken, 1), failure(1, 4, 1, 2), 'first changed identity byte')
+    check(execute(delta, broken[:-1], 1), failure(1, 4, 1, 15), 'short header before identity')
+
     def request(profile, source, trailer=support):
         return header(profile, len(source)) + source + trailer
 
