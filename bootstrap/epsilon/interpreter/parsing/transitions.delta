@@ -92,10 +92,14 @@
                     -1)))))
           -1)))))
 
+; Decimal and quoted byte selectors share an integer value and a source span.
+(def epsilon_integer_selector_token ((code Int)) Int
+  (if (eq code 2) 1 (eq code 3)))
+
 (def epsilon_probe_pattern_end ((source EpsilonSourceView) (cursor Int)) Int
   (let start Int (epsilon_token_start source cursor)
     (let code Int (epsilon_token_code source start)
-      (if (eq code 2) (epsilon_token_end source start)
+      (if (epsilon_integer_selector_token code) (epsilon_token_end source start)
         (if (eq code 20) (epsilon_token_end source start)
           (if (eq code 21) (epsilon_token_end source start)
             (if (eq code 1)
@@ -189,12 +193,12 @@
     (let code Int (epsilon_token_code source start)
       (let end Int (epsilon_token_end source start)
         (if (eq code 0) (EpsilonPatternParseRejected UnexpectedEnd start)
-          (if (eq code 2)
-            (if (eq (epsilon_token_value source start) 2147483648)
-              (EpsilonPatternParseRejected IntegerLiteralOutOfRange start)
-              (EpsilonPatternParsed
-                (EpsilonIntegerPattern start end
-                  (EpsilonIntegerSpan start end (epsilon_token_value source start)))))
+          (if (epsilon_integer_selector_token code)
+            (let value Int (epsilon_token_value source start)
+              (if (eq value 2147483648)
+                (EpsilonPatternParseRejected IntegerLiteralOutOfRange start)
+                (EpsilonPatternParsed
+                  (EpsilonIntegerPattern start end (EpsilonIntegerSpan start end value)))))
             (if (eq code 20) (EpsilonPatternParsed (EpsilonTruePattern start end))
               (if (eq code 21) (EpsilonPatternParsed (EpsilonFalsePattern start end))
                 (if (eq code 1)
