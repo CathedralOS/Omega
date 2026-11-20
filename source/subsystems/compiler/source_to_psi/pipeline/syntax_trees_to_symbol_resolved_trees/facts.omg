@@ -306,6 +306,29 @@ crashes Trap
     }
 
     machine single(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+        let marked: ValueBinding = pending_value_binding(resolver, handle);
+        transition marked {
+            ValueBinding::MatchedSubject { subject as _ } -> scoped(resolver, sources, syntax, item_index, item, expression, role),
+            _ -> ordinary(resolver, sources, syntax, item_index, item, root, handle, expression, role)
+        }
+    }
+    machine scoped(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, expression: Expression, role: NameRole) {
+        transition role == NameRole::WholeSubjectBinder {
+            true -> binder(resolver, sources, syntax, item_index, item, expression),
+            _ -> done()
+        }
+    }
+    machine binder(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, expression: Expression) {
+        let existing: ValueBinding = data_value_name(sources, syntax, item_index, item, expression.name.source_span);
+        transition existing {
+            ValueBinding::GenericParameter { parameter as _ } -> duplicate(resolver, expression),
+            _ -> done()
+        }
+    }
+    machine duplicate(resolver: @mut Resolver, expression: Expression) {
+        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::DuplicateLocalBinding, expression.name.source_span);
+    }
+    machine ordinary(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
         transition role {
             NameRole::Value -> value(resolver, sources, syntax, item_index, item, root, handle, expression),
             NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression),

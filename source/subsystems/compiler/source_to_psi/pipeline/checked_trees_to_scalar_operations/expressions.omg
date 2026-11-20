@@ -120,8 +120,16 @@ crashes Trap
     machine name(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping) {
         let binding: ValueBinding = value_binding(resolution, handle);
         transition binding {
+            ValueBinding::MatchedSubject { subject } -> saved_subject(lowerer, syntax, resolution, typing, handle, subject),
             ValueBinding::Local { statement } -> local(lowerer, syntax, resolution, typing, handle, statement),
             ValueBinding::Parameter { parameter } -> parameter(lowerer, syntax, resolution, typing, handle, parameter),
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine saved_subject(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, subject: u64 in Trapping) {
+        let saved: u64 in Trapping = scalar_value(lowerer, subject);
+        transition !scalar_place_mode(lowerer) {
+            true -> record(lowerer, syntax, resolution, typing, handle, saved),
             _ -> unsupported(lowerer)
         }
     }

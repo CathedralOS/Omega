@@ -273,6 +273,7 @@ crashes Trap
     machine arm(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping) {
         let arm: TransitionArm = syntax_trees_arm(syntax, statement.first_arm + offset);
         transition arm.kind {
+            ArmPatternKind::Binder -> guard(lowerer, syntax, resolution, typing, statement, offset, arm, 0 as u64 +Trapping),
             ArmPatternKind::Wildcard -> guard(lowerer, syntax, resolution, typing, statement, offset, arm, 0 as u64 +Trapping),
             ArmPatternKind::Guard -> condition(lowerer, syntax, resolution, typing, statement, offset, arm, false),
             ArmPatternKind::Literal -> condition(lowerer, syntax, resolution, typing, statement, offset, arm, true),

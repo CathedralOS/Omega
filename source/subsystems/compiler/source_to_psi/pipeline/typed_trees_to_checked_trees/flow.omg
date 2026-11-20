@@ -1252,8 +1252,21 @@ crashes Trap
         checking: bool
     ) {
         evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
-        transition { _ -> arms(checker, syntax, resolution, typing, statement, checking) }
+        transition checker.output.machine_accepted {
+            true -> captured_subject(checker, syntax, resolution, typing, statement, checking),
+            _ -> done()
+        }
     }
+    machine captured_subject(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, checking: bool) {
+        let previous: u64 in Trapping = checker.bound_subject;
+        let previous_value: Value = checker.bound_value;
+        checker.bound_subject = statement.value + 1;
+        checker.bound_value = value_interval(value_at(checker, statement.value));
+        arms(checker, syntax, resolution, typing, statement, checking);
+        checker.bound_subject = previous;
+        checker.bound_value = previous_value;
+    }
+    machine done() {}
 
     machine arms(
         checker: @mut Checker,
@@ -1338,7 +1351,7 @@ public machine select_guard(
 )
 crashes Trap
 {
-    transition arm.has_guard && (chosen || arm.kind == ArmPatternKind::Wildcard) {
+    transition arm.has_guard && (chosen || arm.kind == ArmPatternKind::Wildcard || arm.kind == ArmPatternKind::Binder) {
         true -> evaluated(checker, syntax, resolution, typing, arm, chosen, checking),
         _ -> done()
     }

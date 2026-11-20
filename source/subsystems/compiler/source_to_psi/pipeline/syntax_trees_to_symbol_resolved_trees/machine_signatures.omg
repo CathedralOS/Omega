@@ -6,6 +6,7 @@ use representations\symbol_resolved_trees\MachineOwner;
 use representations\symbol_resolved_trees\ResolveDiagnosticCode;
 use representations\symbol_resolved_trees\TypeBinding;
 use representations\symbol_resolved_trees\TypeScope;
+use representations\symbol_resolved_trees\ValueBinding;
 use representations\symbol_resolved_trees\machine_owner;
 use representations\symbol_resolved_trees\name_resolution_reject;
 use representations\syntax_trees\GenericParameter;
@@ -25,8 +26,8 @@ use representations\syntax_trees\syntax_trees_type_reference;
 // Machine namespaces. A machine's generic parameter names are distinct,
 // each signature's parameter names and each lexical declaration family
 // obey the ordinary duplicate and overload rules. A helper's
-// parameters' names, and a member's generic parameters may shadow its
-// container's. Two machines of one module may share a path (owner and name,
+// runtime parameters may reuse the parent's runtime names. A new value
+// generic cannot hide a visible outer value binder. Two machines of one module may share a path (owner and name,
 // a member's owner being its container) only as overloads: identical generic
 // parameter kinds and parameter types make the later one a duplicate, unless
 // both are target-scoped bodies for different targets, which form one family
@@ -49,8 +50,43 @@ crashes Trap
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
-            true -> machine_parameter_names(resolver, sources, syntax, index, item),
+            true -> generic_values(resolver, sources, syntax, index, item, 0),
             _ -> done()
+        }
+    }
+
+    machine generic_values(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.generic_parameter_count {
+            true -> generic_value(resolver, sources, syntax, index, item, offset),
+            _ -> machine_parameter_names(resolver, sources, syntax, index, item)
+        }
+    }
+    machine generic_value(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
+        let is_value: bool = binder_names(generic.kind, false);
+        transition is_value {
+            true -> visible_value(resolver, sources, syntax, index, item, offset, generic.name),
+            _ -> generic_values(resolver, sources, syntax, index, item, offset + 1)
+        }
+    }
+    machine visible_value(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+        transition item.parent > 0 {
+            true -> ancestor(resolver, sources, syntax, index, item, offset, name),
+            _ -> container(resolver, sources, syntax, index, item, offset, name)
+        }
+    }
+    machine ancestor(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+        let binding: ValueBinding = lexical_static_value_binder(sources, syntax, item.parent - 1, name.source_span, false);
+        transition binding {
+            ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, ResolveDiagnosticCode::DuplicateLocalBinding, name),
+            _ -> container(resolver, sources, syntax, index, item, offset, name)
+        }
+    }
+    machine container(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, name: IdentifierSpan) {
+        let binding: ValueBinding = container_value_binder(@resolver.output, sources, syntax, index, name.source_span, false);
+        transition binding {
+            ValueBinding::GenericParameter { parameter as _ } -> reject(resolver, ResolveDiagnosticCode::DuplicateLocalBinding, name),
+            _ -> generic_values(resolver, sources, syntax, index, item, offset + 1)
         }
     }
 

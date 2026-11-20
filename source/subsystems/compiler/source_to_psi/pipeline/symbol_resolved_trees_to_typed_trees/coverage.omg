@@ -139,6 +139,7 @@ crashes Trap
     machine unguarded(syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping, arm: TransitionArm) -> bool {
         transition arm.kind {
             ArmPatternKind::Wildcard -> answer(true),
+            ArmPatternKind::Binder -> answer(true),
             ArmPatternKind::Guard -> guard(syntax, range, offset, arm),
             _ -> arm(syntax, range, offset + 1)
         }

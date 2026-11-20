@@ -596,11 +596,36 @@ crashes Trap
         ValueBinding::Local { statement } -> rooted(checker, typing, PlaceKind::Local, statement, type_handle),
         ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle),
         ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle),
+        ValueBinding::MatchedSubject { subject as saved } -> matched(checker, saved),
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle),
         ValueBinding::ReturnedValue { machine } -> returned(checker),
         ValueBinding::ContractReturnedValue { contract as _ } -> returned(checker),
         ValueBinding::DomainSubject { domain } -> subject(checker),
         _ -> unbounded()
+    }
+
+    machine matched(checker: @Checker, saved: u64 in Trapping) -> Value {
+        transition checker.bound_subject == saved + 1 {
+            true -> checker.bound_value,
+            _ -> expression_subject(checker, saved)
+        }
+    }
+    machine expression_subject(checker: @Checker, saved: u64 in Trapping) -> Value {
+        transition saved >= checker.tree_low && saved - checker.tree_low < checker.tree_size {
+            true -> frozen(checker, checker.tree_base + (saved - checker.tree_low)),
+            _ -> unbounded()
+        }
+    }
+    machine frozen(checker: @Checker, index: u64 in Trapping) -> Value {
+        transition index < 4096 {
+            true -> bounds(checker, index),
+            _ -> unbounded()
+        }
+    }
+    machine bounds(checker: @Checker, index: u64 in Trapping) -> Value
+    requires index < 4096
+    {
+        value_interval(checker.values[index])
     }
 
     machine constant_value(syntax: @SyntaxTrees, typing: @Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
