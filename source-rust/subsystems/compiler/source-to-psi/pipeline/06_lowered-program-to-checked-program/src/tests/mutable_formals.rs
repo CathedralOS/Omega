@@ -366,12 +366,12 @@ fn a_whole_borrowed_record_replacement_requires_mutable_access() {
          shared access only: a reference admits no child with access it does not itself hold \
          while reading the body of `replace`"
     );
-    let start = source.find("owner = replacement;").unwrap();
+    let start = source.find("$owner = replacement;").unwrap();
     assert_eq!(
         violation.site,
         Some(source_text::SourceSpan::new(
             source_text::SourceId(1),
-            source_text::Span::new(start, start + "owner".len())
+            source_text::Span::new(start, start + "$".len())
         ))
     );
 }
@@ -395,12 +395,12 @@ machine build_entry(owner: @mut Item, replacement: Item) {
         violation.statement,
         "whole-value replacement cannot implicitly discard a linear value"
     );
-    let start = source.find("owner = replacement;").unwrap();
+    let start = source.find("$owner = replacement;").unwrap();
     assert_eq!(
         violation.site,
         Some(source_text::SourceSpan::new(
             source_text::SourceId(1),
-            source_text::Span::new(start, start + "owner".len())
+            source_text::Span::new(start, start + "$".len())
         ))
     );
 }
@@ -413,8 +413,8 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
             "machine consume(item: Item) { }\nmachine observe(value: @u32) { }",
         )
         .replace(
-            "owner = replacement;",
-            "let held: @u32 = @owner.value; observe(held); owner = replacement;",
+            "$owner = replacement;",
+            "let held: @u32 = @owner.value; observe(held); $owner = replacement;",
         );
     // End the child before replacing the root, then keep the same child
     // alive across that exact store. Both use the same incoming root.
@@ -426,8 +426,8 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
     };
     accepted.publish_invocation().unwrap();
     let conflict = source.replace(
-        "observe(held); owner = replacement;",
-        "owner = replacement; observe(held);",
+        "observe(held); $owner = replacement;",
+        "$owner = replacement; observe(held);",
     );
     let verdict = super::build_purpose::judge_build(&conflict).unwrap();
     let RouteVerdict::Rejected { conflicts, .. } = verdict else {

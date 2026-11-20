@@ -50,6 +50,20 @@ impl Program<'_> {
         self.call_statement(id, slots, call, source)
     }
 
+    /// A slice formal carries a descriptor for borrowed backing. A whole
+    /// assignment needs a stored value to replace. Indexed stores and
+    /// assignment to an owned descriptor local have their own destinations.
+    fn require_whole_replacement(&self, id: MachineId, slots: &[Slot], index: usize) -> Checked<()> {
+        if slots[index].borrowed.is_some()
+            && !slots[index].homed
+            && !self.signatures.get(id).and_then(|signature| signature.borrowed(index))
+                .is_some_and(|borrowed| borrowed.referent == crate::lowering::body::BorrowedReferent::Value)
+        {
+            return Err(refuse(id, Construct::Machine, Unserved::Statement("whole assignment through a reference")));
+        }
+        Ok(())
+    }
+
     pub(super) fn assignment(
         &mut self,
         id: MachineId,
@@ -137,21 +151,7 @@ impl Program<'_> {
                         "assignment to an immutable binding",
                     ));
                 }
-                // A slice formal carries a view rather than a borrowed
-                // value's storage. Keep whole-view assignment at its existing
-                // refusal; replacing its descriptor is not this operation.
-                if slots[slot].borrowed.is_some()
-                    && !slots[slot].homed
-                    && !self
-                        .signatures
-                        .get(id)
-                        .and_then(|signature| signature.borrowed(slot))
-                        .is_some_and(|borrowed| {
-                            borrowed.referent == crate::lowering::body::BorrowedReferent::Value
-                        })
-                {
-                    return Err(unserved("whole assignment through a reference"));
-                }
+                self.require_whole_replacement(id, slots, slot)?;
                 let value_type = slots[slot].value_type;
                 // The value's type first: a value that is not the place's
                 // type is wrong whoever may write the place.
@@ -203,6 +203,9 @@ impl Program<'_> {
                 // ends the overwritten field's carried loans, then installs
                 // the replacement's exact loans."
                 let place = self.place(id, slots, assignment.target, None, Access::Replace)?;
+                if let ExpressionKind::Slot(slot) = place.kind {
+                    self.require_whole_replacement(id, slots, slot)?;
+                }
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
