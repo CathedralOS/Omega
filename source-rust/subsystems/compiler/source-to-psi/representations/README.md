@@ -15,6 +15,7 @@ shows which records its operations produce and what the next operation reads.
 | [Typed source](typed-trees/src/lib.rs) | Typing | [Stage 04 preparation](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) |
 | [Prepared typed trees](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) | Stage 04 runs specialization, domain preparation and record-pattern preparation | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) |
 | [Terminal Psi](../../psi/psi.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
+| [Published target providers](published-target-providers/publication.rs) | [Stage 07](../pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs) binds the checked provider demand and completed Build bindings to a Psi manifest and deployment. | [Native stage 00](../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs) receives them for that manifest and target. |
 
 The [Terminal interpreter](../../../interpreter/README.md) runs the published
 program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi/optimization-selections/src/lib.rs)

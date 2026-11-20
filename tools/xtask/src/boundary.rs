@@ -48,7 +48,7 @@ const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evi
 #[cfg(test)]
 const PSI_FACADE: &str = linear_pipeline::SOURCE_DRIVER;
 const SOURCE_PROVIDER_PUBLICATION: &str =
-    "source-rust/subsystems/compiler/product-records/target-providers";
+    "source-rust/subsystems/compiler/source-to-psi/representations/published-target-providers";
 const NATIVE_PROVIDER_DEMAND: &str =
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand";
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
@@ -584,7 +584,14 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
                     .get(next)
                     .map_or(next.as_str(), |name| name.as_str());
                 let chain = format!("{chain} -> {next_name}");
-                if under(next, forbidden) || (owner == FORMAT && next == PRODUCT_COORDINATOR) {
+                // Native admission reads the published record. Keep walking its dependencies
+                // so a record cannot hide a call back into the source compiler.
+                let reads_publication = owner == NATIVE
+                    && path == NATIVE_PROVIDER_DEMAND
+                    && next == SOURCE_PROVIDER_PUBLICATION;
+                if (under(next, forbidden) && !reads_publication)
+                    || (owner == FORMAT && next == PRODUCT_COORDINATOR)
+                {
                     violations.push(format!("forbidden compiler dependency: {chain} ({next})"));
                 } else {
                     pending.push_back((next, chain));
@@ -924,7 +931,7 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         root,
         &["issue_target_provider_demand"],
         &[
-            "source-rust/subsystems/compiler/product-records/target-providers/publication.rs",
+            "source-rust/subsystems/compiler/source-to-psi/representations/published-target-providers/publication.rs",
             "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
         ],
         &[],
@@ -1913,6 +1920,32 @@ mod tests {
             );
         }
         assert_eq!(violations.len(), 4);
+    }
+
+    #[test]
+    fn published_target_providers_cannot_reenter_source_compilation() {
+        let mut metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg("source", SOURCE_COMPILER, &[]),
+                pkg("psi", "source-rust/subsystems/compiler/psi", &[]),
+                pkg(
+                    "demand",
+                    NATIVE_PROVIDER_DEMAND,
+                    &[("published", SOURCE_PROVIDER_PUBLICATION, None)],
+                ),
+                pkg("published", SOURCE_PROVIDER_PUBLICATION, &[]),
+            ],
+        };
+        assert!(pipeline_dependency_violations(&metadata).unwrap().is_empty());
+        metadata.packages[3] = pkg(
+            "published",
+            SOURCE_PROVIDER_PUBLICATION,
+            &[("source", SOURCE_COMPILER, None)],
+        );
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("demand -> published -> source"));
     }
 
     #[test]
