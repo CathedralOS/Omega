@@ -72,3 +72,5 @@ L3	selecting_a_trait_member_requires_trait_evidence	Evidence and effects
 L3	a_nested_indexed_move_needs_an_owned_array	Collection access
 L3	a_record_pattern_needs_a_record_subject	Patterns and places
 L3	a_binding_cannot_initialize_from_a_resultless_call	Data and bindings
+L3	an_inferred_constant_cannot_depend_on_itself	Data and bindings
+L3	a_match_of_unsuffixed_integers_needs_a_result_type	Patterns and places
