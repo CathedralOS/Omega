@@ -80,10 +80,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,707 lines / 1,074,811 bytes with SHA-256
-`edad4cbe4874da855f09b5c84cb5c4a18732fd36f89e14d358495d88c1d7290e`.
-The manifest itself is 2,551 bytes, SHA-256
-`eb54a00bd06a2fec800bf01c104467b63e4c07753a1d19af6e7e091691f40fd6`;
+The manifest materializes 28,022 lines / 1,087,702 bytes with SHA-256
+`4467e3eb4f11643e56988be54dfeeaa409e4c61a91471d0d1a2aec2827c58181`.
+The manifest itself is 2,729 bytes, SHA-256
+`0fdf169d4ea74847e0a0af55472e041ad27b69e497b7cd6f02f5a184f3e0767f`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -200,8 +200,19 @@ Case transitions evaluate the subject once. A braced arm can bind a field by
 its own name, rename it with `field as name`, or waive it with `field as _`.
 An explicit `..` waives remaining fields. The checker resolves the source
 field within the selected case, checks duplicate fields and binding names, and
-exposes each binding only in that arm's target. Non-copy sums, custom sum
-requirements and payload equality guards remain outside this backend.
+exposes each binding only in that arm's target. A fresh affine sum can be
+returned or held in a local. A terminal transition can inspect its tag and
+bind copyable payloads. Passing an existing affine local by value and
+payload equality guards still need broader checking.
+
+The standard `ByteRead` declaration permits `Eof` and requires the signed
+payload of `Byte` to lie between 0 and 255. The checker resolves each
+case against its owning declaration and checks both endpoints on the same
+payload field. Every declared case must occur exactly once in the predicate.
+Each construction establishes the selected case’s range. Pattern matching
+carries this range into the selected arm. A machine guard or an explicit
+entry requirement can establish a signed bound. A signed upper bound gives
+no evidence for the lower bound. [Case requirements](checking/case_requirements.epsilon)
 [Payload binding rules](../../../wiki/spec/language/patterns.md) and
 [runnable selection](../../../tests/bootstrap/conformance/omega/payload_bindings.omg)
 and [zero omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
