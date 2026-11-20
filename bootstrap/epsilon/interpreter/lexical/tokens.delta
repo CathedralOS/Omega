@@ -1,7 +1,7 @@
 
 ; ---- allocation-free syntax-token rescan -------------------------------
 ;
-; These scalar helpers are called only after LexicallyValid. A parser keeps a
+; After LexicallyValid, the parser keeps a
 ; source cursor, skips trivia to the next start (or source extent at EOF), and
 ; rescans code, end, or literal value as needed. No token fact enters the
 ; immutable Delta heap and no coordinate is packed into a narrower integer.
@@ -103,9 +103,9 @@
   (if (eq index length)
     length
     (let commentByte Int (epsilon_source_byte source index)
-      (if (eq commentByte 10)
+      (if (eq commentByte '\n')
         (epsilon_token_start source index)
-        (if (eq commentByte 13)
+        (if (eq commentByte '\r')
           (epsilon_token_start source index)
           (epsilon_skip_comment source (+ index 1) length))))))
 
@@ -116,10 +116,8 @@
       (let startByte Int (epsilon_source_byte source index)
         (if (is_space startByte)
           (epsilon_token_start source (+ index 1))
-          (if (eq startByte 47)
-            (if (next_is source index length 47)
-              (epsilon_skip_comment source (+ index 2) length)
-              index)
+          (if (epsilon_starts_comment source index length startByte)
+            (epsilon_skip_comment source (+ index 2) length)
             index))))))
 
 (def epsilon_identifier_end ((source EpsilonSourceView) (index Int) (length Int)) Int
@@ -138,40 +136,66 @@
 
 (def epsilon_string_end ((source EpsilonSourceView) (index Int)) Int
   (let stringByte Int (epsilon_source_byte source index)
-    (if (eq stringByte 34)
+    (if (eq stringByte '"')
       (+ index 1)
-      (if (eq stringByte 92)
-        (if (eq (epsilon_source_byte source (+ index 1)) 120)
+      (if (eq stringByte '\\')
+        (if (eq (epsilon_source_byte source (+ index 1)) 'x')
           (epsilon_string_end source (+ index 4))
           (epsilon_string_end source (+ index 2)))
         (epsilon_string_end source (+ index 1))))))
 
 (def epsilon_character_end ((source EpsilonSourceView) (start Int)) Int
-  (if (eq (epsilon_source_byte source (+ start 1)) 92)
-    (if (eq (epsilon_source_byte source (+ start 2)) 120) (+ start 6) (+ start 4))
+  (if (eq (epsilon_source_byte source (+ start 1)) '\\')
+    (if (eq (epsilon_source_byte source (+ start 2)) 'x') (+ start 6) (+ start 4))
     (+ start 3)))
 
-(def epsilon_operator_end ((source EpsilonSourceView) (start Int) (length Int) (operatorByte Int)) Int
-  (if (eq operatorByte 58)
-    (if (next_is source start length 58) (+ start 2) (+ start 1))
-    (if (eq operatorByte 45)
-      (if (next_is source start length 62) (+ start 2) (+ start 1))
-      (if (eq operatorByte 38)
-        (if (next_is source start length 38) (+ start 2) (+ start 1))
-        (if (eq operatorByte 124)
-          (if (next_is source start length 124) (+ start 2) (+ start 1))
-          (if (eq operatorByte 61)
-            (if (next_is source start length 61) (+ start 2) (+ start 1))
-            (if (eq operatorByte 33) (+ start 2)
-              (if (eq operatorByte 60)
-                (if (next_is source start length 61) (+ start 2)
-                  (if (next_is source start length 60) (+ start 2) (+ start 1)))
-                (if (eq operatorByte 62)
-                  (if (next_is source start length 61) (+ start 2)
-                    (if (next_is source start length 62) (+ start 2) (+ start 1)))
-                  (if (eq operatorByte 46)
-                    (if (next_is source start length 46) (+ start 2) (+ start 1))
-                    (+ start 1)))))))))))
+; Validation and the parser both choose a two-byte symbol before a single
+; byte. Zero means that the spelling has no token code.
+(def epsilon_single_operator_code ((c Int)) Int
+  (if (eq c '&') 40
+  (if (eq c '=') 41
+  (if (eq c '|') 47
+  (if (eq c '^') 48
+  (if (eq c '<') 51
+  (if (eq c '>') 53
+  (if (eq c '+') 57
+  (if (eq c '-') 58
+  (if (eq c '*') 59
+  (if (eq c '/') 60
+  (if (eq c '%') 61
+    0))))))))))))
+
+(def epsilon_single_symbol_code ((c Int)) Int
+  (if (eq c '{') 30
+  (if (eq c '}') 31
+  (if (eq c '(') 32
+  (if (eq c ')') 33
+  (if (eq c '[') 34
+  (if (eq c ']') 35
+  (if (eq c ';') 36
+  (if (eq c ':') 37
+  (if (eq c ',') 38
+  (if (eq c '.') 39
+    (epsilon_single_operator_code c))))))))))))
+
+(def epsilon_two_byte_symbol_code ((leftByte Int) (rightByte Int)) Int
+  (if (eq rightByte '=')
+    (if (eq leftByte '=') 49
+    (if (eq leftByte '!') 50
+    (if (eq leftByte '<') 52
+    (if (eq leftByte '>') 54 0))))
+    (if (eq leftByte rightByte)
+      (if (eq leftByte ':') 43
+      (if (eq leftByte '.') 44
+      (if (eq leftByte '|') 45
+      (if (eq leftByte '&') 46
+      (if (eq leftByte '<') 55
+      (if (eq leftByte '>') 56 0))))))
+      (if (eq leftByte '-') (if (eq rightByte '>') 42 0) 0))))
+
+(def epsilon_two_byte_symbol_at ((source EpsilonSourceView) (start Int) (length Int) (c Int)) Int
+  (if (lt (+ start 1) length)
+    (epsilon_two_byte_symbol_code c (epsilon_source_byte source (+ start 1))) 0))
 
 (def epsilon_token_end ((source EpsilonSourceView) (start Int)) Int
   (let length Int (epsilon_source_length source)
@@ -182,34 +206,16 @@
           (epsilon_identifier_end source (+ start 1) length)
           (if (is_digit tokenByte)
             (epsilon_number_end source (+ start 1) length)
-            (if (eq tokenByte 34)
+            (if (eq tokenByte '"')
               (epsilon_string_end source (+ start 1))
-              (if (eq tokenByte 39)
+              (if (eq tokenByte '\'')
                 (epsilon_character_end source start)
-                (epsilon_operator_end source start length tokenByte)))))))))
+                (if (epsilon_two_byte_symbol_at source start length tokenByte)
+                  (+ start 2) (+ start 1))))))))))
 
-(def epsilon_operator_code ((source EpsilonSourceView) (start Int) (length Int) (operatorByte Int)) Int
-  (if (eq operatorByte 123) 30 (if (eq operatorByte 125) 31
-    (if (eq operatorByte 40) 32 (if (eq operatorByte 41) 33
-      (if (eq operatorByte 91) 34 (if (eq operatorByte 93) 35
-        (if (eq operatorByte 59) 36
-          (if (eq operatorByte 58) (if (next_is source start length 58) 43 37)
-            (if (eq operatorByte 44) 38
-              (if (eq operatorByte 46) (if (next_is source start length 46) 44 39)
-                (if (eq operatorByte 38) (if (next_is source start length 38) 46 40)
-                  (if (eq operatorByte 61) (if (next_is source start length 61) 49 41)
-                    (if (eq operatorByte 45) (if (next_is source start length 62) 42 58)
-                      (if (eq operatorByte 124) (if (next_is source start length 124) 45 47)
-                        (if (eq operatorByte 94) 48 (if (eq operatorByte 33) 50
-                          (if (eq operatorByte 60)
-                            (if (next_is source start length 61) 52
-                              (if (next_is source start length 60) 55 51))
-                            (if (eq operatorByte 62)
-                              (if (next_is source start length 61) 54
-                                (if (next_is source start length 62) 56 53))
-                              (if (eq operatorByte 43) 57
-                                (if (eq operatorByte 42) 59
-                                  (if (eq operatorByte 47) 60 61))))))))))))))))))))))
+(def epsilon_operator_code ((source EpsilonSourceView) (start Int) (length Int) (c Int)) Int
+  (let code Int (epsilon_two_byte_symbol_at source start length c)
+    (if code code (epsilon_single_symbol_code c))))
 
 (def epsilon_token_code ((source EpsilonSourceView) (start Int)) Int
   (let length Int (epsilon_source_length source)
@@ -219,22 +225,22 @@
         (if (is_ident_start tokenByte)
           (epsilon_keyword_code source start (epsilon_identifier_end source (+ start 1) length))
           (if (is_digit tokenByte) 2
-            (if (eq tokenByte 39) 3
-              (if (eq tokenByte 34) 4
+            (if (eq tokenByte '\'') 3
+              (if (eq tokenByte '"') 4
                 (epsilon_operator_code source start length tokenByte)))))))))
 
 (def epsilon_hex_value ((c Int)) Int
-  (if (is_digit c) (- c 48)
-    (if (ascii_between c 65 70) (+ (- c 65) 10) (+ (- c 97) 10))))
+  (if (is_digit c) (- c '0')
+    (if (ascii_between c 'A' 'F') (+ (- c 'A') 10) (+ (- c 'a') 10))))
 
 (def epsilon_escape_value ((c Int)) Int
-  (if (eq c 110) 10 (if (eq c 114) 13 (if (eq c 116) 9 c))))
+  (if (eq c 'n') '\n' (if (eq c 'r') '\r' (if (eq c 't') '\t' c))))
 
 (def epsilon_character_value ((source EpsilonSourceView) (opening Int)) Int
   (let characterByte Int (epsilon_source_byte source (+ opening 1))
-    (if (eq characterByte 92)
+    (if (eq characterByte '\\')
       (let escapeByte Int (epsilon_source_byte source (+ opening 2))
-        (if (eq escapeByte 120)
+        (if (eq escapeByte 'x')
           (+ (* (epsilon_hex_value (epsilon_source_byte source (+ opening 3))) 16)
              (epsilon_hex_value (epsilon_source_byte source (+ opening 4))))
           (epsilon_escape_value escapeByte)))
@@ -253,4 +259,4 @@
       (let tokenByte Int (epsilon_source_byte source start)
         (if (is_digit tokenByte)
           (epsilon_number_value source start (epsilon_number_end source (+ start 1) length) 0)
-          (if (eq tokenByte 39) (epsilon_character_value source start) 0))))))
+          (if (eq tokenByte '\'') (epsilon_character_value source start) 0))))))
