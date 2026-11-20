@@ -44,6 +44,7 @@ pub(crate) fn crashes(
     n: usize,
 ) -> Result<Option<Vec<crate::CrashCause>>, TypeError> {
     let f = unit.file;
+    use crate::CrashDeclarationError::*;
     let mut causes = Vec::new();
     let mut specified = false;
     let mut empty = false;
@@ -57,17 +58,17 @@ pub(crate) fn crashes(
             .split_first()
             .ok_or_else(|| TypeError::unsupported(f, c))?;
         if !guards.is_empty() && matches!(unit.symbol(head),Some(Symbol::Builtin(s)) if s=="none") {
-            return Err(TypeError::at(f, c, "crashes none cannot carry a route guard"));
+            return Err(TypeError::for_reason(&crate::site_at(f, c), GuardOnNone));
         }
         match unit.symbol(head) {
             Some(Symbol::Builtin(s)) if s == "none" => empty = true,
             Some(Symbol::Builtin(s)) if s == "Trap" => causes.push(crate::CrashCause::Trap),
             Some(Symbol::Builtin(s)) if s == "Abort" => causes.push(crate::CrashCause::Abort),
-            _ => return Err(TypeError::at(f, head, "crash clause requires Trap, Abort or none")),
+            _ => return Err(TypeError::for_reason(&crate::site_at(f, head), UnknownCause)),
         }
     }
     if empty && !causes.is_empty() {
-        return Err(TypeError::at(f, n, "crashes none conflicts with a declared cause"));
+        return Err(TypeError::for_reason(&crate::site_at(f, n), NoneWithDeclaredCause));
     }
     causes.sort_by_key(|cause| matches!(cause, crate::CrashCause::Abort));
     causes.dedup();

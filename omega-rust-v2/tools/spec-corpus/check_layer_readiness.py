@@ -20,6 +20,7 @@ import lowering_evidence
 import preparation_reason_evidence
 import test_inventory
 import typing_sites
+import typing_reason_evidence
 import product_controls
 import refusal_evidence
 import reviewed_comparisons
@@ -215,6 +216,8 @@ def collect(output, stage, report):
             resolver_kind_evidence.record(report, stage, target, current_test, line)
         if line.startswith(preparation_reason_evidence.PREFIX):
             preparation_reason_evidence.record(report, stage, target, current_test, line)
+        if line.startswith(typing_reason_evidence.PREFIX):
+            typing_reason_evidence.record(report, stage, target, current_test, line)
         if line.startswith("OMEGA_TYPING_RETURN"):
             typing_sites.record_return(report, stage, target, current_test, line)
         if line.startswith(("OMEGA_IDENTITY_CONTROL\t", "OMEGA_CONSTANT_IDENTITY\t", "OMEGA_GOLDEN_MATCH\t", "OMEGA_HANDOFF_ASSERT\t")):
@@ -581,6 +584,7 @@ def readiness_exit(report):
     return int(bool(report["measurement_errors"] or any(s["exit"] for s in report["suites"].values())
                     or blocked or report.get("unverified_contracts") or pending_obligations or missing_outputs
                     or any(not rows for rows in report.get("resolver_diagnostic_kinds", {}).values())
+                    or typing_reason_evidence.blocks(report.get("typing_sites", {}).get("typing_reasons"))
                     or preparation_reason_evidence.blocks(report.get("preparation_reasons"))))
 
 

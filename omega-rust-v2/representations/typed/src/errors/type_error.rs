@@ -7,6 +7,7 @@ pub struct TypeError {
     pub file: String,
     pub span: SourceSpan,
     pub message: String,
+    reason: Option<crate::TypingReason>,
     waiting_for_static_value: bool,
     #[cfg(feature = "diagnostic-origins")]
     origin: &'static std::panic::Location<'static>,
@@ -25,12 +26,14 @@ impl PartialEq for TypeError {
             self.file.as_str(),
             self.span,
             self.message.as_str(),
+            self.reason,
             self.waiting_for_static_value,
         ) == (
             other.package.as_str(),
             other.file.as_str(),
             other.span,
             other.message.as_str(),
+            other.reason,
             other.waiting_for_static_value,
         )
     }
@@ -52,10 +55,27 @@ impl TypeError {
             file: file.into(),
             span,
             message: message.into(),
+            reason: None,
             waiting_for_static_value: false,
             #[cfg(feature = "diagnostic-origins")]
             origin: std::panic::Location::caller(),
         }
+    }
+
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
+    pub fn for_reason(
+        site: &crate::Site,
+        cause: impl Into<crate::TypingReason>,
+    ) -> Self {
+        let cause = cause.into();
+        let mut error = Self::new(&site.package, &site.file, site.span, cause.message());
+        error.reason = Some(cause);
+        error
+    }
+
+    /// The decision returned by an inventoried L3 check, never inferred from diagnostic text.
+    pub fn reason(&self) -> Option<crate::TypingReason> {
+        self.reason
     }
 
     #[cfg(feature = "diagnostic-origins")]
@@ -79,6 +99,18 @@ impl TypeError {
         self.span = span;
         self
     }
+}
+
+#[cfg(test)]
+#[test]
+fn direct_call_pause_identity_is_not_derived_from_text_or_span() {
+    let site = crate::Site { package: "app".into(), file: "main.omg".into(), span: SourceSpan::new(2, 6) };
+    let cause = crate::DirectCallPauseError::ExceedsSuspensionCeiling;
+    let typed = TypeError::for_reason(&site, cause);
+    let plain = TypeError::new(&site.package, &site.file, site.span, &typed.message);
+    assert_eq!(plain.reason(), None);
+    assert_ne!(typed, plain);
+    assert_eq!(typed.with_span(SourceSpan::new(9, 13)).reason(), Some(cause.into()));
 }
 
 #[cfg(all(test, feature = "diagnostic-origins"))]

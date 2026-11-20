@@ -16,8 +16,9 @@ pub fn report_return(
             ),
             None => ("OMEGA_TYPING_RETURN", String::new()),
         };
+        let cause = error.reason().map_or_else(String::new, |cause| format!("\t{}", cause.identity()));
         println!(
-            "{tag}\t{}\t{}\t{}\t{}\t{phase}\t{}\t{}\t{}\t{}\t{}\t{}{expectation}",
+            "{tag}\t{}\t{}\t{}\t{}\t{phase}\t{}\t{}\t{}\t{}\t{}\t{}{expectation}{cause}",
             field(fixture),
             field(&origin.file().replace('\\', "/")),
             origin.line(),

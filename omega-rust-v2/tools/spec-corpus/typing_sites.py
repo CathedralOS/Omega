@@ -10,6 +10,7 @@ import re
 import subprocess
 
 from diagnostic_fields import readable, unescape
+import typing_reason_evidence as reasons
 
 SOURCE = "layers/03_symbol-resolved-trees-to-typed-trees/src"
 FIXTURES = Path(SOURCE).parent / "fixtures"
@@ -85,6 +86,7 @@ def record_return(report, stage, target, capture, line):
         if stage != "L3" or not capture or not re.fullmatch(r"tests/[^/]+\.rs", target):
             raise ValueError("outside a captured L3 integration test")
         fields = line.split("\t")
+        cause = reasons.take_cause(fields) if len(fields) in (13, 18) else None
         tag, fixture, path, rust_line, col, phase, package, file, start, end, size, message = fields[:12]
         exact = tag == "OMEGA_TYPING_RETURN_CHECKED"
         if len(fields) != (17 if exact else 12):
@@ -107,7 +109,7 @@ def record_return(report, stage, target, capture, line):
                 raise ValueError("returned typing refusal differs from its asserted API diagnostic")
         report.setdefault("typing_returns", []).append({"target": target, "test": capture[1], "phase": phase, "fixture": fixture, "checked_api": exact,
             "package": package, "file": file, "start": start, "end": end, "reason": message,
-            "compiler_site": {"path": path, "line": rust_line, "column": col}})
+            "compiler_site": {"path": path, "line": rust_line, "column": col}, "typing_reason": cause})
     except ValueError as error:
         report["measurement_errors"].append(f"{stage} {target}: invalid returned typing diagnostic: {error}")
         if stage == "L3" and capture:
@@ -160,6 +162,7 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
         site = find_site(observation["compiler_site"], name, "refused", observation["reason"])
         if site is not None:
             site.setdefault("package_tests", []).append(name)
+            reasons.attach(inventory, site, observation, name, "package")
 
     statuses = {}
     for test in report.get("suites", {}).get("L3", {}).get("tests", []):
@@ -177,6 +180,8 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
             continue
         name = f"{target}::{test}"
         site = find_site(result["compiler_site"], name, result["phase"], result["reason"])
+        if site is not None:
+            reasons.attach(inventory, site, result, name, "stage")
         if site is not None and name not in site.setdefault("stage_tests", []):
             site["stage_tests"].append(name)
         if site is not None and result.get("checked_api"):
@@ -211,6 +216,7 @@ def details(inventory, directory):
              f"{len(rows)} explicit `TypeError` constructor calls in {inventory['files']} files under `{SOURCE}`; "
              f"{inventory['excluded_items']} test-only items or constructor definitions were excluded. "
              "A stage witness identifies a passing test that received an error from the L3 test helper. A package witness also checks the complete refusal at the direct API and CLI.", "", LIMITS, ""]
+    lines.extend(reasons.details(inventory.get("typing_reasons")))
     for error in inventory["errors"]:
         lines.append(f"- Inventory error: {readable(error)}")
     lines += ["", "| Constructor class | Sites | Exact diagnostic checked | Returned to a passing test only | No recorded return |",
@@ -259,11 +265,20 @@ def finish(report, directory, environment):
     else:
         inventory = parse(tsv.read_text(encoding="utf-8", errors="replace"))
     inventory["command"] = {"command": COMMAND, "exit": code}
+    verify(inventory, report)
+    (directory / "typing-sites.md").write_text("\n".join(details(inventory, directory)) + "\n", encoding="utf-8")
+
+
+def verify(inventory, report):
+    """Join the scanned sites to executed diagnostics (also used for offline fault replay)."""
     if not inventory["errors"]:
         attach_witnesses(inventory, report)
+        if "L3" in report.get("suites", {}):
+            inventory["typing_reasons"] = reasons.measure(report, inventory)
+    else:
+        inventory["typing_reasons"] = {"measured": False}
     report["measurement_errors"].extend("typing site inventory: " + error for error in inventory["errors"])
     report["typing_sites"] = inventory
-    (directory / "typing-sites.md").write_text("\n".join(details(inventory, directory)) + "\n", encoding="utf-8")
 
 
 def summary(report):
@@ -280,4 +295,4 @@ def summary(report):
             f"Handwritten fixture diagnostics matched {sum(len(r.get('fixtures', [])) for r in inventory['rows'])} returned errors. "
             f"Stage API tests checked the full refusal from {sum(bool(r.get('api_checks')) for r in inventory['rows'])} sites. "
             f"Package tests checked the full diagnostic from {sum(bool(r.get('package_tests')) for r in inventory['rows'])} sites. "
-            "[Sites and their witnesses](typing-sites.md)"]
+            "[Sites and their witnesses](typing-sites.md)", *reasons.summary(inventory.get("typing_reasons"))]
