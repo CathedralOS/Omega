@@ -135,7 +135,7 @@ impl ConstantEvaluation<'_, '_> {
                         .semantics_at(node)
                         .any(|record| !matches!(record, NodeSemantics::Expression(_)))
                 {
-                    return Err(PreparationReason::TupleWithoutInitializer.into());
+                    return Err(EvaluationError::from(PreparationReason::TupleWithoutInitializer).at_node(file.node_id(node)));
                 }
                 execution.steps.push(Step::FinishTuple(fields.len()));
                 execution.steps.extend(
@@ -156,7 +156,7 @@ impl ConstantEvaluation<'_, '_> {
                 }
                 if let Some(bytes) = tree.owned_byte_literal(node) {
                     if *length != bytes.len() as u64 || !matches!(element.as_ref(), ValueType::Integer { signed: false, width: Some(8) }) {
-                        return Err(PreparationReason::ByteLiteralTypeMismatch.into());
+                        return Err(EvaluationError::from(PreparationReason::ByteLiteralTypeMismatch).at_node(file.node_id(node)));
                     }
                     execution.values.push(PreparedValue::Array(
                         bytes
@@ -167,7 +167,7 @@ impl ConstantEvaluation<'_, '_> {
                 } else {
                     let literal = &file.nodes[node];
                     if literal.kind != NodeKind::ArrayLiteral || literal.children.len() as u64 != *length {
-                        return Err(PreparationReason::ArrayWithoutInitializer.into());
+                        return Err(EvaluationError::from(PreparationReason::ArrayWithoutInitializer).at_node(file.node_id(node)));
                     }
                     execution.steps.push(Step::FinishArray(literal.children.len()));
                     execution.steps.extend(

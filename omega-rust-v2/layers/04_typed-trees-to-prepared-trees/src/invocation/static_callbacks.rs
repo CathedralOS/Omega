@@ -328,6 +328,9 @@ impl ConstantEvaluation<'_, '_> {
             });
         }
         for (argument, (_, parameter)) in call.operands.iter().zip(&signature.parameters).rev() {
+            if !matches_source_occurrence(tree.resolved().file, argument.node, &argument.site) {
+                return Err(EvaluationError::from(PreparationReason::OperandSiteMismatch).at_node(site));
+            }
             if argument.callable.is_some() {
                 return Err(PreparationReason::RuntimeCallableArgument.into());
             }

@@ -266,15 +266,95 @@ fn an_integer_literal_reports_its_own_invalid_typed_landing() {
 }
 
 #[test]
-fn incompatible_callback_parameters_refuse_the_instantiated_application() {
+fn static_callbacks_require_the_selected_signature_and_its_effects() {
     let program = Program {
         library: "",
         client: "data NumberStep=machine(n:u64)->u64; machine identity(n:u64)->u64{n} machine apply<const F:NumberStep>(n:u64)->u64{F(n)} const ANSWER:u64=apply::<identity>(42u64);",
         occurrence: "apply::<identity>(42u64)",
     };
+    program.check(PreparationReason::CallbackWithoutSignature, "the static callback has no typed signature", |facts| {
+        facts.signatures.retain(|s| s.machine.path != "identity");
+    });
+    program.check(PreparationReason::CallbackWithoutOperationalBounds, "the exact static callback has no complete operational bounds", |facts| {
+        facts.machine_effects.retain(|row| row.machine.path != "identity");
+    });
+    program.check(PreparationReason::CallbackEffectsNotEmpty, "the exact static callback has unresolved or nonempty operational effects", |facts| {
+        let effects = facts.machine_effects.iter_mut().find(|row| row.machine.path == "identity").unwrap();
+        std::sync::Arc::get_mut(effects).unwrap().fixed_pause.block = true;
+    });
     program.check(PreparationReason::ForwardedCallbackNeedsRefinement, "the exact static callback needs checked refinement of its callable contract", |facts| {
         let signature = facts.signatures.iter_mut().find(|s| s.machine.path == "identity").unwrap();
         std::sync::Arc::make_mut(signature).parameters[0].1 = ValueType::Bool;
+    });
+}
+
+#[test]
+fn static_call_admission_reports_the_missing_operand_or_invalid_carrier() {
+    CALL.check(PreparationReason::NoLocalScalarOperand, "the static call does not have a local scalar operand", |facts| {
+        facts.calls[0].operands[0].node.file = usize::MAX;
+    });
+    CALL.check(PreparationReason::ArgumentOutsideCarrier, "a closed argument is outside its selected carrier", |facts| {
+        let carrier = facts.signatures[0].parameters[0].1.clone();
+        facts.calls[0].operands[0].subject = ValueType::StaticInteger { value: 256u16.into(), carrier: Box::new(carrier) };
+    });
+    CALL.check(PreparationReason::ParameterOutsideIntegerFragment, "a selected parameter is outside the bounded integer fragment", |facts| {
+        std::sync::Arc::make_mut(&mut facts.signatures[0]).parameters[0].1 = ValueType::NoResult;
+    });
+}
+
+#[test]
+fn a_tuple_reports_its_mismatched_nested_initializer() {
+    let program = Program {
+        library: "",
+        client: "const ANSWER:u8=42u8; const INPUT=((1u8,2u8),0u8);",
+        occurrence: "(1u8,2u8)",
+    };
+    program.check(PreparationReason::TupleWithoutInitializer, "the selected tuple has no matching typed initializer", |facts| {
+        let input = facts.constants.iter_mut().find(|constant| constant.declaration.path == "INPUT").unwrap();
+        let byte = ValueType::Integer { signed: false, width: Some(8) };
+        let triple = ValueType::Tuple(vec![byte.clone(); 3]);
+        input.initializer.carrier = ValueType::Tuple(vec![triple, byte]);
+    });
+}
+
+#[test]
+fn an_array_argument_reports_its_own_mismatched_length() {
+    for (client, occurrence, reason, message) in [
+        (r#"machine keep(x:[u8;2])->u8{42u8} const ANSWER:u8=keep("AB");"#, r#""AB""#, PreparationReason::ByteLiteralTypeMismatch, "the selected byte literal has a different array type"),
+        ("machine keep(x:[u8;2])->u8{42u8} const ANSWER:u8=keep([1u8,2u8]);", "[1u8,2u8]", PreparationReason::ArrayWithoutInitializer, "the selected array value has no supported initializer"),
+    ] {
+        Program { library: "", client, occurrence }.check(reason, message, |facts| {
+            let parameter = &mut std::sync::Arc::make_mut(&mut facts.signatures[0]).parameters[0].1;
+            let ValueType::Array(_, length) = parameter else { panic!("expected an array parameter") };
+            *length = 3;
+        });
+    }
+}
+
+#[test]
+fn a_direct_call_cannot_evaluate_another_expressions_value() {
+    let program = Program {
+        library: "",
+        client: "const ANSWER:u8=outer(); machine outer()->u8{keep(42u8) +% 0u8} machine keep(n:u8)->u8{n}",
+        occurrence: "keep(42u8)",
+    };
+    program.check(PreparationReason::OperandSiteMismatch, "the call operand selects a different source occurrence\ncall chain: outer -> keep", |facts| {
+        let other = facts.landings.iter().find(|l| l.site.span.slice(program.client.as_bytes()) == Some(b"0u8")).unwrap();
+        let call = facts.calls.iter_mut().find(|call| call.machine.path == "keep").unwrap();
+        call.operands[0].node = other.node;
+    });
+}
+
+#[test]
+fn a_static_callback_cannot_evaluate_another_expressions_value() {
+    let program = Program {
+        library: "",
+        client: "data Step=machine(n:u64)->u64; machine identity(n:u64)->u64{n} machine apply<const F:Step>(n:u64)->u64{F(n) +% 0u64} const ANSWER:u64=apply::<identity>(42u64);",
+        occurrence: "F(n)",
+    };
+    program.check(PreparationReason::OperandSiteMismatch, "the call operand selects a different source occurrence\ncall chain: apply -> <indirect or unsupported call>", |facts| {
+        let other = facts.landings.iter().find(|l| l.site.span.slice(program.client.as_bytes()) == Some(b"0u64")).unwrap();
+        facts.indirect_calls[0].operands[0].node = other.node;
     });
 }
 

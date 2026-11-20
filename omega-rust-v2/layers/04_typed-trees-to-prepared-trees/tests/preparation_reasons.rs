@@ -540,3 +540,19 @@ fn typing_refusals_have_no_preparation_cause() {
     assert_eq!((failure.cause(), failure.reason()), (None, None));
     assert_eq!(failure.diagnostic().message, "expected [u8; 4], found [u8; 6]");
 }
+
+#[test]
+fn a_valid_shift_count_can_still_exceed_the_selected_carrier() {
+    let source = "machine shift(n:u7,k:u64)->u7{n << k} const VALUE:u7=shift(64,1);";
+    assert_refusal(
+        source,
+        None,
+        owned(
+            Phase::Preparation,
+            PreparationReason::OperationOutsideCarrier,
+            "exact operation exceeds its selected integer carrier",
+            (53, 64),
+            "static evaluation cannot admit this invocation: exact operation exceeds its selected integer carrier",
+        ),
+    );
+}

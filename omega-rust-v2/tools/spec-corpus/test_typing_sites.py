@@ -27,6 +27,24 @@ class TypingSitesTests(unittest.TestCase):
         self.assertEqual([r["stage_tests"] for r in inventory["rows"]], [["tests/x.rs::domain"], ["tests/x.rs::case"], ["tests/x.rs::pending"]])
         self.assertTrue(all("package_tests" not in row for row in inventory["rows"]))
 
+    def test_another_tree_cannot_supply_a_witness_for_the_same_relative_file(self):
+        root = Path(__file__).absolute().parents[2]
+        for path, valid in [(f"{SOURCE}/a.rs", True), ((root / SOURCE / "a.rs").as_posix(), True),
+                            (f"other/{SOURCE}/a.rs", False), ((root / "other" / SOURCE / "a.rs").as_posix(), False)]:
+            with self.subTest(path=path):
+                inventory = parse(_tsv("a.rs\t3\t5\tf\tat\tliteral\tbad"))
+                target, test = "tests/x.rs", "domain"
+                report = {"suites": {"L3": {"tests": [{"target": target, "test": test, "status": "ok"}]}}, "measurement_errors": []}
+                record_return(report, "L3", target, (target, test),
+                              f"OMEGA_TYPING_RETURN\t\t{path}\t3\t5\trefused\tapp\tf.omg\t0\t1\t3\tbad")
+                attach_witnesses(inventory, report)
+                if valid:
+                    self.assertEqual(inventory["rows"][0]["stage_tests"], [f"{target}::{test}"])
+                    self.assertEqual(inventory["errors"], [])
+                else:
+                    self.assertNotIn("stage_tests", inventory["rows"][0])
+                    self.assertIn("outside the inventory", inventory["errors"][0])
+
     def test_a_fixture_requires_its_original_source_bytes_location_reason_and_match(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
