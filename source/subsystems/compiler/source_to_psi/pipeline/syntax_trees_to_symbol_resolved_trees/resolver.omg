@@ -20,13 +20,13 @@ public data Resolver {
 }
 
 public machine resolver_initialize(resolver: @mut Resolver) {
-    name_resolution_clear(@mut resolver.output, SourceId { value: 0 });
+    name_resolution_clear(@mut resolver.output, SourceId { value: 0 as +Trapping });
 }
 
 public machine resolve(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
-    name_resolution_clear(@mut resolver.output, SourceId { value: 0 });
+    name_resolution_clear(@mut resolver.output, SourceId { value: 0 as +Trapping });
     place_machines(resolver, syntax);
     check_declaration_forms(resolver, syntax);
     transition resolver.output.accepted {
