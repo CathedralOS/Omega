@@ -1,0 +1,96 @@
+// These names identify operations of the construction Build prelude only
+// when the activated file has no Build-local declaration, import, or formal
+// shadowing them. The path registration has default alias and Product purpose.
+machine OmegaScalarCompiler::build_prelude_name(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
+    return (self.build_spelling(source, name, "Build") == 1) ||
+        (self.build_spelling(source, name, "Source") == 1) ||
+        (self.build_spelling(source, name, "DependencyRegistration") == 1) ||
+        (self.build_spelling(source, name, "dependency") == 1);
+}
+
+// Match the scoped receiver and separator, arity and absence of any static
+// argument before consuming the call. A value projection, alternate namespace
+// or same-spelled method on an ordinary receiver cannot issue a registration.
+machine OmegaScalarCompiler::build_call(&mut self, source: &[u8], expression: i32,
+    owner: &[u8], name: &[u8], separator: i32, arguments: i32) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind { OmegaExpressionKind::Call -> call(row.payload0) _ -> return -1 }
+    state call(index: i32) {
+        let row: OmegaCallExpressionSyntax = self.parser.call_expressions[index];
+        transition (row.acknowledgements == 0) && (row.has_receiver == 1) && (row.name_member_count == 2) &&
+            (row.machine_argument_count == 0) && (row.argument_count == arguments) &&
+            (self.build_spelling(source, row.target, name) == 1) &&
+            (self.read_query(source, row.start, row.target.end) == separator) {
+            true -> receiver(index, self.parser.expressions[row.receiver])
+            _ -> return -1
+        }
+    }
+    state receiver(index: i32, row: OmegaExpressionSyntax) {
+        transition row.kind { OmegaExpressionKind::Path -> path(index, row) _ -> return -1 }
+    }
+    state path(index: i32, row: OmegaExpressionSyntax) {
+        transition row.path_kind { OmegaPathExpressionKind::Name -> named(index, row) _ -> return -1 }
+    }
+    state named(index: i32, row: OmegaExpressionSyntax) {
+        transition (row.payload1 == 1) && (row.payload3 == 1) &&
+            (self.build_spelling(source, self.parser.members[row.payload0], owner) == 1) {
+            true -> return index
+            _ -> return -1
+        }
+    }
+}
+
+// Build::dependency takes the canonical from_source description with no
+// explicit alias. Source::Path supplies the location; Build::build_dependency
+// is a separate operation and cannot produce this Product edge.
+machine OmegaScalarCompiler::check_path_registration(&mut self, source: &[u8], handle: OmegaRelativeSpan,
+    row: OmegaLocalDataStatementSyntax) -> i32 {
+    let declared: OmegaTypeReferenceSyntax = self.parser.type_references[row.type_reference];
+    transition declared.kind { OmegaTypeReferenceKind::Named -> annotation(declared) _ -> return 0 }
+    state annotation(declared: OmegaTypeReferenceSyntax) {
+        transition self.span_equals(source, declared.payload0, declared.payload1, "DependencyRegistration") {
+            1 -> dependency(self.build_call(source, row.initial_value, "Build", "dependency", 2, 2))
+            _ -> return 0
+        }
+    }
+    state dependency(index: i32) {
+        transition index >= 0 { true -> arguments(self.parser.call_expressions[index].first_argument) _ -> return 0 }
+    }
+    state arguments(first: i32) {
+        let member: i32 = self.build_path_argument(first, 1);
+        transition (member >= 0) && (self.parser.sources.equal_name(source, handle, self.parser.members[member]) == 1) {
+            true -> description(self.build_call(source, self.parser.call_arguments[first + 1], "dependency", "from_source", 1, 1))
+            _ -> return 0
+        }
+    }
+    state description(index: i32) {
+        transition index >= 0 {
+            true -> source_value(self.parser.expressions[self.parser.call_arguments[self.parser.call_expressions[index].first_argument]])
+            _ -> return 0
+        }
+    }
+    state source_value(value: OmegaExpressionSyntax) {
+        transition value.kind { OmegaExpressionKind::StructLiteral -> constructor(self.parser.struct_literals[value.payload0]) _ -> return 0 }
+    }
+    state constructor(value: OmegaStructLiteralSyntax) {
+        transition (value.type_member_count == 2) && (value.field_count == 1) && (value.has_omission == 0) {
+            true -> path(self.parser.members[value.first_type_member], self.parser.members[value.first_type_member + 1],
+                self.parser.struct_literal_fields[value.first_field])
+            _ -> return 0
+        }
+    }
+    state path(type_name: OmegaRelativeSpan, tag: OmegaRelativeSpan, field: OmegaStructLiteralFieldSyntax) {
+        transition (self.build_spelling(source, type_name, "Source") == 1) && (self.build_spelling(source, tag, "Path") == 1) &&
+            (self.read_query(source, type_name.start, tag.end) == 2) && (self.build_spelling(source, field.name, "location") == 1) {
+            true -> location(self.parser.expressions[field.value])
+            _ -> return 0
+        }
+    }
+    state location(value: OmegaExpressionSyntax) {
+        transition value.kind {
+            OmegaExpressionKind::String -> return self.span_equals(source, value.payload0 + 1, value.payload1 - 1,
+                self.build.location.as_slice[0..self.build.location_length])
+            _ -> return 0
+        }
+    }
+}
