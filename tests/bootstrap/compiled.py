@@ -362,25 +362,17 @@ def omega_control_customer(work, timeout):
 
 def omega_storage_program():
     gate = ROOT / "tests/bootstrap/conformance/omega"
-    unit = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
+    source_files = ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg"
     construction = (ROOT / "source/application/construction/main.omg").read_bytes()
-    declarations = []
-    for source, markers in (
-        (unit, (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear(",
-                b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
-                b"public data ModulePath\n", b"public machine module_path_append(",
-                b"public data SourceRange ", b"public data PackageRow ", b"public data DependencyScope ",
-                b"public data DependencyRow ", b"public data SourceSet\n", b"public machine path_length(",
-                b"public machine source_set_byte_or_nul(")),
-        (construction, (b"data ConstructionInput {",)),
-    ):
-        for marker in markers:
-            start = source.index(marker)
-            end = source.index(b"\n}", start) + 2
-            declarations.append(source[start:end])
-    declarations.append((gate / "qualified_array_elements.omg").read_bytes())
-    declarations.append((gate / "indexed_record_fields.omg").read_bytes())
-    return b"\n\n".join(declarations) + b"\n" + (gate / "storage_controls.omg").read_bytes()
+    start = construction.index(b"data ConstructionInput {")
+    end = construction.index(b"\n}", start) + 2
+    return b"\n\n".join((
+        source_files.read_bytes(),
+        construction[start:end],
+        (gate / "qualified_array_elements.omg").read_bytes(),
+        (gate / "indexed_record_fields.omg").read_bytes(),
+        (gate / "storage_controls.omg").read_bytes(),
+    ))
 
 
 def omega_storage_customer(work, timeout):
