@@ -369,7 +369,8 @@ def omega_storage_program():
         (unit, (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear(",
                 b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
                 b"public data ModulePath\n", b"public machine module_path_append(",
-                b"public data SourceRange ", b"public machine path_length(")),
+                b"public data SourceRange ", b"public data PackageRow ", b"public data DependencyScope ",
+                b"public data DependencyRow ", b"public data SourceSet\n", b"public machine path_length(")),
         (construction, (b"data ConstructionInput {",)),
     ):
         for marker in markers:
@@ -411,7 +412,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: seventeen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and 78 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: seventeen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and all refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_utf8_customer(work, timeout, batch=None):

@@ -179,6 +179,13 @@ machine Main::main(&mut self) {
         self.refusal("data Pair [copy] { first:u8; second:u8; } data Box [copy] { left:u8; inside:Pair; right:u8; } machine replace(target:@mut Pair,other:@Pair){let saved:Pair=other;$target=saved;} machine main()->u8 {let mut box:Box;box.left=3;box.inside.first=1;box.inside.second=2;box.right=7;let value:Pair=Pair{first:42,second:9};replace(@mut box.inside,@value);transition box.left==3 && box.inside.second==9 && box.right==7 {true->box.inside.first,_->1}}", 2, 126);
         self.refusal("data Cell [copy] requires n<=2, { n:u64; bytes:[u8;2]; } machine read(p:@mut Cell)->u8 requires p.n<2 {let mut replacement:Cell;replacement.n=2;$p=replacement;p.bytes[p.n]} machine main()->u8 {42}", 2, 127);
         self.refusal("data Leaf [copy] { n:u8; } data Tree [copy] { leaf:Leaf; } machine use_both(a:@mut Leaf,b:Tree) {} machine caller(p:@mut Tree) {use_both(@mut p.leaf,$p);} machine main()->u8 {42}", 1, 128);
+        // An underflow proof belongs to its scalar and cannot truncate a wide literal.
+        self.refusal("data Pool requires used<=43, {used:u64;} machine free(p:@Pool)->u64{42-p.used} machine main()->u8{42}", 2, 130);
+        self.refusal("data Pool requires used<=42, {used:u64;other:u64;} machine free(p:@Pool)->u64{42-p.other} machine main()->u8{42}", 2, 131);
+        self.refusal("machine trim(v:u64)->u64 requires v>=1 {v-2} machine main()->u8{42}", 2, 132);
+        self.refusal("machine trim(v:u64)->u64 requires v>=2 {v-2} machine main()->u8{let r:u64=trim(1);42}", 2, 133);
+        self.refusal("machine trim(v:u64)->u64 requires v>=2 {v-4294967298u64} machine main()->u8{42}", 2, 134);
+        self.refusal("data Pool requires used<=42, {used:u64;} machine sum(p:@Pool)->u64{p.used+4294967296u64} machine main()->u8{let mut p:Pool;p.used=2;transition sum(@p)==2u64 {true->42,_->1}}", 2, 135);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }
