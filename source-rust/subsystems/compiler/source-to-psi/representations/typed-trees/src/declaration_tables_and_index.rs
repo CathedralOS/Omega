@@ -2475,15 +2475,12 @@ pub(crate) mod declaration_tables {
             );
         }
 
-        /// Drops the view retained for `application`, so the next
-        /// preparation forms it again from the application's arguments as
-        /// they now are. Only for an argument whose value arrived after the
-        /// view was formed (`settle_const_argument`).
-        pub(crate) fn forget_data_application_definition(
-            &mut self,
-            application: TypeReferenceHandle,
-        ) {
-            if self.data_application_definition(application).is_some() {
+        /// Remove the retained open view of a source occurrence before its
+        /// producer rebuilds it with a newly settled argument.
+        pub fn discard_open_data_application(&mut self, application: TypeReferenceHandle) {
+            if self.data_application_definition(application).is_some()
+                && !self.data_application_is_closed(application)
+            {
                 let row = Handle::from_parts(application.arena_index(), application.generation());
                 self.tables
                     .data_application_definitions
@@ -2512,7 +2509,7 @@ pub(crate) mod declaration_tables {
                 .then(|| self.tables.data_definitions.get(definition))
         }
 
-        pub(crate) fn data_application_is_closed(&self, application: TypeReferenceHandle) -> bool {
+        pub fn data_application_is_closed(&self, application: TypeReferenceHandle) -> bool {
             let row = Handle::from_parts(application.arena_index(), application.generation());
             self.tables
                 .data_application_definitions

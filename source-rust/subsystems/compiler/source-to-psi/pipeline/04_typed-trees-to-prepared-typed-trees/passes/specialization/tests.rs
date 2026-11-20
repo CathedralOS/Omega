@@ -17,7 +17,7 @@
 //! spelling with no literal, which is not: it is the failing twin. The same
 //! call with the literal `3` is served (`counted_at`).
 
-use super::prepare;
+use super::{data_applications, prepare};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{TypeParameter, TypeParameterKind};
 use crate::source_state::deferred_refusals::DeferredRequest;
@@ -680,9 +680,7 @@ fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
         .static_operand_type_reference_in_scope(&selected, relay.machine)
         .expect("the authored type argument retains its original scope");
     assert!(
-        !program
-            .prepare_data_application_view(selected.type_reference)
-            .unwrap(),
+        !data_applications::prepare(&mut program, selected.type_reference).unwrap(),
         "an open parameter is not a closed data application"
     );
     let operand = super::Operand::read(

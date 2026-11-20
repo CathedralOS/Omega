@@ -1931,8 +1931,7 @@ mod tests {
                     lifetime_arguments: Vec::new(),
                 })
         });
-        program
-            .prepare_data_application_views(0)
+        crate::data_applications::prepare_from(&mut program, 0)
             .expect("actual closed applications");
         let parameters = program
             .state_parameters

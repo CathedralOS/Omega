@@ -4,6 +4,7 @@
 use super::*;
 use crate::source_state::data::DataMember;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::data_applications;
 
 fn source_program(payload: &str) -> crate::source_state::TypedTrees {
     source_program_in_scope(payload, true)
@@ -149,18 +150,14 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     let retained_members = prepared_again.data_members.len();
     let retained_payloads = prepared_again.data_payload_fields.len();
     for reference in &fields {
-        assert!(
-            prepared_again
-                .prepare_data_application_view(*reference)
-                .unwrap()
-        );
+        assert!(data_applications::prepare(&mut prepared_again, *reference).unwrap());
     }
     assert!(
-        !prepared_again
-            .prepare_data_application_view(
-                open_reference.expect("the parsed generic core application")
-            )
-            .unwrap()
+        !data_applications::prepare(
+            &mut prepared_again,
+            open_reference.expect("the parsed generic core application"),
+        )
+        .unwrap()
     );
     assert_eq!(prepared_again.data_members.len(), retained_members);
     assert_eq!(prepared_again.data_payload_fields.len(), retained_payloads);

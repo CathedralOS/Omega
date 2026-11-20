@@ -6,9 +6,10 @@
 //! Each expression becomes a zero-argument source machine. Ordinary checking
 //! judges that machine with the parameter's carrier before execution. The
 //! materialized value updates the original type argument through
-//! `TypedTrees::settle_const_argument`.
+//! [`data_applications::settle_const_argument`].
 
 use std::collections::VecDeque;
+use symbol_resolved_trees_to_typed_trees::data_applications;
 
 use crate::source_state::TypedTrees;
 use crate::source_state::constant_recipes::{
@@ -400,7 +401,7 @@ pub fn evaluate(
                 DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
                 _ => return Err("the value is neither an integer nor a Boolean".into()),
             };
-            program.settle_const_argument(job.argument, &spelling)?;
+            data_applications::settle_const_argument(program, job.argument, &spelling)?;
             Ok(())
         })();
         if let Err(reason) = result {

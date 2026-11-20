@@ -318,7 +318,8 @@ pub(crate) use access_views_and_commitments::{access_views, commitments};
 pub(crate) mod callable_applications;
 mod calls_and_control_flow;
 pub use calls_and_control_flow::{calls, control_flow, names};
-mod data_applications;
+#[cfg(test)]
+mod canonical_const_carrier_tests;
 mod declaration_tables_and_index;
 pub use declaration_tables_and_index::declaration_index;
 pub(crate) use declaration_tables_and_index::{
@@ -2375,7 +2376,7 @@ mod continuation_storage_tests {
                     members,
                     ..Default::default()
                 },
-                true,
+                false,
             );
             applications.push(reference);
         }
@@ -2410,7 +2411,7 @@ mod continuation_storage_tests {
             panic!("authored field")
         };
         field.name = Identifier::generated("changed field");
-        fork.forget_data_application_definition(applications[0]);
+        fork.discard_open_data_application(applications[0]);
         assert!(fork.data_application_definition(applications[0]).is_none());
         assert!(
             predecessor

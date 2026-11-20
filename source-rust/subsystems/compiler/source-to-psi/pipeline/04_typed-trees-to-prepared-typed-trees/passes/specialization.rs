@@ -68,6 +68,7 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;
 use std::borrow::Cow;
+use symbol_resolved_trees_to_typed_trees::data_applications;
 use symbols::{SymbolHandle, SymbolKind};
 
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -185,8 +186,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // Selected callback headers also create substituted types before copying
     // a body. Form their data views along with every other new type from this
     // pass, so later readers see the same exact application and field types.
-    program
-        .prepare_data_application_views(first_type)
+    data_applications::prepare_from(program, first_type)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(())
 }
@@ -1896,8 +1896,7 @@ fn named_type(
         program
             .require_declared_application_operands(&[reference], supplying_owner)
             .map_err(unserved)?;
-        let closed_view = program
-            .prepare_data_application_view(reference)
+        let closed_view = data_applications::prepare(program, reference)
             .map_err(|reason| Stop::Rejected(format!("static type operand: {reason}")))?;
         if !closed_view && crate::source_state::domain::index_argument_is_closed(program, reference)
         {
@@ -2589,9 +2588,7 @@ fn copy_declarations(
     // canonical identity equals an existing application. Retain their own
     // substituted data views before a later reader asks about their fields or
     // type identity. Open child applications keep their unresolved binders.
-    program
-        .prepare_data_application_views(type_start)
-        .map_err(Stop::Rejected)?;
+    data_applications::prepare_from(program, type_start).map_err(Stop::Rejected)?;
     Ok(CopiedDeclarations {
         machine: machine_symbol,
         state: state_symbol,

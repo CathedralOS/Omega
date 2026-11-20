@@ -2,6 +2,7 @@
 //! existing lowered checker can establish its argument domains and callee
 //! requirements; this constructor supplies no acceptance or source authority.
 
+use symbol_resolved_trees_to_typed_trees::data_applications;
 use crate::compile_time::BuildTimeValue;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataField, DataMember, DataMemberIdentity};
@@ -55,7 +56,7 @@ fn data_argument<'value>(
         TypeReferenceNode::Generic { .. }
     ) && program.data_application_definition(destination).is_none()
     {
-        program.prepare_data_application_view(destination)?;
+        data_applications::prepare(program, destination)?;
     }
     let definition = program
         .closed_data_definition(destination)

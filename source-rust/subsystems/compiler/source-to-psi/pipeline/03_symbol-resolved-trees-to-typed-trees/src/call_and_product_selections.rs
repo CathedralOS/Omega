@@ -2118,8 +2118,7 @@ pub(crate) mod construction_destinations {
                 // Normalization is complete before landing. Reuse its exact view;
                 // only a fresh receiving occurrence needs another metadata row.
                 if program.data_application_definition(carrier).is_none() {
-                    program
-                        .prepare_data_application_view(carrier)
+                    crate::data_applications::prepare(program, carrier)
                         .map_err(Diagnostic::error)?;
                 }
                 if !prior.is_valid() {
