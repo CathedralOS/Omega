@@ -460,13 +460,33 @@ mod assignment {
                 &type_parameters,
                 &mut domain.target_type,
             );
-            assign_type_reference_argument_symbols_with_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                &type_parameters,
-                domain.index_arguments,
-            );
+            // The carrier binder of T::Quantity<U> is implicit. Each written
+            // index after it takes its role from the family's own declaration.
+            let generic_carrier = type_parameters.first().is_some_and(|parameter| {
+                matches!(parameter.kind, TypeParameterKind::Type)
+                    && matches!(&domain.target_type, TypeReference::Named { symbol, .. }
+                        if symbol.is_valid() && *symbol == parameter.symbol)
+            });
+            let index_parameters = &type_parameters[usize::from(generic_carrier)..];
+            for (position, handle) in domain.index_arguments.handles().enumerate() {
+                if index_parameters
+                    .get(position)
+                    .is_some_and(|p| matches!(p.kind, TypeParameterKind::Const { .. }))
+                    && let TypeReference::Named { symbol, name, .. } =
+                        child_type_references.get_mut(handle)
+                {
+                    *symbol = resolve_value_in_type_symbol(symbols, &type_parameters, name);
+                } else {
+                    assign_type_reference_handle_symbol_with_context(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &type_parameters,
+                        handle,
+                        &[],
+                    );
+                }
+            }
         });
 
         let proposition_binders = &mut program.tables.declarations.proposition_binders;

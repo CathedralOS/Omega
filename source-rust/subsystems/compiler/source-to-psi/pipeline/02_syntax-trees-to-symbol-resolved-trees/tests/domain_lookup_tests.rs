@@ -110,6 +110,34 @@ fn proof_expression_membership_rejects_a_domain_competing_with_a_case() {
 }
 
 #[test]
+fn domain_index_names_resolve_in_their_declared_type_or_const_role() {
+    use crate::source_resolved::types::TypeReference;
+
+    let program = resolve_source(
+        "data Index {}
+         domain<T, Frame, const Index: u64> T::Calibrated<Frame, Index>;
+         domain<const Index: u64> u32::At<Index>;",
+    );
+    assert_eq!(program.domain_definitions.len(), 2);
+    for domain in &program.domain_definitions {
+        let parameters = program.data_type_parameters(domain.type_parameters);
+        let arguments = program.child_type_references(domain.index_arguments);
+        let indices = match domain.name.as_str().rsplit("::").next().unwrap() {
+            "Calibrated" => &parameters[1..],
+            "At" => parameters,
+            other => panic!("unexpected domain {other}"),
+        };
+        assert_eq!(arguments.len(), indices.len());
+        for (argument, binder) in arguments.iter().zip(indices) {
+            assert!(
+                matches!(argument, TypeReference::Named { symbol, .. } if symbol.is_valid() && *symbol == binder.symbol),
+                "{argument:?} must select the binder {binder:?}",
+            );
+        }
+    }
+}
+
+#[test]
 fn explicit_domain_application_resolves_to_the_same_declared_type_equation() {
     let source = "
         domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
