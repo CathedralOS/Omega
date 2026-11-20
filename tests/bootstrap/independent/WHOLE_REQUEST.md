@@ -122,6 +122,40 @@ The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.
 
+## Named payload bindings
+
+The source-built Linux Epsilon compiler compiled the updated Omega compiler
+and construction entry. Delta checked the resulting program and emitted Gamma.
+The 226,861-byte Gamma compiler from the seed build produced the executable below.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Epsilon source with construction entry | 871,346 | `6ff7efc90597dc4bdda9eb9f7022f7927a4ddaa85ee3eb049eb278fa368fba88` |
+| Epsilon compiler output, including marker | 18,787,693 | `a01cece0a189fbd0b5614db571935987ad0ce586d2b85a7361101f4344142e82` |
+| Delta source with runtime and entry | 18,883,716 | `2f015c02827dd72ec1b5a701a512afc35620d3028e9a9b9d1403b03993dded33` |
+| Gamma emitted by Delta | 27,145,761 | `6301a32ee1641d4167655f81f87ba825b4a80e3ddd3653270e98ffa2bf9204a6` |
+| Linux construction executable | 58,490,251 | `bd83105fa731fbde75b3bd1e788ea3b25bdefd159d8eeed48f91dabf7f2d426b` |
+
+The native constructor matched the source model byte for byte on 24 inputs.
+Nine produced tapes that ran on Alpha. The other 15 returned the same refusal
+coordinates. The renamed-binding, zero-omission and initializer-order fixtures
+produced 1,205, 1,469 and 1,794 bytes respectively and each exited 42.
+Each fixture is the only unit in package `app`, with entry `main`. The
+published Epsilon interpreter, native constructor and source model also agreed
+on the 1,271-byte tape for the nested record/case omission control (SHA-256
+`294b4d9893a70a5f9f55fcebcc714cf07808b25a67e08b9e78ecefeaf8b8a0c3`).
+The portable program and wire decoder reproduced their previous tapes.
+[Fixtures](../conformance/omega) · [Wire decoder](#product-wire-package-through-the-construction-entry)
+
+The same native executable ran on the complete product for 243.9 seconds
+before the 10 GiB RSS guard stopped it. Its output was empty.
+
+The independent Epsilon model ran the updated guest on the original
+3,955,617-byte product. It passed the renamed binding at byte 87,497 and
+returned `00020000000fc60100` at byte 116,239, on `in` in
+`[u64 in Trapping; 131072]`. This is line 48 of `scalar.omg`.
+[Source location and request identity](../../../bootstrap/omega/compiler/README.md#renamed-payload-bindings-on-the-complete-compiler-product)
+
 ## Earlier conformance and private-adapter measurements
 
 At `9d6b86e82d0` the packet contained 852,096 bytes of Epsilon source and

@@ -242,7 +242,7 @@ def omega_control_customer(work, timeout):
     (work / "control-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 42, 42)):
+    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 0, 42, 42, 42, 0, 42, 42, 42)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -256,7 +256,7 @@ def omega_control_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega runtime control: 19 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 37 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega runtime control: 25 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 50 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_storage_customer(work, timeout):

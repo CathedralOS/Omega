@@ -17,6 +17,7 @@ data OmegaCheckedValueKind {
     case ExactWordArithmetic;
     case TrappingArithmetic;
     case NullaryCase;
+    case CaseLiteral;
 }
 
 // Each call or terminal transfer has one resolved target. Its incoming list
@@ -141,6 +142,10 @@ data OmegaScalarCompiler {
     case_name_count: i32;
     case_guard_ordinals: [i32; 16384];
     case_coverage: [i32; 16384];
+    // Each pattern field retains its case-owned slot. Only the current
+    // arm's target can resolve its binding names (zero means no arm).
+    pattern_field_slots: [i32; 16384];
+    pattern_scope: i32;
     // Compound identities are canonical within this single-source adapter:
     // nominal records/sums 100000+declaration, arrays 200000+type-row, qualified arrays
     // 300000+type-row, shared/mutable record refs 400000/500000+declaration.
@@ -148,10 +153,11 @@ data OmegaScalarCompiler {
     data_colors: [i32; 4096];
     data_sizes: [i32; 4096];
     data_copy: [i32; 4096];
-    field_types: [i32; 16384];
-    field_offsets: [i32; 16384];
-    field_extents: [i32; 16384];
-    field_upper_bounds: [i32; 16384];
+    // Slots 0..16384 name record fields; the upper half names case payload fields.
+    field_types: [i32; 32768];
+    field_offsets: [i32; 32768];
+    field_extents: [i32; 32768];
+    field_upper_bounds: [i32; 32768];
     layout_depth: i32;
     // Storage keeps scalar cells and compound values in one bounded arena.
     // Every region is word aligned; array elements retain their own stride.
@@ -1056,6 +1062,7 @@ machine OmegaScalarCompiler::expression_type(
         OmegaExpressionKind::Integer -> return 0
         OmegaExpressionKind::Boolean -> return 1
         OmegaExpressionKind::Indexed -> return self.byte_index_result_type(source, state_index, before, expression)
+        OmegaExpressionKind::StructLiteral -> literal(self.parser.struct_literals[row.payload0])
         OmegaExpressionKind::Path -> path(row)
         OmegaExpressionKind::Call -> call(self.parser.call_expressions[row.payload0])
         OmegaExpressionKind::Binary -> binary(self.parser.binary_expressions[row.payload0])
@@ -1067,6 +1074,12 @@ machine OmegaScalarCompiler::expression_type(
         transition row.payload3 > 1 {
             true -> return self.case_value_type(source, row)
             _ -> place()
+        }
+    }
+    state literal(row: OmegaStructLiteralSyntax) {
+        transition row.type_member_count > 1 {
+            true -> return self.qualified_case_type(source, row.first_type_member, row.type_member_count)
+            _ -> return -1
         }
     }
     state place() {
@@ -2015,6 +2028,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     transition self.value_kinds[expression] {
         OmegaCheckedValueKind::Literal -> return self.tape.emit_imm(0, self.value_payloads[expression], 0)
         OmegaCheckedValueKind::NullaryCase -> return self.emit_case_value(expression)
+        OmegaCheckedValueKind::CaseLiteral -> return self.emit_record_literal(expression)
         OmegaCheckedValueKind::Call -> call(self.parser.call_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::BooleanBinary -> return self.emit_boolean_binary(expression,
             self.parser.binary_expressions[self.value_payloads[expression]])
@@ -2243,7 +2257,69 @@ machine OmegaScalarCompiler::emit_transition_target(&mut self, row_index: i32) -
     }
 }
 
-// Nullary sum patterns retain exact declaration identity. Coverage is checked
+// A case arm that only binds or waives fields covers the whole selected case.
+// Payload equality tests require a conditional guard and stay unsupported.
+machine OmegaScalarCompiler::check_case_fields(
+    &mut self, source: &[u8], row: OmegaTransitionStatementSyntax, case_slot: i32
+) -> i32 {
+    transition true { true -> field(0) }
+    state field(offset: i32) {
+        transition offset < row.guard_pattern_field_count {
+            true -> resolve(offset, self.parser.transition_pattern_fields[row.guard_first_pattern_field + offset])
+            _ -> complete()
+        }
+    }
+    state resolve(offset: i32, item: OmegaTransitionPatternFieldSyntax) {
+        let name: OmegaRelativeSpan = self.parser.members[item.member];
+        let slot: i32 = self.resolve_payload_field(source, case_slot, name.start, name.end);
+        transition slot >= 0 {
+            true -> action(offset, item, slot)
+            _ -> rejected(name.start)
+        }
+    }
+    state action(offset: i32, item: OmegaTransitionPatternFieldSyntax, slot: i32) {
+        transition item.kind {
+            OmegaTransitionPatternFieldKind::Bind -> unique(offset, item, slot, 0)
+            OmegaTransitionPatternFieldKind::Waive -> unique(offset, item, slot, 0)
+            _ -> unsupported(item.start)
+        }
+    }
+    state unique(offset: i32, item: OmegaTransitionPatternFieldSyntax, slot: i32, previous: i32) {
+        transition previous < offset {
+            true -> compare(offset, item, slot, previous, row.guard_first_pattern_field + previous)
+            _ -> retain(offset, slot)
+        }
+    }
+    state compare(offset: i32, item: OmegaTransitionPatternFieldSyntax, slot: i32, previous: i32, prior: i32) {
+        transition self.pattern_field_slots[prior] == slot {
+            true -> rejected(item.start)
+            _ -> binding(offset, item, slot, previous, self.parser.transition_pattern_fields[prior].binding)
+        }
+    }
+    state binding(offset: i32, item: OmegaTransitionPatternFieldSyntax, slot: i32, previous: i32, prior: OmegaRelativeSpan) {
+        transition (item.binding.end > item.binding.start) && (prior.end > prior.start) &&
+            (self.parser.sources.equal_name(source, item.binding, prior) == 1) {
+            true -> duplicate(item.binding.start)
+            _ -> unique(offset, item, slot, previous + 1)
+        }
+    }
+    state retain(offset: i32, slot: i32) {
+        self.pattern_field_slots[row.guard_first_pattern_field + offset] = slot;
+        transition true { true -> field(offset + 1) }
+    }
+    state complete() {
+        transition (row.guard_has_rest == 1) ||
+            (row.guard_pattern_field_count == self.parser.data_cases[case_slot].payload_field_count) {
+            true -> return 1
+            _ -> rejected(row.guard_start)
+        }
+    }
+    state duplicate(coordinate: i32) { self.record_reject(10, 4, coordinate); return 0; }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
+}
+
+// Sum patterns retain exact declaration identity. Coverage is checked
 // for every case, while source order determines the first selected arm. Even
 // arms following a wildcard still have their patterns and targets checked.
 machine OmegaScalarCompiler::check_case_transition(
@@ -2278,6 +2354,7 @@ machine OmegaScalarCompiler::check_case_transition(
         transition row.guard_kind {
             OmegaTransitionGuardKind::Always -> target(cursor, 1, row_index)
             OmegaTransitionGuardKind::Path -> path(cursor, wildcard, row_index, row)
+            OmegaTransitionGuardKind::Destructure -> path(cursor, wildcard, row_index, row)
             _ -> unsupported(row.guard_start)
         }
     }
@@ -2299,9 +2376,26 @@ machine OmegaScalarCompiler::check_case_transition(
     state member(cursor: i32, wildcard: i32, row_index: i32, name: OmegaRelativeSpan) {
         let slot: i32 = self.resolve_case(source, declaration, name.start, name.end);
         transition slot >= 0 {
-            true -> retain(cursor, wildcard, row_index, slot)
+            true -> pattern(cursor, wildcard, row_index, slot)
             _ -> rejected(name.start)
         }
+    }
+    state pattern(cursor: i32, wildcard: i32, row_index: i32, slot: i32) {
+        let row: OmegaTransitionStatementSyntax = self.parser.transition_statements[row_index];
+        transition row.guard_kind {
+            OmegaTransitionGuardKind::Destructure -> fields(cursor, wildcard, row_index, slot, row)
+            _ -> retain(cursor, wildcard, row_index, slot)
+        }
+    }
+    state fields(cursor: i32, wildcard: i32, row_index: i32, slot: i32, row: OmegaTransitionStatementSyntax) {
+        transition self.check_case_fields(source, row, slot) {
+            1 -> scope(cursor, wildcard, row_index, slot)
+            _ -> return 0
+        }
+    }
+    state scope(cursor: i32, wildcard: i32, row_index: i32, slot: i32) {
+        self.pattern_scope = row_index + 1;
+        transition true { true -> retain(cursor, wildcard, row_index, slot) }
     }
     state retain(cursor: i32, wildcard: i32, row_index: i32, slot: i32) {
         self.case_guard_ordinals[row_index] = slot - self.parser.data_items[declaration].first_case;
@@ -2309,7 +2403,13 @@ machine OmegaScalarCompiler::check_case_transition(
         transition true { true -> target(cursor, wildcard, row_index) }
     }
     state target(cursor: i32, wildcard: i32, row_index: i32) {
-        transition self.check_transition_target(source, owner, state_index, first, row_index) {
+        // Every target terminates this activation. A sibling starts with the
+        // effects already incurred by the subject and preceding statements.
+        let entry_effects: i32 = self.effect_count;
+        let checked: i32 = self.check_transition_target(source, owner, state_index, first, row_index);
+        self.effect_count = entry_effects;
+        self.pattern_scope = 0;
+        transition checked {
             1 -> arm(cursor + 1, wildcard)
             _ -> return 0
         }
@@ -2555,6 +2655,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     self.diagnostic_offset = 0;
     self.literal_offset = 0;
     self.transition_anchor = 0;
+    self.pattern_scope = 0;
     self.selected_machine = -1;
     self.outcome_tag = 0;
     self.outcome_space = 0;
@@ -4192,6 +4293,27 @@ machine OmegaScalarCompiler::resolve_field(
     }
 }
 
+// Case payloads have their own parser ledger. A layout slot can be used for
+// both construction and matching, while field names remain local to their case.
+machine OmegaScalarCompiler::resolve_payload_field(
+    &mut self, source: &[u8], case_slot: i32, start: i32, end: i32
+) -> i32 {
+    let row: OmegaDataCaseSyntax = self.parser.data_cases[case_slot];
+    transition true { true -> next(row.first_payload_field, row.first_payload_field + row.payload_field_count) }
+    state next(slot: i32, limit: i32) {
+        transition slot < limit {
+            true -> compare(slot, limit, self.parser.data_payload_fields[slot].name)
+            _ -> return -1
+        }
+    }
+    state compare(slot: i32, limit: i32, name: OmegaRelativeSpan) {
+        transition self.span_equals(source, start, end, source[name.start..name.end]) {
+            1 -> return 16384 + slot
+            _ -> next(slot + 1, limit)
+        }
+    }
+}
+
 // A bounded hash-chain census serves both duplicate checking and lookup.
 // Collision checks retain full spelling and declaration scope; hashes never
 // establish identity. Bucket arithmetic is at most 34014 before reduction.
@@ -4229,23 +4351,26 @@ machine OmegaScalarCompiler::resolve_case(&mut self, source: &[u8], declaration:
     }
 }
 
-// Only a complete carrier-qualified nullary case is a value in this slice.
+// A case-valued path names its carrier and member. Its payload arity is
+// checked at the point of construction.
 // Expected type never supplies a missing owner or changes nominal identity.
 machine OmegaScalarCompiler::case_value_type(&mut self, source: &[u8], row: OmegaExpressionSyntax) -> i32 {
     transition (row.payload1 == 2) && (row.payload2 == 0) && (row.payload3 == 2) {
-        true -> owner(self.parser.members[row.payload0])
+        true -> return self.qualified_case_type(source, row.payload0, row.payload1)
         _ -> return -1
     }
-    state owner(name: OmegaRelativeSpan) {
-        let declaration: i32 = self.resolve_data(source, name.start, name.end);
-        transition declaration >= 0 {
-            true -> sum(declaration)
-            _ -> return -1
-        }
+}
+
+machine OmegaScalarCompiler::qualified_case_type(&mut self, source: &[u8], first: i32, count: i32) -> i32 {
+    let declaration: i32 = self.resolve_data(source, self.parser.members[first].start,
+        self.parser.members[first + count - 2].end);
+    transition declaration >= 0 {
+        true -> sum(declaration)
+        _ -> return -1
     }
     state sum(declaration: i32) {
         transition self.parser.data_items[declaration].case_count > 0 {
-            true -> member(declaration, self.parser.members[row.payload0 + 1])
+            true -> member(declaration, self.parser.members[first + count - 1])
             _ -> return -1
         }
     }
@@ -4273,6 +4398,12 @@ machine OmegaScalarCompiler::check_case_value(&mut self, source: &[u8], expressi
     }
     state member(declaration: i32, name: OmegaRelativeSpan) {
         let slot: i32 = self.resolve_case(source, declaration, name.start, name.end);
+        transition self.parser.data_cases[slot].payload_field_count == 0 {
+            true -> retain(declaration, slot)
+            _ -> rejected()
+        }
+    }
+    state retain(declaration: i32, slot: i32) {
         self.value_kinds[expression] = OmegaCheckedValueKind::NullaryCase;
         self.value_payloads[expression] = slot - self.parser.data_items[declaration].first_case;
         return 1;
@@ -4281,8 +4412,8 @@ machine OmegaScalarCompiler::check_case_value(&mut self, source: &[u8], expressi
     state rejected() { self.record_reject(-1, 4, self.diagnostic_offset); return 0; }
 }
 
-// Nullary sums use the same copy-backed value boundaries as records. The
-// emitter stores the selected ordinal and returns its established backing.
+// Both bare cases and case literals begin with their checked ordinal. A literal
+// then establishes its active fields in authored order before returning the value.
 machine OmegaScalarCompiler::emit_case_value(&mut self, expression: i32) -> i32 {
     let address: i32 = 33554432 + self.cell_offsets[49152 + expression];
     transition (self.tape.emit_imm(0, self.value_payloads[expression], 0) == 1) &&
@@ -4292,6 +4423,46 @@ machine OmegaScalarCompiler::emit_case_value(&mut self, expression: i32) -> i32 
         true -> return 1
         _ -> return 0
     }
+}
+
+// Each case starts at byte eight, following the tag. The sum occupies the
+// maximum case extent, so independent value copies retain their active payload.
+machine OmegaScalarCompiler::layout_case_payload(&mut self, source: &[u8], case_slot: i32) -> i32 {
+    let row: OmegaDataCaseSyntax = self.parser.data_cases[case_slot];
+    transition true { true -> field(row.first_payload_field, row.first_payload_field + row.payload_field_count, 8) }
+    state field(slot: i32, limit: i32, size: i32) {
+        transition slot < limit {
+            true -> name(slot, limit, size, self.parser.data_payload_fields[slot])
+            _ -> return size
+        }
+    }
+    state name(slot: i32, limit: i32, size: i32, item: OmegaDataFieldSyntax) {
+        transition self.resolve_payload_field(source, case_slot, item.name.start, item.name.end) == 16384 + slot {
+            true -> kind(slot, limit, size, self.scalar_type(source, item.type_reference))
+            _ -> duplicate(item.name.start)
+        }
+    }
+    state kind(slot: i32, limit: i32, size: i32, kind: i32) {
+        transition (kind > 0) && (kind != 2) && (kind < 400000) {
+            true -> extent(slot, limit, size, kind, self.type_size(source, kind))
+            _ -> unsupported(slot)
+        }
+    }
+    state extent(slot: i32, limit: i32, size: i32, kind: i32, extent: i32) {
+        transition (extent > 0) && (extent <= 16777216 - size) && (self.type_copy(source, kind) == 1) {
+            true -> retain(slot, limit, size, kind, extent)
+            _ -> unsupported(slot)
+        }
+    }
+    state retain(slot: i32, limit: i32, size: i32, kind: i32, extent: i32) {
+        self.field_types[16384 + slot] = kind;
+        self.field_offsets[16384 + slot] = size;
+        self.field_extents[16384 + slot] = extent;
+        self.field_upper_bounds[16384 + slot] = -1;
+        transition true { true -> field(slot + 1, limit, size + extent) }
+    }
+    state duplicate(coordinate: i32) { self.record_reject(10, 4, coordinate); return 0; }
+    state unsupported(slot: i32) { self.record_incomplete(4, self.parser.data_payload_fields[slot].start); return 0; }
 }
 
 // A bounded layout DFS rejects by-value cycles and unsupported contained
@@ -4334,9 +4505,15 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     }
     state sum_copy() {
         transition self.parser.data_items[index].multiplicity {
-            OmegaDataMultiplicity::Unrestricted -> sum_case(0)
+            OmegaDataMultiplicity::Unrestricted -> sum_begin()
             _ -> unsupported()
         }
+    }
+    state sum_begin() {
+        self.data_colors[index] = 1;
+        self.data_copy[index] = 0;
+        self.data_sizes[index] = 8;
+        transition true { true -> sum_case(0) }
     }
     state sum_case(offset: i32) {
         transition offset < self.parser.data_items[index].case_count {
@@ -4345,10 +4522,21 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
         }
     }
     state sum_payload(offset: i32, slot: i32) {
-        transition self.parser.data_cases[slot].payload_field_count == 0 {
-            true -> sum_name(offset, slot, self.parser.data_cases[slot].name)
-            _ -> unsupported()
+        let size: i32 = self.layout_case_payload(source, slot);
+        transition size > 0 {
+            true -> sum_size(offset, slot, size)
+            _ -> return 0
         }
+    }
+    state sum_size(offset: i32, slot: i32, size: i32) {
+        transition size > self.data_sizes[index] {
+            true -> sum_grow(offset, slot, size)
+            _ -> sum_name(offset, slot, self.parser.data_cases[slot].name)
+        }
+    }
+    state sum_grow(offset: i32, slot: i32, size: i32) {
+        self.data_sizes[index] = size;
+        transition true { true -> sum_name(offset, slot, self.parser.data_cases[slot].name) }
     }
     state sum_name(offset: i32, slot: i32, name: OmegaRelativeSpan) {
         transition self.resolve_case(source, index, name.start, name.end) < 0 {
@@ -4366,7 +4554,6 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state sum_finish() {
         // Zero names the first declared case. Nominal identity remains the
         // declaration ID; this private word never becomes a source integer.
-        self.data_sizes[index] = 8;
         self.data_copy[index] = 1;
         self.data_colors[index] = 2;
         return 1;
@@ -4534,6 +4721,34 @@ machine OmegaScalarCompiler::require_cell(
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
 }
 
+// An arm-local name selects a field of the saved subject. Waivers have an
+// empty binding span, so only Bind entries participate in name resolution.
+machine OmegaScalarCompiler::pattern_binding(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
+    transition self.pattern_scope > 0 {
+        true -> field(self.parser.transition_statements[self.pattern_scope - 1], 0)
+        _ -> return -1
+    }
+    state field(row: OmegaTransitionStatementSyntax, offset: i32) {
+        transition offset < row.guard_pattern_field_count {
+            true -> action(row, offset, row.guard_first_pattern_field + offset)
+            _ -> return -1
+        }
+    }
+    state action(row: OmegaTransitionStatementSyntax, offset: i32, index: i32) {
+        let item: OmegaTransitionPatternFieldSyntax = self.parser.transition_pattern_fields[index];
+        transition item.kind {
+            OmegaTransitionPatternFieldKind::Bind -> compare(row, offset, index, item.binding)
+            _ -> field(row, offset + 1)
+        }
+    }
+    state compare(row: OmegaTransitionStatementSyntax, offset: i32, index: i32, binding: OmegaRelativeSpan) {
+        transition self.parser.sources.equal_name(source, name, binding) {
+            1 -> return self.pattern_field_slots[index]
+            _ -> field(row, offset + 1)
+        }
+    }
+}
+
 // Resolve a structural place without reading it. The root identifies one
 // binding; each projection retains its declared field and offset. This never
 // manufactures an address from source integers or erases a field qualification.
@@ -4553,6 +4768,22 @@ machine OmegaScalarCompiler::check_place(
         }
     }
     state root(row: OmegaExpressionSyntax, name: OmegaRelativeSpan) {
+        let field: i32 = self.pattern_binding(source, name);
+        transition field >= 0 {
+            true -> payload(row, field)
+            _ -> ordinary(row, name)
+        }
+    }
+    state payload(row: OmegaExpressionSyntax, field: i32) {
+        let subject: i32 = self.parser.transition_statements[self.pattern_scope - 1].subject;
+        self.place_roots[expression] = 49152 + subject;
+        self.place_offsets[expression] = self.field_offsets[field];
+        self.place_fields[expression] = field;
+        self.place_indirect[expression] = 0;
+        self.place_writable[expression] = 0;
+        transition true { true -> members(row, 1, self.field_types[field]) }
+    }
+    state ordinary(row: OmegaExpressionSyntax, name: OmegaRelativeSpan) {
         let cell: i32 = self.value_cell(source, state_index, before, name.start, name.end);
         transition cell >= 0 {
             true -> binding(row, cell)
@@ -4799,8 +5030,32 @@ machine OmegaScalarCompiler::check_record_literal(
     state record_shape(row: OmegaStructLiteralSyntax) {
         transition self.parser.data_items[expected - 100000].case_count == 0 {
             true -> name(row, self.parser.members[row.first_type_member])
+            _ -> case_path(row)
+        }
+    }
+    state case_path(row: OmegaStructLiteralSyntax) {
+        transition row.type_member_count > 1 {
+            true -> case_owner(row)
             _ -> rejected(row.start)
         }
+    }
+    state case_owner(row: OmegaStructLiteralSyntax) {
+        transition self.resolve_data(source, self.parser.members[row.first_type_member].start,
+            self.parser.members[row.first_type_member + row.type_member_count - 2].end) == expected - 100000 {
+            true -> case_name(row, self.parser.members[row.first_type_member + row.type_member_count - 1])
+            _ -> rejected(row.start)
+        }
+    }
+    state case_name(row: OmegaStructLiteralSyntax, name: OmegaRelativeSpan) {
+        let slot: i32 = self.resolve_case(source, expected - 100000, name.start, name.end);
+        transition slot >= 0 {
+            true -> case_count(row, slot)
+            _ -> rejected(name.start)
+        }
+    }
+    state case_count(row: OmegaStructLiteralSyntax, slot: i32) {
+        self.value_payloads[expression] = slot;
+        transition true { true -> coverage(row, self.parser.data_cases[slot].payload_field_count) }
     }
     state name(row: OmegaStructLiteralSyntax, name: OmegaRelativeSpan) {
         transition self.resolve_data(source, name.start,
@@ -4810,7 +5065,14 @@ machine OmegaScalarCompiler::check_record_literal(
         }
     }
     state count(row: OmegaStructLiteralSyntax) {
-        transition row.field_count == self.parser.data_items[expected - 100000].field_count {
+        self.value_payloads[expression] = -1;
+        transition true { true -> coverage(row, self.parser.data_items[expected - 100000].field_count) }
+    }
+    state coverage(row: OmegaStructLiteralSyntax, declared: i32) {
+        // Completed copy layouts admit only fields with established zero values.
+        // Each authored initializer still has to prove its own field bound.
+        transition (row.field_count == declared) ||
+            ((row.has_omission == 1) && (row.field_count < declared)) {
             true -> fields(row, 0)
             _ -> rejected(row.start)
         }
@@ -4822,7 +5084,14 @@ machine OmegaScalarCompiler::check_record_literal(
         }
     }
     state field(row: OmegaStructLiteralSyntax, offset: i32, field: OmegaStructLiteralFieldSyntax) {
-        let slot: i32 = self.resolve_field(source, expected - 100000, field.name.start, field.name.end);
+        transition self.value_payloads[expression] >= 0 {
+            true -> resolved(row, offset, field, self.resolve_payload_field(source,
+                self.value_payloads[expression], field.name.start, field.name.end))
+            _ -> resolved(row, offset, field, self.resolve_field(source,
+                expected - 100000, field.name.start, field.name.end))
+        }
+    }
+    state resolved(row: OmegaStructLiteralSyntax, offset: i32, field: OmegaStructLiteralFieldSyntax, slot: i32) {
         transition slot >= 0 {
             true -> unique(row, offset, field, slot, 0)
             _ -> rejected(field.name.start)
@@ -4859,7 +5128,19 @@ machine OmegaScalarCompiler::check_record_literal(
         self.struct_field_slots[row.first_field + offset] = slot;
         transition true { true -> fields(row, offset + 1) }
     }
-    state retain() { self.value_kinds[expression] = OmegaCheckedValueKind::RecordLiteral; return 1; }
+    state retain() {
+        transition self.value_payloads[expression] >= 0 {
+            true -> retain_case()
+            _ -> retain_record()
+        }
+    }
+    state retain_case() {
+        self.value_payloads[expression] = self.value_payloads[expression] -
+            self.parser.data_items[expected - 100000].first_case;
+        self.value_kinds[expression] = OmegaCheckedValueKind::CaseLiteral;
+        return 1;
+    }
+    state retain_record() { self.value_kinds[expression] = OmegaCheckedValueKind::RecordLiteral; return 1; }
     state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
 }
@@ -4971,7 +5252,28 @@ machine OmegaScalarCompiler::emit_place_value(&mut self, expression: i32) -> i32
 
 machine OmegaScalarCompiler::emit_record_literal(&mut self, expression: i32) -> i32 {
     let row: OmegaStructLiteralSyntax = self.parser.struct_literals[self.parser.expressions[expression].payload0];
-    transition true { true -> field(row, 0) }
+    transition row.has_omission {
+        1 -> zero(row)
+        _ -> select_case(row)
+    }
+    state zero(row: OmegaStructLiteralSyntax) {
+        transition self.emit_zero_cell(49152 + expression) {
+            1 -> select_case(row)
+            _ -> return 0
+        }
+    }
+    state select_case(row: OmegaStructLiteralSyntax) {
+        transition self.value_kinds[expression] {
+            OmegaCheckedValueKind::CaseLiteral -> tag(row)
+            _ -> field(row, 0)
+        }
+    }
+    state tag(row: OmegaStructLiteralSyntax) {
+        transition self.emit_case_value(expression) {
+            1 -> field(row, 0)
+            _ -> return 0
+        }
+    }
     state field(row: OmegaStructLiteralSyntax, offset: i32) {
         transition offset < row.field_count {
             true -> value(row, offset, row.first_field + offset)
@@ -5352,6 +5654,12 @@ machine OmegaScalarCompiler::check_forward_reference(
         }
     }
     state name(name: OmegaRelativeSpan) {
+        transition self.pattern_binding(source, name) >= 0 {
+            true -> unsupported()
+            _ -> parameter(name)
+        }
+    }
+    state parameter(name: OmegaRelativeSpan) {
         let slot: i32 = self.value_cell(source, state_index, before, name.start, name.end);
         let entry: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
         transition (slot >= entry.first_parameter) && (slot < entry.first_parameter + entry.parameter_count) {
@@ -5532,7 +5840,8 @@ machine OmegaScalarCompiler::prove_upper(
         }
     }
     state local(root: i32) {
-        transition (root >= 16384) && (self.place_offsets[expression] == 0) && (self.place_fields[expression] < 0) {
+        transition (root >= 16384) && (root < 32768) &&
+            (self.place_offsets[expression] == 0) && (self.place_fields[expression] < 0) {
             true -> initializer(root - 16384, self.parser.local_data_statements[root - 16384])
             _ -> return 0
         }

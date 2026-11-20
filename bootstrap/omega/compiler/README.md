@@ -43,12 +43,12 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,778 lines / 845,978 bytes with SHA-256
-`f7b757331f515541f1125dc931f1a20911298185df9da81019ce691636e1c0a6`.
+manifest materializes 23,186 lines / 865,228 bytes with SHA-256
+`d576854344c275110457520d7b2d244b5e6e0f88a3e166ebaff6980b38fd5272`.
 The manifest itself is 1,674 bytes, SHA-256
-`a946dd927b11d83c4852b4107bda0bbf488146ed59682397f52045ffc25d5a43`;
+`18950a66ed886ea8273a58487aa4051f854aaae94e26ab4bfc489cc1d542f838`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
-materialization and `tests/bootstrap/interpreted/omega-identity.sh` covers refusals.
+materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
 Earlier parser measurements remain historical observations of their original
 source subjects, not measurements of the current closure.
@@ -93,7 +93,7 @@ nonzero. The implementation remains under construction; Epsilon source
 acceptance alone does not establish compilation of the Omega compiler closure.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records, nullary copy sums,
+machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records, copy sums with supported payloads,
 and Unit results. Omitted results independently mean Unit; a nested declaration
 never inherits its enclosing machine's result. Initialized and zero-established
 locals retain their declared types, and mutable bindings permit checked stores.
@@ -108,17 +108,23 @@ Boolean literals and `self` retain their expression roles. Match expressions
 and the type spelling `Self` remain outside this transition-subject slice.
 Constant transition subjects retain their specialized code path.
 
-Nullary `[copy]` sums retain declaration identity through local, field, parameter,
-result and parallel-transfer copies. The private eight-byte tag is not a source
-integer; zero establishes the first declared case. Carrier-qualified case values
-and ordered exhaustive case/wildcard transitions share the existing aggregate
-storage and once-only subject capture. A bounded case-name hash census checks
-full spelling and owner identity after collisions and resets after failed requests.
-Mixed field/case bodies and duplicate cases reject. Payloads, non-copy sums,
-custom sum requirements, direct qualified-case terminal syntax, and other sum
-operations remain explicit coverage refusals; a typed local can carry a case
-through the ordinary result path. The actual `NumericBase` declaration and
-`lexer_digit_in_base` helper require no source changes.
+An unrestricted `[copy]` sum uses a private eight-byte case tag followed by
+storage for its largest admitted payload. The compiler checks each field's
+type, copyability and bounded size. Named initializers evaluate in source order
+and must initialize every field of their selected case once unless a final
+`..` requests zero for omitted fields. Record and case literals check this
+marker separately at each nesting level. Zero storage establishes the first
+case with zero-initialized payload fields.
+
+Case transitions evaluate the subject once. A braced arm can bind a field by
+its own name, rename it with `field as name`, or waive it with `field as _`.
+An explicit `..` waives remaining fields. The checker resolves the source
+field within the selected case, checks duplicate fields and binding names, and
+exposes each binding only in that arm's target. Non-copy sums, custom sum
+requirements and payload equality guards remain outside this backend.
+[Payload binding rules](../../../wiki/spec/language/patterns.md) and
+[runnable selection](../../../tests/bootstrap/conformance/omega/payload_bindings.omg)
+and [zero omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
 
 A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
@@ -493,7 +499,7 @@ primaries, and expands each
 boolean, integer, or wildcard arm into an ordinary statement targeting one
 named state. Arms also retain bare name paths and qualified two-member case
 paths with optional braces. Braced case patterns own a contiguous field ledger
-over shorthand bindings and fixed path-expression matches, preserving the
+over shorthand, renamed and waived bindings and fixed path-expression matches, preserving the
 distinction between `Type::Case` and `Type::Case {}` plus exact binding and
 field spelling for later resolution. A named terminal target uses the ordinary call-argument parser. Its argument
 span is contiguous even when a nested call publishes argument rows first.
@@ -729,7 +735,7 @@ Its complete observation matches the independent model byte for byte:
 `0aea09be26dd2ad86b37885ce3220ba4957c72cc9a10909a90c57ff28be073d2`.
 This reuses the constructed evaluator; it is not a new cold construction.
 
-The existing control customer now covers 19 emitted executables and 37
+The control customer at that revision covered 19 emitted executables and 37
 refusal/reset checks (57.610 seconds in the model). Ten additional construction
 entry observations cover source-order changes, duplicate package display names,
 private and competing imports, non-transitive file imports, namespace qualification
@@ -907,3 +913,24 @@ Its `operations/lowering/src/read/casts.rs` Git blob
 The same Rust ELF also compiled the retired `n as u32 in Trapping` spelling
 for a plain `u32` operand and produced exit 42. The bootstrap parser returns
 `Incomplete` at that spelling.
+
+### Renamed payload bindings on the complete compiler product
+
+The exact 304-unit construction input from `e45acdff0a9` has 3,955,617
+bytes, SHA-256 `bc2b6ba207d220480187465055431f022fb5dab95040b85cd68733a99341a1ac`.
+The independent Epsilon model from `8092cfd9c0a5` ran the bootstrap compiler
+and its ordinary construction entry on these unchanged bytes. Before payload
+renaming it returned Incomplete at byte 87,497, the `as` in
+`Selection::Machine { handle as callee }`. The 871,346-byte updated guest
+(SHA-256 `6ff7efc90597dc4bdda9eb9f7022f7927a4ddaa85ee3eb049eb278fa368fba88`)
+returned `00020000000fc60100` at packed byte **116,239**. This is unit 6,
+byte 2,047, line 48 column 18 in `scalar.omg`, on the `in` of
+`[u64 in Trapping; 131072]`. The result contains the Incomplete coordinate
+and no Alpha tape. [Next source construct](../../../source/subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/scalar.omg)
+
+The isolated binding, zero-omission and authored-order programs each emitted
+Alpha tape that ran to exit 42 on the seed. The order control evaluates two
+mutating calls in reverse declaration order and checks both saved values, the
+omitted zero and the final counter. [Bindings](../../../tests/bootstrap/conformance/omega/payload_bindings.omg),
+[omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
+and [initializer order](../../../tests/bootstrap/conformance/omega/payload_field_order.omg)
