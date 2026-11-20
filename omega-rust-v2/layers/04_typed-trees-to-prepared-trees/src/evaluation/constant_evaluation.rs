@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use omega_resolved::DeclarationId;
 use omega_typed::TypeError;
-use omega_typed::{MachineEffects, StaticValueRequest, TypedConstant, TypedTrees};
+use omega_typed::{MachineEffects, TypedConstant, TypedTrees};
 
 use crate::evaluation::owned_values::NominalAdmission;
 use crate::evaluation::refusal;
@@ -149,7 +149,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
     #[cfg(test)]
     pub(crate) fn evaluate(
         &mut self,
-        request: &StaticValueRequest,
+        request: &omega_typed::StaticValueRequest,
         arguments: Option<&[omega_typed::ValueType]>,
     ) -> Result<omega_typed::StaticValue, TypeError> {
         let demand = match arguments {
@@ -184,8 +184,8 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
                 Err(EvaluationError::AtCall(error)) => return Err(error.into()),
                 Err(EvaluationError::Refused(reason)) => return Err(refusal(&request.expression, reason).into()),
-                Err(EvaluationError::NeedsConstant(id)) => {
-                    let definition = self.definition(request, &id)?;
+                Err(EvaluationError::NeedsConstant { declaration, reference }) => {
+                    let definition = self.definition(&declaration, reference)?;
                     self.materialize(definition, false)?;
                 }
             }
@@ -194,13 +194,13 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
 
     fn definition(
         &self,
-        request: &StaticValueRequest,
         id: &DeclarationId,
+        reference: omega_resolved::TreeNodeId,
     ) -> Result<&'trees TypedConstant, PreparationRefusal> {
         self.definitions
             .get(id)
             .copied()
-            .ok_or_else(|| refusal(&request.expression, PreparationReason::ConstantWithoutInitializer))
+            .ok_or_else(|| refusal(&self.visited_site(reference), PreparationReason::ConstantWithoutInitializer))
     }
 
     fn materialize(
@@ -229,13 +229,13 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
                 Err(EvaluationError::AtCall(error)) => return Err(error.into()),
                 Err(EvaluationError::Refused(reason)) => return Err(refusal(&request.expression, reason).into()),
-                Err(EvaluationError::NeedsConstant(id)) => {
-                    let dependency = self.definition(request, &id)?;
+                Err(EvaluationError::NeedsConstant { declaration, reference }) => {
+                    let dependency = self.definition(&declaration, reference)?;
                     if let Some(reason) = self.open_target_constants.get(&dependency.declaration) {
                         break reason.clone();
                     }
                     if !active.insert(&dependency.declaration) {
-                        return Err(refusal(&request.expression, PreparationReason::CyclicConstantInitializer).into());
+                        return Err(refusal(&self.visited_site(reference), PreparationReason::CyclicConstantInitializer).into());
                     }
                     stack.push(dependency);
                 }

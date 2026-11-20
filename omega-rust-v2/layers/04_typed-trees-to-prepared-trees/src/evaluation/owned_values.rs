@@ -385,7 +385,10 @@ impl ConstantEvaluation<'_, '_> {
         self.values
             .get(id)
             .map(Some)
-            .ok_or_else(|| EvaluationError::NeedsConstant(id.clone()))
+            .ok_or_else(|| EvaluationError::NeedsConstant {
+                declaration: id.clone(),
+                reference: tree.resolved().file.node_id(node),
+            })
     }
 }
 

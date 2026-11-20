@@ -561,19 +561,14 @@ fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
     let error = evaluator
         .evaluate_value_request(constant("OTHER"), None)
         .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            EvaluationError::Refused(RefusalCause::Preparation(PreparationReason::CallbackNeedsRefinement))
-        ),
-        "{error:?}"
-    );
-    // Freezing renders the unproved OTHER selection at its own initializer.
-    // VALUE's checked judgments still admit VALUE.
+    let EvaluationError::AtCall(call_refusal) = error else { panic!("{error:?}") };
+    // Freezing must preserve the same refusal at OTHER's call, even though
+    // VALUE called the same machine with the same operands.
     let refusal = match evaluator.finish() {
         Ok(_) => panic!("OTHER has no checked refinement"),
         Err(refusal) => refusal,
     };
+    assert_eq!(call_refusal, refusal);
     let other = "const OTHER:u64=";
     let (start, _) = only(source, other);
     let initializer = "forward::<identity,identity>(3u64)";

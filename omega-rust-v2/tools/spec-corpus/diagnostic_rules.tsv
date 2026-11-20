@@ -44,6 +44,8 @@ L4	exact_intermediate_overflow_refuses_the_call	L4 evaluates integers, Booleans,
 L4	linear_constant_type_cannot_freeze	L4 evaluates integers, Booleans, floating-point values
 L4	cleanup_in_an_inactive_payload_prevents_freezing	L4 evaluates integers, Booleans, floating-point values
 L4	cyclic_named_constant_reads_are_refused	Named reads connect each prepared constant
+L4	a_cycle_points_to_the_closing_read_in_the_second_file	Named reads connect each prepared constant
+L4	an_abort_disproof_is_required_at_the_call_inside_the_sum	L4 specializes the selected body's published effects
 L4	possible_abort_route_refuses_the_call	L4 specializes the selected body's published effects
 L4	false_boolean_precondition_refuses_the_nested_call	L4 specializes the selected body's published effects
 L4	mutual_recursion_without_a_checked_ranking_is_refused	A local declaration after a tail expression
