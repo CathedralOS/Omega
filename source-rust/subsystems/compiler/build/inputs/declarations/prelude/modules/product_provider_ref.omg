@@ -1,0 +1,4 @@
+// Provider inspection has its own role check over the same activation table.
+public machine path(provider: @ProductProviderRef) -> @[u8] reaches BuildProductOperations invokes BuildProductOperations {
+    BuildProductOperations::provider_path(provider)
+}

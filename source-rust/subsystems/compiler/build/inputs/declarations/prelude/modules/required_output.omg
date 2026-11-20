@@ -1,0 +1,3 @@
+public machine path(output: @RequiredOutput) -> @[u8] reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::required_path(output)
+}

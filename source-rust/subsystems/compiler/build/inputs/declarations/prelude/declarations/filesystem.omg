@@ -1,0 +1,19 @@
+// Ordinary boundary calls carry evaluated operands. Installation requires exact
+// toolchain provenance and the activation's original facets or issued markers.
+public boundary trait BuildFilesystemOperations {
+    machine resolve_source(source: @BuildSource, relative: @[u8]) -> BuildPath reaches none crashes none;
+    machine resolve_output(output: @BuildOutput, relative: @[u8]) -> BuildPath reaches none crashes none;
+    machine named_input(inputs: @BuildInputs, name: @[u8]) -> BuildSource reaches none crashes none;
+    machine open(source: @BuildSource, path: BuildPath, flags: i32) -> i32 reaches none crashes none;
+    machine read(source: @BuildSource, descriptor: i32, buffer: @mut [u8], count: u64) -> i64 reaches none crashes none;
+    machine close_source(source: @BuildSource, descriptor: i32) -> i32 reaches none crashes none;
+    machine create(output: @mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches none crashes none;
+    machine write(output: @mut BuildOutput, descriptor: i32, bytes: @[u8]) -> i64 reaches none crashes none;
+    machine close_output(output: @mut BuildOutput, descriptor: i32) -> i32 reaches none crashes none;
+    machine include_source(output: @mut BuildOutput, generated: BuildPath) reaches none crashes none;
+    machine require(output: @mut BuildOutput, name: @[u8]) -> RequiredOutput reaches none crashes none;
+    machine can_complete(output: @BuildOutput, obligation: @RequiredOutput, file: BuildPath) -> bool reaches none crashes none;
+    machine complete(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches none crashes none;
+    machine fail(output: @mut BuildOutput, obligation: RequiredOutput, diagnostic: @[u8]) reaches none crashes none;
+    machine required_path(output: @RequiredOutput) -> @[u8] reaches none crashes none;
+}

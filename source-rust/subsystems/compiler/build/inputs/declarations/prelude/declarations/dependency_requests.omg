@@ -1,0 +1,39 @@
+public data PackageSelection<'storage> {
+    case Root;
+    case Named(package: @'storage [u8]);
+}
+public data Source<'storage> {
+    case Path(location: @'storage [u8]);
+    case Git(repository: @'storage [u8], revision: @'storage [u8], selection: PackageSelection<'storage>);
+}
+// Executed project requests cross one compiler-issued host protocol. Source
+// variants are decomposed by ordinary Omega code, not a host syntax visitor.
+public boundary trait BuildRequestOperations {
+    machine package(builder: @Build, name: @[u8]) reaches none crashes none;
+    machine application(builder: @Build, name: @[u8]) reaches none crashes none;
+    machine member(builder: @Build, path: @[u8]) reaches none crashes none;
+    machine artifact_only(builder: @Build) reaches none crashes none;
+    machine register_path_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8]) -> DependencyRegistration reaches none crashes none;
+    machine register_git_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8]) -> DependencyRegistration reaches none crashes none;
+    machine prepare_dependency(builder: @Build, registered: DependencyRegistration) reaches none crashes none suspends;
+    machine write_log(log: @BuildLog, text: @[u8]) reaches none crashes none;
+}
+// Configured dependency description
+// (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
+// Ordinary helpers prepare it before registration; `Build::dependency` or
+// `Build::build_dependency` consumes it, so no alias can change afterwards.
+// Constructing one grants no host or package authority.
+public data DependencyDescription<'storage> {
+    source: Source<'storage>;
+    explicit_alias: bool;
+    alias: @'storage [u8];
+}
+// The exact registration one executed request fixed
+// (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
+// Only the evaluator issues one: the registration request returns a marker
+// whose row lives in the activation's request table, so an authored
+// `DependencyRegistration {}` has the same static shape and names no
+// registration. Retaining or copying the marker grants nothing; it names the
+// registered edge for later Build operations.
+public data DependencyRegistration [copy] {
+}

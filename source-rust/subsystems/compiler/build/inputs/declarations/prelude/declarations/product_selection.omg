@@ -1,0 +1,96 @@
+// Compiler-owned product-selection facet. `builder.product.entry`,
+// `builder.product.provider`, and `builder.product.schema` are the only routes
+// to compiler-issued product descriptions. Normalization retains the authored
+// occurrence on the host call, which resolves the locator in that package's
+// Product scope before the original Build activation resumes.
+public data BuildProduct {
+}
+// A restricted, non-callable product-entry description. Authored code can
+// retain, copy, and hand it to helpers, but only a `Build::bind` delegated
+// operand can consume it, and only the compiler-issued marker value carries
+// the exact selected identity.
+public data ProductEntryRef [copy] {
+}
+// Ordinary host calls carry the original Product facet and evaluated locators.
+// The source producer retains each query's lexical occurrence beside its call;
+// the activation mints descriptions only after that exact query is answered.
+public boundary trait BuildProductOperations {
+    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
+    machine schema(product: @BuildProduct, path: @[u8]) -> ProductTypeSchema reaches none crashes none;
+    machine provider(product: @BuildProduct, path: @[u8]) -> ProductProviderRef reaches none crashes none;
+    machine schema_path(schema: @ProductTypeSchema) -> @[u8] reaches none crashes none;
+    machine provider_path(provider: @ProductProviderRef) -> @[u8] reaches none crashes none;
+}
+// Execution protocol for the designated Build::bind syntax. Typing supplies
+// the exact product-selection occurrence beside the ordinary boundary call.
+// Calling this requirement directly supplies no selection or host authority.
+// These are compiler host operations, not a user-selected service binding.
+// Their activation-local ticket is interpreted only at admitted call sites.
+// Selection first calls the checked mutable-receiver helper below. The host
+// only observes identity; it cannot replace Build's reference-bearing fields.
+public boundary trait BuildBindingOperations {
+    machine describe_parameter() -> omega\language\core\reflect\ParameterInfo reaches none crashes none;
+    machine describe_field() -> omega\language\core\reflect\FieldInfo reaches none crashes none;
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
+    machine prepare_tests(tests: @BuildTests) -> u64 reaches none crashes none;
+    machine await_provider(activation: u64) reaches none crashes none suspends;
+    machine bind(activation: u64) reaches none crashes none;
+    machine bind_description(activation: u64, description: ProductEntryRef) reaches none crashes none;
+    machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none crashes none;
+    machine select(activation: u64) reaches none crashes none;
+    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
+    machine exclude(activation: u64, code: u64) reaches none crashes none;
+}
+// The ordinary call establishes exclusive activation access and retains that
+// loan through the returned original view, without granting an opaque host writes.
+public machine build_selection_receiver<'activation, 'storage>(builder: @'activation mut Build<'storage>) -> @'activation mut Build<'storage> {
+    builder
+}
+public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
+    match cause {
+        CrashCause::Trap -> 0u64,
+        CrashCause::Abort -> 1u64,
+    }
+}
+public machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) -> u64 {
+    match authority {
+        PhysicalAuthorityClass::FilesystemContentRead -> 0u64,
+        PhysicalAuthorityClass::FilesystemContentWrite -> 1u64,
+        PhysicalAuthorityClass::FilesystemMetadataQuery -> 2u64,
+        PhysicalAuthorityClass::DirectoryEnumeration -> 3u64,
+        PhysicalAuthorityClass::FilesystemNamespaceMutation -> 4u64,
+        PhysicalAuthorityClass::FilesystemMetadataMutation -> 5u64,
+        PhysicalAuthorityClass::ProcessOutput -> 6u64,
+        PhysicalAuthorityClass::ProcessTermination -> 7u64,
+        PhysicalAuthorityClass::MachineControl -> 8u64,
+        PhysicalAuthorityClass::PortIo -> 9u64,
+        PhysicalAuthorityClass::InterruptControl -> 10u64,
+        PhysicalAuthorityClass::InterruptEntry -> 11u64,
+        PhysicalAuthorityClass::RootMemoryAccess -> 12u64,
+        PhysicalAuthorityClass::ProcessInput -> 13u64,
+    }
+}
+// This conversion is ordinary checked source, preserving the exact enum's
+// meaning without teaching a host adapter to infer a case from storage bits.
+public machine build_selection_independent(mode: CompositionMode) -> bool {
+    transition mode {
+        CompositionMode::Fused -> fused(),
+        CompositionMode::Independent -> independent(),
+    }
+    machine fused() -> bool { false }
+    machine independent() -> bool { true }
+}
+// A restricted, non-callable product-provider description (the
+// `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored
+// code can retain, copy, and hand it to helpers, and `provider.path()`
+// inspects the declaration it describes, but only the compiler-issued
+// marker value carries the exact selected identity.
+public data ProductProviderRef [copy] {
+}
+// A restricted, non-callable product-type-schema description (the
+// `ProductTypeSchema` of wiki/spec/build/scoped_execution.md). Authored
+// code can retain, copy, and hand it to helpers, and `schema.path()`
+// inspects the declaration it describes, but only the compiler-issued
+// marker value carries the exact selected identity.
+public data ProductTypeSchema [copy] {
+}

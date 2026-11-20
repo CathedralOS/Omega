@@ -1,0 +1,3 @@
+public machine emit_report(optimizations: @mut Optimizations) {
+    optimizations.human_report = optimizations.human_report + 1;
+}

@@ -1,0 +1,3 @@
+public machine write_line(log: @mut BuildLog, text: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::write_log(log, text);
+}
