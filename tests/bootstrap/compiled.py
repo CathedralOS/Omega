@@ -17,14 +17,14 @@ class Invalid(ValueError):
     """A source-constructed compiler rejected the supplied program."""
 
 
-def add_invocation_budget(parser):
+def add_invocation_budget(parser, option="--seconds"):
     def positive_seconds(value):
         seconds = int(value)
         if seconds <= 0:
-            raise argparse.ArgumentTypeError("--seconds must be positive")
+            raise argparse.ArgumentTypeError(f"{option} must be positive")
         return seconds
 
-    parser.add_argument("--seconds", type=positive_seconds,
+    parser.add_argument(option, type=positive_seconds,
                         help="optional wall limit per invocation (default: unlimited)")
 
 

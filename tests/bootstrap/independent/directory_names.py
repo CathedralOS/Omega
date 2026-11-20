@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from compiled import ROOT, execute, stamp
+from compiled import ROOT, add_invocation_budget, execute, stamp
 
 
 def cases():
@@ -335,7 +335,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("constructor", type=Path)
     parser.add_argument("--case", action="append", choices=[name for name, _, _ in cases()])
-    parser.add_argument("--seconds", type=int, default=900)
+    add_invocation_budget(parser)
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
         work = Path(directory)
