@@ -75,6 +75,9 @@ output. The elapsed times cover one invocation per evaluator on a shared
 machine. The customer exercises `clear` and its caller. Request staging and
 decoding have separate tests.
 
+The [whole construction input](../../tests/bootstrap/independent/WHOLE_REQUEST.md)
+exercises all product sources and the evaluator’s sealed-input provision.
+
 ## Host checks
 
 On an executable Alpha seed host, Python and shell drive the differential tests. The [Python Gamma compiler](../../tests/bootstrap/compiled_vm/gamma.py) supplies an independent implementation for comparison and for the explicit `--accelerated` test mode.
