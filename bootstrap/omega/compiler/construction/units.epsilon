@@ -4,16 +4,19 @@ data OmegaConstructionUnit {
     machine_count: i32;
     state_count: i32;
     parameter_count: i32;
+    data_count: i32;
+    field_count: i32;
 }
 
-data OmegaConstructionMachine {
+data OmegaConstructionDeclaration {
     name: OmegaRelativeSpan;
     unit: i32;
     is_public: i32;
 }
 
 data OmegaConstructionDirectory {
-    machines: [OmegaConstructionMachine; 4096];
+    machines: [OmegaConstructionDeclaration; 4096];
+    records: [OmegaConstructionDeclaration; 4096];
     units: [OmegaConstructionUnit; 513];
     total: OmegaConstructionUnit;
     active: i32;
@@ -27,6 +30,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     self.construction.total.machine_count = 0;
     self.construction.total.state_count = 0;
     self.construction.total.parameter_count = 0;
+    self.construction.total.data_count = 0;
+    self.construction.total.field_count = 0;
     transition (self.parser.sources.unit_count > 1) && (self.parser.sources.valid(source) == 1) {
         true -> units(0, 1)
         _ -> pooled()
@@ -55,17 +60,48 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state index_unit(unit: i32, eligible: i32) {
-        transition (eligible == 1) && (self.parser.root_count == self.parser.machine_count + self.parser.use_count) &&
+        transition (eligible == 1) && (self.parser.root_count == self.parser.machine_count + self.parser.use_count + self.parser.data_count) &&
+            (self.parser.data_count <= 4096 - self.construction.total.data_count) &&
+            (self.parser.data_field_count <= 16384 - self.construction.total.field_count) &&
             (self.parser.machine_count <= 4096 - self.construction.total.machine_count) &&
             (self.parser.machine_state_count <= 4096 - self.construction.total.state_count) &&
             (self.parser.machine_parameter_count <= 16384 - self.construction.total.parameter_count) {
-            true -> parameter(unit, 0)
+            true -> record(unit, 0)
             _ -> units(unit + 1, 0)
         }
     }
-    // Only by-value scalar types cross a file boundary in this path. Signatures
-    // with nominal layouts, references or entry proof obligations keep the
-    // pooled compiler. The ordinary signature checker validates all bindings.
+    // Each retained record has scalar or named record fields. Keep its name even
+    // when an earlier file's import is checked before these fields are loaded.
+    state record(unit: i32, index: i32) {
+        transition index < self.parser.data_count {
+            true -> record_shape(unit, index, self.parser.data_items[index])
+            _ -> field(unit, 0)
+        }
+    }
+    state record_shape(unit: i32, index: i32, row: OmegaDataSyntax) {
+        transition (row.case_count == 0) && (row.requirement_count == 0) {
+            true -> retain_record(unit, index, self.construction.total.data_count + index, row)
+            _ -> units(unit + 1, 0)
+        }
+    }
+    state retain_record(unit: i32, index: i32, global: i32, row: OmegaDataSyntax) {
+        self.construction.records[global].name = row.name;
+        self.construction.records[global].unit = unit;
+        self.construction.records[global].is_public = row.is_public;
+        transition true { true -> record(unit, index + 1) }
+    }
+    state field(unit: i32, index: i32) {
+        transition index < self.parser.data_field_count {
+            true -> field_type(unit, index, self.parser.data_fields[index].type_reference)
+            _ -> parameter(unit, 0)
+        }
+    }
+    state field_type(unit: i32, index: i32, type_index: i32) {
+        transition self.construction_value_type(source, type_index) == 1 {
+            true -> field(unit, index + 1)
+            _ -> units(unit + 1, 0)
+        }
+    }
     state parameter(unit: i32, index: i32) {
         transition index < self.parser.machine_parameter_count {
             true -> parameter_type(unit, index)
@@ -73,7 +109,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state parameter_type(unit: i32, index: i32) {
-        transition self.primitive_type(source, self.parser.machine_parameters[index].type_reference) > 0 {
+        transition self.construction_value_type(source, self.parser.machine_parameters[index].type_reference) == 1 {
             true -> parameter(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
@@ -86,7 +122,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     }
     state signature(unit: i32, index: i32, row: OmegaMachineStateSyntax) {
         transition (row.requirement_count == 0) && ((row.has_return_type == 0) ||
-            (self.primitive_type(source, row.return_type) > 0)) {
+            (self.construction_value_type(source, row.return_type) == 1)) {
             true -> state_item(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
@@ -113,6 +149,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     state next(unit: i32) {
         self.construction.total.machine_count = self.construction.total.machine_count + self.parser.machine_count;
         self.construction.total.state_count = self.construction.total.state_count + self.parser.machine_state_count;
+        self.construction.total.data_count = self.construction.total.data_count + self.parser.data_count;
+        self.construction.total.field_count = self.construction.total.field_count + self.parser.data_field_count;
         self.construction.total.parameter_count = self.construction.total.parameter_count + self.parser.machine_parameter_count;
         transition true { true -> units(unit + 1, 1) }
     }
@@ -127,7 +165,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     state install() {
         self.parser.reset_syntax();
         self.construction.active = 1;
-        self.parser.root_count = self.construction.total.machine_count;
+        self.parser.root_count = self.construction.total.machine_count + self.construction.total.data_count;
+        self.parser.data_count = self.construction.total.data_count;
         self.parser.machine_count = self.construction.total.machine_count;
         self.parser.machine_state_count = self.construction.total.state_count;
         transition true { true -> entry_machine(self.construction.units[self.entry_unit].machine_count) }
@@ -159,10 +198,14 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     self.parser.machine_count = first.machine_count;
     self.parser.machine_state_count = first.state_count;
     self.parser.machine_parameter_count = first.parameter_count;
+    self.parser.data_count = first.data_count;
+    self.parser.data_field_count = first.field_count;
+    self.parser.data_member_count = first.field_count;
     self.parser.unit_index = unit;
     self.parser.append_unit(source[0..self.parser.sources.units[unit].end], self.parser.sources.units[unit].start);
     transition (self.parser.machine_count == end.machine_count) && (self.parser.machine_state_count == end.state_count) &&
-        (self.parser.machine_parameter_count == end.parameter_count) {
+        (self.parser.machine_parameter_count == end.parameter_count) && (self.parser.data_count == end.data_count) &&
+        (self.parser.data_field_count == end.field_count) {
         true -> expose_signatures()
         _ -> internal()
     }
@@ -170,6 +213,34 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
         self.parser.machine_count = self.construction.total.machine_count;
         self.parser.machine_state_count = self.construction.total.state_count;
         self.parser.machine_parameter_count = self.construction.total.parameter_count;
+        self.parser.data_count = self.construction.total.data_count;
+        self.parser.data_field_count = self.construction.total.field_count;
     }
     state internal() { self.parser.status = OmegaParserStatus::InternalFailure; }
+}
+
+// Named records are resolved by their declaring package and imports during
+// signature checking. An unresolved spelling still receives the normal error.
+machine OmegaScalarCompiler::construction_value_type(&mut self, source: &[u8], index: i32) -> i32 {
+    transition self.parser.type_references[index].kind {
+        OmegaTypeReferenceKind::Named -> return 1
+        _ -> return self.primitive_type(source, index) > 0
+    }
+}
+
+// Type-reference handles belong to the unit that wrote them. Revisiting an
+// interface or layout restores that file before following its type references.
+machine OmegaScalarCompiler::select_construction_unit(&mut self, source: &[u8], unit: i32) -> i32 {
+    transition (self.construction.active == 1) && (self.parser.unit_index != unit) {
+        true -> load()
+        _ -> return 1
+    }
+    state load() {
+        self.load_construction_unit(source, unit);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> return 1
+            _ -> internal()
+        }
+    }
+    state internal() { self.record_internal(); return 0; }
 }

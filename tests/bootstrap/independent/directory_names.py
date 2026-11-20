@@ -122,6 +122,74 @@ def cases():
     yield "unknown-version", bytes(4) + struct.pack("<I", 2), struct.pack("<BI", 0, 3)
 
 
+    yield from nominal_record_cases(encode)
+
+
+def nominal_record_cases(encode):
+    # Keep the actual product declarations, including their integer domains.
+    definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
+
+    def declaration(name):
+        start = definitions.index(b"public data " + name + b" [copy] {")
+        end = definitions.index(b"\n}", start) + 2
+        return definitions[start:end]
+
+    caller = b"""use packets\\SourceSpan; use packets\\SourceId; use packets\\Span; use packets\\pass;
+machine main()->u8 {
+    let id:SourceId=SourceId{value:42 as +Trapping};
+    let start:u64 in Trapping=7 as u64 +Trapping;
+    let range:Span=Span{start:start,end:start};
+    let combined:SourceSpan=SourceSpan{source:id,span:range};
+    let y:SourceSpan=pass(combined);
+    let out:SourceId=y.source;
+    let r:Span=y.span;
+    transition ((out.value as -Trapping)==42) && ((r.start as -Trapping)==7) {true->42,_->7}
+}"""
+    relay = b"public machine pass(x:SourceSpan)->SourceSpan{x}"
+    units = [(0, caller), (1, relay), (1, declaration(b"SourceSpan")),
+             (1, declaration(b"Span")), (1, declaration(b"SourceId"))]
+    names = ["main.omg", "pass.omg", "combined.omg", "span.omg", "source_id.omg"]
+    packet, _, _, _ = encode([("app", 0), ("packets", 0)], [(0, 1, "packets")],
+                             units, 0, b"main", paths=names)
+    yield "forward-product-records", packet, 42
+
+    # The caller can import the public function. Its return type is private.
+    caller = b"use packets\\pass; machine main()->u8 {42}"
+    relay = b"public machine pass(x:Packet)->Packet{x}"
+    packet, _, _, rows = encode(
+        [("app", 0), ("packets", 0)], [(0, 1, "packets")],
+        [(0, caller), (1, relay), (1, b"data Packet [copy] {value:u8;}")], 0, b"main",
+        paths=["main.omg", "pass.omg", "declaration.omg"],
+    )
+    yield "private-type-in-foreign-signature", packet, struct.pack("<BII", 0, 1, rows[1][1])
+
+    first = b"machine main()->u8 {42}data A [copy]{b:B;}"
+    second = b"data B [copy] {a:A;}"
+    packet, _, _, rows = encode([("app", 0)], [], [(0, first), (0, second)], 0, b"main",
+                                paths=["a.omg", "b.omg"])
+    coordinate = rows[0][1] + first.index(b"data A")
+    yield "cross-file-record-cycle", packet, struct.pack("<BII", 0, 2, coordinate)
+
+
+    # Both Part declarations have the same fields. Only the owner selected
+    # by Outer's own import can initialize its field.
+    caller = (b"use types\\Outer;use types\\pass;use left\\Part;machine main()->u8{"
+              b"let p:Part=Part{value:42};let x:Outer=Outer{part:p};let y:Outer=pass(x);"
+              b"let saved:Part=y.part;saved.value}")
+    relay = b"public machine pass(x:Outer)->Outer{x}"
+    part = b"public data Part [copy]{value:u8;}"
+    paths = ["main.omg", "types/pass.omg", "types/outer.omg", "left/part.omg", "right/part.omg"]
+    for module in (b"left", b"right"):
+        owner = b"use " + module + b"\\Part;public data Outer [copy]{part:Part;}"
+        units = [(0, source) for source in (caller, relay, owner, part, part)]
+        packet, _, _, rows = encode([("app", 0)], [], units, 0, b"main", paths=paths)
+        if module == b"left":
+            yield "field-declaring-scope", packet, 42
+        else:
+            coordinate = rows[0][1] + caller.index(b"machine main")
+            yield "different-nominal-field-owner", packet, struct.pack("<BII", 0, 1, coordinate)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("constructor", type=Path)

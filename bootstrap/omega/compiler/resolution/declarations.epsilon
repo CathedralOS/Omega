@@ -15,9 +15,15 @@ machine OmegaScalarCompiler::declaration_name(
     &mut self, kind: OmegaDeclarationKind, index: i32
 ) -> OmegaRelativeSpan {
     transition kind {
-        OmegaDeclarationKind::Data -> return self.parser.data_items[index].name
+        OmegaDeclarationKind::Data -> record_name()
         OmegaDeclarationKind::Service -> return self.parser.boundary_traits[index].name
         OmegaDeclarationKind::Machine -> machine_name()
+    }
+    state record_name() {
+        transition self.construction.active {
+            1 -> return self.construction.records[index].name
+            _ -> return self.parser.data_items[index].name
+        }
     }
     state machine_name() {
         transition self.construction.active {
@@ -31,9 +37,15 @@ machine OmegaScalarCompiler::declaration_public(
     &mut self, kind: OmegaDeclarationKind, index: i32
 ) -> i32 {
     transition kind {
-        OmegaDeclarationKind::Data -> return self.parser.data_items[index].is_public
+        OmegaDeclarationKind::Data -> record_visibility()
         OmegaDeclarationKind::Service -> return self.parser.boundary_traits[index].is_public
         OmegaDeclarationKind::Machine -> machine_visibility()
+    }
+    state record_visibility() {
+        transition self.construction.active {
+            1 -> return self.construction.records[index].is_public
+            _ -> return self.parser.data_items[index].is_public
+        }
     }
     state machine_visibility() {
         transition self.construction.active {
@@ -641,6 +653,12 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
         }
     }
     state record_visibility(index: i32) {
+        transition self.select_construction_unit(source, self.construction.records[index].unit) {
+            1 -> loaded_record(index)
+            _ -> return 0
+        }
+    }
+    state loaded_record(index: i32) {
         transition self.parser.data_items[index].is_public {
             1 -> field(index, 0)
             _ -> record(index + 1)
@@ -665,6 +683,12 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
         }
     }
     state machine_visibility(index: i32) {
+        transition self.select_construction_unit(source, self.construction.machines[index].unit) {
+            1 -> loaded_machine(index)
+            _ -> return 0
+        }
+    }
+    state loaded_machine(index: i32) {
         transition self.parser.machine_items[index].is_public {
             1 -> signature(index, self.parser.machine_items[index].first_state)
             _ -> machine_item(index + 1)
