@@ -250,7 +250,7 @@ requires
 // appends one at a time. Every row keeps its unit in its source span, so the
 // tables are shared and handles stay dense across units.
 public machine parser_initialize(parser: @mut Parser) {
-    syntax_trees_clear(@mut parser.output, SourceId { value: 0 });
+    syntax_trees_clear(@mut parser.output, SourceId { value: 0 as +Trapping });
 }
 
 // The unit `parse` appends next: its spans anchor to `source`, and its token
