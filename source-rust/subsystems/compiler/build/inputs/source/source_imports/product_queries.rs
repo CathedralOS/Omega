@@ -421,12 +421,12 @@ impl ProductQueryInputs {
     }
 
     pub(crate) fn mount(&self, storage: &mut SourceStorage) -> Result<(), Vec<Diagnostic>> {
-        if let Some(named) = &self.named_source {
+        if let Some(owner) = storage.default_package_identity() {
             storage
                 .sources
                 .retain_product_dependency_scope(self.dependencies.iter().map(|dependency| {
                     (
-                        named.root(),
+                        owner,
                         dependency.alias.as_str(),
                         dependency.inputs.root(),
                     )
@@ -451,7 +451,7 @@ impl ProductQueryInputs {
                 .sources
                 .retain_product_dependency_scope(graph.dependencies());
         }
-        if self.original.is_none() {
+        if storage.default_package_identity().is_none() {
             storage
                 .sources
                 .retain_query_dependencies(

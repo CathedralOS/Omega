@@ -150,6 +150,10 @@ impl SourceStorage {
             .collect()
     }
 
+    pub(super) fn default_package_identity(&self) -> Option<PackageKeyIdentity> {
+        self.default_package_identity
+    }
+
     pub(crate) fn default_package_root(&self) -> &Path {
         &self.default_package_root
     }
