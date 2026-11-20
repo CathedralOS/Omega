@@ -19,11 +19,11 @@ inert until the product owner resolves and admits them.
 use crate::host::requests::build_facet;
 use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
+use source_compiler::declaration_selection::ProductEntryBinding;
 use source_compiler::declaration_selection::BuildOperation;
 use source_compiler::declaration_selection::BuildSelectionRequest;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
 use source_compiler::declaration_selection::ExecutedProductSelection;
-use source_compiler::declaration_selection::ExecutedRootBinding;
 use source_compiler::declaration_selection::NativeBindingFormation;
 use source_compiler::declaration_selection::ProductDeclarationRequest;
 use source_compiler::declaration_selection::ProviderReadinessRequest;
@@ -537,7 +537,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                         ));
                     }
                 };
-                ExecutedBuildSelection::Entry(ExecutedRootBinding {
+                ExecutedBuildSelection::Entry(ProductEntryBinding {
                     source_span: binding.source_span,
                     slot: binding.slot.clone(),
                     implementation,

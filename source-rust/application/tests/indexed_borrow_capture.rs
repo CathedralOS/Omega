@@ -21,7 +21,7 @@ fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
             "build.omg",
             "--build-input",
             "main.omg",
-            "main.omg",
+            "build.omg",
         ])
         .current_dir(scratch.path())
         .stdin(Stdio::null())

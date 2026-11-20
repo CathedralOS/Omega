@@ -46,8 +46,7 @@ fn refusals_with_build(name: &str, build: &str) -> Vec<String> {
         &target::TargetProfile::ALL,
         true,
     )
-    .expect("project preparation")
-    .expect("a project with a Build script");
+    .expect("project preparation");
     // What `omega --check` does first: type the project's Build program,
     // have the checker judge it, and run it.
     let resolved = orchestration::resolve_project_sources(

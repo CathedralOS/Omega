@@ -52,12 +52,12 @@ impl SourceSyntax {
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
 pub struct SourceItems {
     pub(crate) handles: Vec<syntax_trees::item::ItemHandle>,
-    build_machine: bool,
+    build_machines: Vec<source_text::Span>,
     build_data: bool,
 }
 impl SourceItems {
-    pub fn declares_build_machine(&self) -> bool {
-        self.build_machine
+    pub fn build_machines(&self) -> &[source_text::Span] {
+        &self.build_machines
     }
     pub fn declares_build_data(&self) -> bool {
         self.build_data
@@ -117,8 +117,13 @@ impl ParsedSourceBatch {
                     };
                     for handle in &unit.root_items {
                         match syntax.root_item(*handle) {
-                            Item::Machine(machine) if machine.name.as_str(syntax) == "build" => {
-                                root_items.build_machine = true
+                            Item::Machine(machine)
+                                if machine.attached_data.is_none()
+                                    && machine.name.as_str(syntax) == "build" =>
+                            {
+                                root_items
+                                    .build_machines
+                                    .push(machine.name.source_span().span)
                             }
                             Item::Data(data) if data.name.as_str(syntax) == "Build" => {
                                 root_items.build_data = true
@@ -153,6 +158,25 @@ pub struct SourceDeclarations {
 }
 
 impl RetainedSourceParse {
+    /// Name spans of free machines in this file, before source coordinates are assigned.
+    pub fn free_machines<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> impl Iterator<Item = source_text::Span> + 'a {
+        let syntax = &self.unit.syntax;
+        self.unit
+            .root_items()
+            .iter()
+            .filter_map(move |item| match syntax.root_item(*item) {
+                Item::Machine(machine)
+                    if machine.attached_data.is_none() && machine.name.as_str(syntax) == name =>
+                {
+                    Some(machine.name.source_span().span)
+                }
+                _ => None,
+            })
+    }
+
     pub fn declarations(&self) -> SourceDeclarations {
         let syntax = &self.unit.syntax;
         let mut declares_operator_family = false;

@@ -35,7 +35,7 @@ pub struct ComputedBuildConfig {
     /// Settings and observation digests cannot reconstruct its checked contracts.
     pub accepted_build: Option<std::sync::Arc<checked_program_to_psi::AcceptedTerminalSource>>,
     pub config: BuildConfig,
-    pub root_binding_requests: Vec<source_declarations::declaration_selection::ExecutedRootBinding>,
+    pub root_binding_requests: Vec<source_declarations::declaration_selection::ProductEntryBinding>,
     pub declared_product_selections:
         Vec<std::sync::Arc<source_declarations::declaration_selection::ProductDeclarationRequest>>,
     pub product_selection_requests:

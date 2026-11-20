@@ -126,13 +126,7 @@ impl PreparedBuildEvaluation {
                 "Build execution requires its source-owned selection",
             )]
         })?;
-        let selected_machine = select_build_machine(typed, Some(build_source.source_id()))?
-            .map(|machine| machine.symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected Build source requires exactly one free build entry",
-                )]
-            })?;
+        let selected_machine = select_build_machine(typed, build_source)?.symbol;
         let (prepared, providers, constants, accounting) =
             crate::admission::checking::prepare_admitted_build(
                 typed,
@@ -323,15 +317,18 @@ pub fn prepare_build_evaluation(
     } = execution;
     let build_directory = build_directory.as_deref();
     let snapshot = snapshot.as_ref();
-    let selected_machine =
-        select_build_machine(typed, build_source.map(|source| source.source_id()))?
-            .map(|machine| machine.symbol);
-    if build_source.is_some_and(|source| source.is_default()) && artifact_only {
+    let build_source = build_source.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Build execution requires its source-owned selection",
+        )]
+    })?;
+    let selected_machine = select_build_machine(typed, build_source)?.symbol;
+    if build_source.is_default() && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
         )]
         .into());
-    } else if build_source.is_some_and(|source| source.is_default())
+    } else if build_source.is_default()
         && snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty())
     {
         return Err(vec![Diagnostic::error(
@@ -349,21 +346,8 @@ pub fn prepare_build_evaluation(
             .map(|subject| subject.source_consumption_commitment())
         })
         .transpose()?;
-    let selected_machine = selected_machine.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected Build source requires exactly one free build entry",
-        )]
-    })?;
-    let build_source = build_source.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "Build execution requires its source-owned selection",
-        )]
-    })?;
     let subject_validation = if dependency_activation {
         BuildSubjectValidation::EntryOnly
-    } else if anonymous_source.is_some() && !build_source.is_default() {
-        // The root gets its declaration owner after the admitted Build runs.
-        BuildSubjectValidation::AwaitingOwner
     } else {
         BuildSubjectValidation::Checked
     };

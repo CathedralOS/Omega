@@ -220,9 +220,8 @@ fn discover(
     product: CompilationProduct,
 ) -> (Vec<PackageCompilationRequest>, ProjectCompilationCompletion) {
     let host = TargetProfile::host_if_supported().expect("Build host");
-    let preparation = begin_local_project_preparation(entry, targets, true)
-        .expect("prepare project")
-        .expect("package project");
+    let preparation =
+        begin_local_project_preparation(entry, targets, true).expect("prepare project");
     let resolved = orchestration::resolve_project_sources(
         session,
         orchestration::ProjectSourceRequest {

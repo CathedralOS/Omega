@@ -27,7 +27,7 @@ fn assert_psi_runs(name: &str, source: &str) {
 "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi", "main.omg"])
+        .args(["run", "--engine", "psi", "build.omg"])
         .current_dir(&project)
         .stdin(Stdio::null())
         .output()
@@ -72,7 +72,7 @@ machine build(builder: @mut Build) {{
         ),
     );
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
+        .args(["run", "--both", "build.omg"])
         .current_dir(&project)
         .env("OMEGA_LIBRARY_ROOT", library)
         .stdin(Stdio::null())

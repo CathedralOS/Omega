@@ -76,13 +76,62 @@ pub struct PreparedSource {
 impl PreparedSource {
     pub fn admit_root_bindings(
         &self,
-        executed: &[crate::declaration_selection::ExecutedRootBinding],
+        executed: &[crate::declaration_selection::ProductEntryBinding],
     ) -> Result<Vec<crate::RootBinding>, Vec<Diagnostic>> {
         product_declarations::collect_root_bindings(&self.typed, executed)
     }
 }
 
 impl ResolveAndTypeRequest {
+    /// A dual-purpose file is checked as Build source and as Product source. Its selected
+    /// Build declaration has one owner in the joined forest. All its other declarations
+    /// remain visible to each stage under that stage's own imports.
+    pub(crate) fn with_build_entry(
+        mut self,
+        entry: Option<&source_admission::RetainedDeclaration>,
+    ) -> Self {
+        let Some(declaration) = entry else {
+            return self;
+        };
+        let entry = declaration.source();
+        use source_provenance::DependencyScope;
+        let counterpart = self.sources.selected_files().find(|file| {
+            file.dependency_scope == DependencyScope::Product
+                && file.path == entry.path
+                && file.source == entry.source
+                && file.origin == entry.origin
+                && file.package_root == entry.package_root
+                && file.resolution_stratum == entry.resolution_stratum
+                && entry
+                    .package_identity
+                    .is_none_or(|id| file.package_identity == Some(id))
+        });
+        let Some(product) = counterpart else {
+            return self;
+        };
+        let syntax = &mut self.syntax.trees;
+        let Some((_, roots)) = self
+            .source_items
+            .iter_mut()
+            .find(|(id, _)| *id == product.source_id)
+        else {
+            return self;
+        };
+        if let Some(handle) = roots.handles.iter().copied().find(|&handle| {
+            syntax
+                .root_item(handle)
+                .as_machine()
+                .is_some_and(|machine| {
+                    machine.attached_data.is_none()
+                        && machine.name.source_span().span == declaration.span()
+                })
+        }) {
+            roots.handles.retain(|&item| item != handle);
+            syntax.roots.items.retain(|&item| item != handle);
+        }
+        self
+    }
+
     pub fn prepare(
         mut self,
         observer: &mut impl PsiCompilationObserver,

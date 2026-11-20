@@ -142,7 +142,11 @@ fn compile_targets(
         None
     } else {
         Some(crate::project_sources::open_products(
-            &arguments.root_path,
+            if arguments.check_only {
+                crate::project_sources::ProjectInput::PackageCheck(&arguments.root_path)
+            } else {
+                crate::project_sources::ProjectInput::File(&arguments.root_path)
+            },
             &active,
             arguments.offline,
             arguments.timings,

@@ -1916,7 +1916,6 @@ fn captured_build_constant_session(
         &[profile],
         true,
     )
-    .unwrap()
     .unwrap();
     let mut session =
         orchestration::BuildSession::create(&workspace.path().join("session")).unwrap();
@@ -2113,8 +2112,7 @@ fn captured_package_build(
 ) {
     let preparation =
         package_manager::operations::begin_local_project_preparation(root_path, &[target], true)
-            .unwrap()
-            .expect("ordinary captured project");
+            .unwrap();
     let mut session = orchestration::BuildSession::create(session_path).unwrap();
     let resolved = orchestration::resolve_project_sources(
         &mut session,

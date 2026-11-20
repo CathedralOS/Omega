@@ -22,7 +22,7 @@ fn invoke(tier: &str, sample: &str) -> (Output, String) {
             "build.omg",
             "--build-input",
             "main.omg",
-            "main.omg",
+            "build.omg",
         ])
         .current_dir(scratch.path())
         .stdin(Stdio::null())

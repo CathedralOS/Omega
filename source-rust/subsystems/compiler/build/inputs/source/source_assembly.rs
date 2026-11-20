@@ -1,7 +1,7 @@
 /*
 We assemble one syntax forest (`AssembledSyntax`) with exact package, import, and generated-source custody across the two-phase `Build` and `Product` compilation lifecycle.
 
-`ImmutableSourceParseCheckpoint::prepare` consumes an acquired source capture (or captures physical sources), then parses the authored `build.omg` import closure or the compiler-supplied `<default-build>` template while holding `Product` roots deferred. Calling `assemble` on that checkpoint produces the initial `Build`-scope `AssembledSyntax` along with a `DeferredProductSources` continuation. After the `Build` machine returns and its dependencies settle, `DeferredProductSources::assemble` joins the settled `PackageCompilationInputs`, opens the `Product` roots, attaches dependency-generated source handoffs, seeds target `ProgramEntry` contract sources and implicit `core` vocabulary (`code_layout.omg`, `indexing.omg`, `float_operations.omg`), seals the `Product` source owner, and produces the final `Product`-scope `AssembledSyntax`.
+`ImmutableSourceParseCheckpoint::prepare` consumes an acquired source capture (or captures physical sources), then parses the selected Build and its imports or reads the default Build from the captured core library while holding `Product` roots deferred. Calling `assemble` on that checkpoint produces the initial `Build`-scope `AssembledSyntax` along with a `DeferredProductSources` continuation. After the `Build` machine returns and its dependencies settle, `DeferredProductSources::assemble` joins the settled `PackageCompilationInputs`, opens the `Product` roots, attaches dependency-generated source handoffs, seeds target `ProgramEntry` contract sources and implicit `core` vocabulary (`code_layout.omg`, `indexing.omg`, `float_operations.omg`), seals the `Product` source owner, and produces the final `Product`-scope `AssembledSyntax`.
 */
 
 /*
@@ -23,10 +23,11 @@ mod build_source;
 pub use build_source::BuildSourceSelection;
 
 use crate::PackageCompilationInputs;
+use crate::source::entry::StageRoots;
 use crate::source::source_imports::{
-    GeneratedSourceExtension, ImportQueue, PackageImportPhase, PendingPackageImport,
-    ProjectSourceSelection, SourceStorage, discover_imports, discover_imports_with_packages,
-    discover_package_imports, validate_package_source_frontier,
+    GeneratedSourceExtension, ImportQueue, PackageImportPhase, PendingPackageImport, SourceStorage,
+    discover_imports, discover_imports_with_packages, discover_package_imports,
+    validate_package_source_frontier,
 };
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
@@ -66,6 +67,7 @@ pub struct AssembledSyntax {
     pub build_source_acquisition: Option<BuildStageAcquisition>,
     pub anonymous_owner: Option<crate::AnonymousSourceCapture>, // Unbound anonymous capture carried until `Product` sealing.
     pub product_sources: Option<DeferredProductSources>, // Deferred `Product` continuation held during `Build` evaluation.
+    pub default_product_entry: Option<source_admission::RetainedDeclaration>,
     pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
     pub source_scoped_top_level_bindings:
         Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, // Build-prelude aliases and module import bindings.
@@ -209,6 +211,7 @@ impl DeferredProductSources {
             build_source_acquisition: None,
             anonymous_owner: None,
             product_sources: None,
+            default_product_entry: None,
             build_source,
             source_scoped_top_level_bindings: bindings,
             generated_source_custody: Vec::new(),
@@ -346,6 +349,7 @@ impl DeferredProductSources {
                 product_sources: Some(DeferredProductSources {
                     checkpoint: deferred,
                 }),
+                default_product_entry: None,
                 build_source,
                 source_scoped_top_level_bindings: bindings,
                 generated_source_custody,
@@ -365,6 +369,7 @@ impl DeferredProductSources {
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
+        bindings: &[source_compiler::declaration_selection::ProductEntryBinding],
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -379,6 +384,11 @@ impl DeferredProductSources {
         let mut imports = ImportQueue::default();
         for source in storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
+        }
+        if let Some(named) = &storage.entry
+            && named.selected_by(bindings)
+        {
+            imports.seed(named.path.clone(), source_provenance::DependencyScope::Product);
         }
         for root in roots.iter() {
             imports.seed(
@@ -447,24 +457,23 @@ impl ImmutableSourceParseCheckpoint {
         let Some(inputs) = package_inputs.filter(|_| self.package_source_inputs.is_none()) else {
             return self.validate_child(package_inputs);
         };
-        self.admit_product_inputs(Some(inputs))?;
-        let storage = Arc::make_mut(&mut self.source_storage);
-        let default_source = self
+        let selected_build = self
             .build_source
-            .filter(|choice| choice.is_default())
             .map(|choice| {
-                storage
+                self.source_storage
                     .sources
                     .get(choice.source_id())
                     .cloned()
                     .map(|file| (choice, file))
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
-                            "default Build source disappeared before package join",
+                            "selected Build source disappeared before package join",
                         )]
                     })
             })
             .transpose()?;
+        self.admit_product_inputs(Some(inputs))?;
+        let storage = Arc::make_mut(&mut self.source_storage);
         let loaded = storage.reselect_current_sources(catalogue)?;
         storage
             .sources
@@ -494,18 +503,19 @@ impl ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?);
-        self.build_source = match default_source {
-            Some((choice, file)) => Some(choice.rejoined(
-                storage.sources.rejoined_source_id(&file).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "default Build source lost its package-join correspondence",
-                    )]
-                })?,
-            )),
-            None => ProjectSourceSelection::prepare(&self.root_path, &storage.filesystem)?
-                .build_source_id(storage)?
-                .map(BuildSourceSelection::authored),
-        };
+        self.build_source = selected_build
+            .map(|(choice, file)| {
+                storage
+                    .sources
+                    .rejoined_source_id(&file)
+                    .map(|id| choice.rejoined(id))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "selected Build lost its package-join correspondence",
+                        )]
+                    })
+            })
+            .transpose()?;
         self.package_imports = requests.into();
         Ok(())
     }
@@ -570,15 +580,10 @@ impl ImmutableSourceParseCheckpoint {
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
-        let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
+        let project = StageRoots::prepare(root_path, &mut source_storage)?;
         let mut imports = ImportQueue::default();
-        let mut product_roots = Vec::new();
-        for (path, scope) in project.sources() {
-            if *scope == source_provenance::DependencyScope::Product {
-                product_roots.push(path.clone());
-            } else {
-                imports.seed(path.clone(), *scope);
-            }
+        if let Some((path, _)) = &project.build {
+            imports.seed(path.clone(), source_provenance::DependencyScope::Build);
         }
         let package_imports = load_imports(
             &mut source_storage,
@@ -589,8 +594,8 @@ impl ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?;
-        let build_source = Some(match project.build_source_id(&source_storage)? {
-            Some(source_id) => BuildSourceSelection::authored(source_id),
+        let build_source = Some(match project.build_entry(&source_storage)? {
+            Some(entry) => BuildSourceSelection::authored(entry),
             None => append_default_build(&mut source_storage, timings, catalogue)?,
         });
         Ok(Self {
@@ -599,7 +604,7 @@ impl ImmutableSourceParseCheckpoint {
             build_source,
             package_imports: package_imports.into(),
             package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
-            product_roots: Some(product_roots.into()),
+            product_roots: Some(project.product.into()),
         })
     }
 
@@ -819,6 +824,10 @@ impl ImmutableSourceParseCheckpoint {
             Some(capture) => (capture.sources().clone(), Some(capture)),
             None => (Arc::new(source_storage.sources), None),
         };
+        let default_product_entry = match (&source_storage.entry, self.build_source) {
+            (Some(named), Some(build)) if build.is_default() => named.product_main(&sources)?,
+            _ => None,
+        };
         let syntax = AssembledSyntax {
             root_sources,
             source_items: source_storage
@@ -831,6 +840,7 @@ impl ImmutableSourceParseCheckpoint {
             sources,
             anonymous_owner,
             product_sources,
+            default_product_entry,
             build_source: self.build_source,
             source_scoped_top_level_bindings,
             generated_source_custody,
@@ -1291,17 +1301,30 @@ fn append_default_build(
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
 ) -> Result<BuildSourceSelection, Vec<Diagnostic>> {
+    let core = storage.core_capture().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "default Build requires the captured core library",
+        )]
+    })?;
+    let source = core
+        .tree()
+        .read_to_string(Path::new("defaults/build.omg"))
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot read core's default Build: {error}"
+            ))]
+        })?;
     let admitted = storage.admit_source(
         SourceContents {
             path: PathBuf::from(source_admission::source_identity::DEFAULT_BUILD_PATH),
-            source: Arc::from(build_declarations::default_build_source()),
+            source,
             scope: source_provenance::DependencyScope::Build,
         },
         Some(SourceOrigin::Toolchain),
         SourceResolutionStratum::Base,
         catalogue,
     )?;
-    let selection = BuildSourceSelection::compiler_default(admitted.source_id);
+    let source_id = admitted.source_id;
     // A package with no Build-scope source of its own has parsed nothing
     // yet, so the default Build is the first source of this cohort and its
     // primary coordinate, as the first loaded source is in `load_imports`.
@@ -1312,8 +1335,19 @@ fn append_default_build(
     }
     let parsed = SourceInput([admitted].into_iter().collect())
         .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+    let [unit] = parsed.sources.span_or_empty(parsed.batch) else {
+        return Err(vec![Diagnostic::error(
+            "parser lost the core default Build source",
+        )]);
+    };
+    let [name] = unit.root_items.build_machines() else {
+        return Err(vec![Diagnostic::error(
+            "core's default Build must declare one free build machine",
+        )]);
+    };
+    let entry = source_text::SourceSpan::new(source_id, *name);
     storage.attach_parsed(parsed);
-    Ok(selection)
+    Ok(BuildSourceSelection::compiler_default(entry))
 }
 
 /// Adds the toolchain's Build prelude to a program that has a Build script.
@@ -1426,7 +1460,14 @@ fn parse_admitted(
     SourceInput(admitted).append_reusing(
         &mut storage.syntax_trees,
         &mut ParsingTimings(timings),
-        |source| crate::source::source_imports::retained_unit(owners, &source.path),
+        |source| {
+            storage
+                .entry
+                .as_ref()
+                .filter(|entry| entry.path == source.path)
+                .map(|entry| entry.syntax.as_ref())
+                .or_else(|| crate::source::source_imports::retained_unit(owners, &source.path))
+        },
     )
 }
 
@@ -1559,7 +1600,7 @@ mod requirement_preparation_tests {
         );
         assert_ne!(build_source, query_source);
         let (_, product) = continuation
-            .assemble(None, &mut timings, &mut catalogue)
+            .assemble(None, &[], &mut timings, &mut catalogue)
             .expect("the final Product source assembly");
         let product_source = collection_source(
             &product,

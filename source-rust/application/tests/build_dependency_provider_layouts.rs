@@ -83,7 +83,7 @@ fn assert_agreed_exit_zero(report: &str) {
 
 #[test]
 fn a_chosen_dependency_default_is_laid_out_for_its_target_and_runs() {
-    assert_agreed_exit_zero(&omega(&["run", "--both", "main.omg"], &fixture()));
+    assert_agreed_exit_zero(&omega(&["run", "--both", "build.omg"], &fixture()));
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn an_unchosen_dependency_default_is_never_laid_out() {
         "unreached",
         "use layout_default_kit\\main\\Measure;\n\nmachine main() {\n}\n",
     );
-    let report = omega(&["run", "--both", "main.omg"], &root);
+    let report = omega(&["run", "--both", "build.omg"], &root);
     let _ = std::fs::remove_dir_all(&root);
     assert_agreed_exit_zero(&report);
 }

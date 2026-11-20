@@ -4,7 +4,7 @@ Command-line parser for the `omega` binary.
 
 We parse the entire invocation into an `Invocation` value before any compiler
 or package work starts. The first argument selects the command surface
-(`packages`, `psi`, `source`, `run`, `--help`, or `--version`); anything else
+(`packages`, `psi`, `source`, `build`, `run`, `--help`, or `--version`); anything else
 is passed to `compile::parse_arguments` with that first token put back at the
 front of the iterator, because `omega <root.omg>` and `omega --check <root.omg>`
 are the default command. Flat `install`/`update`, action-first `audit`, and
@@ -82,6 +82,21 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
         Some("packages") => parse_packages_subsystem(arguments),
         Some("psi") => parse_psi_subsystem(arguments),
         Some("source") => parse_source_subsystem(arguments),
+        Some("build") => finish_subcommand(
+            compile::parse_arguments(arguments).and_then(|request| {
+                if request
+                    .as_ref()
+                    .is_some_and(|arguments| arguments.check_only)
+                {
+                    return Err(
+                        "use omega --check to check source without building an artifact".into(),
+                    );
+                }
+                Ok(request)
+            }),
+            compile::USAGE,
+            Invocation::Compile,
+        ),
         Some("run") => {
             finish_subcommand(run::parse_arguments(arguments), run::USAGE, Invocation::Run)
         }

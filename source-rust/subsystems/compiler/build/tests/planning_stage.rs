@@ -18,9 +18,8 @@ fn authored_build_returns_its_application_and_target_bindings() {
     configure_library();
     let fixture = fixture_repository::root()
         .join("tests/fixtures/providers/run/native_boundary_supply/main.omg");
-    let project = begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true)
-        .unwrap()
-        .unwrap();
+    let project =
+        begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true).unwrap();
     let acquired = project.acquire_root().unwrap();
     let capture = acquired.source_capture();
     let root = acquired.entry_path();
@@ -282,9 +281,7 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
     let path = fixture_repository::root().join(
         "tests/fixtures/build/fail/product_entry_query_foreign_helper_private_entry/main.omg",
     );
-    let project = begin_local_project_preparation(&path, &[TargetProfile::LinuxX64], true)
-        .unwrap()
-        .unwrap();
+    let project = begin_local_project_preparation(&path, &[TargetProfile::LinuxX64], true).unwrap();
     let mut acquisitions = project.source_acquisitions().unwrap();
     let root = acquisitions
         .retain_root(project.acquire_root().unwrap())
@@ -343,9 +340,8 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
     configure_library();
     let fixture = fixture_repository::root()
         .join("tests/fixtures/build/pass/product_description_paths_exit/main.omg");
-    let project = begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true)
-        .unwrap()
-        .unwrap();
+    let project =
+        begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true).unwrap();
     let root = project.acquire_root().unwrap();
     let stage = prepare(
         PlanningRequest {

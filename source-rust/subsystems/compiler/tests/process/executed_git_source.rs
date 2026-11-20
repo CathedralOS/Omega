@@ -380,7 +380,6 @@ fn execute_fixture() {
                     &[profile],
                     offline,
                 )
-                .unwrap()
                 .unwrap(),
                 execution: package_compilation::BuildExecutionInputs {
                     profile: Some(profile),
@@ -533,7 +532,6 @@ fn foreign_policy_control(
         &[profile],
         false,
     )
-    .unwrap()
     .unwrap();
     let acquired = preparation.acquire_root().unwrap();
     let mut session =
@@ -572,7 +570,6 @@ fn foreign_policy_control(
         &[profile],
         false,
     )
-    .unwrap()
     .unwrap();
     let error = foreign
         .source_acquisitions()

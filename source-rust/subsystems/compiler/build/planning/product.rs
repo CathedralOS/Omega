@@ -10,10 +10,14 @@ use package_compilation::PackageDependencyClosure;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::compile_time::BuildTimeSelectionAuthority;
 use source_compiler::product::provider_declarations::RetainedProviderSelection;
+use source_compiler::product::source_targets::SourceTarget;
 use source_compiler::product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
-use source_compiler::product::source_targets::SourceTarget;
+use source_declarations::declaration_selection::{
+    DescribedProductEntry, ProductEntryBinding, RootBindingSelection,
+};
+use std::borrow::Cow;
 use std::sync::Arc;
 use target::TargetProfile;
 
@@ -22,6 +26,7 @@ pub struct ProductStage<'a> {
     pub(super) product: &'a PlannedProduct,
     rollback: Option<OptimizationRollbackReceipt>,
     targets: Vec<SourceTarget>,
+    entries: Cow<'a, [ProductEntryBinding]>,
     deployments: Vec<&'static str>,
     build_host: ProductTarget,
     scope: Option<Arc<PackageDependencyClosure>>,
@@ -48,8 +53,37 @@ impl PlannedProduct {
                 "the Build host profile `{profile}` has no source target identity"
             ))]
         })?;
+        let entries = match self.source().default_product_entry.as_ref() {
+            Some(main) => Cow::Owned(
+                deployments
+                    .iter()
+                    .map(|profile| {
+                        let contract = profile.program_entry_slot().source_contract();
+                        let slot = format!("{}::{}", contract.owner, contract.slot_name);
+                        ProductEntryBinding {
+                            source_span: main.source().source_span(main.span()),
+                            implementation: RootBindingSelection::Described(
+                                DescribedProductEntry {
+                                    declaration: main.clone(),
+                                    machine_name: "main".to_owned(),
+                                    slot: slot.clone(),
+                                },
+                            ),
+                            slot,
+                        }
+                    })
+                    .collect(),
+            ),
+            None => Cow::Borrowed(
+                self.evaluated()
+                    .configuration
+                    .root_binding_requests
+                    .as_slice(),
+            ),
+        };
         Ok(ProductStage {
             product: self,
+            entries,
             rollback: None,
             targets: package_compilation::source_imports::source_targets(packages),
             deployments: deployments
@@ -109,7 +143,7 @@ impl ProductStage<'_> {
                 targets: &self.targets,
                 calling_targets: &self.deployments,
                 subject: self.scope.as_ref().map(|scope| scope.root()),
-                root_binding_requests: &build.root_binding_requests,
+                root_binding_requests: &self.entries,
                 policy: ProductPolicyInputs {
                     activation: build.selected_build_declaration.as_ref(),
                     declared: &build.declared_product_selections,

@@ -36,9 +36,7 @@ pub fn settle_rejoined_build_slice(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
         )].into());
     }
-    if constants.read.is_empty()
-        && subject_validation != BuildSubjectValidation::AwaitingOwner
-    {
+    if constants.read.is_empty() {
         return Ok(Default::default());
     }
     let refusals = constants.read.iter().filter(|read| read.declaration.is_none() || read.value.is_none()).map(|read| {

@@ -25,9 +25,7 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
         )
         .unwrap()
     });
-    let project = begin_local_project_preparation(path, targets, true)
-        .unwrap()
-        .unwrap();
+    let project = begin_local_project_preparation(path, targets, true).unwrap();
     let selected = BuildSourceCaptureRequest::new(["main.omg", "build.omg"].map(|name| {
         (
             name.as_bytes().to_vec(),

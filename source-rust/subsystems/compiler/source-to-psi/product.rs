@@ -62,8 +62,8 @@ pub struct ProductSourceInputs<'a> {
     pub targets: &'a [crate::product::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Bindings returned by Build. The receiving source resolves their exact declarations.
-    pub root_binding_requests: &'a [crate::declaration_selection::ExecutedRootBinding],
+    /// Entry selections from the authored Build or the core default.
+    pub root_binding_requests: &'a [crate::declaration_selection::ProductEntryBinding],
     pub policy: ProductPolicyInputs<'a>,
     /// Package-authenticated declarations and closed operands from dependency Builds.
     pub default_provider_selections: &'a [crate::product::provider_declarations::RetainedProviderSelection],

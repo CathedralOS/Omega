@@ -1,7 +1,7 @@
 //! Resolve each executed root binding to its exact visible machine. Entry checking
 //! later decides whether that machine satisfies its selected slot.
 
-use crate::declaration_selection::ExecutedRootBinding;
+use crate::declaration_selection::ProductEntryBinding;
 use crate::declaration_selection::RootBindingSelection;
 use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
@@ -10,7 +10,7 @@ pub use source_declarations::source_selections::RootBinding;
 
 pub fn collect_root_bindings(
     typed: &TypedTrees,
-    executed: &[ExecutedRootBinding],
+    executed: &[ProductEntryBinding],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
     let typed = typed.product_declarations();
     let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
@@ -190,14 +190,14 @@ mod tests {
         (base.into_typed(), source_id)
     }
 
-    fn binding(typed: &TypedTrees, slot: &str, path: &str) -> ExecutedRootBinding {
+    fn binding(typed: &TypedTrees, slot: &str, path: &str) -> ProductEntryBinding {
         // A Build's binding is written in the root package; the entry
         // machine's own declaration is such a place.
         let source_span = typed
             .symbols
             .symbol_source_span(typed.machines()[0].symbol)
             .expect("a declared machine has a span");
-        ExecutedRootBinding {
+        ProductEntryBinding {
             source_span,
             slot: slot.to_owned(),
             implementation: RootBindingSelection::AuthoredPath(path.to_owned()),
@@ -286,7 +286,7 @@ mod tests {
     fn source_generations(
         selected_only: bool,
         rejoin: bool,
-    ) -> (TypedTrees, ExecutedRootBinding, symbols::SymbolHandle) {
+    ) -> (TypedTrees, ProductEntryBinding, symbols::SymbolHandle) {
         let text = "machine main() { }\n";
         let (mut typed, original_source) = typed(text);
         let original_machine = typed.machines()[0].clone();
