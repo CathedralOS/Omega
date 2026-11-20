@@ -160,6 +160,35 @@ The stamped program matched byte output, a guest refusal and an arithmetic
 trap. The compiler rejected an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
 [Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 
+#### Building the packed constructor entirely on Alpha
+
+The Alpha-hosted Epsilon and Delta compilers at `c6d64f0f3c4` translated
+the 899,962-byte Epsilon-written Omega compiler into 26,354,274 bytes of
+Gamma. The Gamma-to-Alpha compiler from `770c184573c` assembled that Gamma
+on the seed. The original Gamma evaluator and two successive compiler
+generations each built the same 207,681-byte compiler tape from its
+43,315-byte source. The shell launcher stamped the tapes and connected
+their input and output files. [Reproduce the Epsilon and Delta stages](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Gamma compiler tape, all three generations | 207,681 | `c3274d349b53511e4a8bcd8624927d1d2aee3052f1212ed113234255f650f7e1` |
+| Alpha-produced Gamma input | 26,354,274 | `215cd20cbc51fcdff281fb1075c474fc0afe3f4d1b89d141c18a974da6cd19cd` |
+| Packed constructor tape | 12,074,120 | `c5d2041b9e8ecc5bb39fd008f5a13d1973c9dd46ae39c24370ec92229bd6d694` |
+
+This final compilation used 1,412.64 CPU seconds and peaked at 4,888,848 KiB.
+The independent reader recovered 58,526,320 ordinary instruction bytes and
+normalized 3,574,727 branch and call addresses, giving SHA-256
+`90b2236bc647b67539ed0a54db989c53bbec621168a3bf726481ff3431ff7be1`.
+
+On the 111-byte Omega package the packed constructor produced the same
+22-byte tape as the original Gamma interpreter. On the 828-byte two-package
+wire decoder, it emitted the 1,607-byte tape
+`f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+Both tapes exited 42 on the seed with empty stdout and stderr. Removing the
+wire package dependency returned guest exit 1 at byte 11. Appending a
+trailing byte returned the five-byte framing refusal, guest exit 3.
+
 #### Comparing the same constructor on Alpha and Linux
 
 At `980fa9c6a6c` the Epsilon-written Omega compiler handled typed

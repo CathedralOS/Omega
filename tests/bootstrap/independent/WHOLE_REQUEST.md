@@ -350,9 +350,12 @@ python3 tests/bootstrap/independent/whole_request.py "$work/inputs" --frame-resu
 ```
 
 Give the generated Gamma to the original interpreter that the launcher built
-from Beta. This avoids emitting an Alpha tape for the constructor itself,
-which exceeds the seed’s tape capacity. The constructor can still emit an
-Alpha tape for a smaller Omega program. The host's `xtask` packs the declared
+from Beta. The ordinary encoding at this revision exceeds the seed’s tape
+capacity. A later Gamma compiler running on Alpha packed these same
+26,354,274 bytes of Gamma into a 12,074,120-byte constructor tape.
+[Packed constructor and hashes](../../../wiki/development/bootstrap/compiled-alpha.md#building-the-packed-constructor-entirely-on-alpha)
+
+For the interpreter replay below, the host's `xtask` packs the declared
 source members. The shell and Python frame inputs, check the results and
 insert tapes into the seed. The seed runs every
 language implementation. [Source audit and tape-size bound](../../../wiki/development/bootstrap/source-audit.md#why-the-full-constructor-changes-the-host-choice)
