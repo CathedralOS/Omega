@@ -162,6 +162,36 @@ At `bcffe3ee694`, rematerializing the direct Delta interpreter, Delta compiler,
 Epsilon compiler and linked Delta program produced different bytes. Those
 inputs require separate measurements.
 
+On that same `5144ec25e810` inventory, the original Gamma interpreter also
+ran the Delta compiler on the 629,618-byte Epsilon **compiler**. The complete
+785,922-byte reference input had SHA-256
+`b550e9fe5e8eebfa380e5a47baa61925ffd15f7f0779200bf67d98b72d43c800`.
+It produced 810,690 bytes of Gamma, SHA-256
+`ba4cb39da467b4dad9ca874c65b480389fa5b6632c459cfb33f5d2a0ee0140ca`.
+Both lower source inventories had the identical reference executable and
+complete input. This compiler source is the shared intermediate for building
+an Alpha- or Linux-hosted Epsilon compiler through the original interpreter.
+
+## Original Gamma on the named classifier sources
+
+The named `omega-byte-classes` case at `8da0d6a9f82` has the same
+`bootstrap/` sources as `93ad7259148`, tree
+`734d5741ab11680c414eda1fcd0e6db0e7f96b27`. On those sources a freshly
+reconstructed Gamma interpreter ran the Delta compiler on the Epsilon
+evaluator. The complete 781,056-byte input had SHA-256
+`04c259e8ddf2a4c0322b54f3a4c88b38417a8bcdc21ee9f23939c69c729a1730`.
+It produced 729,482 bytes of Gamma, SHA-256
+`3d0f600184534c82ff03bb1eb9197648ba7420656a915bfc04c7e4f49598c9bf`.
+The compiled Gamma host produced the identical evaluator source.
+
+The original Gamma interpreter then executed that evaluator directly on the
+classifier in which one `omega_digit_in_base` call passes `value` in place
+of `selected`. This is the selectable `--delta-interpreter gamma` route.
+The 733,539-byte input to the reference executable had SHA-256
+`81abb880306f9bbdbbc22262cc46f0826d718e12f0dda46a3467e28dd557517f`.
+The interpreter returned process status zero and `02 12 f0 07 00 00` in
+200.586 seconds, locating the type error at byte 2,032.
+
 ## Omega lexical byte classes on the original Gamma route
 
 The Omega compiler's `byte_classes.epsilon` ran over all 256 byte values
