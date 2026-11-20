@@ -21,7 +21,7 @@ Gamma, as in the original interpreted route. [Route runner](../../../tests/boots
 
 Each run needs a new output directory and the repository's built `xtask` for
 source manifests. Each row retains its source, input, intermediate artifacts,
-and `result.json` with the stages, times, input hashes and outcome. In a batch, each row logs live progress in `stages.log`. Completed
+and `result.json` with the stages, times, input hashes, generated artifact hashes and outcome. In a batch, each row logs live progress in `stages.log`. Completed
 rows also retain `guest.eeout` for byte comparison. A timeout records the
 stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
 and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
@@ -35,12 +35,21 @@ whole-compiler inputs. [Cold build](../../../tests/bootstrap/linux_x86_64/README
 
 ### Same stdin program across routes
 
-With the language sources at `f040d53f89d`, all nine selections on
-Alpha-hosted Gamma and all nine on Linux-hosted Gamma returned the expected
-six bytes. The guest read `Z`, wrote `Z`, and exited 90. The twelve routes
-that compiled the guest produced identical Delta and Gamma source. All six
-Alpha targets emitted the same 487,013-byte tape. All six Linux targets
-emitted the same 260,706-byte executable.
+All 27 routes ran the portable stdin control from `f040d53f89d` with a
+120-second limit per producer or guest invocation. The table counts matching
+Epsilon observations out of the three Epsilon choices for each pair of lower
+rungs. The runs reused cold-built Alpha and Linux Gamma compilers.
+Every completed route returned `00 5a 00 00 00 5a`.
+
+| Gamma host | Direct Delta interpreter | Delta on Alpha | Delta on Linux |
+| --- | --- | --- | --- |
+| Interpreter | 3 timed out | 3 timed out | 3 timed out |
+| Alpha | 3/3 | 3/3 | 3/3 |
+| Linux | 3/3 | 3/3 | 3/3 |
+
+Among those 18 completed routes, all twelve that compiled the guest produced
+identical Delta and Gamma source. All six Alpha targets emitted the same
+487,013-byte tape. All six Linux targets emitted the same 260,706-byte executable.
 
 ## Tested threads through the matrix
 

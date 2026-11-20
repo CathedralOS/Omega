@@ -54,13 +54,20 @@ class Route:
         self.work = work
         self.steps = []
         self.backends = {}
+        self.artifacts = {}
 
     def stage(self, description, action):
         self.steps.append((description, action))
 
     def file(self, name, description, produce):
         path = self.work / name
-        self.stage(f"{description} -> {name}", lambda: path.write_bytes(produce()))
+
+        def publish():
+            data = produce()
+            path.write_bytes(data)
+            self.artifacts[name] = {"bytes": len(data), "sha256": sha256(data).hexdigest()}
+
+        self.stage(f"{description} -> {name}", publish)
         return path
 
     def run(self, name, description, program, payload):
@@ -182,7 +189,7 @@ def execute_route(route, guest, stdin, expected, verbose):
     report = {"gamma": args.gamma, "delta": args.delta, "epsilon": args.epsilon, "profile": args.profile,
               "delta_interpreter": args.delta_interpreter if args.delta == "interpret" else None,
               "source_sha256": sha256(guest).hexdigest(), "stdin_sha256": sha256(stdin).hexdigest(),
-              "seconds_per_invocation": args.seconds, "stages": []}
+              "seconds_per_invocation": args.seconds, "stages": [], "artifacts": route.artifacts}
     status = 0
     try:
         log = nullcontext(sys.stdout) if verbose else (work / "stages.log").open("w")
@@ -269,7 +276,8 @@ def main():
     exit_status = 0
     axes = [MODES if mode == "all" else (mode,) for mode in choices]
     if matrix and not args.plan:
-        print("Gamma      Delta      " + " ".join(f"{mode:16}" for mode in axes[2]), flush=True)
+        headers = ["Epsilon " + mode for mode in axes[2]]
+        print("Gamma      Delta      " + " ".join(f"{header:18}" for header in headers).rstrip(), flush=True)
     cells = []
     for gamma, delta, epsilon in product(*axes):
         label = f"{gamma}-{delta}-{epsilon}"
@@ -290,7 +298,7 @@ def main():
         if matrix:
             cells.append(report["result"])
             if epsilon == axes[2][-1]:
-                print(f"{gamma:10} {delta:10} " + " ".join(f"{cell:16}" for cell in cells), flush=True)
+                print(f"{gamma:10} {delta:10} " + " ".join(f"{cell:18}" for cell in cells).rstrip(), flush=True)
                 cells.clear()
         else:
             detail = report.get("detail", "")
