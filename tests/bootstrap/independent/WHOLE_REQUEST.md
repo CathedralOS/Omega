@@ -86,6 +86,13 @@ on the conformance profile.
 | Delta source with runtime and entry | 18,365,364 | `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab` |
 | Gamma emitted by Delta | 26,398,215 | `2c9641632eb613696428a96903e02d126a6d7fc5fdbd78c9f08f3d3469f29329` |
 
+The native Gamma compiler rebuilt to the same 226,610-byte executable on two
+successive self-compilations from the cold Linux launcher. Using it to
+reconstruct Delta and the Epsilon compiler reproduced the two whole-program
+outputs in the table. The Beta-built Gamma interpreter received the complete
+Gamma source plus the valid 829-byte wire-package input. Its 480-second
+wall limit expired with empty output.
+
 The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.
