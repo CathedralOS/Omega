@@ -9,4 +9,4 @@ compiler stage; later phases cannot call the lexer through them.
 
 The source compiler, syntax representation and independent semantic consumers
 use these records directly. Generic arithmetic belongs to `bignum`; arithmetic
-policies and sealed scalar laws belong to [numeric semantics](../../psi/semantics/numeric/).
+policies and sealed scalar laws belong to [numeric semantics](../numerics/).

@@ -8,8 +8,8 @@ version.workspace = true
 path = "schema.rs"
 
 [dependencies]
-application-identity = { path = "../application-identity" }
-numerics = { path = "../semantics/numeric" }
-symbols = { path = "../../foundation/declaration-identity" }
-wire = { path = "../../../../foundation/wire" }
-record-storage = { path = "../../../../foundation/record-storage" }
+application-identity = { path = "../../identities/applications" }
+numerics = { path = "../../../foundation/numerics" }
+symbols = { path = "../../../foundation/declaration-identity" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }

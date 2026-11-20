@@ -10,13 +10,13 @@ path = "scalar_applications.rs"
 [dependencies]
 arena = { path = "../../../../foundation/arena" }
 bignum = { path = "../../../../foundation/bignum" }
-numerics = { path = "../semantics/numeric" }
+numerics = { path = "../../foundation/numerics" }
 psi-provider-selections = { path = "../providers" }
-psi-target-layouts = { path = "../layout/admission" }
+psi-target-layouts = { path = "../target-layouts" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
-terminal-codec = { path = "../codec" }
-terminal-psi = { path = ".." }
-terminal-semantics = { path = "../semantics" }
+terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-psi = { path = "../../psi" }
+terminal-semantics = { path = "../../psi-semantics" }
 
 [dev-dependencies]
-proof-applications = { path = "../proof-applications" }
+proof-applications = { path = "../../psi/proofs/applications" }

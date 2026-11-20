@@ -14,9 +14,10 @@ path = "lib.rs"
 test-support = []
 
 [dependencies]
-service-surface = { path = "../../../psi/service-surface" }
+psi-publication-records = { path = "../../../psi-artifact/publication" }
+service-surface = { path = "../../../psi/interfaces/service-surface" }
 source-provenance = { path = "../../../foundation/source-provenance" }
-application-identity = { path = "../../../psi/application-identity" }
+application-identity = { path = "../../../psi/identities/applications" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
@@ -25,17 +26,17 @@ arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 worker-budget = { path = "../../../foundation/worker-budget" }
 language-core = { path = "../../../foundation/language-core" }
-numerics = { path = "../../../psi/semantics/numeric" }
-optimization = { path = "../../../psi/optimization-selections" }
-proof-admission = { path = "../../../psi/proofs/bounded" }
+numerics = { path = "../../../foundation/numerics" }
+optimization = { path = "../../../psi-artifact/optimization-selections" }
+proof-admission = { path = "../../../psi-semantics/proofs/bounded" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../../representations/lowered-program" }
-terminal-codec = { path = "../../../psi/codec" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi/semantics" }
-terminal-work = { path = "../../../psi/work" }
+terminal-semantics = { path = "../../../psi-semantics" }
+terminal-work = { path = "../../../psi-semantics/work" }
 
 [dev-dependencies]
 terminal-interpreter = { path = "../../../../interpreter" }

@@ -12,12 +12,12 @@ path = "src/lib.rs"
 operation-evidence = { path = "../../operation-evidence" }
 arena = { path = "../../../../../../foundation/arena" }
 wire = { path = "../../../../../../foundation/wire" }
-numerics = { path = "../../../../psi/semantics/numeric" }
+numerics = { path = "../../../../foundation/numerics" }
 optimization-core = { path = "../../optimization-records" }
 abstract-operations = { path = ".." }
 language-core = { path = "../../../../foundation/language-core" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
-terminal-semantics = { path = "../../../../psi/semantics" }
+terminal-semantics = { path = "../../../../psi-semantics" }
 
-terminal-codec = { path = "../../../../psi/codec" }
+terminal-codec = { path = "../../../../psi-artifact/codec" }

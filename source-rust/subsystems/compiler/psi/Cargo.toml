@@ -9,25 +9,25 @@ name = "terminal_psi"
 path = "psi.rs"
 
 [dependencies]
-service-surface = { path = "service-surface" }
-psi-program-identity = { path = "program-identity" }
-proof-applications = { path = "proof-applications" }
-access-vocabulary = { path = "access" }
-schema-reflection = { path = "schema" }
-application-identity = { path = "application-identity" }
+service-surface = { path = "interfaces/service-surface" }
+psi-program-identity = { path = "identities/program" }
+proof-applications = { path = "proofs/applications" }
+access-vocabulary = { path = "access/policies" }
+schema-reflection = { path = "types/reflection" }
+application-identity = { path = "identities/applications" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 wire = { path = "../../../foundation/wire" }
 symbols = { path = "../foundation/declaration-identity" }
 record-storage = { path = "../../../foundation/record-storage" }
 arena = { path = "../../../foundation/arena" }
-numerics = { path = "semantics/numeric" }
+numerics = { path = "../foundation/numerics" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 language-core = { path = "../foundation/language-core" }
-psi-effect-contracts = { path = "effect-contracts" }
+psi-effect-contracts = { path = "machines/effect-contracts" }
 
-access-admission = { path = "access/admission" }
-layout-plans = { path = "layout" }
+access-admission = { path = "access/validated-placements" }
+layout-plans = { path = "layouts/geometry" }
 
 [dev-dependencies]
 source-provenance = { path = "../foundation/source-provenance" }

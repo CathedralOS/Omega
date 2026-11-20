@@ -242,7 +242,7 @@ impl RoutePublication {
         declaration: &terminal_psi::PreparedNominalRoot,
         source_signature_identity: [u8; 32],
     ) -> Result<
-        terminal_psi::CheckedProgramEntryTerminalReceipt,
+        psi_publication_records::CheckedProgramEntryTerminalReceipt,
         terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError,
     > {
         terminal_codec::entry_receipt::prepare_program_entry_receipt(

@@ -8,8 +8,8 @@ version.workspace = true
 path = "entry_memory.rs"
 
 [dependencies]
-semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-psi-target-layouts = { path = "../../layout/admission" }
-terminal-codec = { path = "../../codec" }
-terminal-psi = { path = "../.." }
-terminal-semantics = { path = "../../semantics" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+psi-target-layouts = { path = "../target-layouts" }
+terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-psi = { path = "../../psi" }
+terminal-semantics = { path = "../../psi-semantics" }

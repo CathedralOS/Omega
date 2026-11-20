@@ -1,12 +1,12 @@
 use semantic_vocabulary::MachineId;
 
-use crate::TerminalPsiIdentity;
+use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct CheckedProgramEntryTerminalReceipt {
     source_signature_identity: [u8; 32],
     source_machine_name: String,
-    declaration: crate::NominalDeclarationIdentity,
+    declaration: terminal_psi::NominalDeclarationIdentity,
     terminal_psi_identity: TerminalPsiIdentity,
     terminal_entry: MachineId,
 }
@@ -15,7 +15,7 @@ impl CheckedProgramEntryTerminalReceipt {
     pub fn new(
         source_signature_identity: [u8; 32],
         source_machine_name: String,
-        declaration: crate::NominalDeclarationIdentity,
+        declaration: terminal_psi::NominalDeclarationIdentity,
         terminal_psi_identity: TerminalPsiIdentity,
         terminal_entry: MachineId,
     ) -> Self {
@@ -36,7 +36,7 @@ impl CheckedProgramEntryTerminalReceipt {
         &self.source_machine_name
     }
 
-    pub const fn declaration(&self) -> &crate::NominalDeclarationIdentity {
+    pub const fn declaration(&self) -> &terminal_psi::NominalDeclarationIdentity {
         &self.declaration
     }
 

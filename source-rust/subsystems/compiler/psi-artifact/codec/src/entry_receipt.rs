@@ -3,9 +3,8 @@
 pub mod application;
 
 use crate::CanonicalTerminalArtifact;
-use terminal_psi::{
-    CheckedProgramEntryTerminalReceipt, PreparedNominalRoot, TerminalMachineResult,
-};
+use psi_publication_records::CheckedProgramEntryTerminalReceipt;
+use terminal_psi::{PreparedNominalRoot, TerminalMachineResult};
 
 #[derive(Debug)]
 pub enum ProgramEntryTerminalReceiptError {

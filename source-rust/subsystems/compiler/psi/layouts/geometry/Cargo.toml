@@ -12,5 +12,5 @@ path = "layout.rs"
 test-support = []
 
 [dependencies]
-wire = { path = "../../../../foundation/wire" }
-record-storage = { path = "../../../../foundation/record-storage" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }

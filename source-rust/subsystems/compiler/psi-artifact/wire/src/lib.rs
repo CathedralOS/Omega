@@ -179,6 +179,7 @@ pub use sections::artifact_manifest::{
     build_artifact_manifest, validate_artifact_manifest,
     validate_artifact_manifest_with_publication,
 };
+mod debug_map_records;
 pub use sections::debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,

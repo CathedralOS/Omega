@@ -14,7 +14,7 @@ physical-recipes = { path = "../../representations/selected-instructions/physica
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 wire = { path = "../../../../../foundation/wire" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-layout-plans = { path = "../../../psi/layout" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
 function-layout = { path = "../14_resolved-layout-to-placed-functions" }
 machine-code = { path = "../../representations/machine-code" }
 function-identity = { path = "../../representations/function-identity" }

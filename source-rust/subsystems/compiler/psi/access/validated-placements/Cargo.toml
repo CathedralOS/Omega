@@ -12,12 +12,12 @@ path = "admission.rs"
 test-support = ["layout-plans/test-support"]
 
 [dependencies]
-access-vocabulary = { path = ".." }
-schema-reflection = { path = "../../schema" }
-extent-contracts = { path = "../../extent-contracts" }
+access-vocabulary = { path = "../policies" }
+schema-reflection = { path = "../../types/reflection" }
+extent-contracts = { path = "../extents" }
 wire = { path = "../../../../../foundation/wire" }
 record-storage = { path = "../../../../../foundation/record-storage" }
-layout-plans = { path = "../../layout" }
+layout-plans = { path = "../../layouts/geometry" }
 
 [dev-dependencies]
-layout-plans = { path = "../../layout", features = ["test-support"] }
+layout-plans = { path = "../../layouts/geometry", features = ["test-support"] }

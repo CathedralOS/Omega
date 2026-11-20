@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-layout-plans = { path = "../../../compiler/psi/layout" }
+layout-plans = { path = "../../../compiler/psi/layouts/geometry" }
 
 [dev-dependencies]
-layout-plans = { path = "../../../compiler/psi/layout", features = ["test-support"] }
+layout-plans = { path = "../../../compiler/psi/layouts/geometry", features = ["test-support"] }

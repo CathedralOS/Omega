@@ -8,4 +8,4 @@ version.workspace = true
 path = "identity.rs"
 
 [dependencies]
-record-storage = { path = "../../../../foundation/record-storage" }
+record-storage = { path = "../../../../../foundation/record-storage" }

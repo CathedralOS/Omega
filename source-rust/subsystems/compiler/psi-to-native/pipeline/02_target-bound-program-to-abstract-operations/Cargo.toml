@@ -16,9 +16,9 @@ native-behavior-exclusions = { path = "../../verification/behavior-exclusions" }
 target-provider-admission = { path = "../../verification/target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
-psi-scalar-applications = { path = "../../../psi/scalar-applications" }
-psi-entry-memory = { path = "../../../psi/access/entry-memory" }
-psi-target-layouts = { path = "../../../psi/layout/admission" }
+psi-scalar-applications = { path = "../../../psi-execution-inputs/scalar-applications" }
+psi-entry-memory = { path = "../../../psi-execution-inputs/entry-memory" }
+psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
@@ -29,8 +29,8 @@ provider-admission = { path = "../../verification/provider-admission" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
-terminal-codec = { path = "../../../psi/codec" }
-psi-authorization = { path = "../../../psi/authorization" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
+psi-authorization = { path = "../../../psi-artifact/authorization" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi/semantics" }
+terminal-semantics = { path = "../../../psi-semantics" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }

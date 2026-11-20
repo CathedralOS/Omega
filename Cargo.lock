@@ -518,6 +518,7 @@ dependencies = [
  "prepared-typed-trees-to-lowered-program",
  "psi-authorization",
  "psi-provider-selections",
+ "psi-publication-records",
  "record-storage",
  "semantic-vocabulary",
  "service-surface",
@@ -1041,6 +1042,7 @@ dependencies = [
  "program-entry-contracts",
  "provider-admission",
  "psi-entry-memory",
+ "psi-publication-records",
  "register-homes",
  "register-model",
  "runtime-abi",
@@ -1347,6 +1349,7 @@ dependencies = [
  "optimization",
  "prepared-typed-trees-to-lowered-program",
  "proof-admission",
+ "psi-publication-records",
  "rayon",
  "semantic-vocabulary",
  "service-surface",
@@ -2173,6 +2176,7 @@ dependencies = [
  "diagnostics",
  "provider-plans",
  "psi-entry-memory",
+ "psi-publication-records",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -2400,6 +2404,16 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "psi-publication-records"
+version = "0.1.0"
+dependencies = [
+ "record-storage",
+ "semantic-vocabulary",
+ "source-text",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -3542,6 +3556,7 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "optimization",
+ "psi-publication-records",
  "record-storage",
  "semantic-vocabulary",
  "terminal-psi",
@@ -3622,6 +3637,7 @@ dependencies = [
  "platform-custody",
  "psi-entry-memory",
  "psi-provider-selections",
+ "psi-publication-records",
  "psi-target-layouts",
  "published-runtime-input",
  "runtime-abi",
@@ -3840,6 +3856,7 @@ dependencies = [
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
+ "psi-publication-records",
  "psi-scalar-applications",
  "psi-target-layouts",
  "runtime-abi",

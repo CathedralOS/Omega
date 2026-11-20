@@ -8,7 +8,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCall {
     boundary: BoundaryMachineId,
-    entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
+    entry: psi_publication_records::CheckedProgramEntryTerminalReceipt,
     callee: MachineId,
     provider_plan: semantic_vocabulary::provider_identity::ProviderPlanDigest,
 }
@@ -16,7 +16,7 @@ pub struct SelectedProgramEntryCall {
 impl SelectedProgramEntryCall {
     pub(crate) const fn settled(
         boundary: BoundaryMachineId,
-        entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
+        entry: psi_publication_records::CheckedProgramEntryTerminalReceipt,
         callee: MachineId,
         provider_plan: semantic_vocabulary::provider_identity::ProviderPlanDigest,
     ) -> Self {

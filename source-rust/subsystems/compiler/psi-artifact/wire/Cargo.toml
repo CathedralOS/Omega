@@ -10,12 +10,12 @@ name = "terminal_wire"
 path = "src/lib.rs"
 
 [dependencies]
-service-surface = { path = "../service-surface" }
-psi-effect-contracts = { path = "../effect-contracts" }
-proof-applications = { path = "../proof-applications" }
-access-vocabulary = { path = "../access" }
-schema-reflection = { path = "../schema" }
-application-identity = { path = "../application-identity" }
+service-surface = { path = "../../psi/interfaces/service-surface" }
+psi-effect-contracts = { path = "../../psi/machines/effect-contracts" }
+proof-applications = { path = "../../psi/proofs/applications" }
+access-vocabulary = { path = "../../psi/access/policies" }
+schema-reflection = { path = "../../psi/types/reflection" }
+application-identity = { path = "../../psi/identities/applications" }
 numeric-literals = { path = "../../foundation/numeric-literals" }
 bignum = { path = "../../../../foundation/bignum" }
 wire = { path = "../../../../foundation/wire" }
@@ -23,13 +23,13 @@ language-core = { path = "../../foundation/language-core" }
 arena = { path = "../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 optimization = { path = "../optimization-selections" }
-numerics = { path = "../semantics/numeric" }
-mathematical-kernel = { path = "../proofs/mathematical" }
-terminal-psi = { path = ".." }
-terminal-semantics = { path = "../semantics" }
+numerics = { path = "../../foundation/numerics" }
+mathematical-kernel = { path = "../../psi-semantics/proofs/mathematical" }
+terminal-psi = { path = "../../psi" }
+terminal-semantics = { path = "../../psi-semantics" }
 
-access-admission = { path = "../access/admission" }
-layout-plans = { path = "../layout" }
+access-admission = { path = "../../psi/access/validated-placements" }
+layout-plans = { path = "../../psi/layouts/geometry" }
 
 [features]
 # Lets terminal-codec's tests encode deliberately malformed modules.

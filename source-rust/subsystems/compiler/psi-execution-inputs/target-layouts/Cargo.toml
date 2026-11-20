@@ -8,7 +8,7 @@ version.workspace = true
 path = "admission.rs"
 
 [dependencies]
-layout-plans = { path = ".." }
-semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-terminal-codec = { path = "../../codec" }
-terminal-psi = { path = "../.." }
+layout-plans = { path = "../../psi/layouts/geometry" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-psi = { path = "../../psi" }

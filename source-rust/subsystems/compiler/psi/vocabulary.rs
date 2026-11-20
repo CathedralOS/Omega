@@ -1,21 +1,17 @@
-/*
-Root `TerminalModule` aggregate combining interned identities, structural and scalar domain
-declarations, mathematical proof declarations, boundary requirements, executable `TerminalMachine`
-bodies, folded constants, quotients, scalar applications, and task-activation descriptors.
-*/
+//! Names used by the program record and its canonical instruction vocabulary.
 
 pub use crate::types_and_values::{types, values};
 pub use crate::{boundary, control_flow, identity, ownership, proof};
 
 pub use boundary::*;
-#[path = "types/folded_constants.rs"]
+#[path = "scalars/folded_constants.rs"]
 pub(crate) mod folded_constants;
 pub use folded_constants::*;
-#[path = "evidence/proof_application_scope.rs"]
+#[path = "proofs/proof_application_scope.rs"]
 pub mod proof_application_scope;
-#[path = "types/scalar_applications.rs"]
+#[path = "scalars/scalar_applications.rs"]
 pub mod scalar_applications;
-#[path = "types/scalar_conditions.rs"]
+#[path = "scalars/scalar_conditions.rs"]
 pub mod scalar_conditions;
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
@@ -45,7 +41,7 @@ pub use scalar_conditions::{
 };
 #[path = "types/quotients.rs"]
 pub mod quotients;
-#[path = "machines/task_activation.rs"]
+#[path = "execution/task_activation.rs"]
 pub mod task_activation;
 pub use task_activation::*;
 pub use types::{
@@ -68,7 +64,7 @@ pub use types::{
 pub use values::*;
 
 
-#[path = "evidence/theorems.rs"]
+#[path = "proofs/theorems.rs"]
 mod theorems;
 pub use theorems::*;
 

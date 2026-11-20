@@ -5,9 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-bignum = { path = "../../../../foundation/bignum" }
-numeric-literals = { path = "../../foundation/numeric-literals" }
-numerics = { path = "../semantics/numeric" }
-record-storage = { path = "../../../../foundation/record-storage" }
-semantic-vocabulary = { path = "../../foundation/semantic-records" }
-wire = { path = "../../../../foundation/wire" }
+bignum = { path = "../../../../../foundation/bignum" }
+numeric-literals = { path = "../../../foundation/numeric-literals" }
+numerics = { path = "../../../foundation/numerics" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+wire = { path = "../../../../../foundation/wire" }

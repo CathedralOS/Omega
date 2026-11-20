@@ -9,6 +9,7 @@ pub(crate) mod borrows;
 pub(crate) mod claims;
 pub(crate) mod cleanup;
 pub(crate) mod placement;
+#[path = "../execution/suspension.rs"]
 pub(crate) mod suspension;
 
 pub use access::{StructuralAccess, StructuralMultiplicity, structural_access_covers};

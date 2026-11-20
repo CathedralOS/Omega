@@ -9,17 +9,17 @@ publish = false
 path = "publication.rs"
 
 [dependencies]
-psi-scalar-applications = { path = "../../../psi/scalar-applications" }
-psi-provider-selections = { path = "../../../psi/providers" }
+psi-scalar-applications = { path = "../../../psi-execution-inputs/scalar-applications" }
+psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 native-stack-demand = { path = "../../representations/machine-code/stack-demand" }
 provider-admission = { path = "../provider-admission" }
 provider-stack-contribution = { path = "../provider-admission/same-stack" }
-psi-entry-memory = { path = "../../../psi/access/entry-memory" }
+psi-entry-memory = { path = "../../../psi-execution-inputs/entry-memory" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-terminal-codec = { path = "../../../psi/codec" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
 terminal-psi = { path = "../../../psi" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }

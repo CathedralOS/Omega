@@ -1,4 +1,4 @@
-use crate::TerminalPsiIdentity;
+use terminal_psi::TerminalPsiIdentity;
 use semantic_vocabulary::{
     BlockId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId,
     ValueId,

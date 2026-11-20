@@ -10,12 +10,13 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
+psi-publication-records = { path = "../publication" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
 record-storage = { path = "../../../../foundation/record-storage" }
 wire = { path = "../../../../foundation/wire" }
 optimization = { path = "../optimization-selections" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
-terminal-psi = { path = ".." }
+terminal-psi = { path = "../../psi" }
 terminal-wire = { path = "../wire" }
 
 [dev-dependencies]

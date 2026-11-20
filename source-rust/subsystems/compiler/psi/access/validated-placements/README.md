@@ -7,4 +7,4 @@ The [entry](admission.rs) checks carried policies against an explicit layout and
 - [Placement checks](plan_policy.rs) compare field geometry and layout identity.
 - [Resource checks](resources.rs) validate interval coverage, initialization and relocation supply.
 
-The [policy records](../access.rs) describe the request. The [interpreter](../../../../interpreter/memory/storage-access/) checks live operations against the grant, borrow and source loan. [Access policies and views](../../../../../../wiki/spec/resources/access.md)
+The [policy records](../policies/access.rs) describe the request. The [interpreter](../../../../interpreter/memory/storage-access/) checks live operations against the grant, borrow and source loan. [Access policies and views](../../../../../../wiki/spec/resources/access.md)

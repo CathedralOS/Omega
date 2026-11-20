@@ -97,7 +97,7 @@ program with its callback placement. Admission, native program forms and object
 verification carry that same identity. The [object stage](../pipeline/15_placed-functions-to-objects/src/names.rs)
 gives a private callback its linker symbol when building an object.
 
-[Targets](../targets/) holds calling conventions and physical register models. Build retains the [provider plans](../../build/providers/plans/) and the native stages carry [boundary application evidence](operation-evidence/boundary-applications/boundary_applications.rs). [Installation admission](../verification/installation-admission/) checks handler and environment evidence. [Psi layout](../../psi/layout/README.md) owns portable layout records and their interpretation.
+[Targets](../targets/) holds calling conventions and physical register models. Build retains the [provider plans](../../build/providers/plans/) and the native stages carry [boundary application evidence](operation-evidence/boundary-applications/boundary_applications.rs). [Installation admission](../verification/installation-admission/) checks handler and environment evidence. [Psi layout](../../psi/layouts/geometry/README.md) owns portable layout records and their interpretation.
 
 ## Shared facts and real lowering boundaries
 

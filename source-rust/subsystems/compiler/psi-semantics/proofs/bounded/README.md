@@ -14,7 +14,7 @@ and runs no proof search of its own. These checks serve source proof obligations
 Terminal artifact carries no certificate of the compiler's translation.
 
 The checker and the interpreter evaluate closed signed mathematical integers
-with the same [bounded integer evaluator](../../semantics/closed-predicates/integer.rs).
+with the same [bounded integer evaluator](../../closed-predicates/integer.rs).
 It preserves arbitrary precision and returns an unknown relation for open values
 and undefined negative shifts. Resource exhaustion reports an incomplete
 evaluation. The [integer proof rules](integer_rules.rs) also check relationships

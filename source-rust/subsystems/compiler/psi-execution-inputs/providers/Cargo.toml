@@ -11,9 +11,9 @@ path = "selections.rs"
 diagnostics = { path = "../../../../foundation/diagnostics" }
 record-storage = { path = "../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
-terminal-codec = { path = "../codec" }
-terminal-psi = { path = ".." }
-terminal-semantics = { path = "../semantics" }
+terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-psi = { path = "../../psi" }
+terminal-semantics = { path = "../../psi-semantics" }
 
 [dev-dependencies]
-schema-reflection = { path = "../schema" }
+schema-reflection = { path = "../../psi/types/reflection" }

@@ -15,16 +15,16 @@ provider-admission = { path = "../../verification/provider-admission" }
 installation-admission = { path = "../../verification/installation-admission" }
 target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
-terminal-semantics = { path = "../../../psi/semantics" }
-access-admission = { path = "../../../psi/access/admission" }
-layout-plans = { path = "../../../psi/layout" }
+terminal-semantics = { path = "../../../psi-semantics" }
+access-admission = { path = "../../../psi/access/validated-placements" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 language-core = { path = "../../../foundation/language-core" }
 bound-installations = { path = "../../verification/installation-admission/bound-installations" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-access-vocabulary = { path = "../../../psi/access" }
+access-vocabulary = { path = "../../../psi/access/policies" }
 optimization-core = { path = "../../representations/optimization-records" }
 register-environment = { path = "../../targets/register-environment" }
 register-model = { path = "../../targets/register-model" }

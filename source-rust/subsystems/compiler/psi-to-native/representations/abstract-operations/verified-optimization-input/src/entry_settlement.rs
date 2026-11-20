@@ -282,7 +282,7 @@ mod model {
     };
     use program_entry_contracts::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
     use psi_entry_memory::CheckedPrivateEntryRamRecipe;
-    use terminal_psi::CheckedProgramEntryTerminalReceipt;
+    use psi_publication_records::CheckedProgramEntryTerminalReceipt;
     use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
 
     #[derive(Debug, Clone, Copy)]
@@ -761,7 +761,7 @@ pub use model::{
     ValidatedNativeProgramEntrySettlement,
 };
 
-use terminal_psi::CheckedProgramEntryTerminalReceipt;
+use psi_publication_records::CheckedProgramEntryTerminalReceipt;
 
 pub fn validate_native_program_entry_settlement(
     artifact: &terminal_codec::CanonicalTerminalArtifact,

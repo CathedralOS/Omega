@@ -12,13 +12,13 @@ numeric-intrinsic-admission = { path = "../../../verification/numeric-intrinsics
 target-provider-admission = { path = "../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../build/providers/selections" }
 build-scalar-evaluation = { path = "../../../../build/evaluation/scalars" }
-psi-scalar-applications = { path = "../../../../psi/scalar-applications" }
-psi-provider-selections = { path = "../../../../psi/providers" }
-psi-target-layouts = { path = "../../../../psi/layout/admission" }
+psi-scalar-applications = { path = "../../../../psi-execution-inputs/scalar-applications" }
+psi-provider-selections = { path = "../../../../psi-execution-inputs/providers" }
+psi-target-layouts = { path = "../../../../psi-execution-inputs/target-layouts" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
-terminal-codec = { path = "../../../../psi/codec" }
+terminal-codec = { path = "../../../../psi-artifact/codec" }
 terminal-interpreter = { path = "../../../../../interpreter" }
 terminal-psi = { path = "../../../../psi" }
 interpreter-numeric-imports = { path = "../../../../../interpreter/numeric-imports" }

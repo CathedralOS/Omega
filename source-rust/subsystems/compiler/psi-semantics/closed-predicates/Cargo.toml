@@ -8,6 +8,6 @@ version.workspace = true
 path = "closed_predicates.rs"
 
 [dependencies]
-bignum = { path = "../../../../../foundation/bignum" }
-numerics = { path = "../numeric" }
-semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+bignum = { path = "../../../../foundation/bignum" }
+numerics = { path = "../../foundation/numerics" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }

@@ -264,7 +264,7 @@ pub(crate) mod debug_map {
         Reader, Writer, bounded_count, strictly_increasing,
     };
     use crate::{CodecError, terminal_psi_identity};
-    pub use terminal_psi::{
+    pub use crate::debug_map_records::{
         DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
         DebugSourceSpan, DebugSubject, TerminalDebugMap,
     };

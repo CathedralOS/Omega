@@ -8,6 +8,7 @@ pub use application_demands::TerminalBoundaryApplicationDemands;
 
 pub(crate) mod applications;
 pub(crate) mod conformances;
+#[path = "boundary_machines.rs"]
 pub(crate) mod declarations;
 pub(crate) mod external_providers;
 pub use external_providers::{
@@ -16,6 +17,7 @@ pub use external_providers::{
 pub(crate) mod non_observation;
 pub(crate) mod numeric_intrinsics;
 pub use numeric_intrinsics::validate_numeric_intrinsic_signature;
+#[path = "../execution/dynamic_dispatch.rs"]
 pub(crate) mod dynamic_dispatch;
 pub(crate) mod providers;
 pub(crate) mod reach_applications;

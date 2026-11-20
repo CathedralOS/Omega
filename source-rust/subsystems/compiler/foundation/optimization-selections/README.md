@@ -4,7 +4,7 @@ Build and compiler stages share the exact source names, stable wire tags and
 phase ownership in the [selection catalog](src/lib.rs). Build resolves an
 authored selection once. Each phase receives its projection and the identity
 of the complete selection. The portable Psi vocabulary lives with
-[Psi](../../psi/optimization-selections/).
+[Psi](../../psi-artifact/optimization-selections/).
 
 Native stages keep decision records and validate their manifests using
 [optimization records](../../psi-to-native/representations/optimization-records/).

@@ -6,11 +6,11 @@ version.workspace = true
 
 [dependencies]
 language-core = { path = "../../../compiler/foundation/language-core" }
-access-vocabulary = { path = "../../../compiler/psi/access" }
-access-admission = { path = "../../../compiler/psi/access/admission" }
-extent-contracts = { path = "../../../compiler/psi/extent-contracts" }
+access-vocabulary = { path = "../../../compiler/psi/access/policies" }
+access-admission = { path = "../../../compiler/psi/access/validated-placements" }
+extent-contracts = { path = "../../../compiler/psi/access/extents" }
 extents = { path = "../extents" }
 
 [dev-dependencies]
-access-admission = { path = "../../../compiler/psi/access/admission", features = ["test-support"] }
-layout-plans = { path = "../../../compiler/psi/layout", features = ["test-support"] }
+access-admission = { path = "../../../compiler/psi/access/validated-placements", features = ["test-support"] }
+layout-plans = { path = "../../../compiler/psi/layouts/geometry", features = ["test-support"] }

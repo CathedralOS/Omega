@@ -26,8 +26,8 @@ fallback artifact.
 correspondence for portable reuse and invocation-local production.
 Companion records are in [build_bindings.rs](src/build_bindings.rs). For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
 
-The [entry receipt](../../../psi/codec/src/entry_receipt.rs) binds the selected
+The [entry receipt](../../../psi-artifact/codec/src/entry_receipt.rs) binds the selected
 Unit declaration to the canonical artifact. Both source publication and native
-preparation [attach application roots](../../../psi/codec/src/entry_receipt/application.rs)
+preparation [attach application roots](../../../psi-artifact/codec/src/entry_receipt/application.rs)
 to the current execution view. [Source publication](src/application.rs) records
 the receipt check as a separate compilation stage when an entry was requested.

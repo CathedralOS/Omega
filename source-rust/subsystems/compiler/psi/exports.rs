@@ -1,6 +1,5 @@
 //! Public names provided by the Psi schema.
 
-pub use crate::published_entry::PublishedEntryMetadata;
 pub use crate::call_contexts::{
     CallAcknowledgement, CallFormation, CallOrigin, CallSite, InvocationOwner,
 };
@@ -10,13 +9,12 @@ pub use crate::service_schemas::{
     TerminalServiceSchema,
 };
 pub use application_identity::const_value::FiniteScalarValue;
-pub use crate::artifacts::{
-    AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryTerminalReceipt,
-    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, DebugFileId, DebugSite,
-    DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
+pub use crate::certificates::{
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope,
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
     EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
     IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker, TerminalDebugMap, TerminalMachineProvenance,
+    ProofSystemMarker,
 };
 pub use semantic_vocabulary::byte_predicates::ByteSequencePredicate;
 pub use semantic_vocabulary::byte_predicates::ByteSequencePredicateSet;

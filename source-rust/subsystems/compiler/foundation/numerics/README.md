@@ -1,17 +1,17 @@
 # Numeric semantics implementation
 
-[Numeric values](../../../../../../wiki/spec/language/numeric_values.md) defines the
+[Numeric values](../../../../../wiki/spec/language/numeric_values.md) defines the
 language contract. This crate provides shared executable arithmetic, not
 target instruction selection or permission to approximate an operation.
 
-Psi retains the numeric execution identity, operand and result carriers, and arithmetic policy of a checked declaration. The numeric crate validates those signatures and encodes their wire tags. The typed-tree producer matches source names to candidate signatures. [Intrinsic contracts](src/intrinsics.rs) and [source declaration lookup](../../../source-to-psi/representations/typed-trees/src/numeric_declarations.rs).
+Psi retains the numeric execution identity, operand and result carriers, and arithmetic policy of a checked declaration. The numeric crate validates those signatures and encodes their wire tags. The typed-tree producer matches source names to candidate signatures. [Intrinsic contracts](src/intrinsics.rs) and [source declaration lookup](../../source-to-psi/representations/typed-trees/src/numeric_declarations.rs).
 
 [float_semantics.rs](src/float_semantics.rs) decodes landed binary32/binary64
 operands into exact rational or special-value meanings and implements rounding,
 arithmetic, comparisons, classification, square root, conversion, directed
 operations, fused/unfused arithmetic, and policy adapters. Its format records
-match the [core records](../../../../../../source/library/core/float_format.omg).
-[bignum](../../../../../foundation/bignum/src/lib.rs) supplies exact arithmetic and rounding; host `f64`
+match the [core records](../../../../../source/library/core/float_format.omg).
+[bignum](../../../../foundation/bignum/src/lib.rs) supplies exact arithmetic and rounding; host `f64`
 does not define the meaning of a landed `f32` operation.
 
 `apply_trapping_policy` checks only the semantic result.
@@ -25,7 +25,7 @@ descriptors; semantic `FloatMeaning` comparison does not expose NaN
 payloads.
 
 Target providers use these meanings through selected plans. Their
-[realization note](../../../../../../wiki/drafts/reference/float_realization.md)
+[realization note](../../../../../wiki/drafts/reference/float_realization.md)
 separates instruction custody, image replay, and native execution evidence.
 A future format needs complete executable support, not just another record
 that a binary32/binary64-specific adapter accepts.

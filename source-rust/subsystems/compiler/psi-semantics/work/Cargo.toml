@@ -11,4 +11,4 @@ path = "src/lib.rs"
 [dependencies]
 record-storage = { path = "../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
-terminal-psi = { path = ".." }
+terminal-psi = { path = "../../psi" }

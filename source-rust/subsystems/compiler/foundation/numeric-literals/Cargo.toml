@@ -7,4 +7,4 @@ version.workspace = true
 [dependencies]
 bignum = { path = "../../../../foundation/bignum" }
 record-storage = { path = "../../../../foundation/record-storage" }
-numerics = { path = "../../psi/semantics/numeric" }
+numerics = { path = "../numerics" }

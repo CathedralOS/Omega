@@ -16,7 +16,7 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 worker-budget = { path = "../../../foundation/worker-budget" }
 language-core = { path = "../../../foundation/language-core" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
-numerics = { path = "../../../psi/semantics/numeric" }
+numerics = { path = "../../../foundation/numerics" }
 rayon = "1.11"
 source-text = { path = "../../../../../foundation/source-text" }
 syntax-trees = { path = "../../representations/syntax-trees" }

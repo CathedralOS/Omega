@@ -21,7 +21,7 @@ test-support = [
 
 [dependencies]
 operation-evidence = { path = "../../operation-evidence", optional = true }
-layout-plans = { path = "../../../../psi/layout", optional = true }
+layout-plans = { path = "../../../../psi/layouts/geometry", optional = true }
 register-model = { path = "../../../targets/register-model" }
 selected-instructions = { path = ".." }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }

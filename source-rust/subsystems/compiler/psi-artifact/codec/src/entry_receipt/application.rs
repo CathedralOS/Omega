@@ -2,9 +2,8 @@
 //! artifact with the same custody identity can also issue an entry receipt.
 use crate::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalExecutionView};
 use diagnostics::Diagnostic;
-use terminal_psi::{
-    CheckedProgramEntryTerminalReceipt, PreparedNominalRoot, TerminalMachineProvenance,
-};
+use psi_publication_records::{CheckedProgramEntryTerminalReceipt, TerminalMachineProvenance};
+use terminal_psi::PreparedNominalRoot;
 
 fn entry_diagnostics(error: super::ProgramEntryTerminalReceiptError) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(

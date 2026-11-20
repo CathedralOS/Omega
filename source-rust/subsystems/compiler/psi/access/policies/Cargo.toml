@@ -8,6 +8,6 @@ version.workspace = true
 path = "access.rs"
 
 [dependencies]
-record-storage = { path = "../../../../foundation/record-storage" }
-language-core = { path = "../../foundation/language-core" }
-extent-contracts = { path = "../extent-contracts" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+language-core = { path = "../../../foundation/language-core" }
+extent-contracts = { path = "../extents" }

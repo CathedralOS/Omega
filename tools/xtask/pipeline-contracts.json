@@ -17081,7 +17081,7 @@
       "kind": "carried_record",
       "meaning": "Optional checked root entry selected by the Build companion.",
       "producer": "terminal hosted interpreter",
-      "signature": "3db52b5642415fac683671919e5f2a1ecc9872d3fb7ce6764db4cf8021397a85"
+      "signature": "6bd3b3629aaf082f5e51f93db5dd780c63148ad7683f92f52878fa973e68b3c1"
     },
     {
       "consumers": [
@@ -19906,7 +19906,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "PublishedEntryMetadata::field:calling_custody#1",
       "kind": "carried_record",
       "meaning": "Retain each calling-policy schema owner or the source selection refusal.",
@@ -19918,7 +19918,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "PublishedEntryMetadata::field:entry_custody#1",
       "kind": "carried_record",
       "meaning": "For each entry schema, its authenticated source declaration owner or the original refusal.",
@@ -19931,7 +19931,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "PublishedEntryMetadata::field:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Record whether source publication bound any applications before target folding.",
@@ -19943,7 +19943,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "PublishedEntryMetadata::field:provenance#1",
       "kind": "carried_record",
       "meaning": "Source-attested machine provenance used to attach entry roots to emitted code.",
@@ -19956,24 +19956,24 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "alias:DeclarationOwner#1",
       "kind": "definition",
       "meaning": "Pair a schema declaration with its source owner or the precise source refusal.",
       "producer": "Psi portable program publication",
-      "signature": "c4291e842597115a3c55fd9a7852287805015c08311b8f6cc710d9d2daa0bfb6"
+      "signature": "540080787e7505f37e401ce2d7b02846f0aa9a82eb7afaa26f4d234117a8b11c"
     },
     {
       "consumers": [
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::implementation#1",
       "kind": "definition",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
       "producer": "Psi portable program publication",
-      "signature": "e311d9f56a6c79c3e3def79cfbb94345ed3668220a13ee11b67a4980c516b529"
+      "signature": "615118623b949ee7b5da97ad0ec926490b9b34dc1dcf6c49fa656791d0982991"
     },
     {
       "consumers": [
@@ -19981,24 +19981,24 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:calling_schema_custody#1",
       "kind": "checker",
       "meaning": "Read the source-issued owner of the requested calling-policy declaration.",
       "producer": "Psi portable program publication",
-      "signature": "5ef962e2645ac753fdbb4a9352abad197b7b0986813d877bc790e741d95e731d"
+      "signature": "5f4ea9210be86b3bebf51503e3a036d7bc7237e2b8c4af32e9d3ab3f3c204d74"
     },
     {
       "consumers": [
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:entry_schema_custody#1",
       "kind": "checker",
       "meaning": "Read the authenticated custody or original refusal for this exact target entry schema.",
       "producer": "Psi portable program publication",
-      "signature": "2beb5cb970da1be4de7a5c9c50a7d3b8098eff6ec56838a083eed4668ac240ab"
+      "signature": "dc34373606e12a87bfc50eef80cab7869cee1082351bf9f50c16c68ffa8ddec7"
     },
     {
       "consumers": [
@@ -20006,7 +20006,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Read the source application-presence flag for entry reach.",
@@ -20018,7 +20018,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:machine_provenance#1",
       "kind": "carried_record",
       "meaning": "Read the original machine provenance for attaching target entry receipts.",
@@ -20030,7 +20030,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:new#1",
       "kind": "definition",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -20043,12 +20043,12 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:owner#1",
       "kind": "checker",
       "meaning": "Find the exact declaration in the sorted custody table and preserve its recorded refusal.",
       "producer": "Psi portable program publication",
-      "signature": "a281fc72bb5899a3a6ae96f67ed93b37f88db5788c20db76947161cfe3e25f0a"
+      "signature": "f6b7e78620b30b7304ef36e19c720a1d1e967f178bbae743e7d34be674a7dc7a"
     },
     {
       "consumers": [
@@ -20056,7 +20056,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:require_calling_custody#1",
       "kind": "checker",
       "meaning": "Return the original global calling-policy refusal if source selection failed.",
@@ -20069,12 +20069,12 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:validate_declarations#1",
       "kind": "checker",
       "meaning": "Require exactly the declared entry and calling-policy rows in canonical order.",
       "producer": "Psi portable program publication",
-      "signature": "f49311daca1360b96b76bcf9445e5f0fc7f88914a3cece62dd729dd23389c42f"
+      "signature": "0203619b83e759bf35f29bbb49a102e575f815e554540a6a6a2bd5393dc192fc"
     },
     {
       "consumers": [
@@ -20082,19 +20082,19 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::validate_declarations::function:matches#1",
       "kind": "checker",
       "meaning": "Compare the sorted owner rows with the unique declarations in the module.",
       "producer": "Psi portable program publication",
-      "signature": "8af877071eb88a06424182e7906405a4b43eda368db7d09479f281afda682538"
+      "signature": "00c14482d77ec09f6abddd17974c94c3e73dffa3f84432ea93fcf721a1c3ea10"
     },
     {
       "consumers": [
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "struct:PublishedEntryMetadata#1",
       "kind": "carried_record",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -20106,7 +20106,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "item": "use:semantic_vocabulary :: compiler_evaluation :: DeclarationCustody#1",
       "kind": "definition",
       "meaning": "The nominal declaring authority carried for each entry schema.",
@@ -20118,7 +20118,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "ClosedLogicalProviderReach::field:bindings#1",
       "kind": "carried_record",
       "meaning": "The source-bound native materializations or checked body associations carried by this owner.",
@@ -20130,7 +20130,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "ClosedLogicalProviderReach::field:selection#1",
       "kind": "carried_record",
       "meaning": "The recorded canonical source choice of a logical or declared provider.",
@@ -20142,7 +20142,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "function:boundary_call_reach#1",
       "kind": "producer",
       "meaning": "Follow the program entry, scalar evaluation and chosen provider bodies to identify reachable requirements.",
@@ -20154,7 +20154,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "function:close_providers#1",
       "kind": "producer",
       "meaning": "Follow the program entry, scalar evaluation and chosen provider bodies to identify reachable requirements.",
@@ -20166,7 +20166,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "impl:ClosedLogicalProviderReach::implementation#1",
       "kind": "definition",
       "meaning": "Methods for the ClosedLogicalProviderReach contract in 01 source compilation.",
@@ -20178,7 +20178,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "impl:ClosedLogicalProviderReach::method:bindings#1",
       "kind": "carried_record",
       "meaning": "Borrow the chosen requirement-to-machine pairs without selecting a provider again.",
@@ -20190,7 +20190,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "impl:ClosedLogicalProviderReach::method:into_parts#1",
       "kind": "carried_record",
       "meaning": "Move out the completed logical selection and its exact requirement-to-body pairs.",
@@ -20202,7 +20202,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "impl:ClosedLogicalProviderReach::method:requirements#1",
       "kind": "carried_record",
       "meaning": "Read the exact reached or settled requirements recorded by this owner.",
@@ -20214,7 +20214,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "impl:ClosedLogicalProviderReach::method:selection#1",
       "kind": "carried_record",
       "meaning": "Borrow the closed logical provider selection for this source judgment.",
@@ -20226,7 +20226,7 @@
         "AcceptedTerminalSource::close_logical_provider_reach",
         "native_compiler::prepare_saved_program"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "struct:ClosedLogicalProviderReach#1",
       "kind": "carried_record",
       "meaning": "The complete reached provider selection and chosen boundary-to-machine associations.",
@@ -20237,7 +20237,7 @@
       "consumers": [
         "logical_reach::close_providers"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Use diagnostics::Diagnostic while following boundaries and selected provider bodies.",
@@ -20248,7 +20248,7 @@
       "consumers": [
         "logical_reach::close_providers"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "use:semantic_vocabulary :: { BoundaryMachineId , MachineId }#1",
       "kind": "definition",
       "meaning": "Use semantic_vocabulary::{ BoundaryMachineId , MachineId } while following boundaries and selected provider bodies.",
@@ -20259,7 +20259,7 @@
       "consumers": [
         "logical_reach::close_providers"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "use:terminal_psi :: TerminalModule#1",
       "kind": "definition",
       "meaning": "Use terminal_psi::TerminalModule while following boundaries and selected provider bodies.",
@@ -20270,7 +20270,7 @@
       "consumers": [
         "logical_reach::close_providers"
       ],
-      "file": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "file": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "item": "use:terminal_semantics :: callable_values :: CallableBoundaryImplementation#1",
       "kind": "definition",
       "meaning": "Use terminal_semantics::callable_values::CallableBoundaryImplementation while following boundaries and selected provider bodies.",
@@ -20831,7 +20831,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
+      "path": "source-rust/subsystems/compiler/psi-artifact/publication/published_entry.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -20839,7 +20839,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi/providers/logical_reach.rs",
+      "path": "source-rust/subsystems/compiler/psi-execution-inputs/providers/logical_reach.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

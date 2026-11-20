@@ -8,9 +8,9 @@ version.workspace = true
 path = "service_surface.rs"
 
 [dependencies]
-language-core = { path = "../../foundation/language-core" }
-semantic-vocabulary = { path = "../../foundation/semantic-records" }
-wire = { path = "../../../../foundation/wire" }
+language-core = { path = "../../../foundation/language-core" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+wire = { path = "../../../../../foundation/wire" }
 
 [dev-dependencies]
-record-storage = { path = "../../../../foundation/record-storage" }
+record-storage = { path = "../../../../../foundation/record-storage" }

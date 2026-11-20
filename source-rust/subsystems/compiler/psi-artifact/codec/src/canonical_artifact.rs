@@ -22,7 +22,7 @@ const PUBLISHED_ARTIFACT_FORMAT_MARKER: u16 = 4;
 /// Facts needed to reopen a published program after the producing process exits.
 #[derive(Debug, Clone)]
 struct PublicationSection {
-    metadata: std::sync::Arc<terminal_psi::PublishedEntryMetadata>,
+    metadata: std::sync::Arc<psi_publication_records::PublishedEntryMetadata>,
     evidence: Option<std::sync::Arc<crate::EvidenceSeals>>,
     bytes: std::sync::Arc<[u8]>,
 }
@@ -131,7 +131,7 @@ impl CanonicalTerminalArtifact {
 
     pub fn with_publication(
         mut self,
-        metadata: std::sync::Arc<terminal_psi::PublishedEntryMetadata>,
+        metadata: std::sync::Arc<psi_publication_records::PublishedEntryMetadata>,
         evidence: Option<std::sync::Arc<crate::EvidenceSeals>>,
     ) -> Result<Self, CanonicalTerminalArtifactError> {
         if self.publication.is_some()
@@ -166,7 +166,7 @@ impl CanonicalTerminalArtifact {
 
     pub fn publication_metadata(
         &self,
-    ) -> Option<&std::sync::Arc<terminal_psi::PublishedEntryMetadata>> {
+    ) -> Option<&std::sync::Arc<psi_publication_records::PublishedEntryMetadata>> {
         self.publication.as_ref().map(|section| &section.metadata)
     }
 
@@ -616,7 +616,8 @@ mod tests {
         use crate::entry_receipt::application::{
             TerminalApplicationCustody, TerminalCompositionRoots,
         };
-        use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
+        use psi_publication_records::TerminalMachineProvenance;
+        use terminal_psi::PreparedNominalRoot;
 
         let closed = closed_module(false);
         let record = optimization_record(&closed);

@@ -3,7 +3,7 @@
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 
 type DeclarationOwner = (
-    crate::TerminalIdentityIndex,
+    terminal_psi::TerminalIdentityIndex,
     Result<DeclarationCustody, String>,
 );
 
@@ -34,10 +34,10 @@ impl PublishedEntryMetadata {
         }
     }
 
-    pub fn validate_declarations(&self, module: &crate::TerminalModule) -> bool {
+    pub fn validate_declarations(&self, module: &terminal_psi::TerminalModule) -> bool {
         fn matches(
             rows: &[DeclarationOwner],
-            requested: impl Iterator<Item = crate::TerminalIdentityIndex>,
+            requested: impl Iterator<Item = terminal_psi::TerminalIdentityIndex>,
         ) -> bool {
             let mut expected: Vec<_> = requested.collect();
             expected.sort_unstable();
@@ -70,7 +70,7 @@ impl PublishedEntryMetadata {
 
     pub fn calling_schema_custody(
         &self,
-        declaration: crate::TerminalIdentityIndex,
+        declaration: terminal_psi::TerminalIdentityIndex,
     ) -> Result<DeclarationCustody, String> {
         Self::owner(
             self.calling_custody.as_ref().map_err(Clone::clone)?,
@@ -87,14 +87,14 @@ impl PublishedEntryMetadata {
     }
     pub fn entry_schema_custody(
         &self,
-        declaration: crate::TerminalIdentityIndex,
+        declaration: terminal_psi::TerminalIdentityIndex,
     ) -> Result<DeclarationCustody, String> {
         Self::owner(&self.entry_custody, declaration)
     }
 
     fn owner(
         rows: &[DeclarationOwner],
-        declaration: crate::TerminalIdentityIndex,
+        declaration: terminal_psi::TerminalIdentityIndex,
     ) -> Result<DeclarationCustody, String> {
         let index = rows
             .binary_search_by_key(&declaration, |row| row.0)

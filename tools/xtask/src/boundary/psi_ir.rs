@@ -7,20 +7,20 @@ use syn::{Expr, File, Item, Lit, Meta, Type, Visibility};
 const PSI: &str = "source-rust/subsystems/compiler/psi";
 const GROUPS: &[(&str, &str, &str)] = &[
     ("types", "TypeDeclarations", "types/declarations.rs"),
-    ("scalars", "ScalarDeclarations", "types/scalars.rs"),
-    ("interfaces", "ProgramInterfaces", "boundary/interfaces.rs"),
-    ("access", "AccessDeclarations", "ownership/declarations.rs"),
+    ("scalars", "ScalarDeclarations", "scalars/declarations.rs"),
+    (
+        "interfaces",
+        "ProgramInterfaces",
+        "interfaces/declarations.rs",
+    ),
+    ("access", "AccessDeclarations", "access/declarations.rs"),
     (
         "execution",
         "ExecutionDeclarations",
-        "machines/execution.rs",
+        "execution/declarations.rs",
     ),
-    ("proofs", "ProgramProofs", "evidence/program_proofs.rs"),
-    (
-        "layouts",
-        "LayoutDeclarations",
-        "types/layouts/declarations.rs",
-    ),
+    ("proofs", "ProgramProofs", "proofs/declarations.rs"),
+    ("layouts", "LayoutDeclarations", "layouts/declarations.rs"),
 ];
 
 #[derive(Deserialize)]
@@ -83,14 +83,20 @@ fn loads_module(file: &File, target: &str) -> bool {
     })
 }
 
+fn field_type<'a>(file: &'a File, name: &str) -> Option<&'a Type> {
+    let record = file.items.iter().find_map(|item| match item {
+        Item::Struct(record) if record.ident == "Psi" => Some(record),
+        _ => None,
+    })?;
+    let field = record.fields.iter().find(|field| {
+        matches!(field.vis, Visibility::Public(_))
+            && field.ident.as_ref().is_some_and(|ident| ident == name)
+    })?;
+    Some(&field.ty)
+}
+
 fn has_group(file: &File, name: &str, record: &str) -> bool {
-    file.items.iter().any(|item| {
-        let Item::Struct(program) = item else { return false };
-        program.ident == "Psi" && program.fields.iter().any(|field|
-            field.ident.as_ref().is_some_and(|ident| ident == name)
-            && matches!(field.vis, Visibility::Public(_))
-            && matches!(&field.ty, Type::Path(ty) if ty.qself.is_none() && ty.path.is_ident(record)))
-    })
+    matches!(field_type(file, name), Some(Type::Path(ty)) if ty.qself.is_none() && ty.path.is_ident(record))
 }
 
 fn read_module(psi: &Path, path: &str) -> Result<File, String> {
@@ -111,12 +117,22 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
             "{PSI}/Cargo.toml: the Psi crate root must be psi.rs"
         ));
     }
-    if psi.join("src").exists() {
-        errors.push(format!(
-            "{PSI}/src: place the IR under its semantic domain directories"
-        ));
-    }
     let program = read_module(&psi, "psi.rs")?;
+    for entry in fs::read_dir(&psi).map_err(|err| format!("{PSI}: {err}"))? {
+        let entry = entry.map_err(|err| format!("{PSI}: {err}"))?;
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if path.is_dir()
+            && !name.starts_with('.')
+            && !matches!(name.as_ref(), "tests" | "target")
+            && field_type(&program, &name).is_none()
+        {
+            errors.push(format!(
+                "{PSI}/{name}: a program record directory must name a public Psi field"
+            ));
+        }
+    }
     if !Definition::Record(&["entry", "machines"]).present(&program, "Psi") {
         errors.push(format!(
             "{PSI}/psi.rs: must directly define the public Psi IR data"
@@ -183,12 +199,14 @@ mod tests {
         let root = syn::parse_quote! {
             pub struct Psi { pub types: TypeDeclarations, pub proofs: Vec<Proof> }
             #[path = "types/declarations.rs"] mod types_declarations;
-            mod selection { #[path = "evidence/program_proofs.rs"] mod proofs; }
+            mod selection { #[path = "proofs/declarations.rs"] mod proofs; }
         };
+        assert!(field_type(&root, "types").is_some());
+        assert!(field_type(&root, "codec").is_none());
         assert!(has_group(&root, "types", "TypeDeclarations"));
         assert!(!has_group(&root, "proofs", "ProgramProofs"));
         assert!(loads_module(&root, "types/declarations.rs"));
-        assert!(!loads_module(&root, "evidence/program_proofs.rs"));
+        assert!(!loads_module(&root, "proofs/declarations.rs"));
     }
 
     #[test]

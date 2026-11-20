@@ -17,10 +17,10 @@ behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
 provider-plans = { path = "../build/providers/plans" }
 provider-correspondence = { path = "verification/provider-correspondence" }
-psi-scalar-applications = { path = "../psi/scalar-applications" }
-psi-provider-selections = { path = "../psi/providers" }
-psi-entry-memory = { path = "../psi/access/entry-memory" }
-psi-target-layouts = { path = "../psi/layout/admission" }
+psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
+psi-provider-selections = { path = "../psi-execution-inputs/providers" }
+psi-entry-memory = { path = "../psi-execution-inputs/entry-memory" }
+psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
 provider-demand = { path = "pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }
@@ -69,9 +69,9 @@ optimization-core = { path = "representations/optimization-records" }
 register-environment = { path = "targets/register-environment" }
 runtime-abi = { path = "targets/runtime-abi" }
 target = { path = "targets/target" }
-terminal-codec = { path = "../psi/codec" }
+terminal-codec = { path = "../psi-artifact/codec" }
 terminal-psi = { path = "../psi" }
-psi-authorization = { path = "../psi/authorization" }
+psi-authorization = { path = "../psi-artifact/authorization" }
 verified-optimization-input = { path = "representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 

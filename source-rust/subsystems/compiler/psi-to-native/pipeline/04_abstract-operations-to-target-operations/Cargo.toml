@@ -8,7 +8,7 @@ version.workspace = true
 operation-evidence = { path = "../../representations/operation-evidence" }
 compiler-check-site = { path = "../../../foundation/check-site" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-application-identity = { path = "../../../psi/application-identity" }
+application-identity = { path = "../../../psi/identities/applications" }
 arena = { path = "../../../../../foundation/arena" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
@@ -25,9 +25,9 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 target-operations = { path = "../../representations/target-operations" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-terminal-codec = { path = "../../../psi/codec" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
 terminal-psi = { path = "../../../psi" }
-terminal-semantics = { path = "../../../psi/semantics" }
+terminal-semantics = { path = "../../../psi-semantics" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 
 [dev-dependencies]

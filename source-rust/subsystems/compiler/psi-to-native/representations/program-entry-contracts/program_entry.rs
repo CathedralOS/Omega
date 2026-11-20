@@ -16,7 +16,7 @@ pub use storage_binding::{ProgramStorageEntryRootRole, SelectedProgramStorageEnt
 /// retained together through encoding. A receipt issuer owns their association.
 pub trait HostedReceiverCustody {
     fn source(&self) -> &SelectedProgramEntrySignature;
-    fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt;
+    fn checked_entry(&self) -> &psi_publication_records::CheckedProgramEntryTerminalReceipt;
     fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan;
     fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe];
 }

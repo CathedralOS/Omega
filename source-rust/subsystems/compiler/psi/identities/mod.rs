@@ -1,8 +1,4 @@
-/*
-Interned program identities (`TerminalIdentityTable`, `TerminalIdentityIndex`), nominal declaration
-identities, semantic fingerprints (`SemanticFingerprint`, `TerminalPsiIdentity`), and artifact
-manifest metadata (`TerminalArtifactManifest`, `OptimizationReceipt`) in `TerminalModule`.
-*/
+//! Interned program and declaration identities, the vocabulary marker and semantic identity.
 
 pub(crate) mod declarations;
 pub(crate) mod table;

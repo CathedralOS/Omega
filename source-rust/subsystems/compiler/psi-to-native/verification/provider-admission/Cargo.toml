@@ -14,11 +14,11 @@ native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-plans = { path = "../../../build/providers/plans" }
-psi-provider-selections = { path = "../../../psi/providers" }
-psi-entry-memory = { path = "../../../psi/access/entry-memory" }
-psi-target-layouts = { path = "../../../psi/layout/admission" }
-service-surface = { path = "../../../psi/service-surface" }
-application-identity = { path = "../../../psi/application-identity" }
+psi-provider-selections = { path = "../../../psi-execution-inputs/providers" }
+psi-entry-memory = { path = "../../../psi-execution-inputs/entry-memory" }
+psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }
+service-surface = { path = "../../../psi/interfaces/service-surface" }
+application-identity = { path = "../../../psi/identities/applications" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 arena = { path = "../../../../../foundation/arena" }
 wire = { path = "../../../../../foundation/wire" }
@@ -28,8 +28,8 @@ runtime-abi = { path = "../../targets/runtime-abi" }
 provider-correspondence = { path = "../provider-correspondence" }
 component-description = { path = "../component-description" }
 function-identity = { path = "../../representations/function-identity" }
-numerics = { path = "../../../psi/semantics/numeric" }
-layout-plans = { path = "../../../psi/layout" }
+numerics = { path = "../../../foundation/numerics" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
 target-operations = { path = "../../representations/target-operations" }
 provider-stack-contribution = { path = "same-stack" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
@@ -39,11 +39,11 @@ operation-evidence = { path = "../../representations/operation-evidence" }
 bound-installations = { path = "../installation-admission/bound-installations" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
-terminal-codec = { path = "../../../psi/codec" }
-terminal-semantics = { path = "../../../psi/semantics" }
+terminal-codec = { path = "../../../psi-artifact/codec" }
+terminal-semantics = { path = "../../../psi-semantics" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
-terminal-work = { path = "../../../psi/work" }
+terminal-work = { path = "../../../psi-semantics/work" }

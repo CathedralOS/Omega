@@ -10,8 +10,8 @@ path = "authorization.rs"
 [dependencies]
 declaration-scope = { path = "../../foundation/declaration-scope" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
-terminal-psi = { path = ".." }
+terminal-psi = { path = "../../psi" }
 terminal-codec = { path = "../codec" }
 
 [dev-dependencies]
-terminal-semantics = { path = "../semantics" }
+terminal-semantics = { path = "../../psi-semantics" }

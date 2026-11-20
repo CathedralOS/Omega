@@ -11,7 +11,7 @@ pub struct TerminalMachineProvenance {
 impl TerminalMachineProvenance {
     pub fn for_root(
         &self,
-        module: &crate::TerminalModule,
+        module: &terminal_psi::TerminalModule,
         entry: MachineId,
         name: Option<(&str, Option<SourceSpan>)>,
     ) -> Self {
@@ -40,11 +40,11 @@ impl TerminalMachineProvenance {
                     }
                 };
                 match operation {
-                    crate::UnoptimizedBehaviorOperation::Invocation { callee, .. }
-                    | crate::UnoptimizedBehaviorOperation::NominalCleanup { callee, .. } => {
+                    terminal_psi::UnoptimizedBehaviorOperation::Invocation { callee, .. }
+                    | terminal_psi::UnoptimizedBehaviorOperation::NominalCleanup { callee, .. } => {
                         visit(*callee)
                     }
-                    crate::UnoptimizedBehaviorOperation::BoundaryInvocation {
+                    terminal_psi::UnoptimizedBehaviorOperation::BoundaryInvocation {
                         boundary,
                         ..
                     } => {
@@ -106,7 +106,7 @@ impl TerminalMachineProvenance {
 #[cfg(test)]
 mod tests {
     use super::TerminalMachineProvenance;
-    use crate::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
+    use terminal_psi::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
     use semantic_vocabulary::{BlockId, InvocationSite, MachineId, OperationId};
 
     #[test]

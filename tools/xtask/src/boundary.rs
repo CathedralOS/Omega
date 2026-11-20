@@ -165,7 +165,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         ..rule(vec![""], vec![], "only source publication and native input admission exchange completed Build provider demand")
     });
     rules.push(rule(
-        vec!["source-rust/subsystems/compiler/psi/providers"],
+        vec!["source-rust/subsystems/compiler/psi-execution-inputs/providers"],
         vec!["source-rust/subsystems/compiler/build"],
         "portable provider selection reads the artifact and receiving installation",
     ));
@@ -347,7 +347,7 @@ const AFTER_PREPARATION: &[&str] = &[
 /// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
 /// re-exports; reaching `terminal-codec` would let them name the sealed module.
 const SEALED_TERMINAL_MODULE: &str =
-    "source-rust/subsystems/compiler/psi/codec";
+    "source-rust/subsystems/compiler/psi-artifact/codec";
 
 /// Selection and later forms carry shared contracts, not the prepared plan's
 /// instruction graph. Follow indirect production edges as well as direct ones.
@@ -1328,7 +1328,7 @@ mod tests {
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
             (stages[1], SOURCE_PROVIDER_PUBLICATION, None, false),
-            ("source-rust/subsystems/compiler/psi/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
+            ("source-rust/subsystems/compiler/psi-execution-inputs/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
             ("source-rust/subsystems/compiler/build/inputs", linear_pipeline::PSI_STAGES[7], None, false),
             ("source-rust/subsystems/compiler/build/inputs", stages[0], None, false),
             (library, stages[2], None, false),
@@ -1528,7 +1528,7 @@ mod tests {
         let plan =
             "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let wire = "source-rust/subsystems/compiler/psi/wire";
+        let wire = "source-rust/subsystems/compiler/psi-artifact/wire";
         assert!(native_forms().contains(&plan));
         let metadata = |dependency: &str, kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
@@ -1770,7 +1770,7 @@ mod tests {
                 false,
             ),
             (
-                "source-rust/subsystems/compiler/psi/codec",
+                "source-rust/subsystems/compiler/psi-artifact/codec",
                 None,
                 false,
             ),

@@ -21,7 +21,7 @@ register-allocation = { package = "selected-instructions-to-register-homes", pat
 encoding-admission = { path = "../../representations/machine-code/encoding-admission" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../pipeline/09_post-allocation-machine-to-framed-machine" }
 target-lowering = { package = "abstract-operations-to-target-operations", path = "../../pipeline/04_abstract-operations-to-target-operations" }
-installation-admission = { path = "../../verification/installation-admission" }
+installation-admission = { path = "../installation-admission" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 image-emission = { path = "../../pipeline/16_objects-to-image/image-emission" }
 optimization-core = { path = "../../representations/optimization-records" }

@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 use terminal_codec::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalExecutionView,
 };
-use terminal_psi::{CheckedProgramEntryTerminalReceipt, TerminalMachineProvenance};
+use psi_publication_records::{CheckedProgramEntryTerminalReceipt, TerminalMachineProvenance};
 
 #[derive(Debug, PartialEq, Eq, record_storage::Record)]
 pub struct ProducedTerminalApplication {

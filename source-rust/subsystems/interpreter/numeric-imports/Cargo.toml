@@ -9,7 +9,7 @@ path = "numeric_imports.rs"
 
 [dependencies]
 bignum = { path = "../../../foundation/bignum" }
-numerics = { path = "../../compiler/psi/semantics/numeric" }
+numerics = { path = "../../compiler/foundation/numerics" }
 semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
 target-vocabulary = { path = "../../compiler/psi-to-native/representations/target-operations/target-vocabulary" }
 terminal-interpreter = { path = ".." }
