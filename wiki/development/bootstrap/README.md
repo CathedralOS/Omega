@@ -335,9 +335,9 @@ capacity limit in the independent Epsilon model.
 
 | Gamma route | What completed on the real bootstrap compiler | What limits the route |
 | --- | --- | --- |
-| Interpreter | Ran the 26,354,274-byte constructor. It compiled a 111-byte Omega package into a 22-byte tape that exited 42 on the seed. | Source and nesting fit. The 305-unit application remains open on this interpreter. |
-| Compile to Alpha | Compiled all 899,962 bytes of the Epsilon-written compiler. Its 18,259,583-byte response matched Linux byte for byte. | The generated constructor exceeds the seed’s single-tape size limit with the current emitter. |
-| Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | Full-product runs crossed their host memory guards before writing a result. |
+| Interpreter | Ran the Alpha-produced 26,354,274-byte constructor. It compiled a 111-byte Omega package into a 22-byte tape that exited 42 on the seed. | Source and nesting fit. The 305-unit application remains open on this interpreter. |
+| Compile to Alpha | Compiled all 899,962 bytes of the Epsilon-written compiler. Both its Delta response and the 26,354,274 bytes of generated Gamma matched Linux byte for byte. | The generated constructor exceeds the seed’s single-tape size limit with the current emitter. |
+| Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | The full-product run at `6e2b05e9599` crossed a 24 GiB memory guard before writing a result. |
 
 The first self-build milestone is an Alpha tape for
 `source/application/construction/main.omg::entry_start`. Then run that tape
@@ -365,10 +365,16 @@ All sizes in the table are bytes.
 On the first snapshot, the Alpha-hosted and native Epsilon compilers
 produced identical responses, SHA-256
 `465430c3d84dea4b9373469e040e9a3bb43c88b46d0c0c36138563aa70a780f3`.
+The Alpha-hosted Delta compiler then produced the same 26,354,274 bytes
+of Gamma as Linux (SHA-256 `215cd20cbc51fcdff281fb1075c474fc0afe3f4d1b89d141c18a974da6cd19cd`).
 The original Gamma interpreter matched Linux on the empty input
 and on the 111-byte package. Its 22-byte tape has SHA-256
 `25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`.
-That successful run took 613.32 CPU seconds. [Gamma source audit](source-audit.md) · [Construction procedure](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
+The interpreter took 613.32 CPU seconds on the Linux-produced Gamma. It
+then took 413.87 CPU seconds to run the freshly Alpha-produced Gamma on
+the same input. That second tape exited 42 on the seed with empty stdout
+and stderr. This chain starts at Alpha and Beta and uses the original Gamma
+interpreter for its final constructor. [Gamma source audit](source-audit.md) · [Reproduce the seed-only chain](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
 
 At `b491e657def` the Epsilon compiler releases state locals earlier.
 Just the 325,180 decimal literals and 301,689 single-name bindings in this
@@ -412,7 +418,8 @@ the explicitly grouped expression. Both tapes exited 42.
 
 At `6e2b05e9599` the 3,994,887-byte product has
 SHA-256 `a0e745fd4cc419d7bdee25e8590d3898ef3285549efab14b76c62c19c68f26f6`.
-The source model ran this entire request in 352.17 CPU seconds and returned
+On that product the native constructor exceeded the 24 GiB RSS guard after
+964.06 CPU seconds with empty stdout and stderr. The source model ran this entire request in 352.17 CPU seconds and returned
 `000300000027130700` for path member 16,385 at byte 463,655
 (`expressions.omg:1339:68`, token `expression`). The comparison model adds
 the read-only `remaining_input` field to the frozen model described below.
@@ -420,6 +427,13 @@ Type formation returns a non-place `("view", U8)`. Execution returns
 `("view", U8, self.stdin, self.stdin_index, len(self.stdin))`. It passed
 all six independent input-view cases and the wire decoder’s three controls.
 [Input-view cases](../../../tests/bootstrap/conformance/vectors.py) · [Type-row change](https://github.com/CathedralOS/Omega/pull/4676)
+
+Retaining boundary trait signatures at `bcf71f0bbfc` added 12,527 bytes of
+Epsilon source. The seed-built tools compiled all 909,531 bytes and built
+a 54,882,761-byte Linux constructor. It returned the exact refusal
+`000200000088030000` on the core package with no provider. It also
+reproduced the wire decoder's 1,607-byte tape and all 18 refusal controls.
+[Boundary trait change](https://github.com/CathedralOS/Omega/pull/4681)
 
 </details>
 
@@ -443,17 +457,19 @@ visibility and signature location across files, then check every body using
 fresh syntax tables. The public request's existing resource diagnostics
 would still need their own accounting. [Reproduce the capacity census](../../../tests/bootstrap/independent/parser-capacity.rs) · [Counting method](https://github.com/CathedralOS/Omega/pull/4673)
 
-The two generations also need different language support. A 1,306-byte
-package using the actual core `process_exit.omg` and `never.omg` files
-isolates the first-generation compiler's refusal at `boundary` (byte 904)
-in `public boundary trait ProcessExit`. On `0eae05358c0` the isolated parser
-consumed all 20,914 bytes of the construction entry and all 101 bytes of
-`core/never.omg`. It stopped at the same token in `std/console.omg:26:8`
-and `core/process_exit.omg:14:8`. The Omega-written compiler's
-own scalar entry lowerer admits a clause-free byte-returning machine. Its
-construction application returns unit, reads from `Console`, and ends
+On `0eae05358c0` the isolated parser read all 20,914 bytes of the Omega
+construction entry. Its `Console` and `ProcessExit` dependencies both stopped
+at `boundary trait`. The updated Epsilon parser reads the entire core
+`ProcessExit` declaration and all five `Console` requirements. It reaches the
+next ordinary trait in `std/console.omg` at byte 2,259. The scalar compiler
+still refuses the 1,306-byte canonical core package at byte 904 until it can
+resolve a requirement to its provider. [Canonical reproducer](https://github.com/CathedralOS/Omega/pull/4674) · [Parser and refusal controls](https://github.com/CathedralOS/Omega/pull/4681)
+
+The Omega-written compiler's scalar entry lowerer admits a clause-free
+byte-returning machine. Its construction application returns unit,
+reads from `Console`, and ends
 through `ProcessExit`. A second-generation self-build needs lowering for
-that entry and its effects. [Canonical core reproducer](https://github.com/CathedralOS/Omega/pull/4674)
+that entry and its effects. [Construction entry](../../../source/application/construction/main.omg)
 
 <a id="current-305-unit-product"></a>
 
