@@ -100,7 +100,7 @@ has therefore completed on **23/27** routes across the recorded snapshots.
 
 ### Omega compiler byte classifier
 
-**19/27 routes** ran the classifier and refused its wrong-type twin.
+**20/27 routes** ran the classifier and refused its wrong-type twin.
 
 The positive program runs the production lexer’s byte classifier on all 256
 byte values and checks twelve answers per byte. Its twin passes an integer to
@@ -113,7 +113,7 @@ the full positive is unfinished. **Open** has neither completed observation.
 | --- | --- | --- | --- | --- |
 | Interpreter | Interpreter | Open | Open | Open |
 | Interpreter | Alpha | Both | Open | Open |
-| Interpreter | Linux | Both | Refusal | Refusal |
+| Interpreter | Linux | Both | Refusal | Both |
 | Alpha | Interpreter | Refusal | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
 | Alpha | Linux | Both | Both | Both |
@@ -179,7 +179,11 @@ The independently constructed Linux Epsilon compiler from `5144ec25e81`
 emitted the same 65,013-byte classifier module (`bd1d5bd47e66…`).
 Fresh runs for the Alpha and Linux target selections both returned
 `rejected 18 2032`. This snapshot has a different storage runtime, so
-its own linked guest and backends must also be verified for a complete row.
+the original Gamma interpreter lowered the 161,036-byte linked guest
+to 170,792 bytes of Gamma (`fc0b8d972176…`). A complete
+row also requires the target backend and an execution of its output.
+
+The Linux executable (468,679 bytes, `fc95d11d86c8…`) ran the classifier on all 256 inputs and matched the full 3,077-byte observation. The Linux executable matches the one built from the 93ad sources byte for byte, although the two Gamma inputs differ by 11 bytes in length.
 
 To repeat the experiment with the pinned compiler sources, use a fresh
 checkout of the positive runner and select the two test files that added the
@@ -309,11 +313,12 @@ Exercising the five stored values in isolation produced a 1,917-byte
 Alpha tape that preserved 4,294,967,297 and exited 42. Restoring each
 old conversion separately gave five type refusals. The native Rust peer
 also checked the high bits and generation stamps against the original array
-sizes. [Five stores, controls and product manifest](https://github.com/CathedralOS/Omega/pull/4652)
+sizes. The full run of this later input is unfinished.
+[Five stores, controls and product manifest](https://github.com/CathedralOS/Omega/pull/4652)
 
 | Run on the seed-built toolchain | Observed result |
 | --- | --- |
-| Same compiler library with the public OCREQ entry, Alpha and Linux Epsilon evaluators | Both compiled `machine main() -> u8 { 42 }` to the same 22-byte tape. It exited 42 on Alpha. Linux also reported a corrupted OCREQ identity at byte 3. |
+| Same compiler library with the public OCREQ entry, Alpha and Linux Epsilon evaluators | Both compiled `machine main() -> u8 { 42 }` to the same 22-byte tape. It exited 42 on Alpha. Both reported a corrupted OCREQ identity at byte 3. |
 | Compile the complete 899,660-byte Epsilon constructor to Delta | The construction-profile Linux compiler emitted 18,248,100 bytes in 107.71 CPU seconds. Module SHA-256 `cebf0bfe41ec3c29f1a40cb3fcf9ae126086e46ecd20cca593f5a2222e4e9901`. Attaching the storage runtime produced 18,344,798 bytes of Delta. |
 | Construction entry with a source view passed as its entry-unit number | The Linux Epsilon compiler returned `rejected 18 898277`. Its evaluator independently reported error 18 at the same call. |
 | Entire 305-unit product through the Linux Epsilon evaluator | The 4,894,583-byte sealed request exceeded the conformance input limit and returned host status 253. The construction profile accepted its extent. A same-size damaged header returned a 40-byte `EEOUT` refusal. The valid request reached the 1.5 GiB process guard with empty output. |
@@ -362,6 +367,8 @@ entry frozen at #4634, the construction-profile Linux Epsilon compiler
 also **compiled the 901,333-byte compiler program itself**. It emitted an
 18,263,962-byte Delta module, SHA-256
 `48f662488376b40d495ea747c152a87accc4aeca96ab652f12b3de0c3d912cfa`.
+The Delta compiler translated that module and its storage runtime into
+26,367,941 bytes of Gamma (SHA-256 `718ee1a63a37ba76f314f860833bacc19ae58120eb1d404661ca1c4b318fb2be`).
 The conformance compiler reached its 4 MiB output limit (status 254) on the
 same source. A bad final call produced type error 18 at byte 900,855 on
 both Alpha and Linux. [Public-entry receipts](source-audit.md#public-ocreq-on-alpha-and-linux) · [Construction replay](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#build-from-the-seed)
