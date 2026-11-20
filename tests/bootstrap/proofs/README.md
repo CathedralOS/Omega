@@ -26,3 +26,13 @@ for a faithful complete theory and independently reconstructed encoding root.
 The [complete encoding contract](beta_encoding/ACCEPTANCE.md)
 owns that acceptance target. [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md)
 tracks the remaining work and strategy pauses.
+
+To audit the proof manifests and their test helper for Rust producer dependencies,
+run this from the repository root with `xtask` built:
+
+```sh
+sh tools/rust_producer_omission.sh \
+  --manifest tests/bootstrap/proofs/checker/implementation/implementation.gamma.sources \
+  --manifest tests/bootstrap/proofs/beta_encoding/theory/theory.gamma.sources \
+  --steps tests/bootstrap/proofs/sources_env.sh
+```
