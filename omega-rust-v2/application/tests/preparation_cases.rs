@@ -343,3 +343,36 @@ fn mutual_recursion_without_a_checked_ranking_is_refused() {
         rule: TERMINATION,
     });
 }
+
+#[test]
+fn a_cycle_points_to_the_closing_read_in_the_second_file() {
+    let first = ("a.omg", "const FIRST:bool=SECOND;");
+    check(PreparationReason::CyclicConstantInitializer, Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[first, ("b.omg", "const SECOND:bool=!false;")],
+        bad: &[first, ("b.omg", "const SECOND:bool=!FIRST;")],
+        file: "b.omg",
+        occurrence: "FIRST",
+        reason: refusal!("cyclic constant initializer"),
+        rule: NAMED_READS,
+    });
+}
+
+#[test]
+fn an_abort_disproof_is_required_at_the_call_inside_the_sum() {
+    let source = "let exceeds(n:u64,d:u64):bool=n < d;
+machine f(n:u64,d:u64)->u64 crashes Abort (n < d) {7u64}
+const N:u64=1u64 +% f(12u64,3u64);";
+    let proof_guard = source.replace("Abort (n < d)", "Abort (exceeds(n,d))");
+    check(PreparationReason::AbortRouteNeedsDisproof, Case {
+        layer: "L4",
+        producer: "preparation",
+        good: &[("sum.omg", source)],
+        bad: &[("sum.omg", &proof_guard)],
+        file: "sum.omg",
+        occurrence: "f(12u64,3u64)",
+        reason: refusal!("the selected Abort route requires a checked disproof for the supplied arguments"),
+        rule: ADMISSION,
+    });
+}

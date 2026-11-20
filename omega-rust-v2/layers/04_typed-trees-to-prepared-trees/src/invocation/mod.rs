@@ -25,7 +25,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub(super) enum EvaluationError {
     Refused(RefusalCause),
-    NeedsConstant(DeclarationId),
+    NeedsConstant { declaration: DeclarationId, reference: TreeNodeId },
     AtCall(PreparationRefusal),
     OpenTarget(PreparationRefusal),
 }
@@ -240,7 +240,7 @@ struct Execution<'a> {
     values: Vec<PreparedValue>,
     active: termination::ActiveApplications,
     checked_aggregates: HashSet<ValueType>,
-    chain: Vec<(TreeNodeId, bool)>,
+    chain: Vec<TreeNodeId>,
 }
 
 impl Execution<'_> {
@@ -329,13 +329,7 @@ impl ConstantEvaluation<'_, '_> {
         while let Some(step) = execution.steps.pop() {
             if let Err(error) = self.evaluate_step(step, &mut execution) {
                 return Err(match error {
-                    EvaluationError::Refused(reason)
-                        if execution
-                            .chain
-                            .last()
-                            .is_some_and(|(_, use_call_site)| *use_call_site)
-                            || execution.chain.len() > 1 =>
-                    {
+                    EvaluationError::Refused(reason) if !execution.chain.is_empty() => {
                         self.call_refusal(reason, &execution.chain, &[])
                     }
                     other => other,
@@ -387,15 +381,11 @@ impl ConstantEvaluation<'_, '_> {
             }
             Step::Invoke(site, carrier, scope) => {
                 let tree = self.tree(site)?;
-                execution
-                    .chain
-                    .push((site, IntegerRange::for_type(&carrier).is_none()));
+                execution.chain.push(site);
                 let Some(call) = selected_call(&tree, site.node, scope.call_use())? else {
-                    execution.chain.last_mut().expect("visited callback").1 = true;
                     return self.schedule_static_callback(&tree, site, &scope, &carrier, execution);
                 };
                 if let Some(query) = call.layout_query {
-                    execution.chain.last_mut().expect("visited layout query").1 = true;
                     if scope.instantiate(&call.result) != carrier
                         || !call.operands.is_empty()
                         || !call.enclosing_arguments.is_empty()
@@ -619,10 +609,15 @@ impl ConstantEvaluation<'_, '_> {
             .ok_or_else(|| PreparationReason::RequestWithoutTypedFile.into())
     }
 
+    pub(crate) fn visited_site(&self, node: TreeNodeId) -> omega_typed::Site {
+        let tree = self.tree(node).expect("evaluation visited this file");
+        omega_typed::site_at(tree.resolved().file, node.node)
+    }
+
     fn call_refusal(
         &self,
         reason: impl Into<RefusalCause>,
-        chain: &[(TreeNodeId, bool)],
+        chain: &[TreeNodeId],
         cycle: &[&TypedCall],
     ) -> EvaluationError {
         EvaluationError::AtCall(self.call_diagnostic(reason, chain, cycle))
@@ -631,24 +626,18 @@ impl ConstantEvaluation<'_, '_> {
     fn call_diagnostic(
         &self,
         reason: impl Into<RefusalCause>,
-        chain: &[(TreeNodeId, bool)],
+        chain: &[TreeNodeId],
         cycle: &[&TypedCall],
     ) -> PreparationRefusal {
         let site = cycle
             .last()
-            .map_or_else(|| chain.last().expect("visited call").0, |call| call.node);
-        let tree = self.tree(site).expect("visited call file");
-        let file = tree.resolved().file;
-        let site = omega_typed::Site {
-            package: file.package.into(),
-            file: file.path.into(),
-            span: file.span(site.node),
-        };
+            .map_or_else(|| *chain.last().expect("visited call"), |call| call.node);
+        let site = self.visited_site(site);
         let mut refusal = crate::evaluation::refusal(&site, reason);
         let error = &mut refusal.diagnostic;
         if chain.len() > 1 {
             error.message.push_str("\ncall chain: ");
-            for (index, (occurrence, _)) in chain.iter().enumerate() {
+            for (index, occurrence) in chain.iter().enumerate() {
                 if index != 0 {
                     error.message.push_str(" -> ");
                 }

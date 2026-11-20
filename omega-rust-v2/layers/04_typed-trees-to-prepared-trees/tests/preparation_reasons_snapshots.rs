@@ -170,9 +170,32 @@ fn integer(value: u8) -> PreparedValue {
 
 const CYCLE: &str = "cyclic constant initializer";
 
+#[test]
+fn a_constant_cycle_points_to_the_read_that_closes_it() {
+    let accepted = "const A:bool=B; const B:bool=!false;";
+    assert_eq!(frozen(&prepared(accepted, None), "A"), PreparedValue::Bool(true));
+    let cyclic = accepted.replace("!false", "!A");
+    admitted(&cyclic, PreparationReason::CyclicConstantInitializer, CYCLE, after(&cyclic, "B:bool=!", "A"));
+}
+
+#[test]
+fn an_integer_call_inside_an_initializer_reports_its_own_crash_contract() {
+    let accepted = "let exceeds(n:u64,d:u64):bool=n < d;
+                    machine f(n:u64,d:u64)->u64 crashes Abort (n < d) {7u64}
+                    const N:u64=1u64 +% f(12u64,3u64);";
+    assert_eq!(frozen(&prepared(accepted, None), "N"), integer(8));
+    let needs_proof = accepted.replace("Abort (n < d)", "Abort (exceeds(n,d))");
+    admitted(
+        &needs_proof,
+        PreparationReason::AbortRouteNeedsDisproof,
+        "the selected Abort route requires a checked disproof for the supplied arguments",
+        last(&needs_proof, "f(12u64,3u64)"),
+    );
+}
+
 /// Freezing walks the constants in declaration order. FIRST reads SECOND, and
 /// SECOND's initializer reads FIRST while FIRST is still being frozen, so the
-/// refusal names SECOND's initializer for scalar, array and record carriers.
+/// refusal names the read of FIRST for scalar, array and record carriers.
 #[test]
 fn constant_snapshots_that_read_each_other_are_cyclic_for_every_carrier() {
     let pair = "data Pair [copy]{first:u8; second:u8;} ";
