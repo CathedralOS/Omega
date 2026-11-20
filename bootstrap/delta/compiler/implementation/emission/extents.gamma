@@ -29,7 +29,7 @@
     (emit_gamma_atom head publish open)))
 
 (def emission_let_prefix ((binder Int) (publish Int) (written Int)) Int
-  (let ((prefix Int (emit_ascii 139391757352 5 publish written))
+  (let ((prefix Int (emit_ascii '(let ' 5 publish written))
         (name Int (emit_gamma_atom binder publish prefix))
         (separator Int (emit_character '\s' publish name))
         (annotation Int (emit_int_word publish separator)))
