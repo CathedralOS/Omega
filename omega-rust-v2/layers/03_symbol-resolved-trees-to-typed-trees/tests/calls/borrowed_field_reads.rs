@@ -87,6 +87,7 @@ fn copy_reads_of_borrowed_fields_record_the_read_where_it_happens() {
 #[test]
 fn owned_moves_borrows_and_mut_move_out_read_nothing() {
     for body in [
+        "machine f(d:D)->u8 { d.i.n }",
         "machine f(d:D)->I { d.i }",
         "machine f(d:D)->I { match d { D { i, n as _ } -> i, } }",
         "machine f(d:D)->I { let D { i, n as _ } = d; i }",
