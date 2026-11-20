@@ -441,12 +441,16 @@ fn termination_replays_the_exact_target_plan_used_by_its_proof() {
     let mut evaluator = ConstantEvaluation::new(&trees, &[]);
     evaluator.termination.evidence.push(proof);
     evaluator.target = Some(&different);
-    assert!(
-        evaluator
-            .evaluate(&trees.constants[0].initializer, None)
-            .unwrap_err()
-            .message
-            .contains("different target selection")
+    let demand = omega_typed::StaticValueDemand::Closed(trees.constants[0].initializer.clone());
+    let Err(crate::evaluation::constant_evaluation::StaticDemandError::Refused(refusal)) = evaluator.evaluate_demand(&demand) else {
+        panic!("the proof was checked against another selected layout");
+    };
+    let occurrence = "count(3u64)";
+    let start = COUNTDOWN.find(occurrence).unwrap();
+    spec_corpus::assert_preparation_cause!(
+        refusal, crate::RefusalCause::Preparation(PreparationReason::TerminationProofTargetChanged),
+        "app", "main.omg", (start, start + occurrence.len()),
+        "static evaluation cannot admit this invocation: the checked termination proof depends on a different target selection",
     );
     assert!(evaluator.observations.borrow().is_empty());
     evaluator.target = Some(&original);

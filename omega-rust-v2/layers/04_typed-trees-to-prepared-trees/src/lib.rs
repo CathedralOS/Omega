@@ -34,7 +34,7 @@ pub use preparation::entry_points::{
     prepare_source_package_with_boundary_slots, prepare_source_package_with_open_target,
 };
 pub use preparation::sponsorship::{CheckedPreparationBound, SponsoredPreparationError, prepare_source_package_under_grant};
-pub use preparation::typing_pass::{CheckedPreparationEvidence, OpenTargetDemand, PreparationAnswers, PreparedPass, prepare_typing_pass};
+pub use preparation::typing_pass::{CheckedPreparationEvidence, OpenTargetDemand, PreparationAnswers, PreparedPass, prepare_typing_pass, prepare_typing_pass_with_cause};
 pub use preparation::{
     EvaluatedPreparationRound, OpenTargetPreparation, PreparationAdvanceError, PreparationFailure, PreparationProgress,
     PreparationRound, PreparationStep,

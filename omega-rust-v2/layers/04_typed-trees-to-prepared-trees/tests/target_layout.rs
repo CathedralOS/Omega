@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use omega_preparation::{
-    CheckedPreparationEvidence, LayoutExtent, LayoutGeometry, PreparationAnswers, PreparationProgress, PreparedTrees, SelectedLayout, TargetIdentity,
-    TargetObservation, TargetSemantics, TargetSemanticsError, prepare_source_package, prepare_source_package_for_target,
+    CheckedPreparationEvidence, LayoutExtent, LayoutGeometry, PreparationAnswers, PreparationFailure, PreparationProgress, PreparedTrees, RefusalCause, SelectedLayout, TargetIdentity,
+    TargetObservation, TargetSemantics, TargetSemanticsError, prepare_source_package, prepare_source_package_diagnosed_with_inputs, prepare_source_package_for_target,
     prepare_source_package_with_open_target, prepare_typing_pass,
 };
 use omega_resolver::{ParsedSource, StageSource};
@@ -258,6 +258,48 @@ fn an_open_package_retains_exact_demands_and_closes_like_direct_preparation() {
     let resumed = open.close(&capsule).unwrap();
     assert_eq!(resumed, direct);
     assert_eq!(parameter(&resumed, "consume"), &ValueType::Array(Box::new(BYTE), 2));
+}
+
+#[test]
+fn supplying_the_layout_later_preserves_the_refusing_phase_and_occurrence() {
+    let code = r"use omega\language\core;
+const WIDTH:u64=core\size_of::<u16>();
+machine carry(bytes:[u8; WIDTH])->[u8; 4]{bytes}";
+    let source = resolve(code);
+    let target = identity("selected");
+    for width in [None, Some(2), Some(4)] {
+        let layouts = width.map(|size| layout(&target, WORD, LayoutExtent::Fixed(size), Some(2)));
+        let capsule = TargetSemantics::new(target.clone(), layouts, []).unwrap();
+        let PreparationProgress::OpenTarget(open) = prepare_source_package_with_open_target(&source, &[]).unwrap() else {
+            panic!("the parameter type needs the target's layout");
+        };
+        let resumed = open.close(&capsule);
+        let direct = prepare_source_package_diagnosed_with_inputs(&source, &[], Some(&capsule));
+        assert_eq!(resumed, direct);
+        let (failure, occurrence, message) = match width {
+            Some(4) => {
+                assert_eq!(parameter(&resumed.unwrap(), "carry"), &ValueType::Array(Box::new(BYTE), 4));
+                continue;
+            }
+            Some(_) => {
+                let failure = resumed.unwrap_err();
+                assert!(matches!(failure, PreparationFailure::ResumedTyping(_)));
+                assert_eq!(failure.cause(), None);
+                (failure, "bytes", "expected [u8; 4], found [u8; 2]")
+            }
+            None => {
+                let failure = resumed.unwrap_err();
+                assert!(matches!(failure, PreparationFailure::Preparation(_)));
+                assert_eq!(failure.cause(), Some(RefusalCause::TargetLayout("the selected target has no validated layout for the type")));
+                (failure, r"core\size_of::<u16>()", "static evaluation cannot admit this invocation: the selected target has no validated layout for the type")
+            }
+        };
+        let diagnostic = failure.diagnostic();
+        let start = code.rfind(occurrence).unwrap();
+        assert_eq!((diagnostic.package.as_str(), diagnostic.file.as_str()), ("app", "main.omg"));
+        assert_eq!((diagnostic.span.get_start_offset(), diagnostic.span.get_end_offset()), (start, start + occurrence.len()));
+        assert_eq!(diagnostic.message, message);
+    }
 }
 
 #[test]

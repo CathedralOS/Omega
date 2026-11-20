@@ -68,7 +68,7 @@ impl<'text> OpenTargetPreparation<'text> {
     pub fn close(
         self,
         target: &TargetSemantics,
-    ) -> Result<PreparedTrees<'text>, TypeError> {
+    ) -> Result<PreparedTrees<'text>, PreparationFailure> {
         prepare_progress(
             &self.source,
             &self.boundary_slots,
@@ -81,20 +81,15 @@ impl<'text> OpenTargetPreparation<'text> {
 }
 
 impl<'text> PreparationProgress<'text> {
-    fn into_complete(self) -> Result<PreparedTrees<'text>, TypeError> {
-        self.into_complete_or_demand()
-            .map_err(|demand| demand.diagnostic)
-    }
-
     /// The first open demand is the target input whose absence stopped preparation.
-    fn into_complete_or_demand(self) -> Result<PreparedTrees<'text>, OpenTargetDemand> {
+    fn into_complete(self) -> Result<PreparedTrees<'text>, PreparationFailure> {
         match self {
             Self::Complete(prepared) => Ok(prepared),
-            Self::OpenTarget(open) => Err(open
+            Self::OpenTarget(open) => Err(PreparationFailure::missing_target(open
                 .demands
                 .into_iter()
                 .next()
-                .expect("open package has a target demand")),
+                .expect("open package has a target demand"))),
         }
     }
 }
@@ -148,7 +143,7 @@ fn prepare_progress<'text>(
 /// `Typing` is the entry pass, before any static answer exists. `ResumedTyping`
 /// is a retype that consumed answers this layer evaluated, so L4 was reached
 /// even though L3 owns the refusal.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum PreparationFailure {
     Typing(TypeError),
     ResumedTyping(TypeError),
@@ -216,8 +211,7 @@ pub struct EvaluatedPreparationRound {
 #[derive(Debug)]
 pub enum PreparationAdvanceError {
     DifferentRound,
-    Typing(TypeError),
-    Preparation(TypeError),
+    Refused(PreparationFailure),
 }
 
 impl<'input, 'text> PreparationRound<'input, 'text> {
@@ -225,10 +219,10 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
         source: &'input SourcePackage<'text>,
         slots: &'input [omega_typed::BoundarySlot],
         target: Option<&'input TargetSemantics>,
-    ) -> Result<Self, TypeError> {
+    ) -> Result<Self, PreparationFailure> {
         let state = PreparationState::default();
-        let progress = state.type_package(source, slots)?;
-        Self::from_progress(source, slots, target, state, progress).map_err(TypeError::from)
+        let progress = state.type_package(source, slots).map_err(PreparationFailure::Typing)?;
+        Self::from_progress(source, slots, target, state, progress).map_err(PreparationFailure::Preparation)
     }
 
     fn finish_without_external_evidence(mut self) -> Result<PreparationProgress<'text>, PreparationFailure> {
@@ -300,10 +294,7 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
         if !Arc::ptr_eq(&self.identity, &evaluated.identity) {
             return Err(PreparationAdvanceError::DifferentRound);
         }
-        self.apply(evaluated.pass).map_err(|error| match error {
-            PreparationFailure::Typing(e) | PreparationFailure::ResumedTyping(e) => PreparationAdvanceError::Typing(e),
-            PreparationFailure::Preparation(e) | PreparationFailure::MissingTarget(e) => PreparationAdvanceError::Preparation(e.diagnostic),
-        })
+        self.apply(evaluated.pass).map_err(PreparationAdvanceError::Refused)
     }
 
     fn apply(
