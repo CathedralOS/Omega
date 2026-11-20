@@ -360,22 +360,32 @@ def omega_control_customer(work, timeout):
     print(f"Omega runtime control: 39 emitted executables, actual lexer byte/base matrix, nominal sums, terminal values, lexical machine scopes, source-set lookup/reset, chained casts and refusal checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
+def omega_storage_program():
+    gate = ROOT / "tests/bootstrap/conformance/omega"
+    unit = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
+    construction = (ROOT / "source/application/construction/main.omg").read_bytes()
+    declarations = []
+    for source, markers in (
+        (unit, (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear(",
+                b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
+                b"public data ModulePath\n", b"public machine module_path_append(",
+                b"public data SourceRange ", b"public machine path_length(")),
+        (construction, (b"data ConstructionInput {",)),
+    ):
+        for marker in markers:
+            start = source.index(marker)
+            end = source.index(b"\n}", start) + 2
+            declarations.append(source[start:end])
+    declarations.append((gate / "qualified_array_elements.omg").read_bytes())
+    declarations.append((gate / "indexed_record_fields.omg").read_bytes())
+    return b"\n\n".join(declarations) + b"\n" + (gate / "storage_controls.omg").read_bytes()
+
+
 def omega_storage_customer(work, timeout):
     """Compile the product storage declarations and exercise indexed reads and writes."""
     closure = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
-    unit = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
-    declarations = []
-    for marker in (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear(",
-                   b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
-                   b"public data ModulePath\n", b"public machine module_path_append(",
-                   b"public data SourceRange ", b"public machine path_length("):
-        start = unit.index(marker)
-        end = unit.index(b"\n}", start) + 2
-        declarations.append(unit[start:end])
-    declarations.append((gate / "qualified_array_elements.omg").read_bytes())
-    declarations.append((gate / "indexed_record_fields.omg").read_bytes())
-    program = b"\n\n".join(declarations) + b"\n" + (gate / "storage_controls.omg").read_bytes()
+    program = omega_storage_program()
     source = closure + (gate / "controls_storage.epsilon").read_bytes()
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, program)
     (work / "storage-source.epsilon").write_bytes(source)
