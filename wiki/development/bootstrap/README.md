@@ -80,7 +80,7 @@ Gamma. The Gamma backends then built the scanner programs. Sharing the Alpha sta
 Running the 256-byte input through the direct Delta interpreter exceeded a
 120-second wall limit on a shared Linux host. The same six-byte input as the Gamma-interpreted comparison (`20 30 5f 61 46 ff`) completed in
 34 seconds, returning exit 42 and the expected 24 result bytes. Both requests
-used the same Delta and Epsilon sources. The portable Omega compilation request reached the 300-second limit with empty output on this direct route. [Lexer source](../../../bootstrap/omega/compiler/lexical_classification.epsilon) ·
+used the same Delta and Epsilon sources. The portable Omega compilation request reached the 300-second limit with empty output on this direct route. [Lexer source](../../../bootstrap/omega/compiler/source-to-tokens/byte_classes.epsilon) ·
 [Test entry](../../../tests/bootstrap/independent/epsilon/lexical_main.epsilon)
 
 The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.md) and [native route](native.md) record the construction steps and limits. The [Gamma host comparison](gamma-hosts.md) gives commands to reproduce the four host/target combinations.

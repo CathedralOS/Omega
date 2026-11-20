@@ -57,14 +57,14 @@ def identity(data):
 
 
 def digit_scanner(base, boundary, program, observe, reference, compiler):
-    lexer = (base / 'lexer.epsilon').read_bytes()
+    lexer = (base / 'source-to-tokens/scan.epsilon').read_bytes()
 
     def methods(first, after):
         return lexer[lexer.index(b'machine OmegaLexScan::' + first + b'('):
                      lexer.index(b'machine OmegaLexScan::' + after + b'(')]
 
     source = ((base / 'representations.epsilon').read_bytes()
-              + (base / 'lexical_classification.epsilon').read_bytes()
+              + (base / 'source-to-tokens/byte_classes.epsilon').read_bytes()
               + lexer[:lexer.index(b'machine OmegaLexScan::reject(')]
               + methods(b'emit', b'span_equals') + methods(b'consume_digits', b'set_punctuation')
               + boundary + (FIXTURES / 'lexer_digits_main.epsilon').read_bytes())
@@ -134,22 +134,22 @@ def signature_source(base):
     compiler = 'OmegaScalarCompiler::'
     return b''.join([
         members('representations.epsilon', [('AlphaTapeBuffer', None)]),
-        members('lexical_classification.epsilon', [('omega_is_whitespace', None)]),
-        members('lexer.epsilon', [(scanner + 'reset', scanner + 'scan_at')]),
+        members('source-to-tokens/byte_classes.epsilon', [('omega_is_whitespace', None)]),
+        members('source-to-tokens/scan.epsilon', [(scanner + 'reset', scanner + 'scan_at')]),
         members('scalar_compilation.epsilon', [
             ('OmegaCheckedValueKind', compiler + 'record_internal'),
             (compiler + 'resolve_machine', compiler + 'fold_expression'),
             (compiler + 'primitive_type', compiler + 'value_cell'),
             (compiler + 'check_signatures', compiler + 'compile'),
             (compiler + 'resolve_data', compiler + 'case_value_type'),
-            (compiler + 'layout_data', compiler + 'check_place'),
+            (compiler + 'layout_case_payload', compiler + 'check_place'),
             (compiler + 'type_size', compiler + 'byte_index_result_type'),
             (compiler + 'reference_signature', compiler + 'check_forward_reference'),
         ]),
         members('outcome.epsilon', [('OmegaOutcomeFrame', 'OmegaOutcomeFrame::write_u32')]),
         members('source_set.epsilon', [('OmegaSourceSet::equal_name', 'OmegaSourceSet::identifier'),
                                       ('OmegaSourceSet::unit_at', None)]),
-        members('declaration_resolution.epsilon', [(compiler + 'declaration_count', compiler + 'validate_imports')]),
+        members('resolution/declarations.epsilon', [(compiler + 'declaration_count', compiler + 'validate_imports')]),
         (FIXTURES / 'signature_main.epsilon').read_bytes(),
     ])
 
@@ -192,7 +192,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
     # The production keyword classifier compares its actual literal views.
-    lexer = (base / 'lexer.epsilon').read_bytes()
+    lexer = (base / 'source-to-tokens/scan.epsilon').read_bytes()
     source = ((base / 'representations.epsilon').read_bytes()
               + lexer[:lexer.index(b'machine OmegaLexScan::scan_whitespace(')] + boundary
               + (FIXTURES / 'lexer_diagnostic_main.epsilon').read_bytes())
@@ -356,7 +356,7 @@ def run(work, vm, producer, realize, seconds):
         report['empty_entry'] = identity(empty_observation)
         report['stage'] = 'actual-lexical-customer'
         checkpoint()
-        actual = (ROOT / 'bootstrap/omega/compiler/lexical_classification.epsilon').read_bytes()
+        actual = (ROOT / 'bootstrap/omega/compiler/source-to-tokens/byte_classes.epsilon').read_bytes()
         # This is the complete unchanged prefix of four production machines.
         # The next machine needs sums, outside this declared scalar capability.
         prefix = actual[:actual.index(b'machine omega_digit_in_base(')]

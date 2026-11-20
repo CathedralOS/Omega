@@ -26,12 +26,30 @@ The stable artifact names and task IDs `D` and `C` in older records identify the
 bootstrap compiler and Omega compiler respectively. Implementation and remaining
 closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
 
+## Compiler stages
+
+The parser asks the scanner for one token at a time. The scalar compiler
+checks the parsed declarations and bodies and calls the Alpha encoder
+directly. These stages share one Epsilon translation unit.
+
+| Stage | Input and result | Implementation |
+| --- | --- | --- |
+| Tokenization | Given validated source bytes and a cursor, produce a token kind, span and next cursor, or a lexical diagnostic. | [Scanner](source-to-tokens/scan.epsilon) and [byte classification](source-to-tokens/byte_classes.epsilon) |
+| Parsing | Consume tokens from each source unit and fill the parser's declaration, statement and expression tables. | [Parser](parser.epsilon) and [shared representations](representations.epsilon) |
+| Declaration resolution | Resolve a name span to a declaration index using the requesting unit's package, module, imports and visibility. | [Resolver](resolution/declarations.epsilon) and [source set](source_set.epsilon) |
+| Checking and lowering | Check supported bodies and select the Alpha instructions for their operations. | [Scalar compiler](scalar_compilation.epsilon) |
+| Alpha emission | Encode instructions, resolve label fixups and validate the tape before publication. | [Tape encoder](alpha/tape.epsilon) |
+
+The Rust compiler's front end also separates tokenization, parsing and name
+resolution. Its later stages produce Psi. The Epsilon compiler's executable
+product is an Alpha tape. [Rust pipeline](../../../source-rust/subsystems/compiler/source-to-psi/pipeline)
+
 ## Retention inventory
 
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| `*.epsilon` | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| Epsilon source members | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [the hosted application](../../../source/application/ocreq) does not declare a support
@@ -45,8 +63,8 @@ identity, and exact source inventory before concatenating bytes without separato
 The current ten-member
 manifest materializes 23,214 lines / 867,087 bytes with SHA-256
 `7ca03a41fc9beeaf8639b2c6000e3cba4570e8297a736cfd84898e31838db642`.
-The manifest itself is 1,674 bytes, SHA-256
-`f7bfaed56e6c77c8aa4c041cc40574aed3dd7f9fe2fc100769c3c0a884e0ae34`;
+The manifest itself is 1,698 bytes, SHA-256
+`fbb137eedb2ef00b43c57bc9da40c4116d06d759dfd668a692fb21ae7e1fe372`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
