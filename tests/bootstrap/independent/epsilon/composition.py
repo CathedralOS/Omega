@@ -8,8 +8,8 @@ from hashlib import sha256
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-EPSILON = ROOT / 'bootstrap/interpreted/4_epsilon'
-COMPILER = ROOT / 'bootstrap/independent/epsilon'
+EPSILON = ROOT / 'bootstrap/epsilon/interpreter'
+COMPILER = ROOT / 'bootstrap/epsilon/to-delta'
 COMPILER_MODULES = (
     'emission.delta', 'text.delta', 'compilation.delta', 'locals.delta',
     'binary.delta', 'expressions.delta', 'calls.delta', 'machines.delta',

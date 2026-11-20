@@ -32,12 +32,11 @@ def main():
     product = work / "product.bin"
     constructor = ROOT / "source/application/construction/construct.py"
     subprocess.run([sys.executable, constructor, "--input", product], check=True)
-    epsilon = ROOT / "bootstrap/interpreted"
-    compiler = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources",
+    compiler = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources",
                     work / "omega.epsilon")
-    evaluator = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources",
+    evaluator = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources",
                      work / "evaluator.delta")
-    guest = compiler + (epsilon / "construct_omega.epsilon").read_bytes()
+    guest = compiler + (ROOT / "bootstrap/omega/construct_omega.epsilon").read_bytes()
     write(work, "whole.eereq", epsilon_request(evaluator, guest, product.read_bytes()))
 
     if args.entry_control:
@@ -58,7 +57,7 @@ def main():
               '. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"; '
               'require_epsilon_evaluator_entry_receipt_identity "$1"', receipt)
         original = receipt.read_bytes()
-        adapter = (epsilon / "3_delta/support/adapter.gamma").read_bytes()
+        adapter = (ROOT / "bootstrap/delta/to-gamma/support/adapter.gamma").read_bytes()
         old = b"(lt 4194304 (input))"
         if adapter.count(old) != 1 or original.count(adapter) != 1:
             raise SystemExit("expected one bound input limit in the generated Delta adapter")

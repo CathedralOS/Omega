@@ -47,8 +47,8 @@ def main():
     mode = "accelerated" if args.accelerated else "reference"
     work = compiled.ROOT / "build" / ("source-gamma-" + mode)
     work.mkdir(parents=True, exist_ok=True)
-    source = b"\n".join((compiled.ROOT / "bootstrap/compiled_vm" / name).read_bytes()
-                         for name in ("compiler.gamma", "frontend.gamma", "alpha_backend.gamma"))
+    source = b"\n".join((compiled.ROOT / "bootstrap/gamma/compiler" / name).read_bytes()
+                         for name in ("compiler.gamma", "frontend.gamma", "alpha/alpha_backend.gamma"))
     (work / "compiler.gamma").write_bytes(source)
     compiled.reconstruct(work)
     request = struct.pack("<I", len(source)) + source + source

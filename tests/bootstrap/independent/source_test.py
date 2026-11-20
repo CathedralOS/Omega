@@ -24,10 +24,10 @@ import compiled as vm
 
 
 def source(native):
-    paths = [ROOT / "bootstrap/compiled_vm" / name
+    paths = [ROOT / "bootstrap/gamma/compiler" / name
              for name in ("compiler.gamma", "frontend.gamma")]
-    paths.append(ROOT / ("bootstrap/independent/native.gamma" if native
-                         else "bootstrap/compiled_vm/alpha_backend.gamma"))
+    paths.append(ROOT / ("bootstrap/gamma/compiler/linux_x86_64/native.gamma" if native
+                         else "bootstrap/gamma/compiler/alpha/alpha_backend.gamma"))
     return b"\n".join(path.read_bytes() for path in paths)
 
 

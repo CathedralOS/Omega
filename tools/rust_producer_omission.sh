@@ -15,11 +15,13 @@ AUDITOR=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
 # build-time checkout must not choose the input root under review.
 if [ "$#" -eq 0 ]; then
     cd "$OMEGA_REPO_ROOT"
-    manifests=$(find bootstrap/interpreted/0_alpha bootstrap/interpreted/1_beta bootstrap/interpreted/2_gamma \
-        bootstrap/interpreted/3_delta bootstrap/interpreted/4_epsilon bootstrap/interpreted/5_omega bootstrap/proofs \
-        -type f -name '*.sources' | LC_ALL=C sort)
-    steps=$(find tools/bootstrap -type f -name '*.sh' \
-        ! -name 'check-chain-hygiene.sh' | LC_ALL=C sort)
+    manifests=$(find bootstrap/alpha bootstrap/beta bootstrap/gamma/interpreter bootstrap/gamma/compiler \
+        bootstrap/delta/to-gamma bootstrap/epsilon/interpreter bootstrap/epsilon/to-delta bootstrap/omega/compiler bootstrap/proofs \
+        -type f -name '*.sources')
+    manifests=$(printf '%s\n' "$manifests" | LC_ALL=C sort)
+    steps=$(find tools/bootstrap -type f \( -name '*.sh' -o -name '*.py' \) \
+        ! -name 'check-chain-hygiene.sh')
+    steps=$(printf '%s\n' "$steps" | LC_ALL=C sort)
     [ -n "$manifests" ] && [ -n "$steps" ] || {
         echo "Rust producer omission audit: empty manifest or step inventory" >&2
         exit 2

@@ -3,7 +3,7 @@
 //! `mbx xtask alpha-forge LISTING OUTPUT` writes the image.
 //! `mbx xtask alpha-forge LISTING --check COMMITTED` compares it to a seed and
 //! exits 1 when the bytes differ. The listing dialect is the one committed in
-//! `bootstrap/interpreted/0_alpha/alpha_x64_windows.hex`: hex bytes, `zN` zero
+//! `bootstrap/alpha/alpha_x64_windows.hex`: hex bytes, `zN` zero
 //! runs, `.pad`, labels, `.rva`, `.rel32`, and `.rel8`.
 
 use std::fs;
@@ -367,8 +367,8 @@ EB .rel8 far
     #[test]
     fn windows_listing_reproduces_the_committed_seed() {
         let root = crate::repo_root().expect("test runs in the Omega workspace");
-        let listing = root.join("bootstrap/interpreted/0_alpha/alpha_x64_windows.hex");
-        let committed = root.join("bootstrap/interpreted/0_alpha/alpha_x64_windows.exe");
+        let listing = root.join("bootstrap/alpha/alpha_x64_windows.hex");
+        let committed = root.join("bootstrap/alpha/alpha_x64_windows.exe");
         let image = forge_file(&listing).unwrap();
         let expected = fs::read(&committed).unwrap();
         assert_eq!(image, expected);

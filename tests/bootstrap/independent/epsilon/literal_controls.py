@@ -30,7 +30,7 @@ def run(work, vm, producer, realize, seconds):
     # The canonical request admits only profile one. Exercise the existing
     # raw-source diagnostic entry separately, preserving that boundary.
     development_source = vm.pack(
-        "bootstrap/interpreted/3_delta/implementation/implementation.gamma.sources",
+        "bootstrap/delta/to-gamma/implementation/implementation.gamma.sources",
         work / "literal-development.gamma",
         "tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma")
     development = vm.compile_program(work, development_source, "literal-development",
@@ -62,10 +62,10 @@ def run(work, vm, producer, realize, seconds):
 
     # This is production source for the next compiler, not a test-only printer.
     root = vm.ROOT
-    base = vm.pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources",
+    base = vm.pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources",
                    work / "literal-emitter-base.delta")
     driver = root / "tests/bootstrap/interpreted/delta/byte-literals"
-    subject = base + b"\n" + (root / "bootstrap/independent/epsilon/emission.delta").read_bytes()
+    subject = base + b"\n" + (root / "bootstrap/epsilon/to-delta/emission.delta").read_bytes()
     subject += b"\n" + (driver / "emitter_driver.delta").read_bytes()
     (work / "literal-emitter.delta").write_bytes(subject)
     status, receipt = compile_delta(subject)
@@ -76,11 +76,11 @@ def run(work, vm, producer, realize, seconds):
     assert status == 0 and fragment.endswith(b"; signed decimal edge: -9223372036854775808")
     (work / "literal-emitted.delta").write_bytes(fragment)
     # Keep only shared semantic declarations in the emitted program's runtime.
-    manifest = root / "bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources"
+    manifest = root / "bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources"
     representations = [line.split()[4] for line in manifest.read_text().splitlines()[1:]
                        if line.split()[4].startswith("representations/")]
     target = b"\n".join((manifest.parent / path).read_bytes() for path in representations)
-    target += b"\n" + (root / "bootstrap/independent/epsilon/runtime/values.delta").read_bytes()
+    target += b"\n" + (root / "bootstrap/epsilon/to-delta/runtime/values.delta").read_bytes()
     target += b"\n" + fragment + b"\n" + (driver / "emitted_driver.delta").read_bytes()
     (work / "literal-target.delta").write_bytes(target)
     status, target_receipt = compile_delta(target)

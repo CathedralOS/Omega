@@ -72,9 +72,9 @@ def main() -> None:
 
     with TemporaryDirectory() as directory:
         work = Path(directory)
-        guest = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "omega.epsilon")
+        guest = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
         guest += (ROOT / "tests/bootstrap/conformance/omega/main.epsilon").read_bytes()
-        evaluator_source = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
+        evaluator_source = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
         request = epsilon_request(evaluator_source, guest, program)
         print(f"{len(request)} request bytes sha256={sha256(request).hexdigest()}", flush=True)
         output = compile_request(args.evaluator, request, args.timeout)

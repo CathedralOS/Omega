@@ -17,28 +17,28 @@ trusted Beta compiler. No wrapper calls it a full chain run or prints status
 for compiler edges that do not exist.
 
 `tools/bootstrap/alpha/seed_env.sh` pins the exact size and SHA-256 of the
-audited Alpha container chosen in `bootstrap/interpreted/0_alpha/README.md`;
+audited Alpha container chosen in `bootstrap/alpha/README.md`;
 `stamp_seed` refuses any other bytes.
 `tools/bootstrap/beta/artifact_env.sh` pins the exact size and SHA-256 of
 `beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses any
 other bytes; these identities are audited in
-`bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `tests/bootstrap/interpreted/beta/compiler/root-audit.py`.
+`bootstrap/beta/AUDIT.md` and decoded by `tests/bootstrap/interpreted/beta/compiler/root-audit.py`.
 `tools/bootstrap/gamma/evaluator_env.sh` pins `gamma_evaluator.beta` and
 `gamma_evaluator_bytecode.tape` the same way against
-`bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`. A matching digest checks
+`bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md`. A matching digest checks
 identity; it is not a proof.
 
 `tools/bootstrap/delta/compiler_env.sh` pins the Delta edge's request entry,
 source manifest, ordered support-member manifest, `GammaComposedV2` record,
 repacked canonical closure and packed support section the same way against
-`bootstrap/interpreted/3_delta/README.md` and `delta_compiler.composed`. It
+`bootstrap/delta/to-gamma/README.md` and `delta_compiler.composed`. It
 checks that the record names the chosen evaluator tape, packed closure
 and packed support section. It also pins the staged-compiler gate's
 `development_driver.gamma` diagnostic entry, packed on top of the pinned
 member bytes. The archived [_Delta identity test_](../../_recycling/tests/bootstrap/delta-identity.sh) records its refusal cases.
 `tools/bootstrap/epsilon/evaluator_env.sh` pins the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
-against `bootstrap/interpreted/4_epsilon/README.md`. Both refuse before writing if
+against `bootstrap/epsilon/interpreter/README.md`. Both refuse before writing if
 the bytes differ from the pins, including a changed manifest or member. The Epsilon file also pins the canonical `execution_driver.delta`
 slice adapter and the evaluator receipt identity that the pinned Delta edge
 rebuilds from the pinned evaluator, driver and support section;
@@ -47,7 +47,7 @@ and every consuming gate's record.
 
 `tools/bootstrap/omega/compiler_env.sh` pins the
 `omega_compiler.epsilon.sources` manifest and repacked D closure against
-`bootstrap/interpreted/5_omega/README.md` the same way. It also pins the
+`bootstrap/omega/compiler/README.md` the same way. It also pins the
 entries the omega-parser, omega-outcome, omega-request and omega-executable
 gates append on top of the pinned member bytes, and
 the omega-request gate's canonical sealed request fixture; each gate's
@@ -70,20 +70,18 @@ documentation for copies of the hashes or byte counts: a pin repeated in
 prose proves nothing new. The cited audit and profile documents explain each
 artifact and its obligations.
 
-`check-chain-hygiene.sh` is the only repository-layout check. It lists the
-implemented compiler source and tape identities, lists
-every kept source, test and bootstrap-tool directory, rejects other bootstrap
-directories and native compiler identities above Alpha, stops a lower
-compiler from reaching past its immediate successor, and checks that
-manifest members and bootstrap step files omit the Rust producer.
-It finds directories from tracked and untracked non-ignored files in a Git
-checkout, or from the files in a source archive. Empty
-directories left by a move do not count. `sh tests/bootstrap/interpreted/chain-hygiene.sh` checks this inventory
-behavior in disposable archive and checkout fixtures.
-Alpha, Beta and Gamma may not contain subdirectories. Delta, Epsilon and D
-may keep one folder per concept, but not a redundant root `compiler/`
-directory. The separate `bootstrap/proofs/` directory holds the checker and
-encoding theory; it is not another language rung.
+`check-chain-hygiene.sh` verifies the Alpha and Beta artifacts and the
+declared compiler source closures. It checks that their manifest members and
+bootstrap steps omit the Rust producer. Alpha and Beta have flat seed
+directories. Gamma, Delta, Epsilon and Omega keep implementations under their
+language. Host launchers, route records and proof research each have their
+own directory in `bootstrap/`.
+
+The gate inspects tracked and untracked non-ignored files in a checkout,
+or the files present in a source archive. Empty owner directories left by a
+move are ignored. `sh tests/bootstrap/interpreted/chain-hygiene.sh` exercises
+both forms and checks that a new implementation can coexist with the tested
+routes.
 
 `mbx xtask source-closure MANIFEST OUTPUT` checks source members, in the order
 the manifest gives, and concatenates them. `GammaSourceClosureV1` selects `.gamma` members for the proof
@@ -116,7 +114,7 @@ artifacts stay in their language's directory.
 | Child/files | Present consumer | Deletion condition |
 | --- | --- | --- |
 | `paths.sh` | Alpha, Beta, Gamma, Delta, Epsilon, Omega, and topology gates that share exact owner paths | Absorb the remaining locators into a single cheaper canonical invocation mechanism, then delete this file and update every consumer atomically. |
-| `check-chain-hygiene.sh` | Repository checks for direct-chain ownership, source purity, and retention | Replace it only with one canonical gate enforcing the same positive inventory and immediate-successor boundary more economically. |
+| `check-chain-hygiene.sh` | Checks language ownership, closed artifact identities and omission of the Rust producer from declared routes. | Replace it when another gate verifies the same inventories, identities and dependencies. |
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 | `beta/` | Trusted Beta compiler materialization with the bound-identity check, and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
 | `gamma/evaluator_env.sh` | Selected Beta-authored functional Gamma evaluator materialization. | Delete only when every caller has an equally direct canonical invocation. |

@@ -82,7 +82,7 @@ def string_cases():
 
 
 def scan_source(root, fixtures, boundary, public):
-    base = root / 'bootstrap/interpreted/5_omega'
+    base = root / 'bootstrap/omega/compiler'
     representations = (base / 'representations.epsilon').read_bytes()
     lexer = (base / 'lexer.epsilon').read_bytes()
     utf8 = (base / 'request_and_utf8.epsilon').read_bytes()

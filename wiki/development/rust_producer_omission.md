@@ -1,17 +1,8 @@
 # Rust producer omission audit
 
-`mbx xtask rust-producer-omission` checks that a closure's declared
-dependencies do not include the Rust producer (`omega-rust/`), as defined in [omega-rust/README.md](../../omega-rust/README.md#readme):
-
-> a toolchain, release, or bootstrap input set omits the Rust producer when
-> its closed dependency set contains no `omega-rust/` artifact, build step,
-> or checkout-derived path (including the bundled `source/library/`
-> location, which a self-hosted product must resolve without this
-> checkout).
-
-The tool checks only the *declared* set; it does not find dependencies the
-declaration forgot. If the manifest is incomplete, the declaration is wrong,
-not the audit.
+`mbx xtask rust-producer-omission` checks a declared set of bootstrap inputs
+for dependencies on the Rust compiler or its build tools. An undeclared
+dependency falls outside the audit. [Rust compiler and trust boundary](../../source-rust/README.md)
 
 ## Inputs
 
@@ -36,8 +27,8 @@ not the audit.
 
 | Check | A member or step fails it when it |
 | --- | --- |
-| `producer-artifact` | has an `omega-rust` path component |
-| `producer-build-step` | invokes `cargo`, `rustc`, `rustup`, `mbx`, `nextest`, or `cargo-nextest`, or references `omega-rust/` |
+| `producer-artifact` | has a `source-rust`, `omega-rust-v2` or legacy `omega-rust` path component |
+| `producer-build-step` | invokes `cargo`, `rustc`, `rustup`, `mbx`, `nextest`, or `cargo-nextest`, or references one of those Rust trees |
 | `checkout-derived-path` | spells `..` traversal, an absolute path, `CARGO_MANIFEST_DIR`/`OUT_DIR`, or reaches `source/library` through checkout-relative traversal |
 | `canonical-spelling` | is not a canonical relative POSIX path (same byte rules as `mbx xtask source-closure`) |
 
@@ -52,7 +43,7 @@ The bootstrap compiler closure and its env scripts pass today:
 
 ```bash
 mbx xtask rust-producer-omission \
-  --manifest bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources \
+  --manifest bootstrap/omega/compiler/omega_compiler.epsilon.sources \
   --steps tools/bootstrap/paths.sh \
   --steps tools/bootstrap/omega/compiler_env.sh \
   --require omitted
@@ -60,7 +51,7 @@ mbx xtask rust-producer-omission \
 
 ```powershell
 mbx xtask rust-producer-omission `
-  --manifest bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources `
+  --manifest bootstrap/omega/compiler/omega_compiler.epsilon.sources `
   --steps tools/bootstrap/paths.sh `
   --steps tools/bootstrap/omega/compiler_env.sh `
   --require omitted
@@ -68,13 +59,9 @@ mbx xtask rust-producer-omission `
 
 ## Gate
 
-[rust_producer_omission.sh](../../tools/rust_producer_omission.sh) audits the interpreted
-variant's numbered rungs and proof manifests, plus the shell scripts under
-`tools/bootstrap/`. Independent peer roots declare their own seed and what
-they audit. The chain-hygiene gate also audits shell steps under
-`tools/bootstrap/` and keeps its fixed manifest, member and entry identity
-checks. Both reject hidden Rust producer dependencies; the chain from source
-to executable runs neither.
+The gate audits the declared manifests for the bootstrap languages and proofs,
+and the invocation scripts under `tools/bootstrap/`. Chain hygiene also checks
+the bound member and entry identities. [Omission gate](../../tools/rust_producer_omission.sh) · [Chain hygiene](../../tools/bootstrap/check-chain-hygiene.sh)
 
 This is **developer-only verification**. Build its Rust executable once with
 `mbx build -p xtask`, then run the shell gate. `OMEGA_XTASK_BIN` can name an
@@ -94,10 +81,6 @@ find indirect dependencies.
 
 ## Boundary
 
-The audit covers input sets only. A product *built by* `omega-rust` can
-still carry a checkout-derived `source/library` dependency at runtime
-(the development root is recorded by
-`omega-rust/omega/packages/package-compilation/build.rs` and selected by
-that package's `src/source/toolchain_library.rs`);
-that leftover dependency belongs to the self-hosted product's own input set,
-not to what this checker reads.
+The product can still carry a dependency on this checkout when it locates the
+bundled `source/library` at runtime. That dependency belongs to the product's
+input set. [Toolchain library lookup](../../source-rust/subsystems/compiler/build/inputs/source/toolchain_library.rs)

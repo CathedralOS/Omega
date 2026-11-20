@@ -2,7 +2,7 @@
 
 Delta byte literals let the checked Epsilon-to-Delta compiler write readable
 source templates using the existing `Bytes` meaning and runtime. The production
-encoder is `bootstrap/independent/epsilon/emission.delta`; these two Delta entries
+encoder is `bootstrap/epsilon/to-delta/emission.delta`; these two Delta entries
 exercise its name/signature/body rendering and execute the emitted function.
 They do not claim that the Epsilon compiler pass is complete or that its entire
 bootstrap compiler customer has been compiled.

@@ -75,9 +75,9 @@ def pack(manifest, output, prefix=None):
 
 
 def customer(work, evaluator, producer, realize=stamp):
-    source = pack("bootstrap/interpreted/3_delta/implementation/implementation.gamma.sources",
-                  work / "delta.gamma", "bootstrap/interpreted/3_delta/delta_compiler.gamma")
-    support = pack("bootstrap/interpreted/3_delta/support/support.gamma.sources", work / "support.bin")
+    source = pack("bootstrap/delta/to-gamma/implementation/implementation.gamma.sources",
+                  work / "delta.gamma", "bootstrap/delta/to-gamma/delta_compiler.gamma")
+    support = pack("bootstrap/delta/to-gamma/support/support.gamma.sources", work / "support.bin")
     started = time.monotonic()
     compiler = compile_program(work, source, "delta", compiler=producer, realize=realize)
     artifact = work / ("delta.tape" if realize is stamp else "delta.elf")
@@ -101,7 +101,7 @@ def customer(work, evaluator, producer, realize=stamp):
 
 
 def epsilon_customer(work, producer, realize=stamp):
-    closure = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
+    closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
     subject = closure + (ROOT / "tests/bootstrap/conformance/epsilon/evaluator_entry.delta").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + (work / "support.bin").read_bytes())
@@ -123,7 +123,7 @@ def epsilon_customer(work, producer, realize=stamp):
 
 
 def omega_customer(work, timeout, controls=False, *, observe=None):
-    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
     source = closure + (gate / ("controls_b.epsilon" if controls else "main_ocreq.epsilon")).read_bytes()
     stdin = b"" if controls else ocreq_request((gate / "program.omg").read_bytes(), b"program.omg")
@@ -153,7 +153,7 @@ def omega_customer(work, timeout, controls=False, *, observe=None):
 
 def omega_values_customer(work, timeout):
     """Execute the source-owned parameter/local/call checks and their tapes."""
-    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     entry = (ROOT / "tests/bootstrap/conformance/omega/controls_values.epsilon").read_bytes()
     source = closure + entry
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, b"")
@@ -184,7 +184,7 @@ def omega_values_customer(work, timeout):
 
 def omega_control_customer(work, timeout):
     """Compile the repository lexer predicates and execute scalar controls."""
-    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
     frontend = ROOT / "source/subsystems/compiler/source_to_psi"
     stage = frontend / "pipeline/source_files_to_tokens"
@@ -231,7 +231,7 @@ def omega_control_customer(work, timeout):
 
 def omega_storage_customer(work, timeout):
     """Compile exact SourceUnit declarations and execute generic storage checks."""
-    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
     unit = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
     declarations = []
@@ -272,7 +272,7 @@ def omega_storage_customer(work, timeout):
 
 def omega_utf8_customer(work, timeout, batch=None):
     """Compile the real UTF-8 decoder and execute arithmetic/trap boundaries."""
-    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    closure = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/conformance/omega"
     unit = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
     lexer = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/lexer.omg").read_bytes()

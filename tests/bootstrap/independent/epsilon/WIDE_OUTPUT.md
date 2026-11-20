@@ -26,7 +26,7 @@ The published Delta producer returned status 2 at the source envelope. The reade
 | Published 4 MiB source envelope | 4 | 1 | 12 | 4,194,304 | 29,616,382 |
 | 64 MiB source envelope | 1 | 7 | 5,214,811 | 114,294,752 | 114,294,800 |
 
-The complete program has 7,501 top-level forms, 871,252 lists and 1,860,002 atoms. Delta's parser charges eight pairs per list, five per atom, one for the program root and 40 bytes per pair. A full parse would charge 650,801,080 bytes before grammar work. [Syntax storage contract](../../../../bootstrap/interpreted/3_delta/LANGUAGE.md) and [boundary test](../../../../_recycling/tests/delta/resource-boundary/syntax_storage.py).
+The complete program has 7,501 top-level forms, 871,252 lists and 1,860,002 atoms. Delta's parser charges eight pairs per list, five per atom, one for the program root and 40 bytes per pair. A full parse would charge 650,801,080 bytes before grammar work. [Syntax storage contract](../../../../bootstrap/delta/LANGUAGE.md) and [boundary test](../../../../_recycling/tests/delta/resource-boundary/syntax_storage.py).
 
 ## What changes at the two boundaries
 
@@ -59,14 +59,14 @@ The direct publisher’s generated compiler is 984,196 bytes of Gamma, SHA-256 9
 Use Python 3.11 or newer on Linux x86-64. Keep the benchmark checkout, compiler checkout and frozen Omega sources separate. The selected source snapshots contain the seed, compiler members and test routes.
 
 ```sh
-bench=$PWD/tests/epsilon/compiled-native/wide_output.py
+bench=$PWD/tests/bootstrap/independent/epsilon/wide_output.py
 scratch=$(mktemp -d)
 mkdir "$scratch/peer" "$scratch/customer"
 git archive ab9a33cc15b11f6adc06ae411bdc653e1123aa4b | tar -x -C "$scratch/peer"
 git archive b95769558667b7a88654cb42d6673d08811ca4c4 bootstrap/interpreted | tar -x -C "$scratch/customer"
 (cd "$scratch/peer" && cargo build -p xtask --target-dir target)
 export OMEGA_XTASK_BIN="$scratch/peer/target/debug/xtask"
-(cd "$scratch/peer" && python3 tests/bootstrap/independent/successor_test.py --compile-epsilon --seconds 3600)
+(cd "$scratch/peer" && python3 bootstrap/independent/successor_test.py --compile-epsilon --seconds 3600)
 python3 "$bench" "$scratch/peer" "$scratch/profiles" --calibrate
 python3 "$bench" "$scratch/peer" "$scratch/traversal" --traverse --calibrate
 source_root="$scratch/customer/bootstrap/interpreted"

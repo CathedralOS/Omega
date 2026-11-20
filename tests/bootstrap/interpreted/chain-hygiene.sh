@@ -78,58 +78,62 @@ expect_result() {
 mkdir -p "$FIXTURE_ROOT/source/retired/empty" \
   "$FIXTURE_ROOT/bootstrap/retired/empty"
 expect_result accepted 'archive with empty owner directories'
-for tree in source
-do
-  touch "$FIXTURE_ROOT/$tree/retired/unexpected.source"
-  expect_result rejected "archive with alternate $tree owner"
-  rm "$FIXTURE_ROOT/$tree/retired/unexpected.source"
-done
+touch "$FIXTURE_ROOT/source/retired/unexpected.source"
+expect_result rejected 'archive with alternate source owner'
+rm "$FIXTURE_ROOT/source/retired/unexpected.source"
 
-# A peer variant owns a separate source inventory and may declare a different
-# seed. Its manifest is not an input of the interpreted construction.
-mkdir -p "$FIXTURE_ROOT/bootstrap/peer"
-printf 'member 1 0 ignored omega-rust/peer.seed\n' > "$FIXTURE_ROOT/bootstrap/peer/compiler.sources"
+touch "$FIXTURE_ROOT/bootstrap/retired/unexpected.source"
+expect_result rejected 'archive with a route as a source owner' 'unexpected bootstrap owners'
+rm "$FIXTURE_ROOT/bootstrap/retired/unexpected.source"
+# New implementations belong to the language they execute. Their private
+# manifests enter an omission audit when a route declares those inputs.
+mkdir -p "$FIXTURE_ROOT/bootstrap/delta/peer"
+printf 'member 1 0 ignored omega-rust/peer.seed\n' > "$FIXTURE_ROOT/bootstrap/delta/peer/compiler.sources"
 expect_result accepted 'archive with independent bootstrap peer'
 
 for script in check.py run.sh
 do
-  touch "$FIXTURE_ROOT/bootstrap/peer/$script"
+  touch "$FIXTURE_ROOT/bootstrap/delta/peer/$script"
   expect_result rejected "host script in a bootstrap peer" 'host scripts belong outside bootstrap/'
-  rm "$FIXTURE_ROOT/bootstrap/peer/$script"
+  rm "$FIXTURE_ROOT/bootstrap/delta/peer/$script"
 done
 
-for rung in 0_alpha 1_beta 2_gamma
+for rung in alpha beta
 do
-  mkdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/nested"
+  mkdir "$FIXTURE_ROOT/bootstrap/$rung/nested"
   expect_result rejected "nested directory in $rung" 'flat rung contains subdirectories'
-  rmdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/nested"
+  rmdir "$FIXTURE_ROOT/bootstrap/$rung/nested"
 done
-for rung in 3_delta 4_epsilon 5_omega
-do
-  mkdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/compiler"
-  expect_result rejected "redundant compiler directory in $rung" 'redundant compiler directory remains'
-  rmdir "$FIXTURE_ROOT/bootstrap/interpreted/$rung/compiler"
-done
-
 git -C "$FIXTURE_ROOT" init -q
 git -C "$FIXTURE_ROOT" add .
 expect_result accepted 'checkout with empty owner directories'
 touch "$FIXTURE_ROOT/source/retired/.DS_Store" \
   "$FIXTURE_ROOT/bootstrap/retired/.DS_Store"
 expect_result accepted 'checkout with ignored local artifacts'
-printf 'peer source\n' > "$FIXTURE_ROOT/bootstrap/peer/new.source"
+printf 'peer source\n' > "$FIXTURE_ROOT/bootstrap/delta/peer/new.source"
 expect_result accepted 'untracked independent bootstrap peer member'
-git -C "$FIXTURE_ROOT" add bootstrap/peer/new.source
+git -C "$FIXTURE_ROOT" add bootstrap/delta/peer/new.source
 expect_result accepted 'staged independent bootstrap peer member'
-for tree in source
+for tree in source bootstrap
 do
+  case "$tree" in
+    source) owner_error='unexpected product source owners' ;;
+    bootstrap) owner_error='unexpected bootstrap owners' ;;
+  esac
   touch "$FIXTURE_ROOT/$tree/retired/unexpected.source"
-  expect_result rejected "untracked alternate $tree owner"
+  expect_result rejected "untracked alternate $tree owner" "$owner_error"
   git -C "$FIXTURE_ROOT" add "$tree/retired/unexpected.source"
-  expect_result rejected "staged alternate $tree owner"
-  git -C "$FIXTURE_ROOT" rm -q --cached "$tree/retired/unexpected.source"
+  expect_result rejected "staged alternate $tree owner" "$owner_error"
   rm "$FIXTURE_ROOT/$tree/retired/unexpected.source"
+  expect_result accepted "working copy after removal of alternate $tree owner"
+  git -C "$FIXTURE_ROOT" rm -q --cached "$tree/retired/unexpected.source"
 done
+
+# The offline launcher consumes the same Delta compiler as the packed closure.
+printf 'x' >> "$FIXTURE_ROOT/bootstrap/delta/to-gamma/distribution.gamma"
+expect_result rejected 'changed offline Delta distribution' 'Delta compiler distribution'
+git -C "$FIXTURE_ROOT" checkout -- bootstrap/delta/to-gamma/distribution.gamma
+
 # Gate-local prefix entries are bound subjects: corrupting one must fail the
 # chain gate even though every canonical compiler closure stays byte-exact.
 printf 'x' >> "$FIXTURE_ROOT/tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma"
@@ -157,7 +161,7 @@ printf 'cargo build --release\n' > "$FIXTURE_ROOT/tools/bootstrap/omega/forged_e
 expect_result rejected 'bootstrap step invoking the Rust toolchain' \
   'produced closure carries the Rust producer'
 rm "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
-cp "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources" \
+cp "$FIXTURE_ROOT/bootstrap/omega/compiler/omega_compiler.epsilon.sources" \
   "$FIXTURE_PARENT/omega_compiler.epsilon.sources"
 for producer in source-rust omega-rust-v2 omega-rust
 do
@@ -167,11 +171,11 @@ do
   rm "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
 
   printf 'member 0000000000000000000000000000000000000000000000000000000000000009 1 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 %s/forged.epsilon\n' "$producer" \
-    >> "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
+    >> "$FIXTURE_ROOT/bootstrap/omega/compiler/omega_compiler.epsilon.sources"
   expect_result rejected "manifest member inside $producer/" \
     "producer-artifact: member is inside $producer/: $producer/forged.epsilon"
   cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
-    "$FIXTURE_ROOT/bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources"
+    "$FIXTURE_ROOT/bootstrap/omega/compiler/omega_compiler.epsilon.sources"
 done
 expect_result accepted 'restored manifests omit the Rust producer again'
 
