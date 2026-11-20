@@ -128,11 +128,11 @@ ran on the audited seed and exited 42 with empty output.
 
 ### Sharing Alpha pair allocation
 
-The Alpha backend emits the 117-byte allocation body once, followed by a
-one-byte return. Each `pair` site now calls the body for nine bytes. It
-still pops the right operand, pops the left operand and pushes the result
-at the call site, so the allocation and stack helpers each use one return
-address. A tape with `N` pair expressions changes by `118 - 108 × N` bytes.
+At #4577 the Alpha backend emitted the 117-byte allocation body once,
+followed by a one-byte return. Each `pair` site called the body for nine
+bytes. It popped the right operand, popped the left operand and pushed the
+result at the call site, so the allocation and stack helpers each used one
+return address. A tape with `N` pair expressions changed by `118 - 108 × N` bytes.
 
 | Gamma program | Pair sites | Old tape bytes | New tape bytes |
 | --- | ---: | ---: | ---: |
@@ -158,6 +158,59 @@ passed 34 Gamma observations and rejected 16 invalid programs. Pair
 allocation at the last admitted call frame succeeded. One additional
 frame returned 250 and discarded the buffered output. The Epsilon
 evaluator matched seven wire observations, including stdin and guest traps.
+
+### Pair projections and frame slots on Alpha
+
+On the linked public Omega lexer from #4558, sharing all three pair
+operations and the frame-slot loads and stores reduced the tape again.
+
+| Alpha backend on the same 1,575,418-byte Gamma source | Published tape bytes |
+| --- | ---: |
+| Shared pair allocation (#4577) | 5,970,717 |
+| Single call for `pair`, `first` and `second` | 4,650,419 |
+| Also share tagged frame-slot loads and stores | **3,718,385** |
+
+Each tape ran all 23 lexer cases and returned the same 465 bytes on the
+audited seed. The final tape's SHA-256 is
+`536bf79af57a78bb2cf5872a987e5d08a50a0f1694ac3085d74136681b811ea6`.
+The pair helpers pop their operands, allocate or check the pair, then jump
+to the existing stack push. Its return goes straight to the caller.
+The frame-slot helpers take a full byte offset in register 10. They read
+or write both the value and its tag. Emitting the shared routines grows
+the scalar-only `(def main () Int 0)` tape from 868 to 1,129 bytes. [Alpha assembler](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma)
+
+For the frozen 27,177,694-byte constructor above, the calculated layout
+falls from 98,931,997 to 74,702,984 bytes with the pair changes, then to
+**60,276,870 bytes** with the frame-slot changes. Sharing more helpers can
+reduce that further. Even if every literal, pair operation and local slot
+read or binding used just one nine-byte Alpha call, those 1,904,960 sites
+alone would occupy 17,144,640 bytes. Fitting the 16,777,212-byte seed
+would require some of those source operations to take fewer bytes or to
+share a single call across multiple operations.
+
+Starting from Alpha and Beta with an empty PATH produced three identical
+178,112-byte Gamma compiler tapes (SHA-256
+`4f56a6e5b1004595c91dc89120c3d5f266d679168e0ed169ee42b4f46252e1a2`).
+A Linux-hosted compiler reproduced the same bytes. The new compiler ran
+both projections at the last admitted Gamma frame and preserved tagged
+local reads after a tail call with 258 arguments.
+
+The Alpha-hosted Epsilon evaluator also ran the 58,917-byte Epsilon-written
+Omega lexer from the #4558 measurement directly. Rebuilding each evaluator
+tape and interpreting the 148-byte batch were timed separately. Both used
+the same 726,582-byte evaluator Gamma source and the same fixed seed.
+
+| Alpha backend | Evaluator tape bytes | Emit CPU seconds | Emit peak KiB | Run lexer CPU seconds | Run lexer peak KiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Shared allocation (#4577) | 3,529,792 | 10.63 | 236,540 | 31.91 | 52,796 |
+| Shared pair operations and frame slots | 2,267,080 | 8.70 | 192,528 | 17.41 | 52,028 |
+
+The same evaluator also interpreted the live 58,127-byte lexer from
+`0a0b233a152` in 21.05 CPU seconds (52,220 KiB peak RSS). All 23 cases
+matched, including distinct refusal coordinates for malformed escapes.
+The 465-byte result had SHA-256
+`7d7a561d217ec1ce599a203fb8290b907c2582883c98dc71541c5bd0633f31aa`.
+[Lexer source and cases](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
 
 ### Compare a production request operation across evaluator hosts
 

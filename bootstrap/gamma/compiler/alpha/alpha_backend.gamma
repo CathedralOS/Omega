@@ -33,16 +33,29 @@
 (def i_call ((s Int) (label Int)) Int (i_address (i_field s 1 19) label))
 (def i_ret ((s Int)) Int (i_field s 1 20))
 
-; Label 17 allocates a tagged pair from registers 0..3. Keep both pops
-; and the final push at the call site so the helpers use one return address.
-(def i_stack_runtime ((s Int)) Int
-  (i_ret (e_pair (s_mark (e_stack_helpers s) 17))))
+; Pair operations pop tagged operands, check or allocate the pair, then
+; jump to the stack push. The push returns directly to the caller, so even
+; at the last admitted Gamma frame the operation needs one return address.
+(def alpha_project ((s Int) (kind Int) (label Int)) Int
+  (i_jmp (e_project (e_pop_body (s_mark s label) 0) kind) 14))
+(def alpha_pair_runtime ((s Int)) Int
+  (let ((right Int (e_pop_body (s_mark (e_stack_helpers s) 17) 2))
+        (both Int (e_pop_body right 0))
+        (allocated Int (i_jmp (e_pair both) 14))
+        (left Int (alpha_project allocated 17 18)))
+    (alpha_project left 18 19)))
 (def e_primitive ((s Int) (kind Int)) Int
-  (if (eq kind 14)
-    (e_push (i_call (e_pop (e_pop s 2) 0) 17))
-    (e_primitive_body s kind)))
+  (if (eq kind 14) (i_call s 17)
+    (if (eq kind 17) (i_call s 18)
+      (if (eq kind 18) (i_call s 19) (e_primitive_body s kind)))))
+; Register 10 carries the frame offset into a single tagged load or store.
+(def i_stack_runtime ((s Int)) Int
+  (let ((load Int (s_mark (alpha_pair_runtime s) 20))
+        (loaded Int (i_ret (e_slot_at (i_add load 10 247) 0)))
+        (store Int (s_mark loaded 21)))
+    (i_ret (e_slot_at (i_add store 10 247) 1))))
 (def e_slot ((s Int) (offset Int) (store Int)) Int
-  (e_slot_at (e_add (i_mov s 10 247) 10 (* offset 16)) store))
+  (i_call (i_imm s 10 (* offset 16)) (if store 21 20)))
 (def e_move_args ((s Int) (words Int)) Int
   (if words (e_move_args (e_move_arg_word s) (- words 1)) s))
 
