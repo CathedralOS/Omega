@@ -104,9 +104,10 @@ Delta interpreter, SHA-256
 `e0aaa160cff057c524b2f313df24ad4ee9d091f3872ea594f6028e781fdbdc72`.
 Its input was the 629,618-byte, Delta-written Epsilon compiler, SHA-256
 `b98b87f006d493066639af46a78d93e13904c1e04cf6ed2df5415f772ed15196`,
-followed by the 339-byte Epsilon program. Each source had its own four-byte
-little-endian length prefix. The complete 730,619-byte input to the reference
-executable had SHA-256
+followed by the 339-byte Epsilon program. The outer four-byte little-endian
+length framed the Delta interpreter source. A second length framed the Epsilon
+compiler source. The remaining bytes were the Epsilon program. The complete
+730,619-byte input to the reference executable had SHA-256
 `a520d687477929cbcca10d453777dbd4cf4974f4c4961672354bb70756d0e8b7`.
 
 In 3,692.730 wall seconds the interpreter emitted the 3,247-byte module
