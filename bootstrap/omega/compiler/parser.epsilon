@@ -602,6 +602,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             129 -> domain_carrier_token()
             130 -> domain_name_token()
             131 -> domain_tail_token()
+            146 -> terminal_target_close()
             _ -> internal_failure()
         }
     }
@@ -1068,6 +1069,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             129 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainCarrier, source.len, source.len)
             130 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainName, source.len, source.len)
             131 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainEnd, source.len, source.len)
+            146 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionTargetClose, source.len, source.len)
             122 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedExpressionPathMember, source.len, source.len)
             _ -> internal_failure()
         }
@@ -5104,8 +5106,54 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state transition_target_token() {
         transition self.ordinary_name_token() {
             1 -> call_path_prefix(2)
+            _ -> transition_target_non_name()
+        }
+    }
+    state transition_target_non_name() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> transition_target_punctuation()
             _ -> result_operand(self.scan.token_start)
         }
+    }
+    state transition_target_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> begin_terminal_target()
+            OmegaPunctuationKind::RightBrace -> missing_transition_target()
+            OmegaPunctuationKind::Comma -> missing_transition_target()
+            _ -> result_operand(self.scan.token_start)
+        }
+    }
+    state missing_transition_target() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionTarget,
+            self.scan.token_start, self.scan.token_end) }
+    }
+    // Empty braces explicitly complete the arm with Unit. The next token
+    // after the opening brace must close the target.
+    state begin_terminal_target() {
+        self.transition_target_kind = OmegaTransitionTargetKind::Terminal;
+        self.transition_target_start = self.scan.token_start;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(146) }
+    }
+    state terminal_target_close() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> terminal_target_punctuation()
+            _ -> bad_terminal_target()
+        }
+    }
+    state terminal_target_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> finish_terminal_target()
+            _ -> bad_terminal_target()
+        }
+    }
+    state finish_terminal_target() {
+        self.transition_target_end = self.scan.token_end;
+        transition true { true -> retain_transition_statement(self.scan.next_cursor) }
+    }
+    state bad_terminal_target() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTransitionTargetClose,
+            self.scan.token_start, self.scan.token_end) }
     }
 
     state retain_transition_target_name() {
