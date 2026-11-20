@@ -435,7 +435,7 @@ def omega_utf8_customer(work, timeout, batch=None):
     (work / "utf8-program.omg").write_bytes(program)
     # Fresh evaluator processes bound cumulative immutable allocation without
     # changing compiler inputs or the lifetime of any refusal/reset sequence.
-    # The final batch exercises the hex conversion used by the product lexer.
+    # Batch 13 exercises the hex conversion used by the product lexer.
     digits = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/digits.omg").read_bytes()
     start = digits.index(b"machine hex_digit_value(")
     end = digits.index(b"\n}", start) + 2
@@ -456,6 +456,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, 42, 42, 42, 42, 42, -4, 42, 42),
         (42, 42, 42, 42, 42),
         (42, -4, 42),
+        (42, 42, 42, 42, 42, 42),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
