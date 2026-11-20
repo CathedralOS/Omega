@@ -1,6 +1,8 @@
 
 data Token [linear] dropped by drop_token { value: u64; }
-machine drop_token(token: @mut Token) {}
+machine drop_token(token: Token) {
+    let { value } = move token;
+}
 data Choice { case Success(token: Token); case Failure(token: Token); }
 data Holder { marker: u64; choice: Choice; }
 

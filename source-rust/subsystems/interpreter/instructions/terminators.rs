@@ -183,6 +183,7 @@ pub(crate) mod block_bindings {
             execution: &TerminalExecution,
             structural_arguments: &[StructuralArgument],
             actions: &[terminal_psi::TerminalAffineCleanupAction],
+            structural_return: Option<(PlaceId, &[terminal_psi::StructuralResultClaimBinding])>,
         ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, TerminalInterpretError>
         {
             use terminal_psi::TerminalAffineCleanupAction;
@@ -249,26 +250,58 @@ pub(crate) mod block_bindings {
                         // The full call transaction runs after edge capture.
                         // Preflight removes only the caller's transferred
                         // custody; it never simulates the target's body.
-                        if !cleanup.claim_transfers.is_empty()
-                            || claims.values().any(|claim| {
-                                claim.place == Some(cleanup.subject.place)
-                                    && terminal_semantics::structural_paths_may_overlap(
-                                        &claim.path,
-                                        &cleanup.subject.path,
-                                    )
-                            })
-                        {
-                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                                "owned cleanup claim transfer needs its complete correspondence",
-                            ));
-                        }
-                        crate::engine::custody::consume_affine_projection(
-                            &execution.structural_types(),
-                            &values,
-                            execution.structural_cases.as_map(),
-                            &mut frontier,
+                        let types = execution.structural_types();
+                        let cases = execution.structural_cases.as_map();
+                        let held = crate::engine::custody::projected_ownership_claims(
+                            &claims,
                             &cleanup.subject,
                         )?;
+                        let mut active = Vec::new();
+                        for transfer in &cleanup.claim_transfers {
+                            if transfer.argument_index != 0 {
+                                return Err(TerminalInterpretError::ClaimTransferMismatch);
+                            }
+                            let mut path = cleanup.subject.path.clone();
+                            path.extend_from_slice(&transfer.path);
+                            if crate::boundary::structural_inputs::case_membership::case_projection_is_active(
+                                &types, &values, cases, place, &path,
+                            )? {
+                                active.push((transfer.claim, transfer.path.as_slice()));
+                            } else if claims.contains_key(&transfer.claim) {
+                                return Err(TerminalInterpretError::ClaimTransferMismatch);
+                            }
+                        }
+                        if active
+                            .into_iter()
+                            .ne(held.iter().map(|(id, claim)| (*id, claim.path.as_slice())))
+                        {
+                            return Err(TerminalInterpretError::ClaimTransferMismatch);
+                        }
+                        if held.is_empty() {
+                            crate::engine::custody::consume_affine_projection(
+                                &types,
+                                &values,
+                                cases,
+                                &mut frontier,
+                                &cleanup.subject,
+                            )?;
+                        } else {
+                            let owned = crate::engine::custody::validate_complete_affine_frontier(
+                                &types,
+                                &values,
+                                cases,
+                                &frontier,
+                                claims.values(),
+                                &cleanup.subject,
+                                cleanup.structural_type,
+                            )?;
+                            for entry in owned {
+                                frontier.remove(&entry);
+                            }
+                            for (id, _) in held {
+                                claims.remove(&id);
+                            }
+                        }
                         if cleanup.subject.path.is_empty() {
                             values.remove(&cleanup.subject.place);
                         }
@@ -329,6 +362,28 @@ pub(crate) mod block_bindings {
                 .any(|identity| claims.contains_key(identity))
             {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+            if let Some((source, expected)) = structural_return {
+                let mut actual = Vec::new();
+                let mut unreturned = Vec::new();
+                for (id, claim) in claims {
+                    if claim.place == Some(source) {
+                        actual.push(terminal_psi::StructuralResultClaimBinding {
+                            claim: id,
+                            path: claim.path,
+                        });
+                    } else {
+                        unreturned.push(id);
+                    }
+                }
+                if actual != expected || !unreturned.is_empty() {
+                    return Err(TerminalInterpretError::StructuralReturnClaimsMismatch {
+                        source,
+                        expected: expected.to_vec(),
+                        actual,
+                        unreturned,
+                    });
+                }
             }
             Ok(selected)
         }
@@ -1975,7 +2030,6 @@ pub(crate) mod structural_return {
                     || signature.multiplicity != StructuralMultiplicity::Unrestricted
                     || !signature.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
-                    || !self.live_claims.is_empty()
                     || destination.as_ref().is_some_and(|result| {
                         !result.projected_qualifications.is_empty() || !result.claims.is_empty()
                     })
@@ -2064,33 +2118,6 @@ pub(crate) mod structural_return {
                     return Err(malformed());
                 }
                 self.validate_complete_owned_value_claims(*source, value.structural_type, &[])?;
-                let actual_claims = self
-                    .live_claims
-                    .iter()
-                    .filter(|(_, live)| live.place == Some(*source))
-                    .map(|(claim, live)| terminal_psi::StructuralResultClaimBinding {
-                        claim: *claim,
-                        path: live.path.clone(),
-                    })
-                    .collect::<Vec<_>>();
-                let unreturned = self
-                    .live_claims
-                    .keys()
-                    .filter(|claim| {
-                        !active_returned_claims
-                            .iter()
-                            .any(|binding| binding.claim == **claim)
-                    })
-                    .copied()
-                    .collect::<Vec<_>>();
-                if actual_claims != active_returned_claims || !unreturned.is_empty() {
-                    return Err(TerminalInterpretError::StructuralReturnClaimsMismatch {
-                        source: *source,
-                        expected: active_returned_claims,
-                        actual: actual_claims,
-                        unreturned,
-                    });
-                }
                 let borrowed_descriptor = signature.multiplicity == StructuralMultiplicity::Affine
                     && signature.qualifications.is_empty()
                     && terminal_semantics::view_descriptor_projected_qualifications(
@@ -2305,8 +2332,12 @@ pub(crate) mod structural_return {
                 }
             };
             completed.destination = destination;
-            let cleanup_actions = block_bindings::BlockBindings::default()
-                .prepare_cleanup_actions(self, &[], cleanup_actions)?;
+            let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
+                self,
+                &[],
+                cleanup_actions,
+                Some((*source, &active_returned_claims)),
+            )?;
             if let Err(error) = meter.charge_terminator(terminator) {
                 return meter_status(error).map(TerminatorFlow::Yield);
             }
@@ -2551,7 +2582,7 @@ impl TerminalExecution<'_> {
                 error.in_argument_preparation("state arrival storage and memberships")
             })?;
         let cleanup_actions =
-            bindings.prepare_cleanup_actions(self, structural_arguments, cleanup_actions)?;
+            bindings.prepare_cleanup_actions(self, structural_arguments, cleanup_actions, None)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -2713,6 +2744,7 @@ impl TerminalExecution<'_> {
             self,
             &[],
             cleanup_actions,
+            None,
         )?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
@@ -2746,6 +2778,7 @@ impl TerminalExecution<'_> {
             self,
             &[],
             cleanup_actions,
+            None,
         )?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);

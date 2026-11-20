@@ -235,6 +235,51 @@ impl Terminator {
         )
     }
 
+    pub fn cleanup_rosters_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (EdgeId, &mut Vec<TerminalAffineCleanupAction>)> {
+        let (first, second, cases): (_, _, &mut [StructuralCaseSuccessorEdge]) = match self {
+            Self::Jump {
+                edge,
+                cleanup_actions,
+                ..
+            }
+            | Self::Return {
+                edge,
+                cleanup_actions,
+                ..
+            }
+            | Self::ReturnUnit {
+                edge,
+                cleanup_actions,
+            }
+            | Self::ReturnStructural {
+                edge,
+                cleanup_actions,
+                ..
+            } => (Some((*edge, cleanup_actions)), None, &mut []),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => (
+                Some((when_true.edge, &mut when_true.cleanup_actions)),
+                Some((when_false.edge, &mut when_false.cleanup_actions)),
+                &mut [],
+            ),
+            Self::StructuralCase { cases, .. } => (None, None, cases),
+            Self::Crash { .. }
+            | Self::EliminateEmpty { .. }
+            | Self::ExternalCompletion { .. }
+            | Self::InvokeNoNormal { .. } => (None, None, &mut []),
+        };
+        first.into_iter().chain(second).chain(
+            cases
+                .iter_mut()
+                .map(|case| (case.edge, &mut case.cleanup_actions)),
+        )
+    }
+
     pub const fn edge(&self) -> EdgeId {
         match self {
             Self::InvokeNoNormal { edge, .. }
