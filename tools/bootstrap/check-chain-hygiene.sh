@@ -145,11 +145,12 @@ do
 done
 
 tracked_source_roots=$(owner_roots source)
-expected_source_roots='library
-omega
-psi'
+expected_source_roots='application
+foundation
+library
+subsystems'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
-  fail "tracked final-source owners differ from library, Psi, and Omega"
+  fail "unexpected product source owners: $tracked_source_roots"
 
 # Numbered owners belong to the interpreted variant. Other bootstrap roots
 # are independent peers and establish their own inventories and trust boundary.

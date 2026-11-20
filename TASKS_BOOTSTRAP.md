@@ -105,7 +105,7 @@ product. Listing them gives that variant no priority over the other routes.
   [bootstrap contract](bootstrap/CONTRACT.md#selected-execution-chain).
 
 - **OMEGA-C.** Once the product source and bootstrap compiler are ready, compile
-  the exact Omega-written sources rooted at `source/omega/{build.omg,main.omg}`
+  the exact Omega-written sources rooted at `source/application/construction/{build.omg,main.omg}`
   with D, then with `omega0`. This is the only self-hosting step.
   Acceptance: `D -> C/omega0 -> C/omega` is deterministic, `omega` recompiles
   C under the same source/target profile, and shared product suites pass.
