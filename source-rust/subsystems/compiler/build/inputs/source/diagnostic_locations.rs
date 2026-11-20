@@ -4,7 +4,7 @@ use diagnostics::Diagnostic;
 
 pub fn attribute_diagnostics(
     diagnostics: &mut [Diagnostic],
-    sources: &source_compiler::source_inputs::SourceMap,
+    sources: &source_compiler::representations::source_inputs::SourceMap,
     package_inputs: Option<&PackageCompilationInputs>,
 ) {
     for diagnostic in diagnostics {

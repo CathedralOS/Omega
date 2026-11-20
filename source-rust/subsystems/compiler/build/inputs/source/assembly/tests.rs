@@ -38,7 +38,7 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
         );
         file.source_id
     };
-    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+    let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
     let mut timings = CompileTimings::default();
     let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
         &root,
@@ -104,7 +104,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     // provider, invocation verdict or host activation ticket.
     let root = fixture_repository::root()
         .join("tests/fixtures/generics/run/implementation_parameter_contract/build.omg");
-    let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
+    let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
     let mut timings = CompileTimings::default();
     let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
         &root,
@@ -118,17 +118,17 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
         .assemble(None, &mut timings, &mut catalogue)
         .expect("the ordinary Build source and real toolchain prelude");
     let sources = Arc::clone(&assembled.parsed.files);
-    let (prepared, _) = assembled
+    let interval = assembled
         .build_stage_source()
         .unwrap()
         .prepare(None, &[], &Default::default(), "linux_x86_64", None)
         .expect("exact declared requirement calls reach typed preparation");
-    let typed = prepared.typed();
+    let typed = interval.program.as_ref();
     let unresolved: Vec<_> = typed
         .deferred_refusals
         .iter()
         .filter(|row| {
-            row.request == source_compiler::source_state::deferred_refusals::DeferredRequest::UnresolvedCallTarget
+            row.request == source_compiler::representations::source_state::deferred_refusals::DeferredRequest::UnresolvedCallTarget
                 && sources.file_at(row.source_span).is_some_and(|file| {
                     file.path == root || (file.origin == SourceOrigin::Toolchain
                         && source_admission::source_identity::is_build_prelude_path(&file.path))
@@ -149,7 +149,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     );
     let mut occurrences = Vec::new();
     for (_, expression) in typed.expression_table.expression_entries() {
-        let source_compiler::source_state::expression::ExpressionNode::Call(call) = expression
+        let source_compiler::representations::source_state::expression::ExpressionNode::Call(call) = expression
         else {
             continue;
         };
@@ -160,7 +160,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
             .expression_table
             .build_selection_request(call.build_selection)
             .expect("a captured Build call keeps its real selection request");
-        let source_compiler::declaration_selection::BuildSelectionRequest::Entry(binding) = request
+        let source_compiler::representations::declaration_selection::BuildSelectionRequest::Entry(binding) = request
         else {
             continue;
         };

@@ -21,7 +21,9 @@ use package_compilation::build_execution::{
     BuildFilesystemRuntime, BuildMachineFilesystemScope,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_compiler::{TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation as Operation};
+use source_compiler::publication::{
+    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation as Operation,
+};
 use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalByteSequenceValue, TerminalEffect, TerminalEffectHandler,
@@ -49,7 +51,7 @@ struct FilesystemActivation {
 }
 
 /// The filesystem runtime of a returned stage, handed to the host of the
-/// next stage of the same activation (`source-to-psi/build_invocation/stages`): what the
+/// next stage of the same activation (`source-to-psi/driver/compile_build/waits`): what the
 /// Build has read, staged and completed so far. Its markers name types of
 /// the earlier stage's module, so no later value equals one.
 pub(crate) struct CarriedFilesystem(FilesystemActivation);
@@ -71,7 +73,7 @@ pub(crate) struct TerminalBuildFilesystemHost {
 
 impl TerminalBuildFilesystemHost {
     pub(crate) fn new(
-        produced: &source_compiler::ProducedTerminalProgram,
+        produced: &source_compiler::publication::ProducedTerminalProgram,
         original: &TerminalStructuralValue,
         original_output: &TerminalStructuralValue,
         account: &EvaluationInvocationAccount,

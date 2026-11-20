@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [lib]
-path = "planning/mod.rs"
+path = "project_build.rs"
 
 [dependencies]
 retained-image-runtime = { path = "../../interpreter/host/retained-image" }

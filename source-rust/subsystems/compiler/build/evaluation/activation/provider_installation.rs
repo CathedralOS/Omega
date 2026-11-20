@@ -19,9 +19,9 @@ use psi_provider_selections::ProviderInstallationSelection;
 use psi_target_layouts::{
     AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
 };
-use source_compiler::ProducedBuildProvider;
+use source_compiler::publication::ProducedBuildProvider;
 use build_scalar_evaluation::{ScalarScopeEvaluation, prepare_scalar_applications};
-use source_compiler::compile_time::SourceCompletionAccounting;
+use source_compiler::compile_time_invocations::SourceCompletionAccounting;
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};

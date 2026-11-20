@@ -24,13 +24,13 @@ refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
     constants: &BuildConstants,
-    rejoined: &source_compiler::source_state::TypedTrees,
+    rejoined: &source_compiler::representations::source_state::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     subject_validation: BuildSubjectValidation,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<source_compiler::compile_time::SourceCompletionAccounting, CompileFailure> {
+) -> Result<source_compiler::compile_time_invocations::SourceCompletionAccounting, CompileFailure> {
     if constants.folded_under_providers {
         return Err(vec![Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
@@ -66,7 +66,7 @@ pub fn settle_rejoined_build_slice(
 fn compare_rejoined_constants(
     original: &BuildConstants,
     current: &BuildConstants,
-    typed: &source_compiler::source_state::TypedTrees,
+    typed: &source_compiler::representations::source_state::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     // Index only this constant family. The source anchor still authenticates
     // bytes, owner, purpose and declaration kind inside the matching range.
@@ -86,7 +86,7 @@ fn compare_rejoined_constants(
         .collect::<Vec<_>>();
     family
         .sort_unstable_by_key(|row| (row.0, row.1, row.2, row.3.arena_index(), row.3.generation()));
-    let resolve = |reads: &[source_compiler::ConstantRead]| {
+    let resolve = |reads: &[source_compiler::publication::ConstantRead]| {
         let mut values = Vec::with_capacity(reads.len());
         for read in reads {
             let declaration = read.declaration.as_ref().ok_or_else(|| {
@@ -99,7 +99,7 @@ fn compare_rejoined_constants(
             let key = (declaration.source().path.as_path(), span.start, span.end);
             let start = family.partition_point(|row| (row.0, row.1, row.2) < key);
             let end = family.partition_point(|row| (row.0, row.1, row.2) <= key);
-            let symbol = source_compiler::source_symbols::rejoin_declaration(
+            let symbol = source_compiler::representations::source_symbols::rejoin_declaration(
                 declaration,
                 &typed.symbols,
                 family[start..end].iter().map(|row| row.3),
@@ -133,7 +133,7 @@ fn compare_rejoined_constants(
 }
 
 pub(crate) fn prepare_admitted_build(
-    typed: &source_compiler::source_state::TypedTrees,
+    typed: &source_compiler::representations::source_state::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
@@ -144,7 +144,7 @@ pub(crate) fn prepare_admitted_build(
         source_compiler::CheckedBuildInvocation,
         super::provider_execution::BuildProviderPlans,
         BuildConstants,
-        source_compiler::compile_time::SourceCompletionAccounting,
+        source_compiler::compile_time_invocations::SourceCompletionAccounting,
     ),
     CompileFailure,
 > {
@@ -183,7 +183,7 @@ mod tests {
     use build_evaluation_result::{BuildConstants, BuildSubjectValidation};
 
     fn settle(constants: &BuildConstants) -> Result<(), Vec<String>> {
-        let typed = source_compiler::source_state::TypedTrees::default();
+        let typed = source_compiler::representations::source_state::TypedTrees::default();
         settle_rejoined_build_slice(
             constants,
             &typed,
@@ -210,8 +210,8 @@ mod tests {
         assert_eq!(settle(&BuildConstants::default()), Ok(()));
     }
 
-    fn read(name: &str, value: Option<&str>) -> source_compiler::ConstantRead {
-        source_compiler::ConstantRead {
+    fn read(name: &str, value: Option<&str>) -> source_compiler::publication::ConstantRead {
+        source_compiler::publication::ConstantRead {
             name: name.to_owned(),
             declaration: None,
             value: value.map(|value| value.to_owned().into()),
@@ -255,8 +255,8 @@ mod tests {
         assert!(refusals[0].contains("folded a constant under its provider plans"));
     }
 
-    fn source(text: &str) -> source_compiler::source_state::TypedTrees {
-        let mut sources = source_compiler::source_inputs::SourceMap::default();
+    fn source(text: &str) -> source_compiler::representations::source_state::TypedTrees {
+        let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 "/unit/build.omg".into(),
@@ -273,21 +273,21 @@ mod tests {
             .tokenize()
             .unwrap();
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
+        let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(sources);
-        let resolved = source_compiler::resolution::resolve(request).unwrap();
-        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
+        let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+        source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap()
     }
 
     fn prepare(
-        typed: source_compiler::source_state::TypedTrees,
-    ) -> Result<source_compiler::FrozenSource, source_compiler::SourcePreparationFailure> {
+        typed: source_compiler::representations::source_state::TypedTrees,
+    ) -> Result<source_compiler::test_support::FrozenSource, source_compiler::SourcePreparationFailure> {
         let entry = typed.realized_machine_named("build").unwrap().symbol;
-        source_compiler::prepare_source_for_test(source_compiler::SourcePreparationRequest {
+        source_compiler::test_support::prepare_source_for_test(source_compiler::test_support::SourcePreparationRequest {
             program: typed,
             accounting: Default::default(),
             admission: Default::default(),
-            compilation: source_compiler::TerminalSourceCompilation {
+            compilation: source_compiler::test_support::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],

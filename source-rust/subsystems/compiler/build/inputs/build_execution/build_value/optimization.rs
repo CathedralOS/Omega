@@ -12,7 +12,7 @@ mod vocabulary;
 use diagnostics::Diagnostic;
 use optimization_selections::OptimizationSelections;
 use build_time_values::BuildTimeValue;
-use source_compiler::source_state::TypedTrees;
+use source_compiler::representations::source_state::TypedTrees;
 
 use vocabulary::OptimizationBuildVocabulary;
 

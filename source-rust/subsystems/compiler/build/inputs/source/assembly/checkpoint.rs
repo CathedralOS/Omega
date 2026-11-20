@@ -37,9 +37,9 @@ impl DeferredProductSources {
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
-        bindings: &[source_compiler::declaration_selection::ProductEntryBinding],
+        bindings: &[source_compiler::representations::declaration_selection::ProductEntryBinding],
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let mut checkpoint = self.checkpoint;
         checkpoint.join_product_inputs(package_inputs, timings, catalogue)?;
@@ -88,9 +88,9 @@ impl DeferredProductSources {
 fn seed_described_entries(
     imports: &mut ImportQueue,
     packages: &PackageCompilationInputs,
-    bindings: &[source_compiler::declaration_selection::ProductEntryBinding],
+    bindings: &[source_compiler::representations::declaration_selection::ProductEntryBinding],
 ) {
-    use source_compiler::declaration_selection::RootBindingSelection;
+    use source_compiler::representations::declaration_selection::RootBindingSelection;
     let mut closure = None;
     for binding in bindings {
         let RootBindingSelection::Described(entry) = &binding.implementation else {
@@ -160,7 +160,7 @@ impl ImmutableSourceParseCheckpoint {
         &mut self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(inputs) = package_inputs.filter(|_| self.package_source_inputs.is_none()) else {
             return self.validate_child(package_inputs);
@@ -259,7 +259,7 @@ impl ImmutableSourceParseCheckpoint {
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
         source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
             .map(|sources| PackageCompilationInputs::from_parts(sources, Default::default()))
@@ -284,7 +284,7 @@ impl ImmutableSourceParseCheckpoint {
         package_inputs: Option<&PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
@@ -318,10 +318,10 @@ impl ImmutableSourceParseCheckpoint {
 
     pub(super) fn rejoin_sources(
         &mut self,
-        current: &source_compiler::source_inputs::SourceMap,
+        current: &source_compiler::representations::source_inputs::SourceMap,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(), Vec<Diagnostic>> {
         let previous = &self.source_storage.sources;
         let selected = previous

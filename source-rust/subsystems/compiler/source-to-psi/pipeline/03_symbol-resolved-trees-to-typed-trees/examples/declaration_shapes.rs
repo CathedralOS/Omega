@@ -1,8 +1,8 @@
 //! Inspect actual typed payload sizes before selecting lookup benchmark shapes.
 //! Takes standalone source paths; imports still need their ordinary resolver input.
 
-use source_compiler::source_state::expression::ExpressionNode;
-use source_compiler::source_state::statement::StatementNode;
+use source_compiler::representations::source_state::expression::ExpressionNode;
+use source_compiler::representations::source_state::statement::StatementNode;
 use std::sync::Arc;
 
 fn summarize(path: &str) {
@@ -55,16 +55,16 @@ fn main() {
     }
     for path in arguments {
         let text = std::fs::read_to_string(&path).unwrap();
-        let mut sources = source_compiler::source_inputs::SourceMap::default();
+        let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
         let id = sources.add(path.clone().into(), text.clone()).source_id;
         let tokens = crate::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .unwrap();
         let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
+        let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
-        let resolved = source_compiler::resolution::resolve(request).unwrap();
-        let typed = source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+        let typed = source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
         println!("source={path}");
         for machine in typed.machines() {
             for state in typed.machine_states(machine) {

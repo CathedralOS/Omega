@@ -10,6 +10,7 @@ pub(crate) mod declaration_reflection;
 pub mod declarations;
 pub(crate) mod numeric_declarations;
 pub(crate) mod operator_declarations;
-pub(crate) mod product_and_trait_declarations;
+pub mod product_operand;
+pub mod trait_definition;
 pub mod source_subjects;
 pub(crate) mod build_selections;

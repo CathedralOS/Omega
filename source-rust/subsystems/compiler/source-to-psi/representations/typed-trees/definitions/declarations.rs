@@ -2720,7 +2720,7 @@ pub mod numeric_intrinsics {
     }
 }
 pub use crate::source_state::operator_declarations::operator;
-pub use crate::source_state::product_and_trait_declarations::{product_operand, trait_definition};
+pub use crate::definitions::{product_operand, trait_definition};
 pub mod visibility {
     use symbols::{SymbolHandle, SymbolKind};
 

@@ -245,7 +245,7 @@ impl Program<'_> {
         for supply in supplies {
             // The slot is a nominal trait, supplied whole, or one
             // exact requirement. Ordinary traits grant no boundary capability.
-            let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
+            let owner = match typed.trait_definition_by_symbol(supply.slot) {
                 Some(owner) => {
                     // This supply names the declaration without arguments.
                     if !owner.lifetime_parameters.is_empty()
@@ -292,19 +292,10 @@ impl Program<'_> {
                             })?;
                         self.require_boundary_parent_contract(entry, &receiving)?;
                     }
-                    (
-                        owner,
-                        typed
-                            .trait_machine_signatures(owner)
-                            .iter()
-                            .map(|requirement| requirement.symbol)
-                            .collect::<Vec<_>>(),
-                    )
+                    owner
                 }
                 None => match typed.trait_machine_signature(supply.slot) {
-                    Some((owner, requirement)) if requirement.symbol == supply.slot => {
-                        (owner, vec![supply.slot])
-                    }
+                    Some((owner, requirement)) if requirement.symbol == supply.slot => owner,
                     _ => {
                         return unserved(
                             "provider supply of a slot that is not a trait or one of its requirements",
@@ -312,7 +303,7 @@ impl Program<'_> {
                     }
                 },
             };
-            for requirement in requirements {
+            for requirement in supply.requirements(typed) {
                 let machine = match supply.realization(typed, requirement) {
                     Ok(machine) => machine,
                     Err(reason) => return unserved(reason),

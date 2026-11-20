@@ -154,18 +154,6 @@
         "callable object publication"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
-      "item": "CallableTargetProduct::field:authority#1",
-      "kind": "carried_record",
-      "meaning": "The provider admission that authorizes this callable.",
-      "producer": "native callable planning",
-      "signature": "b561cca3acd4beb8b33bb255417becb9f155b52163ec00856e59178392880976"
-    },
-    {
-      "consumers": [
-        "private physical planning",
-        "callable object publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:code#1",
       "kind": "carried_record",
       "meaning": "The callable artifact code needed by independent object verification.",
@@ -195,18 +183,6 @@
       "meaning": "The counters for stages entered while compiling this callable.",
       "producer": "native callable planning",
       "signature": "fb1f66cedb8bb439fa1eeec804e7499ca0a76f75810b3031f3e7f048096764e2"
-    },
-    {
-      "consumers": [
-        "private physical planning",
-        "callable object publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
-      "item": "CallableTargetProduct::field:runtime#1",
-      "kind": "carried_record",
-      "meaning": "Host provisions and borrowed storage layouts for this callable.",
-      "producer": "native callable planning",
-      "signature": "5e869ef812f897f05501ef4de8eb1fbbb743b3f915056bf1691f82561dc10d5a"
     },
     {
       "consumers": [
@@ -528,9 +504,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "function:plan_callable#1",
       "kind": "producer",
-      "meaning": "Plan one admitted callable and retain its target body with its runtime provisions and entry authority.",
+      "meaning": "Check the admitted private callable’s runtime provisions and plan its target body with the original Psi code and boundary evidence.",
       "producer": "native program planning",
-      "signature": "26de5962e697640960da100a3da25d9548076bab59c53c945c5508bdf48c9185"
+      "signature": "b25b330820b73c46bbfa57c6b5a604141859b0649afd6f59816e95b947857fec"
     },
     {
       "consumers": [
@@ -650,9 +626,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:CallableTargetProduct#1",
       "kind": "definition",
-      "meaning": "The target body and provisions issued for one admitted callable.",
+      "meaning": "The planned private target body with the original Psi code, admitted boundary applications and stage observation used during physical planning and object emission.",
       "producer": "native callable planning",
-      "signature": "68bdcd77a573afdad16fef73c1f9f23a3591f57838c0a6401764d9b60cc1ab8e"
+      "signature": "d5c2b1130b29bdd3cdf927d69cfa6020cf9040eda0fa9eeb74a374d7dbc5e644"
     },
     {
       "consumers": [
@@ -879,7 +855,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -892,7 +868,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -929,7 +905,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -942,7 +918,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -967,7 +943,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -980,7 +956,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -993,7 +969,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1006,7 +982,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1019,7 +995,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1032,7 +1008,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1045,7 +1021,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1058,7 +1034,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1071,7 +1047,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1084,7 +1060,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1097,7 +1073,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1155,7 +1131,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1168,7 +1144,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1181,7 +1157,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1194,7 +1170,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1207,7 +1183,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1220,7 +1196,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1233,7 +1209,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1246,7 +1222,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1293,7 +1269,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1306,7 +1282,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1319,7 +1295,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1332,7 +1308,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1345,7 +1321,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1358,7 +1334,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1371,7 +1347,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1384,7 +1360,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1397,7 +1373,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1422,7 +1398,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1435,7 +1411,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1448,7 +1424,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1472,7 +1448,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1485,7 +1461,7 @@
     {
       "consumers": [
         "native root compiler",
-        "private callable and component export compilation",
+        "private callable compilation",
         "independent native correspondence tests"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
@@ -1839,20 +1815,7 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
-      "item": "CallableCustody::field:authority#1",
-      "kind": "carried_record",
-      "meaning": "The admitted native callable authority associated with its code and runtime provisions.",
-      "producer": "native callable compiler driver",
-      "signature": "3cb65e7a6725bf4445731835e018fa66302e17f70fb0c51e852b0d3a12c7de72"
-    },
-    {
-      "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:code#1",
@@ -1863,8 +1826,7 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:coverage#1",
@@ -1875,8 +1837,7 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:observation#1",
@@ -1887,51 +1848,25 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
-      "item": "CallableObjectProduct::field:authority#1",
-      "kind": "carried_record",
-      "meaning": "The admitted native callable authority associated with its code and runtime provisions.",
-      "producer": "native callable compiler driver",
-      "signature": "b561cca3acd4beb8b33bb255417becb9f155b52163ec00856e59178392880976"
-    },
-    {
-      "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:physical_original#1",
       "kind": "carried_record",
-      "meaning": "The callableâ€™s source/coverage evidence keyed to the effective emitted program.",
+      "meaning": "The original Psi code and admitted boundary applications tied to the identity of the emitted callable.",
       "producer": "native callable compiler driver",
       "signature": "b7f5d84ed4c5f7b581fab295d26c7db82e374fc952b31bd1b5ef0c6382d5be24"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:projection#1",
       "kind": "carried_record",
-      "meaning": "The stage 09 function-fragment object emitted for the callable.",
+      "meaning": "The object fragment the driver emits for this private callable.",
       "producer": "native callable compiler driver",
       "signature": "3e510552d9b6e39c2393bf9c5eb82bb1ff504d96c2a16201c4d3618819710811"
-    },
-    {
-      "consumers": [
-        "private callback construction",
-        "component export construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
-      "item": "CallableObjectProduct::field:runtime#1",
-      "kind": "carried_record",
-      "meaning": "Carry the callable’s runtime provisions with its object-form foreign adapters.",
-      "producer": "callable object construction",
-      "signature": "0f21de7bc4fa7508561b4b176a17c746b2ba8a8fbdbb819ebed1ca46b1372ced"
     },
     {
       "consumers": [
@@ -1947,8 +1882,7 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableProduct::field:body#1",
@@ -1959,80 +1893,62 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableProduct::field:custody#1",
       "kind": "carried_record",
-      "meaning": "The original code, boundary coverage, callable authority and observation scope.",
+      "meaning": "The original Psi code, admitted boundary applications and stage observation retained through object construction.",
       "producer": "native callable compiler driver",
       "signature": "7673ed06cbaaede27c75a2e4d6d3b2ff58c86b9d6b303866ca26f3334bb6afbb"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
-      "item": "CallableProduct::field:runtime#1",
-      "kind": "carried_record",
-      "meaning": "The callableâ€™s host provisions and foreign adapters at the same stage as its body.",
-      "producer": "native callable compiler driver",
-      "signature": "adfc6d84fc45626a38da9fc7e58c2098222339afd91384382062045a5a8e05a4"
-    },
-    {
-      "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:BoundCallable#1",
       "kind": "carried_record",
-      "meaning": "The callable body and every runtime adapter have passed installation binding and can enter encoding.",
+      "meaning": "The private callable with measured handler resources bound, ready for instruction encoding.",
       "producer": "native callable compiler driver",
-      "signature": "002269e2ff2dcd48f2d26289f18f83d8e6bb56193f4b52e8bea6b238d4bfb1de"
+      "signature": "a9d89cc17661bda11dd1117da79b286e7f5d36b30099afe0b8fab1850f6394cf"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:CallablePhysicalProduct#1",
       "kind": "carried_record",
-      "meaning": "The checked callable body with physical runtime-adapter plans.",
+      "meaning": "The private callable after physical planning and before its measured handlers are bound.",
       "producer": "native callable compiler driver",
-      "signature": "1fc2fba2c82a9deeff9daf98d7a61036fb0e263686f82c68b0a9bdc50682ada1"
+      "signature": "b347e7894d630c8bebd9590045a987c7f436897f9fb6a1d027e263e14aededf2"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:EncodedCallable#1",
       "kind": "carried_record",
-      "meaning": "The callable machine-code program and runtime adapters encoded from its selected recipes.",
+      "meaning": "The encoded private callable ready for layout.",
       "producer": "native callable compiler driver",
-      "signature": "b4769ba9604a449374a18b888d8e14331dc7140efc616a509212a7cb6b571752"
+      "signature": "3bc0086cff297dd4b387052e47e616e9493c6ce40c5d8815ea525ba65027be45"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:LaidOutCallable#1",
       "kind": "carried_record",
-      "meaning": "The callableâ€™s placed functions and placed foreign adapters.",
+      "meaning": "The private callable with its functions placed for object emission.",
       "producer": "native callable compiler driver",
-      "signature": "cdf4192978ea3574e978641adf08c95a5d4d647449b53291236ee631fb501c16"
+      "signature": "e25e9ffa34d9c06a9301fe2fd2c9a504c78ef61738fdb0500199e0c23502623e"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "function:callable_error#1",
@@ -2043,147 +1959,135 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "function:prepare_callable_physical#1",
       "kind": "producer",
-      "meaning": "Close one selected callableâ€™s physical body, installation requirements, runtime requests and authority.",
+      "meaning": "Plan the physical body of a reachable private callable using its admitted execution and interrupt stack requirements.",
       "producer": "native callable compiler driver",
-      "signature": "8ba8eb6147d8df912aa1ee774c9f72cbf550da05de21399e78808739f2eb21e1"
+      "signature": "4140241aee15cd1f7eaa5e4ba0fb363586df4b985d54b8176e434d73cac60e8b"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:BoundCallable::implementation#1",
       "kind": "producer",
-      "meaning": "The callable body with installation authority bound before physical encoding.",
+      "meaning": "The bound callable enters instruction encoding with its original Psi evidence.",
       "producer": "native callable compiler driver",
-      "signature": "e92898fd602b2530ef68cb2cb590a86282cd03298982667192f33177a22f5344"
+      "signature": "add55223af0989274993e86b7ef4bdaf6df863e19ef13c422086ee8002666fa4"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:BoundCallable::method:encode#1",
       "kind": "producer",
-      "meaning": "Encode the callable and its selected entry or foreign adapters before placement.",
+      "meaning": "Encode the bound private body and retain its evidence for layout.",
       "producer": "native callable compiler driver",
-      "signature": "a9f7f39ac85187d3e432fd2840594dbb063149b1f5ac5abb1657c0a54d755b54"
+      "signature": "d859dbb1998ee368d3fd1def3e7ac10288ec56514a454860e764aeaa57e17f28"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:CallablePhysicalProduct::implementation#1",
       "kind": "producer",
-      "meaning": "The checked callable body with physical runtime-adapter plans.",
+      "meaning": "The physically planned callable binds its measured handlers before encoding.",
       "producer": "native callable compiler driver",
-      "signature": "8d070653e3ece6112b4dbddec7108e3570d5499ee0a875bfce21b5a15b80ed8d"
+      "signature": "21fa85e69c7414af9e8311e495d394efb4e2954ab7bec1a4cceaedac514a6757"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:CallablePhysicalProduct::method:bind#1",
       "kind": "producer",
-      "meaning": "Bind the callable body to the measured handlers and bind each planned foreign adapter for encoding.",
+      "meaning": "Bind the measured handlers to the private callable and carry its original evidence into encoding.",
       "producer": "native callable compiler driver",
-      "signature": "7a96ded3c2bfc01f38f7fc6dad9f83b0bf7d4c8332ff3289dc0a0b797a71e28c"
+      "signature": "abf0d2f4345c47123b62fcdb23c394ca633ef8c2981f75959653add75803a31f"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:EncodedCallable::implementation#1",
       "kind": "producer",
-      "meaning": "The callable machine-code program and runtime adapters encoded from its selected recipes.",
+      "meaning": "The driver places the encoded private body and carries its evidence into object emission.",
       "producer": "native callable compiler driver",
-      "signature": "7b4eec5bfa327701cc1f456251bde37375bb525628ddfa3e1dfcdeb25067111f"
+      "signature": "77892620d9241fb12b106f469a6d8b22de7940027274cadd8c77242a185c4336"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:EncodedCallable::method:layout#1",
       "kind": "producer",
-      "meaning": "Place the callable and its associated entry or foreign adapters before object construction.",
+      "meaning": "Place the encoded private body and retain its evidence for object emission.",
       "producer": "native callable compiler driver",
-      "signature": "77d7e8a3fc093851d3d0b4d9c6390d9e0790e6e3d3855de32da4dcac1aad404d"
+      "signature": "0f8e2e8ad3c830834574f3dded8265b8a6dbcea6cd1eddf123aa9eaee4ec765c"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:LaidOutCallable::implementation#1",
       "kind": "producer",
-      "meaning": "Construct a callable object from placed function text and its placed runtime helpers.",
+      "meaning": "The driver emits an object for the placed private body and records its original Psi evidence.",
       "producer": "native callable compiler driver",
-      "signature": "2d93c55f8f2d596d5136f7e5f186f7d89f4645bada31d9cbf2378ad40692ef96"
+      "signature": "47098e4dac4cab96688897e1b4902f8672cfcf3800d6665cbc50dfcfbc04151f"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:LaidOutCallable::method:construct_object#1",
       "kind": "producer",
-      "meaning": "Publish the callable body, construct its helper objects and return its code identity, execution authority and original for review.",
+      "meaning": "Emit the private callable object, associate its Psi identity with its original code and coverage, and complete its stage observation.",
       "producer": "native callable compiler driver",
-      "signature": "61da5bb2795b1c5c2fb06953b414bd9b22ee2d61bb417215e23adcb59258476c"
+      "signature": "85881d1c93186393cb796487e8ade44318876d00eda409ca4c51d766b453d2ff"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "struct:CallableCustody#1",
       "kind": "carried_record",
-      "meaning": "The callableâ€™s exact retained Terminal code, boundary coverage, native authority and observation scope.",
+      "meaning": "The original Psi code, admitted boundary applications and stage observation retained for this private callable.",
       "producer": "native callable compiler driver",
-      "signature": "bdaa80d03bea7a834c2a78a24b0caeb60fbc64417cd97528cf9b00a841e2b608"
+      "signature": "4ac99f07023be20ccf2eb343ac658c2c765937d23190510f29834b341a28afb3"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "struct:CallableObjectProduct#1",
       "kind": "carried_record",
-      "meaning": "The emitted callable fragment with its native authority, runtime adapters and original source evidence.",
+      "meaning": "The emitted private callable object, its original Psi code and boundary evidence, and any physical inputs requested for independent verification.",
       "producer": "native callable compiler driver",
-      "signature": "6dfc9bad74ecfd97eb5bbdc21f4d1a03bef6c80ecc2a28a7071ac49fb877e04f"
+      "signature": "57d17971e2b39fdebf0bee394fd8a55297b163697ebf0b6cb92f894b95c5514f"
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "struct:CallableProduct#1",
       "kind": "carried_record",
-      "meaning": "A callable body, its retained authority and its runtime adapters at one particular stage.",
+      "meaning": "The private callable body at this stage together with the evidence required when the driver emits its object.",
       "producer": "native callable compiler driver",
-      "signature": "eeb93e06c668e0227ddc28cebe5a2810460f743fe083cd4fd145c3c43731f303"
+      "signature": "a82365e5be524042bcc4dc76f420ae3f2cde3a0a7613ad1a3c0ce171eaec80d5"
     },
     {
       "consumers": [
@@ -2198,7 +2102,7 @@
     },
     {
       "consumers": [
-        "private callable and component export objects"
+        "private callable objects"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "use:crate :: driver :: compile_body :: { self , BodyEmissionError }#1",
@@ -2209,8 +2113,7 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callback construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "use:diagnostics :: Diagnostic#1",
@@ -3307,233 +3210,116 @@
     },
     {
       "consumers": [
-        "03 native execution input planning",
-        "03 package review planning"
+        "stage 01 native execution preparation",
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "NativeCallingResults::field:applications#1",
       "kind": "carried_record",
       "meaning": "Unique, fully materialized calling applications in order of first occurrence, including their physical plans and commitments.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "248dcba325eaba88edcd38a572d4a36820c5f1f0005061984d893558e2804834"
     },
     {
       "consumers": [
-        "03 package review planning"
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "NativeCallingResults::field:artifact#1",
       "kind": "carried_record",
       "meaning": "Full digest of the canonical artifact manifest whose module and calling declarations produced the applications.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "43e41e4d5a6655a4ea24d5551e84b82c83e37a30a05fc4a18e8b1c32bc29528d"
     },
     {
       "consumers": [
-        "03 package review planning"
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "NativeCallingResults::field:by_binding#1",
       "kind": "carried_record",
       "meaning": "Index of a completed default application keyed by the checked boundary ID and full normalized Build receipt digest.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "d739ba68857f3c57588b9c12d9d0b93495db2a3f99ebaa9f08efe4f3ac65d135"
     },
     {
       "consumers": [
-        "03 package review planning"
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "NativeCallingResults::field:target#1",
       "kind": "carried_record",
       "meaning": "Deployment profile for which the planner classified these applications. A request for another target cannot reuse them.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "ccc0669e240da7b4b9550bc4a0b8c7426b9d567c5d7dd879b8f1ac60a6517f2a"
     },
     {
       "consumers": [
-        "03 component planning",
-        "03 boundary materialization"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "SelectedCallingApplications::field:applications#1",
-      "kind": "carried_record",
-      "meaning": "Exact explicitly selected applications with the matched ABI, receiver and verified policy commitment.",
-      "producer": "03 native and component calling planning",
-      "signature": "13cf8e85b8ec080bad62e3347ad5d14fdadf7bc263183dd0215389c30e371246"
-    },
-    {
-      "consumers": [
-        "03 component planning",
-        "03 boundary materialization"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "SelectedCallingApplications::field:default_abis#1",
-      "kind": "carried_record",
-      "meaning": "Validated declaration ABI identities eligible for default calling on this row, or the receiver or ABI identity refusal.",
-      "producer": "03 native and component calling planning",
-      "signature": "b39bc36728d2d13f1dfdfe43b5f97c150897cba665e06249cae1018e13fea7de"
-    },
-    {
-      "consumers": [
-        "03 independent component boundary planning"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "function:component_calling_applications#1",
-      "kind": "producer",
-      "meaning": "Checks the selected target and provider rows, retains explicit checked adapter plans or materializes eligible defaults, and returns one copy of each calling application.",
-      "producer": "03 native and component calling planning",
-      "signature": "a34eb95ea13676e8ddfd64b6f7cdfcdba5ca4a533b773f665402f1484a9ebcd0"
-    },
-    {
-      "consumers": [
-        "03 native and component default calling"
+        "stage 01 native calling plan selection"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "function:default_abi_eligible#1",
       "kind": "checker",
       "meaning": "Requires the published default flag and an exact ordinal and kind match between non-callback formals and declared operands.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "b30de273a2b275a834ec7b29ceec40f14a86468110003000613796314dde1cef"
     },
     {
       "consumers": [
-        "03 component planning",
-        "03 boundary materialization"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "function:default_calling_abis#1",
-      "kind": "checker",
-      "meaning": "Selects unique published ABI identities eligible for the default policy and accepted by the original receiver.",
-      "producer": "03 native and component calling planning",
-      "signature": "f64a2c18c40ce97ed6c56e863bec3ccf9094bb185c2d4b0a8910b358c8e27791"
-    },
-    {
-      "consumers": [
-        "03 native target supply"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "function:native_calling_applications#1",
-      "kind": "producer",
-      "meaning": "Returns the unique materialized default applications for the supplied native bindings using the selected targetâ€™s import or syscall policy.",
-      "producer": "03 native and component calling planning",
-      "signature": "e89f4d92b75a8622ce661b2b3311500ec3b1774ea643fa99f1fe89702e50adc9"
-    },
-    {
-      "consumers": [
-        "03 native execution input planning",
-        "03 package review planning"
+        "stage 01 native execution preparation",
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "function:native_calling_results#1",
       "kind": "producer",
-      "meaning": "Reuses completed defaults only for the same target, full artifact manifest, boundary and binding receipt. Otherwise verifies the declared ABI and evaluates the actual native mechanismâ€™s default policy.",
-      "producer": "03 native and component calling planning",
+      "meaning": "Reuse the default calling plan for the same artifact, target, boundary and binding receipt, or derive it from the declared ABI and native binding.",
+      "producer": "stage 01 native calling plan selection",
       "signature": "f04cf35645b47a3ae1e7acfe67a563fdfe3f30dd7cc2283f8bc31076fe469b73"
     },
     {
       "consumers": [
-        "03 component planning",
-        "03 boundary materialization"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "function:receiver_accepts#1",
-      "kind": "checker",
-      "meaning": "Checks that the published requirement belongs to the actual top-level or inherited receiver named by the selected provider schema.",
-      "producer": "03 native and component calling planning",
-      "signature": "24c2d34b4facd408792a7c251d2de07804b1756d345adbc13aff1724ae665882"
-    },
-    {
-      "consumers": [
-        "03 component planning",
-        "03 boundary materialization"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "function:selected_calling_applications#1",
-      "kind": "checker",
-      "meaning": "Validates the provider row, original requirement, inherited receiver, declaration ABI, policy report and commitment against each explicit selected calling application. Retains eligible default ABI keys as a separate result.",
-      "producer": "03 native and component calling planning",
-      "signature": "aa973aceeb1ebd0d2df04805a96fdd69805095a64967e787b29dd454bba0e379"
-    },
-    {
-      "consumers": [
-        "03 package review planning"
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "impl:NativeCallingResults::implementation#1",
       "kind": "producer",
       "meaning": "Interns an exactly equal completed application and records its position under the originating boundary and binding receipt.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "d8c907ba1f559bcee55181787195376d84ea25d9927eb33845321a56d84e922b"
     },
     {
       "consumers": [
-        "03 package review planning"
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "impl:NativeCallingResults::method:retain#1",
       "kind": "producer",
       "meaning": "Interns an exactly equal completed application and records its position under the originating boundary and binding receipt.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "57c39635c03cc99430ff19ee4263c47a1c094cf0813e8a3ff3fa13403708aae5"
     },
     {
       "consumers": [
-        "03 native execution input planning",
-        "03 package review planning"
+        "stage 01 native execution preparation",
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "struct:NativeCallingResults#1",
       "kind": "carried_record",
       "meaning": "Invocation-local record of default calling plans scoped to a canonical artifact manifest, target and exact normalized binding receipts.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "3dd0392397f1cea351aef59a88f9bd3783122276e35e24fa069e68479a73240b"
     },
     {
       "consumers": [
-        "03 component planning",
-        "03 boundary materialization"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "struct:SelectedCallingApplications#1",
-      "kind": "carried_record",
-      "meaning": "Separates checked explicit applications for one selected provider method from the default declaration ABIs the method may use.",
-      "producer": "03 native and component calling planning",
-      "signature": "656d8a212ff595d4cafe8d6b174849cfd17cf8b70cd892aa001485481f5ab37f"
-    },
-    {
-      "consumers": [
-        "03 native and component calling planning"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "use:crate :: provider_planning :: trait_name_text#1",
-      "kind": "definition",
-      "meaning": "Reads the trait name from the selected provider schema to identify missing or inconsistent method calling plans.",
-      "producer": "03 native program planning",
-      "signature": "515474dfe75b839ff40ecae94fb37ca3943a2800511f5dcf11d3520987ded520"
-    },
-    {
-      "consumers": [
-        "03 component planning",
-        "03 package review planning"
+        "stage 01 package review"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Carries the original refusal with its affected review inventory or calling plan.",
-      "producer": "03 native and component calling planning",
+      "producer": "stage 01 native calling plan selection",
       "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
-    },
-    {
-      "consumers": [
-        "03 native and component calling planning"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
-      "item": "use:semantic_vocabulary :: { CallingAbiIdentity , CallingDeclarationOwner }#1",
-      "kind": "definition",
-      "meaning": "Distinguishes the published ABI identity and its top-level or trait declaration owner.",
-      "producer": "Terminal Psi publication",
-      "signature": "d1d2c53e637acb4ebb75019a3983eed3110aa58029a653643ec1059104c908ae"
     },
     {
       "consumers": [

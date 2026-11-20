@@ -20,7 +20,7 @@ impl DeferredProductSources {
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<ReselectedSources, Vec<Diagnostic>> {
         let checkpoint = &self.checkpoint;
         checkpoint.validate_child(inputs.original())?;
@@ -64,7 +64,7 @@ impl DeferredProductSources {
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<source_compiler::ProductDeclarationSource, Vec<Diagnostic>> {
         let checkpoint = &self.checkpoint;
         let ReselectedSources {
@@ -178,7 +178,7 @@ impl DeferredProductSources {
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let checkpoint = &self.checkpoint;
         let ReselectedSources {

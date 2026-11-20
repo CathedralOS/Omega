@@ -7,20 +7,13 @@ autotests = false
 autoexamples = false
 autobenches = false
 
-[features]
-test-support = []
-
 [lib]
 path = "prepare.rs"
 
 [dependencies]
-symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../../representations/typed-trees" }
-application-identity = { path = "../../../psi/identities/applications" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
-source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
@@ -31,4 +24,7 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 
 [dev-dependencies]
+source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
+application-identity = { path = "../../../psi/identities/applications" }
+source-admission = { path = "../../representations/source-files/custody" }
 record-storage = { path = "../../../../../foundation/record-storage" }

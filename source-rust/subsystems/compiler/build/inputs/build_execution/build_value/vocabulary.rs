@@ -1,5 +1,5 @@
 //! Identify compiler-owned data declarations in the admitted Build prelude.
-use source_compiler::source_state::TypedTrees;
+use source_compiler::representations::source_state::TypedTrees;
 use symbols::SymbolHandle;
 
 pub(crate) fn is_exact_toolchain_build_prelude_data(
@@ -18,16 +18,16 @@ pub(super) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) ->
 
 fn named_data_symbol(
     typed: &TypedTrees,
-    type_reference: source_compiler::source_state::types::TypeReferenceHandle,
+    type_reference: source_compiler::representations::source_state::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     match typed.type_reference_table.type_reference(type_reference) {
-        source_compiler::source_state::types::TypeReferenceNode::Reference { referee, .. } => {
+        source_compiler::representations::source_state::types::TypeReferenceNode::Reference { referee, .. } => {
             named_data_symbol(typed, *referee)
         }
-        source_compiler::source_state::types::TypeReferenceNode::Constrained {
+        source_compiler::representations::source_state::types::TypeReferenceNode::Constrained {
             base_type, ..
         } => named_data_symbol(typed, *base_type),
-        source_compiler::source_state::types::TypeReferenceNode::Named { symbol, .. } => {
+        source_compiler::representations::source_state::types::TypeReferenceNode::Named { symbol, .. } => {
             Some(*symbol)
         }
         _ => None,
@@ -36,7 +36,7 @@ fn named_data_symbol(
 
 pub(super) fn build_machine_declares_identifier_field(
     typed: &TypedTrees,
-    machine: &source_compiler::source_state::machine::Machine,
+    machine: &source_compiler::representations::source_state::machine::Machine,
 ) -> bool {
     typed
         .machine_states(machine)
@@ -49,7 +49,7 @@ pub(super) fn build_machine_declares_identifier_field(
         .any(|member| {
             matches!(
                 member,
-                source_compiler::source_state::data::DataMember::Field(field)
+                source_compiler::representations::source_state::data::DataMember::Field(field)
                     if field.name.as_str() == "identifier"
             )
         })

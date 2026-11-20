@@ -22,14 +22,10 @@ pub struct CallableTargetProduct {
     pub code: terminal_codec::RetainedTerminalCode,
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     pub target: target_lowering::NativeBodyPlan,
-    pub runtime: crate::driver::runtime::TerminalCallableRuntimeProvisions<
-        crate::driver::runtime::NativeForeignAdapterRequest,
-    >,
-    pub authority: provider_admission::AdmittedNativeCallableAuthority,
     pub observation: crate::driver::observations::NativePipelineObservation,
 }
 
-pub fn plan_callable(
+fn plan_callable(
     mut admitted: artifact_lowering::AdmittedNativeRealization<'_>,
     admission: artifact_lowering::NativeAdmissionRequest<'_, '_>,
     selections: &optimization_core::PostTerminalOptimizationSelections,
@@ -42,7 +38,6 @@ pub fn plan_callable(
         crate::driver::observations::NativePipelineUnit::Callable,
     );
     let callable_entry = admitted.input.plan().entry;
-    let authority = admitted.providers.callable_authority().clone();
     let host = crate::driver::runtime::plan_host_provisions(
         admitted
             .providers
@@ -69,7 +64,7 @@ pub fn plan_callable(
         },
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let runtime = crate::driver::runtime::TerminalCallableRuntimeProvisions::admit(
+    crate::driver::runtime::TerminalCallableRuntimeProvisions::admit(
         artifact.view(),
         admitted.input.optimization_input().runtime_input(),
         callable_entry,
@@ -97,13 +92,6 @@ pub fn plan_callable(
             realization_error("callable target lowering", error)
         }
     })?;
-    let runtime = runtime.with_borrowed_storage_layouts(
-        optimized_target
-            .execution_plan()
-            .plan()
-            .borrowed_storage_layouts
-            .clone(),
-    );
     Ok(CallableTargetProduct {
         code: artifact.retain_code(),
         coverage: admission
@@ -116,8 +104,6 @@ pub fn plan_callable(
             })?
             .clone(),
         target: optimized_target,
-        runtime,
-        authority,
         observation,
     })
 }

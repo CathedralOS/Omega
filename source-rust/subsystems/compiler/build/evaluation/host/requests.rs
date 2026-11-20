@@ -18,7 +18,7 @@ use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use source_compiler::{
+use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
 use std::sync::{Arc, Mutex};
@@ -76,7 +76,7 @@ struct Registrations {
 }
 
 /// What the request host of a returned stage hands to the host of the next
-/// stage of the same activation (`source-to-psi/build_invocation/stages`): every
+/// stage of the same activation (`source-to-psi/driver/compile_build/waits`): every
 /// registration issued so far, so later registrations keep counting from
 /// them, and the log written so far. A live registration's marker follows
 /// the value saved in its checked continuation home.

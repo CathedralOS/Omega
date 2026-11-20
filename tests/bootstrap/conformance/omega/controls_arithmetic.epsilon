@@ -41,7 +41,7 @@ machine Main::main(&mut self) {
             13 -> batch_13()
             14 -> array_literals()
             15 -> array_loans()
-            16 -> batch_0()
+            16 -> loan_traversal()
             _ -> self.console.exit_process(99)
         }
     }
@@ -63,6 +63,9 @@ machine Main::main(&mut self) {
         self.positive("machine overflow()->bool {let value:u32 in Trapping=4294967295 as +Trapping;let sum:u32 in Trapping=value+1;sum==0} machine main()->u8 {transition false && overflow() {true->no(),_->yes()} machine yes()->u8{42} machine no()->u8{1}}",42,25);
         // plain-peer; expected normal completion.
         self.positive("machine operation(value:u32 in Trapping,plain:u32)->u32 in Trapping {plain+value} machine main()->u8 {let result:u32 in Trapping=operation(40 as +Trapping,2);transition result==42 {true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}",42,26);
+        // Largest fitting odd and even factors, and the first overflowing odd product.
+        self.positive("machine product(a:u64 in Trapping,b:u64)->u64 in Trapping{a*b} machine main()->u8{transition product(0u64 as +Trapping,18446744073709551615u64)==0u64 && product(18446744073709551615u64 as +Trapping,1u64)==18446744073709551615u64 && product(6148914691236517205u64 as +Trapping,3u64)==18446744073709551615u64 && product(2305843009213693951u64 as +Trapping,8u64)==18446744073709551608u64 {true->42,_->1}}",42,27);
+        self.positive("machine product(a:u64 in Trapping,b:u64)->u64 in Trapping{a*b} machine main()->u8{let value:u64 in Trapping=product(6148914691236517206u64 as +Trapping,3u64);42}",0,28);
     }
     state batch_2() {
         // u64-boundaries; expected normal completion.
@@ -79,8 +82,8 @@ machine Main::main(&mut self) {
         self.refusal("machine bad(a:u32 in Trapping,b:u64)->u32 in Trapping {a+b} machine main()->u8{0}",1,50);
         // implicit domain removal.
         self.refusal("machine bad(a:u32 in Trapping)->u32 {a+1} machine main()->u8{0}",1,51);
-        // unsupported wide multiply.
-        self.refusal("machine bad(a:u64 in Trapping)->u64 in Trapping {a*2} machine main()->u8{0}",2,52);
+        // A crashes-none declaration needs evidence that the runtime product fits.
+        self.refusal("public machine product(a:u64 in Trapping,b:u64)->u64 in Trapping crashes none {a*b} machine main()->u8{0}",2,52);
         // ordinary forwarding retains loan.
         self.refusal("data Cell [copy] {value:u8;} machine take(cell:@mut Cell,value:u8)->u8 {value} machine forward(cell:@mut Cell)->u8 {take(cell,cell.value)} machine main()->u8{0}",1,53);
         // ordinary forwarding holds later borrow.
@@ -324,6 +327,13 @@ machine Main::main(&mut self) {
         self.refusal("machine f(a:u8)->u8{a} machine main()->u8{f(42]}",2,41);
         self.positive("machine main()->u8 {let a:[[u8;2];2]=[[1,2],[3,42]];42}",42,42);
         self.positive("data B [copy] { x:[u8;2];} machine main()->u8 {let b:B=B{x:[1,42]};b.x[1]}",42,43);
+    }
+    state loan_traversal() {
+        self.positive(self.source.as_slice[0..self.length],42,40);
+        // A ceiling bounds a returned difference. It cannot discharge underflow.
+        self.refusal("machine choose(depth:u64 in Trapping)->u8 crashes Trap requires depth<11 { transition depth>0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(8 as +Trapping)}",2,41);
+        self.refusal("machine choose(depth:u64 in Trapping)->u8 crashes none requires depth<9 { transition depth==0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(0 as +Trapping)}",2,42);
+        self.positive("machine choose(depth:u64 in Trapping)->u8 crashes Trap requires depth<9 { transition depth==0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(0 as +Trapping)}",0,43);
     }
     state array_loans() {
         self.positive(self.source.as_slice[0..self.length],42,40);

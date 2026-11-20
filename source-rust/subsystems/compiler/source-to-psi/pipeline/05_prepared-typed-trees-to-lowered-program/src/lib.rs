@@ -186,7 +186,7 @@ pub use callable_headers::{CallableCrashPolicy, CallableHeader};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use compilation::prepare_compilation;
 #[cfg(any(test, feature = "test-support"))]
-pub use compilation::{PreparedSource, prepare_compilation};
+pub use compilation::{LoweredCompilationWithSource, prepare_compilation};
 #[cfg(not(any(test, feature = "test-support")))]
 pub use external_providers::ExternalProviderCandidate;
 #[cfg(any(test, feature = "test-support"))]

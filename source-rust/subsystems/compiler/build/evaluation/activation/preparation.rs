@@ -27,8 +27,8 @@ pub struct PreparedBuildExecution {
     predecessor: Option<terminal_codec::TerminalExecutionIdentity>,
     pub(crate) unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
-    produced: Arc<source_compiler::ProducedTerminalProgram>,
-    accepted: Arc<source_compiler::AcceptedTerminalSource>,
+    produced: Arc<source_compiler::publication::ProducedTerminalProgram>,
+    accepted: Arc<source_compiler::publication::AcceptedTerminalSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     /// The sponsor the caller supplied, kept for the admission of a later
@@ -110,7 +110,7 @@ impl PreparedBuildExecution {
     }
 
     /// Admits the accepted program of the next stage of this activation
-    /// (`source-to-psi/build_invocation/stages`) under the filesystem scope, sponsor and
+    /// (`source-to-psi/driver/compile_build/waits`) under the filesystem scope, sponsor and
     /// execution profile the activation already has.
     pub(crate) fn admit_stage(
         &self,
@@ -323,7 +323,7 @@ impl PreparedBuildExecution {
             native_binding_evaluation,
             ..Default::default()
         };
-        let activation = source_compiler::source_symbols::retain_declaration(
+        let activation = source_compiler::representations::source_symbols::retain_declaration(
             &self.accepted.source().symbols,
             self.machine.symbol,
         )
@@ -363,7 +363,7 @@ impl PreparedBuildExecution {
 /// native bindings choose implementations for the executable product, which
 /// artifact-only mode never builds.
 fn executable_selection_in_artifact_only(completed: &crate::ReturnedBuild) -> Option<&'static str> {
-    use source_compiler::declaration_selection::BuildOperation;
+    use source_compiler::representations::declaration_selection::BuildOperation;
     if !completed.root_bindings.is_empty() {
         return Some("artifact-only Build cannot bind executable entries");
     }

@@ -18,9 +18,9 @@ pub(crate) struct NamedSource {
 impl NamedSource {
     pub fn selected_by(
         &self,
-        bindings: &[source_compiler::declaration_selection::ProductEntryBinding],
+        bindings: &[source_compiler::representations::declaration_selection::ProductEntryBinding],
     ) -> bool {
-        use source_compiler::declaration_selection::RootBindingSelection;
+        use source_compiler::representations::declaration_selection::RootBindingSelection;
         bindings
             .iter()
             .any(|binding| match &binding.implementation {
@@ -35,7 +35,7 @@ impl NamedSource {
 
     pub fn product_main(
         &self,
-        files: &source_compiler::source_inputs::SourceMap,
+        files: &source_compiler::representations::source_inputs::SourceMap,
     ) -> Result<Option<source_admission::RetainedDeclaration>, Vec<Diagnostic>> {
         let Some(file) = files.selected_files().find(|file| {
             file.path == self.path && file.dependency_scope == DependencyScope::Product

@@ -283,6 +283,38 @@ constructors. The generated 22-byte tape ran on the seed and exited 42 with
 empty stdout and stderr. To reproduce, run the first command in this section
 with `--epsilon interpret`.
 
+### The same Omega compiler and package entirely on Alpha
+
+The `alpha / alpha / alpha` row compiled the same 899,962-byte Epsilon source
+and ran the same 111-byte Omega package. Delta, Epsilon and Omega remained
+at `c6d64f0f3c4`. The Gamma compiler at `770c184573c` can pack large tapes.
+Its seed-built executable (`96698f7fd2c4bf85f5cd92e095776f7fc1cbdaf381b5fb6fbc7d4e9fa56926f1`)
+reproduced the earlier 490,236-byte Delta compiler and 2,782,676-byte Epsilon
+compiler tapes byte for byte. Their recorded Alpha executions produced the
+same Delta module and 26,354,274-byte Gamma constructor as before.
+
+The same Gamma compiler emitted a 12,074,120-byte Alpha constructor,
+SHA-256 `c5d2041b9e8ecc5bb39fd008f5a13d1973c9dd46ae39c24370ec92229bd6d694`,
+in 1,412.64 CPU seconds. The named row checked the executable, input and output
+hashes for each shared stage, then ran that constructor and its output afresh
+on the seed. The constructor returned exit 0 with the same 22-byte Alpha tape
+as the other three configurations. The tape exited 42 with empty streams.
+
+To reproduce the inputs from a repository with xtask built, unpack the
+language sources and test runner into a fresh directory. The final archive
+supplies the block-copy tape stamper used for this run.
+
+```sh
+export OMEGA_XTASK_BIN="$PWD/target/debug/xtask"
+work=$(mktemp -d)
+git archive c6d64f0f3c4 bootstrap tools/bootstrap source/application/construction TASKS_BOOTSTRAP.md | tar -x -C "$work"
+git archive 770c184573c bootstrap/gamma/compiler | tar -x -C "$work"
+git archive 0c7e82e0a5b tests/bootstrap | tar -x -C "$work"
+git archive 9d5a5434c8a tools/bootstrap/alpha/seed_env.sh | tar -x -C "$work"
+python3 "$work/tests/bootstrap/route.py" "$work/all-alpha" \
+  --gamma alpha --delta alpha --epsilon alpha --case omega-constructor
+```
+
 ## Running the compiled Omega constructor as Gamma on the seed
 
 The Alpha VM built the complete Epsilon-written bootstrap compiler and ran

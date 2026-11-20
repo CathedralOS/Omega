@@ -12,13 +12,13 @@ use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
-use source_compiler::product::provider_declarations::RetainedProviderSelection;
+use source_compiler::compile_product::provider_declarations::RetainedProviderSelection;
 use std::path::PathBuf;
 
 impl PackageCompilationInputs {
     pub(crate) fn product_selection_source_seeds(
         &self,
-        loaded_sources: Option<&source_compiler::source_inputs::SourceMap>,
+        loaded_sources: Option<&source_compiler::representations::source_inputs::SourceMap>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let mut paths = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
@@ -146,9 +146,9 @@ impl PackageCompilationInputs {
     pub(super) fn admit_retained_product_application(
         &self,
         bundle: &PackageBuildHandoff,
-        application: &source_compiler::product::provider_declarations::RetainedProductApplication,
+        application: &source_compiler::compile_product::provider_declarations::RetainedProductApplication,
     ) -> Result<
-        source_compiler::product::provider_declarations::RetainedProductApplication,
+        source_compiler::compile_product::provider_declarations::RetainedProductApplication,
         Vec<Diagnostic>,
     > {
         let mut admitted = application.clone();
@@ -173,7 +173,7 @@ impl PackageCompilationInputs {
             })
             .collect::<Result<Vec<_>, _>>()?;
         admitted.sources =
-            std::sync::Arc::new(source_compiler::source_inputs::SourceMap::from_files(files));
+            std::sync::Arc::new(source_compiler::representations::source_inputs::SourceMap::from_files(files));
         Ok(admitted)
     }
 

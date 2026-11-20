@@ -36,11 +36,10 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
-pub use source_compiler::{ProducedBuildProvider, WireCompatibilityDemand};
+pub use source_compiler::publication::ProducedBuildProvider;
+pub use source_compiler::WireCompatibilityDemand;
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
-mod program_entry_selection;
-pub use program_entry_selection::{SelectedProgramEntry, selected_program_entry_machine};
 pub use source_compiler::RootBinding;
 
 #[cfg(test)]

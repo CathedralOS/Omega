@@ -29,14 +29,14 @@ use toolchain::{append_build_prelude, seed_core_vocabulary, sources_mention_floa
 #[derive(Clone)]
 pub struct BuildStageAcquisition {
     capture: crate::CapturedLocalSource,
-    sources: Arc<source_compiler::source_inputs::SourceMap>,
+    sources: Arc<source_compiler::representations::source_inputs::SourceMap>,
 }
 
 impl BuildStageAcquisition {
     pub fn retains(
         &self,
         capture: &crate::CapturedLocalSource,
-        typed: &source_compiler::source_state::TypedTrees,
+        typed: &source_compiler::representations::source_state::TypedTrees,
     ) -> bool {
         &self.capture == capture
             && typed
@@ -94,7 +94,7 @@ impl ImmutableSourceParseCheckpoint {
         mut self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
-        catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         self.validate_child(package_inputs)?;
         let deferred_product = self.product_roots.is_some().then(|| self.fork());

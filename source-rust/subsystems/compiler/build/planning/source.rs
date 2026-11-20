@@ -17,8 +17,9 @@ use package_compilation::source_assembly::{
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
 use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
-use source_compiler::{SourceContinuation, SourcePreparation};
-use source_compiler::BuildStage;
+use source_compiler::{ProductDeclarations, SourcePreparation};
+use source_compiler::representations::source_inputs::SourceMap;
+use source_compiler::{BuildStage, TypedBuildInterval};
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
 
@@ -42,8 +43,8 @@ pub struct PreparedPlanningStage {
 
 #[derive(Clone)]
 pub(super) struct PlanningSource {
-    initial: SourceContinuation,
-    query_frontier: Option<(ProductQueryInputs, SourceContinuation)>,
+    query_authors: Option<Arc<SourceMap>>,
+    query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
     pub(super) stage: BuildStage,
     pub(super) deferred: DeferredProductSources,
     pub(super) preparation: SourcePreparation,
@@ -178,13 +179,12 @@ pub fn prepare(
         )?;
         checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
     };
-    let (source, stage) = resolve(&mut assembled, None, &[], &preparation, profile, inputs)?;
+    let interval = resolve(&mut assembled, None, &[], &preparation, profile, inputs)?;
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
             root_path: request.root,
-            typed: source.typed(),
-            stage: &stage,
+            interval: &interval,
             build_source: assembled.build_source,
             sources: &assembled.parsed.files,
             package_inputs: inputs,
@@ -199,9 +199,9 @@ pub fn prepare(
     Ok(PreparedPlanningStage {
         evaluation,
         source: PlanningSource {
-            stage,
-            initial: source,
-            query_frontier: None,
+            stage: interval.plan,
+            query_authors: interval.program.symbols.source_map(),
+            query_declarations: None,
             deferred: deferred(assembled)?,
             preparation,
             timings,
@@ -218,7 +218,7 @@ fn resolve(
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
-) -> Result<(SourceContinuation, BuildStage), CompileFailure> {
+) -> Result<TypedBuildInterval, CompileFailure> {
     assembled
         .build_stage_source()?
         .prepare(
@@ -289,7 +289,7 @@ impl PlanningSource {
                 &mut *self.preparation.catalogue()?,
             )?
             .1;
-        let (source, stage) = resolve(
+        let interval = resolve(
             &mut assembled,
             Some(&self.stage),
             evaluation.returned_scalars(),
@@ -297,7 +297,7 @@ impl PlanningSource {
             self.profile,
             authority.as_ref(),
         )?;
-        if !stage.same_entry_plan(&self.stage) {
+        if !interval.plan.same_entry_plan(&self.stage) {
             return Err(vec![Diagnostic::error(
                 "the captured Build changed its dependency preparation sites",
             )]
@@ -307,8 +307,7 @@ impl PlanningSource {
             .continue_stage(
                 BuildStageRequest {
                     source_acquisition: assembled.build_source_acquisition.as_ref(),
-                    typed: source.typed(),
-                    stage: &stage,
+                    interval: &interval,
                     build_source: assembled.build_source,
                     package_inputs: authority.as_ref(),
                     anonymous_source: assembled.anonymous_owner.as_ref(),
@@ -317,9 +316,9 @@ impl PlanningSource {
             )
             .map_err(|failure| locate_failure(failure, &assembled, authority.as_ref()))?;
         self.deferred = deferred(assembled)?;
-        self.stage = stage;
-        self.initial = source;
-        self.query_frontier = None;
+        self.stage = interval.plan;
+        self.query_authors = interval.program.symbols.source_map();
+        self.query_declarations = None;
         evaluation
             .execution()
             .ok_or_else(|| {
@@ -382,23 +381,21 @@ impl PlanningSource {
             .1;
         if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
             let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
-            let frontier =
-                source_compiler::ProductDeclarationSource::new(source.build_stage_source()?)
-                    .prepare(&self.preparation, self.profile.target_name(), authority)?;
             let declaration = evaluated
                 .configuration
                 .selected_build_declaration
                 .as_ref()
                 .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
-            let entry = source_compiler::source_state::source_subjects::rejoin_build_activation(
-                frontier.typed(),
+            let (typed, entry) = source.build_stage_source()?.rejoin_build_entry(
+                &self.preparation,
+                self.profile.target_name(),
+                authority,
                 inputs.map(|inputs| inputs.root()),
                 declaration,
-            )
-            .map_err(|reason| refusal(reason.to_owned()))?;
+            )?;
             let spent = settle_rejoined_build_slice(
                 &evaluated.constants,
-                frontier.typed(),
+                &typed,
                 entry,
                 inputs,
                 source.anonymous_owner.as_ref(),

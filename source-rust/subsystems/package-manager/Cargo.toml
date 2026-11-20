@@ -10,7 +10,7 @@ path = "package_manager.rs"
 
 [dependencies]
 build-evaluation-result = { path = "../compiler/build/evaluation/result" }
-source-completion-accounting = { path = "../compiler/source-to-psi/product/accounting" }
+source-completion-accounting = { path = "../compiler/source-to-psi/representations/evaluation-receipts" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
 provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 provider-plans = { path = "../compiler/build/providers/plans" }

@@ -1,10 +1,9 @@
 //! Gather the inputs needed by the body and runtime drivers. Stage 01 selects
-//! root and component executions. Entry memory, requested installation assumptions
+//! the root execution. Entry memory, requested installation assumptions
 //! and completed scalar values are checked against the retained publication and target.
 
-pub(crate) mod components;
 pub(crate) mod published_application;
-pub(crate) mod scalars;
+mod scalars;
 
 use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
@@ -20,8 +19,7 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) recovery: ExecutableImageEmissionRequest,
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
-    pub(crate) scalars: Option<std::borrow::Cow<'input, psi_scalar_applications::AdmittedScalarApplications>>,
-    pub(crate) components: Vec<crate::driver::inputs::components::PreparedComponent<'input>>,
+    pub(crate) scalars: Option<psi_scalar_applications::AdmittedScalarApplications>,
 }
 
 pub(crate) fn prepare<'input>(
@@ -36,8 +34,6 @@ pub(crate) fn prepare<'input>(
             proposal,
             request.installation_assumptions,
         )?;
-        let components =
-            crate::driver::inputs::components::prepare_components(request.components, artifact.view())?;
         let selections = psi_target_layouts::terminal_target_context(
             artifact.view(),
             proposal.target_profile().target_name(),
@@ -77,25 +73,23 @@ pub(crate) fn prepare<'input>(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
             recipes.push(recipe);
         }
-        let calls = components
-            .iter()
-            .flat_map(|component| &component.calls)
-            .collect::<Vec<_>>();
-        let execution = provider_realization::native_execution::prepare_program(proposal, retained.authorization(), &calls)?
-            .with_operation_evidence(artifact, retained.evidence().cloned())?;
+        let execution = provider_realization::native_execution::prepare_program(
+            proposal,
+            retained.authorization(),
+        )?
+        .with_operation_evidence(artifact, retained.evidence().cloned())?;
         let demand = execution.scalar_application_demand(proposal.target_profile())?;
-        let scalars = request.scalars.resolve(artifact, proposal, &demand)?;
-        Ok((execution, recipes, scalars, components))
+        let scalars = scalars::complete(artifact, proposal, &demand, request.scalar_receipts)?;
+        Ok((execution, recipes, scalars))
     })();
     match result {
-        Ok((execution, private_entry_ram, scalars, components)) => Ok(PreparedNativeCompilation {
+        Ok((execution, private_entry_ram, scalars)) => Ok(PreparedNativeCompilation {
             retained,
             request,
             recovery,
             execution,
             private_entry_ram,
             scalars,
-            components,
         }),
         Err(diagnostics) => Err((recovery, diagnostics)),
     }

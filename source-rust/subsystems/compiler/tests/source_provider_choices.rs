@@ -2,13 +2,14 @@
 //! These controls keep the original missing/default/conflict/override/target
 //! oracles, then exercise the canonical plans and artifact-bound proposal.
 
-use source_compiler::product::provider_choices::{
+use source_compiler::compile_product::provider_choices::{
     PreparedProviderChoices, prepare_with_source_defaults,
 };
-use source_compiler::product::provider_declarations::{
+use source_compiler::compile_product::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
-use source_compiler::{AcceptedTerminalSource, TerminalSourceCompilation};
+use source_compiler::publication::AcceptedTerminalSource;
+use source_compiler::test_support::TerminalSourceCompilation;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -34,7 +35,7 @@ fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
 }
 
 struct Fixture {
-    source: source_compiler::preparation::PreparedTypedTrees,
+    source: source_compiler::test_support::preparation::PreparedTypedTrees,
     entry: symbols::SymbolHandle,
     defaults: Vec<TargetProviderDefaults>,
 }
@@ -46,7 +47,7 @@ fn typed(supplied: &str, program: &str) -> Fixture {
 }
 
 fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::Diagnostic>> {
-    let mut sources = source_compiler::source_inputs::SourceMap::default();
+    let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
     let mut roots = Vec::new();
     for (path, text, origin) in [
         (
@@ -86,7 +87,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         .collect();
     let timings = &mut source_compiler::CompileTimings::default();
     let parsed = source_compiler::SourceInput(files).append(&mut syntax, timings)?;
-    let request = source_compiler::ResolveAndTypeRequest {
+    let request = source_compiler::test_support::ResolveAndTypeRequest {
         syntax,
         source_items: parsed
             .sources
@@ -101,8 +102,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         top_level_bindings: Vec::new(),
         selection_authority: None,
     };
-    let source = request.prepare(timings)?;
-    let typed = source.complete_authored(timings)?.finish().typed;
+    let typed = source_compiler::test_support::type_authored_source_for_test(request, timings)?;
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
         source_provenance::DependencyScope::Product,
@@ -113,7 +113,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         .find(|machine| machine.name.as_str() == "main")
         .expect("source main")
         .symbol;
-    let prepared = source_compiler::preparation::prepare_typed_trees(typed, &[])?;
+    let prepared = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[])?;
     Ok(Fixture {
         source: prepared,
         entry,
@@ -130,7 +130,7 @@ fn prepare(
 }
 
 fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
-    source_compiler::judge_terminal_source(
+    source_compiler::test_support::judge_terminal_source(
         fixture.source.clone(),
         TerminalSourceCompilation {
             declaration_metadata: &[],
@@ -140,13 +140,13 @@ fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTermin
             subjects: &[Some(package())],
             purpose: source_provenance::DependencyScope::Product,
             selected: &choices.declaration_roots,
-            calling: Some(source_compiler::lowering::CallingPolicySelections {
+            calling: Some(source_compiler::test_support::lowering::CallingPolicySelections {
                 source: &fixture.source,
                 applications: &choices.calling_applications,
                 entries: &[],
             }),
             providers: Some(
-                source_compiler::lowering::provider_selections::ProviderSelections {
+                source_compiler::test_support::lowering::provider_selections::ProviderSelections {
                     source: &fixture.source,
                     choices: &choices.selections,
                 },

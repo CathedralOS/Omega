@@ -5,8 +5,8 @@ use std::hint::black_box;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
-use source_compiler::source_state::provider_declarations::ProviderPlanningContext;
-use source_compiler::source_state::service_declarations::projection;
+use source_compiler::representations::source_state::provider_declarations::ProviderPlanningContext;
+use source_compiler::representations::source_state::service_declarations::projection;
 
 #[path = "../../../tests/support/frontend.rs"]
 mod frontend_fixture;
@@ -54,8 +54,8 @@ unsafe impl GlobalAlloc for MeasuredAllocator {
     }
 }
 
-fn typed(text: &str) -> source_compiler::source_state::TypedTrees {
-    let mut sources = source_compiler::source_inputs::SourceMap::default();
+fn typed(text: &str) -> source_compiler::representations::source_state::TypedTrees {
+    let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             "service/main.omg".into(),
@@ -69,14 +69,14 @@ fn typed(text: &str) -> source_compiler::source_state::TypedTrees {
         .source_id;
     let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
     let syntax = frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
-    let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
-    let resolved = source_compiler::resolution::resolve(request).unwrap();
-    source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
+    let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+    source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
 fn projected<'program>(
-    program: &'program source_compiler::source_state::TypedTrees,
+    program: &'program source_compiler::representations::source_state::TypedTrees,
     name: &str,
 ) -> projection::ProjectedServiceSurface<'program> {
     let declaration = program

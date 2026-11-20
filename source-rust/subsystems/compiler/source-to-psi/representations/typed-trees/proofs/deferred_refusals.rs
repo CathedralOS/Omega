@@ -234,6 +234,10 @@ pub struct DeferredRefusal {
     pub source_span: SourceSpan,
     /// Diagnostic context only; admission still depends on `request`.
     pub detail: String,
+    /// Every occurrence for which ordinary scoped lookup found no declaration.
+    /// A diagnostic reports the first refusal, but source can acquire declarations
+    /// between two occurrences in the same machine.
+    missing_names: Vec<SourceSpan>,
 }
 
 impl TypedTrees {
@@ -260,6 +264,45 @@ impl TypedTrees {
         source_span: SourceSpan,
         detail: impl Into<String>,
     ) {
+        self.retain_refusal(lexical_owner, request, source_span, detail);
+    }
+
+    /// Retain the lookup result independently of how a reader diagnoses the request.
+    pub fn record_missing_name(
+        &mut self,
+        lexical_owner: SymbolHandle,
+        request: DeferredRequest,
+        occurrence: SourceSpan,
+    ) {
+        let index = self.retain_refusal(lexical_owner, request, occurrence, "");
+        let uses = &mut self.deferred_refusals[index].missing_names;
+        let key = |site: &SourceSpan| (site.source_id.0, site.span.start, site.span.end);
+        if let Err(position) = uses.binary_search_by_key(&key(&occurrence), key) {
+            uses.insert(position, occurrence);
+        }
+    }
+
+    pub fn missing_name_uses(
+        &self,
+    ) -> impl Iterator<Item = (Option<SourceSpan>, SourceSpan)> + '_ {
+        self.deferred_refusals
+            .iter()
+            .filter(|row| !row.missing_names.is_empty())
+            .flat_map(|row| {
+                let owner = self.symbols.symbols().nodes().is_valid(row.declaration)
+                    .then(|| self.symbols.symbol_source_span(row.declaration))
+                    .flatten();
+                row.missing_names.iter().map(move |&site| (owner, site))
+            })
+    }
+
+    fn retain_refusal(
+        &mut self,
+        lexical_owner: SymbolHandle,
+        request: DeferredRequest,
+        source_span: SourceSpan,
+        detail: impl Into<String>,
+    ) -> usize {
         let declaration = self.refusal_declaration(lexical_owner);
         let key = (declaration.arena_index(), declaration.generation(), request);
         let position = self.deferred_refusals.binary_search_by_key(&key, |row| {
@@ -269,7 +312,7 @@ impl TypedTrees {
                 row.request,
             )
         });
-        if let Err(position) = position {
+        position.unwrap_or_else(|position| {
             self.deferred_refusals.insert(
                 position,
                 DeferredRefusal {
@@ -277,9 +320,11 @@ impl TypedTrees {
                     request,
                     source_span,
                     detail: detail.into(),
+                    missing_names: Vec::new(),
                 },
             );
-        }
+            position
+        })
     }
 
     /// The row a reader raises for `declaration`, if it holds any: a
@@ -407,6 +452,32 @@ mod tests {
             program.deferred_refusal(holder).map(|row| row.request),
             Some(DeferredRequest::ReceiverCallSelection)
         );
+    }
+
+    #[test]
+    fn repeated_missing_names_keep_every_scoped_occurrence_and_one_diagnostic() {
+        use source_text::{SourceId, Span};
+
+        let span = |start| SourceSpan::new(SourceId(1), Span::new(start, start + 1));
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Source(span(0)));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let request = DeferredRequest::UndeclaredCallName;
+        // A refusal alone supplies no evidence that scoped lookup missed a name.
+        program.record_deferred_refusal(owner, DeferredRequest::UnresolvedCallTarget, span(2));
+        for site in [span(4), span(8), span(4)] {
+            program.record_missing_name(owner, request, site);
+        }
+
+        assert_eq!(
+            program.missing_name_uses().collect::<Vec<_>>(),
+            [(Some(span(0)), span(4)), (Some(span(0)), span(8))]
+        );
+        let first = program.deferred_refusal(owner).unwrap();
+        assert_eq!((first.request, first.source_span), (request, span(4)));
     }
 
     #[test]
