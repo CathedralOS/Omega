@@ -200,6 +200,18 @@ trait u32 { }                  // Rejected: introduces a competing type name.
 machine i(value: u32) -> u32 { value } // Accepted: a callable value.
 ```
 
+### Module and operation-record names
+
+A visible module and a compile-time parameter bound to an operation record can
+both qualify a static call. If both are named `audio`, the compiler rejects
+`audio::play()` as ambiguous at `audio`, even with `use audio;`. It resolves the
+prefix before looking up `play`. A scalar parameter cannot qualify such a call,
+so a same-named scalar leaves the module path available.
+
+To select the parameter's callable field, write `audio.play()`. To select the
+module machine, import it with `use audio::play;` and call `play()` where that
+name is unambiguous.
+
 ## Visibility
 
 Named decision: `public-visibility-spelling`, settled 2026-10-19.
