@@ -36,6 +36,11 @@ impl SelectedBuildMachine {
         self.receiver.parameters_for(module)
     }
 
+    /// Only these admitted frame homes can carry a toolchain dependency-registration marker.
+    pub fn registration_frame_positions(&self) -> impl Iterator<Item = u32> + '_ {
+        self.receiver.registration_frame_positions()
+    }
+
     pub fn returned_integers(&self) -> &[source_compiler::ReturnedIntegerFact] {
         &self.returned_integers
     }

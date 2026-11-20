@@ -27,6 +27,7 @@ use terminal_interpreter::{
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
 
+const FIRST_REGISTRATION_IDENTITY: u64 = u64::MAX / 2;
 const REGISTRATIONS_POISONED: &str = "Build registration lock was poisoned";
 
 pub struct IssuedBuildRequest {
@@ -55,7 +56,7 @@ pub struct TerminalBuildRequestHost {
 /// marker is the only value that names the registration: the guest holds a
 /// copy, and `Build::prepare_dependency` hands one back.
 struct Registration {
-    marker: TerminalStructuralValue,
+    marker: Option<TerminalStructuralValue>,
     purpose: DependencyPurpose,
     /// Position among the activation's requests of the same purpose, the
     /// coordinate the coordinator acquires an issued request by.
@@ -77,12 +78,44 @@ struct Registrations {
 /// What the request host of a returned stage hands to the host of the next
 /// stage of the same activation (`source-to-psi/build_invocation/stages`): every
 /// registration issued so far, so later registrations keep counting from
-/// them, and the log written so far. The markers of earlier registrations
-/// name types of the earlier stage's module; no later value equals one, and
-/// no local carries one across.
+/// them, and the log written so far. A live registration's marker follows
+/// the value saved in its checked continuation home.
 pub(crate) struct CarriedRequests {
     registrations: Registrations,
     log: BuildLog,
+}
+
+impl Registrations {
+    fn position(&self, marker: &TerminalStructuralValue) -> Option<usize> {
+        let ordinal = FIRST_REGISTRATION_IDENTITY.checked_sub(marker.opaque_identity)?;
+        let index = usize::try_from(ordinal).ok()?;
+        (self.issued.get(index)?.marker.as_ref() == Some(marker)).then_some(index)
+    }
+}
+
+impl CarriedRequests {
+    pub(crate) fn registration_position(
+        &self,
+        value: &TerminalStructuralValue,
+    ) -> Result<usize, String> {
+        self.registrations.position(value).ok_or_else(|| {
+            "Build frame contains a registration this activation did not issue".into()
+        })
+    }
+
+    /// Keep the request history for ordinal accounting. Only values returned by
+    /// the preceding program remain available to authenticate the next one.
+    pub(crate) fn retain_markers<'a>(
+        &mut self,
+        returned: impl Iterator<Item = (usize, &'a TerminalStructuralValue)>,
+    ) {
+        for registration in &mut self.registrations.issued {
+            registration.marker = None;
+        }
+        for (index, marker) in returned {
+            self.registrations.issued[index].marker = Some(marker.clone());
+        }
+    }
 }
 
 /// The registered dependency a parked Build waits to have prepared.
@@ -315,9 +348,7 @@ impl TerminalBuildRequestAdapter {
             ));
         }
         let position = registrations
-            .issued
-            .iter()
-            .position(|registration| &registration.marker == marker)
+            .position(marker)
             .ok_or_else(|| {
                 refuse(
                     "Build::prepare_dependency requires a registration this activation issued; an authored `DependencyRegistration {}` names none",
@@ -649,7 +680,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         // receiver is 1 and filesystem markers count down from the top.
         let identity = u64::try_from(registrations.issued.len())
             .ok()
-            .and_then(|issued| (u64::MAX / 2).checked_sub(issued))
+            .and_then(|issued| FIRST_REGISTRATION_IDENTITY.checked_sub(issued))
             .filter(|identity| *identity > 1)
             .ok_or_else(|| refuse("Build registration marker space is exhausted"))?;
         let marker = TerminalStructuralValue::minted(identity, structural_type, Vec::new());
@@ -659,7 +690,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .filter(|registration| registration.purpose == purpose)
             .count();
         registrations.issued.push(Registration {
-            marker: marker.clone(),
+            marker: Some(marker.clone()),
             purpose,
             request_ordinal,
             prepared: false,

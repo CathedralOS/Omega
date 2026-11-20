@@ -1,4 +1,4 @@
-//! A stage crossing owns one typed home per live scalar, irrespective of the
+//! A stage crossing owns one typed home per live value, irrespective of the
 //! number of names borrowing it. A loan records its defining local and home.
 //! Only a direct borrow of a known home can be restored without running code.
 
@@ -45,7 +45,7 @@ impl Binding {
         let ty = syntax.type_references.type_reference(local.type_reference);
         if let Some(name) = ty.as_named() {
             let name = name.as_str(syntax);
-            if scalar_type(name) {
+            if frame_type_name(name) {
                 return Some(Self {
                     definition,
                     home: definition,
@@ -72,7 +72,7 @@ impl Binding {
                 .type_references
                 .type_reference(*referee)
                 .as_named()
-                .is_some_and(|name| scalar_type(name.as_str(syntax)))
+                .is_some_and(|name| frame_type_name(name.as_str(syntax)))
         {
             return None;
         }
@@ -94,8 +94,9 @@ impl Binding {
     }
 }
 
-fn scalar_type(name: &str) -> bool {
-    matches!(name, "bool" | "f32" | "f64")
+/// Admission resolves each candidate against the builtin or toolchain declaration.
+fn frame_type_name(name: &str) -> bool {
+    matches!(name, "bool" | "f32" | "f64" | "DependencyRegistration")
         || numeric_literals::LandedIntegerType::from_name(name).is_some()
 }
 
@@ -132,29 +133,20 @@ fn read(syntax: &mut SyntaxTrees, name: Identifier, indirect: bool) -> Expressio
     value
 }
 
-pub(super) fn project(
+pub(super) fn project_parameters(
     syntax: &mut SyntaxTrees,
     plan: &EntryPlan,
-    stage: &BuildStage,
-    declaration: &mut Machine,
-    established: &[crate::ReturnedIntegerFact],
 ) -> Result<(), Vec<Diagnostic>> {
-    let state = plan.state;
-    let statements = &plan.statements;
-    let homes = &plan.homes;
-    let incoming = plan.incoming.map(|i| &stage.program_ends[i]);
-    let outgoing = stage.program_ends.get(stage.index);
-    let entry = syntax.items.state(state);
+    let entry = syntax.items.state(plan.state);
     let [receiver] = *syntax.items.state_parameters(entry.parameters) else {
         return Err(vec![Diagnostic::error(
             "Build activation requires its one original Build parameter",
         )]);
     };
-    let body = syntax.items.statements(entry.statements).to_vec();
     let mut params =
         HandleSpan::from_parts(syntax.items.append_state_parameter_handle(receiver), 1);
-    for &home in homes {
-        let local = local(syntax, statements[home]);
+    for &home in &plan.homes {
+        let local = local(syntax, plan.statements[home]);
         let name = parameter(local);
         let ty = local.type_reference;
         let type_reference = syntax
@@ -170,7 +162,27 @@ pub(super) fn project(
             });
         params.push_contiguous(syntax.items.append_state_parameter_handle(param));
     }
-    syntax.items.state_mut(state).parameters = params;
+    syntax.items.state_mut(plan.state).parameters = params;
+    Ok(())
+}
+
+pub(super) fn project(
+    syntax: &mut SyntaxTrees,
+    plan: &EntryPlan,
+    stage: &BuildStage,
+    declaration: &mut Machine,
+    established: &[crate::ReturnedIntegerFact],
+) -> Result<(), Vec<Diagnostic>> {
+    let state = plan.state;
+    let statements = &plan.statements;
+    let homes = &plan.homes;
+    let incoming = plan.incoming.map(|i| &stage.program_ends[i]);
+    let outgoing = stage.program_ends.get(stage.index);
+    let body = syntax
+        .items
+        .statements(syntax.items.state(state).statements)
+        .to_vec();
+    project_parameters(syntax, plan)?;
     let mut projected = HandleSpan::empty();
     if let Some(cut) = incoming {
         facts::require(syntax, declaration, statements, homes, cut, established)?;

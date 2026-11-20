@@ -7,11 +7,7 @@ pub(crate) fn is_exact_toolchain_build_prelude_data(
     symbol: SymbolHandle,
     expected_name: &str,
 ) -> bool {
-    typed.data_definitions().iter().any(|definition| {
-        definition.symbol == symbol
-            && definition.name.as_str() == expected_name
-            && typed.symbols.is_build_prelude_symbol(symbol)
-    })
+    typed.is_exact_toolchain_build_prelude_data(symbol, expected_name)
 }
 
 pub(super) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {

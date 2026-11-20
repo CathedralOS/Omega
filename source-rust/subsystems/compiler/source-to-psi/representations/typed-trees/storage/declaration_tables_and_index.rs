@@ -1702,6 +1702,20 @@ pub mod declaration_index {
                 .map(|position| self.data_definitions().at(position))
         }
 
+        /// A toolchain Build declaration is identified by its resolved symbol and
+        /// source owner. User declarations can have the same unqualified name.
+        pub fn is_exact_toolchain_build_prelude_data(
+            &self,
+            symbol: SymbolHandle,
+            expected_name: &str,
+        ) -> bool {
+            self.data_definition_by_symbol(symbol)
+                .is_some_and(|definition| {
+                    definition.name.as_str() == expected_name
+                        && self.symbols.is_build_prelude_symbol(symbol)
+                })
+        }
+
         pub fn unique_data_definition_by_symbol(
             &self,
             symbol: SymbolHandle,

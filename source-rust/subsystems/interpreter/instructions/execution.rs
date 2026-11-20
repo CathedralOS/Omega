@@ -2444,9 +2444,11 @@ pub(crate) mod execution {
                     .flat_map(|machine| machine.structural_places.iter()),
                 &identity_roots,
             );
-            for atom in inputs.projected_host_atoms {
-                local_structural_identities.reserve_projected_host_at_entry(&atom.value)?;
-            }
+            Self::reserve_projected_host_identities(
+                &program,
+                inputs.projected_host_atoms,
+                &mut local_structural_identities,
+            )?;
             let machine = program
                 .machines()
                 .get(&current_machine)
@@ -2651,10 +2653,9 @@ pub(crate) mod execution {
             root: &TerminalStructuralValue,
             path: &[StructuralPathSegment],
         ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-            if path.is_empty()
-                || path
-                    .iter()
-                    .any(|step| !matches!(step, StructuralPathSegment::Field(_)))
+            if path
+                .iter()
+                .any(|step| !matches!(step, StructuralPathSegment::Field(_)))
                 || !terminal_semantics::projection_stays_in_inline_storage(
                     self.structural_types().values(),
                     root.structural_type,
@@ -2708,6 +2709,44 @@ pub(crate) mod execution {
                 return Err(malformed());
             }
             Ok(selected)
+        }
+
+        fn reserve_projected_host_identities(
+            program: &crate::embedding::program::AdmittedTerminalProgram<'_>,
+            atoms: &[crate::TerminalProjectedHostAtom],
+            identities: &mut LocalStructuralIdentities,
+        ) -> Result<(), TerminalInterpretError> {
+            // A single token or a list already in strictly increasing order needs no scratch.
+            if atoms
+                .windows(2)
+                .all(|pair| pair[0].value.opaque_identity < pair[1].value.opaque_identity)
+            {
+                for atom in atoms {
+                    identities.reserve_projected_host_at_entry(&atom.value)?;
+                }
+                return Ok(());
+            }
+            // Copies can share an issued value, while each copy has its own storage home.
+            let mut payloads: Vec<_> = atoms.iter().map(|atom| &atom.value).collect();
+            payloads.sort_unstable_by_key(|value| value.opaque_identity);
+            for copies in
+                payloads.chunk_by(|left, right| left.opaque_identity == right.opaque_identity)
+            {
+                let first = copies[0];
+                if copies.len() > 1
+                    && (program
+                        .structural_declaration(first.structural_type)?
+                        .multiplicity
+                        != StructuralMultiplicity::Unrestricted
+                        || copies[1..].iter().any(|copy| *copy != first))
+                {
+                    return Err(TerminalInterpretError::StructuralArgumentAliasing(
+                        first.opaque_identity,
+                    ));
+                }
+                identities.reserve_projected_host_at_entry(first)?;
+            }
+            Ok(())
         }
 
         fn bind_projected_host_atoms(

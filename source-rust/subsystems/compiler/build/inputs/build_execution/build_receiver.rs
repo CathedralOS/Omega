@@ -1,9 +1,11 @@
 //! The host lends its Build only to the entry's checked mutable Build borrow.
 //! Keep that source/type association through publication before minting a value.
 
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{MachineId, ScalarType, StructuralTypeId};
 use source_compiler::AcceptedTerminalSource;
-use source_compiler::source_state::{TypedTrees, machine::Machine, types::TypeReferenceNode};
+use source_compiler::source_state::{
+    TypedTrees, machine::Machine, signature::StateParameter, types::TypeReferenceNode,
+};
 use terminal_psi::{
     InvocationCodeScope, StructuralAccess, StructuralParameterDeclaration, TerminalModule,
 };
@@ -21,12 +23,111 @@ pub(super) struct BuildReceiver {
 #[derive(Debug)]
 struct AdmittedFrameHome {
     local: source_text::Span,
+    kind: FrameHomeType,
+    saved: bool,
     parameter: StructuralParameterDeclaration,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum FrameHomeType {
+    Scalar(ScalarType),
+    DependencyRegistration {
+        declaration: String,
+        storage: String,
+    },
+}
+
+/// Source record correspondence ties both the nominal declaration and its stored
+/// representation to the particular admitted module, whose type numbers are local.
+fn record_identity<'a>(
+    source: &'a AcceptedTerminalSource,
+    module: &TerminalModule,
+    id: StructuralTypeId,
+    declaration: symbols::SymbolHandle,
+) -> Option<&'a str> {
+    let mut records = source
+        .source_records()
+        .iter()
+        .filter(|row| row.record == id);
+    let record = records.next()?;
+    let storage = module.structural_type(id)?;
+    (records.next().is_none()
+        && record.declaration == declaration
+        && module.identities.text(storage.identity) == Some(record.storage_identity.as_str()))
+    .then_some(record.storage_identity.as_str())
+}
+
+impl FrameHomeType {
+    fn admit(
+        source: &AcceptedTerminalSource,
+        module: &TerminalModule,
+        parameter: &StateParameter,
+        slot: &StructuralParameterDeclaration,
+    ) -> Option<Self> {
+        let typed = source.source();
+        let symbol = mutable_referent(typed, parameter)?;
+        let ty = module.structural_type(slot.structural_type)?;
+        if let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) = ty.shape {
+            let atom = typed.symbols.builtin_type_atom(symbol)?;
+            let expected = match symbols::PrimitiveType::from_builtin_atom(atom)? {
+                symbols::PrimitiveType::Bool => ScalarType::Boolean,
+                symbols::PrimitiveType::F32 => {
+                    ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
+                }
+                symbols::PrimitiveType::F64 => {
+                    ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64)
+                }
+                symbols::PrimitiveType::Integer(carrier) => {
+                    ScalarType::Integer(semantic_vocabulary::IntegerType::from_fixed(carrier)?)
+                }
+                symbols::PrimitiveType::Addr | symbols::PrimitiveType::Selector => return None,
+            };
+            return (scalar == expected).then_some(Self::Scalar(scalar));
+        }
+        if !super::build_value::is_exact_toolchain_build_prelude_data(
+            typed,
+            symbol,
+            "DependencyRegistration",
+        ) || !registration_shape(ty)
+        {
+            return None;
+        }
+        Some(Self::DependencyRegistration {
+            declaration: module.identities.text(ty.declaration_identity)?.to_owned(),
+            storage: record_identity(source, module, ty.id, symbol)?.to_owned(),
+        })
+    }
+
+    fn matches_published(&self, module: &TerminalModule, id: StructuralTypeId) -> bool {
+        let Some(ty) = module.structural_type(id) else {
+            return false;
+        };
+        match self {
+            Self::Scalar(expected) => {
+                matches!(ty.shape, terminal_psi::StructuralTypeShape::PrimitiveScalar(actual) if actual == *expected)
+            }
+            Self::DependencyRegistration {
+                declaration,
+                storage,
+            } => {
+                registration_shape(ty)
+                    && module.identities.text(ty.declaration_identity) == Some(declaration.as_str())
+                    && module.identities.text(ty.identity) == Some(storage.as_str())
+            }
+        }
+    }
+}
+
+fn registration_shape(ty: &terminal_psi::StructuralTypeDeclaration) -> bool {
+    ty.is_copyable()
+        && matches!(&ty.shape, terminal_psi::StructuralTypeShape::Record {
+            fields, storage: terminal_psi::StructuralRecordStorage::Packed,
+        } if fields.is_empty())
 }
 
 fn mutable_referent(
     typed: &TypedTrees,
-    parameter: &source_compiler::source_state::signature::StateParameter,
+    parameter: &StateParameter,
 ) -> Option<symbols::SymbolHandle> {
     if parameter.is_const || parameter.relevance.is_erased() {
         return None;
@@ -46,11 +147,11 @@ fn mutable_referent(
     Some(*symbol)
 }
 
-fn source_receiver(
-    typed: &TypedTrees,
+fn source_receiver<'a>(
+    typed: &'a TypedTrees,
     machine: &Machine,
     stage: &source_compiler::BuildStage,
-) -> Result<symbols::SymbolHandle, String> {
+) -> Result<(symbols::SymbolHandle, arena::RootRows<'a, StateParameter>), String> {
     let parent = typed.symbols.get(machine.symbol).parent;
     if !parent.is_valid()
         || !matches!(
@@ -74,13 +175,6 @@ fn source_receiver(
         .symbol_source_span(machine.symbol)
         .ok_or("Build entry has no source declaration")?;
     for (slot, &home) in parameters.iter().skip(1).zip(stage.frame_homes()) {
-        if mutable_referent(typed, slot)
-            .and_then(|symbol| typed.symbols.builtin_type_atom(symbol))
-            .and_then(symbols::PrimitiveType::from_builtin_atom)
-            .is_none()
-        {
-            return Err("Build frame home requires a mutable borrow of a builtin scalar".into());
-        }
         if slot.name.as_str() != source_compiler::BuildStage::frame_parameter_name(home)
             || typed.symbols.symbol_source_span(slot.symbol)
                 != Some(source_text::SourceSpan::new(entry_span.source_id, home))
@@ -93,7 +187,7 @@ fn source_receiver(
     if !super::build_value::is_exact_toolchain_build_prelude_data(typed, symbol, "Build") {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     }
-    Ok(symbol)
+    Ok((symbol, parameters.slice(1..parameters.len())))
 }
 
 impl BuildReceiver {
@@ -102,7 +196,7 @@ impl BuildReceiver {
         machine: &Machine,
         stage: &source_compiler::BuildStage,
     ) -> Result<Self, String> {
-        let build = source_receiver(source.source(), machine, stage)?;
+        let (build, source_slots) = source_receiver(source.source(), machine, stage)?;
         let elaboration = &source.closure().elaboration();
         let module = &elaboration.module;
         let entry = source
@@ -123,44 +217,34 @@ impl BuildReceiver {
         {
             return Err("accepted Build entry lost its one mutable Build receiver".into());
         }
-        if frame.len() != stage.frame_homes().len()
-            || frame.iter().enumerate().any(|(i, slot)| {
-                slot.position as usize != i + 1
-                    || slot.access != StructuralAccess::MutableBorrow
-                    || !slot.qualifications.is_empty()
-                    || !slot.projected_qualifications.is_empty()
-                    || !module
-                        .structural_type(slot.structural_type)
-                        .is_some_and(|ty| {
-                            matches!(
-                                ty.shape,
-                                terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                            )
-                        })
-            })
-        {
-            return Err("Build continuation requires a checked scalar storage home for each captured declaration".into());
+        if frame.len() != source_slots.len() {
+            return Err("accepted Build entry changed its number of continuation homes".into());
         }
-        let mut records = source
-            .source_records()
+        let mut homes = Vec::with_capacity(frame.len());
+        for (index, ((slot, source_slot), &local)) in frame
             .iter()
-            .filter(|row| row.record == parameter.structural_type);
-        let (Some(record), None) = (records.next(), records.next()) else {
-            return Err("accepted Build receiver has no unique source record".into());
-        };
-        if record.declaration != build {
-            return Err(
-                "accepted Build receiver differs from the exact toolchain Build declaration".into(),
-            );
+            .zip(source_slots.iter())
+            .zip(stage.frame_homes())
+            .enumerate()
+        {
+            if slot.position as usize != index + 1
+                || slot.access != StructuralAccess::MutableBorrow
+                || !slot.qualifications.is_empty()
+                || !slot.projected_qualifications.is_empty()
+            {
+                return Err("Build continuation requires a mutable storage home for each captured declaration".into());
+            }
+            let kind = FrameHomeType::admit(source, module, source_slot, slot)
+                .ok_or("Build frame home differs from its builtin scalar or toolchain registration declaration")?;
+            homes.push(AdmittedFrameHome {
+                local,
+                saved: stage.saves_frame_home(local),
+                kind,
+                parameter: slot.clone(),
+            });
         }
-        let storage = terminal_psi::find_structural_type(
-            &module.types.structural_types,
-            parameter.structural_type,
-        )
-        .ok_or("accepted Build receiver has no storage declaration")?;
-        if module.identities.text(storage.identity) != Some(record.storage_identity.as_str()) {
-            return Err("accepted Build receiver lost its source storage identity".into());
-        }
+        let storage_identity = record_identity(source, module, parameter.structural_type, build)
+            .ok_or("accepted Build receiver differs from its toolchain declaration or storage identity")?;
         let declaration_identity = entry
             .declaration
             .as_ref()
@@ -175,14 +259,8 @@ impl BuildReceiver {
                 .ok_or("Build receiver has no accepted invocation owner")?,
             machine: entry.id,
             receiver: parameter.clone(),
-            frame: stage
-                .frame_homes()
-                .iter()
-                .copied()
-                .zip(frame.iter().cloned())
-                .map(|(local, parameter)| AdmittedFrameHome { local, parameter })
-                .collect(),
-            storage_identity: record.storage_identity.clone(),
+            frame: homes,
+            storage_identity: storage_identity.to_owned(),
             declaration_identity,
         })
     }
@@ -190,8 +268,17 @@ impl BuildReceiver {
     pub(super) fn has_same_frame(&self, previous: &Self) -> bool {
         self.frame
             .iter()
-            .map(|home| home.local)
-            .eq(previous.frame.iter().map(|home| home.local))
+            .map(|home| (home.local, &home.kind))
+            .eq(previous.frame.iter().map(|home| (home.local, &home.kind)))
+    }
+
+    pub(super) fn registration_frame_positions(&self) -> impl Iterator<Item = u32> + '_ {
+        self.frame
+            .iter()
+            .filter(|home| {
+                home.saved && matches!(home.kind, FrameHomeType::DependencyRegistration { .. })
+            })
+            .map(|home| home.parameter.position)
     }
 
     pub(super) fn parameters_for<'module>(
@@ -230,9 +317,11 @@ impl BuildReceiver {
                 .iter()
                 .any(|kind| *kind != terminal_psi::BoundaryParameterKind::Structural)
             || parameter.position != 0
-            || !frame
-                .iter()
-                .eq(self.frame.iter().map(|home| &home.parameter))
+            || frame.len() != self.frame.len()
+            || frame.iter().zip(&self.frame).any(|(slot, home)| {
+                slot != &home.parameter
+                    || !home.kind.matches_published(module, slot.structural_type)
+            })
             || parameter != &self.receiver
         {
             return Err("published Build entry differs from its admitted mutable receiver".into());

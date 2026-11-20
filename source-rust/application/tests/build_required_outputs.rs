@@ -50,8 +50,7 @@ machine settle(builder: @mut Build, settled: OutputCompletion) {{
     )
     .expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
+        .args(["--check", "main.omg", "--target", "linux_x86_64"])
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()

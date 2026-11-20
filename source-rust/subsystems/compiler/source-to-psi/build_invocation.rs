@@ -55,57 +55,67 @@ impl ProductDeclarationSource {
 impl BuildStageSource {
     pub fn prepare(
         self,
-        index: usize,
+        previous: Option<&BuildStage>,
         facts: &[crate::ReturnedIntegerFact],
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
         let entry = self.entry;
-        let request = self.request(preparation, host, authority)?;
-        let plan = stages::EntryPlan::new(&request.syntax.trees, entry, index)?;
-        let prepare =
-            |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
-                let stage = plan.project(&mut request.syntax.trees, use_frame, facts)?;
-                let source = request.prepare(&mut CompileTimings::default())?;
-                Ok((source, stage))
-            };
-        let Some(wait) = plan.optional_wait(&request.syntax.trees) else {
-            return prepare(request, false);
+        let mut request = self.request(preparation, host, authority)?;
+        let index = match previous {
+            None => 0,
+            Some(stage) => stage.next_index().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "the selected Build stage has already finished",
+                )]
+            })?,
         };
-        // Both projections use the ordinary resolver. Only the chosen projection
-        // can supply checked declarations to the next stage.
-        let mut candidate = request.clone();
-        candidate.frontends = request.frontends.fork()?;
-        let whole = prepare(candidate, false);
-        let after_wait = |span: source_text::SourceSpan| {
-            span.source_id == entry.source_id && span.span.start > wait.end
+        let excluded = previous.map_or(&[][..], |stage| stage.excluded_homes.as_slice());
+        let plan = stages::EntryPlan::new(&request.syntax.trees, entry, index, excluded)?;
+        let candidates = if previous.is_none() {
+            plan.registration_candidates(&request.syntax.trees)
+        } else {
+            Vec::new()
         };
-        let needs_scope = match &whole {
-            Ok((source, _)) => {
-                use crate::source_state::deferred_refusals::DeferredRequest;
-                let typed = source.typed();
-                typed.deferred_refusals.iter().any(|row| {
-                    typed.symbols.symbol_source_span(row.declaration) == Some(entry)
-                        && after_wait(row.source_span)
-                        && matches!(
-                            row.request,
-                            DeferredRequest::UndeclaredCallName
-                                | DeferredRequest::UndeclaredValueName
-                                | DeferredRequest::UnresolvedCallTarget
-                        )
-                })
-            }
-            Err(rows) => rows
-                .iter()
-                .all(|row| row.source_span.is_some_and(after_wait)),
-        };
-        if needs_scope {
-            return prepare(request, true);
+        if candidates.is_empty() {
+            return prepare_stage(request, entry, &plan, facts);
         }
-        let (source, stage) = whole?;
-        request.frontends.retain(&source)?;
-        Ok((source, stage))
+        // The ordinary selected program already resolves each candidate's type.
+        // Reproject only when a user declaration shadows the toolchain name.
+        request.syntax.share_pages();
+        let mut probe = request.clone();
+        probe.frontends = request.frontends.fork()?;
+        let excluded = match prepare_stage(probe, entry, &plan, facts) {
+            Ok((source, stage)) => {
+                let excluded = unsupported_registration_homes(source.typed(), entry, &candidates)?;
+                if excluded.is_empty() {
+                    request.frontends.retain(&source)?;
+                    return Ok((source, stage));
+                }
+                excluded
+            }
+            Err(diagnostics) => {
+                // A speculative save can itself be ill-typed for a shadowing
+                // declaration. Its signature still determines whether to keep
+                // the original diagnostic or return to that local's ordinary lifetime.
+                let mut header = request.clone();
+                header.frontends = request.frontends.fork()?;
+                let unsupported = plan
+                    .project_frame_parameters(&mut header.syntax.trees)
+                    .and_then(|()| header.prepare(&mut CompileTimings::default()))
+                    .and_then(|source| {
+                        unsupported_registration_homes(source.typed(), entry, &candidates)
+                    });
+                match unsupported {
+                    Ok(excluded) if excluded.is_empty() => return Err(diagnostics),
+                    Ok(excluded) => excluded,
+                    Err(_) => candidates.iter().map(|&(_, home)| home).collect(),
+                }
+            }
+        };
+        let plan = stages::EntryPlan::new(&request.syntax.trees, entry, index, &excluded)?;
+        prepare_stage(request, entry, &plan, facts)
     }
 
     fn request(
@@ -127,6 +137,87 @@ impl BuildStageSource {
         request.selection_authority = authority;
         Ok(request.with_build_entry(entry.as_ref()))
     }
+}
+
+fn prepare_stage(
+    request: ResolveAndTypeRequest,
+    entry: source_text::SourceSpan,
+    plan: &stages::EntryPlan,
+    facts: &[crate::ReturnedIntegerFact],
+) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
+    let prepare = |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
+        let stage = plan.project(&mut request.syntax.trees, use_frame, facts)?;
+        let source = request.prepare(&mut CompileTimings::default())?;
+        Ok((source, stage))
+    };
+    let Some(wait) = plan.optional_wait(&request.syntax.trees) else {
+        return prepare(request, false);
+    };
+    // Both projections use the ordinary resolver. Only the chosen projection
+    // can supply checked declarations to the next stage.
+    let mut candidate = request.clone();
+    candidate.frontends = request.frontends.fork()?;
+    let whole = prepare(candidate, false);
+    let after_wait = |span: source_text::SourceSpan| {
+        span.source_id == entry.source_id && span.span.start > wait.end
+    };
+    let needs_scope = match &whole {
+        Ok((source, _)) => {
+            use crate::source_state::deferred_refusals::DeferredRequest;
+            let typed = source.typed();
+            typed.deferred_refusals.iter().any(|row| {
+                typed.symbols.symbol_source_span(row.declaration) == Some(entry)
+                    && after_wait(row.source_span)
+                    && matches!(
+                        row.request,
+                        DeferredRequest::UndeclaredCallName
+                            | DeferredRequest::UndeclaredValueName
+                            | DeferredRequest::UnresolvedCallTarget
+                    )
+            })
+        }
+        Err(rows) => rows
+            .iter()
+            .all(|row| row.source_span.is_some_and(after_wait)),
+    };
+    if needs_scope {
+        return prepare(request, true);
+    }
+    let (source, stage) = whole?;
+    request.frontends.retain(&source)?;
+    Ok((source, stage))
+}
+
+/// A same-spelling user type keeps its original lifetime in one program.
+fn unsupported_registration_homes(
+    typed: &TypedTrees,
+    entry: source_text::SourceSpan,
+    candidates: &[(usize, usize)],
+) -> Result<Vec<usize>, Vec<Diagnostic>> {
+    use crate::source_state::types::TypeReferenceNode;
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(entry))
+        .and_then(|machine| typed.machine_states(machine).first())
+        .ok_or_else(|| vec![Diagnostic::error("selected Build entry has no typed frame")])?;
+    let params = typed.state_parameters(machine);
+    let types = &typed.type_reference_table;
+    let mut excluded = Vec::new();
+    for &(position, home) in candidates {
+        let slot = params.get(position).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected Build entry lost a candidate frame parameter",
+            )]
+        })?;
+        let admitted = matches!(types.type_reference(slot.type_reference), TypeReferenceNode::Reference { referee, .. }
+            if matches!(types.type_reference(*referee), TypeReferenceNode::Named { symbol, .. }
+                if typed.is_exact_toolchain_build_prelude_data(*symbol, "DependencyRegistration")));
+        if !admitted {
+            excluded.push(home);
+        }
+    }
+    Ok(excluded)
 }
 
 pub struct BuildInvocationJudgment {

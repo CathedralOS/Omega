@@ -306,7 +306,7 @@ impl TerminalBuildHost {
             return Err("Build host has already started its activation".into());
         }
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
-        let instance = self.instantiate(None, true)?;
+        let instance = self.instantiate(None, Vec::new(), true)?;
         let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
@@ -334,6 +334,7 @@ impl TerminalBuildHost {
         }
         let CarriedStage {
             contents,
+            registration_bindings,
             output_issued,
             requests,
             demanded_sources,
@@ -344,7 +345,7 @@ impl TerminalBuildHost {
         } = carried;
         self.requests.adopt(request_host)?;
         self.bindings.adopt(binding_host)?;
-        let instance = self.instantiate(Some(contents), output_issued)?;
+        let instance = self.instantiate(Some(contents), registration_bindings, output_issued)?;
         let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
@@ -363,6 +364,7 @@ impl TerminalBuildHost {
     fn instantiate(
         self: &Arc<Self>,
         contents: Option<Vec<terminal_interpreter::TerminalStructuralContents>>,
+        mut host_atoms: Vec<TerminalProjectedHostAtom>,
         output_issued: bool,
     ) -> Result<TerminalInstance<'static, 'static>, String> {
         let artifact = self.produced.view();
@@ -446,13 +448,15 @@ impl TerminalBuildHost {
         };
         // An absent payload remains absent after stage reconstruction. Its
         // empty record contents cannot reissue the original Output authority.
-        let output = output_issued.then(|| self.output.binding());
+        if output_issued {
+            host_atoms.push(self.output.binding());
+        }
         let mut instance = program
             .instantiate(TerminalInstantiation {
                 structural_inputs: TerminalStructuralInputs {
                     arguments: &arguments,
                     contents: contents.as_deref().unwrap_or_default(),
-                    projected_host_atoms: output.as_slice(),
+                    projected_host_atoms: &host_atoms,
                     zero_initialized_arguments: &zero_initialized,
                     ..Default::default()
                 },
@@ -515,6 +519,7 @@ impl TerminalBuildHost {
 /// next stage of the same activation.
 pub(crate) struct CarriedStage {
     contents: Vec<terminal_interpreter::TerminalStructuralContents>,
+    registration_bindings: Vec<TerminalProjectedHostAtom>,
     output_issued: bool,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
@@ -730,15 +735,23 @@ impl TerminalBuildActivation {
         }
         let contents = storage::transfer(&self.instance, successor, parameters)?;
         let output_issued = self.host.output.is_issued(&self.instance)?;
+        let mut request_host = self.host.requests.carry()?;
+        let registration_bindings = storage::registration_bindings(
+            &self.instance,
+            parameters,
+            self.host.machine.registration_frame_positions(),
+            &mut request_host,
+        )?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
         Ok(CarriedStage {
             contents,
+            registration_bindings,
             output_issued,
             requests: self.requests,
             demanded_sources: self.demanded_sources,
             helper_accounting: self.helper_accounting,
-            request_host: self.host.requests.carry()?,
+            request_host,
             binding_host: self.host.bindings.carry()?,
             filesystem: self.host.filesystem.carry()?,
         })
