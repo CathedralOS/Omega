@@ -18,7 +18,7 @@ use package_compilation::source_imports::{ProductQueryDependency, ProductQueryIn
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
 use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use source_compiler::{SourceContinuation, SourcePreparation};
-use source_declarations::build_stage::BuildStage;
+use source_compiler::BuildStage;
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
 

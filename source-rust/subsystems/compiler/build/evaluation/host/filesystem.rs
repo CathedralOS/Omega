@@ -49,7 +49,7 @@ struct FilesystemActivation {
 }
 
 /// The filesystem runtime of a returned stage, handed to the host of the
-/// next stage of the same activation (`admission/build_stages.rs`): what the
+/// next stage of the same activation (`source-to-psi/build_invocation/stages`): what the
 /// Build has read, staged and completed so far. Its markers name types of
 /// the earlier stage's module, so no later value equals one.
 pub(crate) struct CarriedFilesystem(FilesystemActivation);

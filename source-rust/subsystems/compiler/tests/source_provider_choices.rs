@@ -97,13 +97,11 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         root_sources: roots,
         sources: Arc::new(sources),
         build_helper_identity: TARGET,
-        build_sources: Default::default(),
-        build_stage: None,
         frontends: Default::default(),
         top_level_bindings: Vec::new(),
         selection_authority: None,
     };
-    let (source, _) = request.prepare(observer)?;
+    let source = request.prepare(observer)?;
     let typed = source.complete_authored(observer)?.finish().typed;
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,

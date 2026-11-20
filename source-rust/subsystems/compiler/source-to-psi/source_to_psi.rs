@@ -10,7 +10,8 @@ mod build_invocation;
 pub mod compile_time;
 pub mod product;
 pub use build_invocation::{
-    BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation, ProductDeclarationSource,
+    BuildInvocationJudgment, BuildStage, BuildStageSource, CheckedBuildInvocation,
+    ProductDeclarationSource,
 };
 mod package_handoff;
 pub use package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
@@ -213,7 +214,7 @@ impl<'a> StageSource<'a> {
             .parsed
             .into_request(self.product.build_host.canonical_name(), primary)?;
         request.selection_authority = self.product.layout_selection_authority.clone();
-        let (continuation, _) = request
+        let continuation = request
             .with_build_entry(self.product.policy.activation)
             .prepare(&mut UnmeasuredProduction)?;
         Ok((self.product, continuation))

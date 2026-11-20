@@ -3,7 +3,7 @@ Carry the guest `Build` value from one stage of a Build to the next
 (`CarriedBuild::capture`, `CarriedBuild::contents`).
 
 A staged Build runs as several programs, one after another, against one
-activation (`admission/build_stages.rs`). Each stage is its own accepted
+activation (`source-to-psi/build_invocation/stages`). Each stage is its own accepted
 module, so it has its own instance and its own storage for the `Build` it was
 lent. The settings an earlier stage wrote must be the ones a later stage reads
 and the ones the finished Build publishes

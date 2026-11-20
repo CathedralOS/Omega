@@ -75,7 +75,7 @@ struct Registrations {
 }
 
 /// What the request host of a returned stage hands to the host of the next
-/// stage of the same activation (`admission/build_stages.rs`): every
+/// stage of the same activation (`source-to-psi/build_invocation/stages`): every
 /// registration issued so far, so later registrations keep counting from
 /// them, and the log written so far. The markers of earlier registrations
 /// name types of the earlier stage's module; no later value equals one, and

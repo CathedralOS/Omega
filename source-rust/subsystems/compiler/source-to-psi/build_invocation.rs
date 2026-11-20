@@ -5,15 +5,17 @@ use crate::compile_time::{
 };
 use crate::source_state::TypedTrees;
 use crate::{
-    AcceptedTerminalSource, ConstantRead, ProducedTerminalProgram, ResolveAndTypeRequest,
-    SourceAdmission, SourceContinuation, SourcePreparation, SourcePreparationFailure,
-    SourcePreparationRequest, ParsedStageSources, TerminalProductionCustody,
+    AcceptedTerminalSource, ConstantRead, ParsedStageSources, ProducedTerminalProgram,
+    ResolveAndTypeRequest, SourceAdmission, SourceContinuation, SourcePreparation,
+    SourcePreparationFailure, SourcePreparationRequest, TerminalProductionCustody,
     TerminalSourceCompilation, UnmeasuredProduction,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use source_declarations::build_stage::BuildStage;
+mod stages;
+mod target_helpers;
 use source_text::SourceId;
+pub use stages::BuildStage;
 use std::collections::HashSet;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -45,9 +47,8 @@ impl ProductDeclarationSource {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         self.0
-            .request(preparation, host, authority, None)?
+            .request(preparation, host, authority)?
             .prepare(&mut UnmeasuredProduction)
-            .map(|(declarations, _)| declarations)
     }
 }
 
@@ -60,8 +61,10 @@ impl BuildStageSource {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
         let entry = self.entry;
-        self.request(preparation, host, authority, Some((entry, index)))?
-            .prepare(&mut UnmeasuredProduction)
+        let mut request = self.request(preparation, host, authority)?;
+        let stage = stages::select_build_stage(&mut request.syntax.trees, entry, index)?;
+        let source = request.prepare(&mut UnmeasuredProduction)?;
+        Ok((source, stage))
     }
 
     fn request(
@@ -69,7 +72,6 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-        build_stage: Option<(source_text::SourceSpan, usize)>,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(
@@ -80,8 +82,7 @@ impl BuildStageSource {
         });
         let mut request = self.parsed.into_request(host, self.entry.source_id)?;
         request.frontends = preparation.frontends.clone();
-        request.build_sources = self.build_sources;
-        request.build_stage = build_stage;
+        target_helpers::select_build_helpers(&mut request.syntax.trees, host, &self.build_sources);
         request.selection_authority = authority;
         Ok(request.with_build_entry(entry.as_ref()))
     }
