@@ -14,6 +14,26 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: @u8; d: u32 in Domain; }");
     self.check_data_rows();
 
+    self.parser.parse_view("data R { leaf:[[u64 in Trapping;2];3]; shell:[[u8;2] in Trapping;3]; }");
+    self.check_complete();
+    assert self.parser.type_reference_count == 8;
+    assert self.parser.type_constraint_count == 2;
+    assert self.parser.data_fields[0].type_reference == 3;
+    assert self.parser.data_fields[1].type_reference == 7;
+    // Children precede parents. The same domain wraps the leaf in the
+    // first field and the inner array in the second.
+    self.check_array_type(3, 2);
+    self.check_array_type(2, 1);
+    self.check_domain_type(1, 0, 0);
+    self.check_array_type(7, 6);
+    self.check_domain_type(6, 5, 1);
+    self.check_array_type(5, 4);
+
+    self.parser.parse_view("data R { leaf:[u64 in ;2]; }");
+    self.check_syntax_refused(22, 23);
+    self.parser.parse_view("data R { leaf:[u64 in Trapping;2] in Other; }");
+    self.check_incomplete(34, 36);
+
     self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as +Trapping; transition 1 { 1 -> done() } machine done() {} }");
     self.check_machine_rows();
 
@@ -144,7 +164,7 @@ machine Main::main(&mut self) {
     self.check_incomplete(27, 28);
     self.parser.parse_view("machine p() { x = value as +");
     self.check_refused();
-    self.parser.parse_view("machine p() { let x: bool = scalar < $; }");
+    self.parser.parse_view("machine p() { let x: bool = scalar < \x01; }");
     self.check_lexical_failure();
 
     // Reusing the same receiver after failures must rebuild the same live rows.
@@ -430,6 +450,26 @@ machine Main::check_incomplete(&mut self, start: i32, end: i32) {
     state coordinates() {
         assert self.parser.incomplete_start == start;
         assert self.parser.incomplete_end == end;
+    }
+}
+
+machine Main::check_array_type(&mut self, node: i32, element: i32) {
+    transition self.parser.type_references[node].kind {
+        OmegaTypeReferenceKind::FixedArray -> child()
+        _ -> self.console.exit_process(91)
+    }
+    state child() { assert self.parser.type_references[node].payload0 == element; }
+}
+
+machine Main::check_domain_type(&mut self, node: i32, carrier: i32, constraint: i32) {
+    transition self.parser.type_references[node].kind {
+        OmegaTypeReferenceKind::Constrained -> child()
+        _ -> self.console.exit_process(92)
+    }
+    state child() {
+        assert self.parser.type_references[node].payload0 == carrier;
+        assert self.parser.type_references[node].payload1 == constraint;
+        assert self.parser.type_references[node].payload2 == 1;
     }
 }
 

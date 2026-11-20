@@ -19,7 +19,7 @@ machine main() -> u8 {
     path.length = 255;
     let path_last: bool = module_path_append(@mut path, 73);
     let path_full: bool = module_path_append(@mut path, 99);
-    transition unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 {
+    transition unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 && qualified_array_element_copy() == 42 {
         true -> yes(),
         _ -> no()
     }

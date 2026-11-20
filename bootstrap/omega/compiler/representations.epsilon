@@ -1142,7 +1142,8 @@ data OmegaParser {
     type_name_end: i32;
     type_end: i32;
     // 0 is a bare base and 1 a domain qualification.
-    type_constraint_mode: i32;
+    // -1 when absent, 0 on the outer carrier, or the containing array depth.
+    type_constraint_depth: i32;
     type_domain_name_start: i32;
     type_domain_name_end: i32;
     type_root: i32;

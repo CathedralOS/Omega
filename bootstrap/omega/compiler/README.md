@@ -61,10 +61,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,214 lines / 867,087 bytes with SHA-256
-`7ca03a41fc9beeaf8639b2c6000e3cba4570e8297a736cfd84898e31838db642`.
+manifest materializes 23,245 lines / 868,356 bytes with SHA-256
+`13f066b25b1948ddf631272f9725748e41ab4c4b431c3058015210f8e1f18e72`.
 The manifest itself is 1,698 bytes, SHA-256
-`fbb137eedb2ef00b43c57bc9da40c4116d06d759dfd668a692fb21ae7e1fe372`;
+`1ca54a7f389837e1e9b4715f574272e9c0a279bb3ee25441a86cf014f95d948b`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -629,9 +629,10 @@ predicates, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
 over the same bare named type leaf, one unqualified `Base in Domain`
 constraint, recursively nested fixed arrays `[Type; length]`
-over bare named leaves with the same unsuffixed decimal length spelling and an
-optional outer domain, optional final member/case semicolons, mixed field/case
-order, and relative spans in separate live-prefix tables. A case reaches its
+with an unsuffixed decimal length, optional final member/case semicolons, mixed
+field/case order, and relative spans in separate live-prefix tables. A single
+named domain can qualify the leaf, an inner array or the outer array. Its
+constrained type node wraps the carrier selected by the source brackets. A case reaches its
 contiguous payload-field span in a separate arena; direct and payload fields
 share one binding control path. Type references are postorder tagged nodes: a
 constrained root points to its base and to one source-shaped constraint, while
