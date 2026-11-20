@@ -17,7 +17,7 @@ impl ConstantEvaluation<'_, '_> {
             return Ok(false);
         }
         if root.file != file.node_id(node).file || checked_carrier_in_scope(tree, node, scope)? != *carrier {
-            return Err("the selected owned field has a different result type or source tree".into());
+            return Err(PreparationReason::OwnedFieldMismatch.into());
         }
         let mut fields = Vec::with_capacity(path.len());
         let mut expression = node;
@@ -32,7 +32,7 @@ impl ConstantEvaluation<'_, '_> {
                     _ => true,
                 })
             {
-                return Err("the selected field read requires proof or borrowed storage".into());
+                return Err(PreparationReason::FieldReadNeedsProof.into());
             }
             fields.push(field.as_ref().clone());
             expression = step.base.node;
@@ -42,7 +42,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         fields.reverse();
         let root = file.node_id(expression);
-        let root_carrier = checked_carrier_in_scope(tree, root.node, scope).map_err(|_| "the selected owned field has no supported root type")?;
+        let root_carrier = checked_carrier_in_scope(tree, root.node, scope).map_err(|_| PreparationReason::OwnedFieldWithoutRootType)?;
         execution.steps.extend([
             Step::ProjectFields(fields),
             Step::Evaluate(root, root_carrier, scope.clone()),
@@ -135,7 +135,7 @@ impl ConstantEvaluation<'_, '_> {
                         .semantics_at(node)
                         .any(|record| !matches!(record, NodeSemantics::Expression(_)))
                 {
-                    return Err("the selected tuple has no matching typed initializer".into());
+                    return Err(PreparationReason::TupleWithoutInitializer.into());
                 }
                 execution.steps.push(Step::FinishTuple(fields.len()));
                 execution.steps.extend(
@@ -156,7 +156,7 @@ impl ConstantEvaluation<'_, '_> {
                 }
                 if let Some(bytes) = tree.owned_byte_literal(node) {
                     if *length != bytes.len() as u64 || !matches!(element.as_ref(), ValueType::Integer { signed: false, width: Some(8) }) {
-                        return Err("the selected byte literal has a different array type".into());
+                        return Err(PreparationReason::ByteLiteralTypeMismatch.into());
                     }
                     execution.values.push(PreparedValue::Array(
                         bytes
@@ -167,7 +167,7 @@ impl ConstantEvaluation<'_, '_> {
                 } else {
                     let literal = &file.nodes[node];
                     if literal.kind != NodeKind::ArrayLiteral || literal.children.len() as u64 != *length {
-                        return Err("the selected array value has no supported initializer".into());
+                        return Err(PreparationReason::ArrayWithoutInitializer.into());
                     }
                     execution.steps.push(Step::FinishArray(literal.children.len()));
                     execution.steps.extend(
@@ -216,7 +216,7 @@ impl ConstantEvaluation<'_, '_> {
         carrier: &ValueType,
         execution: &mut Execution<'_>,
     ) -> Result<(), EvaluationError> {
-        let unsupported = "the omitted field has no supported owned zero value";
+        let unsupported = PreparationReason::OmittedFieldWithoutZero;
         let value = match carrier {
             ValueType::Bool => PreparedValue::Bool(false),
             ValueType::Float32 | ValueType::Float64 => {
@@ -230,7 +230,7 @@ impl ConstantEvaluation<'_, '_> {
             ty if IntegerRange::for_type(ty).is_some() => PreparedValue::Integer(BigInt::ZERO),
             ValueType::Array(_, 0) => PreparedValue::Array([].into()),
             ValueType::Array(element, length) => {
-                let length = usize::try_from(*length).map_err(|_| "zero-filling an array requires checked preparation storage")?;
+                let length = usize::try_from(*length).map_err(|_| PreparationReason::ZeroArrayNeedsStorage)?;
                 // Determine the element's admissible zero once. Reuse the
                 // owned snapshot for each element without evaluating it again.
                 execution.steps.extend([
@@ -245,7 +245,7 @@ impl ConstantEvaluation<'_, '_> {
             ValueType::Nominal(owner) | ValueType::Applied(owner, _) => {
                 let shape = self.trees.static_data_shapes.get(carrier).ok_or(unsupported)?;
                 if shape.requires_establishment {
-                    return Err("the omitted field's zero value requires proof of the data predicate".into());
+                    return Err(PreparationReason::OmittedFieldZeroNeedsProof.into());
                 }
                 let (case, fields) = match shape.cases.first() {
                     Some((case, fields)) => (Some(case.clone()), fields),
@@ -499,7 +499,7 @@ impl ConstantEvaluation<'_, '_> {
             let PreparedValue::Integer(value) = value else {
                 return Err(UNSUPPORTED_BODY.into());
             };
-            return fits(value.clone(), carrier).ok_or_else(|| "the frozen constant exceeds its carrier".into());
+            return fits(value.clone(), carrier).ok_or_else(|| PreparationReason::FrozenConstantOutsideCarrier.into());
         }
         if let Some(argument) = self.specialized_argument(tree, node, carrier, scope)? {
             let ValueType::StaticInteger { value, carrier: actual } = argument else {

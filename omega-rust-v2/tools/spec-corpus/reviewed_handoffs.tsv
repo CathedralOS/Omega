@@ -1,0 +1,190 @@
+owner	rule	side	suite	target	test	comparison
+L0	R1	direct	L0	tests/byte_cases.rs	non_ascii_is_allowed_in_comments_and_quoted_literals	valid-utf-8/producer
+L0	R1	refusals	L0	tests/byte_cases.rs	every_two_byte_input_with_a_non_ascii_byte_obeys_utf8_error_precedence	valid-utf-8/refusal
+L0	R2	direct	L0	tests/golden_fixtures.rs	accept_fixtures_lex_to_their_expected_tokens	token-coverage-of-all-source-bytes/producer
+L0	R2	consumer	L1	tests/golden_fixtures.rs	accept_fixtures_parse_to_their_expected_trees	token-coverage-of-all-source-bytes/consumer
+L0	R13	refusals	L0	tests/byte_cases.rs	carriage_return_in_quoted_rejects	forbidden-quoted-escapes-and-line-breaks/refusal
+L0	R13	refusals	L0	tests/golden_fixtures.rs	reject_fixtures_fail_with_their_expected_error	fixture/reject/codepoint_escape.omg
+L0	R13	refusals	L0	tests/golden_fixtures.rs	reject_fixtures_fail_with_their_expected_error	fixture/reject/newline_in_quoted.omg
+L0	R17	refusals	L0	tests/byte_cases.rs	every_single_byte_has_its_lexical_verdict_and_span	unknown-ascii-characters/refusal
+L0	R17	refusals	L0	tests/byte_cases.rs	nul_byte_rejects	unknown-ascii-characters/refusal-2
+L1	nesting limit	refusals	L1	tests/hostile_inputs.rs	the_nesting_limit_refuses_the_129th_declaration_and_hypothesis	parser-nesting-limit/refusal
+L2	Dependency authority	direct	L2	tests/stage.rs	admitted_dependencies_are_requester_local_and_never_transitive	dependency-authority/producer
+L2	Dependency authority	refusals	L2	tests/stage.rs	module_paths_reject_competing_directories_and_ignore_same_named_data	dependency-authority/refusal
+L2	Visibility	direct	L2	tests/stage.rs	importing_an_inherited_requirement_keeps_the_final_signature_owner	visibility/producer
+L2	Visibility	consumer	L3	tests/calls.rs	a_row_selects_the_inherited_requirement_from_an_imported_module	visibility/consumer
+L2	Visibility	refusals	L2	tests/stage.rs	a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_owner	visibility/refusal
+L2	Type and value roles	direct	L2	tests/stage.rs	a_bare_case_spelling_does_not_hide_the_outer_type_its_payload_names	type-and-value-names/producer
+L2	Type and value roles	refusals	L2	tests/stage.rs	cases_nested_data_and_attached_domains_share_the_owners_member_namespace	type-and-value-names/refusal
+L2	Predicate subject	direct	L2	tests/stage.rs	self_binds_as_the_subject_only_in_the_declarations_own_predicates	predicate-subject/producer
+L2	Predicate subject	consumer	L3	tests/contextual_examples.rs	published_domain_casts_require_complete_accounting	predicate-subject/consumer
+L2	Predicate subject	refusals	L2	tests/stage.rs	a_predicate_pattern_cannot_rebind_self	predicate-subject/refusal
+L2	Domains	direct	L2	tests/stage.rs	published_import_exposes_the_exact_remote_domain	domain-declarations/producer
+L2	Domains	consumer	L3	tests/contextual_examples.rs	a_bound_decides_which_visible_domain_applies_to_the_written_carrier	domain-declarations/consumer
+L2	Domains	refusals	L2	tests/stage.rs	ambiguous_domains_report_each_owner_carrier_and_exposing_import	domain-declarations/refusal
+L2	Overloads and operators	direct	L2	tests/stage.rs	overload_identity_renames_only_occurrences_bound_to_a_generic_parameter	overloads-and-operators/producer
+L2	Overloads and operators	consumer	L3	tests/calls.rs	inferred_operator_home_distinguishes_inherited_and_independent_domains	overloads-and-operators/consumer
+L2	Overloads and operators	refusals	L2	tests/signature_origins.rs	reordering_and_qualifying_the_same_result_domains_keeps_one_identity	overloads-and-operators/refusal
+L2	Generics	direct	L2	tests/stage.rs	imported_alias_bounds_leave_both_visible_argument_names_at_the_call	generic-arguments/producer
+L2	Generics	consumer	L3	tests/calls.rs	each_applied_binder_selects_its_namespace_from_the_same_visible_names	generic-arguments/consumer
+L2	Generics	refusals	L3	tests/calls.rs	a_public_generic_argument_can_only_select_a_visible_name_in_its_namespace	generic-arguments/refusal
+L2	Trait requirements	direct	L2	tests/stage.rs	inherited_trait_rows_keep_the_declaring_owner	trait-requirements/producer
+L2	Trait requirements	consumer	L3	tests/calls.rs	a_row_selects_the_inherited_requirement_from_an_imported_module	visibility/consumer
+L2	Trait requirements	refusals	L3	tests/calls.rs	duplicate_rows_are_checked_after_selecting_the_requirement_overload	trait-requirements/refusal
+L2	Assembly	direct	L2	tests/stage.rs	assembly_transfers_require_one_visible_local_continuation	assembly-symbols/producer
+L2	Assembly	consumer	L3	tests/calls.rs	target_instruction_operands_are_checked_against_the_admitted_target	assembly-symbols/consumer
+L2	Assembly	refusals	L3	tests/calls.rs	target_instruction_operands_are_checked_against_the_admitted_target	assembly-symbols/refusal
+L2	The compiled interface carries package directories and their public	direct	L2	tests/stage.rs	an_interface_exports_public_declarations_with_their_defining_module	compiled-package-namespaces/producer
+L2	The compiled interface carries package directories and their public	consumer	L2	tests/stage.rs	compiled_modules_and_lookup_results_survive_export_reordering	compiled-package-namespaces/consumer
+L2	The compiled interface carries package directories and their public	refusals	L2	tests/stage.rs	compiled_modules_and_lookup_results_survive_export_reordering	compiled-package-namespaces/refusal
+L2	L2 binds an explicitly written machine qualifier at its	direct	L2	tests/exposure.rs	a_public_signature_use_preserves_private_candidates_for_typed_selection	private-candidates-in-public-signatures/producer
+L2	L2 binds an explicitly written machine qualifier at its	consumer	L3	tests/exposure.rs	public_contract_checks_the_visibility_of_the_selected_overload	private-candidates-in-public-signatures/consumer
+L2	L2 binds an explicitly written machine qualifier at its	refusals	L3	tests/exposure.rs	public_contract_checks_the_visibility_of_the_selected_overload	private-candidates-in-public-signatures/refusal
+L2	An exported trait carries the identities of its direct	direct	L2	tests/stage.rs	a_compiled_trait_retains_its_identity_as_a_parent_and_a_call_qualifier	exported-trait-ancestry/producer
+L2	An exported trait carries the identities of its direct	consumer	L3	unittests src/lib.rs	toolchain_declarations::core_interface::tests::imported_inherited_rows_keep_the_declaring_requirement_and_its_applied_type	exported-trait-ancestry/consumer
+L2	An exported trait carries the identities of its direct	refusals	L2	tests/stage.rs	a_compiled_trait_retains_its_identity_as_a_parent_and_a_call_qualifier	exported-trait-ancestry/refusal
+L2	An exported domain carries the carrier bound in its	direct	L2	tests/stage.rs	compiled_domains_keep_the_carrier_from_the_declaring_package	exported-domain-carrier/producer
+L2	An exported domain carries the carrier bound in its	consumer	L2	tests/stage.rs	compiled_domains_keep_the_carrier_from_the_declaring_package	exported-domain-carrier/consumer
+L2	An exported domain carries the carrier bound in its	refusals	L2	tests/stage.rs	compiled_domains_keep_the_carrier_from_the_declaring_package	exported-domain-carrier/refusal
+L2	`Buffer<8>` and `Buffer<4 + 4>` bind to the same	direct	L2	tests/stage.rs	applications_bind_the_same_base_and_keep_both_argument_expressions_for_later_evaluation	preserved-generic-arguments/producer
+L3	The static-value handoff is open for review. The earlier	direct	L3	tests/exposure.rs	preparation_receives_typed_static_demands_before_dependent_identity_is_known	pending-static-requests/producer
+L3	The static-value handoff is open for review. The earlier	consumer	L4	tests/closed_indices.rs	an_operand_waits_for_its_common_result_domain_context	pending-static-requests/consumer
+L3	The static-value handoff is open for review. The earlier	refusals	L4	tests/closed_indices.rs	distinct_known_contexts_rule_out_a_common_destination_in_any_order	pending-static-requests/refusal
+L3	L3 compares normalized operand types and named result domains	direct	L3	tests/calls.rs	result_domain_indices_follow_the_operand_binder_correspondence	generic-parameter-correspondence/producer
+L3	L3 compares normalized operand types and named result domains	refusals	L3	tests/standard.rs	receipt_admission_rejects_an_open_parameter_in_each_type_child	generic-parameter-correspondence/refusal
+L3	A collection access carries the selected primitive and formal	direct	L3	tests/calls.rs	nested_field_evaluation_uses_both_enclosing_and_local_arguments	collection-layout-and-indirect-call-selections/producer
+L3	A collection access carries the selected primitive and formal	consumer	L4	tests/target_layout.rs	a_specialized_initializer_closes_the_call_before_entering_the_layout_helper	collection-layout-and-indirect-call-selections/consumer
+L3	The producer tests inspect the selected declaration and operands	direct	L3	tests/exposure.rs	preparation_receives_typed_static_demands_before_dependent_identity_is_known	pending-static-requests/producer
+L3	The producer tests inspect the selected declaration and operands	consumer	L4	tests/integer_constants.rs	matching_node_numbers_in_different_files_keep_their_own_operands	overload-bodies-and-file-local-identity/consumer
+L3	The producer tests inspect the selected declaration and operands	consumer	L4	tests/closed_indices.rs	preparation_executes_only_the_overload_selected_by_typing	overload-bodies-and-file-local-identity/consumer-2
+L3	L2 supplies the packages each requester may select from.	direct	L3	tests/exposure.rs	a_static_callback_carries_the_machine_application_into_refinement_and_invocation	authority-in-typed-member-selection/producer
+L3	L2 supplies the packages each requester may select from.	refusals	L3	tests/calls.rs	carrying_a_value_does_not_grant_access_to_its_fields	authority-in-typed-member-selection/refusal
+L3	Supply the `SymbolResolvedTrees` issued by L2 to `type_stage`. L3	direct	L3	tests/standard.rs	core_interfaces_supply_checked_types_without_adding_source_bodies	typing-from-resolved-bindings/producer
+L3	Supply the `SymbolResolvedTrees` issued by L2 to `type_stage`. L3	consumer	L4	tests/closed_indices.rs	resumed_typing_retains_build_selected_boundary_directions	typing-from-resolved-bindings/consumer
+L3	Supply the `SymbolResolvedTrees` issued by L2 to `type_stage`. L3	refusals	L3	tests/contextual_examples.rs	published_static_type_disjunction_reaches_typing	typing-from-resolved-bindings/refusal
+L3	L3 normalizes anonymous arithmetic, literal integer constants and primitive	direct	L3	tests/exposure.rs	constant_initializers_publish_references_calls_and_suffixed_values	constant-initializers-and-numeric-landings/producer
+L3	L3 normalizes anonymous arithmetic, literal integer constants and primitive	consumer	L4	tests/integer_constants.rs	typed_negation_matches_exact_literals_and_primitive_indices	constant-initializers-and-numeric-landings/consumer
+L3	L3 normalizes anonymous arithmetic, literal integer constants and primitive	refusals	L4	tests/integer_constants.rs	constants_and_indices_refuse_the_same_call_at_its_occurrence	constant-initializers-and-numeric-landings/refusal
+L3	The static-index checker matches supplied results to checked requests.	direct	L3	tests/calls.rs	nested_field_evaluation_uses_both_enclosing_and_local_arguments	collection-layout-and-indirect-call-selections/producer
+L3	The static-index checker matches supplied results to checked requests.	consumer	L4	tests/closed_indices.rs	boolean_calls_names_and_literals_have_one_closed_type_identity	matching-computed-index-results/consumer
+L3	The static-index checker matches supplied results to checked requests.	refusals	L3	tests/standard.rs	specialized_call_results_match_the_owning_expression_and_arguments	matching-computed-index-results/refusal
+L3	L3 publishes the normalized carrier for each domain in	direct	L3	tests/calls.rs	domain_carriers_survive_without_a_typed_self_expression	normalized-domain-carriers/producer
+L3	L3 publishes the normalized carrier for each domain in	consumer	L5	tests/domains.rs	unused_domains_keep_each_carrier_when_their_predicates_do_not_read_self	normalized-domain-carriers/consumer
+L3	A downstream pass can walk `TypedTrees::trees` in file order,	direct	L3	tests/source_package_order.rs	a_consumer_walks_both_typed_arms_without_parser_inputs	node-identity-and-call-operands/producer
+L3	A downstream pass can walk `TypedTrees::trees` in file order,	consumer	L3	tests/exposure.rs	a_dependent_call_publishes_operand_order_and_formal_subjects	node-identity-and-call-operands/consumer
+L3	Patterns and places	direct	L3	tests/obligation_sites.rs	exclusive_move_obligations_identify_the_evaluated_subject_and_field	patterns-and-places/producer
+L3	Patterns and places	direct	L3	tests/obligation_sites.rs	value_patterns_read_a_copy_through_a_reference_subject	patterns-and-places/explicit-copy
+L3	Patterns and places	refusals	L3	tests/obligation_sites.rs	value_patterns_read_a_copy_through_a_reference_subject	patterns-and-places/refusal
+L3	Cleanup	direct	L3	tests/calls.rs	cleanup_is_an_exact_owned_call_and_conflicting_domain_plans_reject	cleanup-selection/producer
+L3	Cleanup	consumer	L5	tests/ownership.rs	nominal_cleanup_invokes_the_selected_target_with_the_original_subject	cleanup-selection/consumer
+L3	Cleanup	refusals	L3	tests/calls.rs	cleanup_is_an_exact_owned_call_and_conflicting_domain_plans_reject	cleanup-selection/refusal
+L3	Access plans and progress	direct	L3	tests/calls.rs	admitted_ranking_views_check_the_subject_arguments_and_rank_bounds	access-plans-and-progress/producer
+L3	Access plans and progress	refusals	L3	tests/calls.rs	governed_domains_require_the_admitted_policy_requirement	access-plans-and-progress/refusal
+L3	Mathematical terms and assembly	direct	L3	tests/calls.rs	mathematical_generic_arguments_and_chained_prefixes_keep_the_checked_term	mathematical-terms-and-assembly/producer
+L3	Mathematical terms and assembly	consumer	L5	tests/assembly_handoff.rs	the_admitted_semantics_and_exact_inputs_reach_psi_from_the_package_path	mathematical-terms-and-assembly/consumer
+L3	Mathematical terms and assembly	refusals	L3	tests/calls.rs	target_instruction_operands_are_checked_against_the_admitted_target	mathematical-terms-and-assembly/refusal
+L3	L3 records source-level obligations for call preconditions, exact conversions,	direct	L3	tests/calls.rs	crash_causes_and_checked_arithmetic_keep_their_proof_sites	obligations-at-the-source-operation/producer
+L3	L3 records source-level obligations for call preconditions, exact conversions,	direct	L3	tests/obligation_sites.rs	identical_calls_keep_the_precondition_on_the_overload_that_requires_it	obligations-at-the-source-operation/producer-2
+L3	A matched sum case applies to the exact subject.	direct	L3	tests/calls.rs	selecting_a_held_sum_case_applies_only_to_that_exact_holder_field	subject-and-field-identity-across-matches/producer
+L3	A matched sum case applies to the exact subject.	consumer	L5	tests/ownership.rs	partial_move_from_a_sum_field_disposes_its_active_sibling_and_the_holders_other_field	subject-and-field-identity-across-matches/consumer
+L3	A matched sum case applies to the exact subject.	refusals	L3	tests/calls.rs	selecting_a_held_sum_case_applies_only_to_that_exact_holder_field	subject-and-field-identity-across-matches/refusal
+L3	Each transparent type alias publishes its normalized target under	direct	L3	tests/calls.rs	indexed_domain_aliases_preserve_each_constituent_and_its_arguments	type-and-domain-aliases/producer
+L3	Each transparent type alias publishes its normalized target under	refusals	L3	tests/calls.rs	indexed_domain_aliases_preserve_each_constituent_and_its_arguments	type-and-domain-aliases/refusal
+L3	A `terminates by` clause exposes its selected view and	direct	L3	tests/calls.rs	admitted_ranking_views_check_the_subject_arguments_and_rank_bounds	ranking-witnesses/producer
+L3	A `terminates by` clause exposes its selected view and	consumer	L5	tests/ranking.rs	a_bounded_distance_witness_substitutes_both_actual_successor_arguments	ranking-witnesses/consumer
+L3	A `terminates by` clause exposes its selected view and	refusals	L3	tests/calls.rs	admitted_ranking_views_check_the_subject_arguments_and_rank_bounds	ranking-witnesses/refusal
+L3	A consumer walking a typed tree can ask the	direct	L3	tests/source_package_order.rs	a_consumer_walks_both_typed_arms_without_parser_inputs	obligations-and-assembly-at-the-producing-node/producer
+L3	A consumer walking a typed tree can ask the	consumer	L5	tests/assembly_handoff.rs	the_admitted_semantics_and_exact_inputs_reach_psi_from_the_package_path	mathematical-terms-and-assembly/consumer
+L3	L3 checks operator ownership against the normalized operands at	direct	L3	tests/calls.rs	inferred_operator_home_distinguishes_inherited_and_independent_domains	overloads-and-operators/consumer
+L3	L3 checks operator ownership against the normalized operands at	refusals	L3	unittests src/lib.rs	toolchain_declarations::core_interface::tests::checked_and_joint_typing_agree_on_operator_visibility_and_ownership	operator-ownership/refusal
+L3	When a client calls a guarded library machine, `crash_route`	direct	L3	unittests src/lib.rs	toolchain_declarations::core_interface::tests::imported_crash_routes_keep_the_guard_and_the_forwarded_call_operands	guarded-library-calls-and-forwarded-callbacks/producer
+L3	- **Dependent applications.** For a closed integer index, the	direct	L3	tests/standard.rs	specialization_uses_the_selected_trait_operation	dependent-applications/producer
+L3	- **Dependent applications.** For a closed integer index, the	refusals	L3	tests/standard.rs	specialization_uses_the_selected_trait_operation	dependent-applications/refusal
+L4	A specialized field request carries the declarations that own	direct	L4	tests/target_layout.rs	a_specialized_initializer_closes_the_call_before_entering_the_layout_helper	collection-layout-and-indirect-call-selections/consumer
+L4	A specialized field request carries the declarations that own	refusals	L4	tests/boolean_calls.rs	nested_fields_specialize_their_own_and_the_enclosing_boolean_binders	owner-arguments-and-nested-constant-bindings/refusal
+L4	When a public type depends on an unselected target,	direct	L4	tests/target_layout.rs	an_open_package_retains_exact_demands_and_closes_like_direct_preparation	open-target-and-selected-layout/producer
+L4	When a public type depends on an unselected target,	refusals	L5	tests/assembly_handoff.rs	preparation_cannot_mix_an_instruction_catalog_with_another_layout_target	open-target-and-selected-layout/refusal
+L4	L4 specializes the selected body's published effects and checks	direct	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/producer
+L4	L4 specializes the selected body's published effects and checks	refusals	L4	unittests src/lib.rs	invocation::admission::proofs::contract_tests::proof_inputs_replay_the_exact_layout_and_specialized_call	static-invocation-admission/refusal
+L4	A static callback selects an ordinary machine at a	direct	L4	unittests src/lib.rs	invocation::admission::providers::tests::only_an_exact_applicable_provider_proof_authorizes_the_slot	bounded-callback-refinements/producer
+L4	A static callback selects an ordinary machine at a	refusals	L4	unittests src/lib.rs	invocation::admission::providers::tests::only_an_exact_applicable_provider_proof_authorizes_the_slot	bounded-callback-refinements/refusal
+L4	An explicit discard evaluates its operand before continuing. A	direct	L4	tests/boolean_calls.rs	an_explicit_discard_evaluates_and_drops_a_copy_value	discarded-constant-reads/producer
+L4	An explicit discard evaluates its operand before continuing. A	refusals	L4	tests/boolean_calls.rs	a_discarded_operand_still_refuses_its_failed_precondition	discarded-constant-reads/refusal
+L4	A local declaration after a tail expression or transition	direct	L4	tests/static_callbacks.rs	a_nested_callback_reads_the_same_static_value_as_a_direct_call	nested-helpers-and-tail-expressions/producer
+L4	A local declaration after a tail expression or transition	refusals	L4	unittests src/lib.rs	invocation::termination::tests::a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof	nested-helpers-and-tail-expressions/refusal
+L4	A bounded preparation compares a certified ceiling for the	direct	L4	unittests src/lib.rs	preparation::sponsorship::tests::sponsored_preparation_uses_the_checked_rank_and_keeps_the_certified_ceiling	preparation-resource-receipts/producer
+L4	A bounded preparation compares a certified ceiling for the	refusals	L4	unittests src/lib.rs	preparation::sponsorship::tests::admission_uses_each_certified_ceiling_for_the_exact_package	preparation-resource-receipts/refusal
+L4	L4 evaluates integers, Booleans, floating-point values, fixed arrays, tuples,	direct	L4	tests/owned_records.rs	prepared_consumer_reads_declaration_order_and_the_exact_case	frozen-scalar-and-aggregate-values/producer
+L4	L4 evaluates integers, Booleans, floating-point values, fixed arrays, tuples,	refusals	L4	tests/owned_records.rs	freezing_checks_the_type_of_inactive_payloads	frozen-scalar-and-aggregate-values/refusal
+L1	nesting limit	direct	L1	tests/hostile_inputs.rs	the_tree_at_the_nesting_limit_keeps_all_declarations_under_their_authored_parent	nesting-limit/tree
+L0	R1	consumer	L1	tests/lexical_handoffs.rs	utf8_literal_and_comment_bytes_keep_later_leaves_at_their_byte_offsets	valid-utf-8/consumer
+L0	R3	consumer	L1	tests/lexical_handoffs.rs	every_whitespace_byte_is_skipped_like_a_single_space	whitespace-bytes/consumer
+L0	R5	consumer	L1	tests/lexical_handoffs.rs	non_ascii_bytes_reach_the_tree_only_inside_a_quoted_literal	non-ascii-placement/consumer
+L0	R6	consumer	L1	tests/lexical_handoffs.rs	a_line_comment_hides_the_rest_of_its_line_from_the_parser	line-comments/consumer
+L0	R7	consumer	L1	tests/lexical_handoffs.rs	a_nested_block_comment_hides_everything_to_its_matching_close	nested-block-comments/consumer
+L0	R8	consumer	L1	tests/lexical_handoffs.rs	radix_integers_are_single_stable_numbers_and_literals	integer-spellings/consumer
+L0	R10	consumer	L1	tests/lexical_handoffs.rs	floats_are_single_literals_and_a_dot_without_a_digit_leaves_a_range	float-spellings/consumer
+L0	R10	consumer	L1	tests/lexical_handoffs.rs	a_float_is_refused_where_the_parser_needs_an_integer	float-spellings/consumer-2
+L0	R11	consumer	L1	tests/lexical_handoffs.rs	a_numeric_suffix_stays_inside_its_literal	number-suffixes/consumer
+L0	R12	consumer	L1	tests/lexical_handoffs.rs	escaped_quotes_keep_a_quoted_literal_one_leaf	quoted-literals/consumer
+L0	R15	consumer	L1	tests/lexical_handoffs.rs	the_parser_receives_the_longest_punctuation_spelling	longest-punctuation/consumer
+L2	Dependency authority	consumer	L3	tests/resolved_name_consumers.rs	each_requester_types_the_declaration_its_own_alias_selected	dependency-authority/consumer
+L2	Lexical scope	consumer	L3	tests/resolved_name_consumers.rs	a_nested_helper_types_the_package_constant_instead_of_the_enclosing_parameter	lexical-scope/consumer
+L2	Type and value roles	consumer	L3	tests/resolved_name_consumers.rs	a_case_payload_is_typed_with_the_outer_type_its_bare_spelling_names	type-and-value-names/consumer
+L2	`Buffer<8>` and `Buffer<4 + 4>` bind to the same	consumer	L3	tests/resolved_name_consumers.rs	both_written_arguments_of_one_base_close_to_one_application	preserved-generic-arguments/consumer
+L3	L2 supplies the packages each requester may select from.	consumer	L4	tests/static_callbacks.rs	an_explicitly_applied_callback_executes_with_its_own_static_arguments	explicit-callback-application/consumer
+L3	Calls	consumer	L4	tests/closed_indices.rs	a_computed_result_domain_selects_the_exact_overload	result-domain-call-selection/consumer
+L3	Numbers and operators	consumer	L4	tests/frozen_handoff.rs	generic_indexed_integer_operations_keep_their_selected_policy_and_width	selected-operator-policy-and-width/consumer
+L3	Data and bindings	consumer	L4	tests/frozen_handoff.rs	generic_returns_discharge_possible_loans_only_for_complete_owned_results	declared-field-order/consumer
+L3	Evidence and effects	consumer	L4	tests/static_callbacks.rs	a_skipped_callback_still_requires_non_suspending_selected_effects	selected-callback-effects/consumer
+L3	Collection access	consumer	L4	tests/frozen_handoff.rs	fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field	selected-element-read-precondition/consumer
+L3	Domains	consumer	L5	tests/domains.rs	qualification_edges_preserve_each_source_and_deliver_the_exact_destination_set	checked-domain-casts/consumer
+L3	Access plans and progress	consumer	L5	tests/ranking.rs	a_self_countdown_claims_strict_descent_only_on_its_exact_internal_edge	canonical-ranking-view/consumer
+L3	Patterns and places	consumer	L5	tests/loans.rs	exclusive_move_and_replacement_retain_both_exact_paths	borrowed-move-place/consumer
+L4	L3 publishes the operations ready to evaluate. L4 returns	consumer	L5	tests/handoff.rs	prepared_array_extents_and_neighboring_types_reach_owned_psi	answered-occurrence-identity/consumer
+L4	A static callback selects an ordinary machine at a	consumer	L5	tests/specializations.rs	a_selected_suspending_callback_retains_both_closed_call_sites	static-callback-selection/consumer
+L4	L4 evaluates integers, Booleans, floating-point values, fixed arrays, tuples,	consumer	L5	tests/array_values.rs	frozen_nested_arrays_retain_their_elements_and_order	frozen-array-elements/consumer
+L4	Named reads connect each prepared constant or static index to	consumer	L5	tests/target.rs	equal_size_and_alignment_keep_their_own_dependencies_after_file_reorder	target-observation-projection/consumer
+L1	file, items	consumer	L2	tests/syntax_handoff.rs	each_item_of_a_file_becomes_one_declaration_in_its_directory_namespace	syntax-file-items/consumer
+L1	data	consumer	L2	tests/syntax_handoff.rs	data_members_nest_under_their_authored_owner_and_its_clauses_bind	syntax-data/consumer
+L1	domain	consumer	L2	tests/syntax_handoff.rs	domain_heads_compositions_and_indices_bind_their_written_parts	syntax-domain/consumer
+L1	trait, conformance	consumer	L2	tests/syntax_handoff.rs	trait_parents_and_selection_rows_bind_each_written_path	syntax-trait-conformance/consumer
+L1	machine	consumer	L2	tests/syntax_handoff.rs	machine_signatures_supply_operator_tokens_ordered_operands_and_nested_owners	syntax-machine/consumer
+L1	mathematical let	consumer	L2	tests/syntax_handoff.rs	a_mathematical_let_body_reads_its_own_parameters	syntax-mathematical-let/consumer
+L1	generic parameters	consumer	L2	tests/syntax_handoff.rs	each_generic_binder_form_binds_its_uses_and_numbers_the_operand_identity	syntax-generic-parameters/consumer
+L1	generic arguments	consumer	L2	tests/syntax_handoff.rs	both_argument_spellings_name_their_owner_and_type_shaped_values_bind	syntax-generic-arguments/consumer
+L1	types	consumer	L2	tests/syntax_handoff.rs	every_component_of_a_written_type_binds_in_source_order	syntax-types/consumer
+L1	header clauses	consumer	L2	tests/syntax_handoff.rs	header_clause_parts_bind_in_their_own_roles	syntax-header-clauses/consumer
+L1	statements	consumer	L2	tests/syntax_handoff.rs	statement_forms_read_and_write_the_local_their_let_introduces	syntax-statements/consumer
+L1	match, transition	consumer	L2	tests/syntax_handoff.rs	arm_bindings_and_braced_arm_locals_end_at_their_arm	syntax-match-transition/consumer
+L1	patterns	consumer	L2	tests/syntax_handoff.rs	each_pattern_form_publishes_exactly_the_locals_it_introduces	syntax-patterns/consumer
+L1	binary operators	consumer	L2	tests/syntax_handoff.rs	operator_grouping_selects_the_membership_target_and_equality_operands	syntax-binary-operators/consumer
+L1	prefixes, postfixes, primaries	consumer	L2	tests/syntax_handoff.rs	record_fields_and_field_access_carry_member_spellings_and_value_bindings	syntax-prefixes-postfixes-primaries/consumer
+L1	casts	consumer	L2	tests/syntax_handoff.rs	cast_entries_bind_as_domains_rather_than_arithmetic_operands	syntax-casts/consumer
+L1	assembly	consumer	L2	tests/syntax_handoff.rs	assembly_lines_bind_mnemonics_registers_values_and_local_continuations	syntax-assembly/consumer
+L1	no reserved words	consumer	L2	tests/syntax_handoff.rs	declaration_words_used_as_names_bind_like_any_other_name	syntax-no-reserved-words/consumer
+L4	An explicit discard evaluates its operand before continuing. A	consumer	L5	tests/target.rs	a_discarded_constant_read_remains_an_input_of_the_constant_that_performed_it	discarded-constant-reads/consumer
+L3	L3 records source-level obligations for call preconditions, exact conversions,	consumer	L5	tests/calls.rs	explicit_discard_keeps_statement_order_operand_order_and_call_requirements	call-precondition-obligations/consumer-2
+L3	Each transparent type alias publishes its normalized target under	consumer	L5	tests/domains.rs	an_alias_cast_delivers_the_qualifications_of_its_current_expansion	type-and-domain-aliases/consumer
+L3	L3 checks operator ownership against the normalized operands at	consumer	L5	tests/operators.rs	a_token_call_selects_the_operator_whose_home_owns_its_operands	operator-ownership/consumer
+L4	When a public type depends on an unselected target,	consumer	L5	tests/target.rs	one_open_package_resumes_under_each_selected_layout	open-target-and-selected-layout/consumer
+L4	Named reads connect each prepared constant or static index to	consumer	L5	tests/target.rs	a_named_read_names_the_constant_it_consumed_even_when_both_values_agree	named-constant-reads/consumer
+L3	Mathematical terms and assembly	consumer	L5	tests/mathematics.rs	an_application_keeps_its_selected_head_and_ordered_arguments	mathematical-terms-and-assembly/consumer-2
+L3	A `terminates by` clause exposes its selected view and	consumer	L5	tests/ranking.rs	an_acyclic_witness_keeps_its_bounds_and_claims_no_edges	ranking-witnesses/consumer-2
+L3	Collection access	consumer	L5	tests/array_values.rs	an_element_read_keeps_the_bounds_obligation_of_its_own_selector	selected-element-read-precondition/consumer-2
+L3	L3 compares normalized operand types and named result domains	consumer	L4	tests/closed_indices.rs	a_prepared_result_domain_index_selects_the_overload_whose_operand_supplies_it	generic-parameter-correspondence/consumer
+L3	Applications	consumer	L4	tests/target_layout.rs	a_specialized_initializer_closes_the_call_before_entering_the_layout_helper	captured-owner-applications/consumer
+L3	- **Dependent applications.** For a closed integer index, the	consumer	L4	tests/closed_indices.rs	direct_and_literal_indices_share_a_closed_identity	dependent-applications/consumer
+L4	L4 evaluates integers, Booleans, floating-point values, fixed arrays, tuples,	direct	L4	tests/owned_floats.rs	arithmetic_nan_has_semantic_uses_but_no_determined_materialization	frozen-scalar-and-aggregate-values/materialization
+L0	R9	consumer	L1	tests/lexical_handoffs.rs	radix_integers_are_single_stable_numbers_and_literals	integer-spellings/consumer
+L0	R14	consumer	L1	tests/lexical_handoffs.rs	a_lone_raw_prefix_is_an_ordinary_name_on_both_sides_of_a_binding	raw-prefix/ordinary-name
+L1	nesting limit	consumer	L2	tests/syntax_handoff.rs	declarations_at_the_parser_limit_resolve_under_the_complete_owner_chain	nesting-limit/resolved-owners
+L1	right shift	consumer	L2	tests/right_shift_handoff.rs	touching_closers_form_one_shift_whose_operands_bind_and_nested_lists_keep_their_owner	syntax-right-shift/consumer
+L3	When a client calls a guarded library machine, `crash_route`	consumer	L4	tests/library_crash_routes.rs	a_client_constant_runs_the_library_guard_with_its_own_operand	guarded-library-calls-and-forwarded-callbacks/consumer
+L4	When preparation stops, its diagnosed entry point identifies the pass	refusals	L4	tests/preparation_failure_phases.rs	entry_typing_refusal_is_initial_typing	preparation-refusal/initial-typing
+L4	When preparation stops, its diagnosed entry point identifies the pass	refusals	L4	tests/preparation_failure_phases.rs	retype_after_evaluated_identity_is_resumed_typing	preparation-refusal/resumed-typing
+L4	When preparation stops, its diagnosed entry point identifies the pass	refusals	L4	tests/preparation_failure_phases.rs	failed_static_evaluation_is_preparation	preparation-refusal/evaluation
+L4	When preparation stops, its diagnosed entry point identifies the pass	refusals	L4	tests/preparation_failure_phases.rs	an_extent_without_a_selected_target_is_missing_target_input	preparation-refusal/missing-target
+L4	When a public type depends on an unselected target,	direct	L4	tests/preparation_failure_phases.rs	an_open_target_recipe_prepares_and_the_open_entry_point_retains_its_demand	preparation-refusal/open-target-retained
+L4	When a public type depends on an unselected target,	refusals	L4	tests/preparation_failure_phases.rs	a_selected_target_without_the_layout_refuses_evaluation_at_the_query	preparation-refusal/selected-target-evaluation
+L3	A static value evaluation request identifies the exact expression node and its carrier.	refusals	L3	tests/specialization_receipts.rs	specialization_receipt_preparation_entry_point_applies_the_same_boundary	specialized-evaluation-input/refusal

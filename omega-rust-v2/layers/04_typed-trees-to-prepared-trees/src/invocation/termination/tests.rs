@@ -235,7 +235,7 @@ fn consumes_only_evidence_for_the_exact_typed_body() {
         evaluate(&trees, None, &[])
             .unwrap_err()
             .message
-            .contains(CYCLIC_INVOCATION)
+            .contains(CYCLIC_INVOCATION.text())
     );
 
     let changed = COUNTDOWN.replace("n - 1u64", "n - 0u64");
@@ -266,7 +266,7 @@ fn consumes_only_evidence_for_the_exact_typed_body() {
             evaluate(&other, Some(proof()), &[])
                 .unwrap_err()
                 .message
-                .contains(CYCLIC_INVOCATION)
+                .contains(CYCLIC_INVOCATION.text())
         );
     }
 }
@@ -306,7 +306,7 @@ fn requires_one_joint_proof_for_every_mutual_recursion_edge() {
     let error = evaluator
         .evaluate(&trees.constants[0].initializer, None)
         .unwrap_err();
-    assert!(error.message.contains(CYCLIC_INVOCATION));
+    assert!(error.message.contains(CYCLIC_INVOCATION.text()));
 
     let no_descent = MUTUAL_COUNTDOWN
         .replace("n - 1u64", "n - 0u64")
@@ -317,7 +317,7 @@ fn requires_one_joint_proof_for_every_mutual_recursion_edge() {
         evaluate(&unchanged, Some(proof()), &[])
             .unwrap_err()
             .message
-            .contains(CYCLIC_INVOCATION)
+            .contains(CYCLIC_INVOCATION.text())
     );
 }
 
@@ -391,7 +391,7 @@ fn recursive_applications_need_proofs_for_their_exact_static_substitutions() {
             .evaluate(constant("SECOND"), None)
             .unwrap_err()
             .message
-            .contains(CYCLIC_INVOCATION)
+            .contains(CYCLIC_INVOCATION.text())
     );
 
     let mut evaluator = ConstantEvaluation::new(&trees, &[]);
@@ -589,7 +589,7 @@ fn evidence_for_a_body_edge_does_not_authorize_a_distinct_call_in_an_argument() 
     let error = evaluation
         .admit_termination(index, signature, nested_call, &body, &tree, &execution)
         .unwrap_err();
-    assert!(matches!(error, EvaluationError::Refused(CYCLIC_INVOCATION)));
+    assert!(matches!(error, EvaluationError::Refused(RefusalCause::Preparation(CYCLIC_INVOCATION))));
 }
 
 pub(crate) fn countdown_evidence<'stage, 'text>(trees: &'stage TypedTrees<'text>) -> crate::CheckedPreparationEvidence<'stage, 'text> {
@@ -663,7 +663,10 @@ fn a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof() {
         let mut evaluator = ConstantEvaluation::new(trees, &[]);
         evaluator.termination.evidence = evidence.into_iter().collect();
         let error = evaluator.evaluate(skip, None).unwrap_err();
-        assert!(error.message.contains(CYCLIC_INVOCATION), "{}", error.message);
+        spec_corpus::observe_handoff!(
+            "nested-helpers-and-tail-expressions/refusal",
+            assert!(error.message.contains(CYCLIC_INVOCATION.text()), "{}", error.message)
+        );
     }
     let checked = crate::CheckedPreparationEvidence::default().with_recursive_component(proof(2));
     let pass = crate::prepare_typing_pass(&progress, &[], None, checked).unwrap();

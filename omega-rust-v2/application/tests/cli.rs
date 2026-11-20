@@ -58,7 +58,7 @@ fn resolves_only_the_named_package_files_and_locates_missing_callees() {
     assert_eq!(fail.status.code(), Some(1));
     assert_eq!(
         String::from_utf8_lossy(&fail.stderr).trim(),
-        "combat/main.omg:2:5: resolver: unresolved name score"
+        "combat/main.omg:2:5: resolver: unresolved name score (bytes 28..33)"
     );
 }
 
@@ -71,7 +71,7 @@ fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
     assert_eq!(fail.status.code(), Some(1));
     assert_eq!(
         String::from_utf8_lossy(&fail.stderr).trim(),
-        "wrong_result.omg:1:37: typer: expected u32, found bool"
+        "wrong_result.omg:1:37: typer: expected u32, found bool (bytes 36..46)"
     );
     let missing = invoke(&root, &["source", "type", "render.omg"]);
     assert!(String::from_utf8_lossy(&missing.stderr).contains("resolver: unresolved name draw"));
@@ -110,7 +110,7 @@ fn types_a_computed_width_and_reports_the_overflowing_specialization() {
     assert_eq!(error.status.code(), Some(1));
     assert_eq!(
         String::from_utf8_lossy(&error.stderr).trim(),
-        "computed_width.omg:3:22: typer: static index 256 exceeds u8"
+        "computed_width.omg:3:22: typer: static index 256 exceeds u8 (bytes 116..129)"
     );
 }
 
@@ -205,7 +205,7 @@ fn source_type_checks_inherited_rows_and_locates_ambiguous_evidence() {
     assert!(refused.stdout.is_empty());
     assert_eq!(
         String::from_utf8_lossy(&refused.stderr).trim_end(),
-        "evidence_ambiguity.omg:3:5: typer: ambiguous operator +"
+        "evidence_ambiguity.omg:3:5: typer: ambiguous operator + (bytes 130..135)"
     );
 }
 

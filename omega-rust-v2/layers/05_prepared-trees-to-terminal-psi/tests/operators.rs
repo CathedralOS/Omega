@@ -159,6 +159,60 @@ fn unused_operators_retain_the_home_and_the_exact_forwarded_operand() {
 }
 
 #[test]
+fn a_token_call_selects_the_operator_whose_home_owns_its_operands() {
+    use omega_lowering::{CallArgument, OperationKind};
+
+    // Swapping the homes swaps which declaration each token call reaches.
+    for (km, metres) in [("pick", "other"), ("other", "pick")] {
+        let source = format!(
+            "domain u8::Km; domain u8::Metres;
+             machine + {metres}(left:u8 in Metres,right:u8 in Metres)->u8 in Metres {{left}}
+             machine + {km}(left:u8 in Km,right:u8 in Km)->u8 in Km {{right}}
+             machine km_sum(a:u8 in Km, b:u8 in Km)->u8 in Km {{a + b}}
+             machine metres_sum(a:u8 in Metres, b:u8 in Metres)->u8 in Metres {{b + a}}"
+        );
+        let package = source::lower(&[("homes.omg", &source)]).unwrap();
+        let machine = |name: &str| {
+            package
+                .machines
+                .iter()
+                .find(|m| m.declaration.path == name)
+                .unwrap()
+        };
+        for (caller, selected, home, swapped) in [("km_sum", km, "u8::Km", false), ("metres_sum", metres, "u8::Metres", true)] {
+            let operator = machine(selected);
+            assert_eq!(
+                operator
+                    .operator
+                    .as_ref()
+                    .and_then(|binding| binding.home.as_ref())
+                    .map(|owner| owner.path.as_str()),
+                Some(home)
+            );
+            let body = &machine(caller).body;
+            let [Parameter::Scalar(a), Parameter::Scalar(b)] = body.parameters[..] else {
+                panic!("expected two qualified operands")
+            };
+            let ordered = if swapped { [b, a] } else { [a, b] };
+            let [call] = body.operations.as_slice() else {
+                panic!("expected one selected operator call")
+            };
+            spec_corpus::observe_handoff!(
+                "operator-ownership/consumer",
+                assert_eq!(
+                    call.kind,
+                    OperationKind::Call {
+                        callee: omega_lowering::CallTarget::Machine(operator.id),
+                        arguments: ordered.map(CallArgument::Scalar).to_vec(),
+                        requirements: vec![],
+                    }
+                )
+            );
+        }
+    }
+}
+
+#[test]
 fn the_explicit_cast_establishes_result_membership_on_the_selected_operand() {
     let program = "domain u8::Km; machine + add(x:u8 in Km,y:u8)->u8 in Km { y as +Km }";
     let package = source::lower(&[("operator.omg", program)]).unwrap();
@@ -293,12 +347,15 @@ fn terminal_operator_calls_keep_the_selected_edge_and_each_operand_occurrence() 
             })
             .collect();
         assert_eq!(**actual, expected);
-        assert_eq!(
-            **requirements,
-            [CallRequirement {
-                site: CallSite::Edge(**edge),
-                clause: 0
-            }]
+        spec_corpus::observe_handoff!(
+            psi "psi-output/operator-edge",
+            assert_eq!(
+                **requirements,
+                [CallRequirement {
+                    site: CallSite::Edge(**edge),
+                    clause: 0
+                }]
+            ),
         );
     }
 }

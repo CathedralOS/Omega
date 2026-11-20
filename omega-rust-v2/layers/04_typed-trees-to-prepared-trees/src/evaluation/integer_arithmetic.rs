@@ -1,3 +1,4 @@
+use crate::reasons::{PreparationReason, RefusalCause};
 use num_bigint::BigInt;
 use omega_typed::{IntegerOperationError, ValueType, evaluate_integer_operation};
 
@@ -25,23 +26,26 @@ impl IntegerRange {
         token: &str,
         left: BigInt,
         right: BigInt,
-    ) -> Result<BigInt, &'static str> {
-        evaluate_integer_operation(token, &[left, right], &self.0).map_err(|error| match error {
-            IntegerOperationError::ZeroDivisor if token.ends_with('!') => "a zero divisor leaves the selected Trap route possible",
-            IntegerOperationError::ZeroDivisor => "integer division or remainder requires a nonzero divisor",
-            IntegerOperationError::QuotientOutsideCarrier if token.ends_with('!') => "an unrepresentable quotient leaves the selected Trap route possible",
-            IntegerOperationError::QuotientOutsideCarrier => "exact remainder requires a representable integer quotient",
-            IntegerOperationError::OutsideCarrier(_) if token == "/!" => "an unrepresentable quotient leaves the selected Trap route possible",
-            IntegerOperationError::OutsideCarrier(_) if token.ends_with('!') => "overflow leaves the selected Trap route possible",
-            IntegerOperationError::OutsideCarrier(_) => match token {
-                "+" => "exact addition exceeds its selected integer carrier",
-                "-" => "exact subtraction exceeds its selected integer carrier",
-                "*" => "exact multiplication exceeds its selected integer carrier",
-                "/" => "exact division exceeds its selected integer carrier",
-                _ => "exact operation exceeds its selected integer carrier",
-            },
-            IntegerOperationError::InvalidOperation => "the selected integer primitive has no execution rule",
-            IntegerOperationError::Refused(reason) => reason,
+    ) -> Result<BigInt, RefusalCause> {
+        evaluate_integer_operation(token, &[left, right], &self.0).map_err(|error| {
+            RefusalCause::Preparation(match error {
+                IntegerOperationError::ZeroDivisor if token.ends_with('!') => PreparationReason::ZeroDivisorTrapPossible,
+                IntegerOperationError::ZeroDivisor => PreparationReason::ZeroDivisor,
+                IntegerOperationError::QuotientOutsideCarrier if token.ends_with('!') => PreparationReason::QuotientTrapPossible,
+                IntegerOperationError::QuotientOutsideCarrier => PreparationReason::RemainderQuotientOutsideCarrier,
+                IntegerOperationError::OutsideCarrier(_) if token == "/!" => PreparationReason::QuotientTrapPossible,
+                IntegerOperationError::OutsideCarrier(_) if token.ends_with('!') => PreparationReason::OverflowTrapPossible,
+                IntegerOperationError::OutsideCarrier(_) => match token {
+                    "+" => PreparationReason::AdditionOutsideCarrier,
+                    "-" => PreparationReason::SubtractionOutsideCarrier,
+                    "*" => PreparationReason::MultiplicationOutsideCarrier,
+                    "/" => PreparationReason::DivisionOutsideCarrier,
+                    _ => PreparationReason::OperationOutsideCarrier,
+                },
+                IntegerOperationError::InvalidOperation => PreparationReason::IntegerPrimitiveWithoutRule,
+                // The shared primitive owns this text, such as its allocation budget.
+                IntegerOperationError::Refused(reason) => return RefusalCause::IntegerPrimitive(reason),
+            })
         })
     }
 }

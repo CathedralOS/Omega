@@ -231,7 +231,7 @@ fn an_open_package_retains_exact_demands_and_closes_like_direct_preparation() {
     assert_eq!(demand.demand.request().expression.span.slice(code.as_bytes()), Some(b"ALIAS".as_slice()));
     assert_eq!(demand.diagnostic.span.slice(code.as_bytes()), Some(b"core\\size_of::<u16>()".as_slice()));
     let pending = open.pending_typing();
-    assert_eq!(pending.demands(), std::slice::from_ref(&demand.demand));
+    spec_corpus::observe_handoff!("open-target-and-selected-layout/producer", assert_eq!(pending.demands(), std::slice::from_ref(&demand.demand)));
     let width = pending
         .trees()
         .constants
@@ -306,7 +306,19 @@ fn a_specialized_initializer_closes_the_call_before_entering_the_layout_helper()
             .iter()
             .find(|answer| answer.arguments == arguments)
             .unwrap();
-        assert_eq!(answer.value, omega_typer::StaticValue::Integer(size.into()));
+        spec_corpus::observe_handoff!("collection-layout-and-indirect-call-selections/consumer", assert_eq!(answer.value, omega_typer::StaticValue::Integer(size.into())));
     }
+    // `Inner<U>` captures `T` from `Outer<T>`. Each frozen size answers the
+    // nested field under the captured owner argument first and its own second.
+    spec_corpus::observe_handoff!(
+        "captured-owner-applications/consumer",
+        assert!([([WORD, BYTE], 41), ([BYTE, WORD], 14)].iter().all(|(arguments, size)| {
+            answers
+                .iter()
+                .filter(|answer| answer.arguments == *arguments && answer.value == omega_typer::StaticValue::Integer((*size).into()))
+                .count()
+                == 1
+        }))
+    );
     assert_eq!(prepared.target_observations().len(), 2);
 }

@@ -66,19 +66,22 @@ fn nested_data_passes_the_private_witness_as_an_argument_and_captures_only_the_p
         owner: packet.declaration.clone(),
         index: 0,
     };
-    assert_eq!(
-        packet.fields[0].ty.0,
-        [
-            lifetime.clone(),
-            Witness {
-                owner: packet.declaration.clone(),
-                index: 0
-            },
-            Named {
-                declaration: payload.declaration.clone(),
-                argument_count: 2
-            }
-        ]
+    spec_corpus::observe_handoff!(
+        psi "psi-output/field-witness",
+        assert_eq!(
+            packet.fields[0].ty.0,
+            [
+                lifetime.clone(),
+                Witness {
+                    owner: packet.declaration.clone(),
+                    index: 0
+                },
+                Named {
+                    declaration: payload.declaration.clone(),
+                    argument_count: 2
+                }
+            ]
+        ),
     );
     assert_eq!(
         payload.fields[0].ty.0,

@@ -8,8 +8,8 @@ use crate::syntax::File;
 use crate::{AssemblyVocabulary, Dependency, StageSource};
 use declarations::index_file;
 use omega_resolved::{
-    CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, DomainCandidate, DomainCarrier, InterfaceExport, NameContext, NameError, NameRole,
-    NameUse, OperatorDeclaration, ResolutionIndex, ResolvedStage, Symbol, SymbolResolvedTrees, TreeBindings, is_builtin_type_name as builtin,
+    CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, DomainCandidate, DomainCarrier, InterfaceExport, NameContext, NameError, NameErrorKind,
+    NameRole, NameUse, OperatorDeclaration, ResolutionIndex, ResolvedStage, Symbol, SymbolResolvedTrees, TreeBindings, is_builtin_type_name as builtin,
 };
 use omega_syntax::NodeKind;
 use omega_tokens::SourceSpan;
@@ -139,7 +139,7 @@ pub fn resolve_stage_with_exports<'text>(
     let mut modules = BTreeSet::new();
     for (i, file) in files.iter().enumerate() {
         if i > 0 && (file.package, file.path) == (files[i - 1].package, files[i - 1].path) {
-            return Err(file.error(SourceSpan::new(0, 0), "duplicate logical file"));
+            return Err(file.error(NameErrorKind::DuplicateLogicalFile, SourceSpan::new(0, 0), "duplicate logical file"));
         }
         let mut parts: Vec<_> = file.path.split('/').collect();
         if parts
@@ -147,7 +147,11 @@ pub fn resolve_stage_with_exports<'text>(
             .is_none_or(|p| p.is_empty() || matches!(p, "." | "..") || p.contains(['\\', ':']))
             || parts.iter().any(|p| !identifier(p) || builtin(p))
         {
-            return Err(file.error(SourceSpan::new(0, 0), format!("invalid package-relative logical path {}", file.path)));
+            return Err(file.error(
+                NameErrorKind::InvalidLogicalPath,
+                SourceSpan::new(0, 0),
+                format!("invalid package-relative logical path {}", file.path),
+            ));
         }
         for depth in 0..=parts.len() {
             modules.insert((file.package.to_owned(), parts[..depth].join("\\")));
@@ -159,12 +163,12 @@ pub fn resolve_stage_with_exports<'text>(
     exports.sort_by_key(|export| (&export.id, &export.module));
     for export in &exports {
         let id = &export.id;
-        let error = |message: &str| NameError::new(&id.package, &id.path, SourceSpan::new(0, 0), message);
+        let error = |kind, message: &str| NameError::new(kind, &id.package, &id.path, SourceSpan::new(0, 0), message);
         if files
             .binary_search_by(|f| f.package.cmp(id.package.as_str()))
             .is_ok()
         {
-            return Err(error("source package collides with a compiled interface"));
+            return Err(error(NameErrorKind::CompiledPackageCollision, "source package collides with a compiled interface"));
         }
         if !matches!(
             id.kind,
@@ -180,16 +184,16 @@ pub fn resolve_stage_with_exports<'text>(
                 | NodeKind::Field
                 | NodeKind::Trait
         ) {
-            return Err(error("unsupported declaration in compiled interface"));
+            return Err(error(NameErrorKind::UnsupportedCompiledDeclaration, "unsupported declaration in compiled interface"));
         }
         if id.enclosing_machine.is_some() {
-            return Err(error("compiled export names a nested machine or local declaration"));
+            return Err(error(NameErrorKind::NestedCompiledExport, "compiled export names a nested machine or local declaration"));
         }
         if !interface
             .modules
             .contains(&(id.package.clone(), export.module.clone()))
         {
-            return Err(error("compiled export has no defining module"));
+            return Err(error(NameErrorKind::CompiledExportWithoutModule, "compiled export has no defining module"));
         }
         let local_path = if export.module.is_empty() {
             id.path.as_str()
@@ -197,14 +201,21 @@ pub fn resolve_stage_with_exports<'text>(
             id.path
                 .strip_prefix(&export.module)
                 .and_then(|rest| rest.strip_prefix('\\'))
-                .ok_or_else(|| error("compiled export is outside its defining module"))?
+                .ok_or_else(|| error(NameErrorKind::CompiledExportOutsideModule, "compiled export is outside its defining module"))?
         };
-        if export.domain_carrier.is_some() != (id.kind == NodeKind::Domain && local_path.contains("::")) {
-            return Err(error("compiled domain attachment does not match its declaration"));
+        if export.domain_carrier.is_some() != (id.kind == NodeKind::Domain && local_path.contains("::"))
+            || (!id.domain_carrier_arguments.is_empty()
+                && !matches!(&export.domain_carrier, Some(DomainCarrier::Builtin(name))
+                    if builtin(name) && local_path.rsplit_once("::").is_some_and(|(carrier, _)| carrier == name)))
+        {
+            return Err(error(
+                NameErrorKind::CompiledDomainAttachmentMismatch,
+                "compiled domain attachment does not match its declaration",
+            ));
         }
         let slots = index.entry((id.package.clone(), id.path.clone())).or_default();
         if slots.iter().any(|&slot| entries[slot].id == *id) {
-            return Err(error("duplicate declaration in compiled interface"));
+            return Err(error(NameErrorKind::DuplicateCompiledDeclaration, "duplicate declaration in compiled interface"));
         }
         slots.push(entries.len());
         entries.push(Entry {
@@ -220,6 +231,7 @@ pub fn resolve_stage_with_exports<'text>(
             .is_ok()
         {
             return Err(NameError::new(
+                NameErrorKind::CompiledPackageCollision,
                 package,
                 path,
                 SourceSpan::new(0, 0),
@@ -227,7 +239,13 @@ pub fn resolve_stage_with_exports<'text>(
             ));
         }
         if !path.is_empty() && path.split('\\').any(|part| !identifier(part) || builtin(part)) {
-            return Err(NameError::new(package, path, SourceSpan::new(0, 0), "invalid compiled module path"));
+            return Err(NameError::new(
+                NameErrorKind::InvalidCompiledModulePath,
+                package,
+                path,
+                SourceSpan::new(0, 0),
+                "invalid compiled module path",
+            ));
         }
         let mut module = path.as_str();
         loop {
@@ -245,6 +263,7 @@ pub fn resolve_stage_with_exports<'text>(
             .is_some_and(|p| p != edge.package)
         {
             return Err(NameError::new(
+                NameErrorKind::ConflictingDependencyAlias,
                 edge.requester,
                 "",
                 SourceSpan::new(0, 0),
@@ -355,10 +374,10 @@ pub fn resolve_stage_with_exports<'text>(
                 .filter(|&i| matches!(entries[i].id.kind, NodeKind::Data | NodeKind::Domain));
             let first = owners.next();
             if owners.any(|i| Some(i) != first) {
-                return Err(file.error(file.span(head), format!("ambiguous carrier {carrier}")));
+                return Err(file.error(NameErrorKind::AmbiguousCarrier, file.span(head), format!("ambiguous carrier {carrier}")));
             }
             if let Some(owner) = first
-                && entries[owner].lexical_owner.is_some()
+                && (entries[owner].lexical_owner.is_some() || entries[owner].id.kind == NodeKind::Domain)
             {
                 nested_carriers.push((slot, owner));
             }
@@ -377,7 +396,7 @@ pub fn resolve_stage_with_exports<'text>(
                 }
                 (Some(_), None) => DomainCarrier::Generic,
                 (None, Some(owner)) => DomainCarrier::Named(entries[owner].id.clone()),
-                (None, None) => return Err(file.error(file.span(head), format!("unresolved name {carrier}"))),
+                (None, None) => return Err(context.unresolved_name(file, file.span(head), carrier)),
             }
         };
         catalog.carriers.insert(slot, key);
@@ -397,20 +416,39 @@ pub fn resolve_stage_with_exports<'text>(
     for (slot, entry) in catalog.entries[..source_count].iter().enumerate() {
         let (file_number, node) = entry.source.expect("source declaration");
         let file = &files[file_number];
-        if callable(entry.id.kind) {
-            match catalog.resolve_signature(file, &contexts[file_number], node) {
-                Ok((operands, signature)) => signatures.push((slot, operands, signature)),
-                Err(error) => {
-                    signature_error.get_or_insert(error);
-                }
+        let (operands, result) = if callable(entry.id.kind) {
+            let params = file.parameters(node).map(|(_, ty)| ty).collect::<Vec<_>>();
+            let result = file
+                .result_annotation(node)
+                .filter(|&ty| file.nodes[ty].kind == NodeKind::QualifiedType && file.child(node, NodeKind::OperatorToken).is_none());
+            (params, result)
+        } else if !entry.id.domain_carrier_arguments.is_empty() {
+            let head = file
+                .child(node, NodeKind::PathType)
+                .expect("attached domain head");
+            let sections = declarations::builtin_carrier_sections(file, head).collect();
+            (sections, None)
+        } else {
+            continue;
+        };
+        match catalog.resolve_signature(file, &contexts[file_number], node, &operands, result) {
+            Ok((operands, signature)) => signatures.push((slot, operands, signature)),
+            Err(error) if entry.id.kind == NodeKind::Domain => return Err(error),
+            Err(error) => {
+                signature_error.get_or_insert(error);
             }
         }
     }
     let entries = &mut catalog.entries;
     for (slot, operands, signature) in signatures {
-        let name = std::sync::Arc::make_mut(&mut entries[slot].id.name);
-        name.operands = operands;
-        name.resolved_signature = Some(signature);
+        let id = &mut entries[slot].id;
+        let name = std::sync::Arc::make_mut(&mut id.name);
+        if id.kind == NodeKind::Domain {
+            name.domain_carrier_arguments = signature.operands.into_boxed_slice();
+        } else {
+            name.operands = operands;
+            name.resolved_signature = Some(signature);
+        }
     }
     for i in 0..source_count {
         if let Some(owner) = entries[i].lexical_owner {
@@ -428,12 +466,31 @@ pub fn resolve_stage_with_exports<'text>(
         {
             let (file_number, node) = entry.source.expect("source declaration");
             let file = &files[file_number];
+            if !entry.id.domain_carrier_arguments.is_empty() {
+                let head = file
+                    .child(node, NodeKind::PathType)
+                    .expect("attached domain head");
+                let member = file.nodes[head]
+                    .words()
+                    .next_back()
+                    .expect("domain member")
+                    .text;
+                return Err(file.error(
+                    NameErrorKind::DuplicateDeclaration,
+                    file.span(head),
+                    format!("domain {member} is declared twice on this carrier"),
+                ));
+            }
             let name = file.child(node, NodeKind::Path).unwrap_or(node);
-            return Err(file.error(file.span(name), format!("duplicate declaration {}", entry.id.path)));
+            return Err(file.error(
+                NameErrorKind::DuplicateDeclaration,
+                file.span(name),
+                format!("duplicate declaration {}", entry.id.path),
+            ));
         }
     }
-    // An attached domain can name data nested in a generic machine. Keep the
-    // carrier tied to that declaration when its enclosing identity is finalized.
+    // Attachments retain their owner's final identity after binding its enclosing
+    // machine and any arguments on its own domain carrier.
     for (domain, owner) in nested_carriers {
         match catalog
             .carriers

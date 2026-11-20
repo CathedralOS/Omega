@@ -122,7 +122,7 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
             _ => None,
         })
         .unwrap();
-    assert_eq!(selected.machine.operands, ["bool"]);
+    spec_corpus::observe_handoff!("node-identity-and-call-operands/producer", assert_eq!(selected.machine.operands, ["bool"]));
     assert_eq!(
         file.span(selected.operands[0].node.node)
             .slice(source.as_bytes()),
@@ -154,7 +154,7 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
         matches!(fact, NodeSemantics::Obligation(o)
         if matches!(&o.kind, ObligationKind::CallPrecondition(id) if id.path == "indexing\\read"))
     };
-    assert!(view.semantics_at(index).any(read_precondition));
+    spec_corpus::observe_handoff!("obligations-and-assembly-at-the-producing-node/producer", assert!(view.semantics_at(index).any(read_precondition)));
     assert!(!view.semantics_at(tail).any(read_precondition));
 }
 

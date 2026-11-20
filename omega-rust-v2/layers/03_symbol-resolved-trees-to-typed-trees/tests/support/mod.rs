@@ -13,7 +13,37 @@ pub fn check_in(
 ) -> Result<TypedStage, TypeError> {
     let files: Vec<_> = files.iter().map(|&(path, text)| ("game", path, text)).collect();
     let resolved = resolve_packages(&files, &[]);
-    type_stage_in_environment(&resolved, environment).map(|trees| trees.into_facts())
+    let result = type_stage_in_environment(&resolved, environment).map(|trees| trees.into_facts());
+    #[cfg(feature = "diagnostic-origins")]
+    if let Err(error) = &result {
+        report_return(error, "");
+    }
+    result
+}
+
+#[cfg(feature = "diagnostic-origins")]
+pub fn report_return(
+    error: &TypeError,
+    fixture: &str,
+) {
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        let origin = error.diagnostic_origin();
+        let field = spec_corpus::diagnostic_field;
+        let phase = if error.waiting_for_static_value() { "pending" } else { "refused" };
+        println!(
+            "OMEGA_TYPING_RETURN\t{}\t{}\t{}\t{}\t{phase}\t{}\t{}\t{}\t{}\t{}\t{}",
+            field(fixture),
+            field(&origin.file().replace('\\', "/")),
+            origin.line(),
+            origin.column(),
+            field(&error.package),
+            field(&error.file),
+            error.span.get_start_offset(),
+            error.span.get_end_offset(),
+            error.message.len(),
+            field(&error.message)
+        );
+    }
 }
 
 pub fn resolve_packages<'a>(

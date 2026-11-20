@@ -1,26 +1,46 @@
+#[allow(dead_code)]
+#[path = "obligation_outputs/pipeline.rs"]
+mod pipeline;
 #[path = "support/source.rs"]
 mod sources;
-use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, OperationKind, OperationResult, Parameter, PlaceProjection};
+use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, OperationKind, OperationResult, Parameter, PlaceProjection, ReturnEdge};
+use omega_typed::ObligationKind;
 const PAIR: &str = "data Token { value:u8; } data Pair { left:Token; right:Token; }";
+
+/// Receipt for the L5 readiness report, printed after the checks above it pass.
+fn observed(label: &str) {
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        println!("OMEGA_L5_ASSERT\t{label}");
+    }
+}
 
 #[test]
 fn moving_a_field_returns_its_claim_and_disposes_the_opposite_field() {
     for (selected, remaining) in [("left", "right"), ("right", "left")] {
         let source = format!("{PAIR} machine pick(p:Pair)->Token{{move p.{selected}}}");
-        let package = {
+        let (package, transfer) = {
             let resolved = sources::resolve(&[("pick.omg", &source)]);
             let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
             let typed = prepared.typed();
             let tree = typed.trees().next().unwrap();
             let file = tree.resolved().file;
-            let (operand, claimed) = typed
+            let (operand, claimed, transfer) = typed
                 .obligations
                 .iter()
                 .find_map(|o| match &o.kind {
-                    omega_typed::ObligationKind::Move { place, ty } => Some((file.nodes[o.node.node].children[0], (place, ty))),
+                    omega_typed::ObligationKind::Move { place, ty } => Some((file.nodes[o.node.node].children[0], (place, ty), o.site.clone())),
                     _ => None,
                 })
                 .unwrap();
+            assert_eq!(
+                typed
+                    .obligations
+                    .iter()
+                    .filter(|o| matches!(o.kind, omega_typed::ObligationKind::Move { .. }))
+                    .count(),
+                1
+            );
+            assert_eq!(transfer.span.slice(source.as_bytes()).unwrap(), format!("move p.{selected}").as_bytes());
             assert_eq!(claimed.0.span.slice(source.as_bytes()).unwrap(), format!("p.{selected}").as_bytes());
             assert_eq!(claimed.1.nominal_parts().unwrap().0.path, "Token");
             let (capture, projection) = typed.place_path(file.node_id(operand));
@@ -28,7 +48,7 @@ fn moving_a_field_returns_its_claim_and_disposes_the_opposite_field() {
             assert!(
                 matches!(projection.as_slice(),[step] if matches!(&step.projection,Some(omega_typed::Projection::Field(f)) if f.path==format!("Pair::{selected}")))
             );
-            omega_lowering::lower_package(&prepared).unwrap()
+            (sources::lower_prepared(&prepared, &[("pick.omg", &source)]).unwrap(), transfer)
         };
         let pick = &package.machines[0];
         let [Parameter::Structural(root)] = pick.body.parameters[..] else {
@@ -44,7 +64,26 @@ fn moving_a_field_returns_its_claim_and_disposes_the_opposite_field() {
         assert_eq!(place.root, root);
         assert!(matches!(place.path.as_slice(),[PlaceProjection::Field(f)] if f.path==format!("Pair::{remaining}")));
         assert_eq!(Some(*ty), pick.result_type);
+
+        // The operation retained at the prepared move's own site transfers the field
+        // its obligation names, and that transferred place is the returned claim.
+        let moved = pipeline::operation_at(&pick.body, &transfer);
+        assert!(
+            matches!(&moved.kind, OperationKind::MoveStructural { source: taken } if taken == source),
+            "{selected}: {:?}",
+            moved.kind
+        );
+        let BlockTerminator::Return {
+            result: ReturnEdge::Structural { source: claim, .. },
+            ..
+        } = pick.body.blocks[0].terminator
+        else {
+            panic!("structural return expected")
+        };
+        assert_eq!(moved.result, OperationResult::Structural(claim));
+        assert_eq!(Some(pick.body.places[claim.index()].ty), pick.result_type, "the claim has the moved type");
     }
+    observed("obligation-output/move");
 }
 
 #[test]
@@ -81,23 +120,8 @@ fn transferring_a_field_to_a_call_does_not_dispose_the_argument_twice() {
             .iter()
             .find(|m| m.declaration.path == "apply")
             .unwrap();
-        let [transfer, call] = apply.body.operations.as_slice() else {
-            panic!("expected transfer and call")
-        };
-        let [Parameter::Structural(root)] = apply.body.parameters[..] else {
-            panic!("expected owned parameter")
-        };
-        assert!(matches!(&transfer.kind, OperationKind::MoveStructural { source }
-        if source.root == root && matches!(&source.path[..], [PlaceProjection::Field(f)] if f.path == format!("Pair::{field}"))));
-        assert!(
-            matches!(&call.kind,OperationKind::Call{arguments,..} if matches!(arguments.as_slice(),[CallArgument::MoveWhole(place)] if transfer.result==OperationResult::Structural(*place)))
-        );
-        let BlockTerminator::Return { cleanup, .. } = &apply.body.blocks[0].terminator else {
-            panic!("return expected")
-        };
-        assert!(
-            matches!(cleanup.as_slice(),[CleanupAction::DiscardResidual{place,..}] if place.root == root && matches!(place.path.as_slice(),[PlaceProjection::Field(f)] if f.path==format!("Pair::{sibling}")))
-        );
+        // `negative_controls.rs` redirects or removes this residual cleanup and requires this witness to reject it.
+        psi_handoff_consumer::product_witness::transfer_leaves_sibling(&apply.body, &format!("Pair::{field}"), &format!("Pair::{sibling}")).unwrap();
     }
 }
 
@@ -107,7 +131,8 @@ fn nominal_cleanup_invokes_the_selected_target_with_the_original_subject() {
         let source = format!(
             "data Lease dropped by {target} {{ mark:u8; }} machine finish(x:Lease) {{let Lease {{mark as _}}=x;}} machine release(y:Lease) {{let Lease {{mark as _}}=y;}} machine use_it(r:Lease) {{}}"
         );
-        let package = sources::lower(&[("cleanup.omg", &source)]).unwrap();
+        let lowered = pipeline::lower(&source);
+        let package = &lowered.package;
         let selected = package
             .machines
             .iter()
@@ -124,12 +149,42 @@ fn nominal_cleanup_invokes_the_selected_target_with_the_original_subject() {
         let BlockTerminator::Return { cleanup, .. } = &caller.body.blocks[0].terminator else {
             panic!("return expected")
         };
-        assert!(
-            matches!(cleanup.as_slice(),[CleanupAction::Invoke{place,ty,target}] if place.root==input && place.path.is_empty() && *ty==caller.parameter_types[0] && *target==selected.id)
+        spec_corpus::observe_handoff!(
+            "cleanup-selection/consumer",
+            assert!(
+                matches!(cleanup.as_slice(),[CleanupAction::Invoke{place,ty,target}] if place.root==input && place.path.is_empty() && *ty==caller.parameter_types[0] && *target==selected.id)
+            )
         );
         assert!(matches!(selected.body.operations[0].kind,OperationKind::DecomposeRecord{ref fields,..} if fields[0].field.path=="Lease::mark"));
         assert!(matches!(&selected.body.blocks[0].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
+
+        // The one cleanup contract sits on Lease's authored selection and names the
+        // selected machine. Psi records that machine on the same declaration's schema,
+        // whose carrier is the subject the normal exit hands to it.
+        let contracts = lowered.obligations("CleanupContract");
+        let [contract] = contracts.as_slice() else {
+            panic!("{target}: expected one cleanup contract, found {contracts:?}")
+        };
+        let ObligationKind::CleanupContract(machine) = &contract.kind else {
+            unreachable!()
+        };
+        assert_eq!((machine.package.as_str(), machine.path.as_str()), (pipeline::PACKAGE, target));
+        assert_eq!(selected.declaration.path, machine.path);
+        assert_eq!(lowered.spelling(&contract.site), format!("dropped by {target}"));
+        let lease = package
+            .data
+            .iter()
+            .find(|d| d.declaration.path == "Lease")
+            .unwrap();
+        assert!(
+            lease.site.span.get_start_offset() <= contract.site.span.get_start_offset()
+                && contract.site.span.get_end_offset() <= lease.site.span.get_end_offset(),
+            "{target}: the contract belongs to Lease"
+        );
+        assert_eq!(lease.cleanup_target, Some(selected.id));
+        assert_eq!(lease.carrier, caller.parameter_types[0]);
     }
+    observed("obligation-output/cleanup-contract");
 }
 
 #[test]
@@ -280,7 +335,8 @@ fn reinitializing_an_earlier_local_preserves_reverse_declaration_cleanup_order()
 fn an_unrestricted_field_read_preserves_the_whole_owned_record() {
     for (formal, expected) in [("p:Envelope", true), ("p:@Envelope", false)] {
         let source = format!("data Byte [copy] {{n:u8;}} data Envelope {{byte:Byte;}} machine get({formal})->Byte{{p.byte}}");
-        let package = sources::lower(&[("read.omg", &source)]).unwrap();
+        let lowered = pipeline::lower(&source);
+        let package = &lowered.package;
         let body = &package.machines[0].body;
         let [Parameter::Structural(root)] = body.parameters[..] else {
             panic!("source expected")
@@ -296,7 +352,52 @@ fn an_unrestricted_field_read_preserves_the_whole_owned_record() {
         } else {
             assert!(cleanup.is_empty());
         }
+
+        // Only the read through the loan owes `CopyRead`. The operation retained at
+        // that read's site copies the field through the referent, and the copy is
+        // returned. The owned twin copies the same field without crossing a loan.
+        let copy = &body.operations[0];
+        let OperationKind::CopyStructural { source: copied } = &copy.kind else {
+            unreachable!()
+        };
+        let reads = lowered.obligations("CopyRead");
+        if expected {
+            assert!(reads.is_empty(), "{formal}: an owned field read crosses no loan");
+            assert!(
+                matches!(copied.path.as_slice(), [PlaceProjection::Field(f)] if f.path == "Envelope::byte"),
+                "{formal}: {:?}",
+                copied.path
+            );
+        } else {
+            let [read] = reads.as_slice() else {
+                panic!("{formal}: expected one copy read, found {reads:?}")
+            };
+            assert_eq!(lowered.spelling(&read.site), "p.byte");
+            let ObligationKind::CopyRead(ty) = &read.kind else { unreachable!() };
+            assert_eq!(ty.nominal_parts().unwrap().0.path, "Byte");
+            assert_eq!(pipeline::operation_at(body, &read.site), copy, "{formal}: the read site is the copy");
+            assert!(
+                matches!(copied.path.as_slice(), [PlaceProjection::Referent, PlaceProjection::Field(f)] if f.path == "Envelope::byte"),
+                "{formal}: {:?}",
+                copied.path
+            );
+            assert!(lowered.obligations("ReturnBorrow").is_empty(), "{formal}: a copied result carries no loan");
+        }
+        let OperationResult::Structural(value) = copy.result else {
+            panic!("{formal}: a record copy yields a place")
+        };
+        let byte = package
+            .data
+            .iter()
+            .find(|d| d.declaration.path == "Byte")
+            .unwrap();
+        assert_eq!(body.places[value.index()].ty, byte.carrier);
+        assert!(
+            matches!(pipeline::returns(body).as_slice(), [ReturnEdge::Structural { source, .. }] if *source == value),
+            "{formal}: the copy is returned"
+        );
     }
+    observed("obligation-output/copy-read");
 }
 
 #[test]
@@ -433,8 +534,11 @@ fn moving_a_sum_payload_field_disposes_only_the_selected_cases_other_field() {
             let (taken, cleanup) = psi_handoff_consumer::returned_move(body, &body.blocks[edge.target.get() - 1]).unwrap();
             assert_eq!(taken.root, root);
             assert!(matches!(taken.path.as_slice(),[Case(c),Field(f)] if c==&tagged.case && f.path==format!("Choice::{case}::{selected}")));
-            assert!(
-                matches!(cleanup,[CleanupAction::DiscardResidual{place,..}] if place.root==root && matches!(place.path.as_slice(),[Case(c),Field(f)] if c==&tagged.case && f.path==format!("Choice::{case}::{remaining}")))
+            spec_corpus::observe_handoff!(
+                psi "psi-output/case-remainder",
+                assert!(
+                    matches!(cleanup,[CleanupAction::DiscardResidual{place,..}] if place.root==root && matches!(place.path.as_slice(),[Case(c),Field(f)] if c==&tagged.case && f.path==format!("Choice::{case}::{remaining}")))
+                ),
             );
         }
     }
@@ -478,8 +582,11 @@ fn partial_move_from_a_sum_field_disposes_its_active_sibling_and_the_holders_oth
     };
     for (edge, case) in [(when_true, "Choice::A"), (when_false, "Choice::B")] {
         let (source, cleanup) = psi_handoff_consumer::returned_move(body, &body.blocks[edge.target.get() - 1]).unwrap();
-        assert!(
-            matches!(source.path.as_slice(),[PlaceProjection::Field(holder),PlaceProjection::Case(c),PlaceProjection::Field(f)] if holder.path=="Holder::choice" && c.path==case && f.path==format!("{case}::left"))
+        spec_corpus::observe_handoff!(
+            "subject-and-field-identity-across-matches/consumer",
+            assert!(
+                matches!(source.path.as_slice(),[PlaceProjection::Field(holder),PlaceProjection::Case(c),PlaceProjection::Field(f)] if holder.path=="Holder::choice" && c.path==case && f.path==format!("{case}::left"))
+            )
         );
         assert!(
             matches!(cleanup,[CleanupAction::DiscardResidual{place:spare,..},CleanupAction::DiscardResidual{place:sibling,..}] if matches!(spare.path.as_slice(),[PlaceProjection::Field(f)] if f.path=="Holder::spare") && matches!(sibling.path.as_slice(),[PlaceProjection::Field(holder),PlaceProjection::Case(c),PlaceProjection::Field(f)] if holder.path=="Holder::choice" && c.path==case && f.path==format!("{case}::right")))

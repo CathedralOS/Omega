@@ -121,13 +121,44 @@ fn nesting_inside_the_limit_parses() {
 
 /// Each nested data declaration or machine hypothesis consumes exactly one level.
 #[test]
-fn the_nesting_limit_accepts_128_levels_and_refuses_the_next() {
-    for (depth, expected_error) in [(128, None), (129, Some(ParseErrorKind::NestingTooDeep))] {
-        let source = format!("{}{}", "data D {".repeat(depth), "}".repeat(depth));
-        assert_eq!(parse_on_small_stack(source), expected_error, "{depth} nested declarations");
-        let hypotheses = format!("machine f() {}{} {{}}", "requires machine h() ".repeat(depth), ";".repeat(depth));
-        assert_eq!(parse_on_small_stack(hypotheses), expected_error, "{depth} nested hypotheses");
+fn the_nesting_limit_refuses_the_129th_declaration_and_hypothesis() {
+    let declarations = format!("{}{}", "data D {".repeat(129), "}".repeat(129));
+    let hypotheses = format!("machine f() {}{} {{}}", "requires machine h() ".repeat(129), ";".repeat(129));
+    let errors = [declarations, hypotheses].map(parse_on_small_stack);
+    spec_corpus::observe_handoff!("parser-nesting-limit/refusal", assert_eq!(errors, [Some(ParseErrorKind::NestingTooDeep); 2]));
+}
+
+#[test]
+fn the_tree_at_the_nesting_limit_keeps_all_declarations_under_their_authored_parent() {
+    use omega_parser::NodeKind;
+
+    let names: Vec<_> = (0..128).map(|i| format!("N{i}")).collect();
+    let declarations = names.iter().map(|name| format!("data {name} {{")).collect::<String>() + &"}".repeat(128);
+    let hypotheses = names.iter().map(|name| format!("requires machine {name}() ")).collect::<String>();
+    let mut observed = Vec::new();
+    let mut expected = Vec::new();
+    for (source, kind, root) in [
+        (declarations, NodeKind::Data, NodeKind::File),
+        (format!("machine f() {hypotheses}{} {{}}", ";".repeat(128)), NodeKind::Hypothesis, NodeKind::Machine),
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        let tree = thread::scope(|scope| {
+            thread::Builder::new().stack_size(SMALL_STACK_BYTE_COUNT)
+                .spawn_scoped(scope, || parse_file(source.as_bytes(), &tokens)).unwrap().join().unwrap().unwrap()
+        });
+        let indexed = tree.index(&source, &tokens).unwrap();
+        for node in indexed.nodes.iter().filter(|node| node.kind == kind) {
+            let parent = node.parent.unwrap();
+            let parent = &indexed.nodes[parent];
+            let parent_name = (parent.kind == kind).then(|| parent.words().last().unwrap().text.to_owned());
+            observed.push((kind, node.words().last().unwrap().text.to_owned(), parent.kind, parent_name));
+        }
+        for (depth, name) in names.iter().enumerate() {
+            let parent_name = depth.checked_sub(1).map(|i| names[i].clone());
+            expected.push((kind, name.clone(), if depth == 0 { root } else { kind }, parent_name));
+        }
     }
+    spec_corpus::observe_handoff!("nesting-limit/tree", assert_eq!(observed, expected));
 }
 
 /*

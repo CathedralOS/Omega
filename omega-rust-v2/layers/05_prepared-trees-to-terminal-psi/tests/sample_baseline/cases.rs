@@ -1,3 +1,4 @@
+use super::pipeline::Refusal;
 use omega_psi::{
     BlockTerminator, CallTarget, IntegerPrimitive, LoweredMachine, LoweredPackage, OperationKind, OperationResult, PlaceProjection, ReturnEdge, ScalarLiteral,
 };
@@ -28,29 +29,73 @@ impl Case {
 pub enum Expectation {
     MustLower(Check),
     TrackCompatibility(Check),
+    ExpectCheckerRefusal(Check),
     MustRefuse(&'static str),
     MissingSetup(&'static str),
+}
+
+/// Where the configuration actually stopped, whatever the case expected.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Actual {
+    MissingSetup(&'static str),
+    /// Psi was produced. The witness is absent when the case names no output check.
+    Product { witness: Option<bool> },
+    Refused(Refusal),
+}
+
+impl Actual {
+    pub fn stage(&self) -> &'static str {
+        match self {
+            Self::MissingSetup(_) => "setup",
+            Self::Product { .. } => "L5",
+            Self::Refused(refusal) => refusal.stage,
+        }
+    }
+
+    /// The observation recorded after the case id in `observations.tsv`.
+    pub fn row(&self) -> String {
+        match self {
+            Self::MissingSetup(reason) => format!("setup\t{reason}"),
+            Self::Product { witness: Some(true) } => "psi\twitness matched".into(),
+            Self::Product { witness: Some(false) } => "psi\twitness absent".into(),
+            Self::Product { witness: None } => "psi\tnot inspected".into(),
+            Self::Refused(refusal) => refusal.to_string(),
+        }
+    }
+}
+
+pub struct Observation {
+    pub actual: Actual,
+    /// Why the actual result breaks a required expectation.
+    pub mismatch: Option<String>,
 }
 
 impl Expectation {
     pub fn observe(
         self,
         files: &[(&str, Vec<u8>)],
-    ) -> Result<String, String> {
-        match self {
-            Self::MissingSetup(reason) => Ok(format!("setup\t{reason}")),
-            Self::MustRefuse(expected) => match super::pipeline::lower(files) {
-                Err(refusal) if refusal == expected => Ok(refusal),
-                Err(other) => Err(format!("expected {expected}, got {other}")),
-                Ok(_) => Err(format!("produced Psi; expected {expected}")),
+    ) -> Observation {
+        let actual = match self {
+            Self::MissingSetup(reason) => Actual::MissingSetup(reason),
+            Self::MustRefuse(_) => match super::pipeline::lower(files) {
+                Ok(_) => Actual::Product { witness: None },
+                Err(refusal) => Actual::Refused(refusal),
             },
-            Self::MustLower(check) | Self::TrackCompatibility(check) => match super::pipeline::lower(files) {
-                Ok(product) if check.matches(&product) => Ok("psi\twitness matched".into()),
-                Ok(_) => Err("produced Psi without the required behavior".into()),
-                Err(refusal) if matches!(self, Self::TrackCompatibility(_)) => Ok(refusal),
-                Err(refusal) => Err(format!("expected Psi, got {refusal}")),
+            Self::MustLower(check) | Self::TrackCompatibility(check) | Self::ExpectCheckerRefusal(check) => match super::pipeline::lower(files) {
+                Ok(product) => Actual::Product {
+                    witness: Some(check.matches(&product)),
+                },
+                Err(refusal) => Actual::Refused(refusal),
             },
-        }
+        };
+        let mismatch = match (self, &actual) {
+            (Self::MustRefuse(expected), Actual::Refused(refusal)) if refusal.to_string() != expected => Some(format!("expected {expected}, got {refusal}")),
+            (Self::MustRefuse(expected), Actual::Product { .. }) => Some(format!("produced Psi; expected {expected}")),
+            (_, Actual::Product { witness: Some(false) }) => Some("produced Psi without the required behavior".into()),
+            (Self::MustLower(_), Actual::Refused(refusal)) => Some(format!("expected Psi, got {refusal}")),
+            _ => None,
+        };
+        Observation { actual, mismatch }
     }
 }
 
@@ -256,7 +301,7 @@ pub const CASES: &[Case] = &[
         files: MAIN,
         main_override: None,
         configuration: HOST_MAIN,
-        expectation: Expectation::TrackCompatibility(Check::Premise(false)),
+        expectation: Expectation::ExpectCheckerRefusal(Check::Premise(false)),
     },
     Case {
         id: "import-from-dependency",

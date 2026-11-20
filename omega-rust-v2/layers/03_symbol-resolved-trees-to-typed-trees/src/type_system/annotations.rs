@@ -78,6 +78,30 @@ impl<'a> ResolvedSourceFile<'a> {
         }
         Ok(formed)
     }
+    /// Form a builtin carrier from its written argument lists. A direct type and
+    /// the root of a qualified domain path, as in u<8> and u<8>::Ready, share this.
+    pub(crate) fn builtin_carrier(
+        &self,
+        node: usize,
+        name: &str,
+        sections: &[usize],
+        types: &TypeCatalog<'_>,
+    ) -> Result<ValueType, TypeError> {
+        match *sections {
+            [section] if matches!(name, "u" | "i") => self.integer_type(types, node, section, name == "i"),
+            [] => ValueType::builtin_scalar(name).ok_or_else(|| {
+                if name.starts_with(['u', 'i']) {
+                    TypeError::at(self.file, node, format!("invalid integer carrier {name}"))
+                } else {
+                    TypeError::unsupported(self.file, node)
+                }
+            }),
+            [_, second, ..] if matches!(name, "u" | "i") => {
+                Err(TypeError::at(self.file, second, format!("integer carrier {name} accepts one width argument list")))
+            }
+            [section, ..] => Err(TypeError::at(self.file, section, format!("builtin type {name} does not take arguments"))),
+        }
+    }
     pub fn annotation(
         &self,
         node_index: usize,
@@ -301,10 +325,9 @@ impl<'a> ResolvedSourceFile<'a> {
                     });
                 }
                 if let Some(Symbol::Builtin(name)) = symbol
-                    && matches!(name.as_str(), "u" | "i")
-                    && let [section] = *sections
+                    && name != "core\\Level"
                 {
-                    return self.integer_type(types, node_index, section, name == "i");
+                    return self.builtin_carrier(node_index, name, sections, types);
                 }
                 if let Some(Symbol::Declaration(schema)) = symbol
                     && schema.kind == Trait
@@ -332,8 +355,8 @@ impl<'a> ResolvedSourceFile<'a> {
                         .collect::<std::result::Result<Vec<_>, _>>()?;
                     return Ok(ValueType::Applied(Box::new(id.clone()), args));
                 }
-                if !sections.is_empty() {
-                    return Err(TypeError::at(source, node_index, "generic arguments require an applicable type declaration"));
+                if let Some(&section) = sections.first() {
+                    return Err(TypeError::at(source, section, "generic arguments require an applicable type declaration"));
                 }
                 match symbol {
                     Some(Symbol::Binding {
@@ -357,17 +380,8 @@ impl<'a> ResolvedSourceFile<'a> {
                         .get(span)
                         .cloned()
                         .ok_or_else(|| TypeError::at(source, node_index, "unknown type parameter")),
-                    Some(Symbol::Builtin(name)) => match name.as_str() {
-                        "core\\Level" if node.parent.is_some_and(|p| source.nodes[p].kind == KindedParam) => Ok(ValueType::LevelKind),
-                        "core\\Level" => Err(TypeError::at(source, node_index, "core\\Level is a universe binder kind")),
-                        _ => ValueType::builtin_scalar(name).ok_or_else(|| {
-                            if name.starts_with(['u', 'i']) {
-                                TypeError::at(source, node_index, format!("invalid integer carrier {name}"))
-                            } else {
-                                TypeError::unsupported(source, node_index)
-                            }
-                        }),
-                    },
+                    Some(Symbol::Builtin(_)) if node.parent.is_some_and(|p| source.nodes[p].kind == KindedParam) => Ok(ValueType::LevelKind),
+                    Some(Symbol::Builtin(_)) => Err(TypeError::at(source, node_index, "core\\Level is a universe binder kind")),
                     _ => Err(TypeError::at(source, node_index, "expected a type declaration or type parameter")),
                 }
             }

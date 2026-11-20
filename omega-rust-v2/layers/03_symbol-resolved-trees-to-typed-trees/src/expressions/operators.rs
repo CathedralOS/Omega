@@ -143,10 +143,19 @@ impl BodyTyper<'_, '_> {
         mut node_index: usize,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
+        // The left spine can also pass through groups, as in `((a + b) + c)`.
+        // A group is finished at its own node exactly as `type_expression`
+        // would finish it; see :ExpressionLayers.
         let mut pending = Vec::new();
         let mut left_type = loop {
-            if source.nodes[node_index].kind != NodeKind::Binary {
-                break self.type_expression(node_index)?;
+            match source.nodes[node_index].kind {
+                NodeKind::Binary => {}
+                NodeKind::Paren => {
+                    pending.push((node_index, None));
+                    node_index = self.unit.single_child(node_index)?;
+                    continue;
+                }
+                _ => break self.type_expression(node_index)?,
             }
             let operator = self
                 .unit
@@ -160,10 +169,14 @@ impl BodyTyper<'_, '_> {
             let [left, right] = *source.nodes[node_index].children.as_slice() else {
                 return Err(TypeError::unsupported(source, node_index));
             };
-            pending.push((node_index, left, right, operator.token));
+            pending.push((node_index, Some((left, right, operator.token))));
             node_index = left;
         };
-        for (node_index, left, right, token) in pending.into_iter().rev() {
+        for (node_index, operator) in pending.into_iter().rev() {
+            let Some((left, right, token)) = operator else {
+                left_type = self.finish_expression(node_index, left_type, None)?;
+                continue;
+            };
             let ty = if token == "in" {
                 self.membership(node_index, &left_type, right)?
             } else {

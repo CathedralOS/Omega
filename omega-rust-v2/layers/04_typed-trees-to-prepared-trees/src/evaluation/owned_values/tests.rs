@@ -1,4 +1,5 @@
 use super::*;
+use crate::reasons::{PreparationReason, PreparationRefusal, RefusalCause};
 use omega_parser::NodeKind;
 use omega_resolver::{ParsedSource, StageSource, Symbol};
 use omega_typer::{resolve_source_package, type_source_package};
@@ -118,13 +119,13 @@ fn construction_uses_evidence_for_its_exact_fields_and_typed_occurrence() {
     for constant in ["OTHER_OCCURRENCE", "FALSE"] {
         assert!(matches!(
             evaluator.evaluate_value_request(find(constant), None),
-            Err(EvaluationError::Refused(NEEDS_CONSTRUCTION_PROOF)),
+            Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF))),
         ));
     }
     evaluator.nominal.establishments[0].fields = [PreparedValue::Integer(4.into())].into();
     assert!(matches!(
         evaluator.evaluate_value_request(find("ALLOWED"), None),
-        Err(EvaluationError::Refused(NEEDS_CONSTRUCTION_PROOF)),
+        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF))),
     ));
 
     evaluator.nominal.establishments[0].fields = [PreparedValue::Integer(3.into())].into();
@@ -137,7 +138,7 @@ fn construction_uses_evidence_for_its_exact_fields_and_typed_occurrence() {
     unrelated_pass.trees = &other_trees;
     assert!(matches!(
         unrelated_pass.evaluate_value_request(find("ALLOWED"), None),
-        Err(EvaluationError::Refused(NEEDS_CONSTRUCTION_PROOF)),
+        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF))),
     ));
 }
 
@@ -180,7 +181,7 @@ fn a_constructor_proof_replays_its_target_dependency() {
     evaluator.target = Some(&changed);
     assert!(matches!(
         evaluator.evaluate_value_request(request, None),
-        Err(EvaluationError::Refused(NEEDS_CONSTRUCTION_PROOF))
+        Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF)))
     ));
     assert!(evaluator.observations.borrow().is_empty());
     evaluator.target = Some(&original);
@@ -239,18 +240,33 @@ fn constrained_index_requires_a_verified_identity_at_the_exact_demand() {
         if let Some(judgment) = judgment {
             evidence = evidence.with_canonical_identity(judgment);
         }
-        round.evaluate(evidence)
+        round.evaluate_with_cause(evidence)
     };
 
     let wrong_use = CheckedCanonicalIdentity {
         demand: StaticValueDemand::Closed(trees.constants[0].initializer.clone()),
         ..identity(3)
     };
+    // Stage input: the round checks each supplied identity against the
+    // typer's actual demand. The refusal belongs to the index occurrence.
+    let index = source.rfind("VALUE").unwrap();
+    let index = (index, index + "VALUE".len());
+    assert_eq!(
+        (demand.request().expression.span.get_start_offset(), demand.request().expression.span.get_end_offset()),
+        index
+    );
     for judgment in [None, Some(wrong_use), Some(identity(4))] {
-        let error = prepare(judgment)
+        let refusal = prepare(judgment)
             .err()
             .expect("unchecked canonical identity refused");
-        assert!(error.message.contains("no canonical static index identity"), "{error:?}");
+        spec_corpus::assert_preparation_cause!(
+            refusal,
+            RefusalCause::Preparation(PreparationReason::NoCanonicalIndexIdentity),
+            "app",
+            "main.omg",
+            index,
+            "static evaluation cannot admit this invocation: the prepared value has no canonical static index identity"
+        );
     }
 
     let expected = StaticValue::Record {
@@ -286,12 +302,11 @@ fn constrained_index_requires_a_verified_identity_at_the_exact_demand() {
 
 #[test]
 fn construction_proof_is_bound_to_one_closed_application() {
-    let trees = typed(
-        "data Checked<const Tag:bool> [copy] requires true {amount:u32;}
+    let source = "data Checked<const Tag:bool> [copy] requires true {amount:u32;}
                        machine make<const Tag:bool>()->Checked<Tag>{Checked::<Tag>{amount:3}}
                        const YES:Checked<true> = make::<true>();
-                       const NO:Checked<false> = make::<false>();",
-    );
+                       const NO:Checked<false> = make::<false>();";
+    let trees = typed(source);
     let constructors: Vec<_> = trees
         .obligations
         .iter()
@@ -325,13 +340,23 @@ fn construction_proof_is_bound_to_one_closed_application() {
         let error = evaluator
             .evaluate_value_request(request(other), None)
             .expect_err("a sibling application needs its own proof");
-        let EvaluationError::AtCall(error) = error else {
+        let EvaluationError::AtCall(refusal) = error else {
             panic!("expected a refusal at {other}, got {error:?}")
         };
-        assert_eq!(error.span, request(other).expression.span);
-        assert_eq!(
-            error.message,
-            format!("static evaluation cannot admit this invocation: {NEEDS_CONSTRUCTION_PROOF}")
+        // Typed input: the supplied proof names one application's carrier.
+        let occurrence = if other == "YES" { "make::<true>()" } else { "make::<false>()" };
+        let start = source.rfind(occurrence).unwrap();
+        spec_corpus::assert_preparation_cause!(
+            refusal,
+            RefusalCause::Preparation(PreparationReason::ConstructionNeedsProof),
+            "app",
+            "main.omg",
+            (start, start + occurrence.len()),
+            "static evaluation cannot admit this invocation: the selected constructor requires proof outside the prepared value fragment"
         );
+        let PreparationRefusal { diagnostic, .. } = refusal;
+        assert_eq!(diagnostic.span, request(other).expression.span);
     }
 }
+
+mod refusal_reasons;

@@ -1,6 +1,5 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_error::SourceTypeError;
-use crate::type_relations::TypeRelations;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{DomainApplication, TypeError, ValueType};
 use omega_resolved::{DeclarationId, Symbol};
@@ -16,6 +15,8 @@ struct Domain {
     parent: Option<DomainApplication>,
     carrier: ValueType,
     indices: Vec<usize>,
+    /// The head binds the declaration's complete binder tuple, as an alias requires.
+    complete: bool,
     alias: Vec<DomainApplication>,
 }
 
@@ -31,6 +32,17 @@ impl TypeCatalog<'_> {
         &self,
         name: &'a Symbol,
     ) -> Result<&'a DeclarationId, &'a str> {
+        self.selected_domain(name, None)
+    }
+
+    /// Select among visible domains. A carrier-deferred candidate, found through an applied
+    /// integer root such as u<8>, matches only when its normalized declared carrier is
+    /// the normalized written or subject carrier. Without that carrier it still competes.
+    pub(crate) fn selected_domain<'a>(
+        &self,
+        name: &'a Symbol,
+        carrier: Option<&ValueType>,
+    ) -> Result<&'a DeclarationId, &'a str> {
         match name {
             Symbol::Declaration(id) => Ok(id),
             Symbol::DomainCandidates { candidates, ambiguity } => {
@@ -38,6 +50,12 @@ impl TypeCatalog<'_> {
                     c.type_binder
                         .as_ref()
                         .is_none_or(|binder| self.binder_names_type(binder))
+                        && (!c.carrier_deferred
+                            || carrier.is_none_or(|carrier| {
+                                self.domains
+                                    .known_carrier(&c.declaration)
+                                    .is_some_and(|declared| declared.carrier() == carrier.carrier())
+                            }))
                 });
                 match (names.next(), names.next()) {
                     (Some(candidate), None) => Ok(&candidate.declaration),
@@ -56,12 +74,20 @@ impl<'a> ResolvedSourceFile<'a> {
         node: usize,
         types: &TypeCatalog<'_>,
     ) -> Result<&'a DeclarationId, TypeError> {
+        self.domain_name_on(node, None, types)
+    }
+    fn domain_name_on(
+        &self,
+        node: usize,
+        carrier: Option<&ValueType>,
+        types: &TypeCatalog<'_>,
+    ) -> Result<&'a DeclarationId, TypeError> {
         let name = self
             .name_in_role(node, true)
             .filter(|name| name.names_domain())
             .ok_or_else(|| TypeError::at(self.file, node, "expected a domain declaration"))?;
         types
-            .selected_declaration(name)
+            .selected_domain(name, carrier)
             .map_err(|message| TypeError::at(self.file, node, message))
     }
     pub(crate) fn domain_reference(
@@ -70,19 +96,47 @@ impl<'a> ResolvedSourceFile<'a> {
         subject: Option<&ValueType>,
         types: &TypeCatalog<'_>,
     ) -> Result<(&'a DeclarationId, Option<ValueType>), TypeError> {
+        // An applied parent domain can sit between the written carrier and the
+        // selected domain. Its indices have a different owner from the carrier's arguments.
+        let carrier_sections: Vec<_> = self
+            .file
+            .reference_sections(n)
+            .iter()
+            .copied()
+            .filter(|&section| {
+                let selected = self.application_name(section)
+                    .and_then(|name| self.select_name(name.target.visible_names(), true));
+                matches!(selected, Some(Symbol::Builtin(_) | Symbol::Binding { .. }))
+                    || matches!(selected, Some(Symbol::Declaration(id)) if id.kind == NodeKind::Data)
+            })
+            .collect();
+        let root = carrier_sections.last().map(|&section| {
+            self.application_name(section)
+                .and_then(|name| self.select_name(name.target.visible_names(), true))
+        });
         let written = match self
             .qualifier(n)
             .map(|q| self.select_name(q.visible_names(), true))
         {
+            Some(Some(Symbol::Declaration(id))) if id.kind == NodeKind::Domain => root,
+            // A parent domain found by integer family, as the Mark of u<8>::Mark<3>::Child.
+            Some(Some(Symbol::DomainCandidates { candidates, .. })) if candidates.iter().any(|c| c.carrier_deferred) => root,
+            None => root,
+            qualifier => qualifier,
+        };
+        let written = match written {
             Some(Some(Symbol::Declaration(id))) if id.kind == NodeKind::Data => Some(self.data_application(n, id, types)?),
             Some(Some(Symbol::Declaration(id))) if id.kind == NodeKind::Domain => None,
+            Some(Some(Symbol::Binding { .. })) if !carrier_sections.is_empty() => {
+                return Err(TypeError::at(self.file, carrier_sections[0], "generic arguments require an applicable type declaration"));
+            }
             Some(Some(Symbol::Binding { span, .. })) => Some(
                 self.parameters
                     .get(span)
                     .cloned()
                     .ok_or_else(|| TypeError::unsupported(self.file, n))?,
             ),
-            Some(Some(Symbol::Builtin(name))) => Some(ValueType::builtin_scalar(name).ok_or_else(|| TypeError::unsupported(self.file, n))?),
+            Some(Some(Symbol::Builtin(name))) => Some(self.builtin_carrier(n, name, &carrier_sections, types)?),
             None => None,
             _ => return Err(TypeError::at(self.file, n, "qualified generic domain requires a resolved carrier")),
         };
@@ -98,7 +152,26 @@ impl<'a> ResolvedSourceFile<'a> {
                 return Err(TypeError::at(self.file, n, format!("domain qualifier names {required}, found {actual}")));
             }
         }
-        let id = self.domain_name(n, types)?;
+        // Candidates found through an applied integer root are selected by the
+        // normalized carrier: the written one, or else the subject's.
+        let deferred = self
+            .name_in_role(n, true)
+            .is_some_and(|name| matches!(name, Symbol::DomainCandidates { candidates, .. } if candidates.iter().any(|c| c.carrier_deferred)));
+        let selection_carrier = match (&written, subject) {
+            (Some(written), _) => Some(written.clone()),
+            (None, Some(subject)) if deferred => Some(normalize(subject)?),
+            _ => None,
+        };
+        let id = self.domain_name_on(n, selection_carrier.as_ref(), types)?;
+        if let Some(written) = &written
+            && types.domains.known_carrier(id).is_some()
+            && !types.domains.admits(id, written)
+        {
+            return Err(TypeError::at(self.file, n, "no visible domain on the written carrier"));
+        }
+        if deferred {
+            self.check_signature_selection(n, id)?;
+        }
         Ok((id, written))
     }
 
@@ -133,8 +206,19 @@ impl<'a> ResolvedSourceFile<'a> {
         };
         let mut ancestor = std::borrow::Cow::Borrowed(&application);
         for &section in self.file.reference_sections(n).iter().rev() {
-            let Some(Symbol::Declaration(owner)) = self.application_name(section).map(|name| &name.target) else {
-                continue;
+            let owner = match self.application_name(section).map(|name| &name.target) {
+                Some(Symbol::Declaration(owner)) => owner,
+                // Parents found by integer family: the selected domain decides which one is meant.
+                Some(Symbol::DomainCandidates { candidates, .. }) if candidates.iter().any(|c| c.carrier_deferred) => {
+                    let owner = candidates
+                        .iter()
+                        .map(|c| &c.declaration)
+                        .find(|&owner| owner == id || types.domains.is_ancestor(owner, id))
+                        .ok_or_else(|| TypeError::at(self.file, section, "qualifier does not name a parent domain"))?;
+                    self.check_signature_selection(n, owner)?;
+                    owner
+                }
+                _ => continue,
             };
             if owner.kind != NodeKind::Domain || owner == id {
                 continue;
@@ -169,14 +253,15 @@ impl<'a> ResolvedSourceFile<'a> {
         }
         Ok(application)
     }
-    pub(super) fn index_domain(
+    /// Form the domain's identity: its carrier, parent and index binders. Selection of a
+    /// carrier-deferred candidate needs only this, so it precedes alias expansion.
+    pub(super) fn index_domain_head(
         &self,
         n: usize,
         head: usize,
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
         let f = self.file;
-        let node = &f.nodes[n];
         let id = self.declaration(n)?;
         let mut indices = Vec::new();
         for &arg in self.arguments_for(head, id) {
@@ -205,6 +290,35 @@ impl<'a> ResolvedSourceFile<'a> {
         if !indices.is_empty() && !complete {
             return Err(TypeError::at(f, head, "indexed domain requires its complete binder tuple"));
         }
+        types.domains.entries.insert(
+            id,
+            Domain {
+                parent,
+                carrier,
+                indices,
+                complete,
+                alias: Vec::new(),
+            },
+        );
+        Ok(())
+    }
+
+    /// Expand the alias terms against the carrier formed by `index_domain_head`.
+    pub(super) fn index_domain_alias(
+        &self,
+        n: usize,
+        head: usize,
+        types: &mut TypeCatalog<'a>,
+    ) -> Result<(), TypeError> {
+        let f = self.file;
+        let node = &f.nodes[n];
+        let id = self.declaration(n)?;
+        let (carrier, complete) = types
+            .domains
+            .entries
+            .get(id)
+            .map(|domain| (domain.carrier.clone(), domain.complete))
+            .ok_or_else(|| TypeError::at(f, head, format!("missing domain declaration {}", id.path)))?;
         let mut alias = Vec::new();
         for &d in &node.children {
             if d == head || f.nodes[d].kind == NodeKind::GenericParams {
@@ -219,15 +333,12 @@ impl<'a> ResolvedSourceFile<'a> {
         if !alias.is_empty() && !complete {
             return Err(TypeError::at(f, head, "indexed domain alias requires its complete binder tuple"));
         }
-        types.domains.entries.insert(
-            id,
-            Domain {
-                parent,
-                carrier,
-                indices,
-                alias,
-            },
-        );
+        types
+            .domains
+            .entries
+            .get_mut(id)
+            .ok_or_else(|| TypeError::at(f, head, format!("missing domain declaration {}", id.path)))?
+            .alias = alias;
         Ok(())
     }
 }

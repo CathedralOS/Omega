@@ -1,3 +1,5 @@
+#[path = "support/known_gap.rs"]
+mod known_gap;
 #[path = "support/source.rs"]
 mod sources;
 
@@ -481,6 +483,7 @@ fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
     let error = sources::lower(&[("runtime_callable.omg", loan)]).unwrap_err();
     assert_eq!(error.message, "no Psi lowering for carrier runtime callable machine(@u8) -> u8");
     assert_eq!(error.site.span.slice(loan.as_bytes()), Some(b"f".as_slice()));
+    known_gap::report("runtime callable with a loan formal", "The callable interface needs the formal's access and custody", loan, &error);
 
     // Constructing a descriptor from a named machine is not forwarding.
     let construction = format!(
@@ -495,4 +498,5 @@ fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
         "forwarded descriptor requires the actual current descriptor; construction from a named machine is unsupported"
     );
     assert_eq!(error.site.span.slice(construction.as_bytes()), Some(b"(action)".as_slice()));
+    known_gap::report("construct a runtime descriptor", "The descriptor needs the selected named machine", &construction, &error);
 }

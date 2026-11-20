@@ -1,4 +1,4 @@
-use super::{Catalog, Context, NameError, Symbol, builtin, callable, in_subject_predicate, usage};
+use super::{Catalog, Context, NameError, NameErrorKind, Symbol, builtin, callable, in_subject_predicate, usage};
 use super::{NameContext, NameRole};
 use crate::syntax::File;
 use omega_syntax::{NodeKind, TerminationClause};
@@ -29,13 +29,13 @@ impl Catalog<'_> {
             }
             if let Some((mnemonic, span)) = node.instruction_name() {
                 if !self.assembly.instructions.contains(&mnemonic.as_str()) {
-                    return Err(file.error(span, format!("unavailable target instruction {mnemonic}")));
+                    return Err(file.error(NameErrorKind::UnavailableTargetInstruction, span, format!("unavailable target instruction {mnemonic}")));
                 }
                 uses.push(usage(file, n, NameRole::Reference, span, Symbol::TargetInstruction(mnemonic)));
             } else if matches!(node.kind, Registers | Clobbers) {
                 for reg in node.register_names() {
                     if !self.assembly.registers.contains(&reg.text) {
-                        return Err(file.error(reg.span, format!("unavailable target register {}", reg.text)));
+                        return Err(file.error(NameErrorKind::UnavailableTargetRegister, reg.span, format!("unavailable target register {}", reg.text)));
                     }
                     uses.push(usage(file, n, NameRole::Register, reg.span, Symbol::TargetRegister(reg.text.into())));
                 }
@@ -51,10 +51,18 @@ impl Catalog<'_> {
                             .is_some_and(|owner| file.nodes[owner].kind == AsmMachine)
                 });
                 let Some(block) = blocks.next() else {
-                    return Err(file.error(label.span, format!("unresolved local assembly block {}", label.text)));
+                    return Err(file.error(
+                        NameErrorKind::UnresolvedAssemblyBlock,
+                        label.span,
+                        format!("unresolved local assembly block {}", label.text),
+                    ));
                 };
                 if blocks.next().is_some() {
-                    return Err(file.error(label.span, format!("ambiguous local assembly block {}", label.text)));
+                    return Err(file.error(
+                        NameErrorKind::AmbiguousAssemblyBlock,
+                        label.span,
+                        format!("ambiguous local assembly block {}", label.text),
+                    ));
                 }
                 uses.push(usage(file, n, NameRole::Reference, label.span, Symbol::Declaration(block.id.clone())));
             }
@@ -191,7 +199,9 @@ impl Catalog<'_> {
                 uses.push(usage(file, n, NameRole::CompetingStaticRoot, first.span, local.symbol()));
                 ordinary_member = !self.lookup(file, ctx, n, &path)?.is_empty();
             }
-            let mut check_candidates = |candidates: &[usize]| {
+            // A carrier-deferred domain set is selected by typing, like an overload set.
+            // Only the domain that typing selects must be public in a public signature.
+            let mut check_candidates = |candidates: &[usize], carrier_deferred: bool| {
                 for &slot in candidates {
                     self.require_carrier(file, slot, n, span, visibility)?;
                 }
@@ -207,11 +217,11 @@ impl Catalog<'_> {
                         })
                     && candidates.iter().any(|&i| !self.entries[i].public)
                 {
-                    if parent.kind == Call
+                    let call_selection = parent.kind == Call
                         && parent.children.first() == Some(&n)
-                        && candidates.iter().all(|&i| callable(self.entries[i].id.kind))
-                        && candidates.iter().any(|&i| self.entries[i].public)
-                    {
+                        && candidates.iter().all(|&i| callable(self.entries[i].id.kind));
+                    let domain_selection = carrier_deferred && candidates.iter().all(|&i| self.entries[i].id.kind == Domain);
+                    if (call_selection || domain_selection) && candidates.iter().any(|&i| self.entries[i].public) {
                         bindings
                             .private_signature_candidates
                             .entry(n)
@@ -223,7 +233,11 @@ impl Catalog<'_> {
                                     .map(|&i| self.entries[i].id.clone()),
                             );
                     } else {
-                        return Err(file.error(span, format!("public signature exposes private declaration {path}")));
+                        return Err(file.error(
+                            NameErrorKind::PrivateDeclarationInPublicSignature,
+                            span,
+                            format!("public signature exposes private declaration {path}"),
+                        ));
                     }
                 }
                 Ok(())
@@ -264,7 +278,8 @@ impl Catalog<'_> {
                         (kind != Case || path.contains("::")) && matches!(kind, Data | Domain | Trait) == type_name
                     });
                     if !visible.is_empty() {
-                        match check_candidates(&visible).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments)) {
+                        let deferred = attachments.iter().any(|a| a.carrier_deferred && visible.contains(&a.slot));
+                        match check_candidates(&visible, deferred).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments)) {
                             Ok(symbol) => {
                                 if type_name && let Some(qualifier) = self.application_qualifier(file, ctx, n, &path, &visible)? {
                                     uses.push(qualifier);
@@ -278,7 +293,7 @@ impl Catalog<'_> {
                     }
                 }
                 match names.len() {
-                    0 => return Err(refusal.unwrap_or_else(|| file.error(span, format!("unresolved name {path}")))),
+                    0 => return Err(refusal.unwrap_or_else(|| ctx.unresolved_name(file, span, &path))),
                     1 if typed_argument || ty || !bound_local => names.pop().unwrap(),
                     _ => Symbol::ScopedNames {
                         context: if typed_argument {
@@ -335,7 +350,7 @@ impl Catalog<'_> {
                 if parent.kind == SelectionRow && !candidates.is_empty() {
                     candidates.retain(|&i| matches!(self.entries[i].id.kind, Machine | AsmMachine));
                     if candidates.is_empty() {
-                        return Err(file.error(span, "a selection row must name a machine"));
+                        return Err(file.error(NameErrorKind::SelectionRowNotMachine, span, "a selection row must name a machine"));
                     }
                 }
                 candidates.retain(|&i| {
@@ -359,7 +374,7 @@ impl Catalog<'_> {
                 candidates.sort_unstable();
                 candidates.dedup();
                 if candidates.is_empty() {
-                    return Err(file.error(span, format!("unresolved name {path}")));
+                    return Err(ctx.unresolved_name(file, span, &path));
                 }
                 let symbol = if applied_expression_argument {
                     let mut names = Vec::new();
@@ -371,7 +386,8 @@ impl Catalog<'_> {
                             .filter(|&i| matches!(self.entries[i].id.kind, Data | Domain | Trait) == type_name)
                             .collect();
                         if !visible.is_empty() {
-                            match check_candidates(&visible).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments)) {
+                            let deferred = attachments.iter().any(|a| a.carrier_deferred && visible.contains(&a.slot));
+                            match check_candidates(&visible, deferred).and_then(|()| self.occurrence_symbol(file, ctx, span, &visible, &attachments)) {
                                 Ok(symbol) => names.push(symbol),
                                 Err(error) => {
                                     refusal.get_or_insert(error);
@@ -388,7 +404,8 @@ impl Catalog<'_> {
                         },
                     }
                 } else {
-                    check_candidates(&candidates)?;
+                    let deferred = attachments.iter().any(|a| a.carrier_deferred && candidates.contains(&a.slot));
+                    check_candidates(&candidates, deferred)?;
                     self.occurrence_symbol(file, ctx, span, &candidates, &attachments)?
                 };
                 if let Some(qualifier) = self.application_qualifier(file, ctx, n, &path, &candidates)? {
@@ -406,13 +423,12 @@ impl Catalog<'_> {
                         && prefix_name != path
                     {
                         let mut prefix_owners = self.lookup(file, ctx, n, &prefix_name)?;
+                        let domain_path = candidates
+                            .iter()
+                            .all(|&slot| self.entries[slot].id.kind == Domain);
                         // A parent domain's argument list can use the same omitted
                         // carrier as the child, as in u8 in Mark<3>::Child.
-                        let mut prefix_attachments = if prefix_owners.is_empty()
-                            && candidates
-                                .iter()
-                                .all(|&slot| self.entries[slot].id.kind == Domain)
-                        {
+                        let mut prefix_attachments = if prefix_owners.is_empty() && domain_path {
                             self.attached_domains(file, ctx, n, &prefix_name, membership_target || untyped_domain)?
                         } else {
                             Vec::new()
@@ -423,18 +439,34 @@ impl Catalog<'_> {
                                 .any(|&child| self.has_domain_ancestor(child, owner.slot))
                         });
                         prefix_owners.extend(prefix_attachments.iter().map(|attachment| attachment.slot));
-                        if prefix_owners.is_empty() {
-                            return Err(file.error(prefix_span, format!("unresolved application owner {prefix_name}")));
+                        // The root of a domain path can be a builtin or bound carrier, as the
+                        // u<8> of u<8>::Ready. Its arguments belong to that carrier, and typing
+                        // forms or refuses them as it would the same carrier written alone.
+                        let carrier = if prefix_owners.is_empty() && domain_path {
+                            self.carrier_application_owner(ctx, n, &prefix_name)
+                        } else {
+                            None
+                        };
+                        if prefix_owners.is_empty() && carrier.is_none() {
+                            return Err(file.error(
+                                NameErrorKind::UnresolvedApplicationOwner,
+                                prefix_span,
+                                format!("unresolved application owner {prefix_name}"),
+                            ));
                         }
                         if !prefix_attachments.is_empty() {
-                            check_candidates(&prefix_owners)?;
+                            let deferred = prefix_attachments.iter().any(|a| a.carrier_deferred);
+                            check_candidates(&prefix_owners, deferred)?;
                         }
                         let role = if node.qualifier_span() == Some(prefix_span) {
                             NameRole::Qualifier
                         } else {
                             NameRole::ApplicationPrefix
                         };
-                        let target = self.occurrence_symbol(file, ctx, prefix_span, &prefix_owners, &prefix_attachments)?;
+                        let target = match carrier {
+                            Some(carrier) => carrier,
+                            None => self.occurrence_symbol(file, ctx, prefix_span, &prefix_owners, &prefix_attachments)?,
+                        };
                         let site = usage(file, n, role, prefix_span, target);
                         let index = if uses.last() == Some(&site) {
                             uses.len() - 1
@@ -450,23 +482,23 @@ impl Catalog<'_> {
             };
             if parent.kind == Conformance && file.child(parent_index, PathType) == Some(n) {
                 let Symbol::Declaration(id) = &symbol else {
-                    return Err(file.error(span, "conformance requires an exact trait"));
+                    return Err(file.error(NameErrorKind::ConformanceHeadNotTrait, span, "conformance requires an exact trait"));
                 };
                 if id.kind != Trait {
-                    return Err(file.error(span, "conformance requires a trait"));
+                    return Err(file.error(NameErrorKind::ConformanceHeadNotTrait, span, "conformance requires a trait"));
                 }
                 traits.insert(parent_index, id.clone());
             }
             if parent.kind == SelectionRow {
                 let ids = symbol.declaration_candidates();
                 if ids.is_empty() {
-                    return Err(file.error(span, "a selection row must name a machine"));
+                    return Err(file.error(NameErrorKind::SelectionRowNotMachine, span, "a selection row must name a machine"));
                 }
                 if parent.children.first() == Some(&n) {
                     let conformance = parent.parent.expect("selection row belongs to its conformance");
                     let actual = traits
                         .get(&conformance)
-                        .ok_or_else(|| file.error(span, "missing conformance trait"))?;
+                        .ok_or_else(|| file.error(NameErrorKind::ConformanceHeadNotTrait, span, "missing conformance trait"))?;
                     let schema = (actual.package.clone(), actual.path.clone());
                     if ids.iter().any(|id| {
                         let owner = (id.package.clone(), id.path.rsplit_once("::").map_or("", |(p, _)| p).into());
@@ -476,7 +508,11 @@ impl Catalog<'_> {
                                 .get(&schema)
                                 .is_some_and(|parents| parents.contains(&owner))
                     }) {
-                        return Err(file.error(span, "selected requirement belongs to a different trait"));
+                        return Err(file.error(
+                            NameErrorKind::RequirementOfDifferentTrait,
+                            span,
+                            "selected requirement belongs to a different trait",
+                        ));
                     }
                 }
             }

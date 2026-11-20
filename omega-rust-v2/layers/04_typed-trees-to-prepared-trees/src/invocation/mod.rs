@@ -12,6 +12,7 @@ mod values;
 
 use crate::evaluation::constant_evaluation::ConstantEvaluation;
 use crate::evaluation::integer_arithmetic::IntegerRange;
+use crate::reasons::{PreparationReason, PreparationRefusal, RefusalCause};
 use crate::{FloatFormat, FloatOperation, PreparedValue};
 use num_bigint::BigInt;
 use omega_resolved::{DeclarationId, Symbol, TreeNodeId};
@@ -23,21 +24,29 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub(super) enum EvaluationError {
-    Refused(&'static str),
+    Refused(RefusalCause),
     NeedsConstant(DeclarationId),
-    AtCall(omega_typed::TypeError),
-    OpenTarget(omega_typed::TypeError),
+    AtCall(PreparationRefusal),
+    OpenTarget(PreparationRefusal),
 }
 
-impl From<&'static str> for EvaluationError {
-    fn from(reason: &'static str) -> Self {
-        Self::Refused(reason)
+// Only a typed reason can refuse evaluation, so every owned refusal is in
+// `PreparationReason::ALL`. Forwarded reasons name their owner explicitly.
+impl From<PreparationReason> for EvaluationError {
+    fn from(reason: PreparationReason) -> Self {
+        Self::Refused(RefusalCause::Preparation(reason))
     }
 }
 
-pub(super) const UNSUPPORTED_BODY: &str = "the selected body is outside the supported static evaluation fragment";
-const UNSUPPORTED_ARGUMENT: &str = "the static call has an argument without a supported closed value";
-const UNSUPPORTED_CONTRACT: &str = "the selected contract needs proof outside the supported static evaluation fragment";
+impl From<RefusalCause> for EvaluationError {
+    fn from(cause: RefusalCause) -> Self {
+        Self::Refused(cause)
+    }
+}
+
+pub(super) const UNSUPPORTED_BODY: PreparationReason = PreparationReason::UnsupportedBody;
+const UNSUPPORTED_ARGUMENT: PreparationReason = PreparationReason::UnsupportedArgument;
+const UNSUPPORTED_CONTRACT: PreparationReason = PreparationReason::UnsupportedContract;
 
 struct BindingValue {
     binder: usize,
@@ -195,8 +204,8 @@ enum Step<'a> {
         positions: Vec<usize>,
     },
     Leave(TreeNodeId),
-    Require(&'static str),
-    CrashGuard(&'static str),
+    Require(PreparationReason),
+    CrashGuard(PreparationReason),
     CheckInvocationProof(admission::ProofRequest<'a>, Rc<CallBindings>),
     ApplyInteger(IntegerRange, String),
     ApplyFloat {
@@ -370,7 +379,9 @@ impl ConstantEvaluation<'_, '_> {
                     self.evaluate_integer(&tree, site.node, &carrier, &scope, execution)
                 };
                 result.map_err(|error| match error {
-                    EvaluationError::Refused(UNSUPPORTED_BODY) if matches!(scope, Scope::Initializer { in_argument: true, .. }) => UNSUPPORTED_ARGUMENT.into(),
+                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY)) if matches!(scope, Scope::Initializer { in_argument: true, .. }) => {
+                        UNSUPPORTED_ARGUMENT.into()
+                    }
                     other => other,
                 })?;
             }
@@ -392,27 +403,29 @@ impl ConstantEvaluation<'_, '_> {
                         || call.acknowledgements.suspend
                         || call.acknowledgements.block
                     {
-                        return Err("the request does not select one core layout query".into());
+                        return Err(PreparationReason::NotOneLayoutQuery.into());
                     }
 
                     let [subject] = call.type_arguments.as_slice() else {
-                        return Err("the request does not select one core layout query".into());
+                        return Err(PreparationReason::NotOneLayoutQuery.into());
                     };
                     let subject = scope.instantiate(subject);
                     if subject.contains_parameter() {
-                        return Err("the layout query needs a closed type application".into());
+                        return Err(PreparationReason::LayoutQueryNeedsClosedType.into());
                     }
                     if self.boundary_slots.iter().any(|slot| {
                         slot.requirement.declaration == call.machine
                             && slot.requirement.trait_arguments.is_empty()
                             && (slot.arguments.is_empty() || slot.arguments.as_slice() == std::slice::from_ref(&subject))
                     }) {
-                        return Err("the selected runtime boundary slot cannot execute during preparation".into());
+                        return Err(PreparationReason::UnselectedBoundarySlot.into());
                     }
-                    let target = self.target.ok_or_else(|| {
-                        EvaluationError::OpenTarget(self.call_diagnostic("the layout query requires a selected target", &execution.chain, &[]))
-                    })?;
-                    let (value, observation) = target.observe_layout(query, &subject)?;
+                    let target = self
+                        .target
+                        .ok_or_else(|| EvaluationError::OpenTarget(self.call_diagnostic(PreparationReason::LayoutQueryNeedsTarget, &execution.chain, &[])))?;
+                    let (value, observation) = target
+                        .observe_layout(query, &subject)
+                        .map_err(RefusalCause::TargetLayout)?;
                     self.record_observation(observation);
                     execution.values.push(PreparedValue::Integer(value.into()));
                     execution.chain.pop();
@@ -479,7 +492,7 @@ impl ConstantEvaluation<'_, '_> {
                 let mut elements = Vec::new();
                 elements
                     .try_reserve_exact(count)
-                    .map_err(|_| "zero-filling an array requires checked preparation storage")?;
+                    .map_err(|_| PreparationReason::ZeroArrayNeedsStorage)?;
                 elements.resize(count, element);
                 execution.values.push(PreparedValue::Array(elements.into()));
             }
@@ -545,7 +558,7 @@ impl ConstantEvaluation<'_, '_> {
                 let element = usize::try_from(index)
                     .ok()
                     .and_then(|position| elements.get(position))
-                    .ok_or("selected array read requires index < items.len")?;
+                    .ok_or(PreparationReason::ArrayIndexOutOfBounds)?;
                 execution.values.push(element.clone());
             }
             Step::ArrayLength => {
@@ -603,12 +616,12 @@ impl ConstantEvaluation<'_, '_> {
         self.trees
             .trees()
             .nth(site.file)
-            .ok_or_else(|| "the evaluation request has no typed source file".into())
+            .ok_or_else(|| PreparationReason::RequestWithoutTypedFile.into())
     }
 
     fn call_refusal(
         &self,
-        reason: &str,
+        reason: impl Into<RefusalCause>,
         chain: &[(TreeNodeId, bool)],
         cycle: &[&TypedCall],
     ) -> EvaluationError {
@@ -617,10 +630,10 @@ impl ConstantEvaluation<'_, '_> {
 
     fn call_diagnostic(
         &self,
-        reason: &str,
+        reason: impl Into<RefusalCause>,
         chain: &[(TreeNodeId, bool)],
         cycle: &[&TypedCall],
-    ) -> omega_typed::TypeError {
+    ) -> PreparationRefusal {
         let site = cycle
             .last()
             .map_or_else(|| chain.last().expect("visited call").0, |call| call.node);
@@ -631,7 +644,8 @@ impl ConstantEvaluation<'_, '_> {
             file: file.path.into(),
             span: file.span(site.node),
         };
-        let mut error = crate::evaluation::refusal(&site, reason);
+        let mut refusal = crate::evaluation::refusal(&site, reason);
+        let error = &mut refusal.diagnostic;
         if chain.len() > 1 {
             error.message.push_str("\ncall chain: ");
             for (index, (occurrence, _)) in chain.iter().enumerate() {
@@ -664,7 +678,7 @@ impl ConstantEvaluation<'_, '_> {
                 error.message.push_str(&call.machine.path);
             }
         }
-        error
+        refusal
     }
 }
 
@@ -730,11 +744,11 @@ fn landed_value(
             && &landing.ty == carrier
         {
             if !landing.value.is_integer() {
-                return Err("the typed landing does not supply an integral value".into());
+                return Err(PreparationReason::LandingNotIntegral.into());
             }
-            let integer = fits(landing.value.to_integer(), carrier).ok_or("the typed landing exceeds its carrier")?;
+            let integer = fits(landing.value.to_integer(), carrier).ok_or(PreparationReason::LandingOutsideCarrier)?;
             if value.as_ref().is_some_and(|previous| previous != &integer) {
-                return Err("conflicting integer landings at one typed occurrence".into());
+                return Err(PreparationReason::ConflictingIntegerLandings.into());
             }
             value = Some(integer);
         }
@@ -781,7 +795,7 @@ fn selected_call<'a>(
         if let NodeSemantics::Call(call) = record
             && (call.use_site != use_site || selected.replace(call).is_some_and(|previous| previous != call))
         {
-            return Err("the request does not select one ordinary static invocation".into());
+            return Err(PreparationReason::NotOneOrdinaryInvocation.into());
         }
     }
     Ok(selected)

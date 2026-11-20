@@ -360,6 +360,26 @@ fn authored_brackets_borrow_only_the_collection_operand() {
 }
 
 #[test]
+fn writing_requires_a_storage_location_then_writable_authority() {
+    let declarations = "data Pair{field:u8;} machine value()->u8{1u8} machine pair()->Pair{Pair{field:1u8}}";
+    for (target, reason) in [
+        ("value()", "computed value does not name writable storage"),
+        ("1u8", "computed value does not name writable storage"),
+        ("pair().field", "computed value does not name writable storage"),
+        ("item.field", "place requires writable authority"),
+    ] {
+        for use_site in [format!("{target}=2u8;"), format!("_=@mut {target};")] {
+            let source = format!("{declarations} machine f(item:Pair){{{use_site}}}");
+            let error = check(&[("write.omg", &source)]).unwrap_err();
+            assert_eq!(error.message, reason, "{source}");
+            assert_eq!(error.span.slice(source.as_bytes()), Some(target.as_bytes()), "{source}");
+        }
+    }
+    let good = format!("{declarations} machine f(){{let mut item=pair(); item.field=2u8; let mut cell=value(); cell=2u8;}}");
+    check(&[("write.omg", &good)]).unwrap();
+}
+
+#[test]
 fn parentheses_preserve_field_authority_and_collection_write_selection() {
     let cell = "data Cell {value:u8;}";
     for place in ["view.value", "(view.value)", "((view.value))", "((view).value)"] {

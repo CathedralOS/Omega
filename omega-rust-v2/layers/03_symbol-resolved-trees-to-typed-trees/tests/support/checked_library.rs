@@ -87,7 +87,7 @@ fn imported_inherited_rows_keep_the_declaring_requirement_and_its_applied_type()
         .find(|row| row.implementation.path == "copy")
         .unwrap();
     assert_eq!(row.requirement.declaration.package, "library");
-    assert_eq!(row.requirement.declaration.path, "Reader::read");
+    spec_corpus::observe_handoff!("exported-trait-ancestry/consumer", assert_eq!(row.requirement.declaration.path, "Reader::read"));
     assert_eq!(row.requirement.trait_arguments, [crate::ValueType::Integer { signed: false, width: Some(8) }]);
     let error = consume(&source.replace("x:u8)->u8", "x:bool)->bool")).unwrap_err();
     assert!(error.message.contains("no matching signature"), "{error:?}");
@@ -226,7 +226,7 @@ fn checked_and_joint_typing_agree_on_operator_visibility_and_ownership() {
         assert_eq!(error, joint.unwrap_err());
         assert_eq!(error.package, "client");
         assert_eq!(error.span.slice(source.as_bytes()), Some(span));
-        assert!(error.message.starts_with(message), "{error:?}");
+        spec_corpus::observe_handoff!("operator-ownership/refusal", assert!(error.message.starts_with(message), "{error:?}"));
     }
 }
 
@@ -313,7 +313,7 @@ fn imported_crash_routes_keep_the_guard_and_the_forwarded_call_operands() {
         let route = stage.crash_route(direct.1).unwrap();
         assert_eq!(route.cause, CrashCause::Trap);
         let guard = route.guard.as_ref().unwrap();
-        assert_eq!(guard.package, "geometry");
+        spec_corpus::observe_handoff!("guarded-library-calls-and-forwarded-callbacks/producer", assert_eq!(guard.package, "geometry"));
         assert_eq!(guard.span.slice(CHECKED_PRODUCER.as_bytes()), Some(b"x == 0".as_slice()));
         let invocation = stage.guarded_invocation(indirect.0).unwrap();
         assert_eq!(invocation.site.package, "geometry");

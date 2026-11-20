@@ -1,5 +1,5 @@
 use super::*;
-use crate::{CheckedPreparationEvidence, PreparationAnswers, PreparedPass, prepare_typing_pass};
+use crate::{CheckedPreparationEvidence, PreparationAnswers, PreparationReason, PreparationRefusal, PreparedPass, RefusalCause, prepare_typing_pass};
 use omega_typer::{RequirementSlot, Site};
 use std::sync::Arc;
 
@@ -254,6 +254,63 @@ fn evaluate<'trees, 'text>(
     )
 }
 
+/// Run the typing pass with the supplied evidence and keep the typed cause.
+fn refuse_with<'trees, 'text>(
+    progress: &'trees TypingProgress<'text>,
+    slots: &'trees [BoundarySlot],
+    target: &'trees crate::TargetSemantics,
+    evidence: CheckedPreparationEvidence<'trees, 'text>,
+) -> PreparationRefusal {
+    match crate::preparation::typing_pass::evaluate_pass(progress, slots, Some(target), evidence, &Default::default()) {
+        Ok(_) => panic!("the supplied provider evidence must be refused"),
+        Err(refusal) => refusal,
+    }
+}
+
+fn refuse<'trees, 'text>(
+    progress: &'trees TypingProgress<'text>,
+    slots: &'trees [BoundarySlot],
+    target: &'trees crate::TargetSemantics,
+    proofs: Vec<CheckedProvider<'trees, 'text>>,
+) -> PreparationRefusal {
+    let evidence = proofs
+        .into_iter()
+        .fold(CheckedPreparationEvidence::default(), CheckedPreparationEvidence::with_provider);
+    refuse_with(progress, slots, target, evidence)
+}
+
+const ADMISSION: &str = "static evaluation cannot admit this invocation: ";
+// Reason texts are written here independently of the reason inventory.
+const UNSELECTED: &str = "the selected runtime boundary slot cannot execute during preparation";
+const DIFFERENT_SELECTIONS: &str = "the selected runtime boundary slot cannot execute under different build selections";
+const WRONG_PLAN: &str = "the checked provider does not match the selected target plan";
+const STALE_PROOF: &str = "the checked provider proof depends on a different target selection";
+const WRONG_CONFORMANCE: &str = "the checked provider does not certify the selected conformance binding";
+const WRONG_APPLICATION: &str = "the checked provider does not preserve the selected positional application";
+
+/// Each fixture reaches the boundary call from the body of `via`.
+fn assert_provider_refusal(
+    refusal: &PreparationRefusal,
+    reason: PreparationReason,
+    text: &str,
+    source: &str,
+    occurrence: &str,
+) {
+    let start = source
+        .find(occurrence)
+        .unwrap_or_else(|| panic!("{occurrence:?} does not occur in the source"));
+    assert_eq!(source.rfind(occurrence), Some(start), "{occurrence:?} occurs more than once");
+    let message = format!("{ADMISSION}{text}\ncall chain: via -> Reading::read");
+    spec_corpus::assert_preparation_cause!(
+        refusal,
+        RefusalCause::Preparation(reason),
+        "app",
+        "main.omg",
+        (start, start + occurrence.len()),
+        message.as_str()
+    );
+}
+
 #[test]
 fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() {
     let (progress, slot) = typed(SOURCE, SlotDirection::ProgramToProvider);
@@ -296,20 +353,10 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
             .is_empty()
     );
 
-    let rejected = evaluate(&progress, &slot, &unselected, Some(check())).unwrap_err();
-    assert!(
-        rejected
-            .message
-            .contains("does not match the selected target plan"),
-        "{rejected:?}"
-    );
-    let rejected = evaluate(&progress, &slot, &capsule, None).unwrap_err();
-    assert!(
-        rejected
-            .message
-            .contains("runtime boundary slot cannot execute"),
-        "{rejected:?}"
-    );
+    let rejected = refuse(&progress, std::slice::from_ref(&slot), &unselected, vec![check()]);
+    assert_provider_refusal(&rejected, PreparationReason::ProviderTargetPlanMismatch, WRONG_PLAN, SOURCE, "Reading::read()");
+    let rejected = refuse(&progress, std::slice::from_ref(&slot), &capsule, vec![]);
+    assert_provider_refusal(&rejected, PreparationReason::UnselectedBoundarySlot, UNSELECTED, SOURCE, "Reading::read()");
 
     let changed_source = SOURCE.replace("7u64", "8u64");
     let (changed, changed_slot) = typed(&changed_source, SlotDirection::ProgramToProvider);
@@ -321,24 +368,21 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
             realization: changed_proof.realization.clone()
         }]
     );
-    let rejected = evaluate(&changed, &changed_slot, &capsule, Some(check())).unwrap_err();
-    assert!(
-        rejected
-            .message
-            .contains("runtime boundary slot cannot execute"),
-        "{rejected:?}"
-    );
+    // A proof checked against another typing pass is not a candidate here.
+    let rejected = refuse(&changed, std::slice::from_ref(&changed_slot), &capsule, vec![check()]);
+    assert_provider_refusal(&rejected, PreparationReason::UnselectedBoundarySlot, UNSELECTED, &changed_source, "Reading::read()");
 
     let inbound = BoundarySlot {
         direction: SlotDirection::EnvironmentToProgram,
         ..slot.clone()
     };
-    let rejected = evaluate(&progress, &inbound, &capsule, Some(check())).unwrap_err();
-    assert!(
-        rejected
-            .message
-            .contains("runtime boundary slot cannot execute under different build selections"),
-        "{rejected:?}"
+    let rejected = refuse(&progress, std::slice::from_ref(&inbound), &capsule, vec![check()]);
+    assert_provider_refusal(
+        &rejected,
+        PreparationReason::BoundarySlotSelectionsDiffer,
+        DIFFERENT_SELECTIONS,
+        SOURCE,
+        "Reading::read()",
     );
 }
 
@@ -421,7 +465,7 @@ fn only_an_exact_applicable_provider_proof_authorizes_the_slot() {
         for constant in &trees.constants {
             assert_eq!(constants[&constant.declaration], PreparedValue::Integer(7.into()));
         }
-        assert_eq!(pass.target_observations, expected);
+        spec_corpus::observe_handoff!("bounded-callback-refinements/producer", assert_eq!(pass.target_observations, expected));
     }
 
     // The same dependency is retained once it belongs to the authorizing proof.
@@ -433,16 +477,57 @@ fn only_an_exact_applicable_provider_proof_authorizes_the_slot() {
     assert_eq!(observations.len(), 2, "{observations:?}");
     assert!(observations.contains(&selected_float) && observations.contains(&expected[0]));
 
-    for (checked, refusal) in [
-        (vec![wrong_plan()], "does not match the selected target plan"),
-        (vec![wrong_plan(), wrong_plan()], "does not match the selected target plan"),
-        (vec![stale_dependency()], "depends on a different target selection"),
-        (vec![], "runtime boundary slot cannot execute"),
+    for (checked, refusal, reason, text) in [
+        (
+            vec![wrong_plan()],
+            "does not match the selected target plan",
+            PreparationReason::ProviderTargetPlanMismatch,
+            WRONG_PLAN,
+        ),
+        (
+            vec![wrong_plan(), wrong_plan()],
+            "does not match the selected target plan",
+            PreparationReason::ProviderTargetPlanMismatch,
+            WRONG_PLAN,
+        ),
+        (
+            vec![stale_dependency()],
+            "depends on a different target selection",
+            PreparationReason::ProviderProofTargetChanged,
+            STALE_PROOF,
+        ),
+        (
+            vec![],
+            "runtime boundary slot cannot execute",
+            PreparationReason::UnselectedBoundarySlot,
+            UNSELECTED,
+        ),
     ] {
-        let error = prepare(checked).unwrap_err();
-        assert!(error.message.contains(refusal), "{error:?}");
+        let refused = refuse(&progress, std::slice::from_ref(&slot), &capsule, checked);
+        let error = &refused.diagnostic;
+        spec_corpus::observe_handoff!("bounded-callback-refinements/refusal", assert!(error.message.contains(refusal), "{error:?}"));
         assert_eq!(error.span.slice(SOURCE.as_bytes()), Some(&b"Reading::read()"[..]));
+        assert_provider_refusal(&refused, reason, text, SOURCE, "Reading::read()");
     }
+
+    // A certificate for another implementation does not realize this binding.
+    // It is refused alone and cannot shadow the applicable proof.
+    let wrong_conformance = || {
+        let mut proof = check();
+        proof.realization.implementation = slot.requirement.declaration.clone();
+        proof
+    };
+    assert_ne!(wrong_conformance().realization.implementation, check().binding.implementation);
+    let refused = refuse(&progress, std::slice::from_ref(&slot), &capsule, vec![wrong_conformance()]);
+    assert_provider_refusal(
+        &refused,
+        PreparationReason::ProviderConformanceMismatch,
+        WRONG_CONFORMANCE,
+        SOURCE,
+        "Reading::read()",
+    );
+    let pass = prepare(vec![wrong_conformance(), check()]).unwrap();
+    assert_eq!(pass.target_observations, expected);
 }
 
 #[test]
@@ -463,8 +548,20 @@ fn checks_provider_requirement_under_the_reevaluated_entry_values() {
     };
     for (input, refusal) in [
         ("2", None),
-        ("0", Some("precondition is false")),
-        ("10", Some("Trap route remains possible")),
+        (
+            "0",
+            Some((
+                PreparationReason::IntegerPreconditionFalse,
+                "the selected integer precondition is false for the supplied arguments",
+            )),
+        ),
+        (
+            "10",
+            Some((
+                PreparationReason::TrapRoutePossible,
+                "the selected Trap route remains possible for the supplied arguments",
+            )),
+        ),
     ] {
         let source = template.replace("INPUT", input);
         let (progress, slot) = typed(&source, SlotDirection::ProgramToProvider);
@@ -499,32 +596,30 @@ fn checks_provider_requirement_under_the_reevaluated_entry_values() {
             &7u64.into(),
         )
         .unwrap();
-        let prepared = prepare_typing_pass(
-            &progress,
-            std::slice::from_ref(&slot),
-            Some(&capsule),
-            CheckedPreparationEvidence {
-                invocation_proofs: postcondition,
-                providers: ProviderAdmission { checked: vec![proof] },
-                ..CheckedPreparationEvidence::default()
-            },
-        );
-        if let Some(refusal) = refusal {
-            let error = prepared.unwrap_err();
-            assert!(error.message.contains(refusal), "{error:?}");
-            assert_eq!(error.span.slice(source.as_bytes()), Some(&b"Reading::read(value)"[..]));
+        let evidence = CheckedPreparationEvidence {
+            invocation_proofs: postcondition,
+            providers: ProviderAdmission { checked: vec![proof] },
+            ..CheckedPreparationEvidence::default()
+        };
+        // The requirement's entry contract is checked against the reevaluated
+        // entry values inside the boundary call.
+        if let Some((reason, text)) = refusal {
+            let refused = refuse_with(&progress, std::slice::from_ref(&slot), &capsule, evidence);
+            assert_provider_refusal(&refused, reason, text, &source, "Reading::read(value)");
         } else {
+            let prepared = prepare_typing_pass(&progress, std::slice::from_ref(&slot), Some(&capsule), evidence);
             let PreparationAnswers::Frozen { constants, .. } = prepared.unwrap().answers else {
                 panic!("constant should be frozen")
             };
             assert_eq!(constants[&trees.constants[0].declaration], PreparedValue::Integer(7.into()));
             let proof = check_literal_provider(trees, &slot, &target).unwrap();
-            let error = evaluate(&progress, &slot, &capsule, Some(proof)).unwrap_err();
-            assert!(
-                error
-                    .message
-                    .contains("postcondition requires a checked proof for the arguments and result"),
-                "{error:?}"
+            let refused = refuse(&progress, std::slice::from_ref(&slot), &capsule, vec![proof]);
+            assert_provider_refusal(
+                &refused,
+                PreparationReason::PostconditionNeedsProof,
+                "the selected postcondition requires a checked proof for the arguments and result",
+                &source,
+                "Reading::read(value)",
             );
         }
     }
@@ -598,7 +693,32 @@ fn provider_evidence_is_bound_to_the_exact_closed_application() {
             }]
         );
     }
-    let error = prepare(vec![prove(0)]).unwrap_err();
-    assert!(error.message.contains("runtime boundary slot cannot execute"), "{error:?}");
-    assert_eq!(error.span.slice(source.as_bytes()), Some(&b"Reading::read::<K>(value)"[..]));
+    // B's application has no proof of its own.
+    let refused = refuse(&progress, &slots, &capsule, vec![prove(0)]);
+    assert_provider_refusal(
+        &refused,
+        PreparationReason::UnselectedBoundarySlot,
+        UNSELECTED,
+        source,
+        "Reading::read::<K>(value)",
+    );
+
+    // A realization that drops A's positional arguments is refused, and it
+    // cannot shadow the applicable proof for the same application.
+    let misapplied = || {
+        let mut proof = prove(0);
+        let application = proof.application.as_mut().unwrap();
+        assert!(!application.requirement.type_arguments.is_empty());
+        application.implementation.type_arguments.clear();
+        proof
+    };
+    let refused = refuse(&progress, &slots, &capsule, vec![misapplied(), prove(1)]);
+    assert_provider_refusal(
+        &refused,
+        PreparationReason::ProviderApplicationMismatch,
+        WRONG_APPLICATION,
+        source,
+        "Reading::read::<K>(value)",
+    );
+    assert!(prepare(vec![misapplied(), prove(0), prove(1)]).is_ok());
 }

@@ -1,4 +1,4 @@
-use crate::{NameError, StageSource};
+use crate::{NameError, NameErrorKind, StageSource};
 use omega_syntax::NodeKind;
 use omega_tokens::SourceSpan;
 
@@ -9,7 +9,15 @@ pub(crate) fn index_source<'text>(
     input: &StageSource<'text, '_>,
 ) -> Result<File<'text>, NameError> {
     let source = &input.source;
-    let bad = || NameError::new(input.package, source.logical_path, SourceSpan::new(0, 0), "inconsistent parsed source");
+    let bad = || {
+        NameError::new(
+            NameErrorKind::InconsistentParsedSource,
+            input.package,
+            source.logical_path,
+            SourceSpan::new(0, 0),
+            "inconsistent parsed source",
+        )
+    };
     let syntax = source.tree.index(source.text, source.tokens).ok_or_else(bad)?;
     let namespace = source
         .logical_path

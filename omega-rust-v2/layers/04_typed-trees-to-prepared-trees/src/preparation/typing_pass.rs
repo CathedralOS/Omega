@@ -11,6 +11,7 @@ use crate::evaluation::owned_values::NominalAdmission;
 use crate::invocation::admission::{InvocationProofs, ProviderAdmission};
 use crate::invocation::static_callbacks::{CallableRefinements, CheckedCallableRefinement, CheckedCallableUse};
 use crate::invocation::termination::TerminationAdmission;
+use crate::reasons::{PreparationRefusal, RefusalCause};
 use crate::{PreparedValue, TargetObservation, TargetSemantics};
 
 /// Judgments for this immutable typing pass. The evidence owner binds each
@@ -111,6 +112,8 @@ pub enum PreparationAnswers {
 pub struct OpenTargetDemand {
     pub demand: StaticValueDemand,
     pub diagnostic: TypeError,
+    /// The target input the operation needed, as rendered in `diagnostic`.
+    pub cause: RefusalCause,
 }
 
 /// Consume the typer's actual output. An intermediate forest can execute
@@ -122,7 +125,7 @@ pub fn prepare_typing_pass<'stage, 'text>(
     target: Option<&'stage TargetSemantics>,
     evidence: CheckedPreparationEvidence<'stage, 'text>,
 ) -> Result<PreparedPass, TypeError> {
-    evaluate_pass(progress, slots, target, evidence, &HashSet::new())
+    evaluate_pass(progress, slots, target, evidence, &HashSet::new()).map_err(TypeError::from)
 }
 
 pub(crate) fn evaluate_pass<'stage, 'text>(
@@ -131,7 +134,7 @@ pub(crate) fn evaluate_pass<'stage, 'text>(
     target: Option<&'stage TargetSemantics>,
     evidence: CheckedPreparationEvidence<'stage, 'text>,
     completed: &HashSet<StaticValueDemand>,
-) -> Result<PreparedPass, TypeError> {
+) -> Result<PreparedPass, PreparationRefusal> {
     let trees = match progress {
         TypingProgress::Complete(trees) => trees,
         TypingProgress::Pending(pending) => pending.trees(),
@@ -158,9 +161,10 @@ pub(crate) fn evaluate_pass<'stage, 'text>(
             {
                 match evaluator.evaluate_demand(demand) {
                     Ok(value) => answers.push((demand.clone(), value)),
-                    Err(StaticDemandError::OpenTarget(diagnostic)) => open_demands.push(OpenTargetDemand {
+                    Err(StaticDemandError::OpenTarget(refusal)) => open_demands.push(OpenTargetDemand {
                         demand: demand.clone(),
-                        diagnostic,
+                        diagnostic: refusal.diagnostic,
+                        cause: refusal.cause,
                     }),
                     Err(StaticDemandError::Refused(error)) => return Err(error),
                 }

@@ -254,7 +254,7 @@ fn duplicate_rows_are_checked_after_selecting_the_requirement_overload() {
             "trait Logger{{machine write(x:u8); {extra}}} machine write_log(x:u8){{}} Sink satisfies Logger{{Logger::write=write_log; Logger::write=write_log;}}"
         );
         let err = check(&[("rows.omg", &code)]).unwrap_err();
-        assert_eq!(err.message, "requirement is supplied twice");
+        spec_corpus::observe_handoff!("trait-requirements/refusal", assert_eq!(err.message, "requirement is supplied twice"));
         assert_eq!(err.span.get_start_offset(), code.rfind("Logger::write").unwrap());
     }
 }
@@ -391,7 +391,7 @@ fn a_row_selects_the_inherited_requirement_from_an_imported_module() {
     let [row] = typed.conformance_rows.as_slice() else {
         panic!("expected one inherited selection")
     };
-    assert_eq!(row.requirement.declaration.path, "api\\Parent::read");
+    spec_corpus::observe_handoff!("visibility/consumer", assert_eq!(row.requirement.declaration.path, "api\\Parent::read"));
     assert_eq!(row.requirement.declaration.signature_owners, [("game".into(), "numbers\\Word".into())]);
     assert_eq!(row.implementation.path, "copy");
 }

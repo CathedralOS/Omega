@@ -4,24 +4,63 @@ use omega_typer::{InvocationTarget, ObligationKind, ValueType};
 use support::check;
 
 #[test]
+fn each_parenthesized_occurrence_publishes_its_own_type_and_site() {
+    let depth = 120;
+    let left = "(".repeat(depth);
+    let right = ")".repeat(depth);
+    for (spelling, ty) in [
+        (
+            "u32",
+            ValueType::Integer {
+                signed: false,
+                width: Some(32),
+            },
+        ),
+        ("bool", ValueType::Bool),
+    ] {
+        let source = format!("machine f(a:{spelling})->{spelling}{{{left}a{right}}}");
+        let stage = check(&[("groups.omg", &source)]).unwrap();
+        let leaf = source.rfind('a').unwrap();
+        for enclosing in 0..=depth {
+            let start = leaf - enclosing;
+            let end = leaf + enclosing + 1;
+            let mut matches = stage.expressions.iter().filter(|expression| {
+                expression.site.file == "groups.omg" && expression.site.span.get_start_offset() == start && expression.site.span.get_end_offset() == end
+            });
+            let expression = matches
+                .next()
+                .unwrap_or_else(|| panic!("missing {spelling} expression at bytes {start}..{end}"));
+            assert_eq!(expression.ty, ty, "expression at bytes {start}..{end}");
+            assert!(matches.next().is_none(), "duplicate expression at bytes {start}..{end}");
+        }
+    }
+}
+
+#[test]
 fn public_contract_checks_the_visibility_of_the_selected_overload() {
     let declarations = "public machine pred(x:u8)->bool{true} machine pred(x:u16)->bool{true}";
     let accepted = format!("{declarations} public machine f(x:u8) requires pred(x) {{}}");
     let stage = check(&[("main.omg", &accepted)]).unwrap();
-    assert!(
-        stage
-            .calls
-            .iter()
-            .any(|call| call.machine.path == "pred" && call.machine.operands == ["u8"])
+    spec_corpus::observe_handoff!(
+        "private-candidates-in-public-signatures/consumer",
+        assert!(
+            stage
+                .calls
+                .iter()
+                .any(|call| call.machine.path == "pred" && call.machine.operands == ["u8"])
+        )
     );
 
     let rejected = accepted.replace("f(x:u8)", "f(x:u16)");
     let error = check(&[("main.omg", &rejected)]).unwrap_err();
-    assert!(
-        error
-            .message
-            .contains("public signature exposes private declaration pred"),
-        "{error:?}"
+    spec_corpus::observe_handoff!(
+        "private-candidates-in-public-signatures/refusal",
+        assert!(
+            error
+                .message
+                .contains("public signature exposes private declaration pred"),
+            "{error:?}"
+        )
     );
 }
 
@@ -40,10 +79,13 @@ fn a_static_callback_carries_the_machine_application_into_refinement_and_invocat
         assert!(
             matches!(&call.type_arguments[..], [ValueType::MachineSelection(selection)] if selection.machine.path == "id" && selection.arguments == arguments)
         );
-        assert!(stage.obligations.iter().any(|obligation| matches!(
-            &obligation.kind,
-            ObligationKind::RefineCallable { selection, .. } if selection.machine.path == "id" && selection.arguments == arguments
-        )));
+        spec_corpus::observe_handoff!(
+            "authority-in-typed-member-selection/producer",
+            assert!(stage.obligations.iter().any(|obligation| matches!(
+                &obligation.kind,
+                ObligationKind::RefineCallable { selection, .. } if selection.machine.path == "id" && selection.arguments == arguments
+            )))
+        );
         let effects = stage
             .machine_effects
             .iter()
@@ -255,7 +297,7 @@ fn a_dependent_call_publishes_operand_order_and_formal_subjects() {
     }
     assert_eq!(second.site.span.slice(caller.as_bytes()), Some(b"(x)".as_slice()));
     assert_eq!(call.result, f.result);
-    assert_eq!(call.instantiate(&keep.result), f.result);
+    spec_corpus::observe_handoff!("node-identity-and-call-operands/consumer", assert_eq!(call.instantiate(&keep.result), f.result));
     assert_eq!(call.instantiate(&keep.parameters[2].1), f.parameters[2].1);
 }
 
@@ -383,7 +425,7 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
                     _ => None,
                 })
                 .expect("expected a typed call at the evaluation request");
-            assert_eq!(selected.machine.path, "width");
+            spec_corpus::observe_handoff!("pending-static-requests/producer", assert_eq!(selected.machine.path, "width"));
             assert_eq!(selected.operands.len(), 1);
             match demand {
                 StaticValueDemand::Specialized { arguments, .. } if specialized => {
@@ -528,11 +570,14 @@ fn constant_initializers_publish_references_calls_and_suffixed_values() {
     let byte = ValueType::Integer { signed: false, width: Some(8) };
     assert_eq!(alias.initializer.carrier, byte);
     assert_eq!(size.initializer.carrier, byte);
-    assert!(
-        tree.semantics_at(alias.initializer.node.node)
-            .any(|record| matches!(
-                record, NodeSemantics::Constant(declaration) if declaration == &size.declaration
-            ))
+    spec_corpus::observe_handoff!(
+        "constant-initializers-and-numeric-landings/producer",
+        assert!(
+            tree.semantics_at(alias.initializer.node.node)
+                .any(|record| matches!(
+                    record, NodeSemantics::Constant(declaration) if declaration == &size.declaration
+                ))
+        )
     );
     let width = tree
         .semantics_at(size.initializer.node.node)
@@ -541,7 +586,7 @@ fn constant_initializers_publish_references_calls_and_suffixed_values() {
             _ => None,
         })
         .unwrap();
-    assert_eq!(width.machine.path, "width");
+    spec_corpus::assert_handoff_eq!("static-call/selected-machine", width.machine.path, "width");
     assert_eq!(width.use_site, CallUse::StaticArgument);
     assert!(
         tree.semantics_at(width.operands[0].node.node)

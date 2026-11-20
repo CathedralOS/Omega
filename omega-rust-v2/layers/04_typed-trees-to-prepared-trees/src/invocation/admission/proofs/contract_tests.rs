@@ -1,4 +1,4 @@
-use super::tests::{WORD, binds, typed};
+use super::tests::{ADMISSION, WORD, assert_refused, binds, frozen, prepare_pass, range_in, typed};
 use super::*;
 
 const SOURCE: &str = "
@@ -142,52 +142,48 @@ fn greater_than_zero_subject(
 
 #[test]
 fn checks_general_precondition_and_result_postcondition_separately() {
-    use crate::{CheckedPreparationEvidence, PreparationAnswers, prepare_typing_pass};
+    use crate::CheckedPreparationEvidence;
     let progress = omega_typer::TypingProgress::Complete(typed(SOURCE));
     let omega_typer::TypingProgress::Complete(trees) = &progress else {
         unreachable!()
     };
-    let facts = |result| check_contract(trees, 7, result).unwrap();
-    let prepare = |proofs: Vec<_>| {
-        prepare_typing_pass(
-            &progress,
-            &[],
-            None,
-            proofs
-                .into_iter()
-                .fold(CheckedPreparationEvidence::default(), CheckedPreparationEvidence::with_invocation_fact),
-        )
+    // The checker's receipts for demand(operand) returning result; `claims`
+    // selects which of [requires, ensures] the coordinator presents.
+    let receipt = |operand: u64, result: u64, claims: [bool; 2]| {
+        check_contract(trees, operand, result)
+            .expect("checked contract")
+            .into_iter()
+            .zip(claims)
+            .filter_map(|(fact, presented)| presented.then_some(fact))
+            .fold(CheckedPreparationEvidence::default(), CheckedPreparationEvidence::with_invocation_fact)
     };
+    let prepare = |operand, result, claims| prepare_pass(&progress, &[], None, || receipt(operand, result, claims));
 
-    let prepared = prepare(facts(7).into()).unwrap();
-    let PreparationAnswers::Frozen { constants, .. } = prepared.answers else {
-        panic!("complete package")
-    };
-    assert_eq!(constants[&trees.constants[0].declaration], PreparedValue::Integer(7.into()));
+    // Healthy control: both judgments for the actual operand and result.
+    assert_eq!(frozen(prepare(7, 7, [true, true]), trees, 0), PreparedValue::Integer(7.into()));
 
-    let [requires, ensures] = facts(7);
-    for (proof, message) in [
-        (requires, "postcondition requires"),
-        (ensures, "precondition requires"),
+    // The source program calls demand(7u64); the refusal is at that call.
+    let range = range_in(SOURCE, "const VALUE:u64=", "demand(7u64)");
+    let precondition = format!("{ADMISSION}the selected precondition requires a checked proof for the supplied arguments");
+    let postcondition = format!("{ADMISSION}the selected postcondition requires a checked proof for the arguments and result");
+    for (operand, result, claims, reason, message) in [
+        // A precondition judgment cannot stand for the postcondition.
+        (7, 7, [true, false], PreparationReason::PostconditionNeedsProof, &postcondition),
+        // A postcondition judgment cannot stand for the precondition.
+        (7, 7, [false, true], PreparationReason::PreconditionNeedsProof, &precondition),
+        // Wrong result: the guarantee was checked for 8, the body returns 7.
+        (7, 8, [true, true], PreparationReason::PostconditionNeedsProof, &postcondition),
+        // Wrong operands: both judgments were checked for demand(6).
+        (6, 7, [true, true], PreparationReason::PreconditionNeedsProof, &precondition),
     ] {
-        let refusal = prepare(vec![proof]).unwrap_err();
-        assert!(refusal.message.contains(message), "{refusal:?}");
+        assert_refused(prepare(operand, result, claims), reason, range, message);
     }
-
-    let refusal = prepare(facts(8).into()).unwrap_err();
-    assert!(
-        refusal
-            .message
-            .contains("postcondition requires a checked proof for the arguments and result"),
-        "{refusal:?}"
-    );
 }
 
 #[test]
 fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
     use crate::{
         CheckedPreparationEvidence, LayoutExtent, LayoutGeometry, PreparationAnswers, PreparedValueOrigin, SelectedLayout, TargetIdentity, TargetSemantics,
-        prepare_typing_pass,
     };
     use omega_typer::LayoutQuery;
     use std::sync::Arc;
@@ -304,9 +300,16 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
         operands: vec![PreparedValue::Integer(operand.into())],
         result: None,
     };
-    let prepare = |target, proof| prepare_typing_pass(&progress, &[], Some(target), CheckedPreparationEvidence::default().with_invocation_fact(proof));
+    let prepare = |target, application: &Option<TypedCall>| {
+        prepare_pass(&progress, &[], Some(target), || {
+            CheckedPreparationEvidence::default().with_invocation_fact(proof(application.clone()))
+        })
+    };
+    // The source program refuses at get::<K>(n) inside via, reached from VALUE.
+    let range = range_in(source, "machine via<", "get::<K>(n)");
 
-    let prepared = prepare(&capsule, proof(Some(application.clone()))).unwrap();
+    // Healthy control: the receipt names this target, application and operand.
+    let prepared = prepare(&capsule, &Some(application.clone())).unwrap();
     let PreparationAnswers::Frozen { constants, .. } = prepared.answers else {
         panic!("constant was frozen")
     };
@@ -316,28 +319,39 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
         .dependencies
         .inputs(&PreparedValueOrigin::Constant(declaration.clone()))
         .unwrap();
-    assert_eq!(inputs.target_observations.as_slice(), std::slice::from_ref(&observation));
+    spec_corpus::observe_handoff!(
+        "static-invocation-admission/producer",
+        assert_eq!(inputs.target_observations.as_slice(), std::slice::from_ref(&observation))
+    );
     assert_eq!(prepared.target_observations.as_slice(), std::slice::from_ref(&observation));
 
-    let error = prepare(&other, proof(Some(application.clone()))).unwrap_err();
-    assert!(
-        error
-            .message
-            .contains("proof depends on a different target selection"),
-        "{error:?}"
+    // Wrong target: the receipt's layout observation is not the selected plan.
+    spec_corpus::observe_handoff!(
+        "static-invocation-admission/refusal",
+        assert_refused(
+            prepare(&other, &Some(application.clone())),
+            PreparationReason::InvocationProofTargetChanged,
+            range,
+            &format!("{ADMISSION}the checked invocation proof depends on a different target selection\ncall chain: via -> get"),
+        )
     );
     let mut wrong_application = application;
     let [ValueType::StaticInteger { value, .. }] = wrong_application.type_arguments.as_mut_slice() else {
         panic!("one closed const argument")
     };
     *value = 2u64.into();
-    let error = prepare(&capsule, proof(Some(wrong_application))).unwrap_err();
-    assert!(error.message.contains("precondition requires a checked proof"), "{error:?}");
+    // Wrong application: the receipt was checked for get::<2>, the program calls get::<1>.
+    assert_refused(
+        prepare(&capsule, &Some(wrong_application)),
+        PreparationReason::PreconditionNeedsProof,
+        range,
+        &format!("{ADMISSION}the selected precondition requires a checked proof for the supplied arguments\ncall chain: via -> get"),
+    );
 }
 
 #[test]
 fn a_static_callback_uses_the_selected_body_contract_at_its_indirect_occurrence() {
-    use crate::{CheckedPreparationEvidence, PreparationAnswers, prepare_typing_pass};
+    use crate::CheckedPreparationEvidence;
     let source = "machine leaf(n:u64)->u64 requires true ensures result == 7u64 {7u64}
                   data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
                   const VALUE:u64=apply::<leaf>(3u64);";
@@ -356,27 +370,52 @@ fn a_static_callback_uses_the_selected_body_contract_at_its_indirect_occurrence(
     let tree = trees.trees().nth(signature.node.file).unwrap();
     let file = tree.resolved().file;
     let body = file.node_id(file.child(signature.node.node, NodeKind::Body).unwrap());
-    let without = prepare_typing_pass(&progress, &[], None, CheckedPreparationEvidence::default()).unwrap_err();
-    assert!(
-        without
-            .message
-            .contains("postcondition requires a checked proof"),
-        "{}",
-        without.message
+    // The guarantee is checked at the indirect occurrence F(n) inside apply.
+    // That occurrence has no direct call record, so the chain names it generically.
+    let range = range_in(source, "machine apply<", "F(n)");
+    let postcondition = format!(
+        "{ADMISSION}the selected postcondition requires a checked proof for the arguments and result\ncall chain: apply -> <indirect or unsupported call>"
+    );
+    // The source program alone has no checked guarantee.
+    assert_refused(
+        prepare_pass(&progress, &[], None, CheckedPreparationEvidence::default),
+        PreparationReason::PostconditionNeedsProof,
+        range,
+        &postcondition,
     );
     let invocation = InvocationSite {
         call: call.node,
         signature,
         body,
     };
-    let proof = probe_literal_guarantee(trees, invocation, vec![PreparedValue::Integer(3.into())], &7.into()).unwrap();
-    let evidence = CheckedPreparationEvidence {
-        invocation_proofs: proof,
+    let receipt = |invocation, operand: u64| CheckedPreparationEvidence {
+        invocation_proofs: probe_literal_guarantee(trees, invocation, vec![PreparedValue::Integer(operand.into())], &7.into()).unwrap(),
         ..CheckedPreparationEvidence::default()
     };
-    let pass = prepare_typing_pass(&progress, &[], None, evidence).unwrap();
-    let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
-        panic!("expected a frozen constant")
+    // Healthy control: the guarantee for leaf(3) at the indirect occurrence.
+    let admitted = prepare_pass(&progress, &[], None, || receipt(invocation, 3));
+    assert_eq!(frozen(admitted, trees, 0), PreparedValue::Integer(7.into()));
+    // Wrong operands: the guarantee was checked for leaf(4).
+    assert_refused(
+        prepare_pass(&progress, &[], None, || receipt(invocation, 4)),
+        PreparationReason::PostconditionNeedsProof,
+        range,
+        &postcondition,
+    );
+    // Wrong occurrence: the same body and guarantee attributed to the direct call of apply.
+    let direct = trees
+        .calls
+        .iter()
+        .find(|call| call.machine.path == "apply")
+        .unwrap();
+    let elsewhere = InvocationSite {
+        call: direct.node,
+        ..invocation
     };
-    assert_eq!(constants[&trees.constants[0].declaration], PreparedValue::Integer(7.into()));
+    assert_refused(
+        prepare_pass(&progress, &[], None, || receipt(elsewhere, 3)),
+        PreparationReason::PostconditionNeedsProof,
+        range,
+        &postcondition,
+    );
 }

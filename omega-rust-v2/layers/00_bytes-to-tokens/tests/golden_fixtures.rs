@@ -17,9 +17,12 @@ fn accept_fixtures_lex_to_their_expected_tokens() {
     let golden_report = golden::check_directory(&get_fixture_directory("accept"), "omg", |source_bytes| {
         let tokens = lex(source_bytes).map_err(|lex_error| format!("an accept fixture was rejected:\n{}", dump_error(source_bytes, &lex_error)))?;
 
-        if let Some(tiling_problem) = support::describe_tiling_problem(source_bytes, &tokens) {
-            return Err(format!("tokens do not tile the source: {tiling_problem}"));
-        }
+        spec_corpus::observe_handoff!(
+            "token-coverage-of-all-source-bytes/producer",
+            if let Some(tiling_problem) = support::describe_tiling_problem(source_bytes, &tokens) {
+                return Err(format!("tokens do not tile the source: {tiling_problem}"));
+            }
+        );
 
         if let Some(relex_problem) = support::describe_relex_problem(source_bytes, &tokens) {
             return Err(format!("a token is not self-delimiting: {relex_problem}"));

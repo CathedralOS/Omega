@@ -147,6 +147,10 @@ pub struct DomainCandidate {
     pub declaration: DeclarationId,
     /// This attachment matches only when the named domain's binder is a type.
     pub type_binder: Option<(DeclarationId, usize)>,
+    /// The written or implicit carrier is an applied fixed-width integer, as the u<8> of
+    /// u<8>::Ready, and this domain sits on a carrier of the same integer family. It matches
+    /// only when its normalized declared carrier equals that normalized carrier.
+    pub carrier_deferred: bool,
 }
 
 /// Naming the domain reaches an inaccessible carrier only when every listed binder names a value.
@@ -175,9 +179,12 @@ pub struct NameError {
     pub file: String,
     pub span: SourceSpan,
     pub message: String,
+    /// The semantic rule this refusal reports.
+    pub kind: crate::NameErrorKind,
 }
 impl NameError {
     pub fn new(
+        kind: crate::NameErrorKind,
         package: &str,
         file: &str,
         span: SourceSpan,
@@ -188,6 +195,7 @@ impl NameError {
             file: file.into(),
             span,
             message: message.into(),
+            kind,
         }
     }
 }

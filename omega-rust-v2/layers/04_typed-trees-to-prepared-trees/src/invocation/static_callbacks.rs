@@ -145,7 +145,7 @@ impl ConstantEvaluation<'_, '_> {
         scope: &Scope<'_>,
         execution: &Execution<'_>,
     ) -> Result<CallbackBinding, EvaluationError> {
-        let caller = caller.ok_or("the static callable refinement has no closed caller application")?;
+        let caller = caller.ok_or(PreparationReason::RefinementWithoutCaller)?;
         let (selection, binding) = self.checked_callback_binding(
             obligation,
             caller,
@@ -177,13 +177,13 @@ impl ConstantEvaluation<'_, '_> {
             || !matches!(caller.type_arguments.get(*index),
                 Some(ValueType::MachineSelection(applied)) if applied == &selection)
         {
-            return Err("the static callable refinement does not identify the selected application".into());
+            return Err(PreparationReason::RefinementApplicationMismatch.into());
         }
         let captured = capture_callback_bindings(template, &selection, parent, bindings);
         let &(_, signature) = self
             .signatures()
             .get(selection.machine.as_ref())
-            .ok_or("the static callback has no typed signature")?;
+            .ok_or(PreparationReason::CallbackWithoutSignature)?;
         admit_callback_contract(contract, parent, &selection, signature)?;
         let bound = close(&ValueType::Callable(contract.clone()));
         self.check_callback_refinement(obligation, caller, &bound, &selection, signature)?;
@@ -255,11 +255,11 @@ impl ConstantEvaluation<'_, '_> {
                 .iter()
                 .find(|(binder, position, _)| binder == owner && position == index)
                 .map(|(_, _, contract)| contract)
-                .ok_or("the static callback has no typed bound")?;
+                .ok_or(PreparationReason::CallbackWithoutBound)?;
             let &(_, signature) = self
                 .signatures()
                 .get(selection.machine.as_ref())
-                .ok_or("the static callback has no typed signature")?;
+                .ok_or(PreparationReason::CallbackWithoutSignature)?;
             admit_callback_contract(contract, application, &selection, signature)?;
             self.admit_bound_callback(bindings, owner, *index, application, contract, signature)?;
         }
@@ -285,11 +285,11 @@ impl ConstantEvaluation<'_, '_> {
         }
         let call = selected.ok_or(UNSUPPORTED_BODY)?;
         let InvocationTarget::StaticParameter { owner, index } = &call.entry else {
-            return Err("preparation requires an exact static callback selection".into());
+            return Err(PreparationReason::InexactCallbackSelection.into());
         };
         let caller = scope
             .application()
-            .ok_or("the static callback has no closed caller application")?;
+            .ok_or(PreparationReason::CallbackWithoutCallerApplication)?;
         let (selection, captured) = selected_callback(&call.entry, Some(CallbackArguments::Call(caller)), &scope.bindings().callback_bindings)?;
         let signature = self.admit_callback_body(&selection, &captured, execution)?;
         admit_callback_contract(&call.contract, Some(CallbackArguments::Call(caller)), &selection, signature)?;
@@ -302,7 +302,7 @@ impl ConstantEvaluation<'_, '_> {
             signature,
         )?;
         if &selection.instantiate(&signature.result) != carrier || call.operands.len() != signature.parameters.len() {
-            return Err("the selected static callback disagrees with the typed call".into());
+            return Err(PreparationReason::CallbackDisagreesWithCall.into());
         }
         let application = callback_application(&selection, call, signature, scope);
         if call.contract.requires || call.contract.has_guarantee {
@@ -329,7 +329,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         for (argument, (_, parameter)) in call.operands.iter().zip(&signature.parameters).rev() {
             if argument.callable.is_some() {
-                return Err("preparation cannot materialize a runtime callable argument".into());
+                return Err(PreparationReason::RuntimeCallableArgument.into());
             }
             execution
                 .steps
@@ -408,9 +408,9 @@ impl ConstantEvaluation<'_, '_> {
             })
             .ok_or(UNSUPPORTED_CONTRACT)?;
         let reason = if result.is_some() {
-            "the callable bound's guarantee needs a checked judgment for the arguments and result"
+            PreparationReason::CallableGuaranteeNeedsJudgment
         } else {
-            "the callable bound's precondition needs a checked judgment for the supplied arguments"
+            PreparationReason::CallablePreconditionNeedsJudgment
         };
         Err(EvaluationError::AtCall(crate::evaluation::refusal(&call.site, reason)))
     }
@@ -435,7 +435,7 @@ impl ConstantEvaluation<'_, '_> {
         {
             return Ok(());
         }
-        Err("the exact static callback needs a checked refinement of its callable contract".into())
+        Err(PreparationReason::CallbackNeedsRefinement.into())
     }
 
     fn check_callback_refinement(
@@ -482,7 +482,7 @@ impl ConstantEvaluation<'_, '_> {
             }
             return Ok(());
         }
-        Err("the exact static callback needs a checked refinement of its callable contract".into())
+        Err(PreparationReason::CallbackNeedsRefinement.into())
     }
 
     fn unrestricted_entry(
@@ -526,7 +526,7 @@ impl ConstantEvaluation<'_, '_> {
                 CallbackDependency::Enter(selection, bindings, fixed) => {
                     let body = self.admit_callback_local_body(&selection, &bindings, execution)?;
                     if active.would_cycle(body.signature.node, &selection, fixed) {
-                        return Err("a cyclic static callback dependency has no checked termination proof".into());
+                        return Err(PreparationReason::CyclicCallbackWithoutTermination.into());
                     }
                     active.enter_selection(body.signature.node, &selection);
                     pending.push(CallbackDependency::Leave(body.signature.node));
@@ -572,7 +572,7 @@ impl ConstantEvaluation<'_, '_> {
         let &(index, signature) = self
             .signatures()
             .get(selection.machine.as_ref())
-            .ok_or("the static callback has no typed signature")?;
+            .ok_or(PreparationReason::CallbackWithoutSignature)?;
         let tree = self.tree(signature.node)?;
         let file = tree.resolved().file;
         let declaration = signature.node.node;
@@ -585,7 +585,7 @@ impl ConstantEvaluation<'_, '_> {
             || signature.satisfies.is_some()
             || !signature.multiplicity_bounds.is_empty()
         {
-            return Err("the exact static callback needs checked contract evidence outside the supported fragment".into());
+            return Err(PreparationReason::CallbackContractOutsideFragment.into());
         }
         let mut trait_scopes = selection
             .enclosing_arguments
@@ -605,13 +605,13 @@ impl ConstantEvaluation<'_, '_> {
                     && (ambiguous_trait_scope || slot.requirement.trait_arguments == trait_arguments)
             })
         {
-            return Err("a runtime boundary selection cannot execute as a static callback".into());
+            return Err(PreparationReason::RuntimeBoundaryCallback.into());
         }
         let effects = self
             .machine_effects(index)
-            .ok_or("the exact static callback has no complete operational bounds")?;
+            .ok_or(PreparationReason::CallbackWithoutOperationalBounds)?;
         if !effects.reach.is_empty() || effects.fixed_pause.suspend || effects.fixed_pause.block {
-            return Err("the exact static callback has unresolved or nonempty operational effects".into());
+            return Err(PreparationReason::CallbackEffectsNotEmpty.into());
         }
         let fact_selections = self.admit_callback_termination(
             index,
@@ -804,7 +804,7 @@ fn selected_callback(
         }
         InvocationTarget::StaticParameter { owner, index } => {
             let Some(ValueType::MachineSelection(selection)) = application.and_then(|application| application.generic_argument(owner, *index)) else {
-                return Err("the static callback has no closed selection".into());
+                return Err(PreparationReason::CallbackWithoutSelection.into());
             };
             let captured = bindings
                 .iter()
@@ -812,7 +812,7 @@ fn selected_callback(
                 .map_or_else(Rc::default, |binding| Rc::clone(&binding.captured));
             Ok((selection.clone(), captured))
         }
-        _ => Err("preparation requires an exact static callback selection".into()),
+        _ => Err(PreparationReason::InexactCallbackSelection.into()),
     }
 }
 
@@ -836,7 +836,7 @@ fn admit_callback_contract(
             .iter()
             .map(|(_, parameter)| selection.instantiate(parameter)))
     {
-        return Err("the exact static callback needs checked refinement of its callable contract".into());
+        return Err(PreparationReason::ForwardedCallbackNeedsRefinement.into());
     }
     Ok(())
 }

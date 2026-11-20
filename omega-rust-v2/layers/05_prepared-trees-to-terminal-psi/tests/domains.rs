@@ -61,7 +61,10 @@ fn equal_predicates_preserve_distinct_domains_and_authored_requirements() {
     assert_eq!(first.declaration.path, "i32::First");
     assert_eq!(second.declaration.path, "i32::Second");
     assert_eq!(tag.declaration.path, "i32::Tag");
-    assert_ne!(first.declaration, second.declaration);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/distinct-domains",
+        assert_ne!(first.declaration, second.declaration),
+    );
     assert!(first.public);
     assert!(!second.public);
     assert_eq!(first.carrier, second.carrier);
@@ -81,9 +84,12 @@ fn unused_domains_keep_each_carrier_when_their_predicates_do_not_read_self() {
     for (domain, path, signed) in [(signed, "i32::Empty", true), (unsigned, "u32::Empty", false)] {
         assert_eq!(domain.declaration.path, path);
         assert_eq!(domain.requires[0].predicate, [PredicateStep::Boolean(false)]);
-        assert_eq!(
-            package.types.get(domain.carrier),
-            Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed, width: 32 }))
+        spec_corpus::observe_handoff!(
+            "normalized-domain-carriers/consumer",
+            assert_eq!(
+                package.types.get(domain.carrier),
+                Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed, width: 32 }))
+            )
         );
     }
 }
@@ -182,6 +188,51 @@ fn unused_domain_aliases_expand_to_exact_atoms_without_creating_a_domain() {
 }
 
 #[test]
+fn an_alias_cast_delivers_the_qualifications_of_its_current_expansion() {
+    use omega_lowering::{BlockTerminator, QualificationDirection, ScalarQualificationChange};
+    for (expansion, expected) in [
+        ("u8::B & u8::A", ["u8::A", "u8::B"]),
+        ("u8::C & u8::B", ["u8::B", "u8::C"]),
+    ] {
+        let [first, second] = expected.map(|path| path.trim_start_matches("u8::"));
+        let text = format!(
+            "domain u8::A; domain u8::B; domain u8::C; domain u8::Both = {expansion};
+             machine f(x:u8)->u8 {{ let both = x as +Both; let only = both as -{first} ={second}; only as -{second} }}"
+        );
+        let package = sources::lower(&[("alias.omg", &text)]).unwrap();
+        let body = &package.machines[0].body;
+        let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else {
+            panic!("expected the alias cast edge")
+        };
+        assert_eq!(
+            edge.scalar_qualification_changes,
+            [ScalarQualificationChange {
+                argument_index: 0,
+                direction: QualificationDirection::Add
+            }]
+        );
+        let [destination] = body.blocks[edge.target.get() - 1].scalar_parameters[..] else {
+            panic!("expected one qualified parameter")
+        };
+        let Some(TypeShape::QualifiedScalar { domains, .. }) = package.types.get(body.values[destination.index()].ty) else {
+            panic!("expected a qualified destination")
+        };
+        let delivered: Vec<_> = package
+            .types
+            .domain_set(*domains)
+            .unwrap()
+            .iter()
+            .map(|id| id.path.as_str())
+            .collect();
+        spec_corpus::observe_handoff!("type-and-domain-aliases/consumer", assert_eq!(delivered, expected));
+        let [alias] = &package.domain_aliases[..] else {
+            panic!("expected the alias")
+        };
+        assert_eq!(alias.members.iter().map(|id| id.path.as_str()).collect::<Vec<_>>(), expected);
+    }
+}
+
+#[test]
 fn qualification_edges_preserve_each_source_and_deliver_the_exact_destination_set() {
     use omega_lowering::{
         BlockTerminator, Parameter,
@@ -206,7 +257,13 @@ fn qualification_edges_preserve_each_source_and_deliver_the_exact_destination_se
             panic!("expected a qualification edge")
         };
         assert_eq!(edge.arguments, [input]);
-        assert_eq!(edge.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction }]);
+        assert_eq!(
+            edge.scalar_qualification_changes,
+            [ScalarQualificationChange {
+                argument_index: 0,
+                direction
+            }]
+        );
         assert_eq!(
             body.diagnostics.edges[edge.id.get() - 1]
                 .span
@@ -224,7 +281,11 @@ fn qualification_edges_preserve_each_source_and_deliver_the_exact_destination_se
             TypeShape::PrimitiveScalar(_) => &[][..],
             other => panic!("unexpected scalar {other:?}"),
         };
-        assert_eq!(domains.iter().map(|id| id.path.as_str()).collect::<Vec<_>>(), names);
+        // Each cast's accounting decides the exact set the next block receives.
+        spec_corpus::observe_handoff!(
+            "checked-domain-casts/consumer",
+            assert_eq!(domains.iter().map(|id| id.path.as_str()).collect::<Vec<_>>(), names)
+        );
         input = destination;
     }
     assert!(matches!(body.blocks.last().unwrap().terminator, BlockTerminator::Return {result: ReturnEdge::Scalar(result), ..} if result == input));

@@ -96,8 +96,9 @@ impl Origin {
 /// The access and backing storage of a selected place or a pattern alias.
 #[derive(Clone, Debug)]
 pub(super) struct StoragePlace {
-    /// The weakest access along the references that reach the field.
-    pub(super) access: Access,
+    /// Authority over the selected storage. A computed value can be lent
+    /// temporarily, but it supplies no storage to write back to.
+    pub(super) access: Option<Access>,
     /// Whose storage the field lives in: the borrowed subject's origin.
     pub(super) backing: Origin,
 }
@@ -118,7 +119,7 @@ impl PatternSource {
         &self,
         subject: &ValueType,
     ) -> bool {
-        !matches!(self.place.as_ref().map(|p| &p.access), Some(Access::Write)) && !matches!(subject.reference_parts(), Some((Access::Write, _)))
+        !matches!(self.place.as_ref().and_then(|p| p.access.as_ref()), Some(Access::Write)) && !matches!(subject.reference_parts(), Some((Access::Write, _)))
     }
 
     pub(super) fn of(value: Origin) -> Self {
@@ -142,7 +143,7 @@ impl PatternSource {
             Some((access, _)) => Self {
                 value: self.value.whole(),
                 place: Some(StoragePlace {
-                    access: access.through(self.place.as_ref().map(|p| &p.access))?,
+                    access: Some(access.through(self.place.as_ref().and_then(|p| p.access.as_ref()))?),
                     backing: self.value.whole(),
                 }),
                 parts: Vec::new(),
@@ -246,7 +247,7 @@ impl BodyTyper<'_, '_> {
         self.places.insert(
             node,
             StoragePlace {
-                access: effective.clone(),
+                access: Some(effective.clone()),
                 backing,
             },
         );
@@ -265,10 +266,14 @@ impl BodyTyper<'_, '_> {
     ) -> Result<(ValueType, Option<Access>), TypeError> {
         let source = self.unit.file;
         // A grouped receiver, as in `(view.inner).value`, is still a place.
+        // Groups nest as deeply as L1 admits; see :ExpressionLayers.
         if source.nodes[node_index].kind == NodeKind::Paren {
-            let (ty, borrowed) = self.place_operand(self.unit.single_child(node_index)?)?;
-            self.set_origin(node_index, self.origin(self.unit.single_child(node_index)?));
-            self.record_expression(node_index, ty.clone());
+            let (inner, groups) = self.unit.grouped_operand(node_index)?;
+            let (ty, borrowed) = self.place_operand(inner)?;
+            for group in groups.into_iter().rev() {
+                self.set_origin(group, self.origin(source.nodes[group].children[0]));
+                self.record_expression(group, ty.clone());
+            }
             return Ok((ty, borrowed));
         }
         if source.nodes[node_index].kind == NodeKind::Dereference {
@@ -304,9 +309,12 @@ impl BodyTyper<'_, '_> {
     ) -> Result<(ValueType, PatternSource), TypeError> {
         let source = self.unit.file;
         if source.nodes[node_index].kind == NodeKind::Paren {
-            let (ty, part) = self.pattern_subject(self.unit.single_child(node_index)?)?;
-            self.set_origin(node_index, part.value.clone());
-            self.record_expression(node_index, ty.clone());
+            let (inner, groups) = self.unit.grouped_operand(node_index)?;
+            let (ty, part) = self.pattern_subject(inner)?;
+            for group in groups.into_iter().rev() {
+                self.set_origin(group, part.value.clone());
+                self.record_expression(group, ty.clone());
+            }
             return Ok((ty, part));
         }
         if source.nodes[node_index].kind == NodeKind::Tuple {
@@ -325,7 +333,7 @@ impl BodyTyper<'_, '_> {
         }
         let (ty, borrowed) = self.place_operand(node_index)?;
         let place = borrowed.map(|access| StoragePlace {
-            access,
+            access: Some(access),
             backing: self.storage_place(node_index).backing,
         });
         Ok((
@@ -346,7 +354,7 @@ impl BodyTyper<'_, '_> {
         let (binder, place) = self.borrowed_places.get(span)?;
         let access = place.access.clone();
         self.record_place(node, *binder, None, None);
-        Some(access)
+        access
     }
     /// The origin of a typed expression.
     pub(super) fn origin(
@@ -460,7 +468,7 @@ impl BodyTyper<'_, '_> {
                 .get(span)
                 .map(|(_, place)| place.clone())
                 .unwrap_or_else(|| StoragePlace {
-                    access: if self.writable.contains(span) { Access::Mut } else { Access::Shared },
+                    access: Some(if self.writable.contains(span) { Access::Mut } else { Access::Shared }),
                     backing: Origin::Local,
                 });
         }
@@ -469,7 +477,7 @@ impl BodyTyper<'_, '_> {
             _ => Origin::Local,
         };
         StoragePlace {
-            access: Access::Shared,
+            access: None,
             backing,
         }
     }

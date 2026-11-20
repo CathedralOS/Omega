@@ -22,6 +22,165 @@
 
 #![forbid(unsafe_code)]
 
+/// Keep diagnostic text intact inside one tab-separated test record.
+pub fn diagnostic_field(text: &str) -> String {
+    use std::fmt::Write;
+    let mut field = String::with_capacity(text.len());
+    for character in text.chars() {
+        if character == '%' || character.is_control() || matches!(character, '\u{2028}' | '\u{2029}') {
+            for byte in character.encode_utf8(&mut [0; 4]).bytes() {
+                write!(field, "%{byte:02X}").unwrap();
+            }
+        } else {
+            field.push(character);
+        }
+    }
+    field
+}
+
+#[test]
+fn diagnostic_fields_preserve_literal_escapes_and_line_separators() {
+    assert_eq!(diagnostic_field("π%0A\r\n\t\u{85}\u{2028}"), "π%250A%0D%0A%09%C2%85%E2%80%A8");
+}
+
+/// Check the resolver's public error at its original source or interface row.
+/// The test supplies expected values independently of the compiler's message.
+#[macro_export]
+macro_rules! assert_resolver_refusal {
+    ($error:expr, $kind:expr, $package:expr, $file:expr, $span:expr, $message:expr $(,)?) => {{
+        let error = &$error;
+        let expected_kind = $kind;
+        assert_eq!(error.kind, expected_kind, "{error:?}");
+        assert_eq!(error.message, $message);
+        assert_eq!((error.package.as_str(), error.file.as_str()), ($package, $file));
+        assert_eq!(error.span, $span);
+        if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+            println!(
+                "OMEGA_RESOLVER_KIND\t{expected_kind:?}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{}",
+                error.kind,
+                $crate::diagnostic_field(&error.package),
+                $crate::diagnostic_field(&error.file),
+                error.span.get_start_offset(),
+                error.span.get_end_offset(),
+                error.message.len(),
+                $crate::diagnostic_field(&error.message)
+            );
+        }
+    }};
+}
+
+/// Compare a preparation failure at its original source and report the cause returned by the stage.
+#[macro_export]
+macro_rules! assert_preparation_refusal {
+    ($failure:expr, $expected:expr, $package:expr, $file:expr, $range:expr, $message:expr $(,)?) => {{
+        match &$failure {
+            omega_preparation::PreparationFailure::Preparation(refusal) | omega_preparation::PreparationFailure::MissingTarget(refusal) => {
+                $crate::assert_preparation_cause!(refusal, $expected, $package, $file, $range, $message);
+            }
+            other => panic!("expected a preparation refusal, received {other:?}"),
+        }
+    }};
+}
+
+/// Tests of a supplied evaluation input can observe the cause before the package entry point wraps it.
+#[macro_export]
+macro_rules! assert_preparation_cause {
+    ($refusal:expr, $expected:expr, $package:expr, $file:expr, $range:expr, $message:expr $(,)?) => {{
+        let refusal = &$refusal;
+        let expected = $expected;
+        let cause = refusal.cause;
+        assert_eq!(cause, expected);
+        let diagnostic = &refusal.diagnostic;
+        assert_eq!((diagnostic.package.as_str(), diagnostic.file.as_str()), ($package, $file));
+        let range = (diagnostic.span.get_start_offset(), diagnostic.span.get_end_offset());
+        assert_eq!(range, $range);
+        assert_eq!(diagnostic.message, $message);
+        if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+            let tag = match (expected, cause) {
+                (omega_preparation::RefusalCause::Preparation(wanted), omega_preparation::RefusalCause::Preparation(actual)) => {
+                    format!("OMEGA_PREPARATION_REASON\t{wanted:?}\t{actual:?}")
+                }
+                (_, omega_preparation::RefusalCause::TargetLayout(_)) => "OMEGA_PREPARATION_FORWARDED\tTargetLayout".to_owned(),
+                (_, omega_preparation::RefusalCause::IntegerPrimitive(_)) => "OMEGA_PREPARATION_FORWARDED\tIntegerPrimitive".to_owned(),
+                _ => unreachable!("cause equality checked above"),
+            };
+            $crate::report_preparation_observation(format!(
+                "{tag}\t{}\t{}\t{}\t{}\t{}\t{}",
+                $crate::diagnostic_field(&diagnostic.package),
+                $crate::diagnostic_field(&diagnostic.file),
+                range.0,
+                range.1,
+                diagnostic.message.len(),
+                $crate::diagnostic_field(&diagnostic.message)
+            ));
+        }
+    }};
+}
+
+/// Several inputs in one test can produce exactly the same diagnostic. Every comparison
+/// runs, but the report needs one witness per distinct outcome in the captured test.
+#[doc(hidden)]
+pub fn report_preparation_observation(record: String) {
+    thread_local! {
+        static REPORTED: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::default();
+    }
+    REPORTED.with_borrow_mut(|seen| {
+        if !seen.contains(&record) {
+            println!("{record}");
+            seen.insert(record);
+        }
+    });
+}
+
+/// A test may check several handoffs or repeat one check for many inputs.
+/// Identify the comparison that unwinds even if an earlier iteration passed.
+#[doc(hidden)]
+pub struct HandoffComparison(pub &'static str, pub &'static str);
+
+impl Drop for HandoffComparison {
+    fn drop(&mut self) {
+        if std::thread::panicking() && std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+            let expression = self.1.split_whitespace().collect::<Vec<_>>().join(" ");
+            eprintln!("OMEGA_FAILED_COMPARISON\t{}\t{expression}", self.0);
+        }
+    }
+}
+
+/// Emit the first success at this site. The runner also checks the test verdict.
+#[macro_export]
+macro_rules! observe_handoff {
+    ($label:literal, $comparison:expr $(,)?) => {
+        $crate::observe_handoff!(@record "OMEGA_REVIEWED_COMPARISON", $label, $comparison)
+    };
+    (psi $label:literal, $comparison:expr $(,)?) => {
+        $crate::observe_handoff!(@record "OMEGA_L5_ASSERT", $label, $comparison)
+    };
+    (@record $record:literal, $label:literal, $comparison:expr) => {{
+        let comparison = $crate::HandoffComparison($label, stringify!($comparison));
+        let () = $comparison;
+        drop(comparison);
+        static REPORT: std::sync::Once = std::sync::Once::new();
+        REPORT.call_once(|| {
+            if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+                let expression = stringify!($comparison).split_whitespace().collect::<Vec<_>>().join(" ");
+                println!("{}\t{}\t{}", $record, $label, expression);
+            }
+        });
+    }};
+}
+
+/// Report a successful comparison only after checking the expected product.
+/// A test can make several independent observations under distinct labels.
+#[macro_export]
+macro_rules! assert_handoff_eq {
+    ($label:expr, $actual:expr, $expected:expr) => {{
+        assert_eq!($actual, $expected, "{}", $label);
+        if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+            println!("OMEGA_HANDOFF_ASSERT\t{}", $label);
+        }
+    }};
+}
+
 #[cfg(feature = "parser")]
 pub mod parser_examples;
 #[cfg(feature = "parser")]

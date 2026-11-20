@@ -67,9 +67,12 @@ fn prepared_consumer_reads_declaration_order_and_the_exact_case() {
         ]
         .into(),
     };
-    assert_eq!(
-        prepared.constant(declaration(&prepared, "ROWS")),
-        Some(&PreparedValue::Array([first, second].into())),
+    spec_corpus::observe_handoff!(
+        "frozen-scalar-and-aggregate-values/producer",
+        assert_eq!(
+            prepared.constant(declaration(&prepared, "ROWS")),
+            Some(&PreparedValue::Array([first, second].into())),
+        )
     );
 }
 
@@ -131,7 +134,7 @@ fn freezing_checks_the_type_of_inactive_payloads() {
                   data Choice [linear] {case Empty; case Used(handle:Handle);}
                   const VALUE:Choice=Choice::Empty;";
     let error = prepare(linear).unwrap_err().message;
-    assert!(error.contains("complete constant type must permit copying"), "{error}");
+    spec_corpus::observe_handoff!("frozen-scalar-and-aggregate-values/refusal", assert!(error.contains("complete constant type must permit copying"), "{error}"));
 
     let cleanup = "data Handle [copy] dropped by dispose {}
                    machine dispose(handle:Handle) {}

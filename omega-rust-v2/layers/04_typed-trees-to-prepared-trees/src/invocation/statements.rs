@@ -219,7 +219,7 @@ impl ConstantEvaluation<'_, '_> {
             let Some(values) = self
                 .dispatch_pattern(&tree, pattern, subject_node, subject_type, &subject)
                 .map_err(|error| match error {
-                    EvaluationError::Refused(UNSUPPORTED_BODY) => "the selected pattern has no supported owned-value selection".into(),
+                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY)) => PreparationReason::PatternWithoutSelection.into(),
                     other => other,
                 })?
             else {

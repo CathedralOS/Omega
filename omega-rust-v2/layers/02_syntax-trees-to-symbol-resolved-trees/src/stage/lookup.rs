@@ -1,4 +1,4 @@
-use super::{Catalog, Context, DeclarationId, DomainCarrier, NameError, NameUse, Symbol, callable, module_child, qualify, usage};
+use super::{Catalog, Context, DeclarationId, DomainCarrier, NameError, NameErrorKind, NameUse, Symbol, callable, module_child, qualify, usage};
 use crate::syntax::File;
 use omega_syntax::NodeKind;
 use omega_tokens::SourceSpan;
@@ -8,9 +8,36 @@ pub(super) struct Attachment {
     pub slot: usize,
     // Declaration slot and ordinal of the binder whose type role permits this attachment.
     type_binder: Option<(usize, usize)>,
+    // Matched by integer family under an applied carrier. Typing compares the normalized carriers.
+    pub carrier_deferred: bool,
+}
+
+/// Bare `u` and `i` describe fixed-width carriers only when supplied a width.
+fn fixed_integer_family(name: &str, applied: bool) -> Option<u8> {
+    let (&first, rest) = name.as_bytes().split_first()?;
+    (matches!(first, b'u' | b'i') && (applied || !rest.is_empty()) && rest.iter().all(u8::is_ascii_digit)).then_some(first)
 }
 
 impl Context<'_> {
+    fn opened_modules(&self, alias: &str) -> impl Iterator<Item = &(String, String)> {
+        self.by_alias.get(alias).into_iter().flatten()
+            .map(|&site| &self.imports[site].address)
+            .filter(|module| self.open_modules.contains(*module))
+    }
+
+    pub(super) fn unresolved_name(&self, file: &File<'_>, span: SourceSpan, path: &str) -> NameError {
+        // Lookup has already rejected competing module paths. Name the unique
+        // imported module that the user's spelling actually selected.
+        let mut message = format!("unresolved name {path}");
+        if let Some((alias, _)) = path.split_once('\\')
+            && let Some((package, module)) = self.opened_modules(alias).next()
+        {
+            let module = if module.is_empty() { "<root>" } else { module };
+            message.push_str(&format!(" in imported module {module} of package {package}"));
+        }
+        file.error(NameErrorKind::UnresolvedName, span, message)
+    }
+
     pub(super) fn carrier_binders(
         &self,
         name: &str,
@@ -39,9 +66,9 @@ impl Catalog<'_> {
             .enumerate()
             .filter(|(_, export)| !export.trait_parents.is_empty())
         {
-            let error = |reason| NameError::new(&export.id.package, &export.id.path, SourceSpan::new(0, 0), reason);
+            let error = |kind, reason| NameError::new(kind, &export.id.package, &export.id.path, SourceSpan::new(0, 0), reason);
             if export.id.kind != NodeKind::Trait {
-                return Err(error("only a trait can have parents in a compiled interface"));
+                return Err(error(NameErrorKind::CompiledParentsOnNonTrait, "only a trait can have parents in a compiled interface"));
             }
             let mut parents = Vec::with_capacity(export.trait_parents.len());
             for parent in &export.trait_parents {
@@ -54,7 +81,7 @@ impl Catalog<'_> {
                         let entry = &self.entries[i];
                         entry.public && entry.id.kind == NodeKind::Trait && entry.id == *parent
                     })
-                    .ok_or_else(|| error("unknown parent trait in compiled interface"))?;
+                    .ok_or_else(|| error(NameErrorKind::UnknownCompiledParentTrait, "unknown parent trait in compiled interface"))?;
                 parents.push(slot);
             }
             direct.insert(source_count + offset, parents);
@@ -78,10 +105,10 @@ impl Catalog<'_> {
                     .into_iter()
                     .filter(|&i| self.entries[i].id.kind == NodeKind::Trait);
                 let Some(parent) = traits.next() else {
-                    return Err(file.error(file.span(base), format!("unresolved trait {name}")));
+                    return Err(file.error(NameErrorKind::UnresolvedParentTrait, file.span(base), format!("unresolved trait {name}")));
                 };
                 if traits.any(|i| i != parent) {
-                    return Err(file.error(file.span(base), format!("ambiguous trait {name}")));
+                    return Err(file.error(NameErrorKind::AmbiguousParentTrait, file.span(base), format!("ambiguous trait {name}")));
                 }
                 parents.push(parent);
             }
@@ -98,8 +125,14 @@ impl Catalog<'_> {
             while let Some(parent) = todo.pop() {
                 if parent == child {
                     return Err(match entry.source {
-                        Some((f, n)) => self.files[f].error(self.files[f].span(n), "cyclic trait inheritance"),
-                        None => NameError::new(&entry.id.package, &entry.id.path, SourceSpan::new(0, 0), "cyclic trait inheritance"),
+                        Some((f, n)) => self.files[f].error(NameErrorKind::CyclicTraitInheritance, self.files[f].span(n), "cyclic trait inheritance"),
+                        None => NameError::new(
+                            NameErrorKind::CyclicCompiledTraitInheritance,
+                            &entry.id.package,
+                            &entry.id.path,
+                            SourceSpan::new(0, 0),
+                            "cyclic trait inheritance",
+                        ),
                     });
                 }
                 if reached.insert(parent)
@@ -150,7 +183,11 @@ impl Catalog<'_> {
                             .any(|(&(from, _), &to)| from == file.package && to == id.package)
             });
             let Some(slot) = accessible else {
-                let error = file.error(span, format!("no authority to name carrier {}\\{}", id.package, id.path));
+                let error = file.error(
+                    NameErrorKind::CarrierWithoutAuthority,
+                    span,
+                    format!("no authority to name carrier {}\\{}", id.package, id.path),
+                );
                 if binders.is_empty() {
                     return Err(error);
                 }
@@ -219,7 +256,11 @@ impl Catalog<'_> {
         };
         let own = (file.package.to_owned(), root.to_owned());
         if self.modules.contains(&own) || rest.is_empty() && !self.visible(file, &own).is_empty() {
-            return Err(file.error(span, format!("competing module paths {root}: package {package} and {}\\{root}", file.package)));
+            return Err(file.error(
+                NameErrorKind::CompetingModulePaths,
+                span,
+                format!("competing module paths {root}: package {package} and {}\\{root}", file.package),
+            ));
         }
         Ok((package.into(), rest.into()))
     }
@@ -352,7 +393,11 @@ impl Catalog<'_> {
                 }
             } else {
                 if import.slots.is_empty() {
-                    return Err(file.error(span, format!("unavailable import {}", file.nodes[import.node].path())));
+                    return Err(file.error(
+                        NameErrorKind::UnavailableImport,
+                        span,
+                        format!("unavailable import {}", file.nodes[import.node].path()),
+                    ));
                 }
                 let target = self.symbol(file, span, &import.slots)?;
                 for &slot in &import.slots {
@@ -384,6 +429,7 @@ impl Catalog<'_> {
                 Ok(Symbol::Candidates(ids))
             }
             _ => Err(file.error(
+                NameErrorKind::CompetingDeclarations,
                 span,
                 format!(
                     "competing declarations: {}",
@@ -410,9 +456,10 @@ impl Catalog<'_> {
         let parent = file.nodes[node].parent.map(|p| &file.nodes[p]);
         // A membership test names its domain without a carrier, even when it is written as a
         // qualified generic argument under a value binder.
-        let implicit_carrier = parent
+        let implicit_subject = parent
             .filter(|p| !membership_target && p.kind == NodeKind::QualifiedType && p.children.first() != Some(&node))
-            .map(|p| file.nodes[p.children[0]].path());
+            .map(|p| p.children[0]);
+        let implicit_carrier = implicit_subject.map(|subject| file.nodes[subject].path());
         let domain_position = implicit_carrier.is_some() || parent.is_some_and(|p| p.kind == NodeKind::CastEntry) || membership_target;
         if !domain_position && !path.contains("::") {
             return Ok(Vec::new());
@@ -424,9 +471,11 @@ impl Catalog<'_> {
         }
         let (mut qualifier, leaf) = split(path);
         let mut unresolved_parents = Vec::new();
+        let mut implicit = false;
         let roots = loop {
             let Some(prefix) = qualifier else {
                 qualifier = implicit_carrier.as_deref();
+                implicit = true;
                 break match qualifier {
                     Some(name) => self.lookup(file, ctx, node, name)?,
                     None => Vec::new(),
@@ -440,11 +489,33 @@ impl Catalog<'_> {
             unresolved_parents.push(segment);
             qualifier = outer;
         };
+        // `u<8>` and `u8` name one carrier, but only typing evaluates a width. An applied
+        // integer root therefore admits every visible domain of that leaf on a carrier of
+        // the same integer family, and typing selects by the normalized carrier.
+        let mut integer_root = qualifier.filter(|&name| super::builtin(name)).and_then(|name| {
+            let applied = match implicit_subject.filter(|_| implicit) {
+                Some(subject) => file.nodes[subject]
+                    .children
+                    .iter()
+                    .any(|&section| matches!(file.nodes[section].kind, NodeKind::TypeArgs | NodeKind::ExpressionArgs)),
+                None => file.nodes[node]
+                    .children
+                    .iter()
+                    .any(|&section| file.application_prefix(section).is_some_and(|(prefix, _)| prefix == name)),
+            };
+            fixed_integer_family(name, applied).map(|family| (family, applied))
+        });
         let mut owners: Vec<_> = roots
             .into_iter()
-            .map(|slot| Attachment { slot, type_binder: None })
+            .map(|slot| Attachment {
+                slot,
+                type_binder: None,
+                carrier_deferred: false,
+            })
             .collect();
         for segment in unresolved_parents.into_iter().rev().chain([leaf]) {
+            // Only the first segment is attached to the written carrier root.
+            let root = integer_root.take();
             let generic = qualifier.is_some_and(|name| {
                 super::builtin(name)
                     || ctx.carrier_binders(name, node).next().is_some()
@@ -459,21 +530,30 @@ impl Catalog<'_> {
                 .flat_map(|sites| sites.keys())
                 .filter_map(|&slot| {
                     let carrier = &self.carriers[&slot];
+                    let applied = !self.entries[slot].id.domain_carrier_arguments.is_empty();
                     let named = match carrier {
                         DomainCarrier::Named(owner) | DomainCarrier::Bound { alternative: owner, .. } => owners
                             .iter()
                             .find(|parent| self.entries[parent.slot].id == *owner),
                         _ => None,
                     };
-                    let type_binder = match (qualifier, carrier, named) {
-                        (None, _, _) => None,
-                        (_, _, Some(parent)) => parent.type_binder,
-                        (Some(name), DomainCarrier::Builtin(carrier), _) if name == carrier => None,
-                        (_, DomainCarrier::Generic, _) if generic => None,
-                        (_, DomainCarrier::Bound { position, .. }, _) if generic => Some((slot, *position)),
+                    let (type_binder, carrier_deferred) = match (qualifier, carrier, named) {
+                        (None, _, _) => (None, false),
+                        (_, _, Some(parent)) => (parent.type_binder, parent.carrier_deferred),
+                        (Some(_), DomainCarrier::Builtin(name), _)
+                            if root.is_some_and(|(family, used_arguments)| {
+                                (used_arguments || applied) && fixed_integer_family(name, applied) == Some(family)
+                            }) => (None, true),
+                        (Some(written), DomainCarrier::Builtin(name), _) if !applied && written == name => (None, false),
+                        (_, DomainCarrier::Generic, _) if generic => (None, false),
+                        (_, DomainCarrier::Bound { position, .. }, _) if generic => (Some((slot, *position)), false),
                         _ => return None,
                     };
-                    Some(Attachment { slot, type_binder })
+                    Some(Attachment {
+                        slot,
+                        type_binder,
+                        carrier_deferred,
+                    })
                 })
                 .collect();
             if owners.is_empty() {
@@ -482,6 +562,31 @@ impl Catalog<'_> {
             qualifier = Some(segment);
         }
         Ok(owners)
+    }
+
+    /// The root of a domain path can name a builtin carrier or a static binder
+    /// rather than a declaration. Arguments written on that root apply to it.
+    pub(super) fn carrier_application_owner(
+        &self,
+        ctx: &Context<'_>,
+        n: usize,
+        prefix: &str,
+    ) -> Option<Symbol> {
+        if super::builtin(prefix) {
+            return Some(Symbol::Builtin(prefix.to_owned()));
+        }
+        let mut names: Vec<_> = ctx
+            .carrier_binders(prefix, n)
+            .map(super::Local::symbol)
+            .collect();
+        match names.len() {
+            0 => None,
+            1 => names.pop(),
+            _ => Some(Symbol::ScopedNames {
+                context: super::NameContext::Type,
+                names,
+            }),
+        }
     }
 
     /// A generic domain gets its carrier from this qualifier. An inherited
@@ -495,6 +600,14 @@ impl Catalog<'_> {
         candidates: &[usize],
     ) -> Result<Option<NameUse>, NameError> {
         let Some((prefix, _)) = path.rsplit_once("::") else { return Ok(None) };
+        if super::builtin(prefix)
+            && candidates
+                .iter()
+                .any(|&slot| !self.entries[slot].id.domain_carrier_arguments.is_empty())
+        {
+            let span = file.nodes[n].qualifier_span().expect("qualified path");
+            return Ok(Some(usage(file, n, super::NameRole::Qualifier, span, Symbol::Builtin(prefix.into()))));
+        }
         let generic = candidates
             .iter()
             .any(|slot| matches!(self.carriers.get(slot), Some(DomainCarrier::Generic | DomainCarrier::Bound { .. })));
@@ -572,17 +685,19 @@ impl Catalog<'_> {
             if slots
                 .iter()
                 .all(|&i| self.entries[i].id.kind == NodeKind::Domain)
-                && attachments.iter().any(|a| a.type_binder.is_some())
+                && attachments.iter().any(|a| a.type_binder.is_some() || a.carrier_deferred)
             {
                 let candidates = slots
                     .iter()
-                    .map(|&slot| super::DomainCandidate {
-                        declaration: self.entries[slot].id.clone(),
-                        type_binder: attachments
-                            .iter()
-                            .find(|a| a.slot == slot)
-                            .and_then(|a| a.type_binder)
-                            .map(|(owner, index)| (self.entries[owner].id.clone(), index)),
+                    .map(|&slot| {
+                        let attachment = attachments.iter().find(|a| a.slot == slot);
+                        super::DomainCandidate {
+                            declaration: self.entries[slot].id.clone(),
+                            type_binder: attachment
+                                .and_then(|a| a.type_binder)
+                                .map(|(owner, index)| (self.entries[owner].id.clone(), index)),
+                            carrier_deferred: attachment.is_some_and(|a| a.carrier_deferred),
+                        }
                     })
                     .collect();
                 Ok(Symbol::DomainCandidates {
@@ -617,7 +732,7 @@ impl Catalog<'_> {
         });
         let first = owners.next();
         if first.is_some_and(|first| owners.any(|other| self.entries[first].id != self.entries[other].id)) {
-            return Err(file.error(span, format!("ambiguous static root {name}")));
+            return Err(file.error(NameErrorKind::AmbiguousStaticRoot, span, format!("ambiguous static root {name}")));
         }
         Ok(first.is_some() || !call && super::builtin(name))
     }
@@ -631,20 +746,14 @@ impl Catalog<'_> {
     ) -> Result<Vec<usize>, NameError> {
         if let Some((root, rest)) = path.split_once('\\') {
             let address = self.address(file, path, file.span(n))?;
-            let mut modules = ctx
-                .by_alias
-                .get(root)
-                .into_iter()
-                .flatten()
-                .map(|&site| &ctx.imports[site].address)
-                .filter(|module| ctx.open_modules.contains(*module));
+            let mut modules = ctx.opened_modules(root);
             if let Some(module) = modules.next() {
                 if modules.any(|other| other != module) {
                     let span = file.nodes[n]
                         .words()
                         .next()
                         .map_or(file.span(n), |word| word.span);
-                    return Err(file.error(span, format!("competing module paths {root}")));
+                    return Err(file.error(NameErrorKind::CompetingModulePaths, span, format!("competing module paths {root}")));
                 }
                 return Ok(self.visible(file, &(module.0.clone(), module_child(&module.1, rest))));
             }

@@ -115,6 +115,36 @@ fn a_boundary_assumption_keeps_its_exact_identity_through_a_definition_and_proof
 }
 
 #[test]
+fn an_application_keeps_its_selected_head_and_ordered_arguments() {
+    // The twins change only the applied head or the order of its arguments.
+    for (head, arguments, order) in [("first", "x,y", [0, 1]), ("first", "y,x", [1, 0]), ("second", "x,y", [0, 1])] {
+        let text = format!("boundary let first(x:u8,y:u8):u8; boundary let second(x:u8,y:u8):u8; let combined(x:u8,y:u8):u8={head}({arguments});");
+        let package = sources::lower(&[("apply.omg", &text)]).unwrap();
+        let find = |path: &str| {
+            package
+                .mathematics
+                .iter()
+                .find(|definition| definition.declaration.path == path)
+                .unwrap()
+        };
+        let (selected, combined) = (find(head), find("combined"));
+        assert_eq!(combined.parameter_count, 2);
+        let expected = MathematicalBody::Definition(vec![
+            Declaration(selected.declaration.clone()),
+            Parameter(order[0]),
+            Parameter(order[1]),
+            Apply {
+                generic_arguments: vec![],
+                argument_count: 2,
+                assumptions: vec![selected.declaration.clone()],
+            },
+        ]);
+        spec_corpus::observe_handoff!("mathematical-terms-and-assembly/consumer-2", assert_eq!(combined.body, expected));
+        assert_eq!(combined.assumptions, std::slice::from_ref(&selected.declaration));
+    }
+}
+
+#[test]
 fn choice_preserves_the_dependent_interface_without_a_runtime_body() {
     let text = "boundary let choose<u:core\\Level,A:core\\Type<u>>(inhabited:core\\Squash<A>):A;";
     let package = sources::lower(&[("choose.omg", text)]).unwrap();

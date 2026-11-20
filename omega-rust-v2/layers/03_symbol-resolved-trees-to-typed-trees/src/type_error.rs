@@ -2,19 +2,23 @@ use crate::TypeError;
 use omega_resolved::IndexedSource;
 
 pub(crate) trait SourceTypeError: Sized {
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
     fn at(
         file: &IndexedSource<'_>,
         n: usize,
         message: impl Into<String>,
     ) -> Self;
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
     fn for_site(
         site: &crate::Site,
         message: impl Into<String>,
     ) -> Self;
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
     fn unsupported(
         file: &IndexedSource<'_>,
         n: usize,
     ) -> Self;
+    #[cfg_attr(feature = "diagnostic-origins", track_caller)]
     fn waiting(
         file: &IndexedSource<'_>,
         node: usize,

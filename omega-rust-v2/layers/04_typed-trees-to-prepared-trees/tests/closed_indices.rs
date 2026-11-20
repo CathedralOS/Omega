@@ -220,7 +220,8 @@ fn direct_and_literal_indices_share_a_closed_identity() {
         };
         let literal = parameter("literal");
         assert_eq!(literal, &buffer_with_index(literal, 8));
-        assert_eq!(parameter("computed"), &buffer_with_index(literal, expected));
+        // Twin: changing only the computation changes the closed key from 8 to 9.
+        spec_corpus::observe_handoff!("dependent-applications/consumer", assert_eq!(parameter("computed"), &buffer_with_index(literal, expected)));
         let receipts = &typed.evaluated_indices;
         let [(request, value)] = receipts.as_slice() else {
             panic!("expected one direct evaluation, found {receipts:?}");
@@ -381,7 +382,7 @@ fn preparation_executes_only_the_overload_selected_by_typing() {
             .unwrap()
             .parameters[0]
             .1;
-        assert_eq!(result, &buffer_with_index(result, expected));
+        spec_corpus::observe_handoff!("overload-bodies-and-file-local-identity/consumer-2", assert_eq!(result, &buffer_with_index(result, expected)));
     }
 }
 
@@ -446,11 +447,14 @@ fn resumed_typing_retains_build_selected_boundary_directions() {
             .iter()
             .find(|effects| effects.machine.path == "direct")
             .unwrap();
-        assert_eq!(
-            effects
-                .invokes
-                .contains(&InvocationTarget::Declaration(slot.requirement.clone())),
-            direction == SlotDirection::EnvironmentToProgram
+        spec_corpus::observe_handoff!(
+            "typing-from-resolved-bindings/consumer",
+            assert_eq!(
+                effects
+                    .invokes
+                    .contains(&InvocationTarget::Declaration(slot.requirement.clone())),
+                direction == SlotDirection::EnvironmentToProgram
+            )
         );
         let carry = stage
             .signatures
@@ -516,7 +520,7 @@ fn boolean_calls_names_and_literals_have_one_closed_type_identity() {
             .unwrap()
     };
     let computed = &signature("carry").parameters[0].1;
-    assert_eq!(computed, &signature("sink").parameters[0].1);
+    spec_corpus::observe_handoff!("matching-computed-index-results/consumer", assert_eq!(computed, &signature("sink").parameters[0].1));
     assert_eq!(computed, &signature("carry").result);
     assert_eq!(prepared.constant(&typed.constants[0].declaration), Some(&PreparedValue::Bool(true)));
     assert!(typed.evaluated_indices.iter().any(
@@ -689,34 +693,43 @@ fn admission_checks_a_static_producers_transitive_skipped_operand() {
 
 #[test]
 fn a_computed_result_domain_selects_the_exact_overload() {
-    let source = "domain<const K:bool> u8::Label<K>;
+    const SOURCE: &str = "domain<const K:bool> u8::Label<K>;
         machine enabled()->bool{false}
         machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
         machine pick(x:u8)->u8 in Label<false>{x as +Label<false>}
         machine carry(x:u8)->u8 in Label<enabled()>{pick(x)}";
-    let prepared = prepare(source).unwrap();
-    let typed = prepared.typed();
-    let chosen = typed
-        .calls
-        .iter()
-        .find(|call| call.machine.path == "pick")
-        .unwrap();
-    let expected = typed
-        .signatures
-        .iter()
-        .find(|signature| {
-            signature.machine.path == "pick"
-                && signature
-                    .site
-                    .span
-                    .slice(source.as_bytes())
-                    .is_some_and(|text| {
-                        text.windows(b"Label<false>".len())
-                            .any(|part| part == b"Label<false>")
-                    })
-        })
-        .unwrap();
-    assert_eq!(chosen.machine, expected.machine);
+    // Twin: only the body of `enabled` changes, so only the value L4
+    // evaluates for the destination domain can change the selected overload.
+    for enabled in [false, true] {
+        let source = SOURCE.replace("bool{false}", &format!("bool{{{enabled}}}"));
+        let label = format!("Label<{enabled}>");
+        let prepared = prepare(&source).unwrap();
+        let typed = prepared.typed();
+        assert!(typed.evaluated_indices.iter().any(|(request, value)| {
+            request.expression.span.slice(source.as_bytes()) == Some(b"enabled()".as_slice()) && value == &omega_typer::StaticValue::Bool(enabled)
+        }));
+        let chosen = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "pick")
+            .unwrap();
+        let expected: Vec<_> = typed
+            .signatures
+            .iter()
+            .filter(|signature| {
+                signature.machine.path == "pick"
+                    && signature
+                        .site
+                        .span
+                        .slice(source.as_bytes())
+                        .is_some_and(|text| text.windows(label.len()).any(|part| part == label.as_bytes()))
+            })
+            .collect();
+        let [expected] = expected.as_slice() else {
+            panic!("expected one {label} overload")
+        };
+        spec_corpus::observe_handoff!("result-domain-call-selection/consumer", assert_eq!(chosen.machine, expected.machine));
+    }
 }
 
 #[test]
@@ -767,7 +780,7 @@ fn an_operand_waits_for_its_common_result_domain_context() {
                 .filter(|call| call.machine.path == "pick")
                 .collect();
             assert_eq!(calls.len(), operand.matches("pick").count());
-            assert!(calls.iter().all(|call| call.machine == expected.machine));
+            spec_corpus::observe_handoff!("pending-static-requests/consumer", assert!(calls.iter().all(|call| call.machine == expected.machine)));
             let expected_sink = typed
                 .signatures
                 .iter()
@@ -952,6 +965,58 @@ fn supplied_recursive_arguments_keep_their_context_when_other_arguments_are_infe
     }
 }
 
+/// The two `pick` overloads have the same operands under the binder
+/// correspondence `N<->Y`, `M<->X`. They differ only in which operand supplies
+/// the result-domain index. L4 evaluates the destination index, and the
+/// prepared trees retain the overload whose corresponding operand supplies it.
+#[test]
+fn a_prepared_result_domain_index_selects_the_overload_whose_operand_supplies_it() {
+    let source = "domain<const N:u8> u8::Label<N>;
+        data Buffer<const N:u8>{}
+        machine seed()->u8{3}
+        machine pick<const N:u8,const M:u8>(a:Buffer<N>, b:Buffer<M>)->u8 in Label<N>{0u8 as +Label<N>}
+        machine pick<const X:u8,const Y:u8>(a:Buffer<Y>, b:Buffer<X>)->u8 in Label<X>{0u8 as +Label<X>}
+        machine choose(a:Buffer<3>, b:Buffer<5>)->u8 in Label<seed()>{pick(a,b)}";
+    for (seed, operands, selected) in [
+        (3u8, "pick(a,b)", "Label<N>"),
+        (5, "pick(a,b)", "Label<X>"),
+        (3, "pick(b,a)", "Label<X>"),
+        (5, "pick(b,a)", "Label<N>"),
+    ] {
+        let program = source
+            .replace("->u8{3}", &format!("->u8{{{seed}}}"))
+            .replace("pick(a,b)", operands);
+        let prepared = prepare(&program).unwrap();
+        let typed = prepared.typed();
+        assert!(typed.evaluated_indices.iter().any(|(request, value)| {
+            request.expression.span.slice(program.as_bytes()) == Some(b"seed()".as_slice())
+                && value == &omega_typer::StaticValue::Integer(BigInt::from(seed))
+        }));
+        let chosen = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "pick")
+            .unwrap();
+        let expected: Vec<_> = typed
+            .signatures
+            .iter()
+            .filter(|signature| {
+                signature.machine.path == "pick"
+                    && signature
+                        .site
+                        .span
+                        .slice(program.as_bytes())
+                        .is_some_and(|text| text.windows(selected.len()).any(|part| part == selected.as_bytes()))
+            })
+            .collect();
+        let [expected] = expected.as_slice() else {
+            panic!("expected one overload whose result is {selected}")
+        };
+        spec_corpus::observe_handoff!("generic-parameter-correspondence/consumer", assert_eq!(chosen.machine, expected.machine));
+        assert_eq!(chosen.result.domains().len(), 1);
+    }
+}
+
 #[test]
 fn known_leading_operands_can_rule_out_a_call_before_context_is_requested() {
     let source = "domain<const K:bool> u8::Label<K>;
@@ -1010,7 +1075,7 @@ fn distinct_known_contexts_rule_out_a_common_destination_in_any_order() {
     for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
         let source = format!("{SETUP}\n{}\n{}\n{}", OVERLOADS[order[0]], OVERLOADS[order[1]], OVERLOADS[order[2]]);
         let error = prepare(&source).unwrap_err();
-        assert_eq!(error.message, "no matching overload for pick(u8)");
+        spec_corpus::observe_handoff!("pending-static-requests/refusal", assert_eq!(error.message, "no matching overload for pick(u8)"));
         assert_eq!(error.span.slice(source.as_bytes()), Some(b"pick".as_slice()));
     }
 }

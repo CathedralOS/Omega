@@ -17,6 +17,7 @@ include!("calls/operator_signatures.rs");
 include!("calls/package_authority.rs");
 include!("calls/result_domain_selection.rs");
 include!("calls/returned_views.rs");
+include!("calls/width_domain_candidates.rs");
 
 #[test]
 fn selects_by_operand_and_checks_the_selected_result() {

@@ -131,9 +131,13 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
     ) -> Result<PatternCoverage, TypeError> {
         let source = self.unit.file;
+        // A grouped pattern is its operand; groups nest as deeply as L1 admits.
+        let mut node_index = node_index;
+        while source.nodes[node_index].kind == NodeKind::ParenPattern {
+            node_index = self.unit.single_child(node_index)?;
+        }
         match source.nodes[node_index].kind {
             NodeKind::WildcardPattern => Ok(PatternCoverage::All),
-            NodeKind::ParenPattern => self.guard(self.unit.single_child(node_index)?),
             NodeKind::ValuePattern => {
                 let expr = self.unit.single_child(node_index)?;
                 let value = self.type_expression(expr)?;
@@ -178,7 +182,7 @@ impl BodyTyper<'_, '_> {
         self.check_destination(pattern, value, subject)?;
         if let Some(place) = &from.place {
             let inspection = Access::Shared
-                .through(Some(&place.access))
+                .through(place.access.as_ref())
                 .map_err(|m| TypeError::at(self.unit.file, read, m))?;
             self.read_borrowed(read, &inspection, subject)?;
         }
@@ -220,6 +224,11 @@ impl BodyTyper<'_, '_> {
     ) -> Result<PatternCoverage, TypeError> {
         use NodeKind::*;
         let source = self.unit.file;
+        // A grouped pattern is its operand; groups nest as deeply as L1 admits.
+        let mut node_index = node_index;
+        while source.nodes[node_index].kind == ParenPattern {
+            node_index = self.unit.single_child(node_index)?;
+        }
         let node = &source.nodes[node_index];
         match node.kind {
             WildcardPattern => Ok(PatternCoverage::All),
@@ -239,7 +248,6 @@ impl BodyTyper<'_, '_> {
                     _ => PatternCoverage::Partial,
                 })
             }
-            ParenPattern => self.bind_pattern_at(self.unit.single_child(node_index)?, subject, initializer, from, place),
             ValuePattern => {
                 let expr = self.unit.single_child(node_index)?;
                 if let Some(Symbol::Declaration(id)) = self.unit.symbol(expr)

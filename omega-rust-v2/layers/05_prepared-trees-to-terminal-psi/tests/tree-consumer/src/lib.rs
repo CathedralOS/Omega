@@ -1,4 +1,5 @@
 //! A client that reads each source product without linking the compiler stages.
+pub mod obligation_report;
 use omega_prepared::PreparedTrees;
 use omega_resolved::{NameRole, SymbolResolvedTrees};
 use omega_syntax::SyntaxTree;

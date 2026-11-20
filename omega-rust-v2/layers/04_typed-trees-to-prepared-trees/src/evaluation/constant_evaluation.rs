@@ -12,25 +12,26 @@ use crate::invocation::EvaluationError;
 use crate::invocation::admission::{InvocationProofs, ProviderAdmission};
 use crate::invocation::static_callbacks::CallableRefinements;
 use crate::invocation::termination::{SignatureIndex, TerminationAdmission};
+use crate::reasons::{PreparationReason, PreparationRefusal};
 use crate::{PreparedValue, TargetObservation, TargetSemantics};
 
 #[derive(Debug)]
 pub(crate) enum StaticDemandError {
-    Refused(TypeError),
-    OpenTarget(TypeError),
+    Refused(PreparationRefusal),
+    OpenTarget(PreparationRefusal),
 }
 
 impl StaticDemandError {
-    fn into_diagnostic(self) -> TypeError {
+    fn into_refusal(self) -> PreparationRefusal {
         match self {
-            Self::Refused(error) | Self::OpenTarget(error) => error,
+            Self::Refused(refusal) | Self::OpenTarget(refusal) => refusal,
         }
     }
 }
 
-impl From<TypeError> for StaticDemandError {
-    fn from(error: TypeError) -> Self {
-        Self::Refused(error)
+impl From<PreparationRefusal> for StaticDemandError {
+    fn from(refusal: PreparationRefusal) -> Self {
+        Self::Refused(refusal)
     }
 }
 
@@ -137,10 +138,10 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         })[signature]
     }
 
-    pub(crate) fn finish(&mut self) -> Result<HashMap<DeclarationId, PreparedValue>, TypeError> {
+    pub(crate) fn finish(&mut self) -> Result<HashMap<DeclarationId, PreparedValue>, PreparationRefusal> {
         for constant in &self.trees.constants {
             self.materialize(constant, true)
-                .map_err(StaticDemandError::into_diagnostic)?;
+                .map_err(StaticDemandError::into_refusal)?;
         }
         Ok(std::mem::take(&mut self.values))
     }
@@ -159,7 +160,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
             None => omega_typed::StaticValueDemand::Closed(request.clone()),
         };
         self.evaluate_demand(&demand)
-            .map_err(StaticDemandError::into_diagnostic)
+            .map_err(|error| error.into_refusal().diagnostic)
     }
 
     pub(crate) fn evaluate_demand(
@@ -178,7 +179,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                 Ok(value) => {
                     return self
                         .canonical_identity(&value, demand)
-                        .ok_or_else(|| refusal(&request.expression, "the prepared value has no canonical static index identity").into());
+                        .ok_or_else(|| refusal(&request.expression, PreparationReason::NoCanonicalIndexIdentity).into());
                 }
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
                 Err(EvaluationError::AtCall(error)) => return Err(error.into()),
@@ -195,11 +196,11 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         &self,
         request: &StaticValueRequest,
         id: &DeclarationId,
-    ) -> Result<&'trees TypedConstant, TypeError> {
+    ) -> Result<&'trees TypedConstant, PreparationRefusal> {
         self.definitions
             .get(id)
             .copied()
-            .ok_or_else(|| refusal(&request.expression, "the selected constant has no local typed initializer"))
+            .ok_or_else(|| refusal(&request.expression, PreparationReason::ConstantWithoutInitializer))
     }
 
     fn materialize(
@@ -224,7 +225,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                     active.remove(&constant.declaration);
                     stack.pop();
                 }
-                Err(EvaluationError::OpenTarget(error)) if retain_open_recipes => break Arc::new(error),
+                Err(EvaluationError::OpenTarget(error)) if retain_open_recipes => break Arc::new(error.diagnostic),
                 Err(EvaluationError::OpenTarget(error)) => return Err(StaticDemandError::OpenTarget(error)),
                 Err(EvaluationError::AtCall(error)) => return Err(error.into()),
                 Err(EvaluationError::Refused(reason)) => return Err(refusal(&request.expression, reason).into()),
@@ -234,7 +235,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                         break reason.clone();
                     }
                     if !active.insert(&dependency.declaration) {
-                        return Err(refusal(&request.expression, "cyclic constant initializer").into());
+                        return Err(refusal(&request.expression, PreparationReason::CyclicConstantInitializer).into());
                     }
                     stack.push(dependency);
                 }

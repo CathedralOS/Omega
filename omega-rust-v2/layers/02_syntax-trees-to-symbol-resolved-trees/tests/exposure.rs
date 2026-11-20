@@ -53,7 +53,7 @@ fn a_public_signature_use_preserves_private_candidates_for_typed_selection() {
     let [private] = tree.private_signature_candidates(site.node.node) else {
         panic!("the use must distinguish the private overload");
     };
-    assert_eq!(private.operands, ["u16"]);
+    spec_corpus::observe_handoff!("private-candidates-in-public-signatures/producer", assert_eq!(private.operands, ["u16"]));
 }
 
 #[test]

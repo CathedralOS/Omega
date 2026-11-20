@@ -188,7 +188,7 @@ impl BodyTyper<'_, '_> {
         self.places.insert(
             node_index,
             super::storage_origin::StoragePlace {
-                access: requested.clone().unwrap_or(Access::Shared),
+                access: requested.clone(),
                 backing,
             },
         );

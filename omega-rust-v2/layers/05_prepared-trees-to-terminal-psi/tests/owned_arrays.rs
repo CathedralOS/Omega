@@ -242,7 +242,11 @@ fn a_runtime_selector_supplies_no_static_ordinal() {
 #[test]
 fn an_ordinal_outside_the_declared_extent_rejects() {
     let source = format!("{TOKEN} machine pick(items:[Token;2])->Token{{move items[2]}}");
-    assert_eq!(lowering_error(&source), "owned element transfer selects outside its fixed array");
+    let error = sources::lower(&[("arrays.omg", &source)]).unwrap_err();
+    assert_eq!(error.message, "owned element transfer selects outside its fixed array");
+    assert_eq!(error.site.file, "arrays.omg");
+    let selector = source.rfind("[2]").unwrap() + 1;
+    assert_eq!((error.site.span.get_start_offset(), error.site.span.get_end_offset()), (selector, selector + 1));
 }
 
 #[test]
@@ -348,6 +352,13 @@ fn reading_a_field_of_an_indexed_record_preserves_the_selector_and_bounds_obliga
         };
         let [step] = path.as_slice() else { panic!("expected one checked index") };
         assert_eq!(*source, root);
+        let OperationResult::Structural(copied) = copy.result else {
+            panic!("expected copied element")
+        };
+        assert!(
+            matches!(pkg.types.get(body.places[root.index()].ty), Some(omega_psi::TypeShape::FixedArray { element, length: 2 })
+            if *element == body.places[copied.index()].ty)
+        );
         assert_eq!(Parameter::Scalar(step.selector), body.parameters[slot]);
         assert_eq!(
             body.diagnostics.bounds[step.obligation.get() - 1]
@@ -358,8 +369,8 @@ fn reading_a_field_of_an_indexed_record_preserves_the_selector_and_bounds_obliga
         assert!(matches!(&read.kind, OperationKind::ProjectedScalarRead { source }
             if OperationResult::Structural(source.root) == copy.result && matches!(&source.path[..], [PlaceProjection::Field(field)] if field.path == "Cell::v")));
         assert!(
-            matches!(body.blocks[0].terminator, BlockTerminator::Return { result: omega_psi::ReturnEdge::Scalar(value), .. }
-            if read.result == OperationResult::Scalar(value))
+            matches!(&body.blocks[0].terminator, BlockTerminator::Return { result: omega_psi::ReturnEdge::Scalar(value), cleanup, .. }
+            if read.result == OperationResult::Scalar(*value) && cleanup.is_empty())
         );
     }
 }
@@ -389,12 +400,4 @@ fn a_field_read_uses_the_record_returned_by_one_call() {
         matches!(body.blocks[0].terminator, BlockTerminator::Return { result: omega_psi::ReturnEdge::Scalar(value), .. }
         if read.result == OperationResult::Scalar(value))
     );
-}
-
-#[test]
-fn a_field_read_of_an_owned_call_result_requires_cleanup_of_the_temporary() {
-    let text = "data Cell { v:u8; } machine make(n:u8)->Cell { Cell {v:n} } machine read(n:u8)->u8 { make(n).v }";
-    let error = sources::lower(&[("returned.omg", text)]).unwrap_err();
-    assert_eq!(error.message, "computed field receiver requires a copyable record");
-    assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"make(n)".as_slice()));
 }

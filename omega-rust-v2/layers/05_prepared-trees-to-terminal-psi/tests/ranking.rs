@@ -69,15 +69,22 @@ const NATURAL_U64: RankRelation = RankRelation {
 
 #[test]
 fn a_self_countdown_claims_strict_descent_only_on_its_exact_internal_edge() {
-    let package = lower(
-        "machine leaf(x:u64)->u64 {x}
-         machine count(n:u64)->u64 terminates by n {
-            transition n == 0 {true -> leaf(n), false -> count(n - 1),}
-         }",
-    )
-    .unwrap();
-    let count = machine(&package, "count");
-    let leaf = machine(&package, "leaf");
+    // The bare clause binds the canonical view; the twin names it explicitly.
+    for view in ["", " -> omega\\language\\core\\Nat\\Descending"] {
+        let package = lower(&format!(
+            "machine leaf(x:u64)->u64 {{x}}
+             machine count(n:u64)->u64 terminates by n{view} {{
+                transition n == 0 {{true -> leaf(n), false -> count(n - 1),}}
+             }}"
+        ))
+        .unwrap();
+        countdown_claims_strict_descent(&package);
+    }
+}
+
+fn countdown_claims_strict_descent(package: &LoweredPackage) {
+    let count = machine(package, "count");
+    let leaf = machine(package, "leaf");
     assert!(leaf.contract.ranking.is_none());
     let witness = ranking(count);
     assert_eq!(witness.view.package, "@omega/toolchain");
@@ -113,9 +120,15 @@ fn a_self_countdown_claims_strict_descent_only_on_its_exact_internal_edge() {
     assert_eq!((*id, *callee), (edge.edge, omega_lowering::CallTarget::Machine(count.id)));
     assert_eq!(edge.target, count.id);
     assert_eq!(*arguments, [CallArgument::Scalar(decremented)]);
-    assert_eq!(edge.successor, RankExpression::Operand(decremented));
     assert_ne!(decremented, n);
-    assert_eq!(edge.comparison, RankComparison::Strict);
+    // The view decides the rank shape; the edge substitutes the actual argument.
+    spec_corpus::observe_handoff!(
+        "canonical-ranking-view/consumer",
+        assert_eq!(
+            (&edge.successor, &edge.comparison),
+            (&RankExpression::Operand(decremented), &RankComparison::Strict)
+        )
+    );
 }
 
 #[test]
@@ -172,12 +185,15 @@ fn a_bounded_distance_witness_substitutes_both_actual_successor_arguments() {
     let [edge] = witness.edges.as_slice() else {
         panic!("expected one internal edge claim")
     };
-    assert_eq!(
-        edge.successor,
-        RankExpression::SaturatingDistance {
-            cursor: operation_result(climb, IntegerPrimitive::Add, i),
-            limit,
-        }
+    spec_corpus::observe_handoff!(
+        "ranking-witnesses/consumer",
+        assert_eq!(
+            edge.successor,
+            RankExpression::SaturatingDistance {
+                cursor: operation_result(climb, IntegerPrimitive::Add, i),
+                limit,
+            }
+        )
     );
     assert_eq!(edge.comparison, RankComparison::Strict);
 }
@@ -185,16 +201,22 @@ fn a_bounded_distance_witness_substitutes_both_actual_successor_arguments() {
 #[test]
 fn an_acyclic_witness_keeps_its_bounds_and_claims_no_edges() {
     for (range, inclusive, upper) in [("0..=9", true, 9), ("0..10", false, 10)] {
-        let package = lower(&format!("machine visit(n:u64) terminates by n in {range} {{}}")).unwrap();
+        let source = format!("machine visit(n:u64) terminates by n in {range} {{}}");
+        let package = lower(&source).unwrap();
         let visit = machine(&package, "visit");
         let witness = ranking(visit);
         assert_eq!(witness.component, [visit.id]);
         assert!(witness.edges.is_empty());
         let bounds = witness.bounds.as_ref().unwrap();
-        assert_eq!(
-            (bounds.lower.clone(), bounds.upper.clone(), bounds.upper_inclusive),
-            (0.into(), upper.into(), inclusive)
+        // Psi reads each endpoint from the literal destination L3 typed in the rank carrier.
+        spec_corpus::observe_handoff!(
+            "ranking-witnesses/consumer-2",
+            assert_eq!(
+                (bounds.lower.clone(), bounds.upper.clone(), bounds.upper_inclusive),
+                (0.into(), upper.into(), inclusive)
+            )
         );
+        assert_eq!(bounds.site.span.slice(source.as_bytes()), Some(range.as_bytes()));
     }
 }
 

@@ -36,7 +36,7 @@ pub(super) struct SelectedProvider<'a> {
     pub(super) observation: TargetObservation,
 }
 
-const UNSELECTED_SLOT: &str = "the selected runtime boundary slot cannot execute during preparation";
+const UNSELECTED_SLOT: PreparationReason = PreparationReason::UnselectedBoundarySlot;
 
 impl ConstantEvaluation<'_, '_> {
     /// Every checked proof for the exact typed call, slot, application and
@@ -75,7 +75,7 @@ impl ConstantEvaluation<'_, '_> {
                     None => selected = Some((proof, realized)),
                     Some((chosen, chosen_application)) => {
                         if chosen.binding != proof.binding || chosen.realization != proof.realization || chosen_application != realized {
-                            return Err("checked providers select competing realizations for the runtime boundary slot".into());
+                            return Err(PreparationReason::CompetingProviderRealizations.into());
                         }
                     }
                 },
@@ -105,7 +105,7 @@ impl ConstantEvaluation<'_, '_> {
         proof: &'proof CheckedProvider<'_, '_>,
         call: &TypedCall,
         target: &crate::TargetSemantics,
-    ) -> Result<Option<&'proof TypedCall>, &'static str> {
+    ) -> Result<Option<&'proof TypedCall>, PreparationReason> {
         let binding = proof.binding;
         let realization = &proof.realization;
         if !self
@@ -118,21 +118,21 @@ impl ConstantEvaluation<'_, '_> {
             || realization.conformance != binding.conformance
             || realization.binding != binding.site
         {
-            return Err("the checked provider does not certify the selected conformance binding");
+            return Err(PreparationReason::ProviderConformanceMismatch);
         }
         let observation = TargetObservation::SelectedRealization {
             target: proof.target.clone(),
             realization: realization.clone(),
         };
         if !target.matches_observation(&observation) {
-            return Err("the checked provider does not match the selected target plan");
+            return Err(PreparationReason::ProviderTargetPlanMismatch);
         }
         if !proof
             .observations
             .iter()
             .all(|observation| target.matches_observation(observation))
         {
-            return Err("the checked provider proof depends on a different target selection");
+            return Err(PreparationReason::ProviderProofTargetChanged);
         }
         let implementation = &binding.implementation;
         if let Some(selected) = &proof.application {
@@ -155,7 +155,7 @@ impl ConstantEvaluation<'_, '_> {
                         .iter()
                         .map(|operand| (&operand.node, &operand.subject, &operand.callable)))
             {
-                return Err("the checked provider does not preserve the selected positional application");
+                return Err(PreparationReason::ProviderApplicationMismatch);
             }
             Ok(Some(realized))
         } else {

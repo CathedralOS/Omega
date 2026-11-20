@@ -1,9 +1,28 @@
-use super::{Context, DeclarationId, Entry, Index, Local, NameError, Symbol, builtin, callable, in_subject_predicate, qualify, usage};
+use super::{Context, DeclarationId, Entry, Index, Local, NameError, NameErrorKind, Symbol, builtin, callable, in_subject_predicate, qualify, usage};
 use crate::syntax::File;
 use omega_resolved::{DomainCarrier, NameRole, NameUse, ResolvedSignature, TreeBindings};
 use omega_syntax::NodeKind;
 use omega_syntax::SyntaxLeaf as Leaf;
 use std::collections::{HashMap, HashSet};
+
+pub(super) fn builtin_carrier_sections<'a>(
+    file: &'a File<'_>,
+    head: usize,
+) -> impl Iterator<Item = usize> + 'a {
+    let path = file.nodes[head].path();
+    file.nodes[head]
+        .children
+        .iter()
+        .copied()
+        .filter(move |&section| {
+            file.application_prefix(section).is_some_and(|(prefix, _)| {
+                builtin(&prefix)
+                    && path
+                        .rsplit_once("::")
+                        .is_some_and(|(carrier, _)| prefix == carrier)
+            })
+        })
+}
 
 fn check_local_binding(
     file: &File<'_>,
@@ -36,7 +55,11 @@ fn check_local_binding(
             if matches!(binding.kind, ConstParam | KindedParam) || matches!(prior.kind, ConstParam | KindedParam) {
                 shadowed_generics.push(usage(file, binding.node, NameRole::ShadowedGeneric, binding.span, prior.symbol()));
             } else {
-                return Err(file.error(binding.span, format!("local binding {name} shadows a visible value binding")));
+                return Err(file.error(
+                    NameErrorKind::ShadowedValueBinding,
+                    binding.span,
+                    format!("local binding {name} shadows a visible value binding"),
+                ));
             }
         }
     }
@@ -97,10 +120,14 @@ pub(super) fn index_file<'a>(
                 } else {
                     "parameter"
                 };
-                return Err(file.error(leaf.span, format!("duplicate {category} {}", leaf.text)));
+                return Err(file.error(NameErrorKind::DuplicateParameter, leaf.span, format!("duplicate {category} {}", leaf.text)));
             }
             if builtin(leaf.text) && matches!(node.kind, TypeParam | SomeParam) {
-                return Err(file.error(leaf.span, format!("builtin type {} cannot be redeclared", leaf.text)));
+                return Err(file.error(
+                    NameErrorKind::BuiltinTypeRedeclared,
+                    leaf.span,
+                    format!("builtin type {} cannot be redeclared", leaf.text),
+                ));
             }
             let owner = scope();
             add_local(&mut ctx, leaf, owner, node.end, file.nodes[owner].end, node.kind != Param)?;
@@ -118,7 +145,7 @@ pub(super) fn index_file<'a>(
             let leaf = node.words().next_back();
             if let Some(leaf) = leaf.filter(|l| l.text != "_" && !node.leaves.iter().any(|t| t.text == ":")) {
                 if leaf.text == "self" && in_subject_predicate(file, n) {
-                    return Err(file.error(leaf.span, "the predicate subject self cannot be rebound"));
+                    return Err(file.error(NameErrorKind::PredicateSubjectRebound, leaf.span, "the predicate subject self cannot be rebound"));
                 }
                 let owner = scope();
                 let (start, end) = if file.nodes[pattern_owner].kind == Let {
@@ -140,7 +167,7 @@ pub(super) fn index_file<'a>(
         let Some((head, name, span)) = file.declaration_name(n) else { continue };
         ctx.heads.extend(head);
         if matches!(node.kind, Data | Trait) && builtin(&name) {
-            return Err(file.error(span, format!("builtin type {name} cannot be redeclared")));
+            return Err(file.error(NameErrorKind::BuiltinTypeRedeclared, span, format!("builtin type {name} cannot be redeclared")));
         }
         let owner = file
             .ancestors(n)
@@ -201,6 +228,21 @@ pub(super) fn index_file<'a>(
                 operands,
                 result_domains,
                 signature_owners: vec![],
+                domain_carrier_arguments: if node.kind == Domain {
+                    head.into_iter()
+                        .flat_map(|head| builtin_carrier_sections(file, head))
+                        .map(|part| {
+                            let syntax = &file.nodes[part];
+                            file.tokens[syntax.first_token..syntax.end_token]
+                                .iter()
+                                .map(|token| token.text)
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        })
+                        .collect()
+                } else {
+                    Box::default()
+                },
                 resolved_signature: None,
                 enclosing_machine: None,
             }),
@@ -221,7 +263,11 @@ pub(super) fn index_file<'a>(
                     .iter()
                     .find(|(leaf, _, _)| index.children.is_empty() && leaf.text == name)
                 else {
-                    return Err(file.error(file.span(arg), "domain head index must name one of its own binders"));
+                    return Err(file.error(
+                        NameErrorKind::DomainIndexNotOwnBinder,
+                        file.span(arg),
+                        "domain head index must name one of its own binders",
+                    ));
                 };
                 ctx.domain_indices.insert(
                     arg,
@@ -281,9 +327,9 @@ impl super::Catalog<'_> {
                     Some((number, node)) => {
                         let file = &self.files[number];
                         let (_, _, span) = file.declaration_name(node).expect("indexed member");
-                        file.error(span, message)
+                        file.error(NameErrorKind::DuplicateMember, span, message)
                     }
-                    None => NameError::new(&id.package, &id.path, super::SourceSpan::new(0, 0), message),
+                    None => NameError::new(NameErrorKind::DuplicateCompiledMember, &id.package, &id.path, super::SourceSpan::new(0, 0), message),
                 });
             }
         }
@@ -294,12 +340,10 @@ impl super::Catalog<'_> {
         &self,
         file: &File<'_>,
         context: &Context<'_>,
-        machine: usize,
+        declaration: usize,
+        operands: &[usize],
+        result: Option<usize>,
     ) -> Result<(Vec<String>, ResolvedSignature), NameError> {
-        let operands: Vec<_> = file.parameters(machine).map(|(_, ty)| ty).collect();
-        let result = file
-            .result_annotation(machine)
-            .filter(|&node| file.nodes[node].kind == NodeKind::QualifiedType && file.child(machine, NodeKind::OperatorToken).is_none());
         let result_domains = result.map_or(&[][..], |node| &file.nodes[node].children[1..]);
         let mut bindings = TreeBindings::default();
         let signature_nodes = operands
@@ -307,11 +351,15 @@ impl super::Catalog<'_> {
             .copied()
             .chain(result)
             .flat_map(|node| node..file.nodes[node].end);
-        self.bind_nodes(file, context, signature_nodes, &mut bindings, &mut Vec::new())?;
+        // Binding the head first assigns an argument list to its carrier. In
+        // u<Width>::Ready that makes Width a value reference in the declaring file.
+        let carrier_head = (file.nodes[declaration].kind == NodeKind::Domain)
+            .then(|| file.child(declaration, NodeKind::PathType).expect("attached domain head"));
+        self.bind_nodes(file, context, carrier_head.into_iter().chain(signature_nodes), &mut bindings, &mut Vec::new())?;
 
-        let parameters: Vec<_> = file.generic_parameters(machine).collect();
+        let parameters: Vec<_> = file.generic_parameters(declaration).collect();
         let runtime_parameters = file
-            .child(machine, NodeKind::Params)
+            .child(declaration, NodeKind::Params)
             .map_or(&[][..], |node| file.nodes[node].children.as_slice());
         let mut binders = HashMap::new();
         let mut bound_names = HashMap::new();

@@ -5,49 +5,158 @@ use omega_typer::resolve_source_package;
 use spec_corpus::parser_examples::{fragment_kind, parser_source};
 use std::collections::BTreeMap;
 
+/// A retype that consumed L4 answers. L3 owns the refusal and the recorded
+/// outcome, but the published stop records that L4 was reached.
+const RESUMED_TYPING: &str = "L3-resumed";
+
+struct Refusal {
+    /// Stage token for reports: L0..L4 or `L3-resumed`.
+    layer: &'static str,
+    package: String,
+    file: String,
+    span: omega_lexer::SourceSpan,
+    reason: String,
+}
+
+fn inspect_fragment(
+    label: &str,
+    text: &str,
+) -> Result<(), Refusal> {
+    let local = |layer, span, reason| Refusal {
+        layer,
+        package: "example".into(),
+        file: "example.omg".into(),
+        span,
+        reason,
+    };
+    let tokens = omega_lexer::lex(text.as_bytes()).map_err(|e| local("L0", e.get_span(), e.get_kind().get_message().into()))?;
+    let tree =
+        parse_fragment(text.as_bytes(), &tokens, fragment_kind(label)).map_err(|e| local("L1", e.get_span(), e.get_kind().get_message(e.get_expected())))?;
+    let files = [StageSource {
+        package: "example",
+        source: ParsedSource {
+            logical_path: "example.omg",
+            text,
+            tokens: &tokens,
+            tree: &tree,
+        },
+    }];
+    let package = resolve_source_package(&files).map_err(|e| Refusal {
+        layer: "L2",
+        package: e.package,
+        file: e.file,
+        span: e.span,
+        reason: e.message,
+    })?;
+    let prepared = omega_preparation::prepare_source_package_diagnosed(&package).map_err(|failure| {
+        use omega_preparation::PreparationFailure::*;
+        let (layer, e) = match failure {
+            Typing(e) => ("L3", e),
+            ResumedTyping(e) => (RESUMED_TYPING, e),
+            Preparation(e) | MissingTarget(e) => ("L4", e.diagnostic),
+        };
+        Refusal {
+            layer,
+            package: e.package,
+            file: e.file,
+            span: e.span,
+            reason: e.message,
+        }
+    })?;
+    for c in &prepared.typed().constants {
+        assert!(prepared.constant(&c.declaration).is_some(), "{label}: missing {}", c.declaration.path);
+    }
+    Ok(())
+}
+
 #[test]
 fn every_spec_fragment_has_a_preparation_outcome() {
     let examples = spec_corpus::published_examples().unwrap();
-    let previous: BTreeMap<_, _> = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt")
+    let resolution: BTreeMap<_, _> = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt")
         .lines()
-        .chain(include_str!("../../03_symbol-resolved-trees-to-typed-trees/fixtures/spec-outcomes.txt").lines())
         .map(|line| line.split_once("  ").unwrap())
         .collect();
-    assert_eq!(examples.len(), previous.len());
+    let typing: BTreeMap<_, _> = include_str!("../../03_symbol-resolved-trees-to-typed-trees/fixtures/spec-outcomes.txt")
+        .lines()
+        .map(|line| line.split_once("  ").unwrap())
+        .collect();
+    let reporting = std::env::var_os("OMEGA_LAYER_REPORT").is_some();
+    if reporting {
+        println!("OMEGA_FRONTEND_COUNT\t{}", examples.len());
+    }
     let mut differences = Vec::new();
+    if examples.len() != resolution.len() {
+        differences.push("resolution inventory differs from published examples".into());
+    }
     for example in examples {
         let label = example.get_label();
         let text = parser_source(&example.source_text);
-        let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
-        let tree = parse_fragment(text.as_bytes(), &tokens, fragment_kind(&label)).unwrap();
-        let files = [StageSource {
-            package: "example",
-            source: ParsedSource {
-                logical_path: "example.omg",
-                text: &text,
-                tokens: &tokens,
-                tree: &tree,
-            },
-        }];
-        let outcome = match resolve_source_package(&files) {
-            Err(error) => error.message,
-            Ok(package) => match prepare_source_package(&package) {
-                Ok(prepared) => {
-                    for c in &prepared.typed().constants {
-                        assert!(prepared.constant(&c.declaration).is_some(), "{label}: missing {}", c.declaration.path);
-                    }
-                    "accepted".to_owned()
-                }
-                Err(error) => {
-                    assert_eq!(error.file, "example.omg", "{label}");
-                    let occurrence = std::str::from_utf8(error.span.slice(text.as_bytes()).unwrap()).unwrap();
-                    format!("{} | {}", error.message, occurrence.lines().next().unwrap_or(""))
-                }
-            },
+        let expected = match resolution.get(label.as_str()) {
+            Some(&"accepted") => typing
+                .get(label.as_str())
+                .copied()
+                .unwrap_or("<missing typing expectation>")
+                .to_owned(),
+            Some(reason) => format!("L2 {reason}"),
+            None => "<missing resolution expectation>".into(),
         };
-        let expected = previous[label.as_str()];
-        if outcome != expected.strip_prefix("L3 ").unwrap_or(expected) {
-            differences.push(format!("{label}  {outcome}"));
+        let observation = std::panic::catch_unwind(|| inspect_fragment(&label, &text));
+        let actual = match observation {
+            Ok(Ok(())) => {
+                if reporting {
+                    println!("OMEGA_FRONTEND_PREPARED\t{label}");
+                }
+                "accepted".into()
+            }
+            Ok(Err(error)) => {
+                let local = error.package == "example" && error.file == "example.omg";
+                let source = if local {
+                    text.get(error.span.get_start_offset()..error.span.get_end_offset())
+                } else {
+                    None
+                };
+                if local && source.is_none() {
+                    differences.push(format!("{label}: diagnostic span {:?} does not select UTF-8 source text", error.span));
+                }
+                if reporting {
+                    let (line, column) = if source.is_some() {
+                        let pos = omega_lexer::LineIndex::new(text.as_bytes()).get_position(error.span.get_start_offset());
+                        (pos.get_line().to_string(), pos.get_column().to_string())
+                    } else {
+                        (String::new(), String::new())
+                    };
+                    println!(
+                        "OMEGA_FRONTEND_STOP\t{label}\t{}\t{}\t{}\t{line}\t{column}\t{}\t{}\t{}\t{}",
+                        error.layer,
+                        spec_corpus::diagnostic_field(&error.package),
+                        spec_corpus::diagnostic_field(&error.file),
+                        error.span.get_start_offset(),
+                        error.span.get_end_offset(),
+                        source.map(spec_corpus::diagnostic_field).unwrap_or_default(),
+                        spec_corpus::diagnostic_field(&error.reason)
+                    );
+                }
+                // The snapshot records the owning layer; resumed typing is still an L3 refusal.
+                let owner = if error.layer == RESUMED_TYPING { "L3" } else { error.layer };
+                let mut outcome = format!("{owner} {}", error.reason);
+                if owner == "L3" {
+                    outcome.push_str(" | ");
+                    outcome.push_str(source.and_then(|s| s.lines().next()).unwrap_or(""));
+                }
+                outcome
+            }
+            Err(error) => {
+                let message = error
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| error.downcast_ref::<&str>().copied())
+                    .unwrap_or("unexpected panic");
+                differences.push(format!("{label}: {message}"));
+                continue;
+            }
+        };
+        if actual != expected {
+            differences.push(format!("{label}: expected {expected}; observed {actual}"));
         }
     }
     assert!(differences.is_empty(), "{}", differences.join("\n"));

@@ -1,3 +1,19 @@
+/// A generic-application refusal must point inside `region`, the first occurrence of that text.
+fn assert_generic_refusal_within(
+    source: &str,
+    error: &omega_typer::TypeError,
+    region: &str,
+) {
+    let at = source
+        .find(region)
+        .unwrap_or_else(|| panic!("missing region {region:?}"));
+    let (start, end) = (error.span.get_start_offset(), error.span.get_end_offset());
+    assert!(
+        at <= start && start < end && end <= at + region.len(),
+        "{error:?} lies outside {region:?}"
+    );
+}
+
 #[test]
 fn generic_overloads_select_the_exact_qualified_nominal_operand() {
     let code = "data Io{data T{} data U{}}
@@ -22,12 +38,12 @@ fn generic_overloads_select_the_exact_qualified_nominal_operand() {
 fn runtime_indices_at_calls_bind_the_actual_subject() {
     let code = "data B<K:u8>{} machine keep(n:u8,b:B<n>)->B<n>{b} machine use_it(x:u8,b:B<x>)->B<x>{keep(x,b)} machine fixed(b:B<8>)->B<8>{keep(8,b)}";
     check(&[("subjects.omg", code)]).unwrap();
-    assert!(
-        check(&[("subjects.omg", &code.replace("keep(8,b)", "keep(9,b)"))])
-            .unwrap_err()
-            .message
-            .contains("no matching overload")
-    );
+    let wrong = code.replace("keep(8,b)", "keep(9,b)");
+    let error = check(&[("subjects.omg", &wrong)]).unwrap_err();
+    assert_eq!(error.file, "subjects.omg");
+    assert_eq!(error.message, "no matching overload for keep(9, game\\B<8>)");
+    assert_eq!(error.span.get_start_offset(), wrong.find("keep(9,b)").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"keep".as_slice()));
 }
 
 #[test]
@@ -118,12 +134,9 @@ fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
             },
         )
     };
-    assert!(
-        check(&[("static.omg", &program)])
-            .unwrap_err()
-            .message
-            .contains("admitted evaluation")
-    );
+    let pending = check(&[("static.omg", &program)]).unwrap_err();
+    assert_eq!(pending.file, "static.omg");
+    assert_eq!(pending.message, "static expression requires an admitted evaluation result");
     let stage = run(&program, 4, 11).unwrap();
     assert!(
         stage
@@ -132,25 +145,26 @@ fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
             .any(|call| call.machine.path == "buffer" && call.result.to_string() == "game\\B<11>")
     );
     let overflow = program.replace("buffer::<4>()", "buffer::<128>()");
-    assert!(
-        run(&overflow, 128, 259)
-            .unwrap_err()
-            .message
-            .contains("exceeds u8")
-    );
+    let error = run(&overflow, 128, 259).unwrap_err();
+    assert_eq!(error.file, "static.omg");
+    assert_eq!(error.message, "static index 259 exceeds u8");
+    // Same receipts as the healthy run: only the declared result index of f changes,
+    // so the refusal is the result landing of f's body, not evaluation or selection.
     let wrong = program.replace("f(x:B<width(4)>)->B<11>", "f(x:B<width(4)>)->B<12>");
-    assert!(run(&wrong, 4, 11).unwrap_err().message.contains("expected"));
+    let error = run(&wrong, 4, 11).unwrap_err();
+    assert_eq!(error.file, "static.omg");
+    assert_eq!(error.message, "expected game\\B<12>, found game\\B<11>");
+    let body = wrong.find("->B<12>{x}").unwrap() + "->B<12>{".len();
+    assert_eq!(error.span.get_start_offset(), body, "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"x".as_slice()));
 }
 
 #[test]
 fn specializing_an_index_checks_an_intermediate_even_when_the_final_value_fits() {
     let bad = "data B<const K:u8>{} machine value<const N:u8>()->B<(N+1)*0>{B::<(N+1)*0>{}} machine f(){_=value::<255>();}";
-    assert!(
-        check(&[("i.omg", bad)])
-            .unwrap_err()
-            .message
-            .contains("256 exceeds u8")
-    );
+    let error = check(&[("i.omg", bad)]).unwrap_err();
+    assert_eq!(error.file, "i.omg");
+    assert_eq!(error.message, "static index 256 exceeds u8");
     check(&[("i.omg", &bad.replace("255", "254"))]).unwrap();
 }
 
@@ -189,12 +203,19 @@ fn typed_generics_and_transparent_aliases() {
             .all(|c| c.type_arguments == [ValueType::Integer { signed: false, width: Some(8) }])
     );
     for (code, message) in [
-        ("machine id<T>(x:T)->T{x} machine f()->u8{id::<bool>(2u8)}", "conflicting type argument"),
-        ("machine id<T>(x:T)->T{x} machine f(){_ = id(1);}", "cannot infer"),
-        ("data Box<T>{} machine f(x:Box){}", "expects 1"),
+        ("machine id<T>(x:T)->T{x} machine f()->u8{id::<bool>(2u8)}", "conflicting type argument bool"),
+        ("machine id<T>(x:T)->T{x} machine f(){_ = id(1);}", "cannot infer all generic arguments"),
+        ("data Box<T>{} machine f(x:Box){}", "Box expects 1 type arguments, found 0"),
         ("data A = B; data B = A;", "cyclic type alias"),
     ] {
-        assert!(check(&[("a.omg", code)]).unwrap_err().message.contains(message), "{code}");
+        let error = check(&[("a.omg", code)]).unwrap_err();
+        assert_eq!(error.file, "a.omg");
+        if message.starts_with("cyclic") {
+            // Either the definition order or the alias catalog may name the cycle first.
+            assert!(error.message.starts_with(message), "{code}: {error:?}");
+        } else {
+            assert_eq!(error.message, message, "{code}");
+        }
     }
 }
 
@@ -203,17 +224,22 @@ fn normalized_static_arguments_and_binder_occurrences() {
     let code = "data Buffer<const N:u8>{} data Eight=Buffer<4+4>; machine f(x:Eight)->Buffer<8>{x} machine forward<const N:u8>(x:Buffer<N>)->Buffer<N>{x} machine g(x:Buffer<8>)->Eight{forward::<8>(x)}";
     let stage = check(&[("a.omg", code)]).unwrap();
     assert_eq!(stage.calls[0].result.to_string(), "game\\Buffer<8>");
-    for (s, msg) in [
-        ("data B<const N:u8>{} machine f(x:B<256>){}", "does not land"),
-        ("data B<const N:u8>{} machine f(x:B<8u16>){}", "does not land"),
-        (
-            "data Wrap<T> = T; machine f<T,U>(a:T,b:U){} machine f<A,B>(a:Wrap<B>,b:A){}",
-            "duplicate typed operand signature",
-        ),
+    for (s, site) in [
+        ("data B<const N:u8>{} machine f(x:B<256>){}", "256"),
+        ("data B<const N:u8>{} machine f(x:B<8u16>){}", "8u16"),
     ] {
         let e = check(&[("a.omg", s)]).unwrap_err();
-        assert!(e.message.contains(msg), "{e:?}");
+        assert_eq!(e.file, "a.omg");
+        assert!(
+            e.message.starts_with("const argument ") && e.message.ends_with(" does not land in u8"),
+            "{e:?}"
+        );
+        assert_eq!(e.span.slice(s.as_bytes()), Some(site.as_bytes()), "{e:?}");
     }
+    let duplicate = "data Wrap<T> = T; machine f<T,U>(a:T,b:U){} machine f<A,B>(a:Wrap<B>,b:A){}";
+    let e = check(&[("a.omg", duplicate)]).unwrap_err();
+    assert_eq!(e.file, "a.omg");
+    assert_eq!(e.message, "duplicate typed operand signature for f");
 }
 
 #[test]
@@ -223,12 +249,10 @@ fn a_static_equation_recovers_the_extent_and_refuses_conflicting_indices() {
     let code = format!("{definition} machine bytes(x:Buffer<u64::AtMost<4>>)->[u8;4]{{x.bytes}}");
     check(&[("indices.omg", &code)]).unwrap();
     let code = format!("{definition} machine bad(x:Buffer<u64::AtMost<4>,8>){{}}");
-    assert!(
-        check(&[("indices.omg", &code)])
-            .unwrap_err()
-            .message
-            .contains("conflicting type equation")
-    );
+    let error = check(&[("indices.omg", &code)]).unwrap_err();
+    assert_eq!(error.file, "indices.omg");
+    assert_eq!(error.message, "conflicting type equation for Buffer");
+    assert_generic_refusal_within(&code, &error, "Buffer<u64::AtMost<4>,8>");
 }
 
 #[test]
@@ -246,15 +270,15 @@ fn symbolic_widths_and_array_extents_infer_and_specialize_to_the_operand() {
             .any(|o| matches!(o.kind, omega_typer::ObligationKind::PositiveWidth(_)))
     );
     assert_eq!(sum.result.to_string(), "u13");
-    assert!(
-        check(&[("width.omg", "machine wrong(x:u<13u8>){}")])
-            .unwrap_err()
-            .message
-            .contains("static u64")
-    );
+    let suffixed = "machine wrong(x:u<13u8>){}";
+    let e = check(&[("width.omg", suffixed)]).unwrap_err();
+    assert_eq!(e.file, "width.omg");
+    assert_eq!(e.message, "integer width requires a static u64");
+    assert_eq!(e.span.slice(suffixed.as_bytes()), Some(b"13u8".as_slice()));
     let zero = "machine zero<const N:u64>()->u<N>{0} machine f(){ _ = zero::<0>(); }";
     let e = check(&[("width.omg", zero)]).unwrap_err();
-    assert!(e.message.contains("width must be positive"), "{e:?}");
+    assert_eq!(e.file, "width.omg");
+    assert_eq!(e.message, "integer width must be positive", "{e:?}");
 }
 
 #[test]
@@ -301,7 +325,9 @@ fn evaluated_indices_check_the_source_type_and_key_only_on_the_value() {
     let stage = run(&source, 8).unwrap();
     assert_eq!(stage.evaluated_indices.len(), 1);
     assert_eq!(stage.signatures[0].parameters[0].1, stage.signatures[0].result);
-    assert!(run(&source, 7).unwrap_err().message.contains("disagrees"));
+    let error = run(&source, 7).unwrap_err();
+    assert_eq!(error.file, "calc.omg");
+    assert_eq!(error.message, "evaluation result disagrees with the primitive index");
     let computed = source
         .replace("const size:u64=8;", "machine size()->u64{8}")
         .replace("b:Buf<size>", "b:Buf<size()>");
@@ -312,12 +338,9 @@ fn evaluated_indices_check_the_source_type_and_key_only_on_the_value() {
             .contains("does not land")
     );
     let bad = format!("{head} const flag:bool=true; machine f(b:Buf<flag>)->Buf<8>{{b}}");
-    assert!(
-        run(&bad, 8)
-            .unwrap_err()
-            .message
-            .contains("expected u64, found bool")
-    );
+    let error = run(&bad, 8).unwrap_err();
+    assert_eq!(error.file, "calc.omg");
+    assert!(error.message.starts_with("expected u64, found bool"), "{error:?}");
 }
 
 #[test]
@@ -351,18 +374,18 @@ fn open_exact_indices_keep_source_operations_and_normalize_on_specialization() {
     assert!(call.result.to_string().ends_with("Buffer<8>"));
     let rejected = format!("{head} machine make<const N:u8>()->Buffer<N + 1>{{Buffer::<N + 1>{{}}}} machine bad(){{ _ = make::<255>(); }}");
     let err = check(&[("indices.omg", &rejected)]).unwrap_err();
-    assert!(err.message.contains("exceeds u8"), "{err:?}");
+    assert_eq!(err.file, "indices.omg");
+    assert_eq!(err.message, "static index 256 exceeds u8", "{err:?}");
 }
 
 #[test]
 fn canonical_open_index_signatures_cannot_redeclare_the_same_overload() {
     let code = "data B<const N:u64>{} machine select<const X:u64>(b:B<X+1>){} machine select<const Y:u64>(b:B<1+Y>){}";
-    assert!(
-        check(&[("duplicate.omg", code)])
-            .unwrap_err()
-            .message
-            .contains("duplicate typed operand signature")
-    );
+    let error = check(&[("duplicate.omg", code)]).unwrap_err();
+    assert_eq!(error.file, "duplicate.omg");
+    assert_eq!(error.message, "duplicate typed operand signature for select");
+    // Distinct spellings of distinct indices remain separate overloads.
+    check(&[("duplicate.omg", &code.replace("B<1+Y>", "B<2+Y>"))]).unwrap();
 }
 
 #[test]
@@ -401,12 +424,11 @@ fn indexed_result_domains_match_after_inferring_the_index_from_operands() {
     assert_eq!(inferred.type_arguments, explicit.type_arguments);
     assert_eq!(inferred.result, explicit.result);
     let wrong = format!("{prefix} machine wrong(b:B<2>,x:u8 in Label<2>)->u8 in Label<3>{{tag(b,x)}}");
-    assert!(
-        check(&[("index.omg", &wrong)])
-            .unwrap_err()
-            .message
-            .contains("no matching overload")
-    );
+    let error = check(&[("index.omg", &wrong)]).unwrap_err();
+    assert_eq!(error.file, "index.omg");
+    assert_eq!(error.message, "no matching overload for tag(game\\B<2>, u8 in game\\u8::Label<2>)");
+    assert_eq!(error.span.get_start_offset(), wrong.rfind("tag(b,x)").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"tag".as_slice()));
 }
 
 #[test]
@@ -429,7 +451,10 @@ fn result_domains_retain_the_actual_runtime_index() {
     }
     let wrong = format!("{prefix} machine wrong(k:u8,m:u8,x:u8 in Label<k>)->u8 in Label<m>{{tag(k,x)}}");
     let error = check(&[("runtime.omg", &wrong)]).unwrap_err();
-    assert!(error.message.contains("no matching overload for tag"));
+    assert_eq!(error.file, "runtime.omg");
+    assert!(error.message.starts_with("no matching overload for tag("), "{error:?}");
+    assert_eq!(error.span.get_start_offset(), wrong.rfind("tag(k,x)").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"tag".as_slice()));
 }
 
 #[test]
@@ -446,12 +471,11 @@ fn runtime_domain_sets_normalize_when_call_arguments_coincide_or_change_order() 
     assert_eq!(same.result.domains().len(), 1);
     assert_eq!(swapped.result.domains().len(), 2);
     let wrong = format!("{prefix} machine drop_one(k:u8,m:u8,x:u8 in Label<k> & Label<m>)->u8 in Label<k>{{both(m,k,x)}}");
-    assert!(
-        check(&[("sets.omg", &wrong)])
-            .unwrap_err()
-            .message
-            .contains("no matching overload for both")
-    );
+    let error = check(&[("sets.omg", &wrong)]).unwrap_err();
+    assert_eq!(error.file, "sets.omg");
+    assert!(error.message.starts_with("no matching overload for both("), "{error:?}");
+    assert_eq!(error.span.get_start_offset(), wrong.rfind("both(m,k,x)").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"both".as_slice()));
 }
 
 #[test]
@@ -484,7 +508,7 @@ fn indexed_domain_aliases_preserve_each_constituent_and_its_arguments() {
         .find(|(id, _)| id.path == "u8::Both")
         .unwrap();
     assert_eq!(id.package, machine.machine.package);
-    assert_eq!(members, machine.result.domains());
+    spec_corpus::observe_handoff!("type-and-domain-aliases/producer", assert_eq!(members, machine.result.domains()));
     let (_, array) = unused
         .type_alias_targets
         .iter()
@@ -495,15 +519,16 @@ fn indexed_domain_aliases_preserve_each_constituent_and_its_arguments() {
     let error = check(&[("domains.omg", defs), ("use.omg", wrong)]).unwrap_err();
     assert_eq!(error.file, "use.omg");
     assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"x".as_slice()));
-    assert!(error.message.contains("Bound<6>") && error.message.contains("Bound<5>"), "{error:?}");
+    spec_corpus::observe_handoff!("type-and-domain-aliases/refusal", assert!(error.message.contains("Bound<6>") && error.message.contains("Bound<5>"), "{error:?}"));
     for (target, message) in [
         ("u8::Bound", "incorrect indexed domain arity"),
-        ("u8::Bound<256>", "does not land in u8"),
+        ("u8::Bound<256>", "const argument 256 does not land in u8"),
     ] {
         let invalid = format!("domain u8::Invalid = {target};");
         let error = check(&[("invalid.omg", &invalid), ("domains.omg", defs)]).unwrap_err();
         assert_eq!(error.file, "invalid.omg");
-        assert!(error.message.contains(message), "{error:?}");
+        assert_eq!(error.message, message, "{error:?}");
+        assert_generic_refusal_within(&invalid, &error, target);
     }
 }
 
@@ -517,7 +542,14 @@ fn indexed_domain_type_arguments_normalize_under_both_spellings() {
         let same = format!("machine take(x:{input})->{output} {{x}}");
         check(&[("types.omg", defs), ("use.omg", &same)]).unwrap();
         let different = same.replace("Coordinates<Byte>", "Coordinates<bool>");
-        assert!(check(&[("types.omg", defs), ("use.omg", &different)]).is_err());
+        let error = check(&[("types.omg", defs), ("use.omg", &different)]).unwrap_err();
+        assert_eq!(error.file, "use.omg");
+        let (expected, found) = if input.contains("Byte") { ("u8", "bool") } else { ("bool", "u8") };
+        assert_eq!(
+            error.message,
+            format!("expected u8 in game\\u8::Coordinates<{expected}>, found u8 in game\\u8::Coordinates<{found}>")
+        );
+        assert_eq!(error.span.get_start_offset(), different.rfind("{x}").unwrap() + 1, "{error:?}");
     }
 }
 
@@ -535,6 +567,51 @@ fn domain_alias_indices_are_checked_after_substitution_at_each_use() {
         assert_eq!(error.file, "use.omg");
         assert_eq!(error.message, "static index 256 exceeds u8");
     }
+}
+
+// A builtin or bound root of a qualified domain path owns its written argument
+// list. Typing forms it exactly as the same carrier written alone: u<8> lands as
+// u8, and an argument list on u8 or a type binder is refused in both spellings.
+#[test]
+fn applied_carrier_roots_of_domain_paths_form_like_direct_carriers() {
+    let generic = "domain<T> T::Ready;";
+    for (defs, source) in [
+        (generic, "machine f(x:u8 in u<8>::Ready)->u8 in u8::Ready {x}"),
+        (generic, "machine f(x:i16 in i<16>::Ready)->i16 in Ready {x}"),
+        (generic, "machine f(x:u8)->u8 in u<8>::Ready {x as +u<8>::Ready}"),
+        ("domain<T> T::Ready; machine take<const A:core\\Type<0>>(){}", "machine f(){take::<u<8>::Ready>();}"),
+        ("domain<const K:u8> u8::Limit<K>; domain u8::Limit<2>::Pair;", "machine f(x:u8 in u8::Limit<2>::Pair){}"),
+    ] {
+        let stage = check(&[("domains.omg", defs), ("use.omg", source)]).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        if let Some(call) = stage.calls.iter().find(|call| call.machine.path == "take") {
+            assert_eq!(call.type_arguments[0].carrier().to_string(), "u8");
+            assert!(matches!(call.type_arguments[0].domains(), [domain] if domain.declaration.path == "T::Ready"));
+        }
+    }
+    let arguments = "generic arguments require an applicable type declaration";
+    let invalid_u8 = "builtin type u8 does not take arguments";
+    for (defs, source, site, message) in [
+        (generic, "machine f(x:u8<1>){}", "<1>", invalid_u8),
+        ("domain u8::Ready;", "machine f(x:u8 in u8<1>::Ready){}", "<1>", invalid_u8),
+        (generic, "machine f(x:u8 in u8<1>::Ready){}", "<1>", invalid_u8),
+        ("domain<const K:u8> u8::Limit<K>; domain u8::Limit<2>::Pair;", "machine f(x:u8 in u8<1>::Limit<2>::Pair){}", "<1>", invalid_u8),
+        ("domain<const N:u8> u8::Bound<N>;", "domain u8::Five = u8<1>::Bound<5>;", "<1>", invalid_u8),
+        (generic, "machine f(x:u8){let y = x as +u8<1>::Ready;}", "<1>", invalid_u8),
+        (generic, "machine f<T>(x:T<3>){}", "<3>", arguments),
+        (generic, "machine f<T>(x:T in T<3>::Ready){}", "<3>", arguments),
+        (generic, "machine f(x:u16 in u<8>::Ready){}", "u<8>::Ready", "domain qualifier names u8, found u16"),
+    ] {
+        let error = check(&[("domains.omg", defs), ("use.omg", source)]).unwrap_err();
+        assert_eq!(error.file, "use.omg", "{source}: {error:?}");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()), "{source}: {error:?}");
+        assert_eq!(error.message, message, "{source}");
+    }
+    // The explicit argument reaches the same carrier formation through call selection.
+    let explicit = "machine f(){take::<u8<1>::Ready>();}";
+    let error = check(&[("domains.omg", "domain<T> T::Ready; machine take<const A:core\\Type<0>>(){}"), ("use.omg", explicit)]).unwrap_err();
+    assert_eq!(error.file, "use.omg", "{error:?}");
+    assert_eq!(error.span.slice(explicit.as_bytes()), Some(b"<1>".as_slice()), "{error:?}");
+    assert_eq!(error.message, invalid_u8);
 }
 
 // `id::<u8 in P>(pick(x))` is the explicit spelling of the type argument that
@@ -579,6 +656,10 @@ fn an_explicit_qualified_type_argument_selects_the_qualified_result_overload() {
     let wrong_head = "machine c<const N:u8>(b:Box<N in P>) {}";
     let error = check(&[("defs.omg", defs), ("use.omg", wrong_head)]).unwrap_err();
     assert_eq!(error.file, "use.omg");
+    // A value binder cannot be the carrier of the qualified type argument.
+    assert_eq!(error.message, "expected a type declaration or type parameter", "{error:?}");
+    assert_eq!(error.span.get_start_offset(), wrong_head.find("N in P").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(wrong_head.as_bytes()), Some(b"N".as_slice()));
     // The same qualified argument in a type: the field reads back qualified.
     check(&[
         ("defs.omg", defs),
@@ -624,12 +705,9 @@ fn closed_results_belong_to_one_occurrence_and_carrier() {
             .as_slice(),
         std::slice::from_ref(&good)
     );
-    assert!(
-        run(&[good, (key.clone(), omega_typer::StaticValue::Integer(4.into()))])
-            .unwrap_err()
-            .message
-            .contains("conflicting evaluation")
-    );
+    let conflict = run(&[good, (key.clone(), omega_typer::StaticValue::Integer(4.into()))]).unwrap_err();
+    assert_eq!(conflict.file, "a.omg");
+    assert_eq!(conflict.message, "conflicting evaluation results for a closed expression");
     for wrong in [
         StaticValueRequest {
             carrier: ValueType::Integer {
@@ -654,8 +732,8 @@ fn closed_results_belong_to_one_occurrence_and_carrier() {
         },
     ] {
         let error = run(&[(wrong.clone(), omega_typer::StaticValue::Integer(3.into()))]).unwrap_err();
+        assert_eq!(error.message, "evaluation result has no matching static expression and carrier");
         assert_eq!((error.file, error.span), (wrong.expression.file, wrong.expression.span));
-        assert!(error.message.contains("no matching static expression"));
     }
 }
 
@@ -717,8 +795,9 @@ fn specialized_results_require_a_deferred_index_of_the_same_carrier_and_arity() 
             checked.unwrap();
         } else {
             let e = checked.unwrap_err();
+            assert_eq!(e.file, "requests.omg");
             assert_eq!(e.span, value.request.expression.span);
-            assert!(e.message.contains("no matching specialized expression"));
+            assert_eq!(e.message, "evaluation result has no matching specialized expression, carrier and owner arity");
         }
     }
 }
@@ -738,7 +817,11 @@ fn inferred_tuple_arguments_retain_their_components_ownership_restrictions() {
     for tuple in ["(a,true)", "(true,a)", "(true,(a,true))", "(l,a)", "(a,l)"] {
         let code = format!("machine f(a:A,l:L){{copies({tuple})}}");
         let error = compile(&code).unwrap_err();
-        assert!(error.message.contains("does not satisfy Copy"), "{code}: {error:?}");
+        assert_eq!(error.file, "use.omg");
+        assert!(
+            error.message.starts_with("type argument (") && error.message.ends_with(") does not satisfy Copy for copies"),
+            "{code}: {error:?}"
+        );
     }
     for tuple in ["(a,l)", "(l,a)", "(true,(l,true))"] {
         let code = format!("machine f(a:A,l:L){{consumes({tuple})}}");
@@ -752,8 +835,11 @@ fn each_applied_binder_selects_its_namespace_from_the_same_visible_names() {
     let code = "machine pick<T,N:u32>() {} machine caller(u32:u32) {pick::<u32,u32>()}";
     let stage = check(&[("names.omg", code)]).unwrap();
     let call = stage.calls.iter().find(|c| c.machine.path == "pick").unwrap();
-    assert!(
-        matches!(call.type_arguments.as_slice(), [ty, ValueType::Subject{declaration, ..}] if ty.to_string()=="u32" && declaration.span.get_start_offset()==code.find("u32:u32").unwrap())
+    spec_corpus::observe_handoff!(
+        "generic-arguments/consumer",
+        assert!(
+            matches!(call.type_arguments.as_slice(), [ty, ValueType::Subject{declaration, ..}] if ty.to_string()=="u32" && declaration.span.get_start_offset()==code.find("u32:u32").unwrap())
+        )
     );
 }
 
@@ -764,7 +850,7 @@ fn a_public_generic_argument_can_only_select_a_visible_name_in_its_namespace() {
     check(&[("visibility.omg", &good)]).unwrap();
     let denied = good.replace("Number<Key>", "Tag<Key>");
     let error = check(&[("visibility.omg", &denied)]).unwrap_err();
-    assert_eq!(error.span.get_start_offset(), denied.rfind("Key").unwrap());
+    spec_corpus::observe_handoff!("generic-arguments/refusal", assert_eq!(error.span.get_start_offset(), denied.rfind("Key").unwrap()));
 }
 
 #[test]
@@ -785,7 +871,7 @@ fn a_field_width_uses_the_data_arguments_even_when_no_field_is_read() {
                             && obligation.site.span.slice(data.1.as_bytes()) == Some(b"u<N-1>"))
                 );
             } else {
-                assert!(result.unwrap_err().message.contains("width must be positive"));
+                assert_eq!(result.unwrap_err().message, "integer width must be positive");
             }
         }
     }
@@ -795,12 +881,13 @@ fn a_field_width_uses_the_data_arguments_even_when_no_field_is_read() {
 fn runtime_indices_cannot_determine_a_storage_width() {
     for width in ["N", "N+1"] {
         let code = format!("machine runtime<N:u64>(x:u<{width}>){{}}");
-        assert!(
-            check(&[("width.omg", &code)])
-                .unwrap_err()
-                .message
-                .contains("static")
-        );
+        let error = check(&[("width.omg", &code)]).unwrap_err();
+        assert_eq!(error.file, "width.omg");
+        assert_eq!(error.message, "static index cannot depend on a runtime parameter");
+        assert_eq!(error.span.get_start_offset(), code.find("u<N").unwrap() + 2, "{error:?}");
+        assert_eq!(error.span.slice(code.as_bytes()), Some(b"N".as_slice()));
+        // The same width over a static binder is admitted.
+        check(&[("width.omg", &code.replace("<N:u64>", "<const N:u64>"))]).unwrap();
     }
 }
 
@@ -849,12 +936,9 @@ fn evaluation_of_a_field_index_is_keyed_by_the_applied_data_declaration() {
             },
         )
     };
-    assert!(
-        check(&[("word.omg", code)])
-            .unwrap_err()
-            .message
-            .contains("admitted evaluation")
-    );
+    let pending = check(&[("word.omg", code)]).unwrap_err();
+    assert_eq!(pending.file, "word.omg");
+    assert_eq!(pending.message, "specialized static expression in Word needs an admitted evaluation result");
     let stage = run(7).unwrap();
     assert!(
         stage
@@ -862,19 +946,18 @@ fn evaluation_of_a_field_index_is_keyed_by_the_applied_data_declaration() {
             .iter()
             .any(|o| matches!(o.kind, omega_typer::ObligationKind::PositiveWidth(_)))
     );
-    assert!(run(0).unwrap_err().message.contains("width must be positive"));
+    assert_eq!(run(0).unwrap_err().message, "integer width must be positive");
 }
 
 #[test]
 fn forwarding_a_runtime_index_to_a_static_parameter_rejects_at_the_argument() {
     for argument in ["N", "N+1"] {
         let code = format!("data Slot<const K:u64>{{}} machine use_it<N:u64>(x:Slot<{argument}>){{}}");
-        assert!(
-            check(&[("index.omg", &code)])
-                .unwrap_err()
-                .message
-                .contains("runtime parameter")
-        );
+        let error = check(&[("index.omg", &code)]).unwrap_err();
+        assert_eq!(error.file, "index.omg");
+        assert_eq!(error.message, "static index cannot depend on a runtime parameter");
+        assert_eq!(error.span.get_start_offset(), code.find("Slot<N").unwrap() + "Slot<".len(), "{error:?}");
+        assert_eq!(error.span.slice(code.as_bytes()), Some(b"N".as_slice()));
         check(&[("index.omg", &code.replace("const K:u64", "K:u64"))]).unwrap();
     }
 }
@@ -949,27 +1032,24 @@ fn nested_field_evaluation_uses_both_enclosing_and_local_arguments() {
         );
     }
     let scopes = &pending.trees().static_request_scopes[&exact_request.node];
-    assert_eq!(
-        scopes
-            .iter()
-            .map(|(owner, arity)| (owner.path.as_str(), *arity))
-            .collect::<Vec<_>>(),
-        [("Outer", 1), ("Outer::Inner", 1)]
+    spec_corpus::observe_handoff!(
+        "collection-layout-and-indirect-call-selections/producer",
+        assert_eq!(
+            scopes
+                .iter()
+                .map(|(owner, arity)| (owner.path.as_str(), *arity))
+                .collect::<Vec<_>>(),
+            [("Outer", 1), ("Outer::Inner", 1)]
+        )
     );
     let completed = run(&[receipt(1, 2, 3), receipt(2, 1, 3)]).unwrap();
     assert_eq!(completed.static_request_scopes[&exact_request.node], *scopes);
-    assert!(
-        run(&[receipt(1, 2, 3)])
-            .unwrap_err()
-            .message
-            .contains("admitted evaluation")
-    );
-    assert!(
-        run(&[receipt(1, 2, 3), receipt(2, 1, 0)])
-            .unwrap_err()
-            .message
-            .contains("width must be positive")
-    );
+    let missing = run(&[receipt(1, 2, 3)]).unwrap_err();
+    assert_eq!(missing.file, "nested.omg");
+    assert_eq!(missing.message, "specialized static expression in Outer::Inner needs an admitted evaluation result");
+    let zero = run(&[receipt(1, 2, 3), receipt(2, 1, 0)]).unwrap_err();
+    assert_eq!(zero.file, "nested.omg");
+    assert_eq!(zero.message, "integer width must be positive");
 }
 
 #[test]
@@ -986,12 +1066,10 @@ fn checking_a_static_call_also_checks_the_static_calls_in_its_arguments() {
         assert_eq!(calls[0].use_site, omega_typer::CallUse::StaticArgument);
     }
     let impure = code.replace("inner(n:u64)->u64{n}", "inner(n:u64)->u64 suspends {n}");
-    assert!(
-        check(&[("nested_index.omg", &impure)])
-            .unwrap_err()
-            .message
-            .contains("effect-free")
-    );
+    let error = check(&[("nested_index.omg", &impure)]).unwrap_err();
+    assert_eq!(error.file, "nested_index.omg");
+    assert_eq!(error.message, "fact or static argument requires an effect-free computation");
+    assert_generic_refusal_within(&impure, &error, "outer::<inner(K)>()");
 }
 
 #[test]
@@ -1003,7 +1081,9 @@ fn an_enclosing_application_checks_constraints_reached_through_another_record() 
         if accepted {
             result.unwrap();
         } else {
-            assert!(result.unwrap_err().message.contains("width must be positive"));
+            let error = result.unwrap_err();
+            assert_eq!(error.file, "nested.omg");
+            assert_eq!(error.message, "integer width must be positive");
         }
     }
 }
@@ -1013,7 +1093,8 @@ fn recursive_fields_with_the_same_arguments_check_the_width_once() {
     let decl = "data Link<const N:u64>{next:@Link<N>; value:u<N>;}";
     check(&[("link.omg", &format!("{decl} machine ok(x:Link<1>){{}}"))]).unwrap();
     let error = check(&[("link.omg", &format!("{decl} machine bad(x:Link<0>){{}}"))]).unwrap_err();
-    assert!(error.message.contains("width must be positive"));
+    assert_eq!(error.file, "link.omg");
+    assert_eq!(error.message, "integer width must be positive");
 }
 
 #[test]
@@ -1024,7 +1105,10 @@ fn changing_recursive_widths_retain_the_next_application_for_verification() {
         proof.site.span.slice(code.as_bytes()) == Some(b"Link<3>") &&
         matches!(&proof.kind, omega_typer::ObligationKind::FormRecursiveApplication{declaration,arguments} if declaration.path=="Link" && arguments[0].to_string()=="4")));
     let zero = "data Link<const N:u64>{next:@Link<N-1>;value:u<N>;} machine caller(x:Link<1>){}";
-    assert!(check(&[("recursive.omg", zero)]).is_err());
+    let error = check(&[("recursive.omg", zero)]).unwrap_err();
+    assert_eq!(error.file, "recursive.omg");
+    // The next application subtracts from zero in a u64 argument.
+    assert_eq!(error.message, "static index -1 exceeds u64");
     let plain = "data Link<T>{next:@Link<@T>;} machine caller(x:Link<u8>){}";
     let stage = check(&[("recursive.omg", plain)]).unwrap();
     assert!(

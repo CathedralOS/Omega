@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+diagnostic-origins = ["omega-typed/diagnostic-origins"]
+
 [dependencies]
 omega-tokens = { path = "../../representations/tokens" }
 omega-syntax = { path = "../../representations/syntax" }

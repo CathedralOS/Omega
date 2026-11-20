@@ -287,7 +287,7 @@ fn domain_carriers_survive_without_a_typed_self_expression() {
             .find(|(declaration, _)| declaration.package == "game" && declaration.path == path)
             .expect(path);
         assert_eq!(declaration.kind, omega_parser::NodeKind::Domain);
-        assert_eq!(*carrier, ValueType::Integer { signed, width: Some(width) });
+        spec_corpus::observe_handoff!("normalized-domain-carriers/producer", assert_eq!(*carrier, ValueType::Integer { signed, width: Some(width) }));
     }
 }
 
@@ -312,14 +312,17 @@ fn result_domain_indices_follow_the_operand_binder_correspondence() {
         if duplicate {
             assert_eq!(typed.unwrap_err().message, "duplicate typed operand signature for pick");
         } else {
-            assert_eq!(
-                typed
-                    .unwrap()
-                    .signatures
-                    .iter()
-                    .filter(|signature| signature.machine.path == "pick")
-                    .count(),
-                2
+            spec_corpus::observe_handoff!(
+                "generic-parameter-correspondence/producer",
+                assert_eq!(
+                    typed
+                        .unwrap()
+                        .signatures
+                        .iter()
+                        .filter(|signature| signature.machine.path == "pick")
+                        .count(),
+                    2
+                )
             );
         }
     }

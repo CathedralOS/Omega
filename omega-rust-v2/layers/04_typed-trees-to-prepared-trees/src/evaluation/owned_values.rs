@@ -1,6 +1,7 @@
 use crate::evaluation::constant_evaluation::ConstantEvaluation;
 use crate::evaluation::integer_arithmetic::IntegerRange;
 use crate::invocation::{EvaluationError, UNSUPPORTED_BODY};
+use crate::reasons::PreparationReason;
 use crate::{PreparedValue, TargetObservation};
 use omega_resolved::DeclarationId;
 use omega_typed::{
@@ -78,7 +79,7 @@ impl CheckedDataEstablishment<'_, '_> {
     }
 }
 
-const NEEDS_CONSTRUCTION_PROOF: &str = "the selected constructor requires proof outside the prepared value fragment";
+const NEEDS_CONSTRUCTION_PROOF: PreparationReason = PreparationReason::ConstructionNeedsProof;
 
 fn construction_obligation<'a>(
     tree: &'a TypedTree<'_>,
@@ -154,7 +155,7 @@ impl ConstantEvaluation<'_, '_> {
             .get(shape)
             .or_else(|| self.trees.library?.record_fields.get(shape))
             .and_then(|fields| fields.iter().position(|entry| &entry.declaration == field))
-            .ok_or_else(|| "the selected field is not in the active owned value".into())
+            .ok_or_else(|| PreparationReason::FieldNotInActiveValue.into())
     }
 
     pub(crate) fn construction<'a>(
@@ -167,9 +168,9 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<(&'a TypedConstruction, &'a [ValueType]), EvaluationError> {
         let construction = tree
             .construction(node)
-            .ok_or("the selected nominal value has no supported initializer")?;
+            .ok_or(PreparationReason::NominalWithoutInitializer)?;
         if &construction.owner != owner || &instantiate(&construction.carrier) != carrier {
-            return Err("the selected constructor has a different carrier".into());
+            return Err(PreparationReason::ConstructorCarrierMismatch.into());
         }
         let shape = self
             .trees
@@ -185,7 +186,7 @@ impl ConstantEvaluation<'_, '_> {
             None if shape.cases.is_empty() => Some(&shape.fields),
             None => None,
         }
-        .ok_or("the selected case does not belong to the carrier")?;
+        .ok_or(PreparationReason::CaseOutsideCarrier)?;
         let establishment = construction_obligation(tree, node, owner)?;
         if shape.requires_establishment != establishment.is_some() {
             return Err(NEEDS_CONSTRUCTION_PROOF.into());
@@ -261,7 +262,7 @@ impl ConstantEvaluation<'_, '_> {
             }
         }
         if seen.iter().any(|&initialized| !initialized) {
-            return Err("the selected constructor has a field without an initializer or typed zero request".into());
+            return Err(PreparationReason::ConstructorFieldWithoutInitializer.into());
         }
         Ok((authored, zero_fields))
     }
@@ -291,7 +292,7 @@ impl ConstantEvaluation<'_, '_> {
                         continue;
                     }
                     if !active.insert(carrier) {
-                        return Err("a recursive by-value type has no supported frozen value".into());
+                        return Err(PreparationReason::RecursiveByValueType.into());
                     }
                     if !self
                         .trees
@@ -300,9 +301,9 @@ impl ConstantEvaluation<'_, '_> {
                         .any(|(id, properties)| id == owner.as_ref() && properties.multiplicity == Multiplicity::Copy)
                     {
                         return Err(if array {
-                            "the complete array element type must permit copying"
+                            PreparationReason::ArrayElementNotCopyable
                         } else {
-                            "the complete constant type must permit copying"
+                            PreparationReason::ConstantTypeNotCopyable
                         }
                         .into());
                     }
@@ -318,13 +319,13 @@ impl ConstantEvaluation<'_, '_> {
                         )
                         .any(|selection| &selection.owner == owner.as_ref())
                     {
-                        return Err("the complete constant type has a cleanup obligation".into());
+                        return Err(PreparationReason::ConstantTypeHasCleanup.into());
                     }
                     let shape = self
                         .trees
                         .static_data_shapes
                         .get(carrier)
-                        .ok_or("the complete constant type has no finite typed field shape")?;
+                        .ok_or(PreparationReason::ConstantTypeWithoutFieldShape)?;
                     steps.push(Step::Complete(carrier));
                     steps.extend(
                         shape
@@ -340,9 +341,9 @@ impl ConstantEvaluation<'_, '_> {
                 }
                 Step::Check(_) => {
                     let reason = if array {
-                        "the complete array element type is outside the prepared value fragment"
+                        PreparationReason::ArrayElementOutsideFragment
                     } else {
-                        "the complete constant type is outside the prepared value fragment"
+                        PreparationReason::ConstantTypeOutsideFragment
                     };
                     return Err(reason.into());
                 }
@@ -362,7 +363,7 @@ impl ConstantEvaluation<'_, '_> {
             if let NodeSemantics::Constant(id) = record
                 && selected.replace(id).is_some()
             {
-                return Err("ambiguous constant reference".into());
+                return Err(PreparationReason::AmbiguousConstantReference.into());
             }
         }
         let Some(id) = selected else { return Ok(None) };
@@ -377,9 +378,9 @@ impl ConstantEvaluation<'_, '_> {
         let definition = self
             .definitions
             .get(id)
-            .ok_or("the selected constant has no local typed initializer")?;
+            .ok_or(PreparationReason::ConstantWithoutInitializer)?;
         if &definition.initializer.carrier != carrier {
-            return Err("the selected constant has a different carrier".into());
+            return Err(PreparationReason::ConstantCarrierMismatch.into());
         }
         self.values
             .get(id)

@@ -1,6 +1,122 @@
+#[allow(dead_code)]
+#[path = "obligation_outputs/pipeline.rs"]
+mod pipeline;
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{PredicateOperator, PredicateStep, ScalarType, TypeShape};
+
+/// Receipt for the L5 readiness report, printed after the checks above it pass.
+fn observed(label: &str) {
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        println!("OMEGA_L5_ASSERT\t{label}");
+    }
+}
+
+/// Each conformance row carries one `RefineRequirement` naming the applied
+/// requirement and its implementation at that row. The Psi conformance member
+/// at the same site names that requirement, its trait arguments and that
+/// implementation. Two conformances of one trait swap their implementations,
+/// and a member call through each conformance dispatches to its own row.
+#[test]
+fn refine_requirement_names_the_supplied_implementation_of_each_conformance_row() {
+    use omega_lowering::{CallTarget, MemberRealization, OperationKind, TypeExpression, TypeExpressionStep};
+    use omega_typed::{ObligationKind, ValueType};
+    let source = "trait Render<T>{machine paint(x:T)->bool; machine fill(x:T)->bool;}
+                  machine red(x:u8)->bool{true} machine blue(x:u8)->bool{false}
+                  Red satisfies Render<u8>{Render::paint=red; Render::fill=blue;}
+                  Blue satisfies Render<u8>{Render::paint=blue; Render::fill=red;}
+                  machine use_map<T,const E:Render<T>>(x:T)->bool{E::paint(x)}
+                  machine one(x:u8)->bool{use_map::<u8,Red>(x)} machine two(x:u8)->bool{use_map::<u8,Blue>(x)}";
+    let lowered = pipeline::lower(source);
+    let package = &lowered.package;
+    let refinements = lowered.obligations("RefineRequirement");
+    let rows = [
+        ("Red", "Render::paint", "red"),
+        ("Red", "Render::fill", "blue"),
+        ("Blue", "Render::paint", "blue"),
+        ("Blue", "Render::fill", "red"),
+    ];
+    assert_eq!(refinements.len(), rows.len(), "one refinement per conformance row: {refinements:?}");
+    let byte = TypeExpression(vec![TypeExpressionStep::Scalar(ScalarType::Integer {
+        signed: false,
+        width: 8,
+    })]);
+    for (owner, requirement, implementation) in rows {
+        let row = format!("{requirement}={implementation};");
+        let [obligation] = refinements
+            .iter()
+            .filter(|o| lowered.spelling(&o.site) == row)
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("{owner}: expected one refinement at {row}")
+        };
+        let ObligationKind::RefineRequirement {
+            requirement: slot,
+            implementation: selected,
+        } = &obligation.kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            (slot.declaration.path.as_str(), selected.path.as_str()),
+            (requirement, implementation),
+            "{owner}"
+        );
+        assert_eq!(slot.trait_arguments, [ValueType::Integer { signed: false, width: Some(8) }], "{owner}");
+
+        let conformance = package
+            .conformances
+            .iter()
+            .find(|c| c.declaration.path == owner)
+            .unwrap_or_else(|| panic!("missing conformance {owner}"));
+        assert_eq!(conformance.implemented.declaration.path, "Render");
+        let [member] = conformance
+            .members
+            .iter()
+            .filter(|m| m.site == obligation.site)
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("{owner}: expected one Psi member at {row}")
+        };
+        assert_eq!(member.requirement.declaration.path, requirement, "{owner}");
+        assert_eq!(member.requirement.arguments, std::slice::from_ref(&byte), "{owner}");
+        assert_eq!(member.implementation.path, implementation, "{owner}");
+    }
+
+    // The consuming boundary: a member call through each conformance reaches its paint row.
+    for (caller, owner, paint) in [("one", "Red", "red"), ("two", "Blue", "blue")] {
+        let by_id = |id: omega_lowering::MachineId| {
+            package
+                .machines
+                .iter()
+                .find(|m| m.id == id)
+                .expect("packaged machine")
+        };
+        let [call] = lowered.machine(caller).body.operations.as_slice() else {
+            panic!("{caller}: expected one wrapper call")
+        };
+        let OperationKind::Call {
+            callee: CallTarget::Machine(wrapper),
+            ..
+        } = call.kind
+        else {
+            panic!("{caller}: wrapper must be closed")
+        };
+        let [member_call] = by_id(wrapper).body.operations.as_slice() else {
+            panic!("{caller}: expected one member call")
+        };
+        let (selection, _) = psi_handoff_consumer::member_call(package, &member_call.kind).expect("member selection");
+        let MemberRealization::Conformance { declaration, machine } = &selection.target else {
+            panic!("{caller}: lost conformance")
+        };
+        assert_eq!(
+            (declaration.path.as_str(), selection.requirement.declaration.path.as_str()),
+            (owner, "Render::paint")
+        );
+        assert_eq!(by_id(*machine).declaration.path, paint, "{caller}");
+    }
+    observed("obligation-output/refine-requirement");
+}
 
 #[test]
 fn requirement_reach_names_the_declared_service_independently_of_its_owner() {

@@ -7,6 +7,15 @@ fn lower(source: &str) -> Result<LoweredPackage, LoweringError> {
     sources::lower(&[("structural.omg", source)])
 }
 
+/// Receipt for the L5 readiness report, printed after the checks above it pass.
+/// `tools/spec-corpus/lowering_evidence.py` registers each label with its test
+/// and credits it only when that test passes.
+fn observed(label: &str) {
+    if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
+        println!("OMEGA_L5_ASSERT\t{label}");
+    }
+}
+
 #[test]
 fn sibling_fixed_indices_of_one_formal_keep_distinct_complete_paths() {
     use PredicateStep::{Apply, FixedIndex, Formal};
@@ -21,6 +30,7 @@ fn sibling_fixed_indices_of_one_formal_keep_distinct_complete_paths() {
             Apply(PredicateOperator::LessThan)
         ]
     );
+    observed("contract-path/fixed-index-siblings");
 }
 
 #[test]
@@ -39,18 +49,21 @@ fn matrix_indices_retain_every_ordered_segment() {
             Apply(PredicateOperator::Equal)
         ]
     );
+    observed("contract-path/matrix-segments");
 }
 
 #[test]
 fn runtime_selector_forms_no_fixed_index_path() {
     let error = lower("machine f(a:[u8;4], i:u64, b:u8)->u8 requires a[i] < 5 {b}").unwrap_err();
     assert_eq!(error.message, "contract index requires a fixed selector");
+    observed("contract-path/runtime-selector-refusal");
 }
 
 #[test]
 fn out_of_bounds_selector_rejects_instead_of_redirecting() {
     let error = lower("machine f(a:[u8;4], b:u8)->u8 requires a[4] < 5 {b}").unwrap_err();
     assert_eq!(error.message, "contract index is outside its fixed array");
+    observed("contract-path/out-of-bounds-refusal");
 }
 
 #[test]
@@ -71,6 +84,7 @@ fn default_domain_indexes_a_record_field_after_selecting_it() {
             Apply(PredicateOperator::LessOrEqual)
         ]
     );
+    observed("default-domain/indexed-record-field");
 }
 
 #[test]
@@ -125,6 +139,7 @@ fn equal_named_cases_in_distinct_sums_select_the_exact_owned_case_and_field() {
             Apply(PredicateOperator::And)
         ]
     );
+    observed("default-domain/equal-named-case-payloads");
 }
 
 #[test]
@@ -154,4 +169,5 @@ fn same_typed_payload_siblings_retain_their_case_and_field_without_implied_membe
             Apply(PredicateOperator::And)
         ]
     );
+    observed("default-domain/same-typed-payload-siblings");
 }

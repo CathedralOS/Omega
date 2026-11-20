@@ -1,0 +1,112 @@
+"""Which lexer and parser diagnostic kinds have been exercised through the package CLI?"""
+from pathlib import Path
+import re
+
+
+FAMILIES = {
+    "L0": ("lex_errors", "layers/00_bytes-to-tokens/src/errors/lex_error_kind.rs", "LexErrorKind"),
+    "L1": ("parse_errors", "layers/01_tokens-to-syntax-trees/src/errors/parse_error_kind.rs", "ParseErrorKind"),
+}
+INDEX_TEST = "parsing::syntax_parser::tests::token_indices_report_the_first_unrepresentable_position"
+
+
+def kinds(path, enum, *, payload=None):
+    # Only the declared variant shape counts. An unfamiliar declaration needs review.
+    # `payload` names the one payload type, or a tuple of payload types each variant may carry.
+    payloads = (payload,) if isinstance(payload, str) else tuple(payload or ())
+    source = Path(path).read_text(encoding="utf-8")
+    body = re.search(rf"^pub enum {enum} \{{\n(.*?)^\}}", source, re.M | re.S)
+    if not body:
+        raise ValueError(f"{path}: cannot find {enum}")
+    members = set()
+    for line in body[1].splitlines():
+        line = line.split("//", 1)[0].strip()
+        if line:
+            suffix = rf"\((?:{'|'.join(map(re.escape, payloads))})\)" if payloads else ""
+            match = re.fullmatch(rf"([A-Z][A-Za-z0-9]*){suffix},", line)
+            if not match or match[1] in members:
+                raise ValueError(f"{path}: unrecognized {enum} variant {line}")
+            members.add(match[1])
+    if not members:
+        raise ValueError(f"{path}: no {enum} variants")
+    return members
+
+
+def measure(report, log):
+    errors = report["measurement_errors"]
+    inventory = {}
+    for stage, (_, path, enum) in FAMILIES.items():
+        try:
+            inventory[stage] = {kind: {"state": "unobserved"} for kind in sorted(kinds(path, enum))}
+        except (ValueError, OSError) as exc:
+            errors.append(str(exc))
+            inventory[stage] = {}
+    current = target = ""
+    statuses = {}
+    observations = {}
+    invalid = set()
+    for line in log.splitlines():
+        if header := re.match(r"^\s*Running (.+?) \(", line):
+            target, current = header[1].replace("\\", "/"), ""
+        elif outcome := re.fullmatch(r"test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?", line):
+            statuses.setdefault((target, outcome[1]), []).append(outcome[2])
+        elif captured := re.fullmatch(r"---- (.+?) stdout ----", line):
+            current = captured[1]
+        elif line in {"successes:", "failures:"} or line.startswith(("test result:", "   Doc-tests ")):
+            current = ""
+        elif line.startswith("OMEGA_DIAGNOSTIC_KIND"):
+            fields = line.split("\t")
+            if len(fields) != 7 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
+                errors.append(f"malformed diagnostic kind: {line}")
+                if len(fields) >= 3:
+                    invalid.add((fields[1], fields[2]))
+                continue
+            _, stage, kind, file, start, end, reason = fields
+            if kind not in inventory.get(stage, {}):
+                errors.append(f"unknown diagnostic kind: {stage} {kind}")
+                continue
+            binary = FAMILIES[stage][0]
+            expected = f"tests/{binary}.rs", f"public_diagnostics_match_the_{binary}_inventory"
+            if ((target, current) != expected or not file or not start.isdecimal() or not end.isdecimal()
+                    or int(end) < int(start) or not reason or (stage, kind) in observations):
+                errors.append(f"misplaced, repeated or invalid diagnostic kind in {target}::{current}: {line}")
+                invalid.add((stage, kind))
+                continue
+            observations[stage, kind] = expected, {"file": file, "byte_start": int(start), "byte_end": int(end), "reason": reason}
+    for stage, rows in inventory.items():
+        for kind, row in rows.items():
+            if (stage, kind) in invalid:
+                continue
+            record = observations.get((stage, kind))
+            if record:
+                where, sample = record
+                row.update(sample)
+                if statuses.get(where) == ["ok"]:
+                    row["state"] = "CLI verified"
+                    continue
+                if statuses.get(where) == ["FAILED"]:
+                    row["state"] = "matched in a failed test"
+                    continue
+            if (stage, kind) == ("L1", "SourceTooLarge") and not record:
+                checks = [test["status"] for test in report["suites"]["L1"]["tests"]
+                          if test["test"] == INDEX_TEST and test["target"].replace("\\", "/") == "unittests src/lib.rs"]
+                if checks == ["ok"]:
+                    row.update(state="parser boundary verified", test=INDEX_TEST,
+                               reason="The first unrepresentable token index is tested at the production conversion. No oversized CLI file was built.")
+                    continue
+            errors.append(f"{stage} {kind}: missing verified diagnostic")
+    return inventory
+
+
+def details(inventory):
+    lines = ["## Public diagnostic kinds", ""]
+    for stage, rows in inventory.items():
+        public = sum(row["state"] == "CLI verified" for row in rows.values())
+        lines += [f"### {stage}", "", f"{public} of {len(rows)} declared kinds were observed through the package CLI.", ""]
+        for kind, row in rows.items():
+            reason = row.get("reason", "")
+            if "file" in row:
+                reason = f"{row['file']} bytes {row['byte_start']}..{row['byte_end']} · {reason}"
+            lines.append(f"- {kind} · {row['state']} · {reason}")
+        lines.append("")
+    return lines

@@ -8,7 +8,7 @@ mod syntax;
 
 pub use omega_resolved::{
     CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, DomainCandidate, DomainCarrier, IndexedSource, InterfaceExport, NameContext,
-    NameError, NameRole, NameUse, OperatorDeclaration, ResolvedStage, Symbol, SymbolResolvedTree, SymbolResolvedTrees, TreeNodeId, is_builtin_type_name,
+    NameError, NameErrorKind, NameErrorOrigin, NameRole, NameUse, OperatorDeclaration, ResolvedStage, Symbol, SymbolResolvedTree, SymbolResolvedTrees, TreeNodeId, is_builtin_type_name,
 };
 use omega_syntax::SyntaxTree;
 use omega_tokens::Token;

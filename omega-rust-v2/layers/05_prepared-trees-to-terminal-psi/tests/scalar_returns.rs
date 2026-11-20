@@ -53,14 +53,17 @@ fn scalar_return_uses_the_exact_constant_or_boolean_literal() {
             .iter()
             .map(|machine| (machine.id.get(), machine.declaration.path.as_str()))
             .collect();
-        assert_eq!(
-            declarations,
-            [
-                (1, "integer"),
-                (2, "literal_bool"),
-                (3, "named_bool"),
-                (4, "unit")
-            ]
+        spec_corpus::observe_handoff!(
+            psi "psi-output/package-machine-ids",
+            assert_eq!(
+                declarations,
+                [
+                    (1, "integer"),
+                    (2, "literal_bool"),
+                    (3, "named_bool"),
+                    (4, "unit")
+                ]
+            ),
         );
         assert_constant(scalar, ScalarLiteral::Integer(integer.into()));
         assert_eq!(scalar.body.values.len(), 2);

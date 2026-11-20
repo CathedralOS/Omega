@@ -122,7 +122,7 @@ fn matching_node_numbers_in_different_files_keep_their_own_operands() {
         assert_eq!(first.initializer.node.node, second.initializer.node.node);
         assert_eq!(first.initializer.expression.span, second.initializer.expression.span);
         assert_ne!(first.initializer.node.file, second.initializer.node.file);
-        assert_integer_constant(&prepared, "A", 8);
+        spec_corpus::observe_handoff!("overload-bodies-and-file-local-identity/consumer", assert_integer_constant(&prepared, "A", 8));
         assert_integer_constant(&prepared, "B", 10);
     }
 }
@@ -235,7 +235,7 @@ fn constants_and_indices_refuse_the_same_call_at_its_occurrence() {
         ] {
             let source = format!("{machine} {usage}");
             let error = prepare(&source).unwrap_err();
-            assert_eq!(error.message, diagnostic);
+            spec_corpus::observe_handoff!("constant-initializers-and-numeric-landings/refusal", assert_eq!(error.message, diagnostic));
             assert_eq!(error.package, "app");
             assert_eq!(error.file, "main.omg");
             assert_eq!(error.span.slice(source.as_bytes()), Some(call.as_bytes()));
@@ -702,7 +702,7 @@ fn typed_negation_matches_exact_literals_and_primitive_indices() {
                   machine compare(x:Row<(-5i8)>)->Row<negate(5)>{x}";
     let prepared = prepare(source).unwrap();
     for constant in &prepared.typed().constants {
-        assert_eq!(prepared.integer_constant(&constant.declaration), Some(&BigInt::from(-5)));
+        spec_corpus::observe_handoff!("constant-initializers-and-numeric-landings/consumer", assert_eq!(prepared.integer_constant(&constant.declaration), Some(&BigInt::from(-5))));
     }
     let signature = prepared
         .typed()

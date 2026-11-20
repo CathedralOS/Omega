@@ -1,33 +1,15 @@
-use omega_lowering::{AliasTarget, LoweredPackage, LoweringError, PredicateOperator, PredicateStep, ScalarType, TypeShape, lower_package};
-use omega_preparation::prepare_source_package;
-use omega_resolver::{ParsedSource, StageSource};
-use omega_typer::{Multiplicity, resolve_source_package};
+#[path = "support/known_gap.rs"]
+mod known_gap;
+#[path = "support/source.rs"]
+mod sources;
 
+use omega_lowering::{AliasTarget, LoweredPackage, LoweringError, PredicateOperator, PredicateStep, ScalarType, TypeShape};
+use omega_typer::Multiplicity;
+
+// The shared helper reports each fixture's outcome, so the readiness runner
+// can reconcile every refusal below against tools/spec-corpus/l5_refusals.tsv.
 fn lower(files: &[(&str, &str)]) -> Result<LoweredPackage, LoweringError> {
-    let parsed: Vec<_> = files
-        .iter()
-        .map(|(_, text)| {
-            let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
-            let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
-            (tokens, tree)
-        })
-        .collect();
-    let inputs: Vec<_> = files
-        .iter()
-        .zip(&parsed)
-        .map(|(&(logical_path, text), (tokens, tree))| StageSource {
-            package: "app",
-            source: ParsedSource {
-                logical_path,
-                text,
-                tokens,
-                tree,
-            },
-        })
-        .collect();
-    let package = resolve_source_package(&inputs).unwrap();
-    let prepared = prepare_source_package(&package).unwrap();
-    lower_package(&prepared)
+    sources::lower(files)
 }
 
 #[test]
@@ -231,6 +213,7 @@ fn unsupported_data_requirement_refuses_the_package_at_the_predicate_call() {
     let error = lower(&[("guard.omg", source)]).unwrap_err();
     assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"predicate()".as_slice()));
     assert_eq!(error.message, "unsupported typed contract predicate record");
+    known_gap::report("call in a data requirement", "The data schema needs the predicate and its selected call", source, &error);
 }
 
 #[test]
@@ -291,6 +274,7 @@ fn aliases_with_attributes_still_refuse() {
     let error = lower(&[("alias.omg", source)]).unwrap_err();
     assert_eq!(error.message, "data alias or unsupported member requires declaration lowering");
     assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"u64".as_slice()));
+    known_gap::report("attributed data alias", "The alias needs its attributes and expansion", source, &error);
 }
 
 fn alias_expansion<'a>(
@@ -394,9 +378,12 @@ fn generic_and_concrete_aliases_retain_exact_binders_and_normalized_expansion() 
         )]))]
     );
     assert_eq!(expansion.head.as_ref(), Some(buffer));
-    assert_eq!(
-        expansion.expansion,
-        DeclarationTerm::Type(TypeExpression(vec![parameter(window), named(buffer)]))
+    spec_corpus::observe_handoff!(
+        psi "psi-output/generic-alias",
+        assert_eq!(
+            expansion.expansion,
+            DeclarationTerm::Type(TypeExpression(vec![parameter(window), named(buffer)]))
+        ),
     );
 
     // Closed applications keep the selected carrier and canonical value; a chain
@@ -431,7 +418,10 @@ fn aliases_preserve_direct_and_inherited_visibility_and_builtin_identity() {
     assert!(scalar.public);
     assert_eq!(word.site.file, "envelope.omg");
     assert_eq!(scalar.site.file, "base.omg");
-    assert_eq!(word.target, AliasTarget::Declaration(scalar.declaration.clone()));
+    spec_corpus::observe_handoff!(
+        psi "psi-output/alias-target",
+        assert_eq!(word.target, AliasTarget::Declaration(scalar.declaration.clone())),
+    );
     assert_eq!(scalar.target, AliasTarget::Builtin("u64".into()));
     let [envelope] = package.data.as_slice() else {
         panic!("expected only the envelope's nominal schema");

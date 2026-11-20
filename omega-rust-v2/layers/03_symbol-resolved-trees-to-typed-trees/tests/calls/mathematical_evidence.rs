@@ -1,3 +1,19 @@
+/// A mathematical refusal must point inside the last occurrence of `region`.
+fn assert_math_refusal_within(
+    source: &str,
+    error: &omega_typer::TypeError,
+    region: &str,
+) {
+    let at = source
+        .rfind(region)
+        .unwrap_or_else(|| panic!("missing region {region:?}"));
+    let (start, end) = (error.span.get_start_offset(), error.span.get_end_offset());
+    assert!(
+        at <= start && start < end && end <= at + region.len(),
+        "{error:?} lies outside {region:?}"
+    );
+}
+
 #[test]
 fn boundary_mathematics_retains_assumption_closure_through_private_helpers() {
     let definitions = "boundary let trusted(x:u8):u8; let wrap(x:u8):u8=trusted(x);";
@@ -12,12 +28,10 @@ fn boundary_mathematics_retains_assumption_closure_through_private_helpers() {
         .find(|(id, ..)| id.path == "wrap")
         .unwrap();
     assert_eq!(row.2[0].path, "trusted");
-    assert!(
-        check(&[("math.omg", &format!("{definitions} machine execute(x:u8)->u8 {{wrap(x)}}"))])
-            .unwrap_err()
-            .message
-            .contains("cannot supply executable")
-    );
+    let execute = format!("{definitions} machine execute(x:u8)->u8 {{wrap(x)}}");
+    let error = check(&[("math.omg", &execute)]).unwrap_err();
+    assert_eq!(error.file, "math.omg");
+    assert_eq!(error.message, "mathematical assumption cannot supply executable data or control");
 }
 
 #[test]
@@ -58,12 +72,11 @@ fn projected_evidence_keeps_the_conclusion_to_check() {
     );
     assert!(!supplied.calls.iter().any(|c| c.machine.path == "lemma"));
     let wrong = code.replace("(x:u8)->P(x)", "(x:u8)->bool");
-    assert!(
-        check(&[("evidence.omg", &wrong)])
-            .unwrap_err()
-            .message
-            .contains("expected evidence")
-    );
+    let error = check(&[("evidence.omg", &wrong)]).unwrap_err();
+    assert_eq!(error.file, "evidence.omg");
+    assert_eq!(error.message, "expected evidence for the logical conclusion");
+    assert_eq!(error.span.get_start_offset(), wrong.find("p.evidence").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"p.evidence".as_slice()));
 }
 
 #[test]
@@ -71,12 +84,10 @@ fn a_named_family_checks_nested_mathematical_subjects_in_declaration_order() {
     let code = "let keep(x:u8,p:predicate(inc(x))):predicate(inc(x))=p; let inc(x:u8):u8=x+1; let predicate(x:u8):core\\Strict<0> = x>0;";
     check(&[("family.omg", code)]).unwrap();
     let wrong = code.replace("inc(x))=p", "inc(1u16))=p");
-    assert!(
-        check(&[("family.omg", &wrong)])
-            .unwrap_err()
-            .message
-            .contains("wrong type")
-    );
+    let error = check(&[("family.omg", &wrong)]).unwrap_err();
+    assert_eq!(error.file, "family.omg");
+    assert_eq!(error.message, "type-family literal has the wrong type");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"1u16".as_slice()));
 }
 
 #[test]
@@ -92,13 +103,17 @@ fn mathematical_signature_cycles_report_the_first_waiting_declaration() {
 fn dependent_arrows_apply_to_exact_subjects_and_ignore_binder_spelling() {
     let source = "let apply<A,F:A->core\\Type<0>>(f:(x:A)->F(x),y:A):F(y)=f(y); let rename<A,F:A->core\\Type<0>>(f:(x:A)->F(x)):(z:A)->F(z)=f;";
     check(&[("dependent.omg", source)]).unwrap();
+    // Same family and binder spelling as `apply`; only the applied subject differs from the result's.
     let bad = "let wrong<A,F:A->core\\Type<0>>(f:(x:A)->F(x),a:A,b:A):F(b)=f(a);";
+    let error = check(&[("dependent.omg", bad)]).unwrap_err();
+    assert_eq!(error.file, "dependent.omg");
     assert!(
-        check(&[("dependent.omg", bad)])
-            .unwrap_err()
-            .message
-            .contains("expected")
+        error.message.starts_with("expected ") && error.message.contains(", found "),
+        "{error:?}"
     );
+    assert_eq!(error.span.get_start_offset(), bad.rfind("f(a)").unwrap(), "{error:?}");
+    assert_eq!(error.span.slice(bad.as_bytes()), Some(b"f(a)".as_slice()));
+    check(&[("dependent.omg", &bad.replace("=f(a);", "=f(b);"))]).unwrap();
     let runtime = "data Buf<N:u8>{} let named(n:u8,b:Buf<n>):Buf<n>=b;";
     check(&[("dependent.omg", &runtime.replace("<n>=", "<n> ="))]).unwrap();
 }
@@ -114,18 +129,17 @@ fn mathematical_telescope_preserves_distinct_levels_and_strict_propositions() {
             .iter()
             .any(|o| matches!(&o.kind,omega_typer::ObligationKind::MathematicalFact{sort} if sort.to_string()=="core\\Strict<0>"))
     );
-    assert!(
-        check(&[("math.omg", "machine f(x:core\\Level){}")])
-            .unwrap_err()
-            .message
-            .contains("binder kind")
-    );
-    assert!(
-        check(&[("math.omg", "let bad<const N:u64>(x:u8):core\\Strict<N> = x == 0;")])
-            .unwrap_err()
-            .message
-            .contains("universe level")
-    );
+    let level = "machine f(x:core\\Level){}";
+    let error = check(&[("math.omg", level)]).unwrap_err();
+    assert_eq!(error.file, "math.omg");
+    assert_eq!(error.message, "core\\Level is a universe binder kind");
+    assert_eq!(error.span.slice(level.as_bytes()), Some(b"core\\Level".as_slice()));
+    let value_level = "let bad<const N:u64>(x:u8):core\\Strict<N> = x == 0;";
+    let error = check(&[("math.omg", value_level)]).unwrap_err();
+    assert_eq!(error.file, "math.omg");
+    assert_eq!(error.message, "expected a universe level binder or a nonnegative level literal");
+    assert_eq!(error.span.get_start_offset(), value_level.rfind('N').unwrap(), "{error:?}");
+    check(&[("math.omg", &value_level.replace("const N:u64", "N:core\\Level"))]).unwrap();
 }
 
 #[test]
@@ -142,14 +156,25 @@ fn a_machine_shaped_hypothesis_keeps_its_premises_and_cannot_be_executed() {
             .iter()
             .any(|o| matches!(o.kind, omega_typer::ObligationKind::SupplyHypothesis { .. }))
     );
-    for (from, to, reason) in [
-        ("ensures Step::ensures(x) {}", "{Step(x)}", "logical evidence cannot be executed"),
-        ("machine lemma(y:u8)", "machine lemma(y:u16)", "incompatible logical evidence signature"),
-        ("ensures y > 0;", "ensures 5u8;", "expected bool"),
+    for (from, to, reason, region) in [
+        ("ensures Step::ensures(x) {}", "{Step(x)}", "logical evidence cannot be executed", "Step(x)}"),
+        (
+            "machine lemma(y:u8)",
+            "machine lemma(y:u16)",
+            "incompatible logical evidence signature",
+            "theorem::<lemma>(x)",
+        ),
+        ("ensures y > 0;", "ensures 5u8;", "expected bool, found ", "5u8"),
     ] {
         let bad = source.replace(from, to);
         let error = check(&[("proof.omg", &bad)]).unwrap_err();
-        assert!(error.message.contains(reason), "{error:?}");
+        assert_eq!(error.file, "proof.omg");
+        if reason.ends_with(' ') {
+            assert!(error.message.starts_with(reason), "{error:?}");
+        } else {
+            assert_eq!(error.message, reason, "{error:?}");
+        }
+        assert_math_refusal_within(&bad, &error, region);
     }
 }
 
@@ -162,8 +187,12 @@ fn tuples_mathematical_prefixes_and_write_only_places() {
     .unwrap();
     check(&[("a.omg", "let first(x:u8,y:bool):u8=x; let partial(x:u8):bool->u8=first(x);")]).unwrap();
     check(&[("a.omg", "data P { v:u8; } machine set(p:@write P){p.v=7;}")]).unwrap();
-    let e = check(&[("a.omg", "data P { v:u8; } machine get(p:@write P)->u8{p.v}")]).unwrap_err();
-    assert!(e.message.contains("write-only"));
+    let read = "data P { v:u8; } machine get(p:@write P)->u8{p.v}";
+    let e = check(&[("a.omg", read)]).unwrap_err();
+    assert_eq!(e.file, "a.omg");
+    assert_eq!(e.message, "cannot read through a write-only reference", "{e:?}");
+    assert_math_refusal_within(read, &e, "p.v");
+    check(&[("a.omg", &read.replace("@write P", "@P"))]).unwrap();
 }
 
 #[test]
@@ -177,22 +206,32 @@ fn mathematical_generic_arguments_and_chained_prefixes_keep_the_checked_term() {
     ] {
         let source = format!("{declarations} let term():u8={expression};");
         let stage = check(&[("math.omg", &source)]).unwrap();
-        assert!(stage.obligations.iter().any(|o| matches!(&o.kind,
-            omega_typer::ObligationKind::MathematicalApplication {definition:Some(_), generic_arguments, ..}
-            if generic_arguments.len()==1 && generic_arguments[0].to_string()=="u8")));
+        spec_corpus::observe_handoff!(
+            "mathematical-terms-and-assembly/producer",
+            assert!(stage.obligations.iter().any(|o| matches!(&o.kind,
+                omega_typer::ObligationKind::MathematicalApplication {definition:Some(_), generic_arguments, ..}
+                if generic_arguments.len()==1 && generic_arguments[0].to_string()=="u8")))
+        );
         assert!(stage.indirect_calls.is_empty());
     }
     let source = format!("{declarations} let term():u8->bool->u8=first::<u8>;");
     check(&[("math.omg", &source)]).unwrap();
     for (expression, message) in [
-        ("first::<u8>(true,true)", "expected u8"),
+        ("first::<u8>(true,true)", "expected u8, found bool"),
         ("first::<u8,bool>(5,true)", "excess generic arguments"),
         ("first::<u8>(5,true,false)", "excess mathematical arguments"),
-        ("first(5u8)(7u8)", "expected bool"),
+        ("first(5u8)(7u8)", "expected bool, found "),
     ] {
         let source = format!("{declarations} let term():u8={expression};");
         let err = check(&[("math.omg", &source)]).unwrap_err();
-        assert!(err.message.contains(message), "{expression}: {err:?}");
+        assert_eq!(err.file, "math.omg");
+        if message.ends_with(' ') {
+            assert!(err.message.starts_with(message), "{expression}: {err:?}");
+        } else {
+            assert_eq!(err.message, message, "{expression}");
+        }
+        // The refusal belongs to the term's application, not to the healthy declarations.
+        assert_math_refusal_within(&source, &err, expression);
     }
 }
 
@@ -220,12 +259,15 @@ fn named_function_types_and_explicit_universe_arguments_work_through_calls() {
         check(&[("equality.omg", source)]).unwrap();
     }
     let wrong = "data Box<T>{} machine f<A:core\\Type<0>,F:A->core\\Type<0>>(x:Box<(a:A)->(b:A)->F(a)>)->Box<(a:A)->(b:A)->F(b)>{x}";
+    let error = check(&[("types.omg", wrong)]).unwrap_err();
+    assert_eq!(error.file, "types.omg");
     assert!(
-        check(&[("types.omg", wrong)])
-            .unwrap_err()
-            .message
-            .contains("expected")
+        error.message.starts_with("expected game\\Box<") && error.message.contains(", found game\\Box<"),
+        "{error:?}"
     );
+    assert_eq!(error.span.get_start_offset(), wrong.rfind("{x}").unwrap() + 1, "{error:?}");
+    // Renaming the dependent binders alone is accepted.
+    check(&[("types.omg", &wrong.replace("->F(b)>{x}", "->F(a)>{x}").replace("Box<(a:A)->(b:A)->F(a)>{x}", "Box<(c:A)->(d:A)->F(c)>{x}"))]).unwrap();
 }
 
 #[test]
@@ -486,12 +528,10 @@ fn explicit_function_arguments_use_the_applied_carrier() {
         };
         assert!(matches!(selected.last(), Some(ValueType::Subject { declaration, .. }) if declaration.span.slice(code.as_bytes()) == Some(b"f")));
         let wrong = code.replace("f:u8->u8", "f:u8->bool");
-        assert!(
-            check(&[("application.omg", &wrong)])
-                .unwrap_err()
-                .message
-                .contains("wrong carrier")
-        );
+        let error = check(&[("application.omg", &wrong)]).unwrap_err();
+        assert_eq!(error.file, "application.omg");
+        assert_eq!(error.message, "index subject has the wrong carrier", "{application}");
+        assert_math_refusal_within(&wrong, &error, application);
     }
 }
 
@@ -509,12 +549,10 @@ fn nested_data_arguments_use_the_enclosing_type_in_the_function_bound() {
         [ty, ValueType::Subject{declaration,..}] if ty.to_string()=="u8" && declaration.span.get_start_offset()==code.find("f:Byte").unwrap()))
     );
     let wrong = code.replace("Byte->Byte", "Byte->bool");
-    assert!(
-        check(&[("nested.omg", &wrong)])
-            .unwrap_err()
-            .message
-            .contains("wrong carrier")
-    );
+    let error = check(&[("nested.omg", &wrong)]).unwrap_err();
+    assert_eq!(error.file, "nested.omg");
+    assert_eq!(error.message, "index subject has the wrong carrier");
+    assert_math_refusal_within(&wrong, &error, "Outer<u8>::Inner<f>");
 }
 
 #[test]

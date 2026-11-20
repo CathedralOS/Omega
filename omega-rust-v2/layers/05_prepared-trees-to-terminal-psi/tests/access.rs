@@ -33,11 +33,14 @@ fn indexing_a_constructed_matrix_preserves_element_order_and_the_temporary_root(
     let (OperationResult::Structural(first_row), OperationResult::Structural(second_row)) = (first.result, second.result) else {
         panic!("expected owned rows")
     };
-    assert_eq!(
-        matrix.kind,
-        OperationKind::EstablishStructuralArray {
-            elements: vec![first_row, second_row]
-        }
+    spec_corpus::observe_handoff!(
+        psi "psi-output/matrix-row-order",
+        assert_eq!(
+            matrix.kind,
+            OperationKind::EstablishStructuralArray {
+                elements: vec![first_row, second_row]
+            }
+        ),
     );
     let OperationKind::PrimitiveScalarRead { source, path } = &read.kind else {
         panic!("expected a scalar read")
@@ -254,7 +257,10 @@ fn a_contract_on_one_view_cannot_supply_another_views_read_length() {
         let [measure, read] = body.operations.as_slice() else {
             panic!("expected measure and read")
         };
-        assert_eq!(measure.kind, OperationKind::ByteSequenceLength { source: selected });
+        spec_corpus::observe_handoff!(
+            psi "psi-output/view-length",
+            assert_eq!(measure.kind, OperationKind::ByteSequenceLength { source: selected }),
+        );
         let OperationKind::ByteSequenceRead {
             source,
             index,

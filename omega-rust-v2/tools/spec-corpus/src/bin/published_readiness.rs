@@ -9,8 +9,9 @@ use omega_typer::{TypedStage, TypedTrees, ValueType, type_source_package};
 type Source<'a> = (&'a str, &'a str, &'a str);
 struct Failure {
     stage: &'static str,
+    package: String,
     file: String,
-    span: Option<SourceSpan>,
+    span: SourceSpan,
     message: String,
 }
 
@@ -20,14 +21,15 @@ fn compile<'text>(
 ) -> Result<TypedTrees<'text>, Failure> {
     let mut parsed = Vec::new();
     for &(package, file, text) in files {
-        let earlier = |stage, message| Failure {
+        let earlier = |stage, span, message| Failure {
             stage,
+            package: package.to_owned(),
             file: file.to_string(),
-            span: None,
+            span,
             message,
         };
-        let tokens = lex(text.as_bytes()).map_err(|e| earlier("L0", format!("{e:?}")))?;
-        let tree = parse_file(text.as_bytes(), &tokens).map_err(|e| earlier("L1", format!("{e:?}")))?;
+        let tokens = lex(text.as_bytes()).map_err(|e| earlier("L0", e.get_span(), e.get_kind().get_message().to_owned()))?;
+        let tree = parse_file(text.as_bytes(), &tokens).map_err(|e| earlier("L1", e.get_span(), e.get_kind().get_message(e.get_expected())))?;
         parsed.push((package, file, text, tokens, tree));
     }
     let sources: Vec<_> = parsed
@@ -44,8 +46,9 @@ fn compile<'text>(
         .collect();
     let name_failure = |e: omega_resolver::NameError| Failure {
         stage: "L2",
+        package: e.package,
         file: e.file,
-        span: Some(e.span),
+        span: e.span,
         message: e.message,
     };
     let typed = if edges.is_empty() {
@@ -55,8 +58,9 @@ fn compile<'text>(
     }
     .map_err(|e| Failure {
         stage: "L3",
+        package: e.package,
         file: e.file,
-        span: Some(e.span),
+        span: e.span,
         message: e.message,
     })?;
     Ok(typed)
@@ -80,31 +84,23 @@ fn describe(
 ) -> String {
     let source = files
         .iter()
-        .find(|(_, name, _)| *name == failure.file)
+        .find(|(package, name, _)| *package == failure.package && *name == failure.file)
         .map(|(_, _, text)| *text);
-    let before = source
-        .zip(failure.span)
-        .and_then(|(s, span)| s.get(..span.get_start_offset()));
-    let position = before
-        .map(|s| {
-            format!(
-                ":{}:{}",
-                1 + s.bytes().filter(|&b| b == b'\n').count(),
-                1 + s.rsplit('\n').next().unwrap().chars().count()
-            )
-        })
-        .unwrap_or_default();
-    format!("{} {}{}: {}", failure.stage, failure.file, position, failure.message)
+    let Some(source) = source else {
+        return format!("{} {}/{}: {}", failure.stage, failure.package, failure.file, failure.message);
+    };
+    let pos = omega_lexer::LineIndex::new(source.as_bytes()).get_position(failure.span.get_start_offset());
+    format!("{} {}:{}:{}: {} (bytes {}..{})", failure.stage, failure.file, pos.get_line(), pos.get_column(), failure.message, failure.span.get_start_offset(), failure.span.get_end_offset())
 }
 
 fn accept(
     edges: &[Dependency<'_>],
     files: &[Source<'_>],
     verify: impl FnOnce(&SymbolResolvedTrees<'_>, &TypedStage) -> bool,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
     let typed = compile(files, edges).map_err(|e| describe(&e, files))?;
     if verify(typed.resolved(), &typed) {
-        Ok(())
+        Ok(None)
     } else {
         Err("L3 accepted but the expected typed product is missing".into())
     }
@@ -115,33 +111,39 @@ fn reject(
     files: &[Source<'_>],
     file: &str,
     site: &str,
-    reason: &[&str],
-) -> Result<(), String> {
+    reason: &str,
+) -> Result<Option<String>, String> {
+    let &(package, _, source) = files.iter().find(|(_, name, _)| *name == file).unwrap();
+    let mut occurrences = source.match_indices(site);
+    let (start, _) = occurrences.next().expect("negative operation absent");
+    assert!(occurrences.next().is_none(), "ambiguous expected occurrence: {site}");
+    let expected = format!("expected L3 to refuse {package}/{file} at {site} for {reason}");
     let Err(error) = compile(files, edges) else {
-        return Err("accepted the negative input".into());
+        return Err(format!("accepted the negative input; {expected}"));
     };
-    let source = files.iter().find(|(_, name, _)| *name == file).unwrap().2;
-    let start = source.find(site).expect("negative operation absent");
     if error.stage == "L3"
+        && error.package == package
         && error.file == file
-        && error
-            .span
-            .is_some_and(|span| span.get_start_offset() >= start && span.get_end_offset() <= start + site.len())
-        && reason.iter().any(|word| error.message.contains(word))
+        && error.span == SourceSpan::new(start, start + site.len())
+        && error.message == reason
     {
-        Ok(())
+        Ok(Some(describe(&error, files)))
     } else {
-        Err(describe(&error, files))
+        Err(format!("{}; {expected}", describe(&error, files)))
     }
 }
 
 fn report(
     label: &str,
-    result: Result<(), String>,
+    result: Result<Option<String>, String>,
 ) -> bool {
     match result {
-        Ok(()) => {
-            println!("  PASS {label}");
+        Ok(detail) => {
+            if let Some(observed) = detail {
+                println!("  PASS {label} — {observed}");
+            } else {
+                println!("  PASS {label}");
+            }
             true
         }
         Err(message) => {
@@ -203,17 +205,11 @@ fn codec() -> bool {
         ),
     );
     let mut ok = valid;
-    for (from, to) in [
-        ("lib_a\\encode", "lib_b\\decode"),
-        ("lib_b\\decode", "lib_a\\encode"),
+    for (from, to, requirement) in [
+        ("lib_a\\encode", "lib_b\\decode", "encode"),
+        ("lib_b\\decode", "lib_a\\encode", "decode"),
     ] {
         let wrong = spec.replacen(from, to, 1);
-        let line = wrong
-            .lines()
-            .find(|l| l.contains(&format!("{to} satisfies")) && l.contains(if from.ends_with("encode") { "::encode)" } else { "::decode)" }))
-            .unwrap()
-            .trim();
-        let start = line.find('(').unwrap();
         ok &= report(
             &format!("reject {to} in the {from} slot"),
             reject(
@@ -225,8 +221,8 @@ fn codec() -> bool {
                     context[2],
                 ],
                 "codec.omg",
-                &line[start..line.len() - 1],
-                &["requirement", "signature", "satisf", "conformance"],
+                &format!("({to} satisfies Codec<Message>::{requirement})"),
+                "machine has no matching requirement signature",
             ),
         );
     }
@@ -257,7 +253,7 @@ fn reader() -> bool {
     );
     let invalid = report(
         "refuse a callable over Socket at the initializer",
-        reject(&[], &files(&wrong), "pack.omg", "read: read_file", &["witness", "callable", "signature"]),
+        reject(&[], &files(&wrong), "pack.omg", "read_file", "inconsistent package witness"),
     );
     valid && invalid
 }
@@ -307,29 +303,35 @@ fn reflection() -> bool {
                 selected && applied && typed
             }),
         );
-        let (from, to) = if kind == "FieldInfo" {
-            ("reflect\\field", "reflect\\callable")
+        let (from, to, reason) = if kind == "FieldInfo" {
+            ("reflect\\field", "reflect\\callable", "expected a callable declaration")
         } else {
-            ("reflect\\callable", "reflect\\field")
+            ("reflect\\callable", "reflect\\field", "expected a field declaration")
         };
         let other = selector.replace(from, to);
         let wrong = source.replace(selector, &other);
+        let argument = selector.strip_prefix(from).unwrap().strip_prefix('(').unwrap().strip_suffix(')').unwrap();
         ok &= report(
             &format!("reject {other}"),
             reject(
                 &[],
                 &files(&wrong),
                 "selector.omg",
-                &other,
-                &[
-                    "field declaration",
-                    "callable declaration",
-                    "expected a field",
-                    "expected a callable",
-                    "machine declaration",
-                ],
+                argument,
+                reason,
             ),
         );
+    }
+    // An unresolved selector can mean either a missing public query or a failed
+    // lookup of a query the toolchain supplied. Inspect the actual interface.
+    let interface = omega_toolchain::core_interface().exports();
+    for member in ["field", "callable", "FieldInfo", "CallableInfo"] {
+        let path = format!("language\\core\\reflect\\{member}");
+        let kinds: Vec<_> = interface.declarations.iter()
+            .filter(|export| export.id.package == omega_toolchain::TOOLCHAIN_PACKAGE && export.id.path == path)
+            .map(|export| format!("{:?}", export.id.kind)).collect();
+        let result = if kinds.is_empty() { "absent".to_owned() } else { kinds.join(",") };
+        println!("OMEGA_CONTEXT_EXPORT\tlanguage/reflection.md:77\t{}\t{path}\t{result}", omega_toolchain::TOOLCHAIN_PACKAGE);
     }
     ok
 }

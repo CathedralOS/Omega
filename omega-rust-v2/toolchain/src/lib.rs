@@ -4,7 +4,7 @@ pub use omega_program_contracts::CollectionPrimitive;
 mod core_interface;
 pub use core_interface::{CoreInterface, LayoutQuery, core_interface};
 use omega_lexer::SourceSpan;
-use omega_resolver::{Dependency, NameError, StageSource, SymbolResolvedTrees};
+use omega_resolver::{Dependency, NameError, NameErrorKind, StageSource, SymbolResolvedTrees};
 
 pub const TOOLCHAIN_PACKAGE: &str = "@omega/toolchain";
 
@@ -38,6 +38,7 @@ pub fn check_source_identity(
             file: file.into(),
             span: SourceSpan::new(0, 0),
             message: "package identity reserved for the toolchain".into(),
+            kind: NameErrorKind::ReservedPackageIdentity,
         });
     }
     Ok(())

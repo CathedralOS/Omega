@@ -17,7 +17,10 @@ fn parked_calls_keep_the_exact_caller_and_callee_owners() {
                  machine forward(left:Handle,right:Handle)->u64 suspends {{ {body} }}"
             );
             let mut package = source::lower(&[("parked_handles.omg", &text)]).unwrap();
-            assert_eq!(check_parked_handles(&package, formal, terminal), Ok(()));
+            spec_corpus::observe_handoff!(
+                psi "psi-output/parked-custody",
+                assert_eq!(check_parked_handles(&package, formal, terminal), Ok(())),
+            );
 
             let caller = package
                 .machines

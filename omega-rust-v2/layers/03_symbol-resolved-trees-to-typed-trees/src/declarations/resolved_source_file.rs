@@ -142,6 +142,19 @@ impl<'a> ResolvedSourceFile<'a> {
         self.declaration_at(node_index)
             .ok_or_else(|| TypeError::at(self.file, node_index, "missing L2 definition"))
     }
+    /// Place and pattern typing still publish a record at each group around their operand.
+    pub(crate) fn grouped_operand(
+        &self,
+        mut node: usize,
+    ) -> Result<(usize, Vec<usize>), TypeError> {
+        let mut groups = Vec::new();
+        while self.file.nodes[node].kind == omega_syntax::NodeKind::Paren {
+            groups.push(node);
+            node = self.single_child(node)?;
+        }
+        Ok((node, groups))
+    }
+
     pub(crate) fn single_child(
         &self,
         node_index: usize,

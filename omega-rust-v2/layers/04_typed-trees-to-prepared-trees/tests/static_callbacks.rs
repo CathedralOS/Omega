@@ -90,14 +90,27 @@ fn a_skipped_callback_still_requires_non_suspending_selected_effects() {
                 const VALUE:bool = choose::<ready>(false);";
     let prepared = prepare_source_package(&resolve(code)).unwrap();
     assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration), Some(&PreparedValue::Bool(false)));
-    let with_suspension = code.replace("choose::<ready>", "choose::<parked>");
-    let error = prepare_source_package(&resolve(&with_suspension)).unwrap_err();
-    assert!(
-        error
-            .message
-            .contains("fact or static argument requires an effect-free computation"),
-        "{}",
-        error.message
+    // Twin: both selections satisfy the same suspending `Readiness` bound and
+    // the skipped branch never runs. Only the selected callback's own pause
+    // effect, specialized at the call, decides whether the constant can freeze.
+    let outcome = |callback: &str| -> Result<PreparedValue, String> {
+        let selected = code.replace("choose::<ready>", &format!("choose::<{callback}>"));
+        let package = resolve(&selected);
+        let prepared = prepare_source_package(&package).map_err(|error| error.message)?;
+        let value = prepared
+            .constant(&prepared.typed().constants[0].declaration)
+            .cloned()
+            .unwrap();
+        Ok(value)
+    };
+    let outcomes = [outcome("ready"), outcome("parked")];
+    spec_corpus::observe_handoff!(
+        "selected-callback-effects/consumer",
+        assert!(
+            matches!(&outcomes, [Ok(PreparedValue::Bool(false)), Err(refusal)]
+                if refusal.contains("fact or static argument requires an effect-free computation")),
+            "{outcomes:?}"
+        )
     );
 }
 
@@ -112,6 +125,28 @@ fn a_static_callback_executes_the_closed_application_of_a_generic_body() {
         prepared.constant(&prepared.typed().constants[0].declaration),
         Some(&PreparedValue::Integer(7.into()))
     );
+}
+
+/// The explicit static arguments written on a callback selection reach the
+/// invocation that preparation executes. Two applications of one declaration
+/// differ only in those arguments, so each value identifies its own application.
+#[test]
+fn an_explicitly_applied_callback_executes_with_its_own_static_arguments() {
+    let declarations = "machine level<const N:u8>(v:u8)->u8 {N}
+                data ByteStep=machine(v:u8)->u8;
+                machine apply<const F:ByteStep>(v:u8)->u8 {F(v)}";
+    for expected in [2u8, 5] {
+        let code = format!("{declarations}\nconst VALUE:u8=apply::<level::<{expected}>>(7u8);");
+        let package = resolve(&code);
+        let prepared = prepare_source_package(&package).unwrap();
+        let [value] = prepared.typed().constants.as_slice() else {
+            panic!("expected VALUE")
+        };
+        spec_corpus::observe_handoff!(
+            "explicit-callback-application/consumer",
+            assert_eq!(prepared.constant(&value.declaration), Some(&PreparedValue::Integer(expected.into())))
+        );
+    }
 }
 
 #[test]
@@ -183,7 +218,7 @@ fn a_nested_callback_reads_the_same_static_value_as_a_direct_call() {
                 .iter()
                 .find(|constant| constant.declaration.path == name)
                 .unwrap();
-            assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(result)));
+            spec_corpus::observe_handoff!("nested-helpers-and-tail-expressions/producer", assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(result))));
         }
     }
 }
