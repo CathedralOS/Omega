@@ -191,10 +191,12 @@ stamp_seed() {
       "$SEED_SIZE" "$REQUIRED_SIZE" >&2
     return 1
   fi
-  cp "$seed" "$out"
+  cp "$seed" "$out" || return $?
   printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $(((L >> 16) & 255)) $(((L >> 24) & 255)))" \
-    | dd of="$out" bs=1 seek="$HOLE_OFF" conv=notrunc status=none
-  dd if="$tape" of="$out" bs=1 seek=$((HOLE_OFF + 4)) conv=notrunc status=none
+    | dd of="$out" bs=1 seek="$HOLE_OFF" conv=notrunc status=none || return $?
+  # One output block spans the seed prefix and the four-byte length. Seeking
+  # one block starts the tape at exactly that byte offset on every host.
+  dd if="$tape" of="$out" bs=$((HOLE_OFF + 4)) seek=1 conv=notrunc status=none || return $?
   if [ "$SEED_SIGN" = 1 ]; then
     codesign -f -s - "$out" 2>/dev/null || return 1
   fi
