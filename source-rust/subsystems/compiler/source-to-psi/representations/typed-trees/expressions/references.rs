@@ -2263,7 +2263,7 @@ pub struct MachineSidecarIndex {
     requirement_invocations: std::sync::OnceLock<
         Vec<(
             SymbolHandle,
-            arena::Handle<super::callable_applications::AppliedCallableSignature>,
+            arena::Handle<crate::callable_applications::AppliedCallableSignature>,
         )>,
     >,
 }

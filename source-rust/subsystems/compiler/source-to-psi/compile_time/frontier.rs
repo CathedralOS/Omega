@@ -83,11 +83,6 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             "retained source type judgments need their actual producer correspondence",
         ));
     }
-    if typed.product_declaration_frontier.is_some() {
-        return Err(unsupported(
-            "retained product source normalization correspondence",
-        ));
-    }
     // A numbered record contributes a derived schema for later selection.
     // Evaluation is owed once an encoding or its executable plan is present.
     if typed

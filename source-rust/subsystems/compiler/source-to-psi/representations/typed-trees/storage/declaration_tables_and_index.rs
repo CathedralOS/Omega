@@ -1911,7 +1911,7 @@ pub(crate) mod declaration_tables {
                 return None;
             }
             let owner = self.symbols.get(machine).declaration_owner;
-            let implementation = self.product_declarations().conformance_by_symbol(owner)?;
+            let implementation = self.conformance_by_symbol(owner)?;
             let mut rows = implementation
                 .rows
                 .iter()

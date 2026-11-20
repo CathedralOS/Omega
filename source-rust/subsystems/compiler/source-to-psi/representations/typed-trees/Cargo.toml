@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [lib]
-path = "lib.rs"
+path = "typed_trees.rs"
 
 [dependencies]
 service-surface = { path = "../../../psi/interfaces/service-surface" }
