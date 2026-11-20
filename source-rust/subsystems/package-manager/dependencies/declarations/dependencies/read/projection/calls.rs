@@ -5,7 +5,7 @@ use crate::declarations::dependencies::read::source_literal::{
     project_alias_literal, project_source_literal,
 };
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
-use build_declarations as shared;
+use crate::declarations::editable_build;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::statement::StatementHandle;
@@ -19,7 +19,7 @@ pub(super) struct ProjectedDirectDependencies {
 
 pub(super) fn project_direct_dependencies(
     syntax_trees: &SyntaxTrees,
-    build: &shared::BuildEntrySyntaxProjection,
+    build: &editable_build::BuildEntrySyntaxProjection,
 ) -> Result<ProjectedDirectDependencies, DependencyProjectionError> {
     let mut projected = ProjectedDirectDependencies {
         requests: Vec::new(),
@@ -28,7 +28,7 @@ pub(super) fn project_direct_dependencies(
         accepted_calls: Vec::new(),
     };
     for row in
-        shared::project_dependency_rows(syntax_trees, build).map_err(map_dependency_row_error)?
+        editable_build::project_dependency_rows(syntax_trees, build).map_err(map_dependency_row_error)?
     {
         let explicit_alias = row
             .alias()
@@ -49,12 +49,12 @@ pub(super) fn project_direct_dependencies(
     Ok(projected)
 }
 
-fn map_dependency_row_error(error: shared::DependencyRowError) -> DependencyProjectionError {
+fn map_dependency_row_error(error: editable_build::DependencyRowError) -> DependencyProjectionError {
     match error {
-        shared::DependencyRowError::WrongReceiver => {
+        editable_build::DependencyRowError::WrongReceiver => {
             DependencyProjectionError::WrongDependencyReceiver
         }
-        shared::DependencyRowError::WrongArguments => {
+        editable_build::DependencyRowError::WrongArguments => {
             DependencyProjectionError::WrongDependencyArguments
         }
     }

@@ -6,24 +6,11 @@
 // application role (`Build::artifact_only(builder)`), never a fourth project
 // role: executable output remains the default until the modifier appears once.
 
-use crate::syntax_projection::{is_portable_path_byte, is_snake_case};
 use std::fmt;
 
 pub const BUILD_FILE_NAME: &str = "build.omg";
 
-pub(crate) const BUILD_MACHINE_NAME: &str = "build";
-
 pub const BUILD_TYPE_NAME: &str = "Build";
-
-pub(crate) const BUILDER_PARAMETER_NAME: &str = "builder";
-
-pub(crate) const PACKAGE_MACHINE_NAME: &str = "package";
-
-pub(crate) const APPLICATION_MACHINE_NAME: &str = "application";
-
-pub(crate) const MEMBER_MACHINE_NAME: &str = "member";
-
-pub(crate) const ARTIFACT_ONLY_MACHINE_NAME: &str = "artifact_only";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct ProjectName(String);
@@ -148,4 +135,29 @@ pub struct ApplicationDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceDeclaration {
     pub members: Vec<WorkspaceMemberPath>,
+}
+
+fn is_snake_case(value: &str) -> bool {
+    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('_') {
+        return false;
+    }
+    let mut previous_separator = false;
+    for byte in value.bytes() {
+        if byte == b'_' {
+            if previous_separator {
+                return false;
+            }
+            previous_separator = true;
+        } else {
+            previous_separator = false;
+            if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn is_portable_path_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
 }

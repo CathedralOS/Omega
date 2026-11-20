@@ -3,7 +3,8 @@
 // explicit first operand is the root entry's `builder` parameter, with no
 // generic, evidence, operational, or result-discard modifiers.
 
-use crate::build_declaration::{BUILD_TYPE_NAME, BUILDER_PARAMETER_NAME};
+use super::BUILDER_PARAMETER_NAME;
+use build_declarations::BUILD_TYPE_NAME;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::TableCall;

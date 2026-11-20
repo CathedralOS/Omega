@@ -3,10 +3,8 @@
 
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
-use build_declarations::{
-    BUILD_TYPE_NAME, DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, is_dependency_call,
-    package_authored_type_name,
-};
+use build_declarations::{BUILD_TYPE_NAME};
+use crate::declarations::editable_build::{DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, is_dependency_call, package_authored_type_name};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{CapabilityMember, ConformanceMember, Item};

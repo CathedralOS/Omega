@@ -22,8 +22,7 @@ use rendering::source_digest;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-const BUILD_MACHINE_NAME: &str = "build";
-const BUILDER_PARAMETER_NAME: &str = "builder";
+use crate::declarations::editable_build::{BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildDependencyEditPlan {

@@ -10,12 +10,14 @@ arrays shared across package workflows.
 */
 
 pub(crate) mod dependencies;
+mod editable_build;
 mod identity;
 
 pub(crate) use identity::AliasName;
 pub use identity::{PackageKey, PackageName};
 
-pub use build_declarations::{BuildDeclarationError, BuildDeclarationKind, WorkspaceMemberPath};
+pub(crate) use editable_build::BuildDeclarationError;
+pub use build_declarations::{BuildDeclarationKind, WorkspaceMemberPath};
 pub use dependencies::DependencyPurpose;
 pub(crate) use dependencies::PackageSelection;
 pub(crate) use dependencies::edit::{

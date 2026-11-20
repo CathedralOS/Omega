@@ -15,14 +15,15 @@ statement's argument-handle slice; any other call targeting a role operation
 anywhere in the file fails with that operation's `Unsupported*Shape` error.
 */
 
-use crate::build_declaration::{
-    APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME, BUILD_TYPE_NAME,
+use super::BuildDeclarationError;
+use super::dependency_rows::is_dependency_call;
+use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
+use super::{
+    APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME,
     BUILDER_PARAMETER_NAME, MEMBER_MACHINE_NAME, PACKAGE_MACHINE_NAME,
 };
-use crate::dependencies::is_dependency_call;
-use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
-use crate::{
-    ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
+use build_declarations::{
+    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind,
     PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
 };
 use syntax_trees::SyntaxTrees;
@@ -32,33 +33,9 @@ use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildDeclarationSyntaxProjection {
-    declaration: BuildDeclaration,
-    build: BuildEntrySyntaxProjection,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildEntrySyntaxProjection {
     build_entry: StateHandle,
     builder_parameter: StateParameterHandle,
-}
-
-impl BuildDeclarationSyntaxProjection {
-    pub const fn declaration(&self) -> &BuildDeclaration {
-        &self.declaration
-    }
-
-    pub fn into_declaration(self) -> BuildDeclaration {
-        self.declaration
-    }
-
-    pub const fn build_entry(&self) -> StateHandle {
-        self.build.build_entry
-    }
-
-    pub const fn builder_parameter(&self) -> StateParameterHandle {
-        self.build.builder_parameter
-    }
 }
 
 impl BuildEntrySyntaxProjection {
@@ -69,27 +46,6 @@ impl BuildEntrySyntaxProjection {
     pub const fn builder_parameter(&self) -> StateParameterHandle {
         self.builder_parameter
     }
-}
-
-pub fn project_build_declaration_from_source(
-    source: &str,
-) -> Result<BuildDeclaration, BuildDeclarationError> {
-    let parsed = source_syntax::parse_text(source).map_err(|error| match error {
-        source_syntax::SourceParseError::Lex { message } => {
-            BuildDeclarationError::Lex { message }
-        }
-        source_syntax::SourceParseError::Parse { message } => {
-            BuildDeclarationError::Parse { message }
-        }
-    })?;
-    project_build_declaration_from_syntax_trees(&parsed.syntax)
-}
-
-pub(crate) fn project_build_declaration_from_syntax_trees(
-    syntax_trees: &SyntaxTrees,
-) -> Result<BuildDeclaration, BuildDeclarationError> {
-    project_build_declaration_syntax(syntax_trees)
-        .map(BuildDeclarationSyntaxProjection::into_declaration)
 }
 
 pub fn project_build_entry_syntax(
@@ -180,9 +136,10 @@ pub fn project_build_entry_syntax(
     })
 }
 
-pub(crate) fn project_build_declaration_syntax(
+#[cfg(test)]
+pub(super) fn project_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
-) -> Result<BuildDeclarationSyntaxProjection, BuildDeclarationError> {
+) -> Result<BuildDeclaration, BuildDeclarationError> {
     let build = match project_build_entry_syntax(syntax_trees) {
         Ok(build) => build,
         Err(BuildDeclarationError::MissingBuildDeclaration) => {
@@ -197,7 +154,7 @@ pub(crate) fn project_build_declaration_syntax(
 pub fn project_build_declaration_in_entry(
     syntax_trees: &SyntaxTrees,
     build: BuildEntrySyntaxProjection,
-) -> Result<BuildDeclarationSyntaxProjection, BuildDeclarationError> {
+) -> Result<BuildDeclaration, BuildDeclarationError> {
     let entry = syntax_trees.items.state(build.build_entry());
 
     let mut packages = Vec::new();
@@ -297,7 +254,7 @@ pub fn project_build_declaration_in_entry(
         BuildDeclaration::Workspace(WorkspaceDeclaration { members })
     };
 
-    Ok(BuildDeclarationSyntaxProjection { declaration, build })
+    Ok(declaration)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -439,29 +396,4 @@ fn reject_unprojected_build_declaration_syntax(
         }
     }
     Ok(())
-}
-
-pub(crate) fn is_snake_case(value: &str) -> bool {
-    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('_') {
-        return false;
-    }
-    let mut previous_separator = false;
-    for byte in value.bytes() {
-        if byte == b'_' {
-            if previous_separator {
-                return false;
-            }
-            previous_separator = true;
-        } else {
-            previous_separator = false;
-            if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() {
-                return false;
-            }
-        }
-    }
-    true
-}
-
-pub(crate) fn is_portable_path_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
 }
