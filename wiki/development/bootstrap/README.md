@@ -86,6 +86,60 @@ in 555.79 seconds. Both the 726,601-byte evaluator source and the
 1,977,558-byte Linux executable matched the native-hosted build byte for byte.
 The Epsilon program then returned the same six bytes in 0.02 seconds.
 
+### Omega compiler byte classifier
+
+The positive program runs the production lexer’s byte classifier on all 256
+byte values and checks twelve answers per byte. Its twin passes an integer to
+a parameter requiring the numeric-base enum. **Both** means the route ran the
+positive and its frontend refused the twin at byte 2032. **Positive** records
+the successful execution alone. **Open** means this comparison has no
+completed positive receipt for that cell.
+
+| Gamma | Delta | Epsilon interpreter | Epsilon to Alpha | Epsilon to Linux |
+| --- | --- | --- | --- | --- |
+| Interpreter | Interpreter | Open | Open | Open |
+| Interpreter | Alpha | Open | Open | Open |
+| Interpreter | Linux | Both | Open | Open |
+| Alpha | Interpreter | Open | Open | Open |
+| Alpha | Alpha | Both | Both | Both |
+| Alpha | Linux | Both | Both | Both |
+| Linux | Interpreter | Both | Both | Both |
+| Linux | Alpha | Both | Both | Both |
+| Linux | Linux | Both | Both | Both |
+
+The 3,748-byte positive returned exit 42 and 3,072 answer bytes. All complete
+observations have SHA-256
+`9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225`.
+The 3,745-byte twin changed just the forwarding argument. The interpreter
+returned `02 12 f0 07 00 00`. Both compiler targets stopped at their shared
+frontend with the complete response `rejected 18 2032`. Each positive
+compiled target ran the generated guest. [Source and oracle](../../../tests/bootstrap/independent/epsilon/enum_test.py)
+
+The compiled Gamma hosts used the toolchain and classifier from
+`8da0d6a9f82`. The Linux-hosted direct-Delta run used `da31300384f` with
+the same classifier, Delta implementations and Epsilon sources. Its
+3,077-byte positive observation took 3,655.678 seconds in the nested
+interpreters on the shared host. Each refusal replay checked the original
+positive producer and complete framed-input digests before invoking that
+producer with the twin. The original Gamma interpreter’s Linux-Delta result
+has its own frozen inventory at `5144ec25e81` and two independently
+executed EEREQ requests. [Original-interpreter receipts](interpreted-gamma-matrix.md)
+
+To repeat the experiment with the pinned compiler sources, use a fresh
+checkout of the positive runner and select the two test files that added the
+named refusal. A recent checkout also runs both names against its own sources.
+Each output directory keeps the row receipts. [Route runner](../../../tests/bootstrap/route.py)
+
+```sh
+git worktree add --detach /tmp/omega-classifier-pair 8da0d6a9f82
+cd /tmp/omega-classifier-pair
+git restore --source=4a238010cd3 -- tests/bootstrap/route.py tests/bootstrap/independent/epsilon/enum_test.py
+for program in omega-byte-classes omega-wrong-base; do
+  python3 tests/bootstrap/route.py "/tmp/result-$program" \
+    --gamma native --delta native --epsilon all --case "$program" --reuse-stages --seconds 7200
+done
+```
+
 ## Tested threads through the matrix
 
 Read each row from left to right after the common Alpha and Beta steps.
