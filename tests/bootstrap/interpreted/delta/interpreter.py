@@ -48,6 +48,11 @@ def observations(profile="conformance"):
         (let result Bytes scope_a (bytes_concat result scope_b))))))"""
     yield "sibling scope left", frame(scopes, b"x"), (0, b"ba")
     yield "sibling scope right", frame(scopes), (0, b"ab")
+    # Only the complete, case-sensitive spelling reserves the builtin name.
+    lookalike = b'(def bytes_geT ((x Bytes)) Bytes x)\n(def main ((s Bytes)) Bytes (bytes_geT s))'
+    yield "builtin lookalike as function", frame(lookalike, b"A\x00B"), (0, b"A\x00B")
+    reserved = lookalike.replace(b"bytes_geT", b"bytes_get")
+    yield "builtin as function name", frame(reserved), failure(1, 1, 4, reserved.index(b"bytes_get"))
     strict = b"(def drop ((unused Int)) Bytes \"ok\")\n(def main ((x Bytes)) Bytes (drop (/ 1 0)))"
     yield "unused strict argument traps", frame(strict), (249, b"")
     for expression in (b"(+ 9223372036854775807 1)", b"(- -9223372036854775808 1)",

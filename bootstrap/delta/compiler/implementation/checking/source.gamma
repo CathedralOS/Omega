@@ -1,10 +1,11 @@
 (def fail () Int
   (read (input)))
 
+; Gamma has literals for LF and space; HT is 9 and CR is 13.
 (def source_byte_allowed ((byte Int)) Int
-  (if (lt byte 32)
+  (if (lt byte '\s')
     (if (eq byte 9) 1
-      (if (eq byte 10) 1 (eq byte 13)))
+      (if (eq byte '\n') 1 (eq byte 13)))
     (lt byte 127)))
 
 (def validate_source_envelope ((index Int)) Int
@@ -21,7 +22,7 @@
   (if (eq index (source_length))
     index
     (let byte Int (source_read index)
-      (if (eq byte 10)
+      (if (eq byte '\n')
         (+ index 1)
         (if (eq byte 13)
           (+ index 1)
@@ -33,7 +34,7 @@
     (let byte Int (source_read index)
       (if (is_space byte)
         (skip (+ index 1))
-        (if (eq byte 59)
+        (if (eq byte ';')
           (skip (skip_comment (+ index 1)))
           index)))))
 
@@ -41,9 +42,9 @@
   (if (eq index (source_length))
     index
     (let byte Int (source_read index)
-      (if (eq byte 40)
+      (if (eq byte '(')
         (+ index 1)
-        (if (eq byte 41)
+        (if (eq byte ')')
           (+ index 1)
           (if (eq byte '"')
             (let after Int (byte_literal_scan (+ index 1))
@@ -56,118 +57,74 @@
     (let byte Int (source_read index)
       (if (is_space byte)
         index
-        (if (eq byte 40)
+        (if (eq byte '(')
           index
-          (if (eq byte 41)
+          (if (eq byte ')')
             index
-            (if (eq byte 59)
+            (if (eq byte ';')
               index
               (token_word_end (+ index 1)))))))))
 
-(def packed_span_equal ((index Int) (remaining Int) (packed Int)) Int
-  (if (eq remaining 0)
-    1
-    (if (eq (source_read index) (% packed 256))
-      (packed_span_equal (+ index 1) (- remaining 1) (/ packed 256))
-      0)))
+; Callers check the token length before comparing its bytes.
+(def source_chars2 ((at Int) (a Int) (b Int)) Int
+  (if (eq (source_read at) a) (eq (source_read (+ at 1)) b) 0))
 
-(def token_packed
-  ((start Int) (end Int) (length Int) (packed Int)) Int
-  (if (eq (- end start) length)
-    (packed_span_equal start length packed)
-    0))
+(def source_chars3 ((at Int) (a Int) (b Int) (c Int)) Int
+  (if (eq (source_read at) a) (source_chars2 (+ at 1) b c) 0))
+
+(def source_chars4 ((at Int) (a Int) (b Int) (c Int) (d Int)) Int
+  (if (eq (source_read at) a) (source_chars3 (+ at 1) b c d) 0))
+
+(def source_chars5 ((at Int) (a Int) (b Int) (c Int) (d Int) (e Int)) Int
+  (if (eq (source_read at) a) (source_chars4 (+ at 1) b c d e) 0))
+
+(def source_chars6 ((at Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int)) Int
+  (if (eq (source_read at) a) (source_chars5 (+ at 1) b c d e f) 0))
 
 (def token_data ((start Int) (end Int)) Int
-  (if (eq (- end start) 4)
-    (if (eq (source_read start) 100)
-      (if (eq (source_read (+ start 1)) 97)
-        (if (eq (source_read (+ start 2)) 116)
-          (eq (source_read (+ start 3)) 97)
-          0)
-        0)
-      0)
-    0))
+  (if (eq (- end start) 4) (source_chars4 start 'd' 'a' 't' 'a') 0))
 
 (def token_def ((start Int) (end Int)) Int
-  (if (eq (- end start) 3)
-    (if (eq (source_read start) 100)
-      (if (eq (source_read (+ start 1)) 101)
-        (eq (source_read (+ start 2)) 102)
-        0)
-      0)
-    0))
+  (if (eq (- end start) 3) (source_chars3 start 'd' 'e' 'f') 0))
 
 (def token_main ((start Int) (end Int)) Int
-  (if (eq (- end start) 4)
-    (if (eq (source_read start) 109)
-      (if (eq (source_read (+ start 1)) 97)
-        (if (eq (source_read (+ start 2)) 105)
-          (eq (source_read (+ start 3)) 110)
-          0)
-        0)
-      0)
-    0))
+  (if (eq (- end start) 4) (source_chars4 start 'm' 'a' 'i' 'n') 0))
 
 (def token_match ((start Int) (end Int)) Int
-  (if (eq (- end start) 5)
-    (if (eq (source_read start) 109)
-      (if (eq (source_read (+ start 1)) 97)
-        (if (eq (source_read (+ start 2)) 116)
-          (if (eq (source_read (+ start 3)) 99)
-            (eq (source_read (+ start 4)) 104)
-            0)
-          0)
-        0)
-      0)
-    0))
+  (if (eq (- end start) 5) (source_chars5 start 'm' 'a' 't' 'c' 'h') 0))
 
 (def token_let ((start Int) (end Int)) Int
-  (if (eq (- end start) 3)
-    (if (eq (source_read start) 108)
-      (if (eq (source_read (+ start 1)) 101)
-        (eq (source_read (+ start 2)) 116)
-        0)
-      0)
-    0))
+  (if (eq (- end start) 3) (source_chars3 start 'l' 'e' 't') 0))
 
 (def token_int ((start Int) (end Int)) Int
-  (if (eq (- end start) 3)
-    (if (eq (source_read start) 73)
-      (if (eq (source_read (+ start 1)) 110)
-        (eq (source_read (+ start 2)) 116)
-        0)
-      0)
-    0))
+  (if (eq (- end start) 3) (source_chars3 start 'I' 'n' 't') 0))
 
 (def token_if ((start Int) (end Int)) Int
-  (token_packed start end 2 26217))
+  (if (eq (- end start) 2) (source_chars2 start 'i' 'f') 0))
 
 (def token_eq ((start Int) (end Int)) Int
-  (token_packed start end 2 29029))
+  (if (eq (- end start) 2) (source_chars2 start 'e' 'q') 0))
 
 (def token_lt ((start Int) (end Int)) Int
-  (token_packed start end 2 29804))
+  (if (eq (- end start) 2) (source_chars2 start 'l' 't') 0))
 
 (def token_bytes ((start Int) (end Int)) Int
-  (token_packed start end 5 495623371074))
+  (if (eq (- end start) 5) (source_chars5 start 'B' 'y' 't' 'e' 's') 0))
 
 (def bytes_builtin_kind ((start Int) (end Int)) Int
-  (if (lt (- end start) 9)
-    0
-    (if (token_packed start (+ start 6) 6 104949228009826)
-      (let suffix Int (+ start 6)
-        (if (token_packed suffix end 5 521644567909)
-          1
-          (if (token_packed suffix end 6 111516266162547)
-            2
-            (if (token_packed suffix end 6 114849160783212)
-              3
-              (if (token_packed suffix end 3 7628135)
-                4
-                (if (token_packed suffix end 6 127961628831587)
-                  5
-                  0))))))
-      0)))
+  (let length Int (- end start)
+    (if (lt length 9) 0
+      (if (source_chars6 start 'b' 'y' 't' 'e' 's' '_')
+        (bytes_suffix_kind (+ start 6) (- length 6)) 0))))
+
+(def bytes_suffix_kind ((at Int) (length Int)) Int
+  (if (eq length 3) (if (source_chars3 at 'g' 'e' 't') 4 0)
+    (if (eq length 5) (if (source_chars5 at 'e' 'm' 'p' 't' 'y') 1 0)
+      (if (eq length 6)
+        (if (source_chars6 at 's' 'i' 'n' 'g' 'l' 'e') 2
+          (if (source_chars6 at 'l' 'e' 'n' 'g' 't' 'h') 3
+            (if (source_chars6 at 'c' 'o' 'n' 'c' 'a' 't') 5 0)))
+        0))))
 
 (def bytes_builtin_arity_plus_one ((start Int) (end Int)) Int
   (let kind Int (bytes_builtin_kind start end)
@@ -182,7 +139,7 @@
             (if (eq kind 5) 3 0)))))))
 
 (def token_bytes_builtin ((start Int) (end Int)) Int
-  (if (eq (bytes_builtin_arity_plus_one start end) 0) 0 1))
+  (lt 0 (bytes_builtin_kind start end)))
 
 (def source_uses_bytes_builtin ((index Int)) Int
   (let start Int (skip index)
@@ -193,25 +150,17 @@
           1
           (source_uses_bytes_builtin end))))))
 
-(def is_upper ((byte Int)) Int
-  (if (lt byte 65)
-    0
-    (lt byte 91)))
+(def byte_between ((byte Int) (low Int) (high Int)) Int
+  (if (lt byte low) 0 (if (lt high byte) 0 1)))
 
-(def is_digit ((byte Int)) Int
-  (if (lt byte 48)
-    0
-    (lt byte 58)))
-
-(def is_lower ((byte Int)) Int
-  (if (lt byte 97)
-    0
-    (lt byte 123)))
+(def is_upper ((byte Int)) Int (byte_between byte 'A' 'Z'))
+(def is_digit ((byte Int)) Int (byte_between byte '0' '9'))
+(def is_lower ((byte Int)) Int (byte_between byte 'a' 'z'))
 
 (def is_identifier_start ((byte Int)) Int
   (if (is_upper byte)
     1
-    (if (is_lower byte) 1 (eq byte 95))))
+    (if (is_lower byte) 1 (eq byte '_'))))
 
 (def is_identifier_continue ((byte Int)) Int
   (if (is_identifier_start byte) 1 (is_digit byte)))
@@ -234,7 +183,7 @@
   (if (eq start end)
     0
     (let byte Int (source_read start)
-      (if (if (is_lower byte) 1 (eq byte 95))
+      (if (if (is_lower byte) 1 (eq byte '_'))
         (if (reserved_value_name start end) 0 1)
         0))))
 
