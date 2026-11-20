@@ -18,7 +18,7 @@ produce an independent value:
 ```omega
 let bits: u32 = 0x3F80_0000u32;
 let view: @f32 = @bits as @f32;
-let value: f32 = view;
+let value: f32 = $view;
 ```
 
 The ratified [core float bit wrappers](../language/numeric_values.md#floating-representation-and-classification)

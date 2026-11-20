@@ -2,6 +2,7 @@ use crate::Site;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum Projection {
+    Referent,
     Field(Box<omega_resolver::DeclarationId>),
     Tuple(usize),
     Index(omega_resolver::TreeNodeId),
@@ -21,4 +22,15 @@ pub struct PlaceStep {
     pub base: omega_resolver::TreeNodeId,
     pub through: Option<crate::Access>,
     pub projection: Option<Projection>,
+}
+
+impl PlaceStep {
+    /// Both `r.field` and `($r).field` cross a loan before selecting the field.
+    pub(crate) fn projections(&self) -> impl Iterator<Item = &Projection> {
+        self.through
+            .as_ref()
+            .map(|_| &Projection::Referent)
+            .into_iter()
+            .chain(&self.projection)
+    }
 }

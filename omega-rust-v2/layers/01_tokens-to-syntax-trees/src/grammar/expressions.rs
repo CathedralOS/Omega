@@ -235,7 +235,7 @@ impl SyntaxParser<'_> {
         matches!(self.nth_punctuation(0), Some(Punctuation::Plus | Punctuation::Minus | Punctuation::Equal))
     }
 
-    /// `( '@' ('mut' | 'write')? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix`
+    /// `( '@' ('mut' | 'write')? | '$' | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix`
     fn parse_prefix(
         &mut self,
         context: ExpressionContext,
@@ -268,6 +268,12 @@ impl SyntaxParser<'_> {
 
                 return Ok(self.close(borrow, NodeKind::Borrow));
             }
+            Some(Punctuation::Dollar) => {
+                let dereference = self.open();
+                self.bump();
+                self.parse_prefix(context)?;
+                return Ok(self.close(dereference, NodeKind::Dereference));
+            }
             Some(Punctuation::Exclamation | Punctuation::Tilde | Punctuation::Minus) => {
                 let unary = self.open();
 
@@ -280,13 +286,13 @@ impl SyntaxParser<'_> {
         }
 
         // :PrefixWords
-        // `move`, `suspend` and `block` are prefixes only directly before another word, so each is
+        // `move` also admits a dereference operand. Otherwise these words are prefixes before another word, and each is
         // still a name everywhere else: `block(x)`, `block.field`, `block + 1`. The word after must
         // not be `as` or `in`, which would make this one the operand of a cast or a membership test.
         //
         // @Speed: the word after is tested first. After most names comes punctuation, so this one
         // token read spares nearly every operand three spelling comparisons. Experiment 3.
-        if self.nth_at_word(1) {
+        if self.nth_at_word(1) || self.nth_at(1, Punctuation::Dollar) && self.at_keyword("move") {
             let prefix_word_kind = if self.at_keyword("move") {
                 Some(NodeKind::Move)
             } else if self.at_keyword("suspend") || self.at_keyword("block") {
@@ -323,7 +329,13 @@ impl SyntaxParser<'_> {
         matches!(
             self.nth_punctuation(ahead),
             Some(
-                Punctuation::LeftParenthesis | Punctuation::LeftBracket | Punctuation::At | Punctuation::Exclamation | Punctuation::Tilde | Punctuation::Minus
+                Punctuation::LeftParenthesis
+                    | Punctuation::LeftBracket
+                    | Punctuation::At
+                    | Punctuation::Dollar
+                    | Punctuation::Exclamation
+                    | Punctuation::Tilde
+                    | Punctuation::Minus
             )
         )
     }

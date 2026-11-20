@@ -33,7 +33,7 @@ const fn build_byte_classes() -> [ByteClass; 256] {
             // @Volatile: must list every first byte in `Punctuation::ORDERED_SPELLINGS` except the
             // slash. A test below fails if the two ever disagree.
             b'+' | b'-' | b'*' | b'%' | b'<' | b'>' | b'=' | b'!' | b'&' | b'|' | b':' | b'.' | b'\'' | b'^' | b'~' | b'#' | b',' | b';' | b'(' | b')'
-            | b'[' | b']' | b'{' | b'}' | b'@' => ByteClass::Punctuation,
+            | b'[' | b']' | b'{' | b'}' | b'@' | b'$' => ByteClass::Punctuation,
             0x80..=0xFF => ByteClass::NonAscii,
             _ => ByteClass::Unknown,
         };

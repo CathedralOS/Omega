@@ -113,12 +113,12 @@ fn aggregate_returns_follow_the_active_fields_and_instantiated_carrier() {
     for (result, expression, local, obligation) in [
         ("Wrap<Wrap<@u8>>", "Wrap::<Wrap<@u8>>{v:Wrap::<@u8>{v:@n}}", true, true),
         ("Wrap<Wrap<@u8>>", "Wrap::<Wrap<@u8>>{v:Wrap::<@u8>{v:r}}", false, true),
-        ("Wrap<Wrap<u8>>", "Wrap::<Wrap<u8>>{v:Wrap::<u8>{v:@n}}", false, false),
+        ("Wrap<Wrap<u8>>", "Wrap::<Wrap<u8>>{v:Wrap::<u8>{v:$@n}}", false, false),
         ("[@u8;2]", "[@n,r]", true, true),
         ("[@u8;2]", "[r,r]", false, true),
         ("Choice", "Choice::View{r:@n}", true, true),
-        ("Choice", "Choice::Count{n:@n}", false, false),
-        ("Choice", "match true {true -> Choice::Count{n:@n},false -> Choice::View{r:r},}", false, true),
+        ("Choice", "Choice::Count{n:$@n}", false, false),
+        ("Choice", "match true {true -> Choice::Count{n:$@n},false -> Choice::View{r:r},}", false, true),
     ] {
         let text = format!("{header} machine f(r:@u8)->{result} {{let n:u8=1; {expression}}}");
         let stage = check(&[("views.omg", &text)]);
@@ -143,7 +143,11 @@ fn aggregate_returns_follow_the_active_fields_and_instantiated_carrier() {
 #[test]
 fn a_store_through_a_pattern_alias_updates_the_origin_of_the_selected_field() {
     let schema = "data Box{view:@u8;}";
-    for (assignment, returned) in [("slot=@local", "b.view"), ("b.view=@local", "slot")] {
+    for (assignment, returned) in [
+        ("slot=@local", "b.view"),
+        ("b.view=@local", "slot"),
+        ("($b).view=@local", "slot"),
+    ] {
         let source = format!("{schema} machine f(b:@mut Box,local:u8)->@u8{{let Box{{view as slot}}=b; {assignment}; {returned}}}");
         let error = check(&[("alias.omg", &source)]).unwrap_err();
         assert_eq!(error.span.slice(source.as_bytes()), Some(returned.as_bytes()));

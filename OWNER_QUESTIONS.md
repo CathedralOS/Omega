@@ -64,39 +64,31 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. Does a copy read through a reference make a by-value parameter or operator applicable?
-
-A machine holds `v: @u8` and calls `take(v)`, where the only overload is `take(n: u8)`. Should the call read the `u8` through `v`, or is it refused until the source writes the read some other way? The same choice decides `id::<u8>(v)`, `v + 1u8` and `v == true` with `v: @bool`. The answer also decides overload selection: when both `take(n: u8)` and `take(n: @u8)` are declared, `take(v)` either stays an exact match for `take(n: @u8)`, or the copy read makes `take(n: u8)` a second candidate and the call is ambiguous, as `take(x)` with an owned `x: u8` already is under the implicit shared lending rule.
-
-The V2 typer treats the copy read as settled at a destination with a declared type: a return, an annotated `let`, a record field value and a value pattern on a reference subject. At call arguments and operator operands it matches the reference type exactly, so `take(v)` is refused with only `take(n: u8)` declared, and `take(n: @u8)` wins when both are declared.
-
-[Establishment, transport and helper calls](wiki/spec/language/domains.md#establishment-transport-and-helper-calls) says that reading a copyable primitive through a readable reference needs no reference-to-value cast, but not whether passing the reference to a by-value parameter counts as that read. [Calls, places and temporaries](wiki/spec/language/expressions.md#calls-places-and-temporaries) allows implicit shared lending at a shared-reference parameter. [Operator declarations](wiki/spec/language/expressions.md#operator-declarations) refuses a general search for borrowed variants and requires ambiguity, not a preference, when adaptations leave competing candidates. Both cover only the owned-to-borrowed direction. [Owned local mutability](wiki/spec/language/ownership.md#owned-local-mutability) says copyable values may be copied by value, without naming argument admission.
-
-### 2. Does a bare word in an arm pattern compare against a parameter or local of that name?
+### 1. Does a bare word in an arm pattern compare against a parameter or local of that name?
 
 In `machine f(x: u32, v: u32) -> u32 { match v { x -> x, _ -> 0 } }`, should the arm compare `v` with the parameter `x`, or bind a new name `x` that holds `v`? The same question applies to a local from `let x = 3;` and to a generic value binder such as `<const N: u32>`. The answer decides whether adding a parameter can silently turn a catch-all arm into an equality test.
 
 This question predates the published [bare names in dispatch arms](wiki/spec/language/patterns.md#bare-names-in-dispatch-arms) rule. Under that rule, `x` binds the subject even when an existing name has that spelling. A qualified constant tests its value. The [resolver contract](omega-rust-v2/layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) records the matching implementation. [PR #4482](https://github.com/CathedralOS/Omega/pull/4482) originally published the rule in the experimental workspace's copy.
 
-### 3. Inside a nested machine, does an enclosing machine's runtime parameter hide a package declaration of the same name?
+### 2. Inside a nested machine, does an enclosing machine's runtime parameter hide a package declaration of the same name?
 
 In `const x: u32 = 1; machine f(x: u32) -> u32 { h() machine h() -> u32 { x } }`, does `x` inside `h` name `f`'s parameter, which a nested machine cannot capture, so the program is refused? Or is that parameter out of scope inside `h`, so `x` reads the constant `1`? The answer decides whether adding or renaming a package constant silently changes what a nested helper reads.
 
 [Nested machines and identity](wiki/spec/language/machines.md#nested-machines-and-identity) says that name resolution "uses lexical scope" and that runtime parameters and locals of enclosing invocations "are **not captured**". It states a scope rule only for a named evidence output, which "is not in scope in nested machines". [Resolution](wiki/spec/language/modules.md#resolution) puts local bindings and machine parameters before imported names without saying whether an enclosing machine's parameters count. The [V2 resolver contract](omega-rust-v2/layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) says only that capturing an enclosing machine's runtime parameter rejects. The V2 resolver currently refuses the program without the constant (`unresolved name x`) and accepts it with the constant, binding `x` to `app::x`.
 
-### 4. When a `::` prefix names both a static operation-record binder and a module, which does it reach?
+### 3. When a `::` prefix names both a static operation-record binder and a module, which does it reach?
 
 A package has `combat/s.omg` declaring `machine score() {}` and a machine `trait Order { machine score(); } machine f<const combat: Order>() { combat::score() }`. Should `combat::score()` call the selected implementation's `score`, call the module's `score`, or reject as ambiguous? The answer decides whether adding a directory, or a binder spelled like an existing directory, silently redirects a call.
 
 [Resolution](wiki/spec/language/modules.md#resolution) lists machine parameters before module paths, which would let the binder win. [Builtin type names](wiki/spec/language/modules.md#builtin-type-names) says a `::` prefix "is ambiguous only when several visible roots are eligible for that form of static qualification, such as a builtin type and a same-spelled operation-record value", and then rejects. It does not say whether a module is such a root. Its table stops a directory from taking a builtin type's spelling but not a value binder's. A type binder is not part of this question: [Requirements and conformance evidence](wiki/spec/language/generics.md#requirements-and-conformance-evidence) says no member requirement is carried by a `T::member(...)` clause, so `T::score` with a `T/` directory reaches the module. The V2 resolver currently lets the binder win with no diagnostic, even after an explicit `use combat;`, while `u32::score()` beside a same-spelled operation record rejects with `ambiguous static root u32`.
 
-### 5. Does a generic call's expected result give its arguments their expected result domain?
+### 4. Does a generic call's expected result give its arguments their expected result domain?
 
 With `domain u8::P;`, two overloads `machine pick(x: u8) -> u8 { x }` and `machine pick(x: u8) -> u8 in P { x as +P }`, and `machine id<T>(v: T) -> T { v }`, should `machine c(x: u8) -> u8 in P { id(pick(x)) }` select the `u8 in P` overload of `pick`? Matching `id`'s result to the destination fixes `T` as `u8 in P`, which would give `pick(x)` an expected result. If arguments are typed first with no expected result, `pick` selects the plain overload and the call is refused. The answer decides whether wrapping a call in a generic pass-through changes which overload runs.
 
 [Applications and specialization](wiki/spec/language/generics.md#applications-and-specialization) says inference "may obtain arguments from runtime arguments, expected destinations, and selected static-machine contracts when the exact application is determined". [Result-domain overloads](wiki/spec/language/domains.md#result-domain-overloads) says "without an expected result, lookup selects the empty set". Neither says whether a type argument inferred from the destination supplies an argument's expected result, or in which order the two are decided. The V2 typer currently refuses `id(pick(x))` with `no matching overload for id(u8)`, and with only the `u8 in P` overload declared it refuses `pick(x)` instead. The explicit `id::<u8 in P>(pick(x))`, a concrete `idp(v: u8 in P)` and a typed local all select the `u8 in P` overload.
 
-### 6. After an inline callable result type, do the following clauses belong to the result type or to the declared machine?
+### 5. After an inline callable result type, do the following clauses belong to the result type or to the declared machine?
 
 In `machine pick(flag: bool, g: machine(c: @u8) -> u64 reaches none crashes none) -> machine(c: @u8) -> u64 reaches none crashes none requires flag { g }`, does `requires flag` constrain `pick`, or the callable type it returns? The V2 parser gives every following clause to the result type. So `requires flag` is refused (`unresolved name flag`), the declared machine cannot carry any clause of its own, and a clause that names nothing, such as `terminates` or `reaches none`, moves into the returned type without a diagnostic. Through an alias, `data Getter = machine(c: @u8) -> u64 reaches none crashes none;` and `-> Getter requires flag`, the clause belongs to `pick`.
 

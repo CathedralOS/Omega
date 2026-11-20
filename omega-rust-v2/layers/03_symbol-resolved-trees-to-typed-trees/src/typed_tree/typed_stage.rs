@@ -125,7 +125,7 @@ impl TypedStage {
     ) -> (omega_resolver::TreeNodeId, Vec<&crate::PlaceStep>) {
         let mut steps = Vec::new();
         while let Some(step) = self.place_steps.get(&node) {
-            if step.projection.is_some() {
+            if step.through.is_some() || step.projection.is_some() {
                 steps.push(step);
             }
             node = step.base;

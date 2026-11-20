@@ -3,7 +3,7 @@
 // "A field-value binding from borrowed storage still needs ordinary copy
 // eligibility. Non-copy fields require an otherwise-authorized explicit
 // borrow"). A field selection and a pattern binding of a borrowed subject read
-// the same way as `let v = @d.n; v`. `I` is affine: data is affine unless it
+// the same way as `let v = @d.n; $v`. `I` is affine: data is affine unless it
 // says `[copy]`.
 
 const BORROWED_FIELDS: &str = "data I { n:u8; } data D { i:I; n:u8; }";
@@ -48,7 +48,7 @@ fn copy_reads_of_borrowed_fields_record_the_read_where_it_happens() {
         ("machine f(d:@D)->u8 { d.n }", "d.n", "u8"),
         ("machine f(d:@D)->u8 { d.i.n }", "d.i.n", "u8"),
         ("machine f(d:@D)->u8 { (d.i).n }", "(d.i).n", "u8"),
-        ("machine f(d:@D)->u8 { let v = @d.n; v }", "v", "u8"),
+        ("machine f(d:@D)->u8 { let v = @d.n; $v }", "$v", "u8"),
         ("machine f(d:@D)->u8 { match d { D { n, .. } -> n, } }", "n", "u8"),
         ("machine f(d:@D)->u8 { let D { n, .. } = d; n }", "n", "u8"),
         (

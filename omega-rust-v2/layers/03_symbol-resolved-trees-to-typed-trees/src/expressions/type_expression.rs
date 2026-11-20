@@ -294,6 +294,11 @@ impl BodyTyper<'_, '_> {
                 )?
                 .1
             }
+            Dereference => {
+                let (ty, access) = self.dereference_place(node_index)?;
+                self.read_borrowed(node_index, &access, &ty)?;
+                return Ok(ty);
+            }
             FieldAccess => return self.field_chain(node_index),
             Index => self.index(node_index, None)?,
             _ => return Err(TypeError::unsupported(source_file, node_index)),

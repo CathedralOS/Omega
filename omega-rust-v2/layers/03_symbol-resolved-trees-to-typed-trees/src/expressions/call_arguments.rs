@@ -97,7 +97,7 @@ impl BodyTyper<'_, '_> {
         destination: Destination<'_>,
     ) -> Result<CallOperand, TypeError> {
         let root = self.unit.file.ungroup(node);
-        if self.unit.file.nodes[root].kind == NodeKind::FieldAccess
+        if matches!(self.unit.file.nodes[root].kind, NodeKind::FieldAccess | NodeKind::Dereference)
             || matches!(self.unit.symbol(root), Some(Symbol::Binding {span,..}) if self.borrowed_places.contains_key(span))
         {
             let (ty, place) = self.place_operand(node)?;

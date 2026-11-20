@@ -200,7 +200,7 @@ block:
 
 ```omega
 let first: @mut u8 = @mut items[0];
-first = 0;
+$first = 0;
 items[0] = 1;        // accepted: `first` is not used again
 ```
  Access attenuation does not change the parent's original

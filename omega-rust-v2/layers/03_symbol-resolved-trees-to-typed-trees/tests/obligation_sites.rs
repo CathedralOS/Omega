@@ -116,7 +116,7 @@ fn identical_calls_keep_the_precondition_on_the_overload_that_requires_it() {
 
 #[test]
 fn borrows_recasts_reads_and_lifetime_bindings_keep_their_places() {
-    let source = "machine bits(value:u32)->f32 { let view:@f32 = @value as @f32; view } data ByteCell {value:u8;} machine forward<'a>(input:@'a ByteCell)->@'a u8 {@input.value}";
+    let source = "machine bits(value:u32)->f32 { let view:@f32 = @value as @f32; $view } data ByteCell {value:u8;} machine forward<'a>(input:@'a ByteCell)->@'a u8 {@input.value}";
     let stage = support::check(&[("handoff.omg", source)]).unwrap();
     expect_at(
         &stage,
@@ -130,7 +130,7 @@ fn borrows_recasts_reads_and_lifetime_bindings_keep_their_places() {
         "@value as @f32",
         |k| matches!(k,ObligationKind::Recast{source,destination} if source.to_string()=="@u32" && destination.to_string()=="@f32"),
     );
-    expect_at(&stage, source, "view", |k| matches!(k, ObligationKind::CopyRead(ValueType::Float32)));
+    expect_at(&stage, source, "$view", |k| matches!(k, ObligationKind::CopyRead(ValueType::Float32)));
     expect_at(
         &stage,
         source,
@@ -195,12 +195,12 @@ fn hypothesis_application_keeps_requirement_and_operand_order() {
 #[test]
 fn copy_returns_read_the_value_without_returning_a_loan() {
     for (source, read_site) in [
-        ("machine f()->u8 {let x:u8=7; let view=@x; view}", "view"),
-        ("machine f()->u8 {let x:u8=7; let view=@x; let n:u8=view; n}", "view"),
-        ("machine f(view:@u8)->u8 {view}", "view"),
-        ("machine f<'a>(view:@'a u8)->u8 {view}", "view"),
-        ("machine f<'a>(view:@'a mut u8)->u8 {let n:u8=view; n}", "view"),
-        ("machine f()->bool {let flag:bool=true; @flag}", "@flag"),
+        ("machine f()->u8 {let x:u8=7; let view=@x; $view}", "$view"),
+        ("machine f()->u8 {let x:u8=7; let view=@x; let n:u8=$view; n}", "$view"),
+        ("machine f(view:@u8)->u8 {$view}", "$view"),
+        ("machine f<'a>(view:@'a u8)->u8 {$view}", "$view"),
+        ("machine f<'a>(view:@'a mut u8)->u8 {let n:u8=$view; n}", "$view"),
+        ("machine f()->bool {let flag:bool=true; $@flag}", "$@flag"),
     ] {
         let stage = support::check(&[("handoff.omg", source)]).unwrap();
         expect_at(&stage, source, read_site, |k| matches!(k, ObligationKind::CopyRead(_)));
@@ -235,9 +235,12 @@ fn terminal_transitions_record_the_borrow_they_forward() {
             |k| matches!(k, ObligationKind::ReturnBorrow { machine } if machine.path=="f"),
         );
     }
-    let copied = source.replace(")->@u8", ")->u8");
+    let copied = source
+        .replace(")->@u8", ")->u8")
+        .replace("->left", "->$left")
+        .replace("->right", "->$right");
     let stage = support::check(&[("handoff.omg", &copied)]).unwrap();
-    for arm in ["left", "right"] {
+    for arm in ["$left", "$right"] {
         expect_at(&stage, &copied, arm, |k| matches!(k, ObligationKind::CopyRead(_)));
     }
     assert!(
@@ -281,17 +284,14 @@ fn bare_arm_bindings_cover_the_subject_and_qualified_constants_test_one_value() 
 
 #[test]
 fn value_patterns_read_a_copy_through_a_reference_subject() {
-    // domains.md: reading a copyable primitive through a readable reference
-    // needs no cast. A value pattern compares the referent, as a case pattern
-    // already does, and the subject that is read records the copy.
     for (source, read_site, copied) in [
-        ("machine f(v:@bool)->u8 {match v {true->1,false->0,}}", "v", "bool"),
-        ("machine f(v:@mut bool)->u8 {match v {true->1,false->0,}}", "v", "bool"),
-        ("machine f(v:@u8)->u8 {match v {0->1,_->0,}}", "v", "u8"),
-        ("machine f(v:@u8)->u8 {match v {limits::Z->1,_->0,}}", "v", "u8"),
-        ("machine f<'a>(v:@'a u8)->u8 {match v {0->1,_->0,}}", "v", "u8"),
-        ("machine f(a:@bool,b:u8)->u8 {match (a,b) {(true,_)->1,(false,_)->0,}}", "a", "bool"),
-        ("data V {r:@u8;} machine f(h:V)->u8 {match h {V {r:0}->1,V {r as _}->0,}}", "r:0", "u8"),
+        ("machine f(v:@bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
+        ("machine f(v:@mut bool)->u8 {match $v {true->1,false->0,}}", "$v", "bool"),
+        ("machine f(v:@u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
+        ("machine f(v:@u8)->u8 {match $v {limits::Z->1,_->0,}}", "$v", "u8"),
+        ("machine f<'a>(v:@'a u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
+        ("machine f(a:@bool,b:u8)->u8 {match ($a,b) {(true,_)->1,(false,_)->0,}}", "$a", "bool"),
+        ("data V {r:@u8;} machine f(h:V)->u8 {match $h.r {0->1,_->0,}}", "$h.r", "u8"),
     ] {
         let stage = support::check(&[("handoff.omg", source), ("limits/values.omg", "const Z:u8=0;")]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
         expect_at(
@@ -311,29 +311,88 @@ fn value_patterns_read_a_copy_through_a_reference_subject() {
             .any(|o| matches!(o.kind, ObligationKind::CopyRead(_)))
     );
     for (source, site, message) in [
+        ("machine f(v:@bool)->u8 {match v {true->1,false->0,}}", "true", "expected @bool, found bool"),
+        ("machine f(v:@u8)->u8 {match $v {true->1,_->0,}}", "true", "expected u8, found bool"),
         (
-            "machine f(v:@write bool)->u8 {match v {true->1,false->0,}}",
-            "true",
+            "machine f(v:@write bool)->u8 {match $v {true->1,false->0,}}",
+            "$v",
             "cannot read through a write-only reference",
         ),
-        ("machine f(v:@u8)->u8 {match v {true->1,_->0,}}", "true", "expected u8, found bool"),
     ] {
         let error = support::check(&[("handoff.omg", source)]).unwrap_err();
         assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()), "{source}: {error:?}");
         assert_eq!(error.message, message, "{source}");
     }
-    let record = "machine f(v:@limits::I)->u8 {match v {limits::K->1,_->0,}}";
-    let error = support::check(&[
-        ("handoff.omg", record),
-        ("limits/values.omg", "data I {n:u8;} const K:I=I {n:0};"),
-    ])
-    .unwrap_err();
-    assert_eq!(error.span.slice(record.as_bytes()), Some(b"v".as_slice()));
-    assert_eq!(error.message, "expected game::limits::I, found @game::limits::I");
     // An exact reference overload still wins over the by-value one.
     let source = "machine take(n:u8)->u8 {n} machine take(n:@u8)->u8 {0u8} machine f(v:@u8)->u8 {take(v)}";
     let stage = support::check(&[("handoff.omg", source)]).unwrap();
     assert_eq!(stage.calls[0].machine.operands, ["@ u8"]);
+}
+
+#[test]
+fn explicit_dereference_obeys_the_type_and_access_of_each_reference() {
+    let declarations = "data S { n:u8; } machine take(n:u8)->u8 {n} machine id<T>(n:T)->T {n}";
+    for (result, expression) in [
+        ("u8", "$v"),
+        ("u8", "take($v)"),
+        ("u8", "id::<u8>($v)"),
+        ("u8", "$v + 1u8"),
+        ("S", "S { n:$v }"),
+        ("u8", "let n:u8=$v; n"),
+        ("@u8", "v"),
+        ("u8", "$$nested"),
+    ] {
+        let source = format!("{declarations} machine f(v:@u8,nested:@@u8)->{result} {{{expression}}}");
+        support::check(&[("deref.omg", &source)]).unwrap_or_else(|e| panic!("{expression}: {e:?}"));
+        if expression.contains('$') {
+            let implicit = source.replacen(expression, &expression.replacen('$', "", 1), 1);
+            assert!(support::check(&[("deref.omg", &implicit)]).is_err(), "{implicit}");
+        }
+    }
+    for source in [
+        "machine put(r:@write u8) {$r=1;}",
+        "machine put(r:@mut u8) {$r=1;}",
+        "machine nested(r:@@mut u8)->u8 {$$r}",
+        "machine lend(r:@mut u8)->@mut u8 {@mut $r}",
+    ] {
+        support::check(&[("deref.omg", source)]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
+    }
+    for (source, message) in [
+        ("data S [copy] { n:u8; } machine f(r:@S)->S {r}", "expected game::S, found @game::S"),
+        (
+            "data S{case A;case B;} machine f(r:@write S)->u8 {match $r {S::A->1,_->0,}}",
+            "cannot read through a write-only reference",
+        ),
+        ("machine f(n:u8)->u8 {$n}", "dereference requires a reference, found u8"),
+        ("machine f(r:@write u8)->u8 {$r}", "cannot read through a write-only reference"),
+        ("machine put(r:@u8) {$r=1;}", "place requires writable authority"),
+        ("machine put(r:@@mut u8) {$$r=1;}", "place requires writable authority"),
+        ("machine f(n:u8)->@u8 {let r=@n; $@r}", "returned reference borrows invocation-local storage"),
+    ] {
+        let error = support::check(&[("deref.omg", source)]).unwrap_err();
+        assert_eq!(error.message, message, "{source}");
+    }
+}
+
+#[test]
+fn moving_from_a_dereferenced_place_keeps_the_loan_to_restore() {
+    let source = "data Resource { n:u8; } machine f(r:@mut Resource,new:Resource)->Resource {let old=move $r; $r=new; old}";
+    let resolved = support::resolve_packages(&[("game", "restore.omg", source)], &[]);
+    let typed = omega_typer::type_stage(&resolved).unwrap();
+    let file = typed.trees().next().unwrap().resolved().file;
+    let place = typed
+        .obligations
+        .iter()
+        .find_map(|o| match &o.kind {
+            ObligationKind::RestoreBorrowed { place, .. } => Some(*place),
+            _ => None,
+        })
+        .expect("the move out of $r must be restored");
+    let (root, path) = typed.place_path(place);
+    assert_eq!(file.span(root.node).slice(source.as_bytes()), Some(&b"r"[..]));
+    let [step] = path.as_slice() else { panic!("{path:?}") };
+    assert_eq!(step.through, Some(Access::Mut));
+    assert!(step.projection.is_none());
 }
 
 #[test]

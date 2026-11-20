@@ -41,14 +41,22 @@ and [Chapter 18](chapter_18_concurrency.md) shows task handles.
 machine render_room(formatter: @RoomFormatter, room: @Room, out: @write [u8]) { ... }
 ```
 
-`&T` lets the callee read. Any number of shared borrows can exist together,
+`@T` lets the callee read. Any number of shared borrows can exist together,
 and nothing can modify the value while one is in use.
+
+Use `$` to read the value behind a reference. In this example `take` expects
+a byte, so `take(view)` would be a type error even though bytes are copyable.
+
+```omega
+machine take(byte: u8) -> u8 { byte }
+machine read(view: @u8) -> u8 { take($view) }
+```
 
 ## Mutable locals
 
 Declare an owned local with `let mut` when its established storage will be
 modified, whether directly, through a field or element, or by a helper
-receiving `&mut` or `&write`. Taking a writable borrow delegates permission;
+receiving `@mut` or `@write`. Taking a writable borrow delegates permission;
 it cannot manufacture permission absent from the owned place.
 
 This does not make everything reachable from a non-`mut` binding immutable.
@@ -71,7 +79,7 @@ requires amount in 0..=100
 }
 ```
 
-`&mut T` is exclusive: while it is in use, no other route can read or write
+`@mut T` is exclusive: while it is in use, no other route can read or write
 that place. Exclusive access is not a proof that the arithmetic fits; the
 `requires` clauses do that.
 
@@ -87,7 +95,7 @@ requires destination.len > 0
 fill(@write buffer[..]);
 ```
 
-`&write T` lets the callee overwrite without reading. It can read the length
+`@write T` lets the callee overwrite without reading. It can read the length
 of a view, but it cannot load contents or use `+=`. A mutable borrow can be
 narrowed to write-only; the reverse is not available.
 
@@ -98,7 +106,7 @@ machine clear_first(items: @mut [u8])
 requires items.len > 0
 {
     let first: @mut u8 = @mut items[0];
-    first = 0;
+    $first = 0;
     // The loan on items[0] ends after its last use.
     items[0] = 1;
 }

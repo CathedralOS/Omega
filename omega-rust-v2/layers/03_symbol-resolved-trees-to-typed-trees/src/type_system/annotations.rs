@@ -350,8 +350,8 @@ impl<'a> ResolvedSourceFile<'a> {
             | Blocks | Suspends | Terminates | Invokes | Satisfies | Registers | Clobbers | TypeArgs | Let | Assign | Discard | ExpressionStatement | Tail
             | AsmBlock | Instruction | AsmTransition | Match | Transition | Arm | WildcardPattern | BindingPattern | RecordPattern | FieldPattern
             | RestPattern | TuplePattern | ParenPattern | ValuePattern | Literal | ExpressionArgs | Paren | Tuple | RecordLiteral | FieldInit | Omission
-            | ArrayLiteral | Selection | Call | Args | FieldAccess | Index | Range | Borrow | Unary | Move | CallMarker | Cast | CastEntry | Binary
-            | Unfinished => Err(TypeError::unsupported(source, node_index)),
+            | ArrayLiteral | Selection | Call | Args | FieldAccess | Index | Range | Borrow | Dereference | Unary | Move | CallMarker | Cast | CastEntry
+            | Binary | Unfinished => Err(TypeError::unsupported(source, node_index)),
         }
     }
 }
