@@ -74,17 +74,15 @@ def boundaries(work, native_source, compiler, seconds):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--accelerated", action="store_true")
-    parser.add_argument("--seconds", type=int, default=3600)
+    vm.add_invocation_budget(parser)
     args = parser.parse_args()
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     if (platform.system(), platform.machine()) != ("Linux", "x86_64"):
         parser.error("native construction currently requires Linux x86-64")
     import resource
     mode = "accelerated" if args.accelerated else "reference"
     work = ROOT / "build" / ("independent-native-" + mode)
     work.mkdir(parents=True, exist_ok=True)
-    vm.reconstruct(work)
+    vm.reconstruct(work, seconds=args.seconds)
     native_source = source(True)
     alpha_source = source(False)
     (work / "compiler.gamma").write_bytes(native_source)
@@ -124,7 +122,7 @@ def main():
                 raise vm.Invalid("Gamma source compiler rejected malformed source")
             return result
 
-    vm.controls(work, work / "reference", compiler=NativeCompiler, realize=realize)
+    vm.controls(work, work / "reference", compiler=NativeCompiler, realize=realize, seconds=args.seconds)
     vm.call_depth_controls(work, NativeCompiler, args.seconds, realize=realize)
     boundaries(work, native_source, NativeCompiler, args.seconds)
     # The existing Alpha compiler is a real source-transforming successor. It
@@ -149,7 +147,7 @@ def main():
                 raise vm.Invalid("Gamma source compiler rejected malformed source")
             return result
 
-    accepted, rejected = vm.controls(work, work / "reference", compiler=AlphaCompiler)
+    accepted, rejected = vm.controls(work, work / "reference", compiler=AlphaCompiler, seconds=args.seconds)
     report = {"mode": mode, "compiler_source": identity(native_source),
               "compiler_elf": identity(native), "construction_seconds": elapsed,
               "alpha_customer_source": identity(alpha_source),

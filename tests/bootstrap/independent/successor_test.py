@@ -29,7 +29,7 @@ vm = construction.vm
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reuse-constructed", action="store_true")
-    parser.add_argument("--seconds", type=int, default=1800)
+    vm.add_invocation_budget(parser)
     parser.add_argument("--omega", action="store_true")
     parser.add_argument("--omega-control", action="store_true",
                         help="construct the real lexer classifiers and execute nominal/control checks")
@@ -40,8 +40,6 @@ def main():
     parser.add_argument("--compile-epsilon", action="store_true",
                         help="compile production lexical/request modules and exercise receiver storage/views")
     args = parser.parse_args()
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     if (platform.system(), platform.machine()) != ("Linux", "x86_64"):
         parser.error("native successors currently require Linux x86-64")
     import resource
@@ -66,8 +64,10 @@ def main():
 
     checkpoint("preflight", ())
     if not args.reuse_constructed:
-        subprocess.run([sys.executable, str(Path(__file__).with_name("source_test.py")),
-                        "--seconds", str(args.seconds)], cwd=ROOT, check=True)
+        command = [sys.executable, str(Path(__file__).with_name("source_test.py"))]
+        if args.seconds is not None:
+            command.extend(["--seconds", str(args.seconds)])
+        subprocess.run(command, cwd=ROOT, check=True)
     predecessor = ROOT / "build/independent-native-reference"
     report = json.loads((predecessor / "report.json").read_text())
     assert report["mode"] == "reference", "successors require the source-constructed compiler"
@@ -100,7 +100,7 @@ def main():
 
     checkpoint("delta", ())
     vm.customer(work, reference, producer=NativeCompiler,
-                realize=construction.realize)
+                realize=construction.realize, seconds=args.seconds)
     result["passed_stages"].append("delta")
     checkpoint("epsilon", (("delta_source", "delta.gamma"),
                            ("delta_elf", "delta.elf"),
@@ -114,7 +114,7 @@ def main():
             work, vm, NativeCompiler, construction.realize, args.seconds)
         result["passed_stages"].append("literal_emitter")
         checkpoint("epsilon", ())
-    vm.epsilon_customer(work, producer=NativeCompiler, realize=construction.realize)
+    vm.epsilon_customer(work, producer=NativeCompiler, realize=construction.realize, seconds=args.seconds)
     result["passed_stages"].append("epsilon")
     next_stage = "omega" if args.omega or args.omega_utf8 or args.omega_control else "complete"
     checkpoint("compiled_epsilon" if args.compile_epsilon else next_stage,
