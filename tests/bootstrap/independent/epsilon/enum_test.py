@@ -46,7 +46,7 @@ data Main { console: Console; }
     start = declarations.index(b'data OmegaNumericBase {')
     end = declarations.index(b'data OmegaKeywordKind {', start)
     nominal = declarations[start:end]
-    lexical = (root / 'bootstrap/omega/compiler/lexical_classification.epsilon').read_bytes()
+    lexical = (root / 'bootstrap/omega/compiler/source-to-tokens/byte_classes.epsilon').read_bytes()
     forwarding = (fixtures / 'enum_forward.epsilon').read_bytes()
     # Forward type declarations in Epsilon must still precede all functions in
     # emitted Delta. Deliberately place the authored enum after its customers.

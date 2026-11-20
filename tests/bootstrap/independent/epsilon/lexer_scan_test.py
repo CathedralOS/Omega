@@ -84,7 +84,7 @@ def string_cases():
 def scan_source(root, fixtures, boundary, public):
     base = root / 'bootstrap/omega/compiler'
     representations = (base / 'representations.epsilon').read_bytes()
-    lexer = (base / 'lexer.epsilon').read_bytes()
+    lexer = (base / 'source-to-tokens/scan.epsilon').read_bytes()
     utf8 = (base / 'request_and_utf8.epsilon').read_bytes()
     # Complete authored declarations; the lexer receiver contains a UTF-8
     # validation field even when the customer enters only its string stage.
@@ -92,7 +92,7 @@ def scan_source(root, fixtures, boundary, public):
                                 representations.index(b'data OmegaRequestEnvelope {')]
     token_types = representations[representations.index(b'data OmegaNumericBase {'):
                                  representations.index(b'data OmegaRelativeSpan {')]
-    lexical = (base / 'lexical_classification.epsilon').read_bytes()
+    lexical = (base / 'source-to-tokens/byte_classes.epsilon').read_bytes()
     if public:
         implementation = utf8[utf8.index(b'machine OmegaUtf8Validation::validate('):] + lexical + lexer
         customer = fixtures / 'lexer_public_main.epsilon'
