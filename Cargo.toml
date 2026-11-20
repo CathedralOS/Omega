@@ -109,6 +109,8 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-pe",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact",
     "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer",
     "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit",
     "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics",
     "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input",

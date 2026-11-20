@@ -25,8 +25,8 @@ impl<Context> EncodedHostedProgramEntry<Context> {
     }
 }
 
-pub fn encode_hosted_program_entry<Context>(
-    plan: installation_binding::entries::BoundHostedEntry<Context>,
+pub fn encode_hosted_program_entry<Origin, Context>(
+    plan: bound_framed_machine::entries::BoundHostedEntry<Origin, Context>,
 ) -> Result<EncodedHostedProgramEntry<Context>, Diagnostic> {
     let HostedProgramParts {
         context,

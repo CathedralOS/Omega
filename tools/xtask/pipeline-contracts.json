@@ -1991,7 +1991,7 @@
       "kind": "carried_record",
       "meaning": "The callable body and every runtime adapter have passed installation binding and can enter encoding.",
       "producer": "native callable compiler driver",
-      "signature": "00eb0936b3436c57b5aa0a3809882a6b61c5e3185169123e3e9ae686aa1a9e30"
+      "signature": "002269e2ff2dcd48f2d26289f18f83d8e6bb56193f4b52e8bea6b238d4bfb1de"
     },
     {
       "consumers": [
@@ -2255,7 +2255,7 @@
       "kind": "carried_record",
       "meaning": "Stage 11 issues this private entry with its callable identity and selected arrival bridge.",
       "producer": "native callback compilation driver",
-      "signature": "dc57411fc712f5b2eda7a205b8ad22095d2250fd9d59c821df2fae9441c1b886"
+      "signature": "00f1ee96c1bf20aab2619f4671ca6d003f8c401fa5e638a362d65088a1539c80"
     },
     {
       "consumers": [
@@ -2876,7 +2876,7 @@
       "kind": "carried_record",
       "meaning": "The bound private callable and arrival entry consumed together by encoding.",
       "producer": "native callback compilation driver",
-      "signature": "93ffceaa07ec027903e17741d4c4b0d4952812cdb6201a301b8d6f085867d0f8"
+      "signature": "c4273abe16a20d3cceec8e965c1776ae8df4d3d59a662ca9d00f3b2dc2e80c4a"
     },
     {
       "consumers": [
@@ -6042,62 +6042,6 @@
     },
     {
       "consumers": [
-        "body encoding"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "BoundFunctionBody::field:check_installed_branches#1",
-      "kind": "carried_record",
-      "meaning": "Carry the installed branch readback request to placement.",
-      "producer": "frame binding",
-      "signature": "86dc1247aad65c893b9797872973cddcbd38f848599f7ddbbed820d0bf9ca713"
-    },
-    {
-      "consumers": [
-        "body encoding",
-        "bound frame inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "BoundFunctionBody::field:program#1",
-      "kind": "carried_record",
-      "meaning": "The planned frame, import recipes and private references to encode.",
-      "producer": "installation binding",
-      "signature": "28657404c15e44c5eb146d9546903c9bab98779fdda735231185e1c753366510"
-    },
-    {
-      "consumers": [
-        "body encoding"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "BoundFunctionBody::field:publication#1",
-      "kind": "carried_record",
-      "meaning": "The publication that encoding must carry unopened.",
-      "producer": "frame binding",
-      "signature": "c42820e664d3b9ee0820902a7cbf7e2ae52b7a33fcc1349d9c7e257b4d3d914f"
-    },
-    {
-      "consumers": [
-        "body encoding"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "BoundFunctionBody::field:retain_original#1",
-      "kind": "carried_record",
-      "meaning": "Retain the original instructions when replay was requested at admission.",
-      "producer": "frame binding",
-      "signature": "d51e86c100c43ed72f7bbcf201a99d3a01d470776d4b4826539e524be49ffee4"
-    },
-    {
-      "consumers": [
-        "body encoding"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "BoundFunctionBody::field:subject#1",
-      "kind": "carried_record",
-      "meaning": "The program, target and frame identities required of the emitted body.",
-      "producer": "frame binding",
-      "signature": "3d29d187ab41d1930c139f83979db713e445ad3798a61081687bd4b496f4e0f8"
-    },
-    {
-      "consumers": [
         "native encoding",
         "native compilation driver"
       ],
@@ -6125,71 +6069,11 @@
         "native compilation driver"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::BoundEntry::field:0#1",
-      "kind": "carried_record",
-      "meaning": "Only installation binding can issue these parts as a bound entry.",
+      "item": "alias:BoundFunctionBody#1",
+      "kind": "definition",
+      "meaning": "Select the frame planner, entry planner and publication issued by production binding.",
       "producer": "installation binding",
-      "signature": "efbcd674b4f43dccabacb225785788da668a0a975e51eae40b05687ddea370f9"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::alias:BoundCallableEntry#1",
-      "kind": "carried_record",
-      "meaning": "The callable ABI context and optional arrival bridge after handler measurement.",
-      "producer": "installation binding",
-      "signature": "ed39289a06fa7e692ef0842746e4ef19a35b9e15bf93b6fdf0d7362fdcc06ec4"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::alias:BoundForeignAdapter#1",
-      "kind": "carried_record",
-      "meaning": "The selected foreign bridge, import program, locator and application identity.",
-      "producer": "installation binding",
-      "signature": "d91e257cd65b3743bdd8e4a1e8d975d0dd1a04fe94781d2dee1a008ec732f1ac"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::alias:BoundHostedEntry#1",
-      "kind": "carried_record",
-      "meaning": "The hosted program context, startup instructions and import program.",
-      "producer": "installation binding",
-      "signature": "9650a944fef19562b3346e8d6c0b5e2dd0da809424f2e1fac906488c0ea33c81"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::alias:BoundPhysicalEntry#1",
-      "kind": "carried_record",
-      "meaning": "The physical program context and checked stack switch.",
-      "producer": "installation binding",
-      "signature": "40328167d9f676bb4f08474ceec1a930bfd4b6492bf921fb464e6c71ad4f737e"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::alias:BoundPrivateEntry#1",
-      "kind": "carried_record",
-      "meaning": "The machine identity and bound transport of the private callable.",
-      "producer": "installation binding",
-      "signature": "3a00c6060322a056dcb460dda463865896bf3be593b4de9d32f9d672e5e314ce"
+      "signature": "0b59e734dd5a07ac6a107d77c947b79427f190161d93c93aa6089aebc1e20b1f"
     },
     {
       "consumers": [
@@ -6201,7 +6085,7 @@
       "kind": "producer",
       "meaning": "Issue the callable context and bridge after the planner’s CPU measurement has served binding.",
       "producer": "installation binding",
-      "signature": "016d24ff2d5e91b064564cf4e8f0a94d05b73281ae636ee51398f1ca7aeedd49"
+      "signature": "c1419451470ebb75cc90cff5b2b813502e2884fce6471578c23b048a659e866c"
     },
     {
       "consumers": [
@@ -6213,7 +6097,7 @@
       "kind": "producer",
       "meaning": "Admit the frame planner’s complete foreign adapter for encoding.",
       "producer": "installation binding",
-      "signature": "97d55f1c2e67acbd163592e7e688872db56a20f73a37b288fb8ca08d648db171"
+      "signature": "7865053b12cc5b1768294e48eeba9b238492f671bd4bb3b94882858f3aad8b46"
     },
     {
       "consumers": [
@@ -6225,7 +6109,7 @@
       "kind": "producer",
       "meaning": "Carry the planned hosted instructions and imports into encoding.",
       "producer": "installation binding",
-      "signature": "345aa7c75daafe3f165d353da90d9aa97c66c161ba4848144a5ec01f9de14d4a"
+      "signature": "58d4f52606bb4aa7468b78d7bf4ba8d23ec26e0d9ba14eb493e45202b58c2b19"
     },
     {
       "consumers": [
@@ -6237,7 +6121,7 @@
       "kind": "producer",
       "meaning": "Carry the planned stack switch and its program context into encoding.",
       "producer": "installation binding",
-      "signature": "0fe74a3c7210a98213815aa07294a6d2be8faf035896ba8d575fb217075b9a9f"
+      "signature": "c7fc159548cd5ebe848f611a02c054dd53cc810766693813ecfd5b8eb1ae5935"
     },
     {
       "consumers": [
@@ -6249,7 +6133,7 @@
       "kind": "producer",
       "meaning": "Bind the private callable transport and carry its original machine identity.",
       "producer": "installation binding",
-      "signature": "9876f9c6b445d0d6a1e7fd31f36552174526818f524fbccbcb4362b79e2352bb"
+      "signature": "ea2b452e21ce2ceb4d09b7ea89c9c78d29a935395069ec708711bfc68e44df56"
     },
     {
       "consumers": [
@@ -6257,35 +6141,11 @@
         "native compilation driver"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::impl:BoundEntry < Parts >::implementation#1",
+      "item": "entries::use:bound_framed_machine :: entries :: { self , BoundEntry }#1",
       "kind": "definition",
-      "meaning": "Open the consumed entry for encoding.",
+      "meaning": "Name the bound entry representation that stage 10 issues to encoding.",
       "producer": "installation binding",
-      "signature": "67c033511d0ebf9bb5bb353078f6b7306cdd26955b1458f7f36ef4b34614ebc3"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::impl:BoundEntry < Parts >::method:into_parts#1",
-      "kind": "producer",
-      "meaning": "Transfer the parts to the encoder without consulting the frame planner.",
-      "producer": "installation binding",
-      "signature": "bd904510e2bef363dd55972f77b9516b3a01641ad8a2f70ce18101a6545c5066"
-    },
-    {
-      "consumers": [
-        "native encoding",
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::struct:BoundEntry#1",
-      "kind": "carried_record",
-      "meaning": "The complete parts of a bound program entry.",
-      "producer": "installation binding",
-      "signature": "51f88b03ec000cad17d9343517f089e13ac85c0303954f17735528e8b7287a72"
+      "signature": "aa7ea10f22a1a8b31d3ea2b159daed05a57e24979515e44657e48ddd8e383d69"
     },
     {
       "consumers": [
@@ -6305,11 +6165,11 @@
         "native compilation driver"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::use:function_identity :: MachineFunctionIdentity#1",
+      "item": "entries::use:installation_binding_issuer :: BINDER#1",
       "kind": "definition",
-      "meaning": "Identify the private function whose arrival code is being bound.",
+      "meaning": "Only installation binding imports the capability used to issue a bound body or entry.",
       "producer": "installation binding",
-      "signature": "2d44b46155fbc5ea1cc564209fb445817fa0fa0c33dcbcdbea2d017baca22d92"
+      "signature": "4ee97bdeb728697d8a10db0adf1361b4a5d351c40bbf8113bfad147487ffbfc8"
     },
     {
       "consumers": [
@@ -6317,11 +6177,11 @@
         "native compilation driver"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "entries::use:physical_recipes :: { callable_entry :: { CallableContext , CallableInstructions } , hosted_program :: { HostedProgram , HostedProgramParts } , imports :: PhysicalImportProgram , native_entry_bridge :: NativeEntryBridgePlan , native_foreign_bridge :: { ForeignAdapterParts , ForeignAdapterPlan , NativeForeignBridgePlan } , physical_entry :: { PhysicalEntryParts , PhysicalEntryProgram } , }#1",
+      "item": "entries::use:physical_recipes :: { callable_entry :: CallableInstructions , hosted_program :: HostedProgram , native_foreign_bridge :: ForeignAdapterPlan , physical_entry :: PhysicalEntryProgram , }#1",
       "kind": "definition",
-      "meaning": "Name the selected bridge, imports and entry instructions supplied by frame planning.",
+      "meaning": "Name the selected recipe parts retained by each bound entry.",
       "producer": "installation binding",
-      "signature": "80ab7dd47ec5e6920b694d9c2460a508b91ecc40e28e5e44beae9516fae3f2f7"
+      "signature": "4c31401ccc6a5c98f0b4096b94cdbc8abf31cb63223a5c6a24e2551b23bbcabc"
     },
     {
       "consumers": [
@@ -6345,62 +6205,7 @@
       "kind": "producer",
       "meaning": "Bind the planned body to measured handlers and the optional installed root.",
       "producer": "installation binding",
-      "signature": "cc22ff98a219a5c3f1618418c43da84b7356ebfd89683e371145d544f91db7a5"
-    },
-    {
-      "consumers": [
-        "installed handler measurement"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "impl:BoundFunctionBody < BoundBodyPublication >::implementation#1",
-      "kind": "definition",
-      "meaning": "Access the frame and measured installations on the admitted body.",
-      "producer": "frame binding",
-      "signature": "3f7e1319ca8c85f4a7cd99b011938e510493e961c56ca26b992cb15316291dcc"
-    },
-    {
-      "consumers": [
-        "installed handler measurement"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "impl:BoundFunctionBody < BoundBodyPublication >::method:installations#1",
-      "kind": "definition",
-      "meaning": "Borrow the exact bound installation for handler measurement.",
-      "producer": "frame binding",
-      "signature": "c234d4a4a83e6004402ed616068da66598a1fe440f2df0718d6fc010e8ebcfe2"
-    },
-    {
-      "consumers": [
-        "installed handler measurement"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "impl:BoundFunctionBody < BoundBodyPublication >::method:program#1",
-      "kind": "definition",
-      "meaning": "Borrow the framed function to measure handler resources.",
-      "producer": "frame binding",
-      "signature": "15ad6227879be158a6617854f3a948c42e9185d8c86aa93b3195e7e96299a9b1"
-    },
-    {
-      "consumers": [
-        "body encoding"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "impl:BoundFunctionBody < Publication >::implementation#1",
-      "kind": "definition",
-      "meaning": "Hand the framed function to encoding with its publication sealed.",
-      "producer": "frame binding",
-      "signature": "b4bf1ee32d0fcc5e52bcadfdb45083192bcbd7764f418aa60b7b194db6104652"
-    },
-    {
-      "consumers": [
-        "body encoding"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "impl:BoundFunctionBody < Publication >::method:into_encoding_parts#1",
-      "kind": "definition",
-      "meaning": "Release the framed function and the requirements its encoder must satisfy.",
-      "producer": "frame binding",
-      "signature": "71acf4245164e1ca1121963639bdb50053875d46dd3ea57ae506eb644fece070"
+      "signature": "e9cc7a81351d240ba885e366a1fae6558c8a4465c6e375ac5d5a142cc23d7db6"
     },
     {
       "consumers": [
@@ -6488,18 +6293,6 @@
     },
     {
       "consumers": [
-        "body encoding",
-        "bound frame inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "struct:BoundFunctionBody#1",
-      "kind": "carried_record",
-      "meaning": "A function body with installation authority for its actual frame.",
-      "producer": "installation binding",
-      "signature": "1a994ab0bbebf23cc7cad2c4df8b3cf63c525a51ddcc903a680c4cda2f0c35a3"
-    },
-    {
-      "consumers": [
         "native encoding",
         "native compilation driver"
       ],
@@ -6576,11 +6369,11 @@
         "native compilation driver"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
-      "item": "use:installation_evidence :: { InstalledInterruptStackRequirement , InstalledPhysicalStackRoot }#1",
+      "item": "use:installation_conditions :: { InstalledInterruptStackRequirement , InstalledPhysicalStackRoot }#1",
       "kind": "definition",
       "meaning": "Name the installed handler stack requirement and physical stack root.",
       "producer": "installation binding",
-      "signature": "98854212e468b82499e0c053cd98cd6c84f01ca768f104c0fa0e0485c35cb928"
+      "signature": "5a65b5e3e97ee0a74aba94f0baa387ec8b0e963ec8331b8a646a991980404735"
     },
     {
       "consumers": [
@@ -6617,6 +6410,350 @@
       "meaning": "Index stack requirements and share immutable installation resources.",
       "producer": "installation binding",
       "signature": "4a4753fb8cf52185ddbee1c5a28d04b46b0e397ca36169798877e4192d343d9f"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "BoundFunctionBody::field:installations#1",
+      "kind": "carried_record",
+      "meaning": "Retain the same checked installation receipt as the publication so the driver can inspect the bound frame.",
+      "producer": "installation binding",
+      "signature": "b5db707003e981ac8b806821029befcab95b17400d14dd33988a5d6b97c9f174"
+    },
+    {
+      "consumers": [
+        "body encoding",
+        "bound frame inspection"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "BoundFunctionBody::field:program#1",
+      "kind": "carried_record",
+      "meaning": "The planned frame, import recipes and private references to encode.",
+      "producer": "installation binding",
+      "signature": "80618494d74c430efd0321f0e8a9bdee36339e3b64afc1ac40fbff283109791d"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "BoundFunctionBody::field:requirements#1",
+      "kind": "carried_record",
+      "meaning": "Keep the bound program identity, its opaque publication and the requested readbacks together through encoding.",
+      "producer": "installation binding",
+      "signature": "cc20b927c8aa3e51898932f14b800b9f6aec17aed78699887fb1232ce8767c5b"
+    },
+    {
+      "consumers": [
+        "body encoding"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "impl:BoundFunctionBody < FrameOrigin , ImportOrigin , Installations , Publication >::implementation#1",
+      "kind": "definition",
+      "meaning": "Hand the framed function to encoding with its publication sealed.",
+      "producer": "frame binding",
+      "signature": "3eb41e2b7373c353588b8197f2a43a262c9cb6cb2910888e62a2198db5a93dbd"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "impl:BoundFunctionBody < FrameOrigin , ImportOrigin , Installations , Publication >::method:from_binding#1",
+      "kind": "definition",
+      "meaning": "Seal the records supplied by stage 10 after it has bound the installation resources.",
+      "producer": "installation binding",
+      "signature": "c033711361524f9b737d61f694b5542a6ed659ece30b673974f19aaf4c40d5cf"
+    },
+    {
+      "consumers": [
+        "installed handler measurement"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "impl:BoundFunctionBody < FrameOrigin , ImportOrigin , Installations , Publication >::method:installations#1",
+      "kind": "definition",
+      "meaning": "Borrow the exact bound installation for handler measurement.",
+      "producer": "frame binding",
+      "signature": "12c02f0f208176a68f7d1e167fd65d705c8c3afee8619f323b45b128bed76a46"
+    },
+    {
+      "consumers": [
+        "body encoding"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "impl:BoundFunctionBody < FrameOrigin , ImportOrigin , Installations , Publication >::method:into_encoding_parts#1",
+      "kind": "definition",
+      "meaning": "Release the framed function and the requirements its encoder must satisfy.",
+      "producer": "frame binding",
+      "signature": "3d24a20fb9a729ad08f77f8205001274c23300bdab341012639521e6769ff357"
+    },
+    {
+      "consumers": [
+        "installed handler measurement"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "impl:BoundFunctionBody < FrameOrigin , ImportOrigin , Installations , Publication >::method:program#1",
+      "kind": "definition",
+      "meaning": "Borrow the framed function to measure handler resources.",
+      "producer": "frame binding",
+      "signature": "a0c9db850e2622beeffbe9f27324f417862cf3ec8373139df5ed4276d0094096"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "module:entries#1",
+      "kind": "definition",
+      "meaning": "Name the bound entry recipes accepted by the encoder.",
+      "producer": "installation binding",
+      "signature": "e1bc1c00fad56f813f2c71f33db0823f8f582bda8ea2f07a406cf5045419c609"
+    },
+    {
+      "consumers": [
+        "body encoding",
+        "bound frame inspection"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "struct:BoundFunctionBody#1",
+      "kind": "carried_record",
+      "meaning": "A function body with installation authority for its actual frame.",
+      "producer": "installation binding",
+      "signature": "bb0ee3d235bcfa816c6434d91b0f31034886a66bce4da2391459ca451e96eaf8"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "use:installation_binding_issuer :: BindingIssuer#1",
+      "kind": "definition",
+      "meaning": "Only installation binding imports the capability used to issue a bound body or entry.",
+      "producer": "installation binding",
+      "signature": "7865686ea297eaa23089f5e0331d2b3f2554101b0f49b958ddb5170e923ed95a"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "use:machine_code :: layout :: BoundEncodingRequirements#1",
+      "kind": "definition",
+      "meaning": "Pass the bound subject, publication and requested readbacks through instruction encoding.",
+      "producer": "installation binding",
+      "signature": "3eb83cec480861f3679568e4e51b0c94db52b8324f110511bc084dc29273d904"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/bound_framed_machine.rs",
+      "item": "use:physical_recipes :: frame_protocol :: PlannedFunctionBody#1",
+      "kind": "definition",
+      "meaning": "Retain the planned frame, imports and private references with their planner origins.",
+      "producer": "installation binding",
+      "signature": "e9cd89d70072761308c3647b711ac79e9a4ce013f4e85ccefaf6b72cd67bee43"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "BoundEntry::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Only installation binding can issue these parts as a bound entry.",
+      "producer": "installation binding",
+      "signature": "efbcd674b4f43dccabacb225785788da668a0a975e51eae40b05687ddea370f9"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "alias:BoundCallableEntry#1",
+      "kind": "carried_record",
+      "meaning": "The callable ABI context and optional arrival bridge after handler measurement.",
+      "producer": "installation binding",
+      "signature": "fa001bd187938ecf05bce1819a67da4a4d7a7c7ae67b3ae03189363b47fd4c37"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "alias:BoundForeignAdapter#1",
+      "kind": "carried_record",
+      "meaning": "The selected foreign bridge, import program, locator and application identity.",
+      "producer": "installation binding",
+      "signature": "0f69b15f54c762900445cf6a090d917dad36f8a71a61edc489077a8a2d1cce57"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "alias:BoundHostedEntry#1",
+      "kind": "carried_record",
+      "meaning": "The hosted program context, startup instructions and import program.",
+      "producer": "installation binding",
+      "signature": "a8d3573c1a7906f1cf5dd75a74200b3f5edc7e0db1ea26431e0429166b52e74a"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "alias:BoundPhysicalEntry#1",
+      "kind": "carried_record",
+      "meaning": "The physical program context and checked stack switch.",
+      "producer": "installation binding",
+      "signature": "bc597387eff9dfe4f2fe98f12249359fb386233d15f5f0755e45f239e0d175e8"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "alias:BoundPrivateEntry#1",
+      "kind": "carried_record",
+      "meaning": "The machine identity and bound transport of the private callable.",
+      "producer": "installation binding",
+      "signature": "52f82833b131b58709a65fc6cd5eb570cb9f6b875a92a1d33207a87fae0413db"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "impl:BoundEntry < Parts >::implementation#1",
+      "kind": "definition",
+      "meaning": "Open the consumed entry for encoding.",
+      "producer": "installation binding",
+      "signature": "e7e8a7e1ccedcf35fb78b3128d717645e2d7dbb0341dc0ef8708885b239b0392"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "impl:BoundEntry < Parts >::method:from_binding#1",
+      "kind": "definition",
+      "meaning": "Seal the records supplied by stage 10 after it has bound the installation resources.",
+      "producer": "installation binding",
+      "signature": "0eae2bf403393d24a3d6af466217e2eb0c01b526066f55f3171a1cac7eed96ed"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "impl:BoundEntry < Parts >::method:into_parts#1",
+      "kind": "producer",
+      "meaning": "Transfer the parts to the encoder without consulting the frame planner.",
+      "producer": "installation binding",
+      "signature": "bd904510e2bef363dd55972f77b9516b3a01641ad8a2f70ce18101a6545c5066"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "struct:BoundEntry#1",
+      "kind": "carried_record",
+      "meaning": "The complete parts of a bound program entry.",
+      "producer": "installation binding",
+      "signature": "51f88b03ec000cad17d9343517f089e13ac85c0303954f17735528e8b7287a72"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "use:function_identity :: MachineFunctionIdentity#1",
+      "kind": "definition",
+      "meaning": "Keep the machine function identity with a bound private entry.",
+      "producer": "installation binding",
+      "signature": "2d44b46155fbc5ea1cc564209fb445817fa0fa0c33dcbcdbea2d017baca22d92"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "use:installation_binding_issuer :: BindingIssuer#1",
+      "kind": "definition",
+      "meaning": "Only installation binding imports the capability used to issue a bound body or entry.",
+      "producer": "installation binding",
+      "signature": "7865686ea297eaa23089f5e0331d2b3f2554101b0f49b958ddb5170e923ed95a"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/entries.rs",
+      "item": "use:physical_recipes :: { callable_entry :: CallableContext , hosted_program :: HostedProgramParts , imports :: PhysicalImportProgram , native_entry_bridge :: NativeEntryBridgePlan , native_foreign_bridge :: { ForeignAdapterParts , NativeForeignBridgePlan } , physical_entry :: PhysicalEntryParts , }#1",
+      "kind": "definition",
+      "meaning": "Name the selected recipe parts retained by each bound entry.",
+      "producer": "installation binding",
+      "signature": "0f6b4bc2cb01ad510a139c713daa2e1d521896202b6a57ca32e74d4e67951125"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer/issuer.rs",
+      "item": "BindingIssuer::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Only installation binding imports the capability used to issue a bound body or entry.",
+      "producer": "installation binding",
+      "signature": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer/issuer.rs",
+      "item": "const:BINDER#1",
+      "kind": "definition",
+      "meaning": "Only installation binding imports the capability used to issue a bound body or entry.",
+      "producer": "installation binding",
+      "signature": "6de81d0a6f3cce14186b941b5329a7a453e0ac5a19ec75f09e621c1a7cb1f346"
+    },
+    {
+      "consumers": [
+        "native encoding",
+        "native compilation driver"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer/issuer.rs",
+      "item": "struct:BindingIssuer#1",
+      "kind": "carried_record",
+      "meaning": "Only installation binding imports the capability used to issue a bound body or entry.",
+      "producer": "installation binding",
+      "signature": "160ab95fb7c06a6fccec4bd04c8753b1ef22e7fe3339c11a1abf6724d7bdcc5e"
     },
     {
       "consumers": [
@@ -20633,6 +20770,14 @@
         "definition",
         "producer",
         "test_support"
+      ]
+    },
+    {
+      "path": "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine",
+      "allowed_kinds": [
+        "carried_record",
+        "definition",
+        "producer"
       ]
     },
     {

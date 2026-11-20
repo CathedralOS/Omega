@@ -21,6 +21,9 @@ pub const RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host";
 pub const RETAINED_IMAGE_RUNTIME: &str = "source-rust/subsystems/interpreter/host/retained-image";
 pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host/native-worker";
 
+const BOUND_FRAMED_MACHINE: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine";
+const BINDING_ISSUER: &str = "source-rust/subsystems/compiler/psi-to-native/representations/bound-framed-machine/issuer";
+
 const PSI_RECORDS: &str = "source-rust/subsystems/compiler/psi";
 const PSI_ARTIFACT: &str = "source-rust/subsystems/compiler/psi-artifact";
 const PSI_EXECUTION_INPUTS: &str = "source-rust/subsystems/compiler/psi-execution-inputs";
@@ -169,6 +172,14 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 "provider correspondence compares admitted declarations")
         },
     ];
+    rules.push(Rule {
+        forbidden_packages: vec![BINDING_ISSUER],
+        allowed: vec![
+            Allowance { owner: NATIVE_STAGES[10], dependency: BINDING_ISSUER },
+            Allowance { owner: BOUND_FRAMED_MACHINE, dependency: BINDING_ISSUER },
+        ],
+        ..rule(vec![""], vec![], "only installation binding may issue a bound framed machine")
+    });
     rules.push(Rule {
         forbidden_packages: vec![SOURCE_PROVIDER_PUBLICATION],
         allowed: vec![
@@ -1240,6 +1251,25 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn encoder_cannot_acquire_the_binding_issuer() {
+        let rules: Vec<_> = forbidden_rules().into_iter()
+            .filter(|rule| rule.forbidden_packages.contains(&BINDING_ISSUER))
+            .collect();
+        let key = [("installation-binding-issuer", BINDING_ISSUER, None)];
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg("installation-binding", linear_pipeline::NATIVE_STAGES[10], &key),
+                pkg("bound-framed-machine", BOUND_FRAMED_MACHINE, &key),
+                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[11], &key),
+            ],
+        };
+        let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("native-encoding"), "{violations:?}");
     }
 
     #[test]

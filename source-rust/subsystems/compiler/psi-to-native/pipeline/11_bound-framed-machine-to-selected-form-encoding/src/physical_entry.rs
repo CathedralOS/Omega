@@ -16,8 +16,8 @@ impl<Context> EncodedPhysicalEntry<Context> {
     }
 }
 
-pub fn encode_physical_entry<Context>(
-    plan: installation_binding::entries::BoundPhysicalEntry<Context>,
+pub fn encode_physical_entry<Origin, Context>(
+    plan: bound_framed_machine::entries::BoundPhysicalEntry<Origin, Context>,
 ) -> Result<EncodedPhysicalEntry<Context>, Diagnostic> {
     let PhysicalEntryParts { context, switch } = plan.into_parts();
     let (bridge, switch) = encode(switch)?;

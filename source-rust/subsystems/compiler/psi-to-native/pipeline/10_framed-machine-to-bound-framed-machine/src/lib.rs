@@ -6,36 +6,16 @@ use installation_conditions::{InstalledInterruptStackRequirement, InstalledPhysi
 /// Bind planner-issued entry recipes for encoding. Callable entries leave their CPU
 /// measurements here once installation binding has used them.
 pub mod entries {
+    use bound_framed_machine::entries::{self, BoundEntry};
     use entry_planning::{
         PhysicalRecipeOrigin as Planner,
         callable_entry::{PlannedCallableEntryTransport, PlannedPrivateEntry},
     };
-    use function_identity::MachineFunctionIdentity;
+    use installation_binding_issuer::BINDER;
     use physical_recipes::{
-        callable_entry::{CallableContext, CallableInstructions},
-        hosted_program::{HostedProgram, HostedProgramParts},
-        imports::PhysicalImportProgram,
-        native_entry_bridge::NativeEntryBridgePlan,
-        native_foreign_bridge::{ForeignAdapterParts, ForeignAdapterPlan, NativeForeignBridgePlan},
-        physical_entry::{PhysicalEntryParts, PhysicalEntryProgram},
+        callable_entry::CallableInstructions, hosted_program::HostedProgram,
+        native_foreign_bridge::ForeignAdapterPlan, physical_entry::PhysicalEntryProgram,
     };
-
-    pub struct BoundEntry<Parts>(Parts);
-
-    impl<Parts> BoundEntry<Parts> {
-        pub fn into_parts(self) -> Parts {
-            self.0
-        }
-    }
-
-    pub type BoundForeignAdapter = BoundEntry<
-        ForeignAdapterParts<NativeForeignBridgePlan<Planner>, PhysicalImportProgram<Planner>>,
-    >;
-    pub type BoundHostedEntry<C> = BoundEntry<HostedProgramParts<Planner, C>>;
-    pub type BoundPhysicalEntry<C> = BoundEntry<PhysicalEntryParts<Planner, C>>;
-    pub type BoundCallableEntry =
-        BoundEntry<(CallableContext, Option<NativeEntryBridgePlan<Planner>>)>;
-    pub type BoundPrivateEntry = BoundEntry<(MachineFunctionIdentity, BoundCallableEntry)>;
 
     /// A foreign adapter must carry the frame planner's issuing type.
     /// ```compile_fail,E0308
@@ -43,24 +23,35 @@ pub mod entries {
     ///     let _ = installation_binding::entries::bind_foreign_adapter(adapter);
     /// }
     /// ```
-    pub fn bind_foreign_adapter(plan: ForeignAdapterPlan<Planner>) -> BoundForeignAdapter {
-        BoundEntry(plan.into_parts())
+    pub fn bind_foreign_adapter(
+        plan: ForeignAdapterPlan<Planner>,
+    ) -> entries::BoundForeignAdapter<Planner> {
+        BoundEntry::from_binding(BINDER, plan.into_parts())
     }
-    pub fn bind_hosted_entry<C>(plan: HostedProgram<Planner, C>) -> BoundHostedEntry<C> {
-        BoundEntry(plan.into_parts())
+    pub fn bind_hosted_entry<C>(
+        plan: HostedProgram<Planner, C>,
+    ) -> entries::BoundHostedEntry<Planner, C> {
+        BoundEntry::from_binding(BINDER, plan.into_parts())
     }
-    pub fn bind_physical_entry<C>(plan: PhysicalEntryProgram<Planner, C>) -> BoundPhysicalEntry<C> {
-        BoundEntry(plan.into_parts())
+    pub fn bind_physical_entry<C>(
+        plan: PhysicalEntryProgram<Planner, C>,
+    ) -> entries::BoundPhysicalEntry<Planner, C> {
+        BoundEntry::from_binding(BINDER, plan.into_parts())
     }
-    pub fn bind_callable_entry(plan: PlannedCallableEntryTransport) -> BoundCallableEntry {
+    pub fn bind_callable_entry(
+        plan: PlannedCallableEntryTransport,
+    ) -> entries::BoundCallableEntry<Planner> {
         let CallableInstructions {
             context, bridge, ..
         } = plan.into_parts();
-        BoundEntry((context, bridge))
+        BoundEntry::from_binding(BINDER, (context, bridge))
     }
-    pub fn bind_private_entry(plan: PlannedPrivateEntry) -> BoundPrivateEntry {
+    pub fn bind_private_entry(plan: PlannedPrivateEntry) -> entries::BoundPrivateEntry<Planner> {
         let parts = plan.into_parts();
-        BoundEntry((parts.identity, bind_callable_entry(parts.transport)))
+        BoundEntry::from_binding(
+            BINDER,
+            (parts.identity, bind_callable_entry(parts.transport)),
+        )
     }
 }
 
@@ -141,41 +132,12 @@ impl RetainedHandlerMeasurements {
 pub use physical_program::BoundBodyContracts;
 pub type BoundBodyPublication = physical_program::BodyPublication<Arc<BoundBodyContracts>>;
 
-pub struct BoundFunctionBody<Publication = BoundBodyPublication> {
-    program: entry_planning::imports::PlannedFunctionBody,
-    publication: Publication,
-    subject: machine_code::program_context::BoundEncodingSubject,
-    retain_original: bool,
-    check_installed_branches: bool,
-}
-
-impl BoundFunctionBody<BoundBodyPublication> {
-    pub fn program(&self) -> &entry_planning::imports::PlannedFunctionBody {
-        &self.program
-    }
-    pub fn installations(&self) -> &BoundInstallationAuthority {
-        &self.publication.facts.installations
-    }
-}
-
-impl<Publication> BoundFunctionBody<Publication> {
-    pub fn into_encoding_parts(
-        self,
-    ) -> (
-        entry_planning::imports::PlannedFunctionBody,
-        machine_code::layout::BoundEncodingRequirements<Publication>,
-    ) {
-        (
-            self.program,
-            machine_code::layout::BoundEncodingRequirements::new(
-                self.subject,
-                self.publication,
-                self.retain_original,
-                self.check_installed_branches,
-            ),
-        )
-    }
-}
+pub type BoundFunctionBody = bound_framed_machine::BoundFunctionBody<
+    frame_planning::FrameRecipeOrigin,
+    entry_planning::PhysicalRecipeOrigin,
+    BoundInstallationAuthority,
+    BoundBodyPublication,
+>;
 
 pub fn bind_function_body(
     body: entry_planning::imports::PreparedFunctionBody,
@@ -187,18 +149,26 @@ pub fn bind_function_body(
     let publication = facts.map_facts(|facts| {
         Arc::new(BoundBodyContracts {
             facts,
-            installations,
+            installations: Arc::clone(&installations),
         })
     });
-    Ok(BoundFunctionBody {
-        subject: publication
-            .facts
-            .encoding_subject(program.frame.frame.receipt().identity())?,
-        retain_original: publication.original_for_audit().is_some(),
-        check_installed_branches: publication.facts.needs_installed_branch_checks(),
-        program,
+    let subject = publication
+        .facts
+        .encoding_subject(program.frame.frame.receipt().identity())?;
+    let retain_original = publication.original_for_audit().is_some();
+    let check_branches = publication.facts.needs_installed_branch_checks();
+    let requirements = machine_code::layout::BoundEncodingRequirements::new(
+        subject,
         publication,
-    })
+        retain_original,
+        check_branches,
+    );
+    Ok(BoundFunctionBody::from_binding(
+        installation_binding_issuer::BINDER,
+        program,
+        installations,
+        requirements,
+    ))
 }
 
 /// Join each installer operand to the measured private body at that exact placement.
