@@ -16,6 +16,7 @@ data OmegaCheckedValueKind {
     case ExactAddition;
     case ExactWordArithmetic;
     case TrappingArithmetic;
+    case WrappingArithmetic;
     case NullaryCase;
     case CaseLiteral;
 }
@@ -108,7 +109,8 @@ data OmegaScalarCompiler {
     value_kinds: [OmegaCheckedValueKind; 16384];
     value_payloads: [i32; 16384];
     // Primitive codes retain carrier and policy: 1 bool, 2 Unit, 8 plain u8,
-    // 32 plain u32, 64 plain u64, 288 Trapping u32, 320 Trapping u64. Compound codes below
+    // 32 plain u32, 64 plain u64, 288 Trapping u32, 320 Trapping u64,
+    // 576 Wrapping u64. Compound codes below
     // retain their declaration/type-row identity. Zero is never admitted.
     state_types: [i32; 4096];
     state_owners: [i32; 4096];
@@ -872,29 +874,40 @@ machine OmegaScalarCompiler::primitive_type(
         }
     }
     state policy(row: OmegaTypeReferenceSyntax, name: OmegaRelativeSpan) {
-        transition self.span_equals(source, name.start, name.end, "Trapping") {
-            1 -> base(self.parser.type_references[row.payload0])
+        let base: OmegaTypeReferenceSyntax = self.parser.type_references[row.payload0];
+        transition base.kind {
+            OmegaTypeReferenceKind::Named -> return self.policy_word(self.primitive_type(source, row.payload0),
+                self.word_policy(source, name))
             _ -> return 0
         }
     }
-    state base(row: OmegaTypeReferenceSyntax) {
-        transition row.kind {
-            OmegaTypeReferenceKind::Named -> unsigned_word(row)
+}
+
+// The low byte is the carrier width. Only these carrier/policy pairs have
+// checking, storage and emission rules in this compiler.
+machine OmegaScalarCompiler::word_policy(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
+    transition self.span_equals(source, name.start, name.end, "Trapping") {
+        1 -> return 256
+        _ -> wrapping()
+    }
+    state wrapping() {
+        transition self.span_equals(source, name.start, name.end, "Wrapping") {
+            1 -> return 512
             _ -> return 0
         }
     }
-    state unsigned_word(row: OmegaTypeReferenceSyntax) {
-        transition self.span_equals(source, row.payload0, row.payload1, "u32") {
-            1 -> return 288
-            _ -> unsigned_wide(row)
-        }
+}
+
+machine OmegaScalarCompiler::policy_word(&mut self, carrier: i32, policy: i32) -> i32 {
+    transition ((policy == 256) && ((carrier == 32) || (carrier == 64))) ||
+        ((policy == 512) && (carrier == 64)) {
+        true -> return policy + carrier
+        _ -> return 0
     }
-    state unsigned_wide(row: OmegaTypeReferenceSyntax) {
-        transition self.span_equals(source, row.payload0, row.payload1, "u64") {
-            1 -> return 320
-            _ -> return 0
-        }
-    }
+}
+
+machine OmegaScalarCompiler::is_policy_word(&mut self, kind: i32) -> i32 {
+    transition (kind == 288) || (kind == 320) || (kind == 576) { true -> return 1 _ -> return 0 }
 }
 
 machine OmegaScalarCompiler::parameter_type(
@@ -1112,13 +1125,13 @@ machine OmegaScalarCompiler::expression_type(
     state arithmetic(row: OmegaBinaryExpressionSyntax) {
         let left: i32 = self.expression_type(source, owner, state_index, before, row.left);
         let right: i32 = self.expression_type(source, owner, state_index, before, row.right);
-        transition (left == 288) || (left == 320) {
+        transition (self.is_policy_word(left) == 1) {
             true -> return left
             _ -> right_policy(left, right)
         }
     }
     state right_policy(left: i32, right: i32) {
-        transition (right == 288) || (right == 320) || (left == 0) {
+        transition (self.is_policy_word(right) == 1) || (left == 0) {
             true -> return right
             _ -> return left
         }
@@ -1136,34 +1149,23 @@ machine OmegaScalarCompiler::expression_type(
         }
     }
     state cast_domain(row: OmegaCastExpressionSyntax) {
-        transition self.span_equals(source, row.domain.start, row.domain.end, "Trapping") {
-            1 -> cast_operand(row, self.expression_type(source, owner, state_index, before, row.value))
-            _ -> return -1
-        }
-    }
-    state cast_operand(row: OmegaCastExpressionSyntax, kind: i32) {
+        let policy: i32 = self.word_policy(source, row.domain);
+        let kind: i32 = self.expression_type(source, owner, state_index, before, row.value);
         transition row.kind {
-            OmegaCastKind::AddDomain -> added(kind)
-            _ -> removed(kind)
+            OmegaCastKind::AddDomain -> added(self.policy_word(kind, policy))
+            _ -> removed(kind, policy)
         }
     }
     state added(kind: i32) {
-        // A domain-only cast of an anonymous operand still needs a carrier
-        // from its receiving context. Do not guess one during peer inference.
-        transition kind {
-            32 -> return 288
-            64 -> return 320
+        // Anonymous operands need a carrier from their receiving context.
+        transition kind != 0 { true -> return kind _ -> return -1 }
+    }
+    state removed(kind: i32, policy: i32) {
+        transition (self.is_policy_word(kind) == 1) && (kind == self.policy_word(kind % 256, policy)) {
+            true -> return kind % 256
             _ -> return -1
         }
     }
-    state removed(kind: i32) {
-        transition kind {
-            288 -> return 32
-            320 -> return 64
-            _ -> return -1
-        }
-    }
-
 }
 
 machine OmegaScalarCompiler::check_value_arguments(
@@ -1373,13 +1375,13 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state arithmetic_known(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        transition (left == 288) || (left == 320) {
+        transition (self.is_policy_word(left) == 1) {
             true -> policy_result(row, left, right, left)
             _ -> arithmetic_right_policy(row, left, right)
         }
     }
     state arithmetic_right_policy(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        transition (right == 288) || (right == 320) {
+        transition (self.is_policy_word(right) == 1) {
             true -> policy_result(row, left, right, right)
             _ -> plain_operator(row, left, right)
         }
@@ -1422,45 +1424,54 @@ machine OmegaScalarCompiler::check_value(
     }
     state policy_left(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
         transition left == 0 {
-            true -> policy_right(row, policy - 256, right, policy)
+            true -> policy_right(row, policy % 256, right, policy)
             _ -> policy_left_known(row, left, right, policy)
         }
     }
     state policy_left_known(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
-        transition (left == policy) || (left == policy - 256) {
+        transition (left == policy) || (left == policy % 256) {
             true -> policy_right(row, left, right, policy)
             _ -> rejected(row.operator_start)
         }
     }
     state policy_right(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
         transition right == 0 {
-            true -> policy_operator(row, left, policy - 256, policy)
+            true -> policy_operator(row, left, policy % 256, policy)
             _ -> policy_right_known(row, left, right, policy)
         }
     }
     state policy_right_known(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
-        transition (right == policy) || (right == policy - 256) {
+        transition (right == policy) || (right == policy % 256) {
             true -> policy_operator(row, left, right, policy)
             _ -> rejected(row.operator_start)
         }
     }
     state policy_operator(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
+        transition policy == 576 {
+            true -> policy_operands(row, left, right, OmegaCheckedValueKind::WrappingArithmetic)
+            _ -> trapping(row, left, right, policy)
+        }
+    }
+    state trapping(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
         transition row.operator {
-            OmegaBinaryOperatorKind::Multiply -> policy_multiply(row, left, right, policy)
-            _ -> policy_operands(row, left, right)
+            OmegaBinaryOperatorKind::Multiply -> trapping_multiply(row, left, right, policy)
+            _ -> checked_trapping(row, left, right)
         }
     }
-    state policy_multiply(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
-        transition policy == 288 {
-            true -> policy_operands(row, left, right)
-            _ -> unsupported(row.operator_start)
+    state trapping_multiply(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
+        transition policy == 320 {
+            true -> unsupported(row.operator_start)
+            _ -> checked_trapping(row, left, right)
         }
     }
-    state policy_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
+    state checked_trapping(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
         self.state_effects[state_index] = self.state_effects[state_index] | 2;
+        transition true { true -> policy_operands(row, left, right, OmegaCheckedValueKind::TrappingArithmetic) }
+    }
+    state policy_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, kind: OmegaCheckedValueKind) {
         transition (self.check_value(source, owner, state_index, before, row.left, left) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, right) == 1) {
-            true -> retain(OmegaCheckedValueKind::TrappingArithmetic, self.parser.expressions[expression].payload0)
+            true -> retain(kind, self.parser.expressions[expression].payload0)
             _ -> return 0
         }
     }
@@ -1532,7 +1543,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state anonymous_left(row: OmegaBinaryExpressionSyntax, right: i32) {
-        transition (right == 8) || (right == 32) || (right == 64) || (right == 288) || (right == 320) {
+        transition (right == 8) || (right == 32) || (right == 64) || (self.is_policy_word(right) == 1) {
             true -> operands_types(row, right % 256, right)
             _ -> rejected(row.operator_start)
         }
@@ -1544,7 +1555,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state anonymous_right(row: OmegaBinaryExpressionSyntax, left: i32) {
-        transition (left == 8) || (left == 32) || (left == 64) || (left == 288) || (left == 320) {
+        transition (left == 8) || (left == 32) || (left == 64) || (self.is_policy_word(left) == 1) {
             true -> operands_types(row, left, left % 256)
             _ -> rejected(row.operator_start)
         }
@@ -1564,8 +1575,8 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state comparison_policy_pair(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        transition ((left == 32) && (right == 288)) || ((left == 288) && (right == 32)) ||
-            ((left == 64) && (right == 320)) || ((left == 320) && (right == 64)) {
+        transition ((self.is_policy_word(left) == 1) && (right == left % 256)) ||
+            ((self.is_policy_word(right) == 1) && (left == right % 256)) {
             true -> operands_types(row, left, right)
             _ -> rejected(row.operator_start)
         }
@@ -1648,33 +1659,34 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state carrier_source_domain(row: OmegaCastExpressionSyntax, kind: i32) {
-        transition (kind == 288) || (kind == 320) {
+        transition (self.is_policy_word(kind) == 1) {
             true -> rejected(row.start)
             _ -> unsupported(row.start)
         }
     }
     state domain_cast(row: OmegaCastExpressionSyntax) {
-        transition self.span_equals(source, row.domain.start, row.domain.end, "Trapping") {
-            1 -> domain_operation(row)
+        let policy: i32 = self.word_policy(source, row.domain);
+        transition policy != 0 {
+            true -> domain_operation(row, policy)
             _ -> unsupported(row.domain.start)
         }
     }
-    state domain_operation(row: OmegaCastExpressionSyntax) {
+    state domain_operation(row: OmegaCastExpressionSyntax, policy: i32) {
         transition row.kind {
-            OmegaCastKind::AddDomain -> domain_add(row)
-            OmegaCastKind::RemoveDomain -> domain_remove(row)
+            OmegaCastKind::AddDomain -> domain_add(row, policy)
+            OmegaCastKind::RemoveDomain -> domain_remove(row, self.policy_word(expected, policy))
             _ -> unsupported(row.start)
         }
     }
-    state domain_add(row: OmegaCastExpressionSyntax) {
-        transition (expected == 288) || (expected == 320) {
-            true -> cast_value(row.value, expected - 256)
+    state domain_add(row: OmegaCastExpressionSyntax, policy: i32) {
+        transition (self.is_policy_word(expected) == 1) && (expected == self.policy_word(expected % 256, policy)) {
+            true -> cast_value(row.value, expected % 256)
             _ -> rejected(row.start)
         }
     }
-    state domain_remove(row: OmegaCastExpressionSyntax) {
-        transition (expected == 32) || (expected == 64) {
-            true -> cast_value(row.value, expected + 256)
+    state domain_remove(row: OmegaCastExpressionSyntax, qualified: i32) {
+        transition qualified != 0 {
+            true -> cast_value(row.value, qualified)
             _ -> rejected(row.start)
         }
     }
@@ -1686,7 +1698,7 @@ machine OmegaScalarCompiler::check_value(
     }
 
     state constant() {
-        transition (expected != 288) && (expected != 320) && (self.is_bounded_constant(source, expression) == 1) {
+        transition (self.is_policy_word(expected) == 0) && (self.is_bounded_constant(source, expression) == 1) {
             true -> fold_constant()
             _ -> unsupported(self.diagnostic_offset)
         }
@@ -2023,7 +2035,8 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::RecordLiteral -> return self.emit_record_literal(expression)
         OmegaCheckedValueKind::IndexedRead -> indexed()
         OmegaCheckedValueKind::ForwardedReference -> return self.emit_value_load(self.value_payloads[expression])
-        OmegaCheckedValueKind::ExactWordArithmetic -> exact_word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
+        OmegaCheckedValueKind::ExactWordArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
+        OmegaCheckedValueKind::WrappingArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
         OmegaCheckedValueKind::TrappingArithmetic -> return self.emit_trapping_arithmetic(expression,
             self.parser.binary_expressions[self.value_payloads[expression]])
@@ -2039,7 +2052,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         return self.emit_value_call(self.value_payloads[expression],
             call.first_argument, call.argument_count);
     }
-    state exact_word(row: OmegaBinaryExpressionSyntax) {
+    state word(row: OmegaBinaryExpressionSyntax) {
         transition self.emit_word_operands(expression, row) {
             1 -> word_operation(row.operator)
             _ -> return 0
@@ -2048,6 +2061,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     state word_operation(operator: OmegaBinaryOperatorKind) {
         transition operator {
             OmegaBinaryOperatorKind::Add -> return self.tape.emit_rr(3, 0, 2)
+            OmegaBinaryOperatorKind::Subtract -> return self.tape.emit_rr(4, 0, 2)
             OmegaBinaryOperatorKind::Multiply -> return self.tape.emit_rr(5, 0, 2)
             _ -> return self.tape.fail_internal(expression)
         }
@@ -2750,7 +2764,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
             (self.span_equals(source, name.start, name.end, "u32") == 0) &&
             (self.span_equals(source, name.start, name.end, "u64") == 0) &&
             (self.span_equals(source, name.start, name.end, "bool") == 0) &&
-            (self.span_equals(source, name.start, name.end, "Trapping") == 0) {
+            (self.word_policy(source, name) == 0) {
             true -> data_names(index + 1)
             _ -> incomplete(4, name.start)
         }
@@ -4184,6 +4198,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
         64 -> return 8
         288 -> return 8
         320 -> return 8
+        576 -> return 8
         _ -> compound()
     }
     state compound() {
@@ -4254,6 +4269,7 @@ machine OmegaScalarCompiler::type_copy(&mut self, source: &[u8], kind: i32) -> i
         64 -> return 1
         288 -> return 1
         320 -> return 1
+        576 -> return 1
         _ -> compound()
     }
     state compound() {
@@ -5784,7 +5800,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state carrier(row: OmegaBinaryExpressionSyntax, strict: i32, kind: i32) {
-        transition (kind == 8) || (kind == 32) || (kind == 64) || (kind == 288) || (kind == 320) {
+        transition (kind == 8) || (kind == 32) || (kind == 64) || (self.is_policy_word(kind) == 1) {
             true -> literal(row, strict, kind % 256, self.parser.expressions[row.right])
             _ -> unsupported()
         }
