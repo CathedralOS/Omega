@@ -62,6 +62,14 @@ def observations(profile="conformance"):
         yield f"builtin lookalike {word!r}", frame(program, b"A\x00B"), (0, b"A\x00B")
     reserved = lookalike.replace(b"bytes_geT", b"bytes_get")
     yield "builtin as function name", frame(reserved), failure(1, 1, 4, reserved.index(b"bytes_get"))
+    # A newly bound callee parameter must never shadow a later operand's caller local.
+    arguments = b"""(data Values (Both Int Int))
+(def emit ((first Int) (second Int)) Bytes
+  (match (Both first second)
+    ((Both left right) (bytes_concat (bytes_single left) (bytes_single right)))))
+(def main ((input Bytes)) Bytes
+  (let first Int (bytes_get input 0) (emit (+ first 1) first)))"""
+    yield "operands stay in caller scope", frame(arguments, b"A"), (0, b"BA")
     strict = b"(def drop ((unused Int)) Bytes \"ok\")\n(def main ((x Bytes)) Bytes (drop (/ 1 0)))"
     yield "unused strict argument traps", frame(strict), (249, b"")
     for expression in (b"(+ 9223372036854775807 1)", b"(- -9223372036854775808 1)",
@@ -69,6 +77,14 @@ def observations(profile="conformance"):
                        b"(/ -9223372036854775808 -1)", b"(% 1 0)", b"(bytes_get x 1)", b"256"):
         source = b"(def main ((x Bytes)) Bytes (bytes_single " + expression + b"))"
         yield f"trap {expression.decode()}", frame(source), (249, b"")
+    # Publish a shared rope containing a sealed input, literals and empty wrappers.
+    shared = b"""(def wrap ((n Int) (x Bytes)) Bytes
+      (if (eq n 0) x (wrap (- n 1) (bytes_concat (bytes_empty) x))))
+    (def double ((n Int) (x Bytes)) Bytes
+      (if (eq n 0) x (double (- n 1) (bytes_concat x x))))
+    (def main ((x Bytes)) Bytes
+      (double 6 (wrap 32 (bytes_concat (bytes_concat "[" x) "]"))))"""
+    yield "shared output with sealed input", frame(shared, b"\0A"), (0, b"[\0A]" * 64)
     # A shallow rope can cross either the publication limit or the signed
     # logical-length limit without materializing its exponentially many bytes.
     extents = b"""(def grow ((n Int) (x Bytes)) Bytes
