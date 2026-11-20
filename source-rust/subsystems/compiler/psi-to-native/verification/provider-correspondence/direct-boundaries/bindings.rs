@@ -4,6 +4,9 @@
 #![forbid(unsafe_code)]
 
 mod schemas;
+mod scoped_selection;
+pub use scoped_selection::VerifiedDirectProviderSelection;
+
 pub use schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +60,11 @@ pub enum DirectBoundaryExecution {
 }
 
 impl DirectBoundaryLeaf {
+    pub fn matches_any_requirement(&self, requirements: &std::collections::BTreeSet<&str>) -> bool {
+        self.plan.rows.iter().any(|row| requirements.contains(self.plan.identities.text(row.requirement_identity)))
+    }
+
+
     /// Keep the closed callable tied to its original method and complete ABI
     /// instance. Sharing a template or physical signature is insufficient.
     pub fn declared_calling_abi(

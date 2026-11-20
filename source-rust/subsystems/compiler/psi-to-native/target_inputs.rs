@@ -10,7 +10,8 @@ mod program_entry;
 pub(crate) mod published_application;
 pub(crate) mod required_scalars;
 
-use verified_optimization_input::{PreparedNativeExecution, RetainedTerminalArtifact, TerminalNativeRealizationProposal};
+use provider_realization::native_execution::PreparedNativeExecution;
+use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use super::request::NativeCompileRequest;
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;

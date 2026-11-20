@@ -4,7 +4,8 @@
 // application, and emits a shared component image keyed by the component
 // version and calling application commitment (`component_export_slot`).
 
-use verified_optimization_input::{AdmittedNativeComponentCall, PreparedNativeExecution};
+use provider_realization::native_execution::PreparedNativeExecution;
+use verified_optimization_input::AdmittedNativeComponentCall;
 use verified_optimization_input::ComponentNativeInputs;
 use artifact_lowering::admit_prepared_native_realization;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};

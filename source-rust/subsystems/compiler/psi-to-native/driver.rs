@@ -16,8 +16,9 @@ use native_artifact::FinishedNativeImage;
 use published_object_verification::NativeStageReplay;
 use target::ExecutableImageEmissionRequest;
 use verified_optimization_input::RetainedTerminalArtifact;
+use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::{
-    PreparedNativeExecution, TerminalNativeRealizationProposal,
+    TerminalNativeRealizationProposal,
     ValidatedNativeProgramEntrySettlement,
 };
 
@@ -224,7 +225,6 @@ fn admit_realization<'execution>(
                     )
                     .collect(),
                 execution,
-                admission.providers.external_binding_rows,
                 runtime_provisions::NativeBindingRuntimeInputs {
                     bindings: admission.providers.native_bindings,
                     calling: admission.providers.installed_calling,

@@ -97,6 +97,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
+ "boundary-applications",
  "build-scalar-evaluation",
  "build-time-values",
  "build-value-projection",
@@ -702,10 +703,12 @@ dependencies = [
  "language-core",
  "native-intrinsics",
  "provider-plans",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "symbols",
  "target",
+ "target-vocabulary",
  "terminal-psi",
  "terminal-semantics",
 ]

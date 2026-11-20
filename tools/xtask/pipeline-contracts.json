@@ -802,6 +802,17 @@
     },
     {
       "consumers": [
+        "native callable planning"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "item": "use:provider_realization :: native_execution :: PreparedNativeExecution#1",
+      "kind": "definition",
+      "meaning": "The callable planner borrows the provider rows chosen for its enclosing program or export.",
+      "producer": "Native stage 01 program and export preparation",
+      "signature": "228a72df6120b972f62fddb9f1ff426d3b55100d422d2b0f444ab3287bc46041"
+    },
+    {
+      "consumers": [
         "native physical planning"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
@@ -810,6 +821,17 @@
       "meaning": "Share the admitted provider context across callable admissions.",
       "producer": "native program planning",
       "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
+    },
+    {
+      "consumers": [
+        "native callable planning"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "item": "use:verified_optimization_input :: TerminalNativeRealizationProposal#1",
+      "kind": "definition",
+      "meaning": "The callable planner reads the target and proposed providers alongside the prepared execution when binding a callable.",
+      "producer": "Native target proposal admission",
+      "signature": "596de1edc1c5f9b37710b6a0b4fdc146d246077c9fad9d45a6004f63c039518b"
     },
     {
       "consumers": [

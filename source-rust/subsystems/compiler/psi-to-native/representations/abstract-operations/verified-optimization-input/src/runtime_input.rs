@@ -4,9 +4,9 @@
 
 use crate::VerifiedPsiOptimizationInput;
 use psi_authorization::AuthorizedTerminalArtifact;
+use psi_scalar_applications::AdmittedScalarApplications;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::MachineId;
-use psi_scalar_applications::AdmittedScalarApplications;
 
 #[derive(Clone, Copy)]
 pub struct AdmittedRuntimeInput<'input> {
@@ -15,6 +15,7 @@ pub struct AdmittedRuntimeInput<'input> {
     boundaries: &'input [terminal_psi::BoundaryMachineDeclaration],
     target: Option<&'input TerminalTargetContext>,
     scalar_applications: Option<&'input AdmittedScalarApplications>,
+    native_scope: Option<&'input crate::NativeExecutionScope>,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -27,11 +28,32 @@ impl VerifiedPsiOptimizationInput {
             boundaries: &self.plan.boundary_machines,
             target: self.target_context.as_ref(),
             scalar_applications: self.scalar_applications.as_ref(),
+            native_scope: self.native_execution_scope.as_deref(),
         }
     }
 }
 
 impl AdmittedRuntimeInput<'_> {
+    pub(super) fn require_native_providers(
+        &self,
+        providers: &crate::ScopedProviderSelection,
+        bindings: &native_binding_admission::RetainedNativeBindings,
+    ) -> Result<&crate::NativeExecutionScope, String> {
+        providers
+            .authorization()
+            .require_artifact(self.artifact.artifact())
+            .map_err(|error| error.to_string())?;
+        let scope = self
+            .native_scope
+            .ok_or("runtime provisions require the lowered native execution scope")?;
+        if scope != providers.scope()
+            || scope.source_native_bindings() != Some(bindings.identity_digest())
+        {
+            return Err("runtime providers differ from their lowered artifact, selection or native bindings".into());
+        }
+        Ok(scope)
+    }
+
     pub fn identity(&self) -> terminal_psi::TerminalPsiIdentity {
         self.artifact.artifact().view().identity()
     }

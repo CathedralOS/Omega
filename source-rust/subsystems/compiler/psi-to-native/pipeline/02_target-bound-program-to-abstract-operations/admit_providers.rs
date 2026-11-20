@@ -11,7 +11,8 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeSet;
 use terminal_codec::CanonicalTerminalArtifact;
-use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
+use provider_realization::native_execution::PreparedNativeExecution;
+use verified_optimization_input::TerminalNativeRealizationProposal;
 
 pub struct RetainedNativeProviderInputs<'input> {
     pub execution: &'input PreparedNativeExecution,

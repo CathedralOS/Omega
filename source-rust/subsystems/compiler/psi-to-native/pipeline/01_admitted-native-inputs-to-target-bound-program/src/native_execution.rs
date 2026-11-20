@@ -2,9 +2,31 @@
 use diagnostics::Diagnostic;
 use native_execution_scope::derive_native_scope;
 use verified_optimization_input::{
-    AdmittedNativeComponentCall, NativeExecutionScope, PreparedNativeExecution,
-    ProposalScopeRequest, TerminalNativeRealizationProposal,
+    AdmittedNativeComponentCall, NativeExecutionFacts, NativeExecutionScope, ProposalScopeRequest,
+    TerminalNativeRealizationProposal,
 };
+
+mod provider_bindings;
+
+/// A native program or export whose reachable provider bindings stage 01 completed.
+pub struct PreparedNativeExecution(NativeExecutionFacts);
+
+impl std::ops::Deref for PreparedNativeExecution {
+    type Target = NativeExecutionFacts;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PreparedNativeExecution {
+    pub fn with_operation_evidence(
+        self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        self.0.with_operation_evidence(artifact, evidence).map(Self)
+    }
+}
 
 fn issue_scope(request: ProposalScopeRequest<'_>) -> Result<NativeExecutionScope, Vec<Diagnostic>> {
     derive_native_scope(request).map_err(|reason| vec![Diagnostic::error(reason.to_string())])
@@ -16,7 +38,7 @@ pub fn prepare_program(
     components: &[&AdmittedNativeComponentCall<'_>],
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let request = proposal.program_scope_request(authorization.artifact(), components)?;
-    proposal.prepare_native_provider_demand(authorization, issue_scope(request)?)
+    provider_bindings::bind(proposal, authorization, issue_scope(request)?)
 }
 
 pub fn prepare_export(
@@ -25,7 +47,7 @@ pub fn prepare_export(
     entry: terminal_psi::TargetMachineCallable,
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let request = proposal.callable_scope_request(authorization.artifact(), entry, None)?;
-    proposal.prepare_native_provider_demand(authorization, issue_scope(request)?)
+    provider_bindings::bind(proposal, authorization, issue_scope(request)?)
 }
 
 pub fn entry_scalar_demand(
@@ -47,6 +69,7 @@ pub struct BoundNativeCallable<'a> {
     artifact: &'a terminal_codec::CanonicalTerminalArtifact,
     entry: terminal_psi::TargetMachineCallable,
     scope: NativeExecutionScope,
+    coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
 }
 
 impl<'a> BoundNativeCallable<'a> {
@@ -56,17 +79,25 @@ impl<'a> BoundNativeCallable<'a> {
         artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
     ) -> Result<Self, Vec<Diagnostic>> {
-        execution
-            .authorization()
-            .require_artifact(artifact)
-            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        let request = proposal.callable_scope_request(artifact, entry, Some(execution))?;
+        let request = proposal.callable_scope_request(
+            artifact,
+            entry,
+            Some(execution.checked_providers()),
+        )?;
+        let scope = issue_scope(request)?;
+        let coverage = provider_bindings::callable_coverage(
+            proposal,
+            artifact,
+            &scope,
+            execution.selection(),
+        )?;
         Ok(Self {
             proposal,
             execution,
             artifact,
             entry,
-            scope: issue_scope(request)?,
+            scope,
+            coverage,
         })
     }
 
@@ -78,6 +109,7 @@ impl<'a> BoundNativeCallable<'a> {
         &'a terminal_codec::CanonicalTerminalArtifact,
         terminal_psi::TargetMachineCallable,
         NativeExecutionScope,
+        boundary_applications::TerminalBoundaryApplicationCoverage,
     ) {
         (
             self.proposal,
@@ -85,6 +117,7 @@ impl<'a> BoundNativeCallable<'a> {
             self.artifact,
             self.entry,
             self.scope,
+            self.coverage,
         )
     }
 }
