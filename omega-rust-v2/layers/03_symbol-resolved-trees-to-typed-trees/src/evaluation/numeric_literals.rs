@@ -1,16 +1,24 @@
-use crate::evaluation::integer_arithmetic;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::{Access, TypeError, ValueType};
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::{One, Zero};
-use omega_lexer::{SourceSpan, TokenKind};
-use omega_resolver::IndexedSource;
+use omega_resolved::IndexedSource;
+use omega_tokens::{SourceSpan, TokenKind};
 
 pub(crate) fn literal(
     f: &IndexedSource<'_>,
     n: usize,
 ) -> Result<(ValueType, Option<ValueType>), TypeError> {
-    let token = f.nodes[n].leaves[0];
+    literal_token(f, n, f.nodes[n].leaves[0])
+}
+
+pub(crate) fn literal_token(
+    f: &IndexedSource<'_>,
+    n: usize,
+    token: omega_syntax::SyntaxLeaf<'_>,
+) -> Result<(ValueType, Option<ValueType>), TypeError> {
     let start = token.span.get_start_offset();
     let (value, suffix) = match token.kind {
         TokenKind::Quoted => {
@@ -124,7 +132,7 @@ pub(crate) fn static_number(
     unit: &crate::declarations::resolved_source_file::ResolvedSourceFile<'_>,
     root: usize,
 ) -> Result<(ValueType, Option<ValueType>), TypeError> {
-    use omega_parser::NodeKind;
+    use omega_syntax::NodeKind;
     let f = unit.file;
     // A token can select a user operation once a typed operand participates. Fold
     // only wholly anonymous arithmetic here. Typed computations need evaluation.
@@ -202,7 +210,7 @@ pub(crate) fn static_number(
             if token.ends_with('!') {
                 return Err(TypeError::at(f, n, "trapping operation requires proof-static admission"));
             }
-            let result = integer_arithmetic::compute(token, &[left.to_integer(), right.to_integer()], carrier).map_err(|m| TypeError::at(f, n, m))?;
+            let result = omega_typed::evaluate_integer_index(token, &[left.to_integer(), right.to_integer()], carrier).map_err(|m| TypeError::at(f, n, m))?;
             values.push((
                 ValueType::Exact {
                     value: BigRational::from_integer(result),

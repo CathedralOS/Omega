@@ -1,5 +1,6 @@
 use super::*;
-use omega_typer::Projection;
+use crate::evaluation::floating_point::FloatFormatEvaluation;
+use omega_typed::Projection;
 
 impl ConstantEvaluation<'_, '_> {
     pub(super) fn schedule_owned_fields<'a>(
@@ -15,7 +16,7 @@ impl ConstantEvaluation<'_, '_> {
         if path.is_empty() {
             return Ok(false);
         }
-        if root.file != file.node_id(node).file || checked_carrier_in_scope(tree, node, scope.application())? != *carrier {
+        if root.file != file.node_id(node).file || checked_carrier_in_scope(tree, node, scope)? != *carrier {
             return Err("the selected owned field has a different result type or source tree".into());
         }
         let mut fields = Vec::with_capacity(path.len());
@@ -41,7 +42,7 @@ impl ConstantEvaluation<'_, '_> {
         }
         fields.reverse();
         let root = file.node_id(expression);
-        let root_carrier = checked_carrier_in_scope(tree, root.node, scope.application()).map_err(|_| "the selected owned field has no supported root type")?;
+        let root_carrier = checked_carrier_in_scope(tree, root.node, scope).map_err(|_| "the selected owned field has no supported root type")?;
         execution.steps.extend([
             Step::ProjectFields(fields),
             Step::Evaluate(root, root_carrier, scope.clone()),
@@ -69,6 +70,20 @@ impl ConstantEvaluation<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn admit_owned_value(
+        &self,
+        carrier: &ValueType,
+        execution: &mut Execution<'_>,
+    ) -> Result<(), EvaluationError> {
+        if !execution.checked_aggregates.contains(carrier) {
+            self.check_owned_type(carrier, matches!(carrier, ValueType::Array(..)))?;
+            if is_aggregate(carrier) {
+                execution.checked_aggregates.insert(carrier.clone());
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn schedule_aggregate<'a>(
         &self,
         tree: &TypedTree<'_>,
@@ -77,10 +92,7 @@ impl ConstantEvaluation<'_, '_> {
         scope: &Scope<'a>,
         execution: &mut Execution<'a>,
     ) -> Result<(), EvaluationError> {
-        if !execution.checked_aggregates.contains(carrier) {
-            self.check_owned_type(carrier, matches!(carrier, ValueType::Array(..)))?;
-            execution.checked_aggregates.insert(carrier.clone());
-        }
+        self.admit_owned_value(carrier, execution)?;
         let file = tree.resolved().file;
         let node = file.ungroup(node);
         if selected_call(tree, node, scope.call_use())?.is_some() || file.nodes[node].kind == NodeKind::Call {
@@ -168,11 +180,12 @@ impl ConstantEvaluation<'_, '_> {
                 }
             }
             ValueType::Nominal(owner) | ValueType::Applied(owner, _) => {
-                let (construction, fields) = self.construction(tree, node, carrier, owner)?;
-                let (mut positions, defaults) = self.construction_positions(tree, node, construction, fields)?;
+                let instantiate = |ty: &ValueType| scope.instantiate(ty);
+                let (construction, fields) = self.construction(tree, node, carrier, owner, instantiate)?;
+                let (mut positions, defaults) = self.construction_positions(tree, node, construction, fields, instantiate)?;
                 positions.extend(&defaults);
                 execution.steps.push(Step::FinishConstruction {
-                    proof_site: Some(file.node_id(node)),
+                    proof: Some((file.node_id(node), carrier.clone())),
                     owner: owner.as_ref().clone(),
                     case: construction.case.clone(),
                     positions,
@@ -239,7 +252,7 @@ impl ConstantEvaluation<'_, '_> {
                     None => (None, &shape.fields),
                 };
                 execution.steps.push(Step::FinishConstruction {
-                    proof_site: None,
+                    proof: None,
                     owner: owner.as_ref().clone(),
                     case,
                     positions: (0..fields.len()).collect(),
@@ -280,7 +293,7 @@ impl ConstantEvaluation<'_, '_> {
             let [left, right] = *file.nodes[node].children.as_slice() else {
                 return Err(UNSUPPORTED_BODY.into());
             };
-            let (token, right_carrier) = selected_arithmetic(tree, node, carrier, scope.application())?;
+            let (token, right_carrier) = selected_arithmetic(tree, node, carrier, |ty| scope.instantiate(ty))?;
             execution.steps.extend([
                 Step::ApplyInteger(range, token.into()),
                 Step::Evaluate(file.node_id(right), right_carrier, scope.clone()),
@@ -369,7 +382,7 @@ impl ConstantEvaluation<'_, '_> {
             }
             let value = if let Some(argument) = self.specialized_argument(tree, node, &ValueType::Bool, scope)? {
                 let ValueType::StaticValue {
-                    value: omega_typer::StaticValue::Bool(value),
+                    value: omega_typed::StaticValue::Bool(value),
                     carrier,
                 } = argument
                 else {
@@ -443,14 +456,14 @@ impl ConstantEvaluation<'_, '_> {
         for record in tree.semantics_at(node) {
             if let NodeSemantics::Expression(expression) = record
                 && let Some(argument) = expression.static_argument_slot
-                && (&expression.ty != carrier || slot.replace(argument).is_some_and(|old| old != argument))
+                && (scope.instantiate(&expression.ty) != *carrier || slot.replace(argument).is_some_and(|old| old != argument))
             {
                 return Err(UNSUPPORTED_ARGUMENT.into());
             }
         }
         let Some(slot) = slot else { return Ok(None) };
         let value = match scope {
-            Scope::Initializer { owner_arguments, .. } => owner_arguments.and_then(|args| args.get(slot)),
+            Scope::Initializer { owner_arguments, .. } => owner_arguments.get(slot),
             Scope::Body(_) | Scope::Fact(_) => scope.application().and_then(|applied| {
                 applied
                     .enclosing_arguments

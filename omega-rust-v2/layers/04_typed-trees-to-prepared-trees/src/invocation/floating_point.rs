@@ -1,6 +1,7 @@
 use super::*;
 use crate::TargetObservation;
-use omega_typer::{Site, TypedOperation};
+use crate::evaluation::floating_point::{FloatFormatEvaluation, FloatSemanticsEvaluation, PreparedFloatEvaluation};
+use omega_typed::{Site, TypedOperation};
 
 impl ConstantEvaluation<'_, '_> {
     pub(super) fn evaluate_float<'a>(
@@ -121,9 +122,9 @@ impl ConstantEvaluation<'_, '_> {
         let site = origin(&self.tree(site)?, site.node);
         let target = self
             .target
-            .ok_or_else(|| EvaluationError::OpenTarget(crate::refusal(&site, "the floating operation needs a selected target realization")))?;
+            .ok_or_else(|| EvaluationError::OpenTarget(crate::evaluation::refusal(&site, "the floating operation needs a selected target realization")))?;
         let realization = target.float_realization(format, operation).ok_or_else(|| {
-            EvaluationError::AtCall(omega_typer::TypeError::new(
+            EvaluationError::AtCall(omega_typed::TypeError::new(
                 &site.package,
                 &site.file,
                 site.span,

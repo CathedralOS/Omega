@@ -1,6 +1,7 @@
 //! The evaluator executes immutable reads, owned constructions, exact landings
 //! and admitted scalar operations. A local invocation checks every premise
 //! before its value enters the prepared product.
+use crate::evaluation::floating_point::FloatFormatEvaluation;
 pub(super) mod admission;
 mod collection_reads;
 mod floating_point;
@@ -9,13 +10,13 @@ pub(crate) mod static_callbacks;
 pub(super) mod termination;
 mod values;
 
-use crate::constant_evaluation::ConstantEvaluation;
-use crate::integer_arithmetic::IntegerRange;
+use crate::evaluation::constant_evaluation::ConstantEvaluation;
+use crate::evaluation::integer_arithmetic::IntegerRange;
 use crate::{FloatFormat, FloatOperation, PreparedValue};
 use num_bigint::BigInt;
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol, TreeNodeId};
-use omega_typer::{AppliedOperand, CallUse, NodeSemantics, ObligationKind, StaticValueRequest, TypedCall, TypedSignature, TypedTree, ValueType};
+use omega_resolved::{DeclarationId, Symbol, TreeNodeId};
+use omega_syntax::NodeKind;
+use omega_typed::{AppliedOperand, CallUse, NodeSemantics, ObligationKind, StaticValueRequest, TypedCall, TypedSignature, TypedTree, ValueType};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -24,8 +25,8 @@ use std::rc::Rc;
 pub(super) enum EvaluationError {
     Refused(&'static str),
     NeedsConstant(DeclarationId),
-    AtCall(omega_typer::TypeError),
-    OpenTarget(omega_typer::TypeError),
+    AtCall(omega_typed::TypeError),
+    OpenTarget(omega_typed::TypeError),
 }
 
 impl From<&'static str> for EvaluationError {
@@ -45,12 +46,19 @@ struct BindingValue {
     writable: bool,
 }
 
-pub(super) struct CallBindings(RefCell<Vec<BindingValue>>, Option<Rc<TypedCall>>);
+#[derive(Default)]
+pub(super) struct CallBindings {
+    values: RefCell<Vec<BindingValue>>,
+    application: Option<Rc<TypedCall>>,
+    callback_bindings: Rc<[static_callbacks::CallbackBinding]>,
+}
 
 #[derive(Clone)]
 pub(super) enum Scope<'a> {
     Initializer {
-        owner_arguments: Option<&'a [ValueType]>,
+        owner_arguments: &'a [ValueType],
+        owner_scopes: &'a [(DeclarationId, usize)],
+        bindings: Rc<CallBindings>,
         in_argument: bool,
     },
     Body(Rc<CallBindings>),
@@ -58,9 +66,15 @@ pub(super) enum Scope<'a> {
 }
 
 impl Scope<'_> {
+    fn bindings(&self) -> &Rc<CallBindings> {
+        match self {
+            Self::Initializer { bindings, .. } | Self::Body(bindings) | Self::Fact(bindings) => bindings,
+        }
+    }
+
     fn application(&self) -> Option<&TypedCall> {
         match self {
-            Self::Body(bindings) | Self::Fact(bindings) => bindings.1.as_deref(),
+            Self::Body(bindings) | Self::Fact(bindings) => bindings.application.as_deref(),
             Self::Initializer { .. } => None,
         }
     }
@@ -69,8 +83,23 @@ impl Scope<'_> {
         &self,
         carrier: &ValueType,
     ) -> ValueType {
-        self.application()
-            .map_or_else(|| carrier.clone(), |call| call.instantiate(carrier))
+        match self {
+            Self::Initializer {
+                owner_arguments, owner_scopes, ..
+            } => {
+                let mut remaining = *owner_arguments;
+                owner_scopes
+                    .iter()
+                    .fold(carrier.clone(), |carrier, (owner, arity)| {
+                        let (arguments, rest) = remaining.split_at(*arity);
+                        remaining = rest;
+                        carrier.substitute(owner, arguments)
+                    })
+            }
+            Self::Body(_) | Self::Fact(_) => self
+                .application()
+                .map_or_else(|| carrier.clone(), |call| call.instantiate(carrier)),
+        }
     }
 
     fn call_use(&self) -> CallUse {
@@ -87,9 +116,6 @@ impl Scope<'_> {
         node: usize,
         carrier: &ValueType,
     ) -> Option<PreparedValue> {
-        let (Self::Body(arguments) | Self::Fact(arguments)) = self else {
-            return None;
-        };
         let Symbol::Binding {
             binder_node,
             kind: NodeKind::Param | NodeKind::BindingPattern | NodeKind::FieldPattern,
@@ -98,8 +124,8 @@ impl Scope<'_> {
         else {
             return None;
         };
-        arguments
-            .0
+        self.bindings()
+            .values
             .borrow()
             .iter()
             .rev()
@@ -118,11 +144,13 @@ enum Step<'a> {
         signature: &'a TypedSignature,
         requirement: Option<(&'a TypedSignature, Option<Rc<TypedCall>>)>,
         application: Option<Rc<TypedCall>>,
+        callback_bindings: Rc<[static_callbacks::CallbackBinding]>,
     },
     EnterCheckedCallback {
         request: static_callbacks::CallableUse,
         signature: &'a TypedSignature,
         application: Option<Rc<TypedCall>>,
+        callback_bindings: Rc<[static_callbacks::CallbackBinding]>,
     },
     CheckCallableGuarantee {
         request: static_callbacks::CallableUse,
@@ -144,6 +172,7 @@ enum Step<'a> {
         local: usize,
         bindings: Rc<CallBindings>,
     },
+    Discard,
     Select {
         site: TreeNodeId,
         carrier: ValueType,
@@ -160,15 +189,12 @@ enum Step<'a> {
     FinishTuple(usize),
     FinishZeroArray(usize),
     FinishConstruction {
-        proof_site: Option<TreeNodeId>,
+        proof: Option<(TreeNodeId, ValueType)>,
         owner: DeclarationId,
         case: Option<DeclarationId>,
         positions: Vec<usize>,
     },
-    Leave {
-        declaration: TreeNodeId,
-        first_activation: bool,
-    },
+    Leave(TreeNodeId),
     Require(&'static str),
     CrashGuard(&'static str),
     CheckInvocationProof(admission::ProofRequest<'a>, Rc<CallBindings>),
@@ -203,7 +229,7 @@ enum Step<'a> {
 struct Execution<'a> {
     steps: Vec<Step<'a>>,
     values: Vec<PreparedValue>,
-    active: HashSet<TreeNodeId>,
+    active: termination::ActiveApplications,
     checked_aggregates: HashSet<ValueType>,
     chain: Vec<(TreeNodeId, bool)>,
 }
@@ -258,14 +284,27 @@ impl ConstantEvaluation<'_, '_> {
         request: &StaticValueRequest,
         owner_arguments: Option<&[ValueType]>,
     ) -> Result<PreparedValue, EvaluationError> {
-        self.execute(
-            request.node,
-            &request.carrier,
-            &Scope::Initializer {
-                owner_arguments,
-                in_argument: false,
-            },
-        )
+        let (owner_arguments, owner_scopes) = match owner_arguments {
+            Some(arguments) => {
+                let scopes = self
+                    .trees
+                    .static_request_scopes
+                    .get(&request.node)
+                    .ok_or(UNSUPPORTED_ARGUMENT)?;
+                if scopes.iter().map(|(_, arity)| arity).sum::<usize>() != arguments.len() || arguments.iter().any(ValueType::contains_parameter) {
+                    return Err(UNSUPPORTED_ARGUMENT.into());
+                }
+                (arguments, scopes.as_slice())
+            }
+            None => (&[][..], &[][..]),
+        };
+        let scope = Scope::Initializer {
+            owner_arguments,
+            owner_scopes,
+            bindings: Rc::new(CallBindings::default()),
+            in_argument: false,
+        };
+        self.execute(request.node, &scope.instantiate(&request.carrier), &scope)
     }
 
     fn execute(
@@ -308,7 +347,7 @@ impl ConstantEvaluation<'_, '_> {
                 let file = tree.resolved().file;
                 let node = file.ungroup(site.node);
                 let result = if file.nodes[node].kind == NodeKind::Match {
-                    if checked_carrier_in_scope(&tree, node, scope.application())? != carrier {
+                    if checked_carrier_in_scope(&tree, node, &scope)? != carrier {
                         return Err(UNSUPPORTED_BODY.into());
                     }
                     self.schedule_dispatch(&tree, node, &carrier, scope.clone(), execution)
@@ -344,9 +383,9 @@ impl ConstantEvaluation<'_, '_> {
                     execution.chain.last_mut().expect("visited callback").1 = true;
                     return self.schedule_static_callback(&tree, site, &scope, &carrier, execution);
                 };
-                if let Some(query) = &call.layout_query {
+                if let Some(query) = call.layout_query {
                     execution.chain.last_mut().expect("visited layout query").1 = true;
-                    if call.result != carrier
+                    if scope.instantiate(&call.result) != carrier
                         || !call.operands.is_empty()
                         || !call.enclosing_arguments.is_empty()
                         || call.evidence.is_some()
@@ -355,16 +394,14 @@ impl ConstantEvaluation<'_, '_> {
                     {
                         return Err("the request does not select one core layout query".into());
                     }
-                    let arguments = match scope {
-                        Scope::Initializer { owner_arguments, .. } => owner_arguments,
-                        Scope::Body(_) | Scope::Fact(_) => None,
-                    };
+
                     let [subject] = call.type_arguments.as_slice() else {
                         return Err("the request does not select one core layout query".into());
                     };
-                    let subject = query
-                        .close_subject(scope.instantiate(subject), arguments)
-                        .ok_or("the layout query needs a closed type application")?;
+                    let subject = scope.instantiate(subject);
+                    if subject.contains_parameter() {
+                        return Err("the layout query needs a closed type application".into());
+                    }
                     if self.boundary_slots.iter().any(|slot| {
                         slot.requirement.declaration == call.machine
                             && slot.requirement.trait_arguments.is_empty()
@@ -375,7 +412,7 @@ impl ConstantEvaluation<'_, '_> {
                     let target = self.target.ok_or_else(|| {
                         EvaluationError::OpenTarget(self.call_diagnostic("the layout query requires a selected target", &execution.chain, &[]))
                     })?;
-                    let (value, observation) = target.observe_layout(query.projection, &subject)?;
+                    let (value, observation) = target.observe_layout(query, &subject)?;
                     self.record_observation(observation);
                     execution.values.push(PreparedValue::Integer(value.into()));
                     execution.chain.pop();
@@ -388,12 +425,14 @@ impl ConstantEvaluation<'_, '_> {
                 signature,
                 requirement,
                 application,
-            } => self.enter_call(call, signature, requirement, application, execution)?,
+                callback_bindings,
+            } => self.enter_call(call, signature, requirement, application, callback_bindings, execution)?,
             Step::EnterCheckedCallback {
                 request,
                 signature,
                 application,
-            } => self.enter_checked_callback(request, signature, application, execution)?,
+                callback_bindings,
+            } => self.enter_checked_callback(request, signature, application, callback_bindings, execution)?,
             Step::CheckCallableGuarantee { request, operands } => {
                 let result = execution.values.last().ok_or(UNSUPPORTED_BODY)?;
                 self.admit_callable_use(&request, &operands, Some(result))?;
@@ -412,7 +451,7 @@ impl ConstantEvaluation<'_, '_> {
                 writable,
             } => {
                 let value = execution.values.pop().expect("visited binding initializer");
-                bindings.0.borrow_mut().push(BindingValue {
+                bindings.values.borrow_mut().push(BindingValue {
                     binder,
                     carrier,
                     value,
@@ -421,7 +460,10 @@ impl ConstantEvaluation<'_, '_> {
             }
             Step::Store { local, bindings } => {
                 let value = execution.values.pop().expect("visited assignment value");
-                bindings.0.borrow_mut()[local].value = value;
+                bindings.values.borrow_mut()[local].value = value;
+            }
+            Step::Discard => {
+                execution.values.pop().expect("visited discarded operand");
             }
             Step::Select {
                 site,
@@ -429,7 +471,7 @@ impl ConstantEvaluation<'_, '_> {
                 subject_type,
                 scope,
             } => self.select_arm(site, carrier, &subject_type, scope, execution)?,
-            Step::RestoreBindings { count, bindings } => bindings.0.borrow_mut().truncate(count),
+            Step::RestoreBindings { count, bindings } => bindings.values.borrow_mut().truncate(count),
             Step::Reject(error) => return Err(error),
             Step::Push(value) => execution.values.push(value),
             Step::FinishZeroArray(count) => {
@@ -449,12 +491,7 @@ impl ConstantEvaluation<'_, '_> {
                 let elements = execution.values.split_off(execution.values.len() - count);
                 execution.values.push(PreparedValue::Array(elements.into()));
             }
-            Step::FinishConstruction {
-                proof_site,
-                owner,
-                case,
-                positions,
-            } => {
+            Step::FinishConstruction { proof, owner, case, positions } => {
                 let count = positions.len();
                 let mut ordered = vec![None; count];
                 for (position, value) in positions
@@ -469,19 +506,16 @@ impl ConstantEvaluation<'_, '_> {
                     .into_iter()
                     .collect::<Option<_>>()
                     .ok_or(UNSUPPORTED_BODY)?;
-                if let Some(site) = proof_site {
-                    self.check_construction_proof(&self.tree(site)?, site.node, &fields)?;
+                if let Some((site, carrier)) = proof {
+                    self.check_construction_proof(&self.tree(site)?, site.node, &carrier, &fields)?;
                 }
                 execution.values.push(match case {
                     Some(case) => PreparedValue::Sum { owner, case, fields },
                     None => PreparedValue::Record { owner, fields },
                 });
             }
-            Step::Leave { declaration, first_activation } => {
-                // A recursive return leaves the outer activation active.
-                if first_activation {
-                    execution.active.remove(&declaration);
-                }
+            Step::Leave(declaration) => {
+                execution.active.leave(declaration);
                 execution.chain.pop();
             }
             Step::Require(reason) => {
@@ -586,18 +620,18 @@ impl ConstantEvaluation<'_, '_> {
         reason: &str,
         chain: &[(TreeNodeId, bool)],
         cycle: &[&TypedCall],
-    ) -> omega_typer::TypeError {
+    ) -> omega_typed::TypeError {
         let site = cycle
             .last()
             .map_or_else(|| chain.last().expect("visited call").0, |call| call.node);
         let tree = self.tree(site).expect("visited call file");
         let file = tree.resolved().file;
-        let site = omega_typer::Site {
+        let site = omega_typed::Site {
             package: file.package.into(),
             file: file.path.into(),
             span: file.span(site.node),
         };
-        let mut error = crate::refusal(&site, reason);
+        let mut error = crate::evaluation::refusal(&site, reason);
         if chain.len() > 1 {
             error.message.push_str("\ncall chain: ");
             for (index, (occurrence, _)) in chain.iter().enumerate() {
@@ -637,7 +671,7 @@ impl ConstantEvaluation<'_, '_> {
 fn selected_boolean_operation<'a>(
     tree: &'a TypedTree<'_>,
     node: usize,
-) -> Result<&'a omega_typer::TypedOperation, EvaluationError> {
+) -> Result<&'a omega_typed::TypedOperation, EvaluationError> {
     let mut operation = None;
     for record in tree.semantics_at(node) {
         match record {
@@ -660,7 +694,7 @@ fn is_aggregate(carrier: &ValueType) -> bool {
 fn checked_carrier_in_scope(
     tree: &TypedTree<'_>,
     node: usize,
-    application: Option<&TypedCall>,
+    scope: &Scope<'_>,
 ) -> Result<ValueType, EvaluationError> {
     let mut expression_type = None;
     let mut landing_type = None;
@@ -674,18 +708,11 @@ fn checked_carrier_in_scope(
             return Err(UNSUPPORTED_BODY.into());
         }
     }
-    let carrier = landing_type.or(expression_type).ok_or(UNSUPPORTED_BODY)?;
-    let specialized;
-    let carrier = if let Some(call) = application {
-        specialized = call.instantiate(carrier);
-        &specialized
-    } else {
-        carrier
-    };
-    if carrier != &ValueType::Bool && !is_aggregate(carrier) && IntegerRange::for_type(carrier).is_none() && FloatFormat::for_type(carrier).is_none() {
+    let carrier = scope.instantiate(landing_type.or(expression_type).ok_or(UNSUPPORTED_BODY)?);
+    if carrier != ValueType::Bool && !is_aggregate(&carrier) && IntegerRange::for_type(&carrier).is_none() && FloatFormat::for_type(&carrier).is_none() {
         return Err(UNSUPPORTED_BODY.into());
     }
-    Ok(carrier.clone())
+    Ok(carrier)
 }
 
 fn landed_value(
@@ -760,9 +787,8 @@ fn selected_arithmetic<'a>(
     tree: &'a TypedTree<'_>,
     node: usize,
     carrier: &ValueType,
-    application: Option<&TypedCall>,
+    instantiate: impl Fn(&ValueType) -> ValueType,
 ) -> Result<(&'a str, ValueType), EvaluationError> {
-    let instantiate = |ty: &ValueType| application.map_or_else(|| ty.clone(), |call| call.instantiate(ty));
     let right_carrier = |token: &str, operands: &[ValueType]| {
         let [left, right] = operands else { return Err(UNSUPPORTED_BODY) };
         let right = instantiate(right);
@@ -787,7 +813,7 @@ fn selected_arithmetic<'a>(
                 if matches!(
                     o.kind,
                     ObligationKind::CrashCoverage {
-                        cause: omega_typer::CrashCause::Trap,
+                        cause: omega_typed::CrashCause::Trap,
                         ..
                     }
                 ) =>

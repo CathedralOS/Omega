@@ -1,10 +1,13 @@
 //! Form primitive integer indices from literals and bound parameters. Source calls retain their typed occurrence for preparation.
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::evaluation::numeric_literals;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
+use crate::type_system::substitution::TypeInference;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{IntegerIndex, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 // Literal constants can participate in type normalization without running source code.

@@ -1,8 +1,10 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::{ConformanceRow, ObligationKind, Site, TypeError, TypedStage, TypingObligation, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use crate::type_error::SourceTypeError;
+use crate::{ConformanceRow, ObligationKind, TypeError, TypedStage, TypingObligation, ValueType};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 use std::collections::HashSet;
 
 impl DeclarationCatalog<'_> {
@@ -140,6 +142,8 @@ pub(crate) fn check(
     if catalog.refinements.contains_key(&slot.declaration) {
         return Err(TypeError::at(f, n, "a transparent refinement cannot be a conformance target"));
     }
+    out.conformance_targets
+        .insert(conformance.clone(), slot.clone());
     let lineage = catalog.trait_lineage(slot);
     let requirements: Vec<_> = lineage
         .iter()
@@ -227,14 +231,14 @@ fn record_binding(
     };
     out.conformance_rows.push(ConformanceRow {
         node: f.node_id(node),
-        site: Site::at(f, node),
+        site: site_at(f, node),
         conformance: conformance.cloned(),
         requirement: requirement.clone(),
         implementation: implementation.clone(),
     });
     out.obligations.push(TypingObligation {
         node: f.node_id(node),
-        site: Site::at(f, node),
+        site: site_at(f, node),
         kind: ObligationKind::RefineRequirement {
             requirement: requirement.clone(),
             implementation: implementation.clone(),
@@ -302,7 +306,7 @@ pub(crate) fn index_satisfaction_edges(
             }
             out.obligations.push(TypingObligation {
                 node: unit.file.node_id(n),
-                site: Site::at(unit.file, n),
+                site: site_at(unit.file, n),
                 kind: ObligationKind::RefineRequirement {
                     requirement: slot,
                     implementation: machine.clone(),

@@ -1,0 +1,449 @@
+use crate::declarations::{data, domains, machine::machine_header};
+use crate::lowering::types;
+use crate::machines::{body, branches, calls};
+use crate::{DataId, LoweredMachine, LoweredPackage, LoweringError, LoweringTypes, MachineId, ScalarResult, TypeShape, site_at};
+use omega_prepared::PreparedTrees;
+use omega_syntax::NodeKind;
+use omega_typed::ValueType;
+use std::collections::HashMap;
+use std::num::NonZeroU64;
+
+/// Lower each local executable declaration once, preserving the order of its
+/// operands. Declaration identities determine machine order independently of
+/// the order in which the caller supplied the source files.
+pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, LoweringError> {
+    let typed = prepared.typed();
+    let trees: Vec<_> = typed.trees().collect();
+    let signature_by_declaration: HashMap<_, _> = typed
+        .signatures
+        .iter()
+        .map(|sig| (&sig.machine, sig.as_ref()))
+        .collect();
+    let math_interfaces: HashMap<_, _> = typed
+        .mathematical_interfaces
+        .iter()
+        .map(|(id, signature, deps)| (id, (signature, deps.as_slice())))
+        .collect();
+    let mut mathematics = Vec::new();
+    let mut theorems = Vec::new();
+    let mut data_templates = Vec::new();
+    let mut conformances = Vec::new();
+    let mut signatures = Vec::new();
+    let library_trees: Vec<_> = typed
+        .library
+        .filter(|_| !typed.external_completions.is_empty())
+        .into_iter()
+        .flat_map(|library| library.trees())
+        .collect();
+    let mut data_schemas = Vec::new();
+    let mut aliases = Vec::new();
+    let mut domain_schemas = Vec::new();
+    let mut trait_schemas = Vec::new();
+    for tree in &trees {
+        let file = tree.resolved().file;
+        let mut declarations = file.nodes[0].children.iter().rev().copied().collect::<Vec<_>>();
+        while let Some(child) = declarations.pop() {
+            let kind = file.nodes[child].kind;
+            if matches!(kind, NodeKind::Machine | NodeKind::AsmMachine) {
+                let id = tree
+                    .resolved()
+                    .declaration_at(child)
+                    .ok_or_else(|| LoweringError::new(&site_at(tree, child), "machine has no resolved declaration"))?;
+                let sig = signature_by_declaration
+                    .get(id)
+                    .copied()
+                    .filter(|sig| sig.node == file.node_id(child))
+                    .ok_or_else(|| LoweringError::new(&site_at(tree, child), "machine has no local typed signature"))?;
+                // A theorem with logical hypotheses publishes no executable machine.
+                if file.child(child, NodeKind::Hypothesis).is_some() {
+                    theorems.push(crate::declarations::hypotheses::lower(prepared, tree, sig)?);
+                    continue;
+                }
+                signatures.push(sig);
+                if let Some(body) = file.child(child, NodeKind::Body) {
+                    declarations.extend(
+                        file.nodes[body]
+                            .children
+                            .iter()
+                            .rev()
+                            .copied()
+                            .filter(|&n| file.nodes[n].kind == NodeKind::Machine),
+                    );
+                }
+            } else if kind == NodeKind::MathLet {
+                mathematics.push(crate::declarations::mathematics::lower(typed, tree, child, &math_interfaces)?);
+            } else if kind == NodeKind::Data {
+                if let Some(template) = crate::declarations::data_templates::read(prepared, tree, child, &mut declarations)? {
+                    data_templates.push(template);
+                    continue;
+                }
+                match data::read_data(prepared, tree, child, &mut declarations)? {
+                    data::DataDeclaration::Schema(schema) => data_schemas.push(schema),
+                    data::DataDeclaration::Alias(alias) => aliases.push(alias),
+                }
+            } else if kind == NodeKind::Conformance {
+                conformances.push(crate::declarations::members::conformance(typed, tree, child, &mut declarations)?);
+            } else if kind == NodeKind::Trait {
+                trait_schemas.push(crate::declarations::traits::read_trait(prepared, tree, child, &signature_by_declaration)?);
+            } else if kind == NodeKind::Domain {
+                domain_schemas.push(domains::read_domain(prepared, tree, child)?);
+            } else if !matches!(kind, NodeKind::Const | NodeKind::Use) {
+                return Err(LoweringError::new(&site_at(tree, child), format!("unsupported Psi declaration: {kind:?}")));
+            }
+        }
+    }
+    for constant in &typed.constants {
+        if prepared.open_target_constant(&constant.declaration).is_some() {
+            return Err(LoweringError::new(
+                &constant.initializer.expression,
+                "constant requires a closed target before lowering",
+            ));
+        }
+    }
+    // A terminal call has no normal successor, but its signature still
+    // publishes an ordinary data type with its defining library predicate.
+    let required: std::collections::BTreeSet<_> = typed
+        .external_completions
+        .iter()
+        .filter_map(|completion| signature_by_declaration.get(&completion.requirement))
+        .filter_map(|sig| match &sig.result {
+            ValueType::Nominal(id) => Some(id.as_ref()),
+            _ => None,
+        })
+        .collect();
+    for tree in &library_trees {
+        for (node, id) in tree.resolved().declaration_nodes() {
+            if id.kind != NodeKind::Data || !required.contains(id) {
+                continue;
+            }
+            let mut nested = Vec::new();
+            let data::DataDeclaration::Schema(schema) = data::read_data(prepared, tree, node, &mut nested)? else {
+                return Err(LoweringError::new(&site_at(tree, node), "imported nominal type has no data declaration"));
+            };
+            if !nested.is_empty() {
+                return Err(LoweringError::new(&schema.site, "imported data requires its nested declarations"));
+            }
+            data_schemas.push(schema);
+        }
+    }
+    signatures.sort_unstable_by(|a, b| a.machine.cmp(&b.machine));
+    let instances = super::applications::plan(&signatures, &trees, typed)?;
+    let members = crate::declarations::members::plan(typed, &trees, &instances, &signature_by_declaration)?;
+    let machine_templates = crate::declarations::machine_templates::plan(prepared, &trees, &signatures, &instances)?;
+    let effects: HashMap<_, _> = typed
+        .machine_effects
+        .iter()
+        .map(|e| (&e.machine, e.as_ref()))
+        .collect();
+    let stored_ceilings = super::callbacks::stored_ceilings(typed);
+    let mut headers = Vec::with_capacity(instances.len());
+    let mut carriers = Vec::new();
+    data_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
+    let applications = super::applied_data::collect(typed, &data_templates);
+    for application in &applications {
+        application.collect_carriers(&mut carriers);
+    }
+    members.collect_carriers(&mut carriers);
+    for alias in &aliases {
+        if let data::PendingAlias::Structural { carrier, site, .. } = alias {
+            carriers.push((*carrier, site.clone()));
+        }
+    }
+    trait_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
+    for schema in &trait_schemas {
+        schema.collect_carriers(&mut carriers);
+    }
+    domain_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
+    for domain in &domain_schemas {
+        carriers.push((domain.carrier, domain.site.clone()));
+    }
+    for data in &data_schemas {
+        carriers.push((&data.carrier, data.site.clone()));
+        carriers.extend(data.value_indices.iter().map(|ty| (*ty, data.site.clone())));
+        for field in data.fields() {
+            carriers.push((data.field_carrier(field)?.0, field.site.clone()));
+        }
+    }
+    for instance in &instances {
+        let sig = &instance.signature;
+        let tree = &instance.tree;
+        for argument in &instance.application.arguments {
+            if !matches!(argument, ValueType::MachineSelection(_) | ValueType::Implementation(_)) {
+                carriers.push((argument, sig.site.clone()));
+            }
+        }
+        let effect = effects
+            .get(&sig.machine)
+            .ok_or_else(|| LoweringError::new(&sig.site, "machine has no normalized effect row"))?;
+        let realized_pause = super::callbacks::realized_pause(effect, &instance.callbacks, &signature_by_declaration, &effects, &stored_ceilings);
+        headers.push(machine_header(prepared, instance, effect, realized_pause, &domain_schemas)?);
+        let file = tree.resolved().file;
+        let mut pending: Vec<_> = if sig.machine.kind == NodeKind::AsmMachine {
+            vec![sig.node.node]
+        } else {
+            file.child(sig.node.node, NodeKind::Body).into_iter().collect()
+        };
+        while let Some(node) = pending.pop() {
+            if file.nodes[node].kind == NodeKind::Machine {
+                continue;
+            }
+            pending.extend(&file.nodes[node].children);
+            if let Some(region) = tree.assembly_region(node) {
+                carriers.extend(
+                    region
+                        .bindings
+                        .iter()
+                        .map(|(_, _, ty)| (ty, site_at(tree, node))),
+                );
+            }
+            for record in tree.semantics_at(node) {
+                if let omega_typed::NodeSemantics::Instruction(i) = record {
+                    carriers.extend(i.operands.iter().filter_map(|o| match o {
+                        omega_typed::TypedInstructionOperand::Value { ty, .. } | omega_typed::TypedInstructionOperand::Register { ty, .. } => {
+                            Some((ty, i.site.clone()))
+                        }
+                        _ => None,
+                    }));
+                    carriers.extend(i.implicit_registers.iter().map(|(_, ty)| (ty, i.site.clone())));
+                    if matches!(i.semantics.exit, crate::InstructionExit::Branch { .. }) {
+                        carriers.push((&ValueType::Bool, i.site.clone()));
+                    }
+                }
+            }
+            // Guards and case-discriminator tests can need a Boolean with no source expression row.
+            if matches!(file.nodes[node].kind, NodeKind::Match | NodeKind::Transition)
+                && file.nodes[node].children.len() > 1
+                && branches::has_guards(file, node)
+                || typed.complete_case_patterns.contains_key(&file.node_id(node))
+            {
+                carriers.push((&ValueType::Bool, site_at(tree, node)));
+            }
+            for record in tree.semantics_at(node) {
+                let (carrier, site) = match record {
+                    // A static callable argument selects a machine; it is not a runtime descriptor.
+                    omega_typed::NodeSemantics::Expression(e) if e.static_argument_slot.is_some() && matches!(e.ty, ValueType::Callable(_)) => continue,
+                    omega_typed::NodeSemantics::Expression(e) => (&e.ty, &e.site),
+                    omega_typed::NodeSemantics::Landing(e) => (&e.ty, &e.site),
+                    _ => continue,
+                };
+                if types::place_reference(carrier).is_some()
+                    || types::supports_value_copy(carrier)
+                    || types::local_scalar_members(carrier, &domain_schemas).is_some()
+                    || matches!(carrier, ValueType::Callable(callable) if callable.closed_runtime)
+                {
+                    carriers.push((carrier, site.clone()));
+                }
+            }
+        }
+        for (span, carrier) in &sig.parameters {
+            let mut site = sig.site.clone();
+            site.span = *span;
+            carriers.push((carrier, site));
+        }
+        if sig.result != ValueType::NoResult {
+            let site = tree
+                .resolved()
+                .file
+                .child(sig.node.node, NodeKind::Result)
+                .map_or_else(|| sig.site.clone(), |node| site_at(tree, node));
+            carriers.push((&sig.result, site));
+        }
+    }
+    let types = LoweringTypes::from_declarations(
+        carriers.iter().map(|(carrier, _)| *carrier),
+        data_schemas
+            .iter()
+            .map(|data| data.declaration.clone())
+            .collect(),
+        applications.iter().map(|a| a.carrier.clone()).collect(),
+        &domain_schemas,
+    )
+    .map_err(|(index, error)| LoweringError::new(&carriers[index].1, error.to_string()))?;
+    let mut data = data_schemas
+        .into_iter()
+        .enumerate()
+        .map(|(index, schema)| schema.lower(DataId::from_index(index), &types))
+        .collect::<Result<Vec<_>, _>>()?;
+    for application in applications {
+        let id = DataId::from_index(data.len());
+        data.push(application.lower(id, &types)?);
+    }
+    let mut aliases = aliases
+        .into_iter()
+        .map(|alias| alias.lower(&types))
+        .collect::<Result<Vec<_>, _>>()?;
+    aliases.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
+    let traits = trait_schemas
+        .into_iter()
+        .map(|t| t.lower(&types, &domain_schemas))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut machines = Vec::with_capacity(instances.len());
+    let mut crossing_owners = Vec::with_capacity(instances.len());
+    let mut callees = calls::Callees {
+        machine_pause: headers
+            .iter()
+            .map(|(contract, _)| contract.realized_pause)
+            .collect(),
+        ..Default::default()
+    };
+    for (index, instance) in instances.iter().enumerate() {
+        let sig = &*instance.signature;
+        let ordinal = u64::try_from(index)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .and_then(NonZeroU64::new)
+            .ok_or_else(|| LoweringError::new(&sig.site, "too many Psi machines"))?;
+        callees.local.entry(&sig.machine).or_default().insert(
+            instance.application.arguments.as_slice(),
+            calls::Callee {
+                machine: MachineId(ordinal),
+                callbacks: &instance.callbacks,
+                signature: sig,
+                requirement_count: headers[index].0.requires.len(),
+            },
+        );
+    }
+    let member_calls = members.lower(&types, &traits, &mut callees)?;
+    for selection in typed.cleanups.iter().filter(|s| s.owner.kind == NodeKind::Data) {
+        let declaration = crate::identity::declaration(&selection.owner, &selection.site)?;
+        let target = callees
+            .local
+            .get(&selection.machine)
+            .and_then(|targets| targets.get(selection.arguments.as_slice()))
+            .ok_or_else(|| LoweringError::new(&selection.site, "nominal cleanup needs its closed selected body"))?;
+        if callees.realized_pause(target.machine) != Default::default() {
+            return Err(LoweringError::new(
+                &selection.site,
+                "implicit cleanup calls need a suspension position before their target may park",
+            ));
+        }
+        let [(_, subject)] = target.signature.parameters.as_slice() else {
+            return Err(LoweringError::new(&selection.site, "selected cleanup requires one owned subject"));
+        };
+        let ty = types
+            .id_for(subject)
+            .map_err(|e| LoweringError::new(&selection.site, e.to_string()))?;
+        let schema = data
+            .iter_mut()
+            .find(|s| s.declaration == declaration && s.carrier == ty)
+            .ok_or_else(|| LoweringError::new(&selection.site, "selected cleanup needs the exact subject application"))?;
+        if schema.multiplicity == crate::Multiplicity::Copy || schema.cleanup_target.is_some() || target.signature.result != ValueType::NoResult {
+            return Err(LoweringError::new(
+                &selection.site,
+                "nominal cleanup requires one selected unit machine on owned data",
+            ));
+        }
+        schema.cleanup_target = Some(target.machine);
+    }
+    for (instance, (contract, operator)) in instances.iter().zip(headers) {
+        let sig = &*instance.signature;
+        let machine_id = callees.local[&sig.machine][instance.application.arguments.as_slice()].machine;
+        let id_for = |carrier: &ValueType| {
+            types
+                .id_for(carrier)
+                .map_err(|error| LoweringError::new(&sig.site, error.to_string()))
+        };
+        let parameter_types = sig
+            .parameters
+            .iter()
+            .map(|(_, ty)| id_for(ty))
+            .collect::<Result<Vec<_>, _>>()?;
+        let result_type = (sig.result != ValueType::NoResult)
+            .then(|| id_for(&sig.result))
+            .transpose()?;
+        let (body, owners) = body::lower_body(
+            prepared,
+            &instance.tree,
+            sig,
+            &parameter_types,
+            result_type,
+            &body::Declarations {
+                machine: machine_id,
+                types: &types,
+                data: &data,
+                callees: &callees,
+            },
+        )?;
+        crossing_owners.push(owners);
+        machines.push(LoweredMachine {
+            operator,
+            arguments: instance
+                .application
+                .arguments
+                .iter()
+                .enumerate()
+                .map(|(i, arg)| {
+                    if let Some(callback) = instance.callbacks.iter().find(|c| c.slot == i) {
+                        let selected = callees
+                            .local
+                            .get(&callback.selection.machine)
+                            .and_then(|entries| entries.get(&[][..]))
+                            .ok_or_else(|| LoweringError::new(&sig.site, "selected callback has no lowered body"))?;
+                        callback.lower_bound(&types, selected.machine)
+                    } else if let ValueType::Implementation(id) = arg {
+                        crate::declarations::members::evidence_argument(typed, instance, i, id)
+                    } else {
+                        id_for(arg).map(crate::StaticArgument::Type)
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            id: machine_id,
+            declaration: crate::identity::declaration(&sig.machine, &sig.site)?,
+            contract,
+            parameter_types,
+            result_type,
+            scalar_result: result_type
+                .filter(|&ty| matches!(types.get(ty), Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. })))
+                .map(|ty| ScalarResult { owner: machine_id, ty }),
+            body,
+        });
+    }
+    crate::machines::suspension::plan_package(
+        &mut machines,
+        &member_calls,
+        &types,
+        &callees,
+        &mut crossing_owners,
+    )?;
+    let mut domains = Vec::new();
+    let mut domain_identities = HashMap::new();
+    let mut domain_aliases = Vec::new();
+    for schema in domain_schemas {
+        let id = schema.declaration;
+        match schema.lower(&types)? {
+            domains::DomainDeclaration::Named(domain) => {
+                domain_identities.insert(id, domain.declaration.clone());
+                domains.push(domain);
+            }
+            domains::DomainDeclaration::Alias(alias) => domain_aliases.push(alias),
+        }
+    }
+    mathematics.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
+    theorems.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
+    data_templates.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
+    conformances.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
+    let callable_contracts = types
+        .callable_contracts()
+        .iter()
+        .map(crate::declarations::callables::contract)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut package = LoweredPackage {
+        member_calls,
+        conformances,
+        callable_contracts,
+        machine_templates,
+        data_templates,
+        mathematics,
+        theorems,
+        target_closure: crate::lowering::target::fold_target_closure(prepared)?,
+        types: types.finish(&domain_identities),
+        data,
+        aliases,
+        domains,
+        domain_aliases,
+        traits,
+        machines,
+    };
+    crate::declarations::ranking::bind_component_edges(&mut package)?;
+    Ok(package)
+}

@@ -1,13 +1,13 @@
 //! Expressions: binary operators by precedence, casts, prefixes, postfixes and primaries.
 
+use crate::NodeKind;
 use crate::errors::parse_error_kind::ParseErrorKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::closed_node::ClosedNode;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 /// What the expression being parsed is the right-hand side of. See :ComparisonsDoNotChain.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

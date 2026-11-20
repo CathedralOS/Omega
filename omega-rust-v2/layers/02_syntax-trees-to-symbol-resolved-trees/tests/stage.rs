@@ -37,6 +37,72 @@ fn run<'text>(
 }
 
 #[test]
+fn self_binds_as_the_subject_only_in_the_declarations_own_predicates() {
+    let source = concat!(
+        "const self: u8 = 1; ",
+        "machine accepted<const N: u8>() {} ",
+        "data Outer requires self.value > 0 { ",
+        "    value: [u8; self]; ",
+        "    nested: data Inner requires self.value > 0 { value: [u8; self]; }; ",
+        "} ",
+        "domain u8::Positive requires self > 0 && accepted::<self>();",
+    );
+    let stage = run(&[("app", "main.omg", source)], &[]).unwrap();
+    let declaration = stage
+        .declarations
+        .iter()
+        .find(|id| id.kind == omega_syntax::NodeKind::Const && id.path == "self")
+        .unwrap();
+    let uses: Vec<_> = stage
+        .uses()
+        .filter(|site| site.span.slice(source.as_bytes()) == Some(b"self".as_slice()))
+        .map(|site| (&site.target, site.span.get_start_offset()))
+        .collect();
+    let expected_subjects = [true, false, true, false, true, true];
+    assert_eq!(uses.len(), expected_subjects.len());
+    for ((target, offset), subject) in uses.into_iter().zip(expected_subjects) {
+        if subject {
+            assert!(matches!(target, Symbol::Builtin(name) if name == "self"), "{offset}");
+        } else {
+            assert_eq!(target, &Symbol::Declaration(declaration.clone()), "{offset}");
+        }
+    }
+}
+
+#[test]
+fn self_outside_a_subject_predicate_uses_ordinary_lookup() {
+    for source in [
+        "data Packet { value: self; }",
+        "data Packet requires self.value > 0 { value: u8; nested: data Inner { value: [u8; self]; }; }",
+        "domain u8::Positive requires self > 0 access self;",
+        "data Packet { data Callback = machine() requires self; callback: Callback; }",
+        "machine f() requires self {}",
+    ] {
+        let error = run(&[("app", "main.omg", source)], &[]).unwrap_err();
+        assert_eq!(error.message, "unresolved name self", "{source}");
+        let offset = source.rfind("self").unwrap();
+        assert_eq!(error.span, omega_lexer::SourceSpan::new(offset, offset + "self".len()));
+    }
+
+    let source = "data Packet { data Callback = machine(self: u8) requires self > 0; callback: Callback; }";
+    let stage = run(&[("app", "main.omg", source)], &[]).unwrap();
+    let offset = source.rfind("self").unwrap();
+    let reference = stage
+        .uses()
+        .find(|site| site.span.get_start_offset() == offset)
+        .unwrap();
+    assert!(matches!(&reference.target, Symbol::Binding { span, .. } if span.get_start_offset() == source.find("self").unwrap()));
+}
+
+#[test]
+fn a_predicate_pattern_cannot_rebind_self() {
+    let source = "domain u8::Positive requires match self { self -> true };";
+    let error = run(&[("app", "main.omg", source)], &[]).unwrap_err();
+    assert_eq!(error.message, "the predicate subject self cannot be rebound");
+    assert_eq!(error.span.get_start_offset(), source.rfind("self").unwrap());
+}
+
+#[test]
 fn ranking_order_resolves_to_its_declaration_and_bound_to_its_parameter() {
     for order in ["Down", "Down(limit)"] {
         let text = format!("data Down {{}} machine f(x:u8, limit:u8) terminates by x -> {order} in limit {{}}");
@@ -148,6 +214,148 @@ fn builtin_type_and_value_roles_stay_separate_and_cases_need_their_carrier() {
 }
 
 #[test]
+fn cases_nested_data_and_attached_domains_share_the_owners_member_namespace() {
+    for source in [
+        "data S { case K; data K {} }",
+        "data S { data K {} case K; }",
+        "data S { case K; } domain S::K;",
+        "domain S::K; data S { case K; }",
+        "data S { data K {} } domain S::K;",
+        "domain S::K; data S { data K {} }",
+    ] {
+        let error = run(&[("app", "members.omg", source)], &[]).unwrap_err();
+        assert_eq!(error.message, "duplicate member S::K", "{source}");
+        assert!(error.span.slice(source.as_bytes()).unwrap().ends_with(b"K"));
+    }
+    run(&[("app", "types.omg", "data S {case K;} data T {data K {}} domain T::Other;")], &[]).unwrap();
+    run(
+        &[
+            ("app", "types.omg", "data S {case K;}"),
+            ("app", "S/other.omg", "data K {}"),
+        ],
+        &[],
+    )
+    .unwrap();
+
+    let mut interface = run(&[("lib", "members.omg", "public data S {case K;}")], &[])
+        .unwrap()
+        .compiled_interface();
+    let case = interface
+        .declarations
+        .iter()
+        .find(|e| e.id.kind == omega_syntax::NodeKind::Case)
+        .unwrap();
+    interface.declarations.push(omega_resolver::InterfaceExport {
+        id: omega_resolver::DeclarationId {
+            kind: omega_syntax::NodeKind::Data,
+            ..case.id.clone()
+        },
+        module: case.module.clone(),
+        trait_parents: vec![],
+        domain_carrier: None,
+    });
+    let error = omega_resolver::resolve_stage_with_exports(&[], &[], &Default::default(), &interface).unwrap_err();
+    assert_eq!(error.message, "duplicate member S::K");
+}
+
+#[test]
+fn a_bare_case_spelling_does_not_hide_the_outer_type_its_payload_names() {
+    use omega_syntax::NodeKind::{Case, Data};
+    fn target_at<'a>(
+        stage: &'a omega_resolver::SymbolResolvedTrees<'_>,
+        source: &str,
+        offset: usize,
+        text: &str,
+    ) -> &'a Symbol {
+        &stage
+            .uses()
+            .find(|site| site.span.get_start_offset() == offset && site.span.slice(source.as_bytes()) == Some(text.as_bytes()))
+            .unwrap_or_else(|| panic!("no use of {text} at {offset} in {source}"))
+            .target
+    }
+
+    // The payload names the outer data, while the qualified spelling still selects the case.
+    let source = "data Circle {r:u8;} data Shape {case Circle(c:Circle); case Empty;} machine wrap(v:Circle) -> Shape { Shape::Circle { c: v } }";
+    let stage = run(&[("app", "main.omg", source)], &[]).unwrap();
+    let outer = stage
+        .declarations
+        .iter()
+        .find(|id| id.kind == Data && id.path == "Circle")
+        .unwrap();
+    let case = stage
+        .declarations
+        .iter()
+        .find(|id| id.kind == Case && id.path == "Shape::Circle")
+        .unwrap();
+    assert_ne!(outer, case);
+    let payload = source.find("c:Circle").unwrap() + "c:".len();
+    assert_eq!(target_at(&stage, source, payload, "Circle"), &Symbol::Declaration(outer.clone()));
+    let parameter = source.find("v:Circle").unwrap() + "v:".len();
+    assert_eq!(target_at(&stage, source, parameter, "Circle"), &Symbol::Declaration(outer.clone()));
+    let selection = source.find("Shape::Circle {").unwrap();
+    assert_eq!(target_at(&stage, source, selection, "Shape::Circle"), &Symbol::Declaration(case.clone()));
+
+    // A nearer eligible declaration still shadows the top-level one.
+    let source = "data Circle {r:u8;} data Outer { data Circle {d:u8;} data Shape {case Circle(c:Circle); case Empty;} }";
+    let stage = run(&[("app", "main.omg", source)], &[]).unwrap();
+    let nearer = stage
+        .declarations
+        .iter()
+        .find(|id| id.kind == Data && id.path == "Outer::Circle")
+        .unwrap();
+    let payload = source.find("c:Circle").unwrap() + "c:".len();
+    assert_eq!(target_at(&stage, source, payload, "Circle"), &Symbol::Declaration(nearer.clone()));
+
+    // Without an outer type the case does not stand in for one.
+    let source = "data Shape {case Circle(c:Circle); case Empty;}";
+    let error = run(&[("app", "main.omg", source)], &[]).unwrap_err();
+    assert_eq!(error.message, "unresolved name Circle");
+    let payload = source.find("c:Circle").unwrap() + "c:".len();
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(payload, payload + "Circle".len()));
+
+    // An opened dependency module supplies the outer type only when it is public and unique.
+    let edge = Dependency {
+        requester: "app",
+        alias: "lib",
+        package: "geometry",
+    };
+    let caller = ("app", "main.omg", "use lib\\shapes; data Shape {case Circle(c:Circle); case Empty;}");
+    let stage = run(
+        &[
+            caller,
+            ("geometry", "shapes/circle.omg", "public data Circle {r:u8;}"),
+        ],
+        &[edge],
+    )
+    .unwrap();
+    let imported = stage
+        .declarations
+        .iter()
+        .find(|id| id.kind == Data && id.package == "geometry" && id.path == "shapes\\Circle")
+        .unwrap();
+    let payload = caller.2.find("c:Circle").unwrap() + "c:".len();
+    assert_eq!(target_at(&stage, caller.2, payload, "Circle"), &Symbol::Declaration(imported.clone()));
+
+    let error = run(&[caller, ("geometry", "shapes/circle.omg", "data Circle {r:u8;}")], &[edge]).unwrap_err();
+    assert_eq!(error.message, "unresolved name Circle");
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(payload, payload + "Circle".len()));
+
+    let caller = ("app", "main.omg", "use lib\\a; use lib\\b; data Shape {case Circle(c:Circle); case Empty;}");
+    let error = run(
+        &[
+            caller,
+            ("geometry", "a/circle.omg", "public data Circle {r:u8;}"),
+            ("geometry", "b/circle.omg", "public data Circle {r:u8;}"),
+        ],
+        &[edge],
+    )
+    .unwrap_err();
+    assert_eq!(error.message, "competing declarations: geometry\\a\\Circle, geometry\\b\\Circle");
+    let payload = caller.2.find("c:Circle").unwrap() + "c:".len();
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(payload, payload + "Circle".len()));
+}
+
+#[test]
 fn arm_bindings_have_arm_scope_and_an_identity_independent_of_file_order() {
     run(&[("app", "main.omg", "machine f(x: u32) -> u32 { match x { v -> v, _ -> x } }")], &[]).unwrap();
     assert!(run(&[("app", "main.omg", "machine f(x: u32) -> u32 { match x { v -> v, _ -> v } }")], &[]).is_err());
@@ -163,6 +371,40 @@ fn a_call_keeps_both_operand_overloads_and_duplicate_shapes_reject_without_a_cal
             .any(|u| matches!(&u.target,Symbol::Candidates(ids) if ids.len()==2))
     );
     assert!(run(&[("game", "a.omg", "machine draw<T>(x: T) {} machine draw<U>(y: U) {}")], &[]).is_err());
+}
+
+#[test]
+fn overload_identity_renames_only_occurrences_bound_to_a_generic_parameter() {
+    let duplicate = "data Io{data T{}} machine f<T>(x:T,y:Io::T){} machine f<U>(x:U,y:Io::T){}";
+    let error = run(&[("app", "overloads.omg", duplicate)], &[]).unwrap_err();
+    assert_eq!(error.message, "duplicate declaration f");
+    let name = duplicate.find("f<U>").unwrap();
+    assert_eq!(error.span, omega_lexer::SourceSpan::new(name, name + 1));
+
+    let distinct = "public data Io{data T{} data U{}} public machine f<T>(x:T,y:Io::T){} public machine f<U>(x:U,y:Io::U){} machine caller(){f(0,0)}";
+    let resolved = run(&[("app", "overloads.omg", distinct)], &[]).unwrap();
+    let declarations: Vec<_> = resolved
+        .declarations
+        .iter()
+        .filter(|id| id.path == "f")
+        .collect();
+    assert_eq!(declarations.len(), 2);
+    assert_eq!(declarations[0].operands, ["#TypeParam0", "Io :: T"]);
+    assert_eq!(declarations[1].operands, ["#TypeParam0", "Io :: U"]);
+    let call = distinct.rfind("f(").unwrap();
+    let usage = resolved
+        .uses()
+        .find(|name| name.span.get_start_offset() == call)
+        .unwrap();
+    assert_eq!(usage.target.declaration_candidates().iter().collect::<Vec<_>>(), declarations);
+    let interface = resolved.compiled_interface();
+    let exports: Vec<_> = interface
+        .declarations
+        .iter()
+        .filter(|export| export.id.path == "f")
+        .map(|export| &export.id)
+        .collect();
+    assert_eq!(exports, declarations);
 }
 
 #[test]
@@ -1256,8 +1498,7 @@ fn chapter_block(
     chapter: &str,
     line: usize,
 ) -> String {
-    let mut blocks = Vec::new();
-    spec_corpus::extract_examples_from_markdown("chapter", chapter, &mut blocks);
+    let blocks = spec_corpus::published_chapter(chapter).unwrap();
     blocks
         .into_iter()
         .find(|b| b.fence_line_number == line)
@@ -1268,7 +1509,7 @@ fn chapter_block(
 #[test]
 fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declarations() {
     use omega_parser::NodeKind;
-    let selectors = chapter_block(include_str!("../../../wiki/spec/language/reflection.md"), 77);
+    let selectors = chapter_block("language/reflection.md", 77);
     let mut source = String::from("use omega\\language\\core\\reflect; machine inspect(){");
     for selector in selectors.lines() {
         source.push_str(&format!("_ = {selector};"));
@@ -1329,19 +1570,7 @@ fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declar
 
 #[test]
 fn published_import_exposes_the_exact_remote_domain() {
-    let chapter = include_str!("../../../wiki/spec/language/modules.md");
-    let section = chapter
-        .split_once("### Foreign attached declaration paths")
-        .unwrap()
-        .1;
-    let text = section
-        .split_once("```omega")
-        .unwrap()
-        .1
-        .split_once("```")
-        .unwrap()
-        .0
-        .trim();
+    let text = chapter_block("language/modules.md", 117);
     let requester = format!("{text}\nmachine check(p:ui_policy\\screen\\Point in OnScreen) {{}}");
     let library = ("policy", "screen/point.omg", "public data Point{} public domain Point::OnScreen;");
     let edge = Dependency {
@@ -1365,7 +1594,7 @@ fn published_import_exposes_the_exact_remote_domain() {
 
 #[test]
 fn published_reader_and_factory_bind_their_own_preconditions() {
-    let source = chapter_block(include_str!("../../../wiki/spec/language/machine_values.md"), 44);
+    let source = chapter_block("language/machine_values.md", 44);
     run(&[("app", "reader.omg", &source)], &[]).unwrap();
     for (original, misplaced, name) in [
         ("requires offset < 256", "requires ready", "ready"),
@@ -1380,7 +1609,7 @@ fn published_reader_and_factory_bind_their_own_preconditions() {
 
 #[test]
 fn published_equality_binds_a_shadowing_parameter() {
-    let clause = chapter_block(include_str!("../../../wiki/spec/language/generics.md"), 310);
+    let clause = chapter_block("language/generics.md", 310);
     let ok = format!("machine restrict<T>() {clause} {{}}");
     run(&[("app", "restrict.omg", &ok)], &[]).unwrap();
     let shadow = ok.replace("restrict<T>()", "restrict<T>(u32:u16)");
@@ -1506,7 +1735,7 @@ fn selected(
 #[test]
 fn a_qualified_path_and_its_import_select_the_same_root_module_declaration() {
     // `combat` names the package's root module wherever the path is written, as it
-    // does in `use combat::score`. A same-named child directory of the caller is not
+    // does in `use combat\score`. A same-named child directory of the caller is not
     // reached by a qualified path or by an import.
     let root = ("app", "combat/s.omg", "machine score() -> u32 { 1 } data Point { x: u32; }");
     let child = ("app", "game/combat/s.omg", "machine score() -> u32 { 2 } data Point { y: u32; }");

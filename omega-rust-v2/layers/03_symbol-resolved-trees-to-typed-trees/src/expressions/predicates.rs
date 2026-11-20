@@ -1,6 +1,7 @@
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
-use crate::{ObligationKind, Site, TypeError, ValueType};
-use omega_parser::NodeKind;
+use crate::{ObligationKind, TypeError, ValueType};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_contract_clause(
@@ -21,7 +22,7 @@ impl BodyTyper<'_, '_> {
                         expr,
                         ObligationKind::ProveGuarantee {
                             machine: machine.clone(),
-                            predicate: Site::at(source, expr),
+                            predicate: site_at(source, expr),
                         },
                     );
                 }
@@ -56,7 +57,7 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
     ) -> Result<(), TypeError> {
         let source = self.unit.file;
-        let requirement = &self.catalog.hypotheses[&Site::at(source, node_index)];
+        let requirement = &self.catalog.hypotheses[&site_at(source, node_index)];
         let parent_result = self.subject.replace(requirement.result.clone());
         self.locals.extend(requirement.parameters.iter().cloned());
         for &part in &source.nodes[node_index].children {

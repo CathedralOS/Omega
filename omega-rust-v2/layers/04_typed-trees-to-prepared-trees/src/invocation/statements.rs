@@ -15,7 +15,8 @@ impl ConstantEvaluation<'_, '_> {
         let &node = statements.get(statement).ok_or(UNSUPPORTED_BODY)?;
         let scope = Scope::Body(bindings.clone());
         match file.nodes[node].kind {
-            // The parser allows only nested declarations after a tail or transition.
+            // The parser allows only nested declarations after a tail or transition;
+            // they run only when called.
             NodeKind::Tail => {
                 let [expression] = *file.nodes[node].children.as_slice() else {
                     return Err(UNSUPPORTED_BODY.into());
@@ -47,7 +48,7 @@ impl ConstantEvaluation<'_, '_> {
                 {
                     return Err(UNSUPPORTED_BODY.into());
                 }
-                let local_carrier = checked_carrier_in_scope(&tree, binder, scope.application())?;
+                let local_carrier = checked_carrier_in_scope(&tree, binder, &scope)?;
                 let writable = file.nodes[node].words().any(|word| word.text == "mut");
                 if writable && local_carrier != ValueType::Bool && IntegerRange::for_type(&local_carrier).is_none() {
                     return Err(UNSUPPORTED_BODY.into());
@@ -91,9 +92,9 @@ impl ConstantEvaluation<'_, '_> {
                 }
                 // Only this frame's own scalar binding can be replaced. A
                 // field, computed place, or alias needs checked storage access.
-                let place_carrier = checked_carrier_in_scope(&tree, place, scope.application())?;
+                let place_carrier = checked_carrier_in_scope(&tree, place, &scope)?;
                 let local = bindings
-                    .0
+                    .values
                     .borrow()
                     .iter()
                     .rposition(|binding| binding.binder == *binder_node && binding.writable && binding.carrier == place_carrier)
@@ -107,6 +108,31 @@ impl ConstantEvaluation<'_, '_> {
                     },
                     Step::Store { local, bindings },
                     Step::Evaluate(file.node_id(right), place_carrier, scope),
+                ]);
+            }
+            NodeKind::Discard => {
+                let [operand] = *file.nodes[node].children.as_slice() else {
+                    return Err(UNSUPPORTED_BODY.into());
+                };
+                if tree.semantics_at(node).next().is_some() {
+                    return Err(UNSUPPORTED_BODY.into());
+                }
+                // The operand can still fail or contribute dependencies before its value is discarded.
+                let operand_carrier = checked_carrier_in_scope(&tree, operand, &scope)?;
+                self.admit_owned_value(&operand_carrier, execution)
+                    .map_err(|error| match error {
+                        EvaluationError::Refused(reason) => EvaluationError::AtCall(crate::evaluation::refusal(&omega_typed::site_at(file, operand), reason)),
+                        other => other,
+                    })?;
+                execution.steps.extend([
+                    Step::Block {
+                        site,
+                        statement: statement + 1,
+                        carrier,
+                        bindings,
+                    },
+                    Step::Discard,
+                    Step::Evaluate(file.node_id(operand), operand_carrier, scope),
                 ]);
             }
             _ => return Err(UNSUPPORTED_BODY.into()),
@@ -132,7 +158,7 @@ impl ConstantEvaluation<'_, '_> {
         let [subject, ..] = *file.nodes[node].children.as_slice() else {
             return Err(UNSUPPORTED_BODY.into());
         };
-        let subject_type = checked_carrier_in_scope(tree, subject, scope.application())?;
+        let subject_type = checked_carrier_in_scope(tree, subject, &scope)?;
         if !matches!(subject_type, ValueType::Bool | ValueType::Nominal(_) | ValueType::Applied(_, _)) {
             return Err(UNSUPPORTED_BODY.into());
         }
@@ -174,14 +200,12 @@ impl ConstantEvaluation<'_, '_> {
                 continue;
             };
             if !values.is_empty() {
-                let (Scope::Body(bindings) | Scope::Fact(bindings)) = &scope else {
-                    return Err(UNSUPPORTED_BODY.into());
-                };
+                let bindings = scope.bindings();
                 execution.steps.push(Step::RestoreBindings {
-                    count: bindings.0.borrow().len(),
+                    count: bindings.values.borrow().len(),
                     bindings: bindings.clone(),
                 });
-                bindings.0.borrow_mut().extend(values);
+                bindings.values.borrow_mut().extend(values);
             }
             execution
                 .steps
@@ -266,7 +290,7 @@ impl ConstantEvaluation<'_, '_> {
                     }
                     let (_, path) = self.trees.place_path(file.node_id(part));
                     let Some(step) = path.last() else { return Err(UNSUPPORTED_BODY.into()) };
-                    let Some(omega_typer::Projection::Field(field)) = &step.projection else {
+                    let Some(omega_typed::Projection::Field(field)) = &step.projection else {
                         return Err(UNSUPPORTED_BODY.into());
                     };
                     if step.base != file.node_id(file.ungroup(subject_node)) || step.through.is_some() {

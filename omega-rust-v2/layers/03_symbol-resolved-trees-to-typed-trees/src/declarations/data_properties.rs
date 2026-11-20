@@ -1,5 +1,6 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::{Carry, DataProperties, Multiplicity, TypeError, TypedStage};
 use std::collections::HashMap;
 
@@ -55,14 +56,14 @@ pub(crate) fn check(
     let id = unit.declaration(node)?;
     let properties = catalog.types.data_properties.get(id);
     if let Some(target) = catalog.types.aliases.get(id) {
-        let Some(properties) = properties else { return Ok(()) };
         let target = catalog
             .types
             .normalize_at(target.clone(), unit, node)
             .map_err(|m| TypeError::at(unit.file, node, m))?;
-        if properties.multiplicity != Multiplicity::Affine && properties.multiplicity != catalog.types.multiplicity(&target) {
+        if properties.is_some_and(|p| p.multiplicity != Multiplicity::Affine && p.multiplicity != catalog.types.multiplicity(&target)) {
             return Err(TypeError::at(unit.file, node, "a transparent alias cannot change its target's multiplicity"));
         }
+        output.type_alias_targets.insert(id.clone(), target);
         // Only a nominal declaration contributes a new ownership identity.
         return Ok(());
     }

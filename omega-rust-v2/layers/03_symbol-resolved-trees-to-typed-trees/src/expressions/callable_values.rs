@@ -1,8 +1,10 @@
 use crate::contracts::effect_clauses;
 use crate::expressions::body_typer::BodyTyper;
-use crate::{CallableType, IndirectCall, IndirectOperand, ObligationKind, Site, TypeError, ValueType};
-use omega_lexer::SourceSpan;
-use omega_resolver::DeclarationId;
+use crate::type_error::SourceTypeError;
+use crate::{CallableType, IndirectCall, IndirectOperand, MachineApplication, ObligationKind, TypeError, ValueType};
+use omega_resolved::DeclarationId;
+use omega_tokens::SourceSpan;
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn invocation_target(
@@ -11,15 +13,23 @@ impl BodyTyper<'_, '_> {
     ) -> crate::InvocationTarget {
         let source = self.unit.file;
         let node_index = source.ungroup(node_index);
-        if let Some(omega_resolver::Symbol::Declaration(id)) = self.unit.symbol(node_index)
-            && matches!(id.kind, omega_parser::NodeKind::Machine | omega_parser::NodeKind::AsmMachine)
+        if let Some(omega_resolved::Symbol::Declaration(id)) = self.unit.symbol(node_index)
+            && matches!(id.kind, omega_syntax::NodeKind::Machine | omega_syntax::NodeKind::AsmMachine)
         {
+            let enclosing_arguments: Vec<_> = self.catalog.types.lexical_machine_arguments(id).collect();
+            if !enclosing_arguments.is_empty() {
+                return crate::InvocationTarget::AppliedMachine(MachineApplication {
+                    machine: Box::new(id.clone()),
+                    arguments: Vec::new(),
+                    enclosing_arguments,
+                });
+            }
             return crate::InvocationTarget::Declaration(crate::RequirementSlot {
                 declaration: id.clone(),
                 trait_arguments: Vec::new(),
             });
         }
-        if let Some(omega_resolver::Symbol::Binding { span, .. }) = self.unit.symbol(node_index) {
+        if let Some(omega_resolved::Symbol::Binding { span, .. }) = self.unit.symbol(node_index) {
             if let Some(ValueType::Parameter { owner, index }) = self.unit.parameters.get(span) {
                 return crate::InvocationTarget::StaticParameter {
                     owner: *owner.clone(),
@@ -35,7 +45,7 @@ impl BodyTyper<'_, '_> {
                 return crate::InvocationTarget::RuntimeParameter { owner: owner.clone(), index };
             }
         }
-        crate::InvocationTarget::StoredCallable(Site::at(source, node_index))
+        crate::InvocationTarget::StoredCallable(site_at(source, node_index))
     }
 
     pub(super) fn static_callable(
@@ -57,16 +67,17 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
         c: &CallableType,
-        machine: &DeclarationId,
-        arguments: &[ValueType],
+        formal: Option<(DeclarationId, usize)>,
+        selection: &MachineApplication,
     ) -> Result<(), TypeError> {
+        let machine = selection.machine.as_ref();
         let signature = self
             .catalog
             .signatures
             .get(machine)
             .ok_or_else(|| TypeError::unsupported(self.unit.file, node_index))?;
-        let instantiate = |ty: &ValueType| ty.substitute(machine, arguments);
-        if self.catalog.types.arity(machine) != arguments.len()
+        let instantiate = |ty: &ValueType| selection.instantiate(ty);
+        if self.catalog.types.arity(machine) != selection.arguments.len()
             || !signature
                 .parameters
                 .iter()
@@ -99,9 +110,9 @@ impl BodyTyper<'_, '_> {
         self.record_obligation(
             node_index,
             ObligationKind::RefineCallable {
+                formal,
                 contract: Box::new(c.clone()),
-                machine: machine.clone(),
-                arguments: arguments.to_vec(),
+                selection: selection.clone(),
             },
         );
         Ok(())
@@ -118,7 +129,7 @@ impl BodyTyper<'_, '_> {
             return Err(TypeError::at(source, callee, "logical evidence cannot be executed"));
         }
         let subjects = &source.nodes[args].children;
-        let operands = subjects.iter().map(|&s| Site::at(source, s)).collect();
+        let operands = subjects.iter().map(|&s| site_at(source, s)).collect();
         let (mut parameters, result, obligation) = if let Some(site) = self.unit.hypotheses.get(&binder) {
             let hypothesis = &self.catalog.hypotheses[site];
             if hypothesis.conclusions.is_empty() {
@@ -184,7 +195,7 @@ impl BodyTyper<'_, '_> {
             self.admit_argument(node_index, position, &operand, p)?;
             operands.push(IndirectOperand {
                 node: source.node_id(arg),
-                site: Site::at(source, arg),
+                site: site_at(source, arg),
                 subject: operand.subject(self.unit, p),
                 callable: matches!(operand.value, ValueType::Callable(_)).then(|| self.invocation_target(arg)),
             });
@@ -196,8 +207,9 @@ impl BodyTyper<'_, '_> {
             use_site,
             operands,
             entry,
-            site: Site::at(source, node_index),
-            callee: Site::at(source, callee),
+            acknowledgements: ack,
+            site: site_at(source, node_index),
+            callee: site_at(source, callee),
             caller: self.caller.clone(),
             contract: c.clone(),
         });

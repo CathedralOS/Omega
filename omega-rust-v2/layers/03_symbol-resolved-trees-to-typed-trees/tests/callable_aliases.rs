@@ -51,11 +51,16 @@ fn substituting_an_open_alias_cannot_create_a_runtime_callback() {
 
 #[test]
 fn closed_aliases_preserve_explicit_outer_type_and_lifetime_parameters() {
-    let source = "
-        data Reader<'a,T> = machine(value:@'a T)->@'a T reaches none crashes none;
-        machine read<'a>(load:Reader<'a,u8>, value:@'a u8)->@'a u8 { load(value) }
-    ";
-    check(&[("reader.omg", source)]).unwrap();
+    let alias = "public data Reader<'a,T> = machine(value:@'a T)->@'a T reaches none crashes none;";
+    let source = "use callbacks\\Reader; machine read<'a>(load:Reader<'a,u8>, value:@'a u8)->@'a u8 { load(value) }";
+    let resolved = support::resolve_packages(&[("game", "reader.omg", source), ("game", "callbacks/definitions.omg", alias)], &[]);
+    let typed = omega_typer::type_stage(&resolved).unwrap();
+    let [call] = typed.indirect_calls.as_slice() else { panic!("expected the callback call") };
+    let (tree, node) = typed.callable_origin(&call.contract.contract).expect("callable alias RHS");
+    let file = tree.resolved().file;
+    assert_eq!(file.path, "callbacks/definitions.omg");
+    assert_eq!(file.nodes[node].kind, omega_parser::NodeKind::MachineType);
+    assert_eq!(file.span(node), call.contract.contract.span);
 }
 
 #[test]

@@ -244,7 +244,7 @@ fn an_open_package_retains_exact_demands_and_closes_like_direct_preparation() {
         .iter()
         .find(|call| call.node == width.initializer.node)
         .unwrap();
-    assert_eq!(layout_call.layout_query.as_ref().unwrap().projection, LayoutQuery::Size);
+    assert_eq!(layout_call.layout_query, Some(LayoutQuery::Size));
     assert_eq!(layout_call.type_arguments, [WORD]);
     let reads = open
         .dependencies()
@@ -277,4 +277,36 @@ fn a_layout_cannot_supply_the_extent_that_defines_its_own_subject() {
     let capsule = TargetSemantics::new(target, [ring], []).unwrap();
     let error = prepare_source_package_for_target(&source, &[], &capsule).unwrap_err();
     assert!(error.message.contains("typing dependency cycle"), "{}", error.message);
+}
+
+#[test]
+fn a_specialized_initializer_closes_the_call_before_entering_the_layout_helper() {
+    let code = "use omega\\language\\core;
+                machine byte_count<Left, Right>()->u64 {
+                    core\\size_of::<Left>() *% 10 +% core\\size_of::<Right>()
+                }
+                data Outer<T> { data Inner<U> { payload: [u8; byte_count::<T, U>()]; } }
+                machine consume(first:Outer<u16>::Inner<u8>, second:Outer<u8>::Inner<u16>){}";
+    let source = resolve(code);
+    let target = identity("selected");
+    let capsule = TargetSemantics::new(
+        target.clone(),
+        [
+            layout(&target, WORD, LayoutExtent::Fixed(4), Some(4)),
+            layout(&target, BYTE, LayoutExtent::Fixed(1), Some(1)),
+        ],
+        [],
+    )
+    .unwrap();
+    let prepared = prepare_source_package_for_target(&source, &[], &capsule).unwrap();
+    let answers = prepared.specialized_indices();
+    assert_eq!(answers.len(), 2);
+    for (arguments, size) in [([WORD, BYTE], 41), ([BYTE, WORD], 14)] {
+        let answer = answers
+            .iter()
+            .find(|answer| answer.arguments == arguments)
+            .unwrap();
+        assert_eq!(answer.value, omega_typer::StaticValue::Integer(size.into()));
+    }
+    assert_eq!(prepared.target_observations().len(), 2);
 }

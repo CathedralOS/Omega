@@ -1,10 +1,15 @@
 use crate::contracts::effect_clauses;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::evaluation::numeric_literals;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
+use crate::type_system::dependent_subjects::DependentSubjects;
+use crate::type_system::substitution::TypeInference;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
-use omega_parser::{NodeKind, TerminationClause};
-use omega_resolver::Symbol;
+use omega_resolved::Symbol;
+use omega_syntax::{NodeKind, TerminationClause};
+use omega_typed::site_at;
 
 impl<'a> ResolvedSourceFile<'a> {
     pub(crate) fn universe_level(
@@ -217,9 +222,9 @@ impl<'a> ResolvedSourceFile<'a> {
                     requirement: None,
                     parameters: params,
                     result,
-                    contract: crate::Site::at(source, node_index),
+                    contract: site_at(source, node_index),
                     closed_runtime: closed == [true, true],
-                    pause: crate::DeclaredPauseBounds::read(self, node_index)?.declared(),
+                    pause: crate::contracts::effect_clauses::read_pause_bounds(self, node_index)?.declared(),
                     has_guarantee: source.child(node_index, Ensures).is_some(),
                     requires: source.child(node_index, Requires).is_some(),
                     reach: effect_clauses::reach(self, types, node_index)?,
@@ -368,14 +373,14 @@ impl<'a> ResolvedSourceFile<'a> {
             }
             // Keep annotation formation exhaustive. Every new container must choose how
             // to form its children, including a runtime callable nested inside it.
-            File | Fragment | Use | Const | Data | Field | Case | CaseField | StableNumber | Attributes | Attribute | DroppedBy | Domain | Access | Trait
-            | Restriction | Conformance | SelectionRow | Hypothesis | Machine | AsmMachine | OperatorToken | MathLet | Path | GenericParams | TypeParam
-            | KindedParam | ConstParam | MachineParam | SomeParam | LifetimeParam | Params | Param | Result | Body | Requires | Ensures | Reaches | Crashes
-            | Blocks | Suspends | Terminates | Invokes | Satisfies | Registers | Clobbers | TypeArgs | Let | Assign | Discard | ExpressionStatement | Tail
-            | AsmBlock | Instruction | AsmTransition | Match | Transition | Arm | WildcardPattern | BindingPattern | RecordPattern | FieldPattern
-            | RestPattern | TuplePattern | ParenPattern | ValuePattern | Literal | ExpressionArgs | Paren | Tuple | RecordLiteral | FieldInit | Omission
-            | ArrayLiteral | Selection | Call | Args | FieldAccess | Index | Range | Borrow | Dereference | Unary | Move | CallMarker | Cast | CastEntry
-            | Binary | Unfinished => Err(TypeError::unsupported(source, node_index)),
+            File | Fragment | Use | Const | Data | Field | Case | CaseField | StableNumber | RetiredNumber | Attributes | Attribute | DroppedBy | Domain
+            | Access | Trait | Restriction | Conformance | SelectionRow | Hypothesis | Machine | AsmMachine | OperatorToken | MathLet | Path
+            | GenericParams | TypeParam | KindedParam | ConstParam | MachineParam | SomeParam | LifetimeParam | Params | Param | Result | Body | Requires
+            | Ensures | Reaches | Crashes | Blocks | Suspends | Terminates | Invokes | Satisfies | Registers | Clobbers | TypeArgs | Let | Assign | Discard
+            | ExpressionStatement | Tail | AsmBlock | Instruction | AsmTransition | Match | Transition | Arm | WildcardPattern | BindingPattern
+            | RecordPattern | FieldPattern | RestPattern | TuplePattern | ParenPattern | ValuePattern | Literal | ExpressionArgs | Paren | Tuple
+            | RecordLiteral | FieldInit | Omission | ArrayLiteral | Selection | Call | Args | FieldAccess | Index | Range | Borrow | Dereference
+            | Unary | Move | CallMarker | Cast | CastEntry | Binary | Unfinished => Err(TypeError::unsupported(source, node_index)),
         }
     }
 }

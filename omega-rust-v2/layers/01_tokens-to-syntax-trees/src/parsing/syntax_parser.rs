@@ -1,14 +1,14 @@
 //! The token cursor and the tree builder that the grammar functions drive.
 
+use crate::NodeKind;
+use crate::SyntaxTree;
+use crate::TreeEvent;
 use crate::errors::parse_error::ParseError;
 use crate::errors::parse_error_kind::ParseErrorKind;
 use crate::parsing::closed_node::ClosedNode;
 use crate::parsing::open_node::OpenNode;
 use crate::parsing::parse_failed::{ParseFailed, Parsed};
-use crate::tree::node_kind::NodeKind;
-use crate::tree::syntax_tree::SyntaxTree;
-use crate::tree::tree_event::TreeEvent;
-use omega_lexer::{Punctuation, SourceSpan, Token, TokenKind};
+use omega_tokens::{Punctuation, SourceSpan, Token, TokenKind};
 
 /*
     :NestingLimit
@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn token_indices_report_the_first_unrepresentable_position() {
         let last = u32::MAX as usize;
-        let span = omega_lexer::SourceSpan::new(last + 1, last + 2);
+        let span = omega_tokens::SourceSpan::new(last + 1, last + 2);
         assert_eq!(SyntaxParser::compact_token_index(last, span), Ok(u32::MAX));
         let error = SyntaxParser::compact_token_index(last + 1, span).unwrap_err();
         assert_eq!(error.get_kind(), crate::ParseErrorKind::SourceTooLarge);
@@ -470,7 +470,7 @@ mod tests {
         let expected = parser.events.clone();
         parser.bump();
         assert_eq!(parser.events, expected);
-        assert_eq!(parser.get_span(0), omega_lexer::SourceSpan::new(text.len(), text.len()));
+        assert_eq!(parser.get_span(0), omega_tokens::SourceSpan::new(text.len(), text.len()));
     }
 
     #[test]

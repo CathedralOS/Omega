@@ -5,16 +5,15 @@ mod support;
 use omega_typer::{ObligationKind, ValueType};
 use support::check;
 
-const DOMAINS: &str = include_str!("../../../wiki/spec/language/domains.md");
-const EXPRESSIONS: &str = include_str!("../../../wiki/spec/language/expressions.md");
-const NUMBERS: &str = include_str!("../../../wiki/spec/language/numeric_values.md");
+const DOMAINS: &str = "language/domains.md";
+const EXPRESSIONS: &str = "language/expressions.md";
+const NUMBERS: &str = "language/numeric_values.md";
 
 fn block(
     chapter: &str,
     line: usize,
 ) -> String {
-    let mut examples = Vec::new();
-    spec_corpus::extract_examples_from_markdown("chapter", chapter, &mut examples);
+    let examples = spec_corpus::published_chapter(chapter).unwrap();
     examples
         .into_iter()
         .find(|e| e.fence_line_number == line)
@@ -250,7 +249,7 @@ fn published_policy_arithmetic_keeps_each_operator_and_carrier() {
 
 #[test]
 fn published_scoped_constants_keep_qualified_identity_and_carrier() {
-    let example = block(include_str!("../../../wiki/spec/language/constants.md"), 6);
+    let example = block("language/constants.md", 6);
     let stage = check(&[
         ("status.omg", "data EfiStatus {code:u32;}"),
         ("constants.omg", &example),
@@ -358,7 +357,7 @@ fn published_operator_in_its_own_module_keeps_the_domain_home() {
 
 #[test]
 fn published_static_bound_is_inferred_from_the_operand_domain() {
-    let generics = include_str!("../../../wiki/spec/language/generics.md");
+    let generics = "language/generics.md";
     let definitions = block(generics, 367);
     let bound = block(generics, 410);
     for capacity in [4, 8] {
@@ -436,7 +435,7 @@ fn published_domain_alias_normalizes_to_the_two_socket_domains() {
 
 #[test]
 fn published_record_pattern_binds_the_version_only_in_its_arm() {
-    let pattern = block(include_str!("../../../wiki/spec/language/patterns.md"), 26);
+    let pattern = block("language/patterns.md", 26);
     let definitions = "data Header {ok:u8;version:u16;} machine accept(version:u16)->bool {true} machine reject()->bool {false}";
     let body = format!("machine inspect(header:Header)->bool {{\n{pattern}\n}}");
     let stage = check(&[("definitions.omg", definitions), ("pattern.omg", &body)]).unwrap();
@@ -495,8 +494,8 @@ fn published_quantity_keeps_its_carrier_and_unit_index() {
     }
 }
 
-const EFFECTS: &str = include_str!("../../../wiki/spec/language/effects.md");
-const GENERICS: &str = include_str!("../../../wiki/spec/language/generics.md");
+const EFFECTS: &str = "language/effects.md";
+const GENERICS: &str = "language/generics.md";
 
 #[test]
 fn published_inherited_call_contributes_its_declared_reach() {
@@ -652,7 +651,7 @@ fn published_static_parameters_require_the_declared_argument_role() {
 
 #[test]
 fn published_record_call_selects_the_shared_counter_field() {
-    let text = block(include_str!("../../../wiki/spec/language/machine_values.md"), 22);
+    let text = block("language/machine_values.md", 22);
     let (decls, operations) = text.split_once("let operations").unwrap();
     let caller = format!("machine observe(counter:Counter) {{ let operations{operations} }}");
     let stage = check(&[("defs.omg", decls), ("observe.omg", &caller)]).unwrap();
@@ -978,4 +977,18 @@ fn aliases_share_their_targets_ownership_properties_across_files() {
             .contains("cannot change its target's multiplicity"),
         "{error:?}"
     );
+}
+#[test]
+fn case_discriminators_distinguish_complete_arms_from_payload_tests() {
+    let src = "data Choice {case Value(n:u8);case Empty;}
+    machine whole(x:@Choice)->bool {match x {Choice::Value {n as _} -> true, Choice::Empty -> false,}}
+    machine part(x:@Choice)->bool {match x {Choice::Value {n:1u8} -> true, _ -> false,}}";
+    let stage = check(&[("choice.omg", src)]).unwrap();
+    let mut whole = stage
+        .complete_case_patterns
+        .values()
+        .map(|id| id.path.as_str())
+        .collect::<Vec<_>>();
+    whole.sort_unstable();
+    assert_eq!(whole, ["Choice::Empty", "Choice::Value"]);
 }

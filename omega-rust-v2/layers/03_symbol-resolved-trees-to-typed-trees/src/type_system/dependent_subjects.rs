@@ -1,10 +1,13 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::evaluation::numeric_literals;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{Site, TypeError, ValueType};
-use omega_lexer::SourceSpan;
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_tokens::SourceSpan;
+use omega_typed::site_at;
 
 impl ResolvedSourceFile<'_> {
     pub(crate) fn binder_site(
@@ -111,13 +114,29 @@ impl ResolvedSourceFile<'_> {
             };
         }
         ValueType::Subject {
-            declaration: Site::at(self.file, n),
+            declaration: site_at(self.file, n),
             version: version.cloned(),
         }
     }
 }
-impl ValueType {
-    pub(crate) fn instantiate_subjects(
+pub(crate) trait DependentSubjects: Sized {
+    fn instantiate_subjects(
+        &self,
+        signature: &crate::TypedSignature,
+        operands: &[ValueType],
+    ) -> Self;
+    fn bind_subject(
+        &self,
+        site: &Site,
+    ) -> Self;
+    fn apply_subject(
+        &self,
+        subject: &Self,
+    ) -> Self;
+}
+
+impl DependentSubjects for ValueType {
+    fn instantiate_subjects(
         &self,
         signature: &crate::TypedSignature,
         operands: &[ValueType],
@@ -134,16 +153,7 @@ impl ValueType {
                 .map(|(_, v)| v)
         })
     }
-    pub(crate) fn replace_subjects<'a>(
-        &self,
-        resolve: impl Fn(&Site) -> Option<&'a ValueType>,
-    ) -> Self {
-        self.rewrite(0, &|ty, _| match ty {
-            Self::Subject { declaration, version: None } => resolve(declaration).cloned(),
-            _ => None,
-        })
-    }
-    pub(crate) fn bind_subject(
+    fn bind_subject(
         &self,
         site: &Site,
     ) -> Self {
@@ -152,7 +162,7 @@ impl ValueType {
             _ => None,
         })
     }
-    pub(crate) fn apply_subject(
+    fn apply_subject(
         &self,
         subject: &Self,
     ) -> Self {

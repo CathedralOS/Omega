@@ -1,7 +1,8 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
-use omega_resolver::{NameRole, Symbol, SymbolResolvedTrees};
+use omega_resolved::{NameRole, Symbol, SymbolResolvedTrees};
 
 pub(crate) fn index_resolved_sources<'a>(resolved: &'a SymbolResolvedTrees<'_>) -> Vec<ResolvedSourceFile<'a>> {
     resolved
@@ -34,10 +35,7 @@ pub(crate) fn check_static_qualifiers(
                 .get(span)
                 .and_then(|parameter| types.parameter_carrier(parameter));
             if unit.hypotheses.contains_key(span) || matches!(carrier, Some(ValueType::Evidence(_) | ValueType::Callable(_))) {
-                return Err(TypeError {
-                    span: name.span,
-                    ..TypeError::at(unit.file, name.node.node, "ambiguous static root")
-                });
+                return Err(TypeError::at(unit.file, name.node.node, "ambiguous static root").with_span(name.span));
             }
         }
     }
@@ -53,10 +51,7 @@ pub(crate) fn check_domain_visibility(
         if name.role == NameRole::Qualifier && matches!(name.target, Symbol::DomainCandidates { .. }) {
             types
                 .selected_declaration(&name.target)
-                .map_err(|message| TypeError {
-                    span: name.span,
-                    ..TypeError::at(units[name.node.file].file, name.node.node, message)
-                })?;
+                .map_err(|message| TypeError::at(units[name.node.file].file, name.node.node, message).with_span(name.span))?;
         }
     }
     for check in &resolved.carrier_visibility {
@@ -78,10 +73,7 @@ pub(crate) fn check_domain_visibility(
             continue;
         }
         let error = &check.error;
-        return Err(TypeError {
-            span: error.span,
-            ..TypeError::at(unit.file, node, &error.message)
-        });
+        return Err(TypeError::at(unit.file, node, &error.message).with_span(error.span));
     }
     Ok(())
 }

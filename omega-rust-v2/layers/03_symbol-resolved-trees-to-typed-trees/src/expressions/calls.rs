@@ -1,9 +1,13 @@
 use super::call_arguments::{CallOperand, PendingComparisons, SelectedMachine};
 use super::destination::Destination;
 use crate::expressions::body_typer::BodyTyper;
+use crate::type_error::SourceTypeError;
+use crate::type_system::dependent_subjects::DependentSubjects;
+use crate::type_system::domains::InferResultDomains;
+use crate::type_system::substitution::TypeInference;
 use crate::{TypeError, TypedSignature, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
 
 struct CallBindings {
     arguments: Vec<ValueType>,

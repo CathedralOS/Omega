@@ -1,7 +1,8 @@
+use super::static_callbacks::CallbackApplication;
 use super::*;
 
 use crate::TargetObservation;
-use omega_typer::TypedTrees;
+use omega_typed::{MachineApplication, MachineEffects, TypedTrees};
 use std::cell::OnceCell;
 use std::collections::{HashMap, VecDeque};
 
@@ -42,6 +43,101 @@ struct CheckedRecursiveEdge<'trees> {
 struct RecursiveApplication {
     arguments: Vec<ValueType>,
     enclosing: Vec<(DeclarationId, Vec<ValueType>)>,
+}
+
+/// Distinct applications of a machine can be active together. Direct calls with
+/// fully written static arguments have finitely many possible targets. A target
+/// selected through a parameter can also be a smaller part of the active selection.
+#[derive(Default)]
+pub(super) struct ActiveApplications {
+    stack_by_node: HashMap<TreeNodeId, Vec<RecursiveApplication>>,
+}
+
+impl ActiveApplications {
+    pub(super) fn contains(
+        &self,
+        node: &TreeNodeId,
+    ) -> bool {
+        self.stack_by_node.contains_key(node)
+    }
+
+    pub(super) fn enter(
+        &mut self,
+        node: TreeNodeId,
+        call: Option<&TypedCall>,
+    ) {
+        let entry = self.stack_by_node.entry(node).or_default();
+        entry.push(call.map_or_else(RecursiveApplication::default, |c| RecursiveApplication {
+            arguments: c.type_arguments.clone(),
+            enclosing: c.enclosing_arguments.clone(),
+        }));
+    }
+
+    pub(super) fn enter_selection(
+        &mut self,
+        node: TreeNodeId,
+        selected: &MachineApplication,
+    ) {
+        self.stack_by_node
+            .entry(node)
+            .or_default()
+            .push(RecursiveApplication {
+                arguments: selected.arguments.clone(),
+                enclosing: selected.enclosing_arguments.clone(),
+            });
+    }
+
+    pub(super) fn leave(
+        &mut self,
+        node: TreeNodeId,
+    ) {
+        let stack = self
+            .stack_by_node
+            .get_mut(&node)
+            .expect("return has an active machine");
+        stack.pop();
+        if stack.is_empty() {
+            self.stack_by_node.remove(&node);
+        }
+    }
+
+    pub(super) fn would_cycle(
+        &self,
+        node: TreeNodeId,
+        selected: &MachineApplication,
+        fixed_edge: bool,
+    ) -> bool {
+        let Some(stack) = self.stack_by_node.get(&node) else {
+            return false;
+        };
+        if stack
+            .iter()
+            .rev()
+            .any(|active| active.arguments == selected.arguments && active.enclosing == selected.enclosing_arguments)
+        {
+            return true;
+        }
+        let outer = stack.last().expect("active machine has an application");
+        let arguments = outer
+            .arguments
+            .iter()
+            .chain(outer.enclosing.iter().flat_map(|(_, args)| args));
+        !fixed_edge && !super::static_callbacks::nested_callback_selection(selected, arguments)
+    }
+}
+
+fn fixed_call(call: &TypedCall) -> bool {
+    !call
+        .type_arguments
+        .iter()
+        .chain(call.enclosing_arguments.iter().flat_map(|(_, args)| args))
+        .any(ValueType::depends_on_call_input)
+}
+
+#[derive(Default)]
+struct CallbackTermination<'a> {
+    pending: Vec<(usize, CallbackApplication)>,
+    fact_selections: Vec<(&'a MachineEffects, CallbackApplication)>,
 }
 
 impl RecursiveApplication {
@@ -136,7 +232,20 @@ impl ConstantEvaluation<'_, '_> {
             .as_ref()
             .and_then(|caller| self.signatures().get(caller))
             .is_some_and(|&(caller, signature)| graph.components[caller] == component && execution.active.contains(&signature.node));
-        let reentry = execution.active.contains(&signature.node);
+        let reentry = execution.active.contains(&signature.node)
+            && RecursiveApplication::select(call, |value| scope.instantiate(value)).is_none_or(|arguments| {
+                // A Build-selected provider has its own application.
+                signature.machine != call.machine
+                    || execution.active.would_cycle(
+                        signature.node,
+                        &MachineApplication {
+                            machine: Box::new(signature.machine.clone()),
+                            arguments: arguments.arguments,
+                            enclosing_arguments: arguments.enclosing,
+                        },
+                        fixed_call(call),
+                    )
+            });
         let edge = (internal_call || reentry).then_some((call, scope));
         if !graph.is_cyclic(index) && reentry {
             return Err(CYCLIC_INVOCATION.into());
@@ -155,24 +264,25 @@ impl ConstantEvaluation<'_, '_> {
     pub(super) fn admit_callback_termination(
         &self,
         index: usize,
-        signature: &TypedSignature,
-        tree: &TypedTree<'_>,
-        arguments: &[ValueType],
+        application: CallbackApplication,
         execution: &Execution<'_>,
-    ) -> Result<(), EvaluationError> {
-        if arguments.iter().any(ValueType::depends_on_call_input) || tree.resolved().file.node_id(signature.node.node) != signature.node {
-            return Err(UNRESOLVED_CALLBACK_CLOSURE.into());
-        }
+    ) -> Result<Vec<(&MachineEffects, CallbackApplication)>, EvaluationError> {
         let graph = self.local_call_graph();
-        let mut pending = vec![(
-            index,
-            RecursiveApplication {
-                arguments: arguments.to_vec(),
-                enclosing: vec![],
-            },
-        )];
+        let root = self
+            .trees
+            .signatures
+            .get(index)
+            .ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
+        if execution
+            .active
+            .would_cycle(root.node, &application.selection, false)
+        {
+            return Err(CYCLIC_INVOCATION.into());
+        }
+        let mut traversal = CallbackTermination::default();
+        traversal.pending.push((index, application));
         let mut checked = HashSet::new();
-        while let Some((index, application)) = pending.pop() {
+        while let Some((index, application)) = traversal.pending.pop() {
             if !checked.insert((index, application.clone())) {
                 continue;
             }
@@ -182,46 +292,44 @@ impl ConstantEvaluation<'_, '_> {
                 .get(index)
                 .ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
             let tree = self.tree(signature.node)?;
-            let proof = self.admit_selected_termination(index, signature, &tree, || Some(application.clone()), None, execution)?;
-            if let Some(proof) = proof {
-                // The checker has already validated every internal edge. Walk
-                // each member once, following the closed calls leaving it.
-                for member in &proof.members {
-                    let &(member_index, _) = self
-                        .signatures()
-                        .get(&member.signature.machine)
-                        .ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
-                    checked.insert((member_index, member.application.clone()));
-                    self.visit_callback_member(graph, member_index, member.signature, &member.application, execution, &mut pending)?;
-                }
-            } else {
-                self.visit_callback_member(graph, index, signature, &application, execution, &mut pending)?;
-            }
+            self.admit_selected_termination(
+                index,
+                signature,
+                &tree,
+                || {
+                    Some(RecursiveApplication {
+                        arguments: application.selection.arguments.clone(),
+                        enclosing: application.selection.enclosing_arguments.clone(),
+                    })
+                },
+                None,
+                execution,
+            )?;
+            // Follow the actual call even within a certified component. Its
+            // termination certificate covers ranking; each edge supplies its
+            // own callback selections and the proofs available there.
+            self.visit_callback_member(graph, index, signature, &application, execution, &mut traversal)?;
         }
-        Ok(())
+        Ok(traversal.fact_selections)
     }
 
-    fn visit_callback_member(
-        &self,
+    fn visit_callback_member<'a>(
+        &'a self,
         graph: &LocalCallGraph<'_>,
         index: usize,
         signature: &TypedSignature,
-        application: &RecursiveApplication,
+        application: &CallbackApplication,
         execution: &Execution<'_>,
-        pending: &mut Vec<(usize, RecursiveApplication)>,
+        traversal: &mut CallbackTermination<'a>,
     ) -> Result<(), EvaluationError> {
-        if execution.active.contains(&signature.node) {
-            return Err(CYCLIC_INVOCATION.into());
-        }
         let tree = self.tree(signature.node)?;
         let file = tree.resolved().file;
-        if tree.resolved().declaration_at(signature.node.node) != Some(&signature.machine)
+        if file.node_id(signature.node.node) != signature.node
+            || tree.resolved().declaration_at(signature.node.node) != Some(&signature.machine)
             || file.child(signature.node.node, NodeKind::Body).is_none()
-            || file.generic_parameters(signature.node.node).count() != application.arguments.len()
-            || file.nodes[signature.node.node].has_public_modifier() && !signature.terminates
-            || self
-                .machine_effects(index)
-                .is_none_or(|effects| !effects.invokes.is_empty())
+            || file.generic_parameters(signature.node.node).count() != application.selection.arguments.len()
+            || tree.resolved().is_exported(signature.node.node) && !signature.terminates
+            || self.machine_effects(index).is_none()
         {
             return Err(UNRESOLVED_CALLBACK_CLOSURE.into());
         }
@@ -236,8 +344,7 @@ impl ConstantEvaluation<'_, '_> {
             {
                 return Err(UNRESOLVED_CALLBACK_CLOSURE.into());
             }
-            let selected =
-                RecursiveApplication::select(call, |argument| application.instantiate(&signature.machine, argument)).ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
+            let selected = RecursiveApplication::select(call, |argument| application.selection.instantiate(argument)).ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
             // A provider-controlled edge can change the recursive graph.
             // This closure is valid only for direct local implementations.
             let mut trait_scopes = selected
@@ -266,9 +373,33 @@ impl ConstantEvaluation<'_, '_> {
                 continue;
             }
             let callee = callee.ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
-            if graph.components[callee] != graph.components[index] {
-                pending.push((callee, selected));
+            // Invocation rows compose executing calls. Keep the exact
+            // specialization at each fact edge so callback admission can
+            // inspect its dependencies even when the predicate short-circuits.
+            let selection = MachineApplication {
+                machine: Box::new(call.machine.clone()),
+                arguments: selected.arguments,
+                enclosing_arguments: selected.enclosing,
+            };
+            if execution
+                .active
+                .would_cycle(self.trees.signatures[callee].node, &selection, fixed_call(call))
+            {
+                return Err(CYCLIC_INVOCATION.into());
             }
+            let bindings = self.callback_bindings_at_edge(&tree, call, application, &selection)?;
+            let callee_application = CallbackApplication { selection, bindings };
+            if call.use_site == CallUse::Fact {
+                let effects = self
+                    .machine_effects(callee)
+                    .ok_or(UNRESOLVED_CALLBACK_CLOSURE)?;
+                if !effects.invokes.is_empty() || !effects.callback_pause.is_empty() {
+                    traversal
+                        .fact_selections
+                        .push((effects, callee_application.clone()));
+                }
+            }
+            traversal.pending.push((callee, callee_application));
         }
         Ok(())
     }
@@ -287,7 +418,7 @@ impl ConstantEvaluation<'_, '_> {
         let ranked = file.nodes[signature.node.node]
             .children
             .iter()
-            .any(|&node| file.nodes[node].kind == NodeKind::Terminates && file.nodes[node].termination_clause() != Some(omega_parser::TerminationClause::Bare));
+            .any(|&node| file.nodes[node].kind == NodeKind::Terminates && file.nodes[node].termination_clause() != Some(omega_syntax::TerminationClause::Bare));
         let graph = self.local_call_graph();
         let cyclic = graph.is_cyclic(index);
         if !cyclic && !ranked {
@@ -389,7 +520,7 @@ impl ConstantEvaluation<'_, '_> {
             };
             if member.body != file.node_id(body)
                 || !file.nodes[signature.node.node].children.iter().any(|&node| {
-                    file.nodes[node].kind == NodeKind::Terminates && file.nodes[node].termination_clause() != Some(omega_parser::TerminationClause::Bare)
+                    file.nodes[node].kind == NodeKind::Terminates && file.nodes[node].termination_clause() != Some(omega_syntax::TerminationClause::Bare)
                 })
             {
                 return false;

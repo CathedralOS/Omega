@@ -1,11 +1,11 @@
 //! Header clauses: `requires`, `ensures`, `reaches` and the rest.
 
+use crate::NodeKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 /// The suffix grammar and resulting syntax node for a header keyword.
 enum Clause {

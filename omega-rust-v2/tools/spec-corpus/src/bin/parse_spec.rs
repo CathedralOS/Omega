@@ -12,16 +12,14 @@ use omega_lexer::lex;
 use omega_parser::parse_fragment;
 use spec_corpus::parser_examples::{fragment_kind, parser_source};
 use spec_corpus::tree_dump_formatter::{dump_parse_error, dump_tree};
-use std::path::Path;
 
 fn main() {
     let label_filter = std::env::args().nth(1).unwrap_or_default();
-    let spec_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
 
-    let examples = match spec_corpus::extract_omega_examples(&spec_directory) {
+    let examples = match spec_corpus::published_examples() {
         Ok(examples) => examples,
         Err(read_error) => {
-            eprintln!("could not read {}: {read_error}", spec_directory.display());
+            eprintln!("could not read the repository wiki/spec: {read_error}");
             std::process::exit(1);
         }
     };

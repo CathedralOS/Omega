@@ -1,4 +1,24 @@
 #[test]
+fn generic_overloads_select_the_exact_qualified_nominal_operand() {
+    let code = "data Io{data T{} data U{}}
+        machine f<T>(x:T,y:Io::T)->bool{true}
+        machine f<U>(x:U,y:Io::U)->bool{false}
+        machine a(x:u8,y:Io::T)->bool{f(x,y)}
+        machine b(x:u8,y:Io::U)->bool{f(x,y)}";
+    let typed = check(&[("selection.omg", code)]).unwrap();
+    for (caller, operand) in [("a", "Io :: T"), ("b", "Io :: U")] {
+        let call = typed
+            .calls
+            .iter()
+            .find(|call| call.caller.as_ref().is_some_and(|id| id.path == caller))
+            .unwrap();
+        assert_eq!(call.machine.path, "f");
+        assert_eq!(call.machine.operands, ["#TypeParam0", operand]);
+        assert_eq!(call.type_arguments, [ValueType::Integer { signed: false, width: Some(8) }]);
+    }
+}
+
+#[test]
 fn runtime_indices_at_calls_bind_the_actual_subject() {
     let code = "data B<K:u8>{} machine keep(n:u8,b:B<n>)->B<n>{b} machine use_it(x:u8,b:B<x>)->B<x>{keep(x,b)} machine fixed(b:B<8>)->B<8>{keep(8,b)}";
     check(&[("subjects.omg", code)]).unwrap();
@@ -7,6 +27,47 @@ fn runtime_indices_at_calls_bind_the_actual_subject() {
             .unwrap_err()
             .message
             .contains("no matching overload")
+    );
+}
+
+#[test]
+fn nested_calls_publish_static_arguments_for_the_exact_lexical_owners() {
+    let code = "data BooleanStep=machine(value:bool)->bool; machine apply<const F:BooleanStep>(value:bool)->bool {
+                    step::<u8>(value)
+                    machine step<T>(input:bool)->bool {
+                        invoke(input)
+                        machine invoke(argument:bool)->bool {F(argument)}
+                    }
+                }";
+    let typed = check(&[("lexical.omg", code)]).unwrap();
+    let [indirect] = typed.indirect_calls.as_slice() else {
+        panic!("expected one indirect call")
+    };
+    let call = typed
+        .calls
+        .iter()
+        .find(|call| Some(&call.machine) == indirect.caller.as_ref())
+        .unwrap();
+    let step = call.caller.as_ref().unwrap();
+    let apply = step.enclosing_machine.as_ref().unwrap();
+    assert_eq!(call.machine.enclosing_machine.as_ref(), Some(step));
+    let own_formal = |owner: &omega_resolved::DeclarationId| ValueType::Parameter {
+        owner: Box::new(owner.clone()),
+        index: 0,
+    };
+    assert_eq!(
+        call.enclosing_arguments,
+        [
+            (step.clone(), vec![own_formal(step)]),
+            (apply.clone(), vec![own_formal(apply)])
+        ],
+    );
+    assert_eq!(
+        indirect.entry,
+        omega_typer::InvocationTarget::StaticParameter {
+            owner: apply.clone(),
+            index: 0
+        },
     );
 }
 
@@ -416,6 +477,20 @@ fn indexed_domain_aliases_preserve_each_constituent_and_its_arguments() {
             .collect::<Vec<_>>(),
         ["5", "6"]
     );
+    let unused = check(&[("domains.omg", defs), ("arrays.omg", "data Bytes = [u8; 4];")]).unwrap();
+    let (id, members) = unused
+        .domain_alias_members
+        .iter()
+        .find(|(id, _)| id.path == "u8::Both")
+        .unwrap();
+    assert_eq!(id.package, machine.machine.package);
+    assert_eq!(members, machine.result.domains());
+    let (_, array) = unused
+        .type_alias_targets
+        .iter()
+        .find(|(id, _)| id.path == "Bytes")
+        .unwrap();
+    assert_eq!(*array, ValueType::Array(Box::new(ValueType::Integer { signed: false, width: Some(8) }), 4));
     let wrong = "machine substitute(x:u8 in Five)->u8 in Six {x}";
     let error = check(&[("domains.omg", defs), ("use.omg", wrong)]).unwrap_err();
     assert_eq!(error.file, "use.omg");
@@ -841,7 +916,48 @@ fn nested_field_evaluation_uses_both_enclosing_and_local_arguments() {
             },
         )
     };
-    run(&[receipt(1, 2, 3), receipt(2, 1, 3)]).unwrap();
+    let exact_request = receipt(1, 2, 3).request;
+    let tokens = omega_lexer::lex(code.as_bytes()).unwrap();
+    let syntax = omega_parser::parse_file(code.as_bytes(), &tokens).unwrap();
+    let package = omega_toolchain::resolve_source_package(&[omega_resolver::StageSource {
+        package: "game",
+        source: omega_resolver::ParsedSource {
+            logical_path: "nested.omg",
+            text: code,
+            tokens: &tokens,
+            tree: &syntax,
+        },
+    }])
+    .unwrap();
+    let omega_typer::TypingProgress::Pending(pending) = omega_typer::type_source_package_for_preparation(&package, &TypingEnvironment::default()).unwrap()
+    else {
+        panic!("nested field width requires closed preparation");
+    };
+    let demands: Vec<_> = pending
+        .demands()
+        .iter()
+        .filter(|demand| demand.request() == &exact_request)
+        .collect();
+    assert_eq!(demands.len(), 2, "each closed application must reach preparation");
+    for (outer, inner) in [(1, 2), (2, 1)] {
+        let expected = receipt(outer, inner, 3);
+        assert!(
+            demands.iter().any(|demand| matches!(demand,
+                omega_typer::StaticValueDemand::Specialized { arguments, .. } if arguments == &expected.arguments
+            )),
+            "missing width request for Outer<{outer}>::Inner<{inner}>"
+        );
+    }
+    let scopes = &pending.trees().static_request_scopes[&exact_request.node];
+    assert_eq!(
+        scopes
+            .iter()
+            .map(|(owner, arity)| (owner.path.as_str(), *arity))
+            .collect::<Vec<_>>(),
+        [("Outer", 1), ("Outer::Inner", 1)]
+    );
+    let completed = run(&[receipt(1, 2, 3), receipt(2, 1, 3)]).unwrap();
+    assert_eq!(completed.static_request_scopes[&exact_request.node], *scopes);
     assert!(
         run(&[receipt(1, 2, 3)])
             .unwrap_err()
@@ -917,4 +1033,12 @@ fn changing_recursive_widths_retain_the_next_application_for_verification() {
             .iter()
             .any(|o| matches!(o.kind, omega_typer::ObligationKind::FormRecursiveApplication { .. }))
     );
+}
+
+#[test]
+fn finite_alternatives_require_each_literal_to_fit_the_index_carrier() {
+    let source = "trait Scan { machine go<Width:u8>() requires Width == 3 || Width == 300; }";
+    let error = check(&[("width.omg", source)]).unwrap_err();
+    assert_eq!(error.message, "expected u8, found 300");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"300".as_slice()));
 }

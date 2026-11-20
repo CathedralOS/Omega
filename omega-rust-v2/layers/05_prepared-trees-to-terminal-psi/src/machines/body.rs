@@ -1,0 +1,380 @@
+use super::branches::BlockFlow;
+use super::expressions::Expressions;
+use crate::lowering::applied_tree::LoweringTree;
+use crate::{
+    EntryDiagnostics, LoweringError, LoweringTypes, MachineBody, OperationResult, Parameter, Place, PlaceId, PlaceOrigin, TypeId, Value, ValueId, ValueOrigin,
+};
+use omega_prepared::PreparedTrees;
+use omega_resolved::{IndexedSource, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::{NodeSemantics, Site, TypedSignature, ValueType};
+use std::num::NonZeroUsize;
+
+pub(crate) struct Declarations<'a> {
+    pub machine: crate::MachineId,
+    pub types: &'a LoweringTypes,
+    pub data: &'a [crate::LoweredData],
+    pub callees: &'a super::calls::Callees<'a>,
+}
+
+pub(crate) fn lower_body(
+    prepared: &PreparedTrees<'_>,
+    tree: &LoweringTree<'_>,
+    signature: &TypedSignature,
+    parameter_types: &[TypeId],
+    result_type: Option<TypeId>,
+    declarations: &Declarations<'_>,
+) -> Result<(MachineBody, super::ownership::OwnedCrossings), LoweringError> {
+    let mut body = emit_body(prepared, tree, signature, parameter_types, result_type, declarations)?;
+    let crossings = super::ownership::schedule(&mut body, declarations.types, declarations.data, declarations.callees)?;
+    Ok((body, crossings))
+}
+
+fn emit_body(
+    prepared: &PreparedTrees<'_>,
+    tree: &LoweringTree<'_>,
+    signature: &TypedSignature,
+    parameter_types: &[TypeId],
+    result_type: Option<TypeId>,
+    declarations: &Declarations<'_>,
+) -> Result<MachineBody, LoweringError> {
+    let Declarations { types, data, callees, machine } = *declarations;
+    let resolved = tree.resolved();
+    let file = resolved.file;
+    let declaration = signature.node.node;
+    if resolved.declaration_at(declaration) != Some(&signature.machine) {
+        return Err(LoweringError::new(&signature.site, "machine signature disagrees with its defining tree"));
+    }
+
+    let assembly = file.nodes[declaration].kind == NodeKind::AsmMachine;
+    let body = if assembly {
+        declaration
+    } else {
+        file.child(declaration, NodeKind::Body)
+            .ok_or_else(|| LoweringError::new(&signature.site, "machine has no executable body"))?
+    };
+    let params = file.child(declaration, NodeKind::Params);
+    if !assembly && params.is_none() {
+        return Err(LoweringError::new(&signature.site, "machine has no parameter list"));
+    }
+    let binders = params.map_or(&[][..], |p| file.nodes[p].children.as_slice());
+    if binders.len() != signature.parameters.len() || binders.len() != parameter_types.len() {
+        return Err(LoweringError::new(
+            &site_at(file, params.unwrap_or(declaration)),
+            "parameter list disagrees with the typed signature",
+        ));
+    }
+
+    let body_site = site_at(file, body);
+    let mut block = MachineBody {
+        call_acknowledgements: Vec::new(),
+        suspension_sites: Vec::new(),
+        blocks: Vec::new(),
+        operations: Vec::new(),
+        parameters: Vec::with_capacity(binders.len()),
+        mutable_homes: Vec::new(),
+        places: Vec::new(),
+        values: Vec::new(),
+        diagnostics: EntryDiagnostics {
+            body: body_site.clone(),
+            parameters: Vec::with_capacity(binders.len()),
+            operations: Vec::new(),
+            edges: Vec::new(),
+            bounds: Vec::new(),
+        },
+    };
+    for ((&binder, (span, carrier)), &ty) in binders.iter().zip(&signature.parameters).zip(parameter_types) {
+        let node = &file.nodes[binder];
+        let site = site_at(file, binder);
+        if node.binder_name().is_none_or(|name| name.span != *span) || node.kind != NodeKind::Param || node.children.len() != 1 {
+            return Err(LoweringError::new(&site, "parameter binder disagrees with the typed signature"));
+        }
+        let parameter = match carrier {
+            carrier if crate::lowering::types::uses_structural_place(carrier) || crate::lowering::types::mutable_element_view(carrier).is_some() => {
+                let place = PlaceId(next_id(block.places.len()));
+                block.places.push(Place {
+                    ty,
+                    origin: PlaceOrigin::Parameter,
+                });
+                Parameter::Structural(place)
+            }
+            _ => Parameter::Scalar(block.push_value(ty, ValueOrigin::Parameter)),
+        };
+        block.parameters.push(parameter);
+        block.diagnostics.parameters.push(site);
+    }
+
+    if !assembly {
+        check_container(tree, body)?;
+    }
+    let mut expressions = Expressions {
+        machine,
+        prepared,
+        tree,
+        signature,
+        types,
+        data,
+        callees,
+        bindings: binders
+            .iter()
+            .copied()
+            .zip(block.parameters.iter().map(|parameter| match parameter {
+                Parameter::Scalar(value) => OperationResult::Scalar(*value),
+                Parameter::Structural(place) => OperationResult::Structural(*place),
+            }))
+            .collect(),
+    };
+    let mut flow = BlockFlow::entry();
+    if assembly {
+        super::assembly::machine(&expressions, declaration, &mut block, &mut flow, result_type)?;
+        flow.finish(&mut block);
+
+        return Ok(block);
+    }
+    let statements = &file.nodes[body].children;
+    // The grammar places nested machines after the enclosing machine's
+    // executable statements. Their bodies have separate machine identities.
+    let end = statements
+        .iter()
+        .position(|&n| file.nodes[n].kind == NodeKind::Machine)
+        .unwrap_or(statements.len());
+    let (statements, nested) = statements.split_at(end);
+    for &node in nested {
+        if file.nodes[node].kind != NodeKind::Machine
+            || !resolved
+                .declaration_at(node)
+                .is_some_and(|id| callees.local.contains_key(id))
+        {
+            return Err(unsupported_node(file, node, "nested declaration has no Psi machine"));
+        }
+    }
+    for (index, &statement) in statements.iter().enumerate() {
+        let node = &file.nodes[statement];
+        if matches!(node.kind, NodeKind::Tail | NodeKind::Discard | NodeKind::ExpressionStatement)
+            && let [expression] = node.children.as_slice()
+            && let Some(completion) = super::external_exit::recognized(&expressions, *expression)
+        {
+            check_container(tree, statement)?;
+            super::external_exit::lower(&expressions, *expression, completion, &mut block, &mut flow)?;
+            flow.finish(&mut block);
+            return Ok(block);
+        }
+        match (node.kind, node.children.as_slice()) {
+            (NodeKind::Let, [binder, _])
+                if tree
+                    .semantics_at(statement)
+                    .any(|r| matches!(r,NodeSemantics::Obligation(o) if matches!(o.kind,omega_typed::ObligationKind::ZeroValue(_)))) =>
+            {
+                super::references::provision_local(&mut expressions, statement, *binder, data, &mut block)?;
+            }
+            (NodeKind::Let, [binder, initializer] | [binder, _, initializer])
+                if file.nodes[*binder].kind == NodeKind::BindingPattern && resolved.pattern_binding(*binder).is_some() =>
+            {
+                check_container(tree, statement)?;
+                let carrier = binding_carrier(tree, *binder)?;
+                let value = expressions.bind_local(*initializer, carrier, &mut block, &mut flow)?;
+                if let OperationResult::Structural(home) = value
+                    && crate::lowering::types::contains_nominal_value(carrier)
+                    && prepared
+                        .typed()
+                        .mutable_bindings
+                        .contains(&file.node_id(*binder))
+                {
+                    block.mutable_homes.push(home);
+                }
+                expressions.bindings.push((*binder, value));
+            }
+            (NodeKind::Let, [pattern, initializer]) if file.nodes[*pattern].kind == NodeKind::RecordPattern => {
+                check_container(tree, statement)?;
+                super::ownership::decompose(&mut expressions, *pattern, *initializer, &mut block, &mut flow)?;
+            }
+            (NodeKind::Assign, [place, initializer]) => {
+                check_container(tree, statement)?;
+                let place = file.ungroup(*place);
+                if matches!(file.nodes[place].kind, NodeKind::FieldAccess | NodeKind::Dereference) {
+                    super::references::store_place(&expressions, place, *initializer, data, &mut block, &mut flow)?;
+                    continue;
+                }
+                if super::view_loans::selects_view_element(&expressions, place) {
+                    super::view_loans::store_element(&expressions, place, *initializer, &mut block, &mut flow)?;
+                    continue;
+                }
+                let Some(Symbol::Binding {
+                    binder_node,
+                    kind: NodeKind::BindingPattern,
+                    ..
+                }) = resolved.symbol(place)
+                else {
+                    return Err(unsupported_node(file, place, "assignment needs a lowered storage path"));
+                };
+                let carrier = binding_carrier(tree, *binder_node)?;
+                if crate::lowering::types::contains_nominal_value(carrier) {
+                    let Some(OperationResult::Structural(root)) = expressions
+                        .bindings
+                        .iter()
+                        .rev()
+                        .find(|(binder, _)| binder == binder_node)
+                        .map(|(_, value)| *value)
+                    else {
+                        return Err(unsupported_node(file, place, "assignment has no structural local"));
+                    };
+                    if !block.mutable_homes.contains(&root) {
+                        return Err(unsupported_node(file, place, "assignment requires a writable local"));
+                    }
+                    super::references::store_owned(
+                        &expressions,
+                        crate::ProjectedPlace { root, path: vec![] },
+                        *initializer,
+                        carrier,
+                        &mut block,
+                        &mut flow,
+                        site_at(file, place),
+                    )?;
+                    continue;
+                }
+                let value = expressions.bind_local(*initializer, carrier, &mut block, &mut flow)?;
+                let slot = expressions
+                    .bindings
+                    .iter_mut()
+                    .rfind(|(binder, _)| binder == binder_node)
+                    .ok_or_else(|| unsupported_node(file, place, "assignment has no local value"))?;
+                slot.1 = value;
+            }
+            (NodeKind::AsmBlock, _) => super::assembly::inline(&expressions, statement, &mut block, &mut flow)?,
+            (NodeKind::ExpressionStatement, [expression]) => {
+                check_container(tree, statement)?;
+                expressions.lower(*expression, &ValueType::NoResult, &mut block, &mut flow)?;
+            }
+            (NodeKind::Discard, [expression]) => {
+                check_container(tree, statement)?;
+                let carrier = discarded_carrier(tree, *expression)?;
+                if *carrier != ValueType::NoResult && !types.can_forward_value(carrier) && !crate::lowering::types::contains_nominal_value(carrier) {
+                    return Err(LoweringError::new(
+                        &site_at(file, *expression),
+                        "explicit discard requires a supported result carrier",
+                    ));
+                }
+                let result = expressions.lower(*expression, carrier, &mut block, &mut flow)?;
+                if let OperationResult::Structural(place) = result
+                    && super::ownership::owned(block.places[place.index()].ty, types, data)
+                {
+                    super::ownership::dispose_temporary(&expressions, &mut block, &mut flow, place, site_at(file, *expression))?;
+                }
+            }
+            (NodeKind::Tail, [expression]) if index + 1 == statements.len() => {
+                check_container(tree, statement)?;
+                if file.nodes[file.ungroup(*expression)].kind == NodeKind::Match {
+                    crate::machines::branches::lower_tail_dispatch(&expressions, *expression, &mut block, &mut flow, result_type)?;
+                    flow.finish(&mut block);
+
+                    return Ok(block);
+                }
+                let value = expressions.lower(*expression, &signature.result, &mut block, &mut flow)?;
+                crate::machines::branches::emit_return_block(&mut block, &flow, Some(value), result_type, site_at(file, *expression))?;
+                flow.finish(&mut block);
+
+                return Ok(block);
+            }
+            (NodeKind::Transition, _) if index + 1 == statements.len() => {
+                crate::machines::branches::lower_tail_dispatch(&expressions, statement, &mut block, &mut flow, result_type)?;
+                flow.finish(&mut block);
+
+                return Ok(block);
+            }
+            _ => return Err(unsupported_node(file, statement, "unsupported statement")),
+        }
+    }
+    if result_type.is_some() {
+        return Err(LoweringError::new(&block.diagnostics.body, "machine body has no result"));
+    }
+    crate::machines::branches::emit_return_block(&mut block, &flow, None, None, body_site)?;
+    flow.finish(&mut block);
+
+    Ok(block)
+}
+
+pub(crate) trait MachineBodyValues {
+    fn push_value(
+        &mut self,
+        ty: TypeId,
+        origin: ValueOrigin,
+    ) -> ValueId;
+}
+impl MachineBodyValues for MachineBody {
+    fn push_value(
+        &mut self,
+        ty: TypeId,
+        origin: ValueOrigin,
+    ) -> ValueId {
+        let value = ValueId(next_id(self.values.len()));
+        self.values.push(Value { ty, origin });
+        value
+    }
+}
+
+pub(crate) fn next_id(current_count: usize) -> NonZeroUsize {
+    NonZeroUsize::new(current_count + 1).expect("vector length leaves room for a one-based identity")
+}
+
+fn binding_carrier<'a>(
+    tree: &'a LoweringTree<'_>,
+    node: usize,
+) -> Result<&'a ValueType, LoweringError> {
+    let mut carrier = None;
+    for record in tree.semantics_at(node) {
+        match record {
+            NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && carrier.is_none_or(|previous| previous == &e.ty) => carrier = Some(&e.ty),
+            _ => return Err(unsupported_node(tree.resolved().file, node, "unsupported binding record")),
+        }
+    }
+    carrier.ok_or_else(|| unsupported_node(tree.resolved().file, node, "binding has no carrier"))
+}
+
+/// The discarded operand's carrier is its own typed expression record. Other
+/// records on the operand (calls, obligations, landings) are checked by the
+/// expression lowering that consumes them.
+fn discarded_carrier<'a>(
+    tree: &'a LoweringTree<'_>,
+    node: usize,
+) -> Result<&'a ValueType, LoweringError> {
+    let file = tree.resolved().file;
+    let mut carrier = None;
+    for record in tree.semantics_at(node) {
+        if let NodeSemantics::Expression(e) = record {
+            if e.static_argument_slot.is_some() || carrier.is_some_and(|previous| previous != &e.ty) {
+                return Err(unsupported_node(file, node, "discarded operand has conflicting typed carriers"));
+            }
+            carrier = Some(&e.ty);
+        }
+    }
+    carrier.ok_or_else(|| unsupported_node(file, node, "discarded operand has no typed carrier"))
+}
+
+pub(crate) fn check_container(
+    tree: &LoweringTree<'_>,
+    node: usize,
+) -> Result<(), LoweringError> {
+    if tree.semantics_at(node).next().is_some() {
+        return Err(unsupported_node(tree.resolved().file, node, "unsupported typed body record"));
+    }
+    Ok(())
+}
+
+pub(crate) fn unsupported_node(
+    file: &IndexedSource<'_>,
+    node: usize,
+    reason: &str,
+) -> LoweringError {
+    LoweringError::new(&site_at(file, node), format!("{reason}: {:?}", file.nodes[node].kind))
+}
+
+pub(crate) fn site_at(
+    file: &IndexedSource<'_>,
+    node: usize,
+) -> Site {
+    Site {
+        package: file.package.to_owned(),
+        file: file.path.to_owned(),
+        span: file.span(node),
+    }
+}

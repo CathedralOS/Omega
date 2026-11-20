@@ -2,7 +2,7 @@
 //! typed fields of records and cases, including carriers declared in other files.
 use super::declaration_catalog::DeclarationCatalog;
 use crate::ValueType;
-use omega_resolver::DeclarationId;
+use omega_resolved::DeclarationId;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Check {

@@ -2,10 +2,10 @@
 
 use super::domains::Domains;
 use crate::evaluation::{check_static_indices::IndexEvaluations, primitive_indices::LiteralConstants};
-use crate::type_system::domains;
+use crate::type_system::substitution::TypeInference;
 use crate::{Access, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::DeclarationId;
+use omega_resolved::DeclarationId;
+use omega_syntax::NodeKind;
 use std::collections::{HashMap, HashSet};
 
 use super::formation::{Formations, TypeRequirement};
@@ -43,20 +43,7 @@ pub(crate) struct DeclaredTypes<'a> {
     pub(crate) aliases: HashMap<&'a DeclarationId, ValueType>,
 }
 
-/// A specialization supplies the public parameters in order. Existential witnesses are private to the data value.
-#[derive(Clone, Default)]
-pub(crate) struct GenericParameters {
-    pub parameters: Vec<GenericParameter>,
-    pub witness_count: usize,
-    pub equations: Vec<(usize, ValueType)>,
-}
-
-#[derive(Clone)]
-pub(crate) struct GenericParameter {
-    pub kind: NodeKind,
-    pub multiplicity: Option<crate::Multiplicity>,
-    pub carrier: Option<Box<ValueType>>,
-}
+pub(crate) use omega_typed::{GenericParameter, GenericParameters};
 
 impl TypeCatalog<'_> {
     fn parameter(
@@ -187,6 +174,21 @@ impl TypeCatalog<'_> {
             })
             .collect()
     }
+    fn enclosing_machine_scopes(machine: &DeclarationId) -> impl Iterator<Item = &DeclarationId> {
+        std::iter::successors(machine.enclosing_machine.as_ref(), |owner| owner.enclosing_machine.as_ref())
+    }
+
+    /// Nested machine selections retain their static binders until the caller
+    /// can substitute the enclosing applications.
+    pub(crate) fn lexical_machine_arguments(
+        &self,
+        machine: &DeclarationId,
+    ) -> impl Iterator<Item = (DeclarationId, Vec<ValueType>)> {
+        Self::enclosing_machine_scopes(machine).filter_map(|owner| {
+            let arguments = self.formals(owner);
+            (!arguments.is_empty()).then(|| (owner.clone(), arguments))
+        })
+    }
     pub(crate) fn specialization_formals(
         &self,
         id: &DeclarationId,
@@ -200,11 +202,13 @@ impl TypeCatalog<'_> {
         owner: &'b DeclarationId,
     ) -> impl Iterator<Item = &'b DeclarationId> {
         let scopes = self.scopes.get(owner).map(Vec::as_slice);
-        scopes
-            .into_iter()
-            .flatten()
-            .copied()
-            .chain(scopes.is_none().then_some(owner))
+        scopes.into_iter().flatten().copied().chain(
+            scopes
+                .is_none()
+                .then_some(owner)
+                .into_iter()
+                .flat_map(|owner| Self::enclosing_machine_scopes(owner).chain(std::iter::once(owner))),
+        )
     }
     pub(crate) fn specialization_slot(
         &self,
@@ -212,12 +216,8 @@ impl TypeCatalog<'_> {
         binder_owner: &DeclarationId,
         index: usize,
     ) -> Option<usize> {
-        let scopes = self
-            .scopes
-            .get(owner)
-            .map_or(std::slice::from_ref(&owner), Vec::as_slice);
         let mut offset = 0;
-        for &scope in scopes {
+        for scope in self.specialization_scopes(owner) {
             if scope == binder_owner {
                 return (index < self.arity(scope)).then_some(offset + index);
             }
@@ -391,7 +391,7 @@ impl TypeCatalog<'_> {
                     for id in domains {
                         atoms.extend(self.expand_domain(&id, base.carrier(), true, active, requirements)?);
                     }
-                    break Ok(domains::qualified(base.carrier().clone(), atoms));
+                    break Ok(omega_typed::qualified(base.carrier().clone(), atoms));
                 }
                 Applied(id, args) => (
                     id,

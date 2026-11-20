@@ -1,5 +1,6 @@
 //! Bodies and the statements inside them.
 
+use crate::NodeKind;
 use crate::errors::parse_error::ParseError;
 use crate::errors::parse_error_kind::ParseErrorKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
@@ -7,8 +8,7 @@ use crate::grammar::contexts::tail_rule::TailRule;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 /// How a statement ended, which decides what may come after it in a body.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

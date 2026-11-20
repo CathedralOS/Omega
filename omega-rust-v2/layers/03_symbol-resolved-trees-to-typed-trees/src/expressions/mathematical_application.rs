@@ -1,8 +1,11 @@
 use crate::expressions::body_typer::BodyTyper;
+use crate::type_error::SourceTypeError;
+use crate::type_system::dependent_subjects::DependentSubjects;
+use crate::type_system::substitution::TypeInference;
 use crate::{ObligationKind, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::DeclarationId;
-use omega_resolver::Symbol;
+use omega_resolved::DeclarationId;
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn mathematical_citation(

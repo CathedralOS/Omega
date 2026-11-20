@@ -137,6 +137,13 @@ fn imported_body_effects_propagate_to_the_selected_caller() {
         .find(|row| row.machine.path == "call")
         .unwrap();
     assert!(matches!(caller.reach.as_slice(), [row] if row.service.package == "library" && row.service.path == "Device"));
+    let run = stage.signatures.iter().find(|signature| signature.machine.path == "run").unwrap();
+    let crate::ValueType::Callable(callable) = &run.parameters[0].1 else { panic!("expected the library callback type") };
+    let (tree, node) = stage.callable_origin(&callable.contract).expect("imported callable alias RHS");
+    let file = tree.resolved().file;
+    assert_eq!(file.package, "library");
+    assert_eq!(file.nodes[node].kind, omega_parser::NodeKind::MachineType);
+    assert_eq!(file.span(node), callable.contract.span);
     assert!(
         matches!(caller.invokes.as_slice(), [crate::InvocationTarget::Declaration(slot)] if slot.declaration.package == "client" && slot.declaration.path == "action")
     );

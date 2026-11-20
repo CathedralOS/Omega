@@ -1,6 +1,7 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::type_error::SourceTypeError;
 use crate::{BoundarySlot, InvocationTarget, RequirementSlot, Site, SlotDirection, TypeError, TypedCall, TypedStage, ValueType};
-use omega_resolver::DeclarationId;
+use omega_resolved::DeclarationId;
 use std::collections::{HashMap, HashSet};
 
 fn declared(id: &DeclarationId) -> InvocationTarget {
@@ -21,22 +22,16 @@ pub(crate) fn through(
                 .clone()
                 .unwrap_or_else(|| InvocationTarget::StoredCallable(operand.site.clone()))
         }
-        InvocationTarget::StaticParameter { owner, index } if owner == &call.machine => match &call.type_arguments[*index] {
-            ValueType::MachineSelection(id, arguments) if arguments.is_empty() => declared(id),
-            ValueType::MachineSelection(id, arguments) => InvocationTarget::AppliedMachine {
-                declaration: id.as_ref().clone(),
-                arguments: arguments.clone(),
-            },
-            ValueType::Parameter { owner, index } => InvocationTarget::StaticParameter {
+        InvocationTarget::StaticParameter { owner, index } => match call.generic_argument(owner, *index) {
+            Some(ValueType::MachineSelection(selection)) if selection.all_arguments().next().is_none() => declared(&selection.machine),
+            Some(ValueType::MachineSelection(selection)) => InvocationTarget::AppliedMachine(selection.clone()),
+            Some(ValueType::Parameter { owner, index }) => InvocationTarget::StaticParameter {
                 owner: *owner.clone(),
                 index: *index,
             },
             _ => entry.clone(),
         },
-        InvocationTarget::AppliedMachine { declaration, arguments } => InvocationTarget::AppliedMachine {
-            declaration: declaration.clone(),
-            arguments: arguments.iter().map(|t| call.instantiate(t)).collect(),
-        },
+        InvocationTarget::AppliedMachine(selection) => InvocationTarget::AppliedMachine(selection.with_substitutions(|value| call.instantiate(value))),
         InvocationTarget::Declaration(slot) => InvocationTarget::Declaration(RequirementSlot {
             declaration: slot.declaration.clone(),
             trait_arguments: slot

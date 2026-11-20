@@ -194,3 +194,26 @@ fn a_record_field_value_pattern_reads_the_field_of_a_named_lifetime_subject() {
         );
     }
 }
+
+#[test]
+fn selecting_a_held_sum_case_applies_only_to_that_exact_holder_field() {
+    let src = "data Token{v:u8;} data Choice{case A(left:Token);case B(left:Token);} data Holder{first:Choice;second:Choice;} machine pick(h:Holder)->Token{match h.first{Choice::A{..}->move h.first.left,Choice::B{..}->move h.first.left,}}";
+    let stage = check(&[("held.omg", src)]).unwrap();
+    let fields: Vec<_> = stage
+        .expressions
+        .iter()
+        .filter(|e| e.site.span.slice(src.as_bytes()) == Some(b"h.first.left".as_slice()))
+        .filter_map(|e| {
+            let (_, steps) = stage.place_path(e.node);
+            match steps.last().and_then(|step| step.projection.as_ref()) {
+                Some(omega_typer::Projection::Field(field)) => Some(field.path.as_str()),
+                _ => None,
+            }
+        })
+        .collect();
+    assert!(fields.contains(&"Choice::A::left") && fields.contains(&"Choice::B::left"));
+    let wrong = src.replacen("move h.first.left", "move h.second.left", 1);
+    let err = check(&[("held.omg", &wrong)]).unwrap_err();
+    assert_eq!(err.message, "Choice has no field left");
+    assert_eq!(err.span.slice(wrong.as_bytes()), Some(b"h.second.left".as_slice()));
+}

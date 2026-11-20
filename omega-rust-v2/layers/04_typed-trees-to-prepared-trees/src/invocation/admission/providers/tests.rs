@@ -1,5 +1,7 @@
 use super::*;
 use crate::{CheckedPreparationEvidence, PreparationAnswers, PreparedPass, prepare_typing_pass};
+use omega_typer::{RequirementSlot, Site};
+use std::sync::Arc;
 
 use omega_resolver::{ParsedSource, StageSource};
 use omega_typer::{TypeError, TypingEnvironment, TypingProgress, resolve_source_package, type_source_package_for_preparation};
@@ -338,6 +340,109 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
             .contains("runtime boundary slot cannot execute under different build selections"),
         "{rejected:?}"
     );
+}
+
+#[test]
+fn only_an_exact_applicable_provider_proof_authorizes_the_slot() {
+    let (progress, slot) = typed(SOURCE, SlotDirection::ProgramToProvider);
+    let trees = frozen_trees(&progress);
+    let target = TargetIdentity {
+        profile: "windows_x86_64".into(),
+        semantics_version: 1,
+        realization: Arc::from(&b"applicable provider proofs"[..]),
+    };
+    let check = || check_literal_provider(trees, &slot, &target).expect("closed, checked local literal provider");
+    let selection = check().realization;
+    let float = |operation| crate::FloatRealization {
+        format: crate::FloatFormat::Binary64,
+        operation,
+        semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
+    };
+    let selected_float = TargetObservation::FloatRealization {
+        target: target.clone(),
+        realization: float(crate::FloatOperation::Add),
+    };
+    let unselected_float = TargetObservation::FloatRealization {
+        target: target.clone(),
+        realization: float(crate::FloatOperation::Multiply),
+    };
+    let capsule = crate::TargetSemantics::new(target.clone(), [], [float(crate::FloatOperation::Add)])
+        .unwrap()
+        .with_selected_realizations([selection.clone()])
+        .unwrap();
+    assert!(capsule.matches_observation(&selected_float));
+    assert!(!capsule.matches_observation(&unselected_float));
+
+    // A real checked plan for the same slot in a sibling package whose provider returns 8.
+    let changed_source = SOURCE.replace("7u64", "8u64");
+    let (changed, changed_slot) = typed(&changed_source, SlotDirection::ProgramToProvider);
+    let other_plan = check_literal_provider(frozen_trees(&changed), &changed_slot, &target)
+        .unwrap()
+        .realization
+        .selected_plan;
+    assert_ne!(other_plan, selection.selected_plan);
+    // The wrong-plan proof depends only on observations the capsule satisfies,
+    // so any leak of a rejected candidate's dependencies would be visible.
+    let wrong_plan = || {
+        let mut proof = check();
+        proof.realization.selected_plan = other_plan.clone();
+        proof.observations = vec![selected_float.clone()];
+        proof
+    };
+    let stale_dependency = || {
+        let mut proof = check();
+        proof.observations = vec![unselected_float.clone()];
+        proof
+    };
+    let prepare = |checked: Vec<_>| {
+        prepare_typing_pass(
+            &progress,
+            std::slice::from_ref(&slot),
+            Some(&capsule),
+            checked
+                .into_iter()
+                .fold(CheckedPreparationEvidence::default(), CheckedPreparationEvidence::with_provider),
+        )
+    };
+    let expected = [TargetObservation::SelectedRealization {
+        target: target.clone(),
+        realization: selection.clone(),
+    }];
+    for checked in [
+        vec![wrong_plan(), check()],
+        vec![check(), wrong_plan()],
+        vec![stale_dependency(), wrong_plan(), check()],
+        vec![check(), wrong_plan(), stale_dependency()],
+    ] {
+        let pass = prepare(checked).unwrap();
+        let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
+            panic!("the applicable provider proof should freeze the package")
+        };
+        for constant in &trees.constants {
+            assert_eq!(constants[&constant.declaration], PreparedValue::Integer(7.into()));
+        }
+        assert_eq!(pass.target_observations, expected);
+    }
+
+    // The same dependency is retained once it belongs to the authorizing proof.
+    let mut dependent = check();
+    dependent.observations = vec![selected_float.clone()];
+    let observations = prepare(vec![wrong_plan(), dependent])
+        .unwrap()
+        .target_observations;
+    assert_eq!(observations.len(), 2, "{observations:?}");
+    assert!(observations.contains(&selected_float) && observations.contains(&expected[0]));
+
+    for (checked, refusal) in [
+        (vec![wrong_plan()], "does not match the selected target plan"),
+        (vec![wrong_plan(), wrong_plan()], "does not match the selected target plan"),
+        (vec![stale_dependency()], "depends on a different target selection"),
+        (vec![], "runtime boundary slot cannot execute"),
+    ] {
+        let error = prepare(checked).unwrap_err();
+        assert!(error.message.contains(refusal), "{error:?}");
+        assert_eq!(error.span.slice(SOURCE.as_bytes()), Some(&b"Reading::read()"[..]));
+    }
 }
 
 #[test]

@@ -37,16 +37,23 @@ fn check_reflexivity<'stage, 'text>(trees: &'stage TypedTrees<'text>) -> Option<
         .obligations
         .iter()
         .find(|obligation| matches!(obligation.kind, ObligationKind::RefineCallable { .. }))?;
-    let ObligationKind::RefineCallable { contract, machine, arguments } = &obligation.kind else {
+    check_reflexivity_at(trees, obligation)
+}
+
+fn check_reflexivity_at<'stage, 'text>(
+    trees: &'stage TypedTrees<'text>,
+    obligation: &'stage TypingObligation,
+) -> Option<CheckedCallableRefinement<'stage, 'text>> {
+    let ObligationKind::RefineCallable { contract, selection, .. } = &obligation.kind else {
         return None;
     };
-    if contract.requires || contract.has_guarantee || !arguments.is_empty() {
+    if contract.requires || contract.has_guarantee || !selection.arguments.is_empty() || !selection.enclosing_arguments.is_empty() {
         return None;
     }
     let signature = trees
         .signatures
         .iter()
-        .find(|signature| &signature.machine == machine)?;
+        .find(|signature| &signature.machine == selection.machine.as_ref())?;
     let tree = trees.trees().nth(signature.node.file)?;
     let resolved = tree.resolved();
     let file = resolved.file;
@@ -85,7 +92,7 @@ fn check_reflexivity<'stage, 'text>(trees: &'stage TypedTrees<'text>) -> Option<
         obligation,
         caller: caller_at(trees, obligation),
         bound: ValueType::Callable(contract.clone()),
-        arguments: arguments.clone(),
+        selection: selection.clone(),
         observations: Vec::new(),
     })
 }
@@ -111,6 +118,56 @@ fn a_checked_refinement_authorizes_only_its_exact_callable_binding() {
 }
 
 #[test]
+fn a_skipped_contract_call_uses_the_refinement_from_its_own_selection() {
+    let declarations = "data Check = machine(n:u64)->bool reaches none crashes none;
+        machine identity(n:u64)->bool requires n == n reaches none crashes none {true}
+        machine predicate<const F:Check>(n:u64)->bool reaches none crashes none terminates {F(n)}
+        data Probe=machine(n:u64)->bool;
+        machine invoke<const K:Probe>(n:u64)->bool {K(n)}
+        const VALUE:bool=invoke::<helper>(3u64);";
+    for (route, selecting_caller) in [
+        (
+            "machine helper(n:u64)->bool {guarded(n)}
+          machine guarded(n:u64)->bool requires true || predicate::<identity>(n) {true}",
+            "guarded",
+        ),
+        (
+            "machine helper(n:u64)->bool {guarded::<identity>(n)}
+          machine guarded<const H:Check>(n:u64)->bool requires true || predicate::<H>(n) {true}",
+            "helper",
+        ),
+    ] {
+        let source = format!(
+            "{declarations} {route}
+            machine other(n:u64)->bool requires true || predicate::<identity>(n) {{true}}"
+        );
+        let progress = typed(&source);
+        let TypingProgress::Complete(trees) = &progress else { unreachable!() };
+        let proof_at = |owner: &str| {
+            let obligation = trees
+                .obligations
+                .iter()
+                .find(|o| {
+                    matches!(&o.kind, ObligationKind::RefineCallable { selection, .. } if selection.machine.path == "identity")
+                        && trees
+                            .calls
+                            .iter()
+                            .any(|c| c.node == o.node && c.caller.as_ref().is_some_and(|caller| caller.path == owner))
+                })
+                .unwrap();
+            CheckedPreparationEvidence::default().with_callable_refinement(check_reflexivity_at(trees, obligation).unwrap())
+        };
+        let refused = prepare_typing_pass(&progress, &[], None, proof_at("other")).unwrap_err();
+        assert!(refused.message.contains("needs a checked refinement"), "{route}: {}", refused.message);
+        let pass = prepare_typing_pass(&progress, &[], None, proof_at(selecting_caller)).unwrap_or_else(|e| panic!("{route}: {}", e.message));
+        let PreparationAnswers::Frozen { constants, .. } = pass.answers else {
+            panic!("expected a frozen result")
+        };
+        assert_eq!(constants[&trees.constants[0].declaration], PreparedValue::Bool(true));
+    }
+}
+
+#[test]
 fn a_callable_bound_requires_its_own_checked_entry_at_the_actual_arguments() {
     let source = "data Nonzero = machine(n:u64)->u64 requires n > 0u64 reaches none crashes none;
                   machine identity(n:u64)->u64 reaches none crashes none {n}
@@ -121,18 +178,18 @@ fn a_callable_bound_requires_its_own_checked_entry_at_the_actual_arguments() {
     let [call] = trees.indirect_calls.as_slice() else {
         panic!("expected one typed bound call")
     };
-    let (obligation, contract, machine, arguments) = trees
+    let (obligation, contract, selection) = trees
         .obligations
         .iter()
         .find_map(|obligation| match &obligation.kind {
-            ObligationKind::RefineCallable { contract, machine, arguments } => Some((obligation, contract, machine, arguments)),
+            ObligationKind::RefineCallable { contract, selection, .. } => Some((obligation, contract, selection)),
             _ => None,
         })
         .unwrap();
     let body = trees
         .signatures
         .iter()
-        .find(|signature| &signature.machine == machine)
+        .find(|signature| &signature.machine == selection.machine.as_ref())
         .unwrap();
     assert!(contract.requires && !contract.has_guarantee && !body.requires && contract.as_ref() == &call.contract);
     let bound = ValueType::Callable(contract.clone());
@@ -144,7 +201,7 @@ fn a_callable_bound_requires_its_own_checked_entry_at_the_actual_arguments() {
             obligation,
             caller: caller_at(trees, obligation),
             bound: bound.clone(),
-            arguments: arguments.clone(),
+            selection: selection.clone(),
             observations: vec![],
         })
     };
@@ -177,8 +234,7 @@ fn a_callable_bound_requires_its_own_checked_entry_at_the_actual_arguments() {
             call,
             caller: caller_at(trees, obligation),
             bound: bound.clone(),
-            machine: machine.clone(),
-            arguments: arguments.clone(),
+            selection: selection.clone(),
             operands: vec![PreparedValue::Integer(operand.into())],
             result: None,
             observations: vec![],
@@ -212,11 +268,11 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
     let [call] = trees.indirect_calls.as_slice() else {
         panic!("expected one typed bound call")
     };
-    let (obligation, contract, machine, arguments) = trees
+    let (obligation, contract, selection) = trees
         .obligations
         .iter()
         .find_map(|obligation| match &obligation.kind {
-            ObligationKind::RefineCallable { contract, machine, arguments } => Some((obligation, contract, machine, arguments)),
+            ObligationKind::RefineCallable { contract, selection, .. } => Some((obligation, contract, selection)),
             _ => None,
         })
         .unwrap();
@@ -225,7 +281,7 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
     let body_signature = trees
         .signatures
         .iter()
-        .find(|signature| &signature.machine == machine)
+        .find(|signature| &signature.machine == selection.machine.as_ref())
         .unwrap();
     let tree = trees.trees().nth(call.node.file).unwrap();
     let resolved = tree.resolved();
@@ -266,7 +322,7 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
                 obligation,
                 caller: caller_at(trees, obligation),
                 bound: bound.clone(),
-                arguments: arguments.clone(),
+                selection: selection.clone(),
                 observations: vec![],
             })
             .with_callable_use(CheckedCallableUse {
@@ -274,8 +330,7 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
                 call,
                 caller: caller_at(trees, obligation),
                 bound: bound.clone(),
-                machine: machine.clone(),
-                arguments: arguments.clone(),
+                selection: selection.clone(),
                 operands: vec![PreparedValue::Integer(3.into())],
                 result: Some(result),
                 observations: vec![],
@@ -301,6 +356,270 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
     assert_eq!(constants[&trees.constants[0].declaration], expected);
 }
 
+fn checked_positive_operand(
+    trees: &TypedTrees<'_>,
+    call: &IndirectCall,
+    value: u64,
+) -> BigInt {
+    let contract = &call.contract;
+    let tree = trees.trees().nth(call.node.file).unwrap();
+    let file = tree.resolved().file;
+    let contract_node = (0..file.nodes.len())
+        .find(|&node| file.nodes[node].kind == NodeKind::MachineType && file.span(node) == contract.contract.span)
+        .unwrap();
+    let parameters = file.child(contract_node, NodeKind::Params).unwrap();
+    let [formal] = *file.nodes[parameters].children.as_slice() else {
+        panic!("expected one bound parameter")
+    };
+    let clause = file.child(contract_node, NodeKind::Requires).unwrap();
+    let [predicate] = *file.nodes[clause].children.as_slice() else {
+        panic!("expected one bound predicate")
+    };
+    let [left, right] = *file.nodes[predicate].children.as_slice() else {
+        panic!("expected a comparison")
+    };
+    assert_eq!(selected_boolean_operation(&tree, predicate).unwrap().token, ">");
+    assert!(matches!(tree.resolved().symbol(left), Some(Symbol::Binding { binder_node, kind: NodeKind::Param, .. }) if *binder_node == formal));
+    let operand = BigInt::from(value);
+    assert!(
+        operand
+            > landed_value(&tree, right, &contract.parameters[0])
+                .unwrap()
+                .unwrap()
+    );
+    operand
+}
+
+#[test]
+fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
+    let source = "data Nonzero = machine(n:u64)->u64 requires n > 0u64 reaches none crashes none;
+                  data Any = machine(n:u64)->u64 reaches none crashes none;
+                  machine identity(n:u64)->u64 reaches none crashes none {n}
+                  machine apply<const F:Nonzero, const G:Any>(n:u64)->u64 {F(n)}
+                  machine forward<const J:Any, const H:Nonzero>(n:u64)->u64 {apply::<H,J>(n)}
+                  const VALUE:u64=forward::<identity,identity>(3u64);
+                  const OTHER:u64=forward::<identity,identity>(3u64);";
+    let progress = typed(source);
+    let TypingProgress::Complete(trees) = &progress else { unreachable!() };
+    let [call] = trees.indirect_calls.as_slice() else {
+        panic!("expected one typed bound invocation")
+    };
+    let constant = |name| {
+        &trees
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap()
+            .initializer
+    };
+    let outer = |name| {
+        trees
+            .calls
+            .iter()
+            .find(|call| call.node == constant(name).node)
+            .unwrap()
+    };
+    let (obligation, contract, selection) = trees
+        .obligations
+        .iter()
+        .find_map(|obligation| match &obligation.kind {
+            ObligationKind::RefineCallable {
+                formal: Some((owner, 1)),
+                contract,
+                selection,
+            } if owner == &outer("VALUE").machine && obligation.node == outer("VALUE").node => Some((obligation, contract, selection)),
+            _ => None,
+        })
+        .expect("the selection binds the second formal of forward");
+    let inner = trees
+        .calls
+        .iter()
+        .find(|call| call.machine.path == "apply")
+        .unwrap();
+    let selected = inner.in_caller_application(outer("VALUE"));
+    assert!(matches!(
+        inner.type_arguments.as_slice(),
+        [ValueType::Parameter { owner: first, index: 1 }, ValueType::Parameter { owner: second, index: 0 }]
+            if first.as_ref() == &outer("VALUE").machine && second == first
+    ));
+    assert_eq!(selected.type_arguments[0], selected.type_arguments[1]);
+    let bound = ValueType::Callable(contract.clone());
+    let signature = trees
+        .signatures
+        .iter()
+        .find(|signature| &signature.machine == selection.machine.as_ref())
+        .unwrap();
+    assert!(!signature.requires && contract.requires && !contract.has_guarantee);
+    assert_eq!(contract.as_ref(), &call.contract);
+    let operand = checked_positive_operand(trees, call, 3);
+
+    let mut evaluator = ConstantEvaluation::new(trees, &[]);
+    evaluator
+        .callable_refinements
+        .checked
+        .push(CheckedCallableRefinement {
+            trees,
+            obligation,
+            caller: CallbackCaller::from_application(outer("VALUE")),
+            bound: bound.clone(),
+            selection: selection.clone(),
+            observations: vec![],
+        });
+    let error = evaluator
+        .evaluate_value_request(constant("VALUE"), None)
+        .unwrap_err();
+    assert!(matches!(error, EvaluationError::AtCall(error) if error.message.contains("bound's precondition needs a checked judgment")));
+    evaluator.callable_refinements.uses.push(CheckedCallableUse {
+        trees,
+        call,
+        caller: CallbackCaller::from_application(&selected),
+        bound,
+        selection: selection.clone(),
+        operands: vec![PreparedValue::Integer(operand.clone())],
+        result: None,
+        observations: vec![],
+    });
+    assert_eq!(
+        evaluator
+            .evaluate_value_request(constant("VALUE"), None)
+            .unwrap(),
+        PreparedValue::Integer(operand)
+    );
+    let error = evaluator
+        .evaluate_value_request(constant("OTHER"), None)
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            EvaluationError::Refused("the exact static callback needs a checked refinement of its callable contract")
+        ),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_nested_callback_carries_checked_capture_refinement_to_its_own_use() {
+    let source = "data Nonzero = machine(n:u64)->u64 requires n > 0u64 reaches none crashes none;
+                  machine identity(n:u64)->u64 reaches none crashes none {n}
+                  data NumberStep=machine(n:u64)->u64;
+                  machine relay<const K:NumberStep>(n:u64)->u64 {K(n)}
+                  machine outer<const F:Nonzero>(n:u64)->u64 {
+                      relay::<helper>(n)
+                      machine helper(value:u64)->u64 {F(value)}
+                  }
+                  const VALUE:u64=outer::<identity>(3u64);";
+    let progress = typed(source);
+    let TypingProgress::Complete(trees) = &progress else { unreachable!() };
+    let [constant] = trees.constants.as_slice() else { panic!("expected VALUE") };
+    let outer = trees
+        .calls
+        .iter()
+        .find(|call| call.node == constant.initializer.node)
+        .unwrap();
+    let (obligation, contract, selection) = trees
+        .obligations
+        .iter()
+        .find_map(|obligation| {
+            if obligation.node != outer.node {
+                return None;
+            }
+            match &obligation.kind {
+                ObligationKind::RefineCallable {
+                    formal: Some((owner, 0)),
+                    contract,
+                    selection,
+                } if owner == &outer.machine => Some((obligation, contract, selection)),
+                _ => None,
+            }
+        })
+        .unwrap();
+    let identity = trees
+        .signatures
+        .iter()
+        .find(|signature| &signature.machine == selection.machine.as_ref())
+        .unwrap();
+    assert!(!identity.requires && contract.requires && !contract.has_guarantee);
+    let relay = trees
+        .calls
+        .iter()
+        .find(|call| call.machine.path == "relay")
+        .unwrap()
+        .in_caller_application(outer);
+    let [ValueType::MachineSelection(helper)] = relay.type_arguments.as_slice() else {
+        panic!("relay must select the exact nested helper");
+    };
+    assert!(matches!(
+        helper.enclosing_arguments.as_slice(),
+        [(owner, arguments)] if owner == &outer.machine && arguments == &outer.type_arguments
+    ));
+    let signature = trees
+        .signatures
+        .iter()
+        .find(|signature| &signature.machine == helper.machine.as_ref())
+        .unwrap();
+    let enter_helper = trees
+        .indirect_calls
+        .iter()
+        .find(|call| call.caller.as_ref() == Some(&relay.machine))
+        .unwrap();
+    let captured_call = trees
+        .indirect_calls
+        .iter()
+        .find(|call| call.caller.as_ref() == Some(&signature.machine))
+        .unwrap();
+    assert_eq!(&captured_call.contract, contract.as_ref());
+    let scope = Scope::Body(Rc::new(CallBindings {
+        application: Some(Rc::new(relay.clone())),
+        ..Default::default()
+    }));
+    let helper_application = callback_application(helper, enter_helper, signature, &scope).unwrap();
+
+    // Discharge the selected body's unrestricted entry and the separate
+    // captured use after checking that the actual operand satisfies the bound.
+    let operand = checked_positive_operand(trees, captured_call, 3);
+    let bound = ValueType::Callable(contract.clone());
+    let mut evaluator = ConstantEvaluation::new(trees, &[]);
+    evaluator
+        .callable_refinements
+        .checked
+        .push(CheckedCallableRefinement {
+            trees,
+            obligation,
+            caller: CallbackCaller::from_application(outer),
+            bound: bound.clone(),
+            selection: selection.clone(),
+            observations: vec![],
+        });
+    let error = evaluator
+        .evaluate_value_request(&constant.initializer, None)
+        .unwrap_err();
+    let EvaluationError::AtCall(error) = error else { panic!("{error:?}") };
+    assert!(
+        error
+            .message
+            .contains("bound's precondition needs a checked judgment"),
+        "{}",
+        error.message
+    );
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"F(value)".as_slice()));
+    evaluator.callable_refinements.uses.push(CheckedCallableUse {
+        trees,
+        call: captured_call,
+        caller: CallbackCaller::from_application(&helper_application),
+        bound,
+        selection: selection.clone(),
+        operands: vec![PreparedValue::Integer(operand.clone())],
+        result: None,
+        observations: vec![],
+    });
+    assert_eq!(
+        evaluator
+            .evaluate_value_request(&constant.initializer, None)
+            .unwrap(),
+        PreparedValue::Integer(operand),
+    );
+}
+
 #[test]
 fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_types() {
     let source = "machine leaf(n:u64)->u64 {n}
@@ -314,11 +633,11 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
     let [call] = trees.indirect_calls.as_slice() else {
         panic!("expected one typed bound invocation")
     };
-    let (obligation, contract, machine, arguments) = trees
+    let (obligation, contract, selection) = trees
         .obligations
         .iter()
         .find_map(|obligation| match &obligation.kind {
-            ObligationKind::RefineCallable { contract, machine, arguments } => Some((obligation, contract, machine, arguments)),
+            ObligationKind::RefineCallable { contract, selection, .. } => Some((obligation, contract, selection)),
             _ => None,
         })
         .unwrap();
@@ -326,7 +645,7 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
     let signature = trees
         .signatures
         .iter()
-        .find(|signature| &signature.machine == machine)
+        .find(|signature| &signature.machine == selection.machine.as_ref())
         .unwrap();
     assert!(!signature.requires);
     let template = trees
@@ -392,7 +711,7 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
         obligation,
         caller: CallbackCaller::from_application(caller),
         bound: caller.instantiate(&bound),
-        arguments: arguments.clone(),
+        selection: selection.clone(),
         observations: vec![],
     };
     let mut evaluator = ConstantEvaluation::new(trees, &[]);
@@ -402,8 +721,7 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
         call,
         caller: CallbackCaller::from_application(&zero),
         bound: zero.instantiate(&bound),
-        machine: machine.clone(),
-        arguments: arguments.clone(),
+        selection: selection.clone(),
         operands: vec![PreparedValue::Integer(3.into())],
         result: None,
         observations: vec![],

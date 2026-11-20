@@ -1,15 +1,14 @@
 //! The byte-level scanner: one pass over the source that produces every token or the first error.
 
+use crate::IntegerRadix;
+use crate::Token;
+use crate::TokenKind;
 use crate::errors::lex_error::LexError;
 use crate::errors::lex_error_kind::LexErrorKind;
 use crate::lexing::byte_class::{BYTE_CLASSES, ByteClass, IS_WORD_CONTINUE};
 use crate::lexing::quoted_escape_error::QuotedEscapeError;
 use crate::lexing::quoted_literal_decoder::read_escape;
 use crate::locations::source_span::SourceSpan;
-use crate::tokens::integer_radix::IntegerRadix;
-use crate::tokens::punctuation::Punctuation;
-use crate::tokens::token::Token;
-use crate::tokens::token_kind::TokenKind;
 
 pub(crate) struct TokenScanner<'source> {
     source_bytes: &'source [u8], // Already checked to be valid UTF-8 by `lex_into`.
@@ -67,31 +66,11 @@ impl<'source> TokenScanner<'source> {
 
                     (TokenKind::Word, word_end)
                 }
-                ByteClass::Punctuation => {
-                    let Some(punctuation) = match_punctuation_at(source_bytes, token_start, first_byte) else {
-                        return Err(unknown_character(token_start));
-                    };
-
-                    (TokenKind::Punctuation(punctuation), token_start + punctuation.get_spelling().len())
-                }
-                // A slash is a comment when the next byte says so, and punctuation otherwise.
+                ByteClass::OtherAscii => scan_punctuation(source_bytes, token_start, first_byte)?,
                 ByteClass::Slash => match source_bytes.get(token_start + 1) {
-                    // We stop before the line feed and let it join the next whitespace token.
-                    Some(b'/') => (
-                        TokenKind::LineComment,
-                        find_run_end(source_bytes, token_start + 2, |source_byte| source_byte != b'\n'),
-                    ),
+                    Some(b'/') => (TokenKind::LineComment, find_run_end(source_bytes, token_start + 2, |byte| byte != b'\n')),
                     Some(b'*') => self.scan_block_comment(token_start)?,
-                    // @Speed: the same lines as the punctuation case above, written out twice on
-                    // purpose. Sharing them through one function measured about 1.5 percent
-                    // slower in every build we tried. See experiment 11 in EXPERIMENTS.md.
-                    _ => {
-                        let Some(punctuation) = match_punctuation_at(source_bytes, token_start, first_byte) else {
-                            return Err(unknown_character(token_start));
-                        };
-
-                        (TokenKind::Punctuation(punctuation), token_start + punctuation.get_spelling().len())
-                    }
+                    _ => scan_punctuation(source_bytes, token_start, b'/')?,
                 },
                 ByteClass::Digit => self.scan_number(token_start, first_byte)?,
                 ByteClass::Quote => self.scan_quoted(token_start)?,
@@ -103,7 +82,6 @@ impl<'source> TokenScanner<'source> {
                         SourceSpan::new(token_start, character_end.min(source_bytes.len())),
                     ));
                 }
-                ByteClass::Unknown => return Err(unknown_character(token_start)),
             };
 
             tokens.push(Token::new(token_kind, SourceSpan::new(token_start, token_end)));
@@ -360,13 +338,9 @@ fn find_run_end(
     run_start: usize,
     continues_run: impl Fn(u8) -> bool,
 ) -> usize {
-    let Some(remaining_bytes) = source_bytes.get(run_start..) else {
-        return source_bytes.len();
-    };
-
-    remaining_bytes
-        .iter()
-        .position(|&source_byte| !continues_run(source_byte))
+    source_bytes
+        .get(run_start..)
+        .and_then(|remaining| remaining.iter().position(|&byte| !continues_run(byte)))
         .map_or(source_bytes.len(), |run_byte_count| run_start + run_byte_count)
 }
 
@@ -410,16 +384,18 @@ fn find_word_end(
 }
 
 /// Chooses the punctuation token that starts at `token_start`, whose first byte is `first_byte`.
-fn match_punctuation_at(
+#[inline(always)]
+fn scan_punctuation(
     source_bytes: &[u8],
     token_start: usize,
     first_byte: u8,
-) -> Option<Punctuation> {
+) -> Result<(TokenKind, usize), LexError> {
     // Zero stands for "past the end of the source"; no punctuation spelling contains a zero byte.
     let second_byte = source_bytes.get(token_start + 1).copied().unwrap_or(0);
     let third_byte = source_bytes.get(token_start + 2).copied().unwrap_or(0);
 
-    Punctuation::match_leading_bytes(first_byte, second_byte, third_byte)
+    let punctuation = super::punctuation::match_leading_bytes(first_byte, second_byte, third_byte).ok_or_else(|| unknown_character(token_start))?;
+    Ok((TokenKind::Punctuation(punctuation), token_start + punctuation.get_spelling().len()))
 }
 
 /// If the source at `r_offset` is `r"` or `r#...#"`, returns the offset just past the opening quote.

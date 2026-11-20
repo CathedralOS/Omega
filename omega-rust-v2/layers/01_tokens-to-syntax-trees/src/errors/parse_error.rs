@@ -1,7 +1,7 @@
 //! The one error a source file can produce in this layer: the first place it left the grammar.
 
 use crate::errors::parse_error_kind::ParseErrorKind;
-use omega_lexer::SourceSpan;
+use omega_tokens::SourceSpan;
 use std::error::Error;
 use std::fmt;
 

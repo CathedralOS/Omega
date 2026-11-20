@@ -1,6 +1,16 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Access, CollectionAccess, ObligationKind, Site, TypeError, ValueType};
+use crate::type_error::SourceTypeError;
+use crate::type_relations::StoredReference;
+use crate::{Access, CollectionAccess, ObligationKind, TypeError, ValueType};
 use omega_toolchain::CollectionPrimitive;
+use omega_typed::site_at;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum IndexUse {
+    Ordinary,
+    MovePrefix,
+    MoveOperand,
+}
 
 impl BodyTyper<'_, '_> {
     pub(super) fn index(
@@ -8,13 +18,28 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
         requested: Option<Access>,
     ) -> Result<ValueType, TypeError> {
+        self.index_operand(node_index, requested, IndexUse::Ordinary)
+    }
+
+    /// A move prefix selects storage for the following projection. Only the final
+    /// operand can extract a value through a loan.
+    pub(super) fn index_operand(
+        &mut self,
+        node_index: usize,
+        requested: Option<Access>,
+        use_site: IndexUse,
+    ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         let [base, selector] = *source.nodes[node_index].children.as_slice() else {
             return Err(TypeError::unsupported(source, node_index));
         };
         // A binding of a borrowed field names that field in place, so the
         // collection is reached with the borrowed storage's access.
-        let (base_ty, borrowed) = self.place_operand(base)?;
+        let (base_ty, borrowed) = if use_site != IndexUse::Ordinary && source.nodes[source.ungroup(base)].kind == omega_syntax::NodeKind::Index {
+            (self.index_move_place(base, IndexUse::MovePrefix)?, None)
+        } else {
+            self.place_operand(base)?
+        };
         let reference = base_ty.reference_parts();
         let (access, storage) = match reference {
             Some((access, inner)) => (
@@ -76,6 +101,31 @@ impl BodyTyper<'_, '_> {
                 return Ok(result);
             }
         };
+        if use_site != IndexUse::Ordinary
+            && requested.is_none()
+            && range.is_none()
+            && access.is_none()
+            && matches!(storage, ValueType::Array(..))
+            && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy
+        {
+            let element = element.clone();
+            return self.owned_element(node_index, base, selector, element);
+        }
+        // `move view[k]` through an exclusive element view selects the element
+        // exactly as an exclusive element borrow does, then moves the non-copy
+        // element out, leaving restoration debt on that view's loan. A shared
+        // view and an owned array keep their own rules.
+        if use_site == IndexUse::MovePrefix {
+            return Err(TypeError::at(source, node_index, "nested indexed move requires an owned fixed-array place"));
+        }
+        let extraction = use_site == IndexUse::MoveOperand
+            && requested.is_none()
+            && range.is_none()
+            && reference.is_some()
+            && access == Some(Access::Mut)
+            && matches!(storage, ValueType::Slice(_))
+            && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy;
+        let requested = if extraction { Some(Access::Mut) } else { requested };
         let primitive = match (&requested, range.is_some()) {
             (Some(Access::Write), _) => return Err(TypeError::at(source, node_index, "no write-only collection adaptation")),
             (Some(Access::Mut), false) => CollectionPrimitive::ElementMut,
@@ -116,6 +166,10 @@ impl BodyTyper<'_, '_> {
                 self.check_destination(bound, &actual, parameter)?;
             }
         }
+        let selector_carriers = signature.parameters[1..]
+            .iter()
+            .map(|(_, carrier)| carrier.substitute(machine, element_args))
+            .collect();
         let result = signature.result.substitute(machine, element_args);
         self.record_place(
             node_index,
@@ -123,7 +177,14 @@ impl BodyTyper<'_, '_> {
             reference.map(|(a, _)| a),
             Some(crate::Projection::Index(source.node_id(selector))),
         );
-        self.set_origin(node_index, if requested.is_some() || range.is_some() { backing.clone() } else { contents });
+        self.set_origin(
+            node_index,
+            if !extraction && (requested.is_some() || range.is_some()) {
+                backing.clone()
+            } else {
+                contents
+            },
+        );
         self.places.insert(
             node_index,
             super::storage_origin::StoragePlace {
@@ -136,16 +197,23 @@ impl BodyTyper<'_, '_> {
             node_index,
             ObligationKind::Borrow {
                 access: requested.unwrap_or(Access::Shared),
-                place: Site::at(source, base),
+                place: site_at(source, base),
             },
         );
         self.output.collection_accesses.push(CollectionAccess {
-            site: Site::at(source, node_index),
+            site: site_at(source, node_index),
             node: source.node_id(node_index),
             machine: machine.clone(),
+            primitive,
+            selector_carriers,
             element: element.clone(),
             result: result.clone(),
         });
+        if extraction {
+            let moved = element.clone();
+            self.read_borrowed(node_index, &Access::Mut, &moved)?;
+            return Ok(moved);
+        }
         Ok(result)
     }
 }

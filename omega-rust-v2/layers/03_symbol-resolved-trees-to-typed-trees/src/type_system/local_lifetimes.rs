@@ -1,10 +1,12 @@
 //! Local data initializers infer omitted lifetime arguments from the value and its fields.
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::type_system::substitution::field_components;
 use crate::type_system::type_catalog::TypeCatalog;
-use crate::{Site, TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use crate::{TypeError, ValueType};
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 impl ResolvedSourceFile<'_> {
     pub(crate) fn initialized_annotation(
@@ -24,7 +26,7 @@ impl ResolvedSourceFile<'_> {
                         return self.annotation(node, types);
                     }
                     args.push(ValueType::InferredLifetime {
-                        site: Box::new(Site::at(self.file, node)),
+                        site: Box::new(site_at(self.file, node)),
                         index: args.len(),
                     });
                 }

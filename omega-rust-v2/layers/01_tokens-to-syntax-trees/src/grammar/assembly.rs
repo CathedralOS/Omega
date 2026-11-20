@@ -1,10 +1,10 @@
 //! Assembly: `asm machine` declarations and `asm { ... }` blocks.
 
+use crate::NodeKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 impl SyntaxParser<'_> {
     /// `visibility? 'asm' 'machine' path generic_params? ( '(' params ')' )? result? clause*

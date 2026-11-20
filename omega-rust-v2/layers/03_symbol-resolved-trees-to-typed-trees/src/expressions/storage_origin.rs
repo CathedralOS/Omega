@@ -25,15 +25,17 @@
 //! returned call result to the lifetime checker with its selected signature.
 
 use crate::expressions::body_typer::BodyTyper;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::StoredReference;
 use crate::{Access, TypeError, ValueType};
-use omega_lexer::SourceSpan;
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_tokens::SourceSpan;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub(super) enum Origin {
     /// Payload fields are numbered within their active sum case.
-    Case(Box<omega_resolver::DeclarationId>, Box<Origin>),
+    Case(Box<omega_resolved::DeclarationId>, Box<Origin>),
     /// Holds no loan of invocation-local storage.
     #[default]
     Caller,
@@ -404,7 +406,7 @@ impl BodyTyper<'_, '_> {
     ) {
         let file = self.unit.file;
         let (root, path) = self.output.place_path(file.node_id(place));
-        let binding = |node: omega_resolver::TreeNodeId| match self.unit.symbol(node.node) {
+        let binding = |node: omega_resolved::TreeNodeId| match self.unit.symbol(node.node) {
             Some(Symbol::Binding { binder_node, .. }) => file.node_id(*binder_node),
             _ => node,
         };

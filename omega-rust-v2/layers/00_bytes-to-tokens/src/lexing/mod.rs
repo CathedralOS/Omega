@@ -2,6 +2,7 @@
 
 pub mod byte_class;
 pub mod lexer;
+pub(crate) mod punctuation;
 pub mod quoted_escape_error;
 pub mod quoted_literal_decoder;
 pub mod token_scanner;

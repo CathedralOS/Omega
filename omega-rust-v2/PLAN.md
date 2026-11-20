@@ -37,10 +37,10 @@ normalized parameter bounds to select type or value equality.
 
 ## What is authoritative
 
-- **Omega has one specification.** Edit the [root specification](../wiki/spec/)
-  and keep the [workspace copy](wiki/spec/) byte-identical. This plan records
-  the experimental compiler's responsibilities, implementation status and open
-  questions.
+- **V1 and V2 share the Omega specification.** Both implement the rules in
+  [`wiki/spec/`](../wiki/spec/). Changes to language or build semantics belong
+  in the repository-root spec. V2 reads those files directly. This plan records compiler responsibilities, implementation
+  status and open questions. **Decided.**
 - **The language guide is for humans**, not a source for V2. **Decided.**
 - **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
 - **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context
@@ -121,6 +121,8 @@ rewrite expected files with `OMEGA_BLESS=1` set.
 
 ### Handoff review
 
+The [token](representations/tokens), [syntax](representations/syntax), [resolved](representations/resolved), [typed](representations/typed) and [prepared](representations/prepared) products carry the source pipeline’s output. Each product exposes the data another stage can read. The parser, resolver, typer and evaluator own the decisions that build those products. L5 reads the prepared product and can follow its typed and resolved views without linking those producers. For an indexed read, L3 publishes the selected primitive, declaration and selector types. L5 uses them to lower each selector. [Consumer test](layers/05_prepared-trees-to-terminal-psi/tests/handoff.rs) · [Dependency check](layers/05_prepared-trees-to-terminal-psi/tests/product_boundary.rs)
+
 After the responsibility moves and before sign-off, review the handoff in
 parallel with three GPT-6.2 Sol reviewers. Give each the same V2 contract
 and a different question. Ask for the smallest concrete case that would
@@ -147,16 +149,16 @@ Psi to native code) are not planned yet.
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
-| L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
-| L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | locked 2026-11-19. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
-| L5 Lowering | prepared tree → Terminal Psi | open. Production lowering assigns Psi identities and emits single-block returns for closed scalars and fixed-array parameters. [Lowering contract](layers/05_prepared-trees-to-terminal-psi/CONTRACT.md) | — |
+| L2 Resolver | syntax trees → symbol-resolved trees | revised handoff signed off 2026-11-19. Changes to overload identity, nested operator visibility and the scope of predicate `self` await review. | 0.17 s (2026-11-18 warm median, five runs) |
+| L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19. Nested machine selections and static callback refinements are under review. | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | signed off 2026-11-19. Generic initializer scope, pattern bindings, nested helper applications and forwarded callback evidence await review. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
+| L5 Lowering | prepared tree → Terminal Psi | open. Tests cover structural moves and cleanup, loans and element views, selected calls, suspension with scalar values and incoming loans, trapping arithmetic and catalog-selected assembly. Branch joins preserve incoming loans. Completed local calls preserve shared-view backing. Suspending calls identify caller-owned storage, ownership transferred to each callee argument, and loans of live fields. Incoming records and immutable constructors retain the origin of stored shared references. Replaced record fields, boundary-return origins and case-dependent whole-sum cleanup remain open. [Lowering contract](layers/05_prepared-trees-to-terminal-psi/CONTRACT.md#handoffs-and-remaining-work) | 50.13 s at `34279667e97` (warm V2 workspace run of `mbx test --locked --workspace --no-fail-fast`, 1,000 passed including 291 in L5) |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
 | Driver | compile a stage, run it, read its plan; repeat until a plan asks for an artifact | not started; needs L5 and an interpreter | — |
 
 The 2026-11-19 audit changed the L1–L3 handoffs after the sign-offs above.
-The owner reopened L1 after the parser refused `let (first, ..) = pair;` while it accepted the same rest in a named pattern. L1 now records the final `..` and its source span. L3 uses the subject type to check the written components and their access. [Pattern specification](wiki/spec/language/patterns.md#irrefutable-data-bindings)
+The owner reopened L1 after the parser refused `let (first, ..) = pair;` while it accepted the same rest in a named pattern. L1 now records the final `..` and its source span. L3 uses the subject type to check the written components and their access. [Pattern specification](../wiki/spec/language/patterns.md#irrefutable-data-bindings)
 L1 exposes declaration names, ordered binders, the full chain of syntax parents, operators and range endpoints.
 L2 binds those names to shared declaration identities and supplies the visible candidates, operator visibility and trait ancestry.
 L3 interprets the binders, selects operations from normalized types, and records whether each call belongs to execution, a fact or a static argument.
@@ -177,7 +179,7 @@ with `cargo build --release -p omega`, or try it from this checkout with
 Success is silent. A lexical or grammar refusal identifies the file, line
 and byte column on stderr. Jarod's spellings in the Fable session were
 `omega run main.omg` and `omega build build.omg`. The command chooses the
-final operation. Both commands use [build-first entry selection](wiki/spec/build/command_line.md#build-first-entry-selection)
+final operation. Both commands use [build-first entry selection](../wiki/spec/build/command_line.md#build-first-entry-selection)
 for the named source file.
 
 **What V1 actually does.** In V1 at `0b90bdba`, the Rust package
@@ -212,7 +214,7 @@ native/Psi agreement. Use V2 syntax and stage expectations for the fixtures.
 · [Execution comparison](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/both_exit_status_comparison.rs)
 
 The V2 CLI currently exposes source-stage commands. The build and run paths
-above are driver milestones. [Execution selection](wiki/spec/build/embedding.md#standalone-execution-selection)
+above are driver milestones. [Execution selection](../wiki/spec/build/embedding.md#standalone-execution-selection)
 specifies the default engine and the effect of an explicit target.
 
 ### L0 Lexer
@@ -221,9 +223,9 @@ specifies the default engine and the effect of an explicit target.
 A change to tokenization, lexical errors, or the information handed to L1 requires
 an explicit decision to reopen that contract.
 
-- **Spec owners:** [Lexical profile](wiki/spec/language/data_and_literals.md#lexical-profile),
-  [Integer radix spellings](wiki/spec/language/data_and_literals.md#integer-radix-spellings),
-  [Quoted bytes](wiki/spec/language/data_and_literals.md#quoted-bytes).
+- **Spec owners:** [Lexical profile](../wiki/spec/language/data_and_literals.md#lexical-profile),
+  [Integer radix spellings](../wiki/spec/language/data_and_literals.md#integer-radix-spellings),
+  [Quoted bytes](../wiki/spec/language/data_and_literals.md#quoted-bytes).
 - **Rules the spec states:** source is valid UTF-8 with ASCII syntax;
   identifiers match `[A-Za-z_][A-Za-z0-9_]*`; whitespace is only space, tab,
   CR and LF, and other Unicode whitespace rejects; integer literals in
@@ -341,7 +343,7 @@ L3 also checks the visibility of the overload selected in a public contract.
 Private ranking witnesses stay in the implementation. In a subject arm an
 ordinary bare name binds the matched value. A qualified constant tests its
 value. L2 publishes the binding or declaration, and L3 checks coverage.
-[Package boundaries](wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
+[Package boundaries](../wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
 
 **The L3 static-value handoff is open.** The first signoff was at `4baf1e5f5e9`. The computed-width case reopened the handoff because typing stopped before L4 could receive the selected call. The revised handoff passed review on 2026-11-19. L3 selects the declaration, types the operands, and identifies the source occurrence, result type and any specialization arguments. L4 evaluates the admitted call. L3 uses the returned value to finish checks that depend on a closed type identity. When a pending value could change which overload matches, L3 waits for the value before selecting the declaration. For example, the Boolean returned by `enabled()` determines whether an operand of type `Flag<enabled()>` reaches `sink(Flag<true>)` or `sink(Flag<false>)`. For a nested call such as `sink(pick(x), true)`, L3 also checks whether the outer signatures supply a common type for `pick(x)`. If a computed index decides that question, L3 waits before selecting the inner declaration. [Typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) · [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md)
 
@@ -364,25 +366,21 @@ this, for three separate reasons:
    declarations, so the rest cannot be resolved or typed until the dependency
    is prepared. The Build suspends, the continuation is checked, and it
    resumes without replay.
-   ([Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages),
-   [Admission before execution](wiki/spec/build/execution.md#admission-before-execution))
+   ([Checked Build stages](../wiki/spec/build/scoped_execution.md#checked-build-stages),
+   [Admission before execution](../wiki/spec/build/execution.md#admission-before-execution))
 3. **Generated source.** `Build::include_source` hands the compiler new source
    bytes after the authored program is already checked. The spec makes these a
    "later resolution stratum": generated code may refer to authored
    declarations, authored code may not refer to generated ones, and final
    checking "extends the retained checkpoint" without rebuilding the authored
-   front end. ([Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary))
+   front end. ([Generated-source boundary](../wiki/spec/build/execution.md#generated-source-boundary))
 
    The timing has one visible consequence: **hand-written code cannot call
    code its own build generates.** The authored source is frozen before the
    Build runs, so the Build can inspect it; letting it also depend on the
-   Build's output would be a cycle. V1 enforces this: the probe
-   `samples/cli/probes/build_retry_reseal/controls/invalid_authored_selects_generated`
-   expects `call 'generated_value' selects no declaration`, and the passing
-   fixture `source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant`
-   notes that "no authored body references the later stratum". The spec says a
-   generated entry "needs a separately staged compilation" and that "an
-   authored wrapper cannot call it".
+   Build's output would be a cycle. A customer of a generated entry needs
+   a separately staged compilation. An authored wrapper in the generating
+   stage has the same visibility restriction. [Build execution](../wiki/spec/build/execution.md)
 
 Jarod, 2026-11-18: source discovery is required, and `build.omg` must be able
 to augment itself by discovering files and running build-time code. V2 keeps
@@ -402,8 +400,8 @@ must follow the shared spec where the design calls for different semantics.
 For example, the plan lets hand-written code call generated code and passes provider
 selections to a later stage. The current spec puts generated code in a later
 resolution stratum and resumes the Build at a provider request.
-[Generated-source boundary](wiki/spec/build/execution.md#generated-source-boundary) ·
-[Checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+[Generated-source boundary](../wiki/spec/build/execution.md#generated-source-boundary) ·
+[Checked Build stages](../wiki/spec/build/scoped_execution.md#checked-build-stages)
 
 **Decided** by Jarod, 2026-11-18, in two steps: first as two insulated stages
 that talk through reflection, then generalized to any number of stages on
@@ -484,17 +482,17 @@ What follows from it:
   needs such a fact asks for another stage.
 
 What the spec already has: separate universes with different dependency sets
-([Two checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts)),
+([Two checked contexts](../wiki/spec/build/scoped_execution.md#two-checked-contexts)),
 deterministic reflection encodings, typed product operands in `build.omg`
 such as `Build::select_provider<windows_x86_64::Console, TestConsole>(builder)`,
 and the rule that selection "does not construct provider rows or grant runtime
-permission" ([Provider selection](wiki/spec/build/provider_selection.md#provider-selection)).
+permission" ([Provider selection](../wiki/spec/build/provider_selection.md#provider-selection)).
 
 ##### How the chain starts
 
 The driver supplies the named root file as invocation data. The service-free
 `omega::core` first stage requests checked reflection binding of the initial
-entry in that file under [build-first entry selection](wiki/spec/build/command_line.md#build-first-entry-selection).
+entry in that file under [build-first entry selection](../wiki/spec/build/command_line.md#build-first-entry-selection).
 The compiler resolves the binding as it checks the named file. When a build
 entry is present, core selects the ordinary build backings for that stage,
 such as reading project source and writing build output.
@@ -595,8 +593,66 @@ constant, and a `build.omg` that itself writes to `Console`.
 
 ### L5 to L7
 
-Spec owners are under `wiki/spec/terminal-psi/` (15 files, including a 199 KB
-encoding contract). Not planned in detail.
+L5 lowers each source operation to Psi. Consumers read the owned [Psi product](representations/psi/Cargo.toml) and replay target observations through the [selected-target contract](contracts/target/Cargo.toml). L6 checks the resulting operations,
+values, places and edges against the rules for that representation. For a
+scalar return, L5 must emit the value the author selected. L6 must establish
+that the return operand exists in that machine and has its declared result
+type. Two parameters of the same type can both be legal return operands.
+The [scalar return tests](layers/05_prepared-trees-to-terminal-psi/tests/scalar_returns.rs)
+exercise both responsibilities while L5 is open.
+
+The checker judges the unoptimized program first. When Psi optimizations
+run, the same checker judges their output before L7 publishes it. Its rules
+depend on the Psi it receives. Adding a pass introduces no pass-specific
+checker branches.
+[Psi product](../wiki/spec/terminal-psi/product.md)
+
+Before implementing L6, trace each specified refusal to the Psi records
+that justify it. Distinguish checks that need one operation from checks
+that need every incoming edge, the history of a place or the contract of a
+callee. Order the work by those dependencies. For each rule, identify a
+valid lowered example and the smallest change to its evidence that must
+make the checker refuse it. Record any evidence L5 still needs to emit.
+[Control flow](../wiki/spec/terminal-psi/control_flow.md) ·
+[Fact validity](../wiki/spec/terminal-psi/fact_validity.md) ·
+[Calls and outcomes](../wiki/spec/terminal-psi/calls_and_outcomes.md)
+
+For example, a byte read requires a bounds proof for the **same view**
+being indexed. Start with a valid read, then change only the view that
+supplied the length observation. Even if both views have the same type
+and length, the second observation cannot justify the first view's read.
+This exercises the connection between an operation, a fact and its use on
+the control-flow graph. [Byte views](../wiki/spec/terminal-psi/byte_views.md)
+
+#### L5 completion map
+
+The first checkpoint used a pair of same-typed owned fields. Moving one field must change the exact source path, the claimed result, and which sibling remains for cleanup. A consumer can inspect all three in Psi after dropping the prepared package. The same transfer now reaches aggregate construction, calls, returns and edge cleanup. [Ownership](../wiki/spec/terminal-psi/ownership.md#partial-ownership-and-residuals) · [Current nominal tests](layers/05_prepared-trees-to-terminal-psi/tests/nominal_references.rs)
+
+**Starting evidence.** At the initial review the corpus has 132 examples. Of those, 101 stop during resolution or preparation, four require package context, 21 produce declarations or schemas, and six produce executable bodies. The current corpus predicts every outcome. The field-store test observes the caller's original field. The constructor tests observe source evaluation order and reverse disposal of intact affine locals. The specialization tests distinguish closed bodies and preserve a public callback template. At that review the assembly probe reached preparation only on its target-aware path. [Corpus](layers/05_prepared-trees-to-terminal-psi/fixtures/spec-outcomes.txt) · [Constructors](layers/05_prepared-trees-to-terminal-psi/tests/nominal_construction.rs) · [Specializations](layers/05_prepared-trees-to-terminal-psi/tests/specializations.rs) · [Assembly probe](layers/05_prepared-trees-to-terminal-psi/tests/assembly_handoff.rs)
+
+**Who decides.** L3 owns selected declarations, typed places, access, operations and source obligations. L4 owns preparation and the frozen values or closed applications it supplies. L5 expresses their meaning as operations, operands, claims and edges in the owned Psi package. L6 judges whether that evidence establishes the program's contracts. Build and the toolchain supply selected target inputs and own provider installation. For each missing fact, trace one occurrence through the ordinary package path. Change the first producer that lacks the fact and test what it emits. [Typed stage](representations/typed/src/typed_tree/typed_stage.rs) · [Psi package](representations/psi/src/package.rs) · [Dependency boundary](layers/05_prepared-trees-to-terminal-psi/tests/product_boundary.rs)
+
+| Order and responsibility | Existing input and implementation work | Decisive test on the owned Psi product |
+| --- | --- | --- |
+| 1. Structural values and moves | Follow the typed construction, place steps and move occurrence. Extend the existing place, argument and result forms to carry the root, ordered field/index/active-case path, ownership transfer and residual subtrees. Cover structural operands in aggregate construction, stores, calls and returns through the same representation. [Structural access](../wiki/spec/terminal-psi/structural_access.md) · [Ownership](../wiki/spec/terminal-psi/ownership.md) | Change only `move p.left` to `move p.right` in an owned pair of same-typed structural fields. The result claims the selected field and the residual names the other. At a call, verify that its structural argument continues the same claim. |
+| 2. Loans, restoration and access | Use the typed place, borrow access, opening and restoration obligation. Emit captured root and selectors, parent loan, access mode, and the operation or continuation that owes restoration. Carry the originating subject through projections, reborrows, returns and domain-governed access. [Loans](../wiki/spec/terminal-psi/loans.md) · [Typed move and restore obligations](representations/typed/src/typed_tree/proofs/obligation_kind.rs) | Move out through an exclusive borrow, then restore the same field. A sibling write must name that sibling and leave the original debt identifiable. Change a returned borrow between two equal-typed inputs and inspect its input-relative origin. Seed the source from the [borrowed field tests](layers/03_symbol-resolved-trees-to-typed-trees/tests/calls/borrowed_field_reads.rs). |
+| 3. Cleanup on the selected edge | Use the live structural paths from step 1 and the exact typed cleanup selection. Extend whole-root return disposal to ordered actions on applicable normal exits and continuations. Distinguish whole-root disposal, residual disposal and a call to the selected cleanup machine. A backedge alone disposes nothing. [Normal cleanup](../wiki/spec/terminal-psi/calls_and_outcomes.md#normal-cleanup) · [Nominal cleanup](../wiki/spec/terminal-psi/ownership.md#nominal-cleanup) | Establish two owned locals. Transfer one before exit in the twin. Inspect exact action, target, root/path and order on each edge. A partially moved aggregate disposes only its live complement. Two equal signatures with different selected cleanup declarations must produce different target identities. |
+| 4. Calls, conformance and package boundaries | Extend direct calls and callback templates using the typed declaration, static arguments, evidence and runtime operands. Carry a runtime callable descriptor through a join. Preserve an explicitly selected conformance member and its implementation. For a bodyless boundary call emit its exact requirement, slot demand and scalar/structural argument order. Build chooses the installed provider. [Dynamic dispatch](../wiki/spec/terminal-psi/dynamic_dispatch.md) · [Boundary calls](../wiki/spec/terminal-psi/boundary_calls.md#call-and-requirement-identity) | Select two implementations of one requirement with identical signatures. Only the selected implementation changes. At a runtime join call the arriving descriptor. For a bodyless call assert its requirement and argument interleave directly. Also compare two closed arguments to one declaration and check open aliases and executable generic bodies that the present template path refuses. |
+| 5. Effects, traps and control flow | Lower the typed crash cause, guard, selected operation and call acknowledgements onto their actual sites. Attach a possibly suspending call to its completion continuation and live activation. Represent external exit and cyclic transfers explicitly. Carry each private ranking witness with the relation and edges it describes. [Outcomes](../wiki/spec/terminal-psi/calls_and_outcomes.md) · [Control flow and ranking](../wiki/spec/terminal-psi/control_flow.md) | Change the guard on the same trap from `x == 0` to `y == 0`. The cause stays fixed and the guard changes subject. Compare a returning arm with a crashing or external-exit arm and inspect which edge owns normal cleanup. A parked call has no established result yet. For a cycle, retain predecessor-specific operands and the edge carrying the decrease obligation. |
+| 6. Contracts, facts, domains and observations | Extend the existing scalar clauses, value-index tuples and math terms to structural paths, substitutions, storage versions, refinement, domain establishment and proof dependencies. Connect numeric, recast, content, resource and target observations to the exact operation or subject that supplies them. L6 decides premise availability and certificate validity. [Fact validity](../wiki/spec/terminal-psi/fact_validity.md) · [Structural predicates](../wiki/spec/terminal-psi/structural_predicates.md) · [Mathematical values](../wiki/spec/terminal-psi/mathematical_values.md) | Keep the predicate and type fixed but swap its sibling field, view or storage version. The consumer must observe the substitution at the exact obligation. Reuse [the two-view length test](layers/05_prepared-trees-to-terminal-psi/tests/access.rs). For a proof dependency change only the cited declaration. For a target query change only the independent receiver's selected plan. |
+| 7. Checked assembly | The compiler package path accepts a selected instruction catalog. Typing selects the instruction and preparation preserves its register effects and control successor. L5 emits those facts. Hosted catalog installation and memory effects remain open. [Typed instruction](representations/typed/src/typed_tree/typed_instruction.rs) · [Checked assembly](../wiki/spec/language/assembly.md) | Use two catalog contracts with the same explicit operand types and different implicit flag/register writes. First assert the selected facts in the prepared package, then lower through the ordinary entry point and inspect the different Psi writes. Check the taken and adjacent successor of a conditional transfer. Preserve the exact unknown-instruction refusal. |
+
+**Completed ownership checkpoint.** Moving either field of an owned pair changes the selected projection in the prepared trees, the claim returned in Psi and the sibling scheduled for cleanup. The consumer reads the latter two after the prepared trees are dropped. A cleanup call retains the selected machine identity, including when two cleanup machines have identical signatures. [Owned-field twins and cleanup](layers/05_prepared-trees-to-terminal-psi/tests/ownership.rs) · [Psi consumer](layers/05_prepared-trees-to-terminal-psi/tests/psi-consumer/src/lib.rs)
+
+**Ownership and control flow.** A frozen index into an owned array identifies the exact element moved and leaves its siblings for reverse-order cleanup. An exclusive element view instead retains the evaluated selector, that view’s length and a fresh bounds obligation per occurrence. A partial sum move retains the actual matched field and case. A suspending call parks live scalars and incoming borrowed descriptors used by the callee or its continuation. The caller’s loan identity survives a projected reborrow. When a branch selects between incoming views, the parked call retains the join parameter. The arriving control-flow edge identifies its backing, including through nested selections. At suspension the ownership pass records the live roots, the exact paths already moved out of each, and which formal has received a whole-root transfer. Completion cleanup uses the same ownership state. For a direct loan, the call operand supplies the selected field and access mode. The owner stays with the caller. A named local loan leads through its defining borrow to that same storage. [Owned field loans](layers/05_prepared-trees-to-terminal-psi/tests/parked_owner_borrows.rs) · [Prepared borrow inputs](layers/05_prepared-trees-to-terminal-psi/tests/owned_borrow_inputs.rs) Dynamic extraction from an owned array, case-dependent cleanup of an intact sum, and parking descriptors in arrays, case-dependent descriptors or open restoration windows remain open. An incoming record retains each live reference’s ordered field path and its exact incoming formal. When a constructor stores a shared reference, the parked record identifies the selected initializer and any intervening shared reborrow. A mutable record overwritten before suspension still needs the replacement’s origin. [Constructed field tests](layers/05_prepared-trees-to-terminal-psi/tests/constructed_shared_fields.rs) · [Replacement tests](layers/05_prepared-trees-to-terminal-psi/tests/replaced_descriptor_fields.rs) [Parked owner tests](layers/05_prepared-trees-to-terminal-psi/tests/parked_handles.rs) · [Incoming loan tests](layers/05_prepared-trees-to-terminal-psi/tests/parked_byte_views.rs) · [Joined loan tests](layers/05_prepared-trees-to-terminal-psi/tests/joined_loans.rs) · [Owned arrays](layers/05_prepared-trees-to-terminal-psi/tests/owned_arrays.rs) · [Exclusive element views](layers/05_prepared-trees-to-terminal-psi/tests/view_loans.rs) · [Sum ownership](layers/05_prepared-trees-to-terminal-psi/tests/ownership.rs) · [Suspension](layers/05_prepared-trees-to-terminal-psi/tests/suspension.rs)
+
+**Implementation order.** Settle the common place and edge forms in step 1 before assigning multiple writers to machine bodies. Steps 2 and 3 can then proceed independently against those forms, with one integration test for a partial move through an exclusive loan and restoration before release. Call-interface and assembly-input work can proceed alongside them. Integrate calls and outcomes once their argument, continuation and cleanup forms are settled. Apply the contract and observation tests to those actual operands and edges. Each implementation checkpoint ends with the relevant producer assertions and an independent reader that imports only `omega-psi`. [Consumer fixture](layers/05_prepared-trees-to-terminal-psi/tests/psi-consumer/Cargo.toml)
+
+**Suspension evidence.** For two incoming byte views, the prepared call’s operand identifies the selected formal and its suspension acknowledgement. Changing that operand from `left` to `right` changes which loan the incomplete callee holds. The continuation reads the other view. The Psi-only reader rejects an exchange of the two descriptor identities even when their types, access modes and row count agree. Before a branch selects between two views, a suspending call retains both possible inputs and the selector needed on completion. After the join, the selected descriptor leads back through the actual arrival. The Psi reader detects swapped branch operands. When an arm supplies a shared view returned by a completed local call, the defining call, its selected machine’s normal return and the ordered actuals trace the view back to its input. Nested calls, terminal forwarding and locally supplied members use those same records. A boundary result without input-relative return evidence still stops at the crossing. [Returned views](layers/05_prepared-trees-to-terminal-psi/tests/returned_view.rs) · [Prepared calls and nested forwarding](layers/05_prepared-trees-to-terminal-psi/tests/returned_view_inputs.rs) [Branch-join consumer](layers/05_prepared-trees-to-terminal-psi/tests/joined_loans.rs) · [Nested joins and terminal calls](layers/05_prepared-trees-to-terminal-psi/tests/joined_loan_inputs.rs) · [Prepared operand and Psi tests](layers/05_prepared-trees-to-terminal-psi/tests/parked_byte_views.rs) · [Ordinary and terminal calls](layers/05_prepared-trees-to-terminal-psi/tests/suspension.rs)
+
+**Coverage before lock.** These seven groups organize implementation. Before sign-off, reconcile individual source forms and typed obligations against the governing spec and the L5 operation, predicate and terminator variants. Include element views and bounds, access policies and storage custody, finite callable families, proof-only recursion, float meaning and integer goals, external observations, and operation identities used for work accounting. For each rule record its spec section, producing fact, emitted record and accept/reject test. If an earlier stage owns a refusal, record the diagnostic there and test the positive handoff at L5. If a valid construct still reaches an unsupported lowering path, keep its rule open. The encoding inventory helps find omitted semantic records. Artifact serialization, proof verdicts, optimization, installation and native realization have their own owners. [Psi product](../wiki/spec/terminal-psi/product.md) · [Semantic rows](../wiki/spec/terminal-psi/encoding.md) · [Integer goals](../wiki/spec/terminal-psi/integer_certificates.md) · [Observations](../wiki/spec/terminal-psi/observations.md) · [Logical work](../wiki/spec/resources/logical_work.md)
+
+**Sign-off run.** For each contested handoff, inspect the product after dropping the prepared trees. Use a source twin to catch a legal but wrong choice, such as selecting a same-typed sibling. Use an independently malformed product or an exact diagnostic to test a refusal at its owning layer. Extend the existing reachable-block and unique-operation invariant over new successor forms. Run the affected producer tests, the complete lowering crate, the published corpus, the dependency check and all-target Clippy through `mbx`. Record the measured L5 suite time and unresolved behavior in the layer table. Jarod signs off after the rule-level review. [Current invariant](layers/05_prepared-trees-to-terminal-psi/tests/support/control_flow.rs) · [Sign-off criteria](#what-solid-means)
 
 ## Spec gaps
 

@@ -1,6 +1,6 @@
 use super::*;
-use omega_toolchain::{CollectionPrimitive, core_interface};
-use omega_typer::{Access, Projection};
+use omega_program_contracts::CollectionPrimitive;
+use omega_typed::{Access, Projection};
 
 impl ConstantEvaluation<'_, '_> {
     pub(super) fn schedule_array_read<'a>(
@@ -13,7 +13,6 @@ impl ConstantEvaluation<'_, '_> {
     ) -> Result<bool, EvaluationError> {
         let file = tree.resolved().file;
         let site = file.node_id(node);
-        let read = core_interface().collection(CollectionPrimitive::Read);
         let Some(access) = tree.semantics_at(node).find_map(|record| match record {
             NodeSemantics::CollectionAccess(access) => Some(access),
             _ => None,
@@ -25,11 +24,11 @@ impl ConstantEvaluation<'_, '_> {
         };
         let base = file.node_id(file.ungroup(base));
         let selector = file.node_id(selector);
-        let base_type = checked_carrier_in_scope(tree, base.node, scope.application())?;
+        let base_type = checked_carrier_in_scope(tree, base.node, scope)?;
         let ValueType::Array(element, _) = &base_type else {
             return Err(UNSUPPORTED_BODY.into());
         };
-        if &access.machine != read
+        if access.primitive != CollectionPrimitive::Read
             || &scope.instantiate(&access.element) != element.as_ref()
             || &scope.instantiate(&access.result) != result
             || element.as_ref() != result
@@ -49,7 +48,7 @@ impl ConstantEvaluation<'_, '_> {
             match record {
                 NodeSemantics::Expression(_) | NodeSemantics::CollectionAccess(_) => {}
                 NodeSemantics::Obligation(o) => match &o.kind {
-                    ObligationKind::CallPrecondition(machine) if machine == read => bound = true,
+                    ObligationKind::CallPrecondition(machine) if machine == &access.machine => bound = true,
                     ObligationKind::Borrow { access: Access::Shared, place }
                         if place.span == file.span(file.nodes[node].children[0]) && place.file == file.path && place.package == file.package =>
                     {
@@ -61,15 +60,11 @@ impl ConstantEvaluation<'_, '_> {
                 _ => return Err(UNSUPPORTED_BODY.into()),
             }
         }
-        let index_type = checked_carrier_in_scope(tree, selector.node, scope.application())?;
-        if !bound
-            || !borrowed
-            || index_type
-                != (ValueType::Integer {
-                    signed: false,
-                    width: Some(64),
-                })
-        {
+        let [selector_carrier] = access.selector_carriers.as_slice() else {
+            return Err(UNSUPPORTED_BODY.into());
+        };
+        let index_type = checked_carrier_in_scope(tree, selector.node, scope)?;
+        if !bound || !borrowed || scope.instantiate(selector_carrier) != index_type || IntegerRange::for_type(&index_type).is_none() {
             return Err(UNSUPPORTED_BODY.into());
         }
         execution.steps.extend([
@@ -99,7 +94,7 @@ impl ConstantEvaluation<'_, '_> {
             return Err(UNSUPPORTED_BODY.into());
         };
         let base = file.node_id(file.ungroup(base));
-        let base_type = checked_carrier_in_scope(tree, base.node, scope.application())?;
+        let base_type = checked_carrier_in_scope(tree, base.node, scope)?;
         if !matches!(base_type, ValueType::Array(..))
             || !matches!(operation.operands.as_slice(), [ty] if scope.instantiate(ty) == base_type)
             || operation.result != *result

@@ -1,8 +1,9 @@
 //! Service reach and synchronous invocations propagate along the same executing
 //! machine calls. A newly discovered fact crosses each incoming call once.
+use crate::type_error::SourceTypeError;
 use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{CallUse, TypeError, TypedCall, TypedStage};
-use omega_resolver::DeclarationId;
+use omega_resolved::DeclarationId;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::{fmt::Debug, hash::Hash};
 

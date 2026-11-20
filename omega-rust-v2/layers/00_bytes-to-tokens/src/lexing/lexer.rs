@@ -1,10 +1,10 @@
 //! The two entry points of the layer: `lex` and `lex_into`.
 
+use crate::Token;
 use crate::errors::lex_error::LexError;
 use crate::errors::lex_error_kind::LexErrorKind;
 use crate::lexing::token_scanner::TokenScanner;
 use crate::locations::source_span::SourceSpan;
-use crate::tokens::token::Token;
 
 /// Cuts one source file into tokens, or reports the first lexical rule it breaks.
 ///

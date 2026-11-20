@@ -1,12 +1,12 @@
 //! Types: references, slices, arrays, machine types, function arrows and paths.
 
+use crate::NodeKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::closed_node::ClosedNode;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::node_kind::NodeKind;
-use omega_lexer::Punctuation;
+use omega_tokens::Punctuation;
 
 impl SyntaxParser<'_> {
     /// `type`, or `type -> type` except after `as`. The arrow groups to the right.
@@ -105,7 +105,7 @@ impl SyntaxParser<'_> {
             let bracketed_type = self.open();
 
             self.bump();
-            self.parse_type(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Plain)?;
 
             let kind = if self.eat(Punctuation::Semicolon) {
                 self.parse_expression(ExpressionContext::FULL)?;

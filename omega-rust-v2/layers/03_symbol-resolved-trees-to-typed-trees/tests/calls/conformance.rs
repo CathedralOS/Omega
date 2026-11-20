@@ -31,6 +31,23 @@ fn explicit_evidence_binds_the_exact_trait_member() {
             .iter()
             .any(|c| c.machine.path == "Render::paint" && c.evidence.is_some())
     );
+    let use_map = stage
+        .calls
+        .iter()
+        .find(|c| c.machine.path == "use_map")
+        .unwrap();
+    let paint = stage
+        .calls
+        .iter()
+        .find(|c| c.machine.path == "Render::paint")
+        .unwrap()
+        .in_caller_application(use_map);
+    let Some(omega_typer::ValueType::Implementation(owner)) = &paint.evidence else {
+        panic!("application lost its named evidence")
+    };
+    let declared = &stage.conformance_targets[owner.as_ref()];
+    assert_eq!(declared.declaration.path, "Render");
+    assert_eq!(declared.trait_arguments, paint.enclosing_arguments[0].1);
     let bad = format!("{declarations} machine f()->bool{{use_map::<bool,Renderer>(true)}}");
     let e = check(&[("evidence.omg", &bad)]).unwrap_err();
     assert!(e.message.contains("wrong trait"), "{e:?}");

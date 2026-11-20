@@ -1,10 +1,10 @@
 //! The two entry points of the layer: `parse_file` and `parse_fragment`.
 
+use crate::SyntaxTree;
 use crate::errors::parse_error::ParseError;
 use crate::parsing::fragment_kind::FragmentKind;
 use crate::parsing::syntax_parser::SyntaxParser;
-use crate::tree::syntax_tree::SyntaxTree;
-use omega_lexer::Token;
+use omega_tokens::Token;
 
 /// Groups one source file's tokens into a syntax tree, or reports the first place they leave the grammar.
 ///

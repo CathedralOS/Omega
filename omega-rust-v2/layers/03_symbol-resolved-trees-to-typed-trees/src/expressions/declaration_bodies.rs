@@ -1,8 +1,11 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
+use crate::type_system::dependent_subjects::DependentSubjects;
 use crate::{ObligationKind, TypeError, TypedStage, ValueType};
-use omega_parser::NodeKind;
+use omega_syntax::NodeKind;
 
 pub(crate) fn check_static_argument(
     unit: &ResolvedSourceFile<'_>,
@@ -97,7 +100,22 @@ pub(crate) fn check_declaration(
     let signature = catalog.signatures.get(id);
     let subject = match source.nodes[node_index].kind {
         NodeKind::Machine | NodeKind::AsmMachine => signature.map(|s| s.result.clone()),
-        NodeKind::Domain => Some(catalog.types.domains.carrier(id).clone()),
+        NodeKind::Domain => {
+            let carrier = catalog.types.domains.carrier(id);
+            let members = catalog.types.domains.alias_members(id);
+            if !members.is_empty() {
+                let qualified = ValueType::Qualified(Box::new(carrier.clone()), members.to_vec());
+                let expanded = catalog
+                    .types
+                    .normalize_at(qualified, unit, node_index)
+                    .map_err(|message| TypeError::at(source, node_index, message))?;
+                output
+                    .domain_alias_members
+                    .insert(id.clone(), expanded.domains().to_vec());
+            }
+            output.domain_carriers.insert(id.clone(), carrier.clone());
+            Some(carrier.clone())
+        }
         NodeKind::Data => Some(catalog.types.open_data(id)),
         _ => None,
     };

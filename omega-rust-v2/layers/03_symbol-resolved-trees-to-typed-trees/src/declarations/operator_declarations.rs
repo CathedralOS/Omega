@@ -1,15 +1,12 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::type_system::overload_identity::same_operands;
 use crate::{TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, ResolvedStage, SymbolResolvedTrees};
+use omega_resolved::{DeclarationId, ResolvedStage, SymbolResolvedTrees};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 use std::collections::{HashMap, HashSet};
-
-#[derive(Clone)]
-pub(crate) struct TypedOperatorBinding<'a> {
-    pub declaration: &'a omega_resolver::OperatorDeclaration,
-    pub home: Option<DeclarationId>,
-}
 
 pub(crate) fn nominal_operator_operand<'a>(
     token: &str,
@@ -35,7 +32,7 @@ pub(crate) fn trait_operator_tokens<'a>(
         .map(|(trait_id, tokens)| ((trait_id.package.as_str(), trait_id.path.as_str()), tokens.iter().copied().collect::<Vec<_>>()))
         .collect::<HashMap<_, _>>();
     for binding in &resolved.operator_declarations {
-        if let Some(omega_resolver::Symbol::Declaration(home)) = &binding.declared_home
+        if let Some(omega_resolved::Symbol::Declaration(home)) = &binding.declared_home
             && home.kind == NodeKind::Trait
         {
             operators_by_home
@@ -138,20 +135,16 @@ pub(crate) fn index_operator_declarations<'a>(
                 .all(|(_, t)| t.numeric() || t == &ValueType::Bool);
         let duplicate = family.iter().any(|b| {
             // Sealed bracket primitives also dispatch on whether the caller requests a loan.
-            let sealed_pair = library.is_some_and(|core| {
-                core.collection_primitive(&binding.machine).is_some()
-                    && core.collection_primitive(&b.declaration.machine).is_some()
-                    && binding.machine != b.declaration.machine
-            });
+            let sealed_pair = library
+                .is_some_and(|core| core.collection_primitive(&binding.machine).is_some() && core.collection_primitive(b).is_some() && binding.machine != **b);
             !sealed_pair
-                && b.home.as_ref() == home
-                && b.declaration.machine.package == binding.machine.package
-                && same_operands(
-                    &items.signatures[&b.declaration.machine].parameters,
-                    &b.declaration.machine,
-                    &signature.parameters,
-                    &binding.machine,
-                )
+                && items.signatures[*b]
+                    .operator
+                    .as_ref()
+                    .and_then(|op| op.home.as_ref())
+                    == home
+                && b.package == binding.machine.package
+                && same_operands(&items.signatures[*b], signature)
         });
         if !valid || duplicate || primitive {
             return Err(refusal(if !valid {
@@ -162,10 +155,19 @@ pub(crate) fn index_operator_declarations<'a>(
                 "duplicate normalized operator binding"
             }));
         }
-        family.push(TypedOperatorBinding {
-            declaration: binding,
-            home: home.cloned(),
+        let home = home.cloned();
+        let signature = items
+            .signatures
+            .get_mut(&binding.machine)
+            .expect("the operator signature was checked above");
+        std::sync::Arc::make_mut(signature).operator = Some(crate::TypedOperatorDeclaration {
+            node: binding.node,
+            site: site_at(tree.file, node),
+            token: binding.token.clone(),
+            home,
+            public: binding.public,
         });
+        family.push(&binding.machine);
     }
     Ok(())
 }

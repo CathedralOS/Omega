@@ -1,6 +1,16 @@
 [workspace]
 resolver = "3"
 members = [
+    "contracts/program",
+    "contracts/target",
+    "representations/tokens",
+    "representations/syntax",
+    "representations/resolved",
+    "representations/typed",
+    "representations/prepared",
+    "representations/psi",
+    "layers/05_prepared-trees-to-terminal-psi/tests/psi-consumer",
+    "layers/05_prepared-trees-to-terminal-psi/tests/tree-consumer",
     "application",
     "toolchain",
     "layers/00_bytes-to-tokens",

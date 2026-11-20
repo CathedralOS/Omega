@@ -1,9 +1,11 @@
 use crate::declarations::data_properties;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 fn has_generic_arguments(kind: NodeKind) -> bool {
@@ -183,7 +185,7 @@ impl<'a> ResolvedSourceFile<'a> {
     }
     pub(super) fn parameter_slot(
         &self,
-        span: omega_lexer::SourceSpan,
+        span: omega_tokens::SourceSpan,
         types: &TypeCatalog<'a>,
     ) -> Option<(&'a DeclarationId, usize)> {
         let ValueType::Parameter { owner, index } = self.parameters.get(&span)? else {
@@ -238,11 +240,8 @@ impl<'a> ResolvedSourceFile<'a> {
         }
         if matches!(carrier, ValueType::Universe { .. }) {
             self.universe_binders.insert(node_index);
-            if omega_resolver::is_builtin_type_name(name.text) {
-                return Err(TypeError {
-                    span: name.span,
-                    ..TypeError::at(self.file, node_index, format!("builtin type {} cannot be redeclared", name.text))
-                });
+            if omega_resolved::is_builtin_type_name(name.text) {
+                return Err(TypeError::at(self.file, node_index, format!("builtin type {} cannot be redeclared", name.text)).with_span(name.span));
             }
         }
         types.set_carrier(owner, index, carrier);

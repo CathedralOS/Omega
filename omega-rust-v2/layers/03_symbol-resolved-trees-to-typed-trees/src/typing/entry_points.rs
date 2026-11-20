@@ -1,6 +1,6 @@
 use crate::typing::type_stage::type_admitted_stage;
 use crate::{AssemblyTypes, TypeError, TypingEnvironment};
-use omega_resolver::SymbolResolvedTrees;
+use omega_resolved::SymbolResolvedTrees;
 /// Type the exact trees whose names L2 resolved.
 pub fn type_stage<'text>(resolved: &SymbolResolvedTrees<'text>) -> Result<crate::TypedTrees<'text>, TypeError> {
     type_stage_in_environment(resolved, &TypingEnvironment::default())

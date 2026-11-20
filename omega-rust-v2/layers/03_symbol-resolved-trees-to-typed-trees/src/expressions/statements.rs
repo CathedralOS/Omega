@@ -1,8 +1,10 @@
 use super::destination::Destination;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::PatternSource;
+use crate::type_error::SourceTypeError;
+use crate::type_relations::TypeRelations;
 use crate::{ObligationKind, TypeError, ValueType};
-use omega_parser::NodeKind;
+use omega_syntax::NodeKind;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_block(
@@ -36,6 +38,17 @@ impl BodyTyper<'_, '_> {
                     let expr = self.unit.single_child(statement)?;
                     let tail = source.nodes[statement].kind == Tail;
                     let value = self.type_at_destination(expr, if tail { destination } else { Destination::Unspecified }, tail && machine_result)?;
+                    // A terminal external call cannot deliver a value to discard or return.
+                    let at = source.node_id(source.ungroup(expr));
+                    if self
+                        .output
+                        .external_completions
+                        .last()
+                        .is_some_and(|completion| completion.node == at)
+                    {
+                        result = Some(expected.cloned().unwrap_or(value));
+                        continue;
+                    }
                     if tail {
                         self.set_origin(node_index, self.origin(expr));
                         if let Some(ty) = expected {
@@ -114,6 +127,7 @@ impl BodyTyper<'_, '_> {
             self.record_obligation(node_index, ObligationKind::ZeroValue(ty.clone()));
             if source.nodes[node_index].words().any(|w| w.text == "mut") {
                 self.writable.insert(source.span(pattern));
+                self.output.mutable_bindings.insert(source.node_id(pattern));
             }
             if !self
                 .bind_pattern(pattern, &ty, annotation, &PatternSource::default())?
@@ -160,6 +174,7 @@ impl BodyTyper<'_, '_> {
         }
         if source.nodes[node_index].words().any(|w| w.text == "mut") {
             self.writable.insert(source.span(pattern));
+            self.output.mutable_bindings.insert(source.node_id(pattern));
         }
         if !self.bind_pattern(pattern, &local_type, expr, &from)?.is_total() {
             return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));

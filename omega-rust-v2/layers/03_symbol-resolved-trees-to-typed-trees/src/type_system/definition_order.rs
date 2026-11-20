@@ -3,8 +3,9 @@
 use super::type_catalog::TypeCatalog;
 use crate::TypeError;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, NameContext, Symbol};
+use crate::type_error::SourceTypeError;
+use omega_resolved::{DeclarationId, NameContext, Symbol};
+use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy)]
@@ -30,6 +31,7 @@ enum Work {
 pub(crate) fn index_type_definitions<'a>(
     units: &mut [ResolvedSourceFile<'a>],
     types: &mut TypeCatalog<'a>,
+    output: &mut crate::TypedStage,
 ) -> Result<(), TypeError> {
     use NodeKind::{ConstParam, Data, Domain, GenericParams, KindedParam, PathType};
     for unit in units.iter_mut() {
@@ -141,7 +143,10 @@ pub(crate) fn index_type_definitions<'a>(
                         {
                             target = alias.clone();
                         }
-                        if unit.file.nodes[expression].kind == NodeKind::MachineType {
+                        if let crate::ValueType::Callable(callable) = &target
+                            && unit.file.nodes[expression].kind == NodeKind::MachineType
+                        {
+                            output.record_callable_origin(callable.contract.clone(), unit.file.node_id(expression));
                             // An alias can leave its own effects open. Its operands and
                             // result are still carried at runtime on every invocation.
                             for annotation in unit

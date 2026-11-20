@@ -66,8 +66,7 @@ fn block(
     chapter: &str,
     line: usize,
 ) -> String {
-    let mut examples = Vec::new();
-    spec_corpus::extract_examples_from_markdown("chapter", chapter, &mut examples);
+    let examples = spec_corpus::published_chapter(chapter).unwrap();
     examples
         .into_iter()
         .find(|e| e.fence_line_number == line)
@@ -153,10 +152,7 @@ fn report(
 }
 
 fn codec() -> bool {
-    let spec = format!(
-        "use model\\Message; use model\\Codec;\n{}",
-        block(include_str!("../../../../wiki/spec/language/conformances.md"), 204)
-    );
+    let spec = format!("use model\\Message; use model\\Codec;\n{}", block("language/conformances.md", 204));
     let edges = [
         ("example", "model", "messages"),
         ("example", "lib_a", "encoder"),
@@ -238,7 +234,7 @@ fn codec() -> bool {
 }
 
 fn reader() -> bool {
-    let chapter = include_str!("../../../../wiki/spec/language/some_packages.md");
+    let chapter = "language/some_packages.md";
     let schema = block(chapter, 15);
     let init = block(chapter, 41);
     let source = format!("machine pack() {{ let mut file:File;\n{init}\n}}");
@@ -267,7 +263,7 @@ fn reader() -> bool {
 }
 
 fn reflection() -> bool {
-    let selectors = block(include_str!("../../../../wiki/spec/language/reflection.md"), 77);
+    let selectors = block("language/reflection.md", 77);
     let defs = "data Controller{status:u8;} data Buffer<T>{used:T;} trait ControllerWriter{machine write();}";
     let mut ok = true;
     let expected = [

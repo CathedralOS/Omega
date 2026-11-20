@@ -10,7 +10,14 @@ use omega_toolchain::SourcePackage;
 /// omega_typer::type_source_package(&bare).unwrap();
 /// ```
 pub fn type_source_package<'text>(resolved: &SourcePackage<'text>) -> Result<crate::TypedTrees<'text>, TypeError> {
-    type_admitted_stage(resolved, Some(super::core_interface::checked_library()), &TypingEnvironment::default())
+    type_admitted_stage(
+        resolved,
+        Some(super::core_interface::checked_library()),
+        &TypingEnvironment {
+            target: resolved.assembly(),
+            ..Default::default()
+        },
+    )
 }
 
 /// Type a package up to the point where a static evaluation result is needed.
@@ -20,6 +27,18 @@ pub fn type_source_package_for_preparation<'text>(
     resolved: &SourcePackage<'text>,
     environment: &TypingEnvironment<'_>,
 ) -> Result<TypingProgress<'text>, TypeError> {
+    if environment.target.is_some() && environment.target != resolved.assembly() {
+        return Err(TypeError::new(
+            String::new(),
+            String::new(),
+            omega_program_contracts::SourceSpan::new(0, 0),
+            "assembly catalog differs from the one used to resolve this package",
+        ));
+    }
+    let environment = &TypingEnvironment {
+        target: resolved.assembly(),
+        ..*environment
+    };
     let library = Some(super::core_interface::checked_library());
     let (trees, demands) = type_stage_inner(resolved, library, environment, true)?;
     if demands.is_empty() {

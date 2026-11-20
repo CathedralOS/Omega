@@ -262,7 +262,7 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
     let query = selected_call(&tree, layout_query, CallUse::Fact)
         .unwrap()
         .unwrap();
-    assert_eq!(query.layout_query.as_ref().map(|query| query.projection), Some(LayoutQuery::Size));
+    assert_eq!(query.layout_query, Some(LayoutQuery::Size));
     assert_eq!(query.type_arguments, [WORD]);
 
     let identity = TargetIdentity {

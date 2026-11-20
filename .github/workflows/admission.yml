@@ -29,8 +29,14 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
-      - name: Compare the workspace copy with the Omega specification
-        run: git diff --exit-code HEAD:wiki/spec HEAD:omega-rust-v2/wiki/spec
+      - name: Require the shared Omega specification
+        run: |
+          compgen -G "$GITHUB_WORKSPACE/wiki/spec/*/*.md" > /dev/null || { echo "::error::The repository specification is missing"; exit 1; }
+          copy="$GITHUB_WORKSPACE/omega-rust-v2/wiki/spec"
+          if [[ -e "$copy" || -L "$copy" ]]; then
+            echo "::error::V2 must read the repository specification at wiki/spec"
+            exit 1
+          fi
       - name: Check the repository archive and its boundary with active code
         run: |
           # A symlink can redirect an existing module or path dependency without editing its caller.
@@ -43,7 +49,7 @@ jobs:
       - name: Identify changes to V2 or its CI toolchain
         id: changes
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == push ]] || ! git diff --quiet HEAD^1 HEAD -- omega-rust-v2 .github/workflows/admission.yml tools/mbx-version tools/xtask/bootstrap-mbx.sh rust-toolchain.toml; then
+          if [[ "$GITHUB_EVENT_NAME" == push ]] || ! git diff --quiet HEAD^1 HEAD -- omega-rust-v2 wiki/spec .github/workflows/admission.yml tools/mbx-version tools/xtask/bootstrap-mbx.sh rust-toolchain.toml; then
             echo 'v2=true' >> "$GITHUB_OUTPUT"
           else
             echo 'Root compiler checks are paused during the source-rust move.'

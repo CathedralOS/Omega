@@ -1,5 +1,9 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Access, ObligationKind, Site, TypeError, TypedNumericLanding, ValueType};
+use crate::type_error::SourceTypeError;
+use crate::type_relations::CallableContract;
+use crate::type_relations::TypeRelations;
+use crate::{Access, ObligationKind, TypeError, TypedNumericLanding, ValueType};
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_destination(
@@ -123,7 +127,7 @@ impl BodyTyper<'_, '_> {
         if let ValueType::Exact { value, .. } = value {
             self.output.landings.push(TypedNumericLanding {
                 node: self.unit.file.node_id(node_index),
-                site: Site::at(self.unit.file, node_index),
+                site: site_at(self.unit.file, node_index),
                 value: value.clone(),
                 ty: expected.clone(),
             });

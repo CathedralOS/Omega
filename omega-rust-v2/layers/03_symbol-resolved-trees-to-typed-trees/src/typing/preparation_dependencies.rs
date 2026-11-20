@@ -1,9 +1,10 @@
 //! Unfinished checks block consumers of their types, bodies, and contracts.
 //! A static expression can still be ready inside an unfinished declaration.
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::type_error::SourceTypeError;
 use crate::{InvocationTarget, ObligationKind, StaticValueDemand, TypeError, TypedStage, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol, SymbolResolvedTrees, TreeNodeId};
+use omega_resolved::{DeclarationId, Symbol, SymbolResolvedTrees, TreeNodeId};
+use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -98,8 +99,8 @@ impl<'a> PreparationDependencies<'a> {
                 )
                 .flat_map(ValueType::components)
             {
-                if let ValueType::MachineSelection(machine, _) = argument {
-                    depend_on(call.node, machine);
+                if let ValueType::MachineSelection(selection) = argument {
+                    depend_on(call.node, &selection.machine);
                 }
             }
             for operand in &call.operands {
@@ -113,7 +114,7 @@ impl<'a> PreparationDependencies<'a> {
                 depend_on(call.node, declaration);
             }
         }
-        for (node, constant) in &output.constant_references {
+        for (node, constant) in output.constant_references() {
             depend_on(*node, constant);
         }
         for row in &output.conformance_rows {
@@ -128,9 +129,8 @@ impl<'a> PreparationDependencies<'a> {
         }
         for obligation in &output.obligations {
             match &obligation.kind {
-                ObligationKind::RefineCallable { machine, .. } | ObligationKind::RefineMathematicalCitation { machine, .. } => {
-                    depend_on(obligation.node, machine)
-                }
+                ObligationKind::RefineCallable { selection, .. } => depend_on(obligation.node, &selection.machine),
+                ObligationKind::RefineMathematicalCitation { machine, .. } => depend_on(obligation.node, machine),
                 ObligationKind::SupplyHypothesis {
                     evidence: ValueType::ProofCitation(machine),
                     ..
@@ -253,7 +253,7 @@ fn type_dependencies(ty: &ValueType) -> impl Iterator<Item = &DeclarationId> {
 fn invocation_declaration(target: &InvocationTarget) -> Option<&DeclarationId> {
     match target {
         InvocationTarget::Declaration(slot) => Some(&slot.declaration),
-        InvocationTarget::AppliedMachine { declaration, .. } => Some(declaration),
+        InvocationTarget::AppliedMachine(selection) => Some(selection.machine.as_ref()),
         _ => None,
     }
 }

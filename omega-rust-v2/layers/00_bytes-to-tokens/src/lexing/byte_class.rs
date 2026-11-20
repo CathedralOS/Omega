@@ -8,9 +8,8 @@ pub(crate) enum ByteClass {
     Digit,
     Quote,
     Slash, // Kept apart from other punctuation because it may begin a comment.
-    Punctuation,
     NonAscii,
-    Unknown, // An ASCII byte outside Omega syntax, such as a question mark or a control byte.
+    OtherAscii, // The punctuation vocabulary decides whether this starts a token.
 }
 
 /// The class of every possible byte, so that choosing a token's rule is one lookup.
@@ -20,7 +19,7 @@ pub(crate) const BYTE_CLASSES: [ByteClass; 256] = build_byte_classes();
 pub(crate) const IS_WORD_CONTINUE: [bool; 256] = build_is_word_continue();
 
 const fn build_byte_classes() -> [ByteClass; 256] {
-    let mut byte_classes = [ByteClass::Unknown; 256];
+    let mut byte_classes = [ByteClass::OtherAscii; 256];
     let mut byte_value = 0usize;
 
     while byte_value < 256 {
@@ -30,12 +29,8 @@ const fn build_byte_classes() -> [ByteClass; 256] {
             b'0'..=b'9' => ByteClass::Digit,
             b'"' => ByteClass::Quote,
             b'/' => ByteClass::Slash,
-            // @Volatile: must list every first byte in `Punctuation::ORDERED_SPELLINGS` except the
-            // slash. A test below fails if the two ever disagree.
-            b'+' | b'-' | b'*' | b'%' | b'<' | b'>' | b'=' | b'!' | b'&' | b'|' | b':' | b'.' | b'\'' | b'^' | b'~' | b'#' | b',' | b';' | b'(' | b')'
-            | b'[' | b']' | b'{' | b'}' | b'@' | b'$' | b'\\' => ByteClass::Punctuation,
             0x80..=0xFF => ByteClass::NonAscii,
-            _ => ByteClass::Unknown,
+            _ => ByteClass::OtherAscii,
         };
         byte_value += 1;
     }
@@ -48,7 +43,7 @@ const fn build_is_word_continue() -> [bool; 256] {
     let mut byte_value = 0usize;
 
     while byte_value < 256 {
-        is_word_continue[byte_value] = matches!(byte_value as u8, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_');
+        is_word_continue[byte_value] = matches!(BYTE_CLASSES[byte_value], ByteClass::WordStart | ByteClass::Digit);
         byte_value += 1;
     }
 
@@ -57,41 +52,29 @@ const fn build_is_word_continue() -> [bool; 256] {
 
 #[cfg(test)]
 mod tests {
-    use crate::lexing::byte_class::{BYTE_CLASSES, ByteClass, IS_WORD_CONTINUE};
-    use crate::tokens::punctuation::Punctuation;
+    use super::{ByteClass, build_byte_classes, build_is_word_continue};
+    use crate::Punctuation;
 
     #[test]
-    fn every_punctuation_first_byte_is_classed_as_punctuation_or_slash() {
+    fn punctuation_reaches_the_scanner_rule_for_its_first_byte() {
+        let classes = build_byte_classes();
         for (spelling, _) in Punctuation::ORDERED_SPELLINGS {
-            let first_byte = spelling.as_bytes()[0];
-            let byte_class = BYTE_CLASSES[usize::from(first_byte)];
-
-            assert!(
-                matches!(byte_class, ByteClass::Punctuation | ByteClass::Slash),
-                "`{spelling}` starts with a byte classed {byte_class:?}, so the scanner would never try it"
+            let byte = spelling.as_bytes()[0];
+            assert_eq!(
+                classes[usize::from(byte)],
+                if byte == b'/' { ByteClass::Slash } else { ByteClass::OtherAscii },
+                "{spelling}"
             );
         }
     }
 
     #[test]
-    fn every_byte_classed_as_punctuation_starts_some_spelling() {
-        for byte_value in 0u8..=255 {
-            if matches!(BYTE_CLASSES[usize::from(byte_value)], ByteClass::Punctuation | ByteClass::Slash) {
-                assert!(
-                    Punctuation::longest_match(&[byte_value]).is_some(),
-                    "byte {byte_value:#04x} is classed as punctuation but matches no spelling"
-                );
-            }
-        }
-    }
-
-    #[test]
     fn a_word_start_can_also_continue_a_word_and_so_can_a_digit() {
+        let continues_word = build_is_word_continue();
         for byte_value in 0u8..=255 {
-            let byte_class = BYTE_CLASSES[usize::from(byte_value)];
-            let expected_is_word_continue = matches!(byte_class, ByteClass::WordStart | ByteClass::Digit);
+            let expected_is_word_continue = byte_value.is_ascii_alphanumeric() || byte_value == b'_';
 
-            assert_eq!(IS_WORD_CONTINUE[usize::from(byte_value)], expected_is_word_continue, "byte {byte_value:#04x}");
+            assert_eq!(continues_word[usize::from(byte_value)], expected_is_word_continue, "byte {byte_value:#04x}");
         }
     }
 }

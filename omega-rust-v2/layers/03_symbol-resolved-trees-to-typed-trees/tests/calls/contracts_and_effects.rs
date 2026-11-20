@@ -24,7 +24,7 @@ fn specialized_callback_crash_retains_the_selected_guard_and_its_argument() {
     assert_eq!(spelling(&enclosing.site), b"forward::<guarded>(a)");
     assert_eq!(enclosing.caller.as_ref().unwrap().path, "outer");
     assert!(matches!(call.entry, omega_typer::InvocationTarget::StaticParameter { .. }));
-    assert!(matches!(enclosing.type_arguments.as_slice(), [ValueType::MachineSelection(id, _)] if id.path == "guarded"));
+    assert!(matches!(enclosing.type_arguments.as_slice(), [ValueType::MachineSelection(selection)] if selection.machine.path == "guarded"));
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn result_domains_and_contracts() {
 #[test]
 fn pause_defaults_belong_to_the_declaration_being_checked() {
     let source = "machine private_fn() {}
-        public machine exported() {}
+        public machine exported() { public machine nested() {} }
         machine bare() blocks suspends {}
         machine explicit() blocks false suspends true {}
         trait Base {}
@@ -57,6 +57,7 @@ fn pause_defaults_belong_to_the_declaration_being_checked() {
     for (name, block, suspend) in [
         ("private_fn", None, None),
         ("exported", Some(false), Some(false)),
+        ("exported::nested", None, None),
         ("bare", Some(true), Some(true)),
         ("explicit", Some(false), Some(true)),
     ] {
@@ -66,6 +67,9 @@ fn pause_defaults_belong_to_the_declaration_being_checked() {
             .find(|s| s.machine.path == name)
             .unwrap();
         assert_eq!((signature.pause.block, signature.pause.suspend), (block, suspend), "{name}");
+        if matches!(name, "exported" | "exported::nested") {
+            assert_eq!(signature.crash_ceiling.is_some(), name == "exported");
+        }
     }
     let restriction = stage
         .refinements
@@ -695,7 +699,7 @@ fn a_fact_uses_the_pause_effect_of_its_selected_callback() {
         .iter()
         .find(|call| call.use_site == omega_typer::CallUse::Fact)
         .unwrap();
-    assert!(matches!(fact.type_arguments.as_slice(), [ValueType::MachineSelection(id, _)] if id.path == "local"));
+    assert!(matches!(fact.type_arguments.as_slice(), [ValueType::MachineSelection(selection)] if selection.machine.path == "local"));
     assert!(
         check_fact("parked")
             .unwrap_err()

@@ -1,26 +1,20 @@
-use super::{Catalog, Context, NameError, Symbol, builtin, callable, usage};
+use super::{Catalog, Context, NameError, Symbol, builtin, callable, in_subject_predicate, usage};
 use super::{NameContext, NameRole};
 use crate::syntax::File;
-use omega_lexer::SourceSpan;
-use omega_parser::{NodeKind, TerminationClause};
+use omega_syntax::{NodeKind, TerminationClause};
+use omega_tokens::SourceSpan;
 use std::collections::BTreeMap;
 
 impl Catalog<'_> {
-    pub(super) fn bind(
+    pub(super) fn bind_nodes(
         &self,
         file: &File<'_>,
         ctx: &Context<'_>,
-        bindings: &mut crate::resolved_trees::TreeBindings,
+        nodes: impl Iterator<Item = usize>,
+        bindings: &mut omega_resolved::TreeBindings,
         visibility: &mut Vec<super::CarrierVisibility>,
     ) -> Result<(), NameError> {
         use NodeKind::*;
-        bindings.patterns.extend(
-            ctx.locals
-                .values()
-                .flatten()
-                .filter(|local| matches!(local.kind, BindingPattern | FieldPattern))
-                .map(|local| (local.node, local.span)),
-        );
         let mut traits = BTreeMap::new();
         // Imports and qualified machine headers bind before the bodies. Merge their
         // occurrences into syntax order so a node and its argument lists index the same names.
@@ -28,7 +22,8 @@ impl Catalog<'_> {
         headers.sort_by_key(|name| name.node.node);
         let mut headers = headers.into_iter().peekable();
         let uses = &mut bindings.uses;
-        for (n, node) in file.nodes.iter().enumerate() {
+        for n in nodes {
+            let node = &file.nodes[n];
             while let Some(name) = headers.next_if(|name| name.node.node == n) {
                 uses.push(name);
             }
@@ -72,11 +67,11 @@ impl Catalog<'_> {
             let shorthand = node.kind == FieldInit && node.children.is_empty();
             match node.kind {
                 BindingPattern => {
-                    if bindings.patterns.contains_key(&n) {
+                    if ctx.patterns.contains_key(&n) {
                         continue;
                     }
                     let owner = file.pattern_owner(n);
-                    if file.nodes[owner].kind == Arm && file.arm_has_subject(owner) {
+                    if file.nodes[owner].kind == Arm && crate::syntax::arm_has_subject(file, owner) {
                         // Only Boolean literals remain after subject-arm binders were indexed.
                         uses.push(usage(file, n, NameRole::Reference, file.span(n), Symbol::Builtin(node.path())));
                         continue;
@@ -234,8 +229,14 @@ impl Catalog<'_> {
                 Ok(())
             };
             let bound_local = visible_local.is_some_and(|l| matches!(l.kind, ConstParam | KindedParam));
+            let subject_name = path == "self"
+                && !membership_target
+                && (shorthand || !matches!(parent.kind, RecordLiteral | RecordPattern))
+                && (matches!(node.kind, PathExpression | BindingPattern) || shorthand || node.kind == PathType && file.argument_position(n).is_some());
             let symbol = if let Some(index) = ctx.domain_indices.get(&n) {
                 index.clone()
+            } else if subject_name && in_subject_predicate(file, n) {
+                Symbol::Builtin(path.clone())
             } else if file.reference_sections(n).is_empty()
                 && (typed_argument || bound_local && (ty || !expression_type) && parent.kind != FamilyApplication)
                 && node.kind != Lifetime
@@ -311,11 +312,6 @@ impl Catalog<'_> {
             {
                 Symbol::TargetRegister(path.clone())
             } else if ((ty || expression_type) && builtin(&path))
-                || (path == "self"
-                    && file
-                        .ancestors(n)
-                        .take_while(|&p| !callable(file.nodes[p].kind))
-                        .any(|p| matches!(file.nodes[p].kind, Data | Domain)))
                 || (path == "result" && file.ancestors(n).any(|p| file.nodes[p].kind == Ensures))
                 || (path == "none" && matches!(parent.kind, Reaches | Crashes))
                 || (parent.kind == Crashes && matches!(path.as_str(), "Trap" | "Abort"))
@@ -331,7 +327,8 @@ impl Catalog<'_> {
                 }
                 // The head of a qualified generic argument may denote a value. Until
                 // L3 types that head, a visible membership domain can have any carrier.
-                if candidates.is_empty() && attachments.is_empty() && qualified_argument_domain {
+                let untyped_domain = candidates.is_empty() && attachments.is_empty() && qualified_argument_domain;
+                if untyped_domain {
                     attachments = self.attached_domains(file, ctx, n, &path, true)?;
                 }
                 candidates.extend(attachments.iter().map(|a| a.slot));
@@ -408,16 +405,37 @@ impl Catalog<'_> {
                     if let Some((prefix_name, prefix_span)) = file.application_prefix(arg_list)
                         && prefix_name != path
                     {
-                        let prefix_owners = self.lookup(file, ctx, n, &prefix_name)?;
+                        let mut prefix_owners = self.lookup(file, ctx, n, &prefix_name)?;
+                        // A parent domain's argument list can use the same omitted
+                        // carrier as the child, as in u8 in Mark<3>::Child.
+                        let mut prefix_attachments = if prefix_owners.is_empty()
+                            && candidates
+                                .iter()
+                                .all(|&slot| self.entries[slot].id.kind == Domain)
+                        {
+                            self.attached_domains(file, ctx, n, &prefix_name, membership_target || untyped_domain)?
+                        } else {
+                            Vec::new()
+                        };
+                        prefix_attachments.retain(|owner| {
+                            candidates
+                                .iter()
+                                .any(|&child| self.has_domain_ancestor(child, owner.slot))
+                        });
+                        prefix_owners.extend(prefix_attachments.iter().map(|attachment| attachment.slot));
                         if prefix_owners.is_empty() {
                             return Err(file.error(prefix_span, format!("unresolved application owner {prefix_name}")));
+                        }
+                        if !prefix_attachments.is_empty() {
+                            check_candidates(&prefix_owners)?;
                         }
                         let role = if node.qualifier_span() == Some(prefix_span) {
                             NameRole::Qualifier
                         } else {
                             NameRole::ApplicationPrefix
                         };
-                        let site = usage(file, n, role, prefix_span, self.symbol(file, prefix_span, &prefix_owners)?);
+                        let target = self.occurrence_symbol(file, ctx, prefix_span, &prefix_owners, &prefix_attachments)?;
+                        let site = usage(file, n, role, prefix_span, target);
                         let index = if uses.last() == Some(&site) {
                             uses.len() - 1
                         } else {

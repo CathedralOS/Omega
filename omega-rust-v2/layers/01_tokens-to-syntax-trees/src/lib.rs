@@ -79,7 +79,6 @@
                     each a set of methods on `SyntaxParser`. Its `contexts/`
                     folder holds what a caller tells a rule about where it
                     sits.
-        tree/       what comes out: the tree, its events and the node kinds.
         errors/     what a refusal carries: the error and the reason it names.
 
     The folders are not numbered, because they are not steps: the parser is
@@ -89,7 +88,7 @@
            `parse_file` and `parse_fragment`, with a narrated example on each.
            This is all a caller ever touches.
 
-        2. tree/syntax_tree.rs, tree/tree_event.rs, tree/node_kind.rs
+        2. representations/syntax/src/{syntax_tree,tree_event,node_kind}.rs
            What comes back. `syntax_tree.rs` says why the tree is a flat list
            of events and not nodes that point at each other; read that before
            the code that writes the list.
@@ -153,13 +152,9 @@
 mod errors;
 mod grammar;
 mod parsing;
-mod tree;
 
 pub use errors::parse_error::ParseError;
 pub use errors::parse_error_kind::ParseErrorKind;
+pub use omega_syntax::*;
 pub use parsing::entry_points::{parse_file, parse_fragment};
 pub use parsing::fragment_kind::FragmentKind;
-pub use tree::indexed_syntax::{IndexedSyntax, Leaf as SyntaxLeaf, MathBinding, Node as SyntaxNode, PauseFlag, RangeBounds, SyntaxOperator, TerminationClause};
-pub use tree::node_kind::NodeKind;
-pub use tree::syntax_tree::SyntaxTree;
-pub use tree::tree_event::TreeEvent;

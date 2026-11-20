@@ -1,9 +1,11 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::typing::preparation_dependencies::PreparationDependencies;
-use crate::{AccessPolicySelection, ObligationKind, Site, TypeError, TypedStage, TypingObligation};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use crate::{AccessPolicySelection, ObligationKind, TypeError, TypedStage, TypingObligation};
+use omega_resolved::Symbol;
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 
 pub(crate) fn check_access_policies(
     units: &[ResolvedSourceFile<'_>],
@@ -54,7 +56,7 @@ pub(crate) fn check_access_policies(
                 return Err(TypeError::at(f, head, "access plan computation must be effect-free"));
             }
             out.access_policies.push(AccessPolicySelection {
-                site: Site::at(f, n),
+                site: site_at(f, n),
                 domain: domain.clone(),
                 policy: policy.clone(),
                 arguments: args,
@@ -62,7 +64,7 @@ pub(crate) fn check_access_policies(
             });
             out.obligations.push(TypingObligation {
                 node: f.node_id(n),
-                site: Site::at(f, n),
+                site: site_at(f, n),
                 kind: ObligationKind::EvaluateAccessPlan {
                     domain: domain.clone(),
                     machine: machine.clone(),

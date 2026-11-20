@@ -1,9 +1,11 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_error::SourceTypeError;
 use crate::typing::preparation_dependencies::PreparationDependencies;
-use crate::{CleanupSelection, ObligationKind, Site, TypeError, TypedStage, TypingObligation, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use crate::{CleanupSelection, ObligationKind, TypeError, TypedStage, TypingObligation, ValueType};
+use omega_resolved::{DeclarationId, Symbol};
+use omega_syntax::NodeKind;
+use omega_typed::site_at;
 use std::collections::HashMap;
 
 pub(crate) fn check_cleanup_selections(
@@ -63,14 +65,14 @@ pub(crate) fn check_cleanup_selections(
                 return Err(TypeError::at(f, n, "cleanup cannot block or suspend"));
             }
             stage.cleanups.push(CleanupSelection {
-                site: Site::at(f, n),
+                site: site_at(f, n),
                 owner: owner.clone(),
                 machine: machine.clone(),
                 arguments: args,
             });
             stage.obligations.push(TypingObligation {
                 node: f.node_id(n),
-                site: Site::at(f, n),
+                site: site_at(f, n),
                 kind: ObligationKind::CleanupContract(machine.clone()),
             });
         }

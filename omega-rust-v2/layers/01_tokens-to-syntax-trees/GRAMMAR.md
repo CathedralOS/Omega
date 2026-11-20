@@ -6,9 +6,11 @@ The indexed tree supplies declaration names, generic binders in source order, an
 
 **L1 is locked.** The original grammar passed its gate on 2026-11-18. The revised positional rest handoff was signed off on 2026-11-19. L1 records the final `..` and its span in a tuple pattern. L3 checks the components against the subject type. [Pattern tests](tests/indexed_syntax.rs)
 
+The [syntax product](../../representations/syntax) stores the parser’s events and token indices. Consumers can read node kinds, source spans and written spellings through that product.
+
 All twelve decisions are
 made. The original grammar and its 132 specification examples passed the parser gate.
-The [module path ruling](../../wiki/spec/language/modules.md#names-and-imports)
+The [module path ruling](../../../wiki/spec/language/modules.md#names-and-imports)
 is implemented by the path productions below.
 Building it changed the grammar in seven places and raised two questions;
 both are listed under [What building it found](#what-building-it-found).
@@ -84,6 +86,9 @@ parser decides by looking ahead:
 A type argument may be qualified, as a type annotation may:
 `Box<u8 in P>`, `Wrapper<[u8; 4] in D>`, `id::<u8 in P>(v)`, and the
 `AccessReturn<Extent in Granted, C>` that resources/access.md:337 writes.
+Inside a generic argument, `Box<[u8 in D; 4]>` contains a fixed-array type
+with qualified elements. `Box<[x in D]>` keeps its existing reading as an
+array literal containing a membership test. [Array qualifications](../../../wiki/spec/language/data_and_literals.md#qualified-array-elements)
 
 `Buffer<N>` therefore holds a type-shaped `N` that may turn out to name a
 value, and `Check<N in D>` holds a qualified type that may turn out to be the
@@ -116,7 +121,7 @@ ahead to tell them apart.
     use = 'use' path ';'
 
 `use topology;` (build/scoped_execution.md:134),
-`use ui_policy\screen\Point::OnScreen;`. [Names and imports](../../wiki/spec/language/modules.md#names-and-imports)
+`use ui_policy\screen\Point::OnScreen;`. [Names and imports](../../../wiki/spec/language/modules.md#names-and-imports)
 
 ### const
 
@@ -131,8 +136,10 @@ untyped `const clear_a = (clear satisfies A::clear);`
     data        = visibility? 'data' word generic_params? attributes? dropped_by?
                   ( '=' (type | machine_type) ';' | requires* '{' data_member* '}' )
     data_member = stable_number? word attributes? ':' ( type_in | data ) ';'
-                | stable_number? 'case' word ( '(' ( case_field % ',' )? ')' )? ';'
-                | data
+                | stable_number? 'case' word ( '(' ( payload_member % ',' )? ')' )? ';'
+                | retirement ';' | data
+    payload_member = case_field | retirement
+    retirement  = 'retired' stable_number
     case_field  = stable_number? word ':' type_in
     stable_number = '#' integer
     attributes  = '[' ( attribute % ',' ) ']'
@@ -187,7 +194,7 @@ and a restricted alias
     selection_row = module_prefix word '::' word '=' path ';'
 
 A selection row names a trait requirement and an existing machine to supply
-it. Both paths retain their own source spans. [Named conformances](../../wiki/spec/language/conformances.md#declaration-and-selection)
+it. Both paths retain their own source spans. [Named conformances](../../../wiki/spec/language/conformances.md#declaration-and-selection)
 
 `public SaturatingIncrement satisfies Incrementable<Counter> { ... }`
 (language/conformances.md:39), and with hypotheses (proofs/quotients.md:196).
@@ -252,8 +259,8 @@ proofs/mathematical_bindings.md:63 and :226.
     type        = type_operand ( '->' type )?
                 | '(' word ':' type ')' '->' type
     type_operand = '@' lifetime? ( 'mut' | 'write' )? type_operand
-                | '[' type ']'
-                | '[' type ';' expression ']'
+                | '[' type_in ']'
+                | '[' type_in ';' expression ']'
                 | path_type ( '(' arguments? ')' )?
     path_type   = module_prefix word type_args? ( '::' word type_args? )*
     type_in     = type ( 'in' type_domains )?
@@ -269,7 +276,7 @@ mathematical declarations and in machine parameters
 (proofs/mathematical_bindings.md:63 and :226), and qualification
 `i32 in Km & Positive` (language/domains.md:572).
 
-- In a dependent function type such as `(x: A) -> F(x)`, the result can refer to the input by name. A type family takes ordinary expressions as arguments. Both forms appear in mathematical interfaces. [Mathematical bindings](../../wiki/spec/proofs/mathematical_bindings.md)
+- In a dependent function type such as `(x: A) -> F(x)`, the result can refer to the input by name. A type family takes ordinary expressions as arguments. Both forms appear in mathematical interfaces. [Mathematical bindings](../../../wiki/spec/proofs/mathematical_bindings.md)
 - **The function arrow** groups to the right, and `@A -> B` is a function
   from `@A`. It is a type everywhere except directly after `as`: in an arm
   written `x as T -> ...` the arrow belongs to the arm.
@@ -278,7 +285,7 @@ mathematical declarations and in machine parameters
   callback contract. `const Accept: Predicate<T>` uses it in a static position.
   An inferred callable bound still uses `const Accept: machine`.
   The alias signature's parameters and result use ordinary type names, including
-  aliases for other callables. [Machine values](../../wiki/spec/language/machine_values.md)
+  aliases for other callables. [Machine values](../../../wiki/spec/language/machine_values.md)
 - **Each `@` adds one reference layer.** `@@T` and `@ @T` have the same tree.
   In expressions, `@@x` borrows a borrow. Decision 12 reserves prefix `@`
   for references and borrows. `&` and `&&` keep their operator meanings.
@@ -299,7 +306,7 @@ mathematical declarations and in machine parameters
     hypothesis = 'requires' 'machine' word '(' params ')' result? clause* ';'
     bound      = expression ( ( '..' | '..=' ) expression )?
 
-- A crash cause can be followed by a guard, as in `crashes Trap value == 0`. L3 checks that the guard is a total Boolean fact about the contract inputs. [Guarded crashes](../../wiki/spec/language/effects.md#guarded-crashes)
+- A crash cause can be followed by a guard, as in `crashes Trap value == 0`. L3 checks that the guard is a total Boolean fact about the contract inputs. [Guarded crashes](../../../wiki/spec/language/effects.md#guarded-crashes)
 - **A crash cause is a path type.** It names `Trap`, `Abort` or `none`, never a
   family application, so a `(` after it opens the guard:
   `crashes Trap (value == 0) || done` guards on the whole expression.
@@ -681,7 +688,7 @@ the grammar had missed; all 132 parse now.
 
 | # | Example | What the grammar had | What the example needs | Resolution |
 | --- | --- | --- | --- | --- |
-| F1 | [Callable contracts](../../wiki/spec/language/machine_values.md#named-structural-callable-types) | An inline return signature could take the enclosing machine’s clauses. | `data Predicate<T> = machine(value: T) -> bool;` | Declare the signature once and use its name in other types and static bounds. |
+| F1 | [Callable contracts](../../../wiki/spec/language/machine_values.md#named-structural-callable-types) | An inline return signature could take the enclosing machine’s clauses. | `data Predicate<T> = machine(value: T) -> bool;` | Declare the signature once and use its name in other types and static bounds. |
 | F2 | proofs/mathematical_bindings.md:226 | Function types only in mathematical `let`. | A machine parameter typed `A -> core\Strict<v>`. | `A -> B` is a type everywhere except directly after `as`. |
 | F3 | proofs/mathematical_bindings.md:226 | A hypothesis only on a conformance. | `requires machine Step(...) ...;` on a machine. | A hypothesis is a clause; a conformance takes only that one. |
 | F4 | language/termination.md:35 | `terminates by e in e`. | `in 0..=limit`. | The bound may be a range. |

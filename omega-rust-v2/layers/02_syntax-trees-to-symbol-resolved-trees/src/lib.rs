@@ -3,20 +3,16 @@
 
 #![forbid(unsafe_code)]
 
-mod resolved_trees;
 mod stage;
 mod syntax;
-pub use resolved_trees::{SymbolResolvedTree, SymbolResolvedTrees};
 
-use omega_lexer::Token;
-use omega_parser::SyntaxTree;
-
-pub use stage::{
-    AssemblyVocabulary, CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, Dependency, DomainCandidate, DomainCarrier, InterfaceExport,
-    NameContext, NameError, NameRole, NameUse, OperatorDeclaration, ResolvedStage, StageSource, Symbol, builtin as is_builtin_type_name, resolve_stage,
-    resolve_stage_for_target, resolve_stage_with_exports,
+pub use omega_resolved::{
+    CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, DomainCandidate, DomainCarrier, IndexedSource, InterfaceExport, NameContext,
+    NameError, NameRole, NameUse, OperatorDeclaration, ResolvedStage, Symbol, SymbolResolvedTree, SymbolResolvedTrees, TreeNodeId, is_builtin_type_name,
 };
-pub use syntax::{File as IndexedSource, TreeNodeId};
+use omega_syntax::SyntaxTree;
+use omega_tokens::Token;
+pub use stage::{resolve_stage, resolve_stage_for_target, resolve_stage_with_exports};
 
 /// A whole-file parse and its original UTF-8 source and tokens. The package loader
 /// supplies a canonical, slash-separated logical path relative to the package root.
@@ -25,4 +21,25 @@ pub struct ParsedSource<'a, 'parse> {
     pub text: &'a str,
     pub tokens: &'parse [Token],
     pub tree: &'parse SyntaxTree,
+}
+
+/// The package identity and logical path are supplied by stage admission.
+pub struct StageSource<'a, 'parse> {
+    pub package: &'a str,
+    pub source: ParsedSource<'a, 'parse>,
+}
+
+/// Only direct, requester-local edges admitted for this stage are visible.
+#[derive(Clone, Copy)]
+pub struct Dependency<'a> {
+    pub requester: &'a str,
+    pub alias: &'a str,
+    pub package: &'a str,
+}
+
+/// Names admitted by the selected architecture. The target checker owns instruction semantics.
+#[derive(Default)]
+pub struct AssemblyVocabulary<'a> {
+    pub instructions: &'a [&'a str],
+    pub registers: &'a [&'a str],
 }

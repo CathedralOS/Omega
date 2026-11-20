@@ -1,8 +1,10 @@
 use crate::expressions::body_typer::BodyTyper;
+use crate::type_error::SourceTypeError;
 use crate::type_system::substitution::field_components;
-use crate::{Opening, Site, ValueType};
-use omega_resolver::DeclarationId;
-use omega_resolver::Symbol;
+use crate::{Opening, ValueType};
+use omega_resolved::DeclarationId;
+use omega_resolved::Symbol;
+use omega_typed::site_at;
 
 impl BodyTyper<'_, '_> {
     /// A machine supplies its signature before conversion to a stored callable.
@@ -40,7 +42,7 @@ impl BodyTyper<'_, '_> {
     ) -> Opening {
         let source = self.unit.file;
         let (root, steps) = self.output.place_path(source.node_id(source.ungroup(node)));
-        let mut subject = Site::at(source, root.node);
+        let mut subject = site_at(source, root.node);
         if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(root.node) {
             subject.span = *span;
         }

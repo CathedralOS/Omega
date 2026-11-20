@@ -5,7 +5,6 @@ mod support;
 use omega_lexer::lex;
 use omega_parser::{FragmentKind, ParseErrorKind, parse_fragment};
 use spec_corpus::parser_examples::{EXAMPLE_SHAPES, fragment_kind, parser_source};
-use std::path::Path;
 use support::dump_parse_error;
 
 /// Statement fragments may mix items and tails. Clauses and single parameters must consume
@@ -41,8 +40,7 @@ fn fragment_entry_points_consume_their_entire_input() {
 /// skipping the example.
 #[test]
 fn every_spec_example_parses() {
-    let spec_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let examples = spec_corpus::extract_omega_examples(&spec_directory).expect("Expected wiki/spec to be readable.");
+    let examples = spec_corpus::published_examples().expect("Expected wiki/spec to be readable.");
 
     assert!(examples.len() >= 100, "found only {} spec examples; is wiki/spec complete?", examples.len());
 
