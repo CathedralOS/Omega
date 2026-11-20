@@ -2,6 +2,7 @@
 import hashlib
 import os
 from pathlib import Path
+import signal
 import struct
 import subprocess
 import time
@@ -15,9 +16,31 @@ class Invalid(ValueError):
     """A source-constructed compiler rejected the supplied program."""
 
 
-def shell(script, *args):
-    subprocess.run(["sh", "-eu", "-c", script, "compiled-vm", *map(str, args)],
-                   cwd=ROOT, env={**os.environ, "OMEGA_REPO_ROOT": str(ROOT)}, check=True)
+def invoke(command, data, seconds, *, cwd=None, env=None):
+    # Cold construction forks producers. Stop the whole invocation on timeout.
+    with subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, start_new_session=True) as proc:
+        try:
+            stdout, stderr = proc.communicate(data, timeout=seconds)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.communicate()
+            raise
+    if proc.returncode or stderr:
+        raise RuntimeError(f"exit {proc.returncode}, stdout {stdout[:80]!r}, stderr {stderr[:200]!r}")
+    return stdout
+
+
+def shell(script, *args, seconds=None):
+    command = ["sh", "-eu", "-c", script, "compiled-vm", *map(str, args)]
+    env = {**os.environ, "OMEGA_REPO_ROOT": str(ROOT)}
+    if seconds is None:
+        subprocess.run(command, cwd=ROOT, env=env, check=True)
+    else:
+        invoke(command, b"", seconds, cwd=ROOT, env=env)
 
 
 def stamp(tape, executable):
@@ -34,8 +57,62 @@ def execute(executable, payload=b"", timeout=60):
     return result.returncode, result.stdout
 
 
+def gamma_request(source, guest=b""):
+    """Frame a Gamma source and its sealed guest input for the interpreter."""
+    return struct.pack("<I", len(source)) + source + guest
+
+
 def reference(evaluator, source, payload=b""):
-    return execute(evaluator, struct.pack("<I", len(source)) + source + payload)
+    return execute(evaluator, gamma_request(source, payload))
+
+
+def gamma_backend_source(target):
+    """Read the complete Gamma compiler source for the requested target."""
+    root = ROOT / "bootstrap/gamma/compiler"
+    if target == "alpha":
+        backend = "alpha/alpha_backend.gamma"
+    elif target == "linux":
+        backend = "linux_x86_64/native.gamma"
+    else:
+        raise ValueError(f"unknown Gamma target {target!r}")
+    return b"\n".join((root / name).read_bytes() for name in ("compiler.gamma", "frontend.gamma", backend))
+
+
+def produce(compiler, source, artifact, seconds):
+    start = time.monotonic()
+    status, data = execute(compiler, source, seconds)
+    if status != 0 or not data:
+        raise RuntimeError(f"{artifact.name}: compiler exit {status}, {len(data)} output bytes")
+    artifact.write_bytes(data)
+    print(f"{artifact.name}: {len(data)} bytes, sha256={hashlib.sha256(data).hexdigest()}, "
+          f"{time.monotonic() - start:.2f}s", flush=True)
+    return data
+
+
+def executable(artifact, target):
+    """Make a produced Linux ELF or Alpha tape runnable and return its path."""
+    if target == "linux":
+        artifact.chmod(0o700)
+        return artifact
+    if target == "alpha":
+        program = artifact.with_suffix(".vm")
+        stamp(artifact, program)
+        return program
+    raise ValueError(f"unknown Gamma target {target!r}")
+
+
+def gamma_program(host, runner, source, artifact, seconds):
+    """Return the runner and input prefix for this Gamma source on the given host.
+
+    For the interpreted host, runner is the Gamma evaluator. For a compiled
+    host, runner is a Gamma compiler that produces code for that host.
+    """
+    if host == "gamma":
+        return runner, gamma_request(source)
+    if host not in ("alpha", "linux"):
+        raise ValueError(f"unknown Gamma host {host!r}")
+    produce(runner, source, artifact, seconds)
+    return executable(artifact, host), b""
 
 
 def compile_program(work, source, name="subject", *, compiler, realize=stamp):
@@ -368,7 +445,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         print("Omega UTF-8: forty-five executables, 28 decoder boundaries, six arithmetic traps, two explicit traps, sixty-five refusal/reset checks passed in eleven fresh processes", flush=True)
 
 
-def reconstruct(work):
+def reconstruct(work, *, seconds=None):
     shell('''
       . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
       . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
@@ -381,5 +458,5 @@ def reconstruct(work):
       "$1/beta" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$1/gamma.tape"
       cmp "$1/gamma.tape" "$OMEGA_PATH_GAMMA_EVALUATOR_TAPE"
       stamp_seed "$1/gamma.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$1/reference"
-    ''', work)
+    ''', work, seconds=seconds)
     print("Beta self-reconstruction and Gamma source construction: byte-exact", flush=True)

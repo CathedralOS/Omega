@@ -64,11 +64,22 @@ def runtime_source(runtime='pure'):
     return program_source(b'', b'', runtime)
 
 
+class CompileRefusal(ValueError):
+    """The Epsilon compiler explicitly rejected the source or identified an unsupported construct."""
+
+
 def decode_module(observation):
     for prefix, runtime in ((b'compiled\n', 'pure'), (b'compiled-storage\n', 'storage')):
         if observation.startswith(prefix):
             return observation[len(prefix):], runtime
-    raise ValueError(f'compiler refused source: {observation[:80]!r}')
+    if observation.startswith((b'rejected ', b'unsupported ')):
+        raise CompileRefusal(f'compiler refused source: {observation[:80]!r}')
+    raise ValueError(f'unexpected compiler output: {observation[:80]!r}')
+
+
+def linked_program(observation):
+    module, runtime = decode_module(observation)
+    return program_source(module, runtime=runtime)
 
 
 def main():
@@ -81,10 +92,9 @@ def main():
         source = compiler_source()
     else:
         try:
-            generated, runtime = decode_module(sys.stdin.buffer.read())
+            source = linked_program(sys.stdin.buffer.read())
         except ValueError as error:
             parser.exit(1, str(error) + '\n')
-        source = program_source(generated, runtime=runtime)
     sys.stdout.buffer.write(source)
 
 

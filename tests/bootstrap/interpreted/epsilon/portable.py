@@ -2,13 +2,12 @@
 import argparse
 import hashlib
 from pathlib import Path
-import struct
 import subprocess
 import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from compiled import ROOT, execute, omega_customer, reconstruct, shell
+from compiled import ROOT, delta_request, execute, gamma_request, omega_customer, reconstruct, shell
 from conformance.vectors import (
     epsilon_historical_at_observations, epsilon_observations, epsilon_syntax_controls,
 )
@@ -43,10 +42,9 @@ def check(work, receipt_path, seconds, profile, omega):
         compiler = (work / "compiler.gamma").read_bytes()
         entry = ROOT / "bootstrap/epsilon/interpreter.delta"
         subject = closure + entry.read_bytes()
-        request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
-                   + subject + (work / "support.bin").read_bytes())
+        request = delta_request(subject, (work / "support.bin").read_bytes())
         started = time.monotonic()
-        compiler_request = struct.pack("<I", len(compiler)) + compiler + request
+        compiler_request = gamma_request(compiler, request)
         status, receipt = execute(evaluator, compiler_request, seconds)
         if status:
             sys.exit(f"interpreted Delta compiler returned {status}")
@@ -58,7 +56,7 @@ def check(work, receipt_path, seconds, profile, omega):
     pending.write_bytes(receipt)
     shell(ENVIRONMENT + 'require_epsilon_evaluator_entry_receipt_identity "$1"', pending)
     pending.rename(work / "evaluator.gamma")
-    program = struct.pack("<I", len(receipt)) + receipt
+    program = gamma_request(receipt)
     print(f"Epsilon receipt: {len(receipt)} bytes, sha256 {hashlib.sha256(receipt).hexdigest()}", flush=True)
     def observe(payload, timeout):
         return execute(evaluator, program + payload, timeout)

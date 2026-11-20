@@ -1,5 +1,63 @@
 # Bootstrap experiments
 
+## Select a route
+
+From the checkout root, choose how Gamma runs the Delta implementation, how
+Delta runs the Epsilon implementation, and how the Epsilon program itself
+runs. Each selector accepts `interpret`, `alpha`, `native` (Linux x86-64), or
+`all`. This command holds Gamma and Delta fixed while varying Epsilon.
+
+```sh
+python3 tests/bootstrap/route.py /tmp/omega-three --gamma native --delta interpret --epsilon all
+```
+
+The default control reads `Z`, writes it, and exits 90. All three routes
+must produce `00 5a 00 00 00 5a`. Use `--source FILE --stdin FILE` for your
+own Epsilon program and raw input. Use `--plan` to inspect the stages without
+running them. The plan shows which compiler runs, where it runs, and which
+runtime handoff is required. Interpreted Delta defaults to the direct interpreter.
+Add `--delta-interpreter gamma` to translate Delta and interpret the emitted
+Gamma, as in the original interpreted route. [Route runner](../../../tests/bootstrap/route.py)
+
+Each run needs a new output directory and the repository's built `xtask` for
+source manifests. Each row retains its source, input, intermediate artifacts,
+and `result.json` with the stages, times, input hashes, generated artifact hashes and outcome. In a batch, each row logs live progress in `stages.log`. Completed
+rows also retain `guest.eeout` for byte comparison. A timeout records the
+stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
+and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
+
+Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
+supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
+`--gamma native`. The runner checks its compiler source and fixed-point
+rebuild and records the host executable's hash. Interpreted Gamma starts
+from Beta. `--profile construction` selects the larger Delta byte limits for
+whole-compiler inputs. [Cold build](../../../tests/bootstrap/linux_x86_64/README.md)
+
+### Same stdin program across routes
+
+All 27 routes ran the portable stdin control from `f040d53f89d` with a
+120-second limit per producer or guest invocation. The table counts matching
+Epsilon observations out of the three Epsilon choices for each pair of lower
+rungs. The runs reused cold-built Alpha and Linux Gamma compilers.
+Every completed route returned `00 5a 00 00 00 5a`.
+
+| Gamma host | Direct Delta interpreter | Delta on Alpha | Delta on Linux |
+| --- | --- | --- | --- |
+| Interpreter | 3 timed out | 3 timed out | 3 timed out |
+| Alpha | 3/3 | 3/3 | 3/3 |
+| Linux | 3/3 | 3/3 | 3/3 |
+
+Among those 18 completed routes, all twelve that compiled the guest produced
+identical Delta and Gamma source. All six Alpha targets emitted the same
+487,013-byte tape. All six Linux targets emitted the same 260,706-byte executable.
+
+One of the nine timed-out routes completed with a 900-second per-stage limit.
+With `--gamma interpret --delta native --epsilon interpret`, interpreted
+Gamma ran the Delta compiler in 743.55 seconds and the native Gamma backend
+in 555.79 seconds. Both the 726,601-byte evaluator source and the
+1,977,558-byte Linux executable matched the native-hosted build byte for byte.
+The Epsilon program then returned the same six bytes in 0.02 seconds.
+
 ## Tested threads through the matrix
 
 Read each row from left to right after the common Alpha and Beta steps.

@@ -8,9 +8,8 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from compiled import ROOT, execute, pack, reconstruct, shell
+from compiled import ROOT, execute, gamma_program, gamma_request as frame, pack, reconstruct, shell
 from conformance.vectors import epsilon_observations, epsilon_syntax_controls
-from gamma_host_matrix import executable, produce
 
 HERE = Path(__file__).resolve().parent
 DELTA = ROOT / "bootstrap/delta"
@@ -28,10 +27,6 @@ def materialize(work, profile="conformance"):
     (work / "interpreter.gamma").write_bytes(source)
     print(f"Interpreter: {len(source)} Gamma bytes, sha256 {hashlib.sha256(source).hexdigest()}", flush=True)
     return source
-
-
-def frame(source, guest=b""):
-    return struct.pack("<I", len(source)) + source + guest
 
 
 def failure(status, space, code, offset, limit=0, requested=0):
@@ -128,15 +123,14 @@ def main():
     work = args.directory.resolve()
     work.mkdir(parents=True)
     source = materialize(work, args.profile)
-    prefix = b""
     if args.host == "gamma":
         reconstruct(work)
-        runner = work / "reference"
-        prefix = struct.pack("<I", len(source)) + source
+        host_runner = work / "reference"
+        artifact = None
     else:
-        target = work / ("interpreter.tape" if args.host == "alpha" else "interpreter.elf")
-        produce(args.runner.resolve(), source, target, args.seconds)
-        runner = executable(target, args.host)
+        host_runner = args.runner.resolve()
+        artifact = work / ("interpreter.tape" if args.host == "alpha" else "interpreter.elf")
+    runner, prefix = gamma_program(args.host, host_runner, source, artifact, args.seconds)
     if args.source:
         payload = args.stdin.read_bytes() if args.stdin else b""
         request = frame(args.source.read_bytes(), payload)

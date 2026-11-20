@@ -2,32 +2,10 @@
 import argparse
 import hashlib
 from pathlib import Path
-import struct
-import time
 
-from compiled import ROOT, delta_request, execute, pack, pack_delta_compiler, shell, stamp
+from compiled import (ROOT, delta_request, executable, execute, gamma_backend_source, gamma_program,
+                      gamma_request, pack, pack_delta_compiler, produce, shell)
 from conformance.vectors import epsilon_observations, epsilon_request, epsilon_syntax_controls
-from independent.source_test import source as gamma_source
-
-
-def produce(compiler, source, artifact, seconds):
-    start = time.monotonic()
-    status, data = execute(compiler, source, seconds)
-    if status != 0 or not data:
-        raise RuntimeError(f"{artifact.name}: compiler exit {status}, {len(data)} output bytes")
-    artifact.write_bytes(data)
-    print(f"{artifact.name}: {len(data)} bytes, sha256={hashlib.sha256(data).hexdigest()}, "
-          f"{time.monotonic() - start:.2f}s", flush=True)
-    return data
-
-
-def executable(artifact, target):
-    if target == "linux":
-        artifact.chmod(0o700)
-        return artifact
-    program = artifact.with_suffix(".vm")
-    stamp(artifact, program)
-    return program
 
 
 def check_epsilon(row, compiler, delta_program, target, request, closure, work, seconds):
@@ -83,7 +61,7 @@ def main():
     work = args.output.resolve()
     work.mkdir(parents=True, exist_ok=False)
     hosts = {"alpha": args.alpha.resolve(), "linux": args.linux.resolve()}
-    sources = {name: gamma_source(native=name == "linux") for name in hosts}
+    sources = {name: gamma_backend_source(name) for name in hosts}
     for name, directory in hosts.items():
         if (directory / "compiler.gamma").read_bytes() != sources[name]:
             raise ValueError(f"{directory}: compiler source differs from checkout")
@@ -107,8 +85,8 @@ def main():
             # Compile the selected backend to this host before compiling Delta.
             row = f"{host}-to-{target}"
             backend_artifact = work / f"{row}-compiler.bin"
-            produce(directory / "gamma-compiler", sources[target], backend_artifact, args.seconds)
-            compiler = executable(backend_artifact, host)
+            compiler, _ = gamma_program(host, directory / "gamma-compiler", sources[target],
+                                        backend_artifact, args.seconds)
             rejected = execute(compiler, b"(def main () Int unknown)", args.seconds)
             if rejected != (249, b""):
                 raise RuntimeError(f"{row}: invalid Gamma returned {rejected!r}")
@@ -135,7 +113,7 @@ def main():
     if len(set(receipts.values())) != 1:
         raise RuntimeError("Delta compilers emitted different Gamma source for the same request")
     receipt = receipts["alpha-to-alpha"]
-    interpreted = struct.pack("<I", len(receipt)) + receipt
+    interpreted = gamma_request(receipt)
     for payload in inputs:
         if execute(hosts["alpha"] / "gamma-evaluator", interpreted + payload, args.seconds) != (0, payload * 2):
             raise RuntimeError(f"Gamma interpreter: wrong Delta customer observation ({len(payload)} bytes)")

@@ -8,7 +8,6 @@ host Gamma compiler as a semantic producer; its results are labeled separately.
 import argparse
 import hashlib
 from pathlib import Path
-import struct
 import time
 
 import sys
@@ -47,11 +46,10 @@ def main():
     mode = "accelerated" if args.accelerated else "reference"
     work = compiled.ROOT / "build" / ("source-gamma-" + mode)
     work.mkdir(parents=True, exist_ok=True)
-    source = b"\n".join((compiled.ROOT / "bootstrap/gamma/compiler" / name).read_bytes()
-                         for name in ("compiler.gamma", "frontend.gamma", "alpha/alpha_backend.gamma"))
+    source = compiled.gamma_backend_source("alpha")
     (work / "compiler.gamma").write_bytes(source)
     compiled.reconstruct(work)
-    request = struct.pack("<I", len(source)) + source + source
+    request = compiled.gamma_request(source, source)
     (work / "construction.request").write_bytes(request)
     print(f"{mode} construction: source={len(source)} bytes sha256={digest(source)}; "
           f"allowance={args.seconds}s", flush=True)

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tests/bootstrap"))
 from compiled import delta_request, pack, shell
 from conformance.vectors import epsilon_request
-from independent.epsilon.composition import compiler_source, decode_module, program_source
+from independent.epsilon.composition import compiler_source, linked_program
 
 
 def write(work, name, data):
@@ -35,10 +35,9 @@ def main():
         if args.receipt or args.entry_control:
             parser.error("--frame-result uses an already prepared directory")
         try:
-            module, runtime = decode_module(args.frame_result.read_bytes())
+            program = linked_program(args.frame_result.read_bytes())
         except ValueError as error:
             parser.exit(1, str(error) + "\n")
-        program = program_source(module, runtime=runtime)
         support = (work / "support.bin").read_bytes()
         write(work, "omega.delta", program)
         write(work, "omega.dcreq", delta_request(program, support, profile=2))
