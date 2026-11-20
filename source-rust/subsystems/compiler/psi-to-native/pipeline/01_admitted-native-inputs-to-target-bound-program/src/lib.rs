@@ -10,6 +10,7 @@ pub use direct_boundary_bindings::{compiler_primitive_schemas, hosted_requiremen
 pub mod native_bindings;
 pub(crate) use ::wire::digest_encoder;
 pub mod program_entry;
+pub mod published_application;
 mod provider_planning;
 pub mod target_supply;
 

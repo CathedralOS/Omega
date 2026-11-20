@@ -9,14 +9,14 @@ pub(crate) type PlacedForeignAdapter = function_layout::entry_placement::PlacedF
 pub(crate) type ObjectForeignAdapter = object_file::ForeignAdapterObject;
 
 pub(crate) fn plan(
-    request: crate::runtime_provisions::NativeForeignAdapterRequest,
+    request: crate::driver::runtime::NativeForeignAdapterRequest,
 ) -> Result<PlannedForeignAdapter, String> {
     let (request, locator, application) = request.into_parts();
     entry_planning::native_foreign_bridge::plan_foreign_adapter(request, locator, application)
 }
 
 pub(crate) fn compile(
-    request: crate::runtime_provisions::NativeForeignAdapterRequest,
+    request: crate::driver::runtime::NativeForeignAdapterRequest,
 ) -> Result<ObjectForeignAdapter, String> {
     plan(request)
         .map(installation_binding::entries::bind_foreign_adapter)
@@ -52,7 +52,7 @@ pub fn compile_runtime_foreign_adapter(
     application: [u8; 32],
 ) -> Result<object_file::ForeignAdapterObject, String> {
     compile(
-        crate::runtime_provisions::NativeForeignAdapterRequest::for_test(
+        crate::driver::runtime::NativeForeignAdapterRequest::for_test(
             bridge,
             locator,
             application,

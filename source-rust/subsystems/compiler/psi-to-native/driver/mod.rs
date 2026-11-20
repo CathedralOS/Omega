@@ -3,11 +3,17 @@
 //! scalar applications and admitted providers. A failure returns the image
 //! request with its original diagnostics.
 
-use crate::emit_program::components;
-use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
-use crate::request::NativeCompileRequest;
-use crate::target_inputs::PreparedNativeCompilation;
-use crate::{emit_program, request, runtime_provisions, target_inputs};
+pub(crate) mod compile_body;
+pub(crate) mod image;
+pub(crate) mod inputs;
+pub(crate) mod observations;
+pub(crate) mod request;
+pub(crate) mod runtime;
+
+use self::image::components;
+use self::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
+use self::request::NativeCompileRequest;
+use self::inputs::PreparedNativeCompilation;
 use artifact_lowering::{
     AdmittedNativeRealization, RetainedNativeProviderInputs, admit_prepared_native_realization,
 };
@@ -29,7 +35,7 @@ pub fn compile(
     (FinishedNativeImage, NativeStageReplay),
     (ExecutableImageEmissionRequest, Vec<Diagnostic>),
 > {
-    let prepared = target_inputs::prepare(retained, request)?;
+    let prepared = inputs::prepare(retained, request)?;
     match produce(prepared, NativeProductionStop::Image)? {
         Produced::Image(image, replay) => Ok((image, replay)),
         Produced::Runtime(_) => unreachable!("image production returned runtime admission"),
@@ -43,7 +49,7 @@ pub fn admit_runtime(
     native_artifact::AdmittedRuntimeProgram,
     (ExecutableImageEmissionRequest, Vec<Diagnostic>),
 > {
-    let prepared = target_inputs::prepare(&retained, request)?;
+    let prepared = inputs::prepare(&retained, request)?;
     let recovery = prepared.recovery.clone();
     match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
         Produced::Runtime(plan) => native_artifact::AdmittedRuntimeProgram::finish(retained, plan)
@@ -58,8 +64,9 @@ enum NativeProductionStop {
     RuntimeAdmission,
 }
 
-enum Produced {    Image(FinishedNativeImage, NativeStageReplay),
-    Runtime(runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
+enum Produced {
+    Image(FinishedNativeImage, NativeStageReplay),
+    Runtime(runtime::NativeRuntimePlan<object_file::ForeignAdapterObject>),
 }
 
 fn produce(
@@ -132,7 +139,7 @@ fn produce(
         );
         let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;
         if stop == NativeProductionStop::RuntimeAdmission {
-            let provisions = runtime_provisions::prepare_terminal_runtime(
+            let provisions = runtime::prepare_terminal_runtime(
                 realization,
                 admission.providers.target(),
                 request.optimization_selections,
@@ -141,7 +148,7 @@ fn produce(
             observation.complete();
             return Ok(Produced::Runtime(provisions));
         }
-        let planning = emit_program::plan_callables::NativeProgramPlanningRequest {
+        let planning = image::plan_callables::NativeProgramPlanningRequest {
             proposal,
             execution: &execution,
             scalar_applications: scalars,
@@ -150,7 +157,7 @@ fn produce(
             budget: request::native_optimization_budget(),
             retain_native_stage_inputs: request.retain_native_stage_inputs,
         };
-        let (image, stage_replay) = emit_program::prepare_program_image(
+        let (image, stage_replay) = image::prepare_program_image(
             std::sync::Arc::clone(artifact),
             realization,
             &planning,
@@ -182,7 +189,7 @@ pub(crate) struct AdmittedRealization<'request> {
     pub(crate) admitted: AdmittedNativeRealization<'request>,
     pub(crate) entry_settlement: Option<ValidatedNativeProgramEntrySettlement>,
     pub(crate) runtime_provisions: Option<
-        runtime_provisions::NativeRuntimePlan<runtime_provisions::NativeForeignAdapterRequest>,
+        runtime::NativeRuntimePlan<runtime::NativeForeignAdapterRequest>,
     >,
 }
 
@@ -207,7 +214,7 @@ fn admit_realization<'execution>(
     let runtime_provisions = entry
         .checked_entry
         .map(|_| {
-            runtime_provisions::plan_root_provisions(
+            runtime::plan_root_provisions(
                 entry,
                 input.optimization_input().runtime_input(),
                 providers
@@ -218,14 +225,14 @@ fn admit_realization<'execution>(
                     .settlements
                     .iter()
                     .map(
-                        |settlement| runtime_provisions::TerminalRuntimeHostProvision {
+                        |settlement| runtime::TerminalRuntimeHostProvision {
                             boundary: settlement.boundary,
                             realization: settlement.realization.clone(),
                         },
                     )
                     .collect(),
                 execution,
-                runtime_provisions::NativeBindingRuntimeInputs {
+                runtime::NativeBindingRuntimeInputs {
                     bindings: admission.providers.native_bindings,
                     calling: admission.providers.installed_calling,
                 },

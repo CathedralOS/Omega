@@ -15,7 +15,6 @@ native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
-target-provider-admission = { path = "verification/target-providers" }
 provider-plans = { path = "../build/providers/plans" }
 provider-correspondence = { path = "verification/provider-correspondence" }
 psi-scalar-applications = { path = "../psi/scalar-applications" }
@@ -39,7 +38,6 @@ instruction-selection = { package = "target-operations-to-selected-instructions"
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "pipeline/06_selected-instructions-to-selected-instructions" }
 allocation = { package = "selected-instructions-to-register-homes", path = "pipeline/07_selected-instructions-to-register-homes" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "pipeline/08_register-homes-to-post-allocation-machine" }
-program-entry-contracts = { path = "representations/program-entry-contracts" }
 installation-admission = { path = "verification/installation-admission" }
 physical-program = { path = "representations/post-allocation-machine/body-facts" }
 provider-admission = { path = "verification/provider-admission" }
@@ -76,8 +74,6 @@ terminal-psi = { path = "../psi" }
 psi-authorization = { path = "../psi/authorization" }
 verified-optimization-input = { path = "representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
-
-terminal-semantics = { path = "../psi/semantics" }
 
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }

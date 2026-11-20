@@ -1,72 +1,19 @@
 //! Capture the admitted host and callable provisions for the Terminal interpreter.
 //! Foreign ABI adapters use the target calling contract recorded with each admission.
-#![forbid(unsafe_code)]
+pub(crate) mod foreign_adapters;
 
 use crate::driver::AdmittedRealization;
-use crate::observations::NativePipelineObservation;
-use crate::request::native_optimization_budget;
+use crate::driver::observations::NativePipelineObservation;
+use crate::driver::request::native_optimization_budget;
 use artifact_lowering::AdmittedNativeRealization;
-use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
-use semantic_vocabulary::ScalarType;
 use verified_optimization_input::runtime_provisions::AdmittedRuntimeForeignCall;
 pub use verified_optimization_input::runtime_provisions::{
     NativeBindingRuntimeInputs, NativeRuntimePlan, TerminalCallableRuntimeProvisions,
     TerminalRuntimeHostProvision, TerminalRuntimeHostProvisions,
 };
 use verified_optimization_input::{AdmittedRuntimeInput, NativeProgramEntrySettlement};
-
-fn scalar_parameters(
-    formal_count: usize,
-    formals: &[(usize, ScalarType)],
-    application: &BoundaryCallingApplication,
-) -> Result<Vec<Option<ScalarType>>, String> {
-    let rows = application
-        .signature
-        .native_parameters
-        .span(application.signature.native_parameter_rows)
-        .ok_or("foreign frame scalar transport has stale native telescope storage")?;
-    let count = application.plan.plan().call.parameters.len();
-    if rows.len() != count {
-        return Err("foreign frame scalar transport has an incomplete native telescope".into());
-    }
-    let mut result = vec![None; count];
-    let mut native_seen = vec![false; count];
-    let mut scalar_seen = vec![false; formals.len()];
-    for row in rows {
-        let ordinal = usize::try_from(row.native_ordinal)
-            .map_err(|_| "foreign frame native ordinal overflows")?;
-        let seen = native_seen
-            .get_mut(ordinal)
-            .ok_or("foreign frame native ordinal is outside its calling plan")?;
-        if std::mem::replace(seen, true) {
-            return Err("foreign frame native ordinal is repeated".into());
-        }
-        let BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } = row.origin else {
-            continue;
-        };
-        let formal = usize::try_from(formal_ordinal)
-            .map_err(|_| "foreign frame semantic ordinal overflows")?;
-        if formal >= formal_count {
-            return Err("foreign frame semantic ordinal is outside its declaration".into());
-        }
-        if let Some((index, (_, scalar))) = formals
-            .iter()
-            .enumerate()
-            .find(|(_, (position, _))| *position == formal)
-        {
-            if std::mem::replace(&mut scalar_seen[index], true) {
-                return Err("foreign frame scalar formal has repeated native transport".into());
-            }
-            result[ordinal] = Some(*scalar);
-        }
-    }
-    if scalar_seen.contains(&false) {
-        return Err("foreign frame lost a scalar formal's native transport".into());
-    }
-    Ok(result)
-}
 
 /// An admitted auxiliary native root. Capturing runtime metadata records this
 /// request; the native compiler plans and encodes it before publishing provisions.
@@ -104,7 +51,7 @@ impl NativeForeignAdapterRequest {
 
 fn plan_adapter(call: AdmittedRuntimeForeignCall) -> Result<NativeForeignAdapterRequest, String> {
     let (formal_count, formals, application, locator) = call.into_parts();
-    let scalar_parameters = scalar_parameters(formal_count, &formals, &application)?;
+    let scalar_parameters = application.foreign_scalar_parameters(formal_count, &formals)?;
     Ok(NativeForeignAdapterRequest {
         bridge: calling_conventions::NativeForeignBridgeRequest {
             target: application.target,
@@ -166,7 +113,7 @@ pub(crate) fn prepare_terminal_runtime(
         runtime_provisions,
         ..
     } = realization;
-    let borrowed_storage_layouts = crate::compile_body::plan_runtime_storage(
+    let borrowed_storage_layouts = crate::driver::compile_body::plan_runtime_storage(
         input,
         target,
         selections,
@@ -174,10 +121,10 @@ pub(crate) fn prepare_terminal_runtime(
         observation,
     )
     .map_err(|error| match error {
-        crate::compile_body::NativeBodyPlanningError::AbstractOptimization(error) => {
+        crate::driver::compile_body::NativeBodyPlanningError::AbstractOptimization(error) => {
             realization_error("canonical abstract optimization", error)
         }
-        crate::compile_body::NativeBodyPlanningError::Target(error) => {
+        crate::driver::compile_body::NativeBodyPlanningError::Target(error) => {
             realization_error("runtime borrowed storage layout", error)
         }
     })?;
@@ -187,6 +134,6 @@ pub(crate) fn prepare_terminal_runtime(
         )]
     })?;
     Ok(provisions
-        .map_adapters(crate::foreign_adapters::compile)
+        .map_adapters(crate::driver::runtime::foreign_adapters::compile)
         .with_borrowed_storage_layouts(borrowed_storage_layouts))
 }

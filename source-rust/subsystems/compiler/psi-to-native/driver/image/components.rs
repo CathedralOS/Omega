@@ -3,7 +3,7 @@
 mod exports;
 mod receiver_calls;
 
-use crate::component_inputs::PreparedComponent;
+use crate::driver::inputs::components::PreparedComponent;
 use diagnostics::Diagnostic;
 use exports::{ComponentExportImage, ComponentExportRequest, emit_component_exports};
 use native_artifact::NativeComponentProduct;

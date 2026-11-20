@@ -46,7 +46,7 @@ the shared input owner.
   and emission. The native driver passes the target inputs directly to this stage in memory. A receiver opening a saved Psi program supplies its authorized publication and reviewed provider installation.
 - [Provider admission](admit_providers.rs) checks the canonical inputs, installations,
   mechanisms and exclusions that stage 02 needs to lower this body. The
-  [native driver](../../driver.rs) coordinates all stages for the program.
+  [native driver](../../driver/mod.rs) coordinates all stages for the program.
   [Provider admission](../../verification/provider-admission/src/lib.rs)
   derives each demanded leaf's mechanism and admits builtins through the
   receiving policy and target catalog; it reads the bindings the proposal

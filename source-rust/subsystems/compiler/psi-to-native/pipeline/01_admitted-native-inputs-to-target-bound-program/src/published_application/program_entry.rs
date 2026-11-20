@@ -1,12 +1,12 @@
 //! Rejoin the nominal entry selected by native planning with this exact executable publication.
-use declaration_scope::ProductDeclarationScope;
-use diagnostics::Diagnostic;
-use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use provider_realization::program_entry::{
+use crate::program_entry::{
     PublishedEntryNomination, SelectedCompilerProgramEntry,
     plan_published_entry_calling_conventions,
 };
-use provider_realization::{PublishedSelection, SelectedExecution};
+use crate::{PublishedSelection, SelectedExecution};
+use declaration_scope::ProductDeclarationScope;
+use diagnostics::Diagnostic;
+use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;

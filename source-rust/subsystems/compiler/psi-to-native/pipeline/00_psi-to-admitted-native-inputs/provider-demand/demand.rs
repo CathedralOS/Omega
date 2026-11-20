@@ -126,3 +126,51 @@ impl<Publisher> IssuedProviderDemand<Publisher> {
         (self.inputs, self.publisher)
     }
 }
+
+impl IssuedProviderDemand<()> {
+    /// Close the saved program's logical entry and explicit host boundaries on this target.
+    pub fn from_saved_program(
+        artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
+        profile: target::TargetProfile,
+        mut requested_boundaries: Vec<BoundaryMachineId>,
+        installation: host_provider_inputs::TargetProviderInstallation,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let refuse = |reason: String| vec![Diagnostic::error(reason)];
+        let origins = installation
+            .attach(Arc::clone(artifact), profile)
+            .map_err(|reason| refuse(reason.into()))?;
+        let metadata = artifact.publication_metadata().ok_or_else(|| {
+            refuse("saved Psi lacks publication metadata; recompile it to publish entry and calling declarations".into())
+        })?;
+        let module = artifact.semantic_module();
+        let name = profile.target_name();
+        let entry = module.program_entry_contract(name).map_err(refuse)?.entry;
+        requested_boundaries.sort_unstable();
+        requested_boundaries.dedup();
+        let (logical, bodies) = psi_provider_selections::logical_reach::close_providers(
+            module,
+            name,
+            Some(entry),
+            &requested_boundaries,
+        )?
+        .into_parts();
+        let labels = logical
+            .requirements()
+            .iter()
+            .filter_map(|id| {
+                let boundary = module.boundary_machine(*id)?;
+                Some((*id, module.identities.text(boundary.identity)?.to_owned()))
+            })
+            .collect();
+        let facts = ProviderDemandInputs::Target {
+            profile,
+            logical,
+            bodies,
+            has_bound_applications: metadata.has_bound_applications(),
+            labels,
+            origins,
+            review: None,
+        };
+        Ok(Self::issue((), facts))
+    }
+}

@@ -1599,7 +1599,7 @@ mod tests {
             "source-rust/subsystems/compiler/tests/executed_fixture_discovery.rs"
         ));
         assert!(!is_test_source(
-            "source-rust/subsystems/compiler/psi-to-native/driver.rs"
+            "source-rust/subsystems/compiler/psi-to-native/driver/mod.rs"
         ));
     }
 
@@ -1653,7 +1653,7 @@ mod tests {
                 "current.working_program_for_validation();\ncurrent.execution_plan();\n",
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/driver.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/driver/mod.rs".to_owned(),
                 "let pair = SemanticEmissionFacts::retain_target_operations;\n\
                  use source_provider_publication::issue_target_provider_demand as forge;\n",
             ),
@@ -1712,7 +1712,7 @@ mod tests {
             "{publication_violations:?}"
         );
         assert!(publication_violations.iter().any(|row| {
-            row.contains("psi-to-native/driver.rs:2:") && row.contains("target provider demand")
+            row.contains("psi-to-native/driver/mod.rs:2:") && row.contains("target provider demand")
         }));
         assert_eq!(
             execution_plan_violations.len(),

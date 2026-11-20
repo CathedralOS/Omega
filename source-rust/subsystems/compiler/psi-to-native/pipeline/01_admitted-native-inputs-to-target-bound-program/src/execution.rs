@@ -76,7 +76,17 @@ pub fn plan_target_execution(
         module, logical, inputs,
     ))
     .map_err(Supply)?;
-    if selected_boundary_implementations(module, &realization).map_err(Admission)? != bindings {
+    let selected = selected_boundary_implementations(module, realization.provider_declarations())
+        .map_err(Admission)?;
+    if selected
+        .windows(2)
+        .any(|pair| pair[0].boundary == pair[1].boundary)
+    {
+        return Err(Admission(vec![Diagnostic::error(
+            "chosen provider has competing exact bodies for one boundary application",
+        )]));
+    }
+    if selected != bindings {
         return Err(Admission(vec![Diagnostic::error(
             "native planning changed a closed logical provider body",
         )]));
@@ -87,14 +97,13 @@ pub fn plan_target_execution(
     SelectedExecution::from_realization(module, Some(target), realization).map_err(Admission)
 }
 
-/// Grow only the body bindings of actually chosen maps. Registering their
-/// other rows makes those bodies available at a call; it does not invoke them.
-fn selected_boundary_implementations(
+/// Resolve the checked rows of the selected provider declarations against this module.
+pub(super) fn selected_boundary_implementations(
     module: &terminal_psi::TerminalModule,
-    realization: &crate::target_supply::RealizedTargetSupply,
+    declarations: &[provider_plans::ProviderPlan],
 ) -> Result<Vec<CallableBoundaryImplementation>, Vec<Diagnostic>> {
     let mut bindings = Vec::new();
-    for declaration in realization.provider_declarations() {
+    for declaration in declarations {
         if !declaration.rows.iter().any(|row| {
             matches!(
                 row.binding,
@@ -121,13 +130,5 @@ fn selected_boundary_implementations(
     }
     bindings.sort_unstable();
     bindings.dedup();
-    if bindings
-        .windows(2)
-        .any(|pair| pair[0].boundary == pair[1].boundary)
-    {
-        return Err(vec![Diagnostic::error(
-            "chosen provider has competing exact bodies for one boundary application",
-        )]);
-    }
     Ok(bindings)
 }

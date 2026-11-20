@@ -32,7 +32,7 @@ pub struct ComponentNativeExport<'input> {
     body: image_emission::ObjectArtifact,
     entry_bridge: image_emission::CallableEntryTransport,
     runtime: native_artifact::TerminalCallableRuntimeProvisions<
-        crate::foreign_adapters::ObjectForeignAdapter,
+        crate::driver::runtime::foreign_adapters::ObjectForeignAdapter,
     >,
     authority: AdmittedNativeCallableAuthority,
 }
@@ -181,11 +181,11 @@ pub fn emit_component_exports<'input>(
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;
-        let target = crate::emit_program::plan_callables::plan_callable(
+        let target = crate::driver::image::plan_callables::plan_callable(
             admitted,
             admission,
             selections,
-            crate::request::native_optimization_budget(),
+            crate::driver::request::native_optimization_budget(),
             artifact,
             request.retain_native_stage_inputs,
         )?;
@@ -264,7 +264,7 @@ pub fn emit_component_exports<'input>(
     let mut planned = Vec::with_capacity(targets.len());
     for (export, target, ordinals) in targets {
         let physical =
-            crate::emit_program::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
+            crate::driver::image::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
         if !physical.body.stage.program().private_references.is_empty() {
             return Err(realization_error(
                 "component export closure",
