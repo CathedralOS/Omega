@@ -1,8 +1,27 @@
-use omega_lowering::{BlockTerminator, MachineBody};
+use omega_psi::{BlockTerminator, MachineBody, OperationResult, PlaceOrigin, ValueOrigin};
 
 /// Walk only the published successors. Every operation must belong to exactly
 /// one reachable block, even when a nested arm was emitted out of block-ID order.
 pub fn check_operation_ownership(body: &MachineBody) -> Result<(), &'static str> {
+    for (index, operation) in body.operations.iter().enumerate() {
+        if operation.id.index() != index {
+            return Err("operation identity disagrees with its slot");
+        }
+        let defines_result = match operation.result {
+            OperationResult::Unit => true,
+            OperationResult::Scalar(value) => body
+                .values
+                .get(value.index())
+                .is_some_and(|v| v.origin == ValueOrigin::Operation(operation.id)),
+            OperationResult::Structural(place) => body
+                .places
+                .get(place.index())
+                .is_some_and(|p| p.origin == PlaceOrigin::Operation(operation.id)),
+        };
+        if !defines_result {
+            return Err("result does not name its defining operation");
+        }
+    }
     let mut pending = vec![0];
     let mut reached = vec![false; body.blocks.len()];
     let mut owned = vec![false; body.operations.len()];

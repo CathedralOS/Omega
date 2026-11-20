@@ -4,7 +4,7 @@ use omega_lowering::{CallArgument, CallTarget, MemberRealization, OperationKind,
 
 #[test]
 fn boundary_demand_preserves_the_requirement_and_authored_argument_interleave() {
-    let src = "boundary trait Device { machine read(n:u8, bytes:@[u8], flag:bool)->u8 reaches Device crashes none; machine other(n:u8,bytes:@[u8],flag:bool)->u8 reaches Device crashes none; } machine run(n:u8,b:@[u8],y:bool)->u8 reaches Device { Device::read(n,b,y) }";
+    let src = "boundary trait Device { machine read(n:u8, bytes:@[u8], last:u8)->u8 reaches Device crashes none; machine other(n:u8,bytes:@[u8],last:u8)->u8 reaches Device crashes none; } machine run(n:u8,b:@[u8],last:u8)->u8 reaches Device { Device::read(last,b,n) }";
     for member in ["read", "other"] {
         let program = src.replace("Device::read(", &format!("Device::{member}("));
         let pkg = source::lower(&[("device.omg", &program)]).unwrap();
@@ -34,7 +34,7 @@ fn boundary_demand_preserves_the_requirement_and_authored_argument_interleave() 
         let [
             omega_lowering::Parameter::Scalar(n),
             omega_lowering::Parameter::Structural(bytes),
-            omega_lowering::Parameter::Scalar(flag),
+            omega_lowering::Parameter::Scalar(last),
         ] = run.body.parameters.as_slice()
         else {
             panic!("unexpected parameter lanes")
@@ -42,9 +42,9 @@ fn boundary_demand_preserves_the_requirement_and_authored_argument_interleave() 
         assert_eq!(
             arguments,
             &[
-                CallArgument::Scalar(*n),
+                CallArgument::Scalar(*last),
                 CallArgument::CopyWhole(*bytes),
-                CallArgument::Scalar(*flag)
+                CallArgument::Scalar(*n)
             ]
         );
     }

@@ -80,6 +80,7 @@ enum PendingOperation {
         pause: crate::PauseEffects,
     },
     FixedArrayRead(Vec<usize>),
+    ProjectedScalarRead(Vec<crate::PlaceProjection>),
     CollectionLength(crate::machines::access::CollectionLength),
     ByteSequenceRead {
         selector: usize,
@@ -647,6 +648,15 @@ impl Expressions<'_> {
                                 path: Vec::new(),
                             }
                         }
+                        PendingOperation::ProjectedScalarRead(path) => {
+                            let [OperationResult::Structural(root)] = *operands.as_slice() else {
+                                return Err(unsupported_node(file, node, "field read requires a structural receiver"));
+                            };
+                            drop(operands);
+                            OperationKind::ProjectedScalarRead {
+                                source: crate::ProjectedPlace { root, path },
+                            }
+                        }
                         PendingOperation::FixedArrayRead(selectors) => {
                             let Some(OperationResult::Structural(source)) = operands.next() else {
                                 return Err(unsupported_node(file, node, "indexed read requires an owned structural root"));
@@ -806,7 +816,30 @@ impl Expressions<'_> {
                             .semantics_at(expression)
                             .any(|record| matches!(record, NodeSemantics::Field(_))))
             {
-                values.push(super::references::read_scalar(self, expression, carrier, block)?);
+                let (root, path) = super::references::scalar_read(self, expression, carrier, block)?;
+                let output = OperationOutput::Scalar(lookup_type()?);
+                match root {
+                    super::references::PlaceRoot::Bound(root) => values.push(block.push_operation(
+                        output,
+                        OperationKind::ProjectedScalarRead {
+                            source: crate::ProjectedPlace { root, path },
+                        },
+                        site_at(file, expression),
+                    )),
+                    super::references::PlaceRoot::Expression(node, ty) => {
+                        work.push(ExpressionStep::Emit {
+                            node: expression,
+                            output,
+                            operation: PendingOperation::ProjectedScalarRead(path),
+                            arity: 1,
+                        });
+                        work.push(ExpressionStep::Visit {
+                            node,
+                            carrier: ty,
+                            landing: None,
+                        });
+                    }
+                }
                 continue;
             }
             if node.kind == NodeKind::FieldAccess {
@@ -845,9 +878,9 @@ impl Expressions<'_> {
                 continue;
             }
             if node.kind == NodeKind::Index {
-                let read = crate::machines::access::select_indexed_read(self.types, self.prepared.typed(), tree, expression, carrier)?;
+                let read = crate::machines::access::select_indexed_read(self.types, self.data, self.prepared.typed(), tree, expression, carrier)?;
                 let arity = 1 + read.selectors.len();
-                let output = if matches!(carrier, ValueType::Array(..)) {
+                let output = if crate::lowering::types::uses_structural_place(carrier) {
                     OperationOutput::Structural(lookup_type()?)
                 } else {
                     OperationOutput::Scalar(lookup_type()?)

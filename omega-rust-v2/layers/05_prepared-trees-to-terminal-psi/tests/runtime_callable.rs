@@ -438,12 +438,34 @@ fn the_invocation_after_a_join_uses_the_arriving_descriptor() {
             .contains(&descriptor)
     );
     assert_eq!(contract_of(&package, joined.ty), contract);
-    let incoming: Vec<_> = refinements(choose)
-        .into_iter()
-        .filter(|(_, id, _)| *id == contract)
-        .map(|(source, _, _)| source)
-        .collect();
-    assert_eq!(incoming, [scalar_parameter(choose, 1), scalar_parameter(choose, 2)]);
+    let omega_lowering::BlockTerminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &choose.body.blocks[0].terminator
+    else {
+        panic!("expected flag to select the descriptor");
+    };
+    assert_eq!(*condition, scalar_parameter(choose, 0));
+    assert_eq!(choose.body.blocks[block.get() - 1].scalar_parameters, [descriptor]);
+    for (edge, expected) in [
+        (when_false, scalar_parameter(choose, 1)),
+        (when_true, scalar_parameter(choose, 2)),
+    ] {
+        let arm = &choose.body.blocks[edge.target.get() - 1];
+        let [refinement] = &choose.body.operations[arm.operations.clone()] else {
+            panic!("one refinement per arm")
+        };
+        assert!(
+            matches!(&refinement.kind, OperationKind::RefineCallableDescriptor { source, contract: destination }
+            if *source == expected && *destination == contract)
+        );
+        let omega_lowering::BlockTerminator::Jump(arrival) = &arm.terminator else {
+            panic!("expected join arrival")
+        };
+        assert_eq!(arrival.target, block);
+        assert!(matches!(arrival.arguments.as_slice(), [selected] if refinement.result == OperationResult::Scalar(*selected)));
+    }
     assert!(matches!(
         package
             .types
@@ -457,7 +479,8 @@ fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
     // A loan formal needs custody lowering the contract cannot yet state.
     let loan = "data Lend = machine(x:@u8)->u8 reaches none crashes none; machine keep(f:Lend) {}";
     let error = sources::lower(&[("runtime_callable.omg", loan)]).unwrap_err();
-    assert!(error.message.contains("runtime callable"), "{error:?}");
+    assert_eq!(error.message, "no Psi lowering for carrier runtime callable machine(@u8) -> u8");
+    assert_eq!(error.site.span.slice(loan.as_bytes()), Some(b"f".as_slice()));
 
     // Constructing a descriptor from a named machine is not forwarding.
     let construction = format!(
@@ -466,5 +489,10 @@ fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
          machine start(value:u8)->u8 {{run((action), value)}}",
         alias("Step")
     );
-    assert!(sources::lower(&[("runtime_callable.omg", &construction)]).is_err());
+    let error = sources::lower(&[("runtime_callable.omg", &construction)]).unwrap_err();
+    assert_eq!(
+        error.message,
+        "forwarded descriptor requires the actual current descriptor; construction from a named machine is unsupported"
+    );
+    assert_eq!(error.site.span.slice(construction.as_bytes()), Some(b"(action)".as_slice()));
 }

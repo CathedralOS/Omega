@@ -65,10 +65,18 @@ fn exclusive_move_and_replacement_retain_both_exact_paths() {
             .operations
             .iter()
             .find_map(|o| match &o.kind {
-                OperationKind::StructuralStore { destination, value, .. } => Some((destination, *value)),
+                OperationKind::StructuralStore {
+                    destination,
+                    value,
+                    disposition,
+                } => {
+                    assert_eq!(*disposition, omega_psi::StructuralStoreDisposition::FillVacancy);
+                    Some((destination, *value))
+                }
                 _ => None,
             })
             .unwrap();
+        assert_eq!(body.parameters, [Parameter::Structural(moved.0.root)]);
         assert_eq!(moved.0.root, stored.0.root);
         assert!(matches!(moved.0.path.as_slice(),[PlaceProjection::Referent,PlaceProjection::Field(f)] if f.path=="Pair::left"));
         assert!(matches!(stored.0.path.as_slice(),[PlaceProjection::Referent,PlaceProjection::Field(f)] if f.path==format!("Pair::{}",field)));

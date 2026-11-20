@@ -69,21 +69,29 @@ fn nested_integer_operations_keep_evaluation_order_and_local_policy() {
 fn integer_questions_distinguish_quotient_range_and_shift_count_policy() {
     use ArithmeticPolicy::{Exact, Saturating, Wrapping};
     use IntegerObligation::{NonzeroDivisor, QuotientFitsCarrier, ResultFitsCarrier, ShiftCountInRange};
-    use IntegerPrimitive::{Remainder, ShiftLeft, ShiftRight};
+    use IntegerPrimitive::{Divide, Remainder, ShiftLeft, ShiftRight};
     let package = lower(
-        "machine exact_remainder(value: i8, divisor: i8) -> i8 { value % divisor }
+        "machine exact_divide(value: i8, divisor: i8) -> i8 { value / divisor }
+         machine exact_remainder(value: i8, divisor: i8) -> i8 { value % divisor }
          machine exact_shift(value: u13, count: i8) -> u13 { value << count }
          machine saturating_shift(value: u13, count: i8) -> u13 { value >>| count }
+         machine unsigned_divide(value: u8, divisor: u8) -> u8 { value / divisor }
+         machine unsigned_remainder(value: u8, divisor: u8) -> u8 { value % divisor }
          machine wrapping_remainder(value: i8, divisor: i8) -> i8 { value %% divisor }
          machine wrapping_shift(value: u13, count: i8) -> u13 { value <<% count }",
     );
-    for (machine, (primitive, policy, obligations)) in package.machines.iter().zip([
+    let expected = [
+        (Divide, Exact, [NonzeroDivisor, QuotientFitsCarrier].as_slice()),
         (Remainder, Exact, [NonzeroDivisor, QuotientFitsCarrier].as_slice()),
         (ShiftLeft, Exact, [ShiftCountInRange, ResultFitsCarrier].as_slice()),
         (ShiftRight, Saturating, [ShiftCountInRange].as_slice()),
+        (Divide, Exact, [NonzeroDivisor].as_slice()),
+        (Remainder, Exact, [NonzeroDivisor].as_slice()),
         (Remainder, Wrapping, [NonzeroDivisor].as_slice()),
         (ShiftLeft, Wrapping, [].as_slice()),
-    ]) {
+    ];
+    assert_eq!(package.machines.len(), expected.len());
+    for (machine, (primitive, policy, obligations)) in package.machines.iter().zip(expected) {
         let [row] = machine.body.operations.as_slice() else {
             panic!("expected a single integer operation")
         };

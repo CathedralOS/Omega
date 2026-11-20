@@ -119,7 +119,6 @@ fn the_admitted_semantics_and_exact_inputs_reach_psi_from_the_package_path() {
         assert!(
             matches!(set.operands.as_slice(),[AssemblyOperand::Register(r),AssemblyOperand::Value(value)] if r.name=="r0" && machine.body.parameters==[omega_lowering::Parameter::Scalar(*value)])
         );
-        assert_eq!(set.implicit_registers[0].name, flag);
         assert_eq!(set.semantics, catalog(flag).instructions["set"][0].semantics);
         let OperationKind::AssemblyInstruction(jump) = &branch.kind else {
             panic!("expected flag observation")
@@ -134,7 +133,16 @@ fn the_admitted_semantics_and_exact_inputs_reach_psi_from_the_package_path() {
         };
         assert_eq!(branch.result, OperationResult::Scalar(*condition));
         assert_eq!(jump.operands, [AssemblyOperand::LocalBlock(when_true.target)]);
-        assert_eq!(jump.implicit_registers[0].name, flag);
+        for instruction in [set, jump] {
+            let [register] = &instruction.implicit_registers[..] else {
+                panic!("expected exactly the flag from the selected catalog")
+            };
+            assert_eq!(register.name, flag);
+            assert_eq!(
+                lowered.types.get(register.ty),
+                Some(&omega_psi::TypeShape::PrimitiveScalar(omega_psi::ScalarType::Boolean))
+            );
+        }
         assert_eq!(
             psi_handoff_consumer::assembly_branch(&machine.body, &machine.body.blocks[0]),
             Some((flag, when_true.target, when_false.target))

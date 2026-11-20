@@ -485,6 +485,20 @@ fn value_pattern_dispatch_refuses_without_an_exact_lowered_comparison() {
 fn control_flow_invariant_detects_unowned_and_multiply_owned_operations() {
     let mut package = lower("machine choose(flag:bool)->u8{match flag {true -> 7u8, false -> 9u8,}}").unwrap();
     let body = &mut package.machines[0].body;
+    let original = body.operations[1].id;
+    body.operations[1].id = body.operations[0].id;
+    assert_eq!(
+        sources::control_flow::check_operation_ownership(body),
+        Err("operation identity disagrees with its slot")
+    );
+    body.operations[1].id = original;
+    let original = body.operations[1].result;
+    body.operations[1].result = body.operations[0].result;
+    assert_eq!(
+        sources::control_flow::check_operation_ownership(body),
+        Err("result does not name its defining operation")
+    );
+    body.operations[1].result = original;
     let first = body.blocks[1].operations.clone();
     let second = body.blocks[2].operations.clone();
     body.blocks[2].operations = first;
