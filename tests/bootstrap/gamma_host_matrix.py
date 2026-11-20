@@ -5,8 +5,8 @@ from pathlib import Path
 import struct
 import time
 
-from compiled import ROOT, execute, pack, stamp
-from conformance.vectors import epsilon_observations, epsilon_syntax_controls
+from compiled import ROOT, execute, pack, shell, stamp
+from conformance.vectors import epsilon_observations, epsilon_request, epsilon_syntax_controls
 from independent.source_test import source as gamma_source
 
 
@@ -43,7 +43,32 @@ def check_epsilon(row, compiler, delta_program, target, request, closure, work, 
         if execute(evaluator, payload, seconds) != expected:
             raise RuntimeError(f"{row}: Epsilon observation failed: {label}")
     print(f"{row}: passed five Epsilon observations and both syntax controls", flush=True)
-    return hashlib.sha256(receipt).digest(), hashlib.sha256(image).digest()
+    return receipt, image
+
+
+def check_product_word(work, closure, seconds):
+    compiler = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "omega.epsilon")
+    fixtures = ROOT / "tests/bootstrap/conformance/omega"
+    guest = compiler + (fixtures / "main.epsilon").read_bytes()
+    word = (ROOT / "source/foundation/wire/codec.omg").read_bytes()
+    subject = word + b"\n" + (fixtures / "wire_word.omg").read_bytes()
+    request = epsilon_request(closure, guest, subject)
+    (work / "wire.eereq").write_bytes(request)
+    observations = []
+    # The matrix has already checked both constructions of each target evaluator.
+    evaluators = {"alpha": "alpha-to-alpha-epsilon.vm", "linux": "linux-to-linux-epsilon.bin"}
+    for target, evaluator in evaluators.items():
+        output = produce(work / evaluator, request, work / f"{target}-wire.observation", seconds)
+        if output[:5] != bytes(5) or len(output) == 5:
+            raise RuntimeError(f"{target}: no successful wire compiler output, prefix {output[:40].hex()}")
+        observations.append(output)
+    if observations[0] != observations[1]:
+        raise RuntimeError("Epsilon evaluators produced different wire decoder tapes")
+    tape = work / "wire.tape"
+    tape.write_bytes(observations[0][5:])
+    if execute(executable(tape, "alpha"), timeout=seconds) != (42, b""):
+        raise RuntimeError("wire decoder failed its little-endian word checks")
+    print(f"Product wire decoder: {tape.stat().st_size} identical Alpha bytes, exit 42.")
 
 
 def main():
@@ -52,6 +77,7 @@ def main():
     parser.add_argument("linux", type=Path, help="output of linux_x86_64/bootstrap")
     parser.add_argument("output", type=Path, help="new directory for all four rows")
     parser.add_argument("--epsilon", action="store_true", help="also construct and exercise the full Epsilon evaluator")
+    parser.add_argument("--wire", action="store_true", help="also run the Omega product wire decoder on both evaluators")
     parser.add_argument("--seconds", type=int, default=1800, help="timeout per invocation")
     args = parser.parse_args()
     if args.seconds <= 0:
@@ -68,7 +94,8 @@ def main():
     support = pack("bootstrap/interpreted/3_delta/support/support.gamma.sources", work / "support.bin")
     customer = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
     request = delta_request(customer, support)
-    if args.epsilon:
+    include_epsilon = args.epsilon or args.wire
+    if include_epsilon:
         closure = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
         entry = (ROOT / "tests/bootstrap/conformance/epsilon/evaluator_entry.delta").read_bytes()
         evaluator_request = delta_request(closure + entry, support)
@@ -98,19 +125,25 @@ def main():
                 if execute(program, payload, args.seconds) != (0, payload * 2):
                     raise RuntimeError(f"{row}: wrong Delta customer observation ({len(payload)} bytes)")
             print(f"{row}: refused invalid Gamma and matched all three Delta executions", flush=True)
-            if args.epsilon:
+            if include_epsilon:
                 evaluator_products[row] = check_epsilon(row, compiler, delta_program, target,
                                                          evaluator_request, closure, work, args.seconds)
-        if args.epsilon and evaluator_products[f"alpha-to-{target}"] != evaluator_products[f"linux-to-{target}"]:
+        if include_epsilon and evaluator_products[f"alpha-to-{target}"] != evaluator_products[f"linux-to-{target}"]:
             raise RuntimeError(f"{target}: Epsilon receipt or executable differs between hosts")
         for name, images in (("Delta compiler", delta_images), ("compiled customer", result_images)):
             if images[f"alpha-to-{target}"] != images[f"linux-to-{target}"]:
                 raise RuntimeError(f"{target}: {name} differs between hosts")
     if len(set(receipts.values())) != 1:
         raise RuntimeError("Delta compilers emitted different Gamma source for the same request")
-    if args.epsilon and len({receipt for receipt, image in evaluator_products.values()}) != 1:
-        raise RuntimeError("Delta compilers emitted different Epsilon evaluator receipts")
-    print("Both target images match across hosts; all four Delta receipts match.")
+    if include_epsilon:
+        if len({receipt for receipt, _ in evaluator_products.values()}) != 1:
+            raise RuntimeError("Delta compilers emitted different Epsilon evaluator receipts")
+        shell('. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"; '
+              '. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"; '
+              'require_epsilon_evaluator_entry_receipt_identity "$1"', work / "linux-to-linux-epsilon.gamma")
+    print("Both target images match across hosts; all four Delta receipts match.", flush=True)
+    if args.wire:
+        check_product_word(work, closure, args.seconds)
 
 
 if __name__ == "__main__":

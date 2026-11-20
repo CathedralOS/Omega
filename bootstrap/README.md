@@ -15,11 +15,11 @@ on every route.
 
 | Route | Delta compiler runs on | Epsilon implementation | Demonstrated workload |
 | --- | --- | --- | --- |
-| [Original interpreter](interpreted/README.md) | Gamma evaluator on Alpha | Epsilon evaluator, interpreted by Gamma | The bootstrap compiler emits Alpha tape for supported Omega programs. |
-| [Gamma compiled to Alpha](compiled_vm/README.md) | Alpha | Epsilon evaluator on Alpha | Same Omega programs. |
-| [Gamma compiled to native](independent/README.md) | Native | Native Epsilon evaluator | Same Omega programs. |
-| [Epsilon compiled to Delta, Alpha target](independent/README.md#calling-the-numeric-lexer-with-a-stored-enum) | Alpha | Epsilon-to-Delta compiler on Alpha | Numeric lexer on Alpha. |
-| [Epsilon compiled to Delta, native target](independent/README.md#checked-epsilon-compilation) | Native | Native Epsilon-to-Delta compiler | Numeric lexer on Linux. |
+| [Original interpreter](../tests/bootstrap/interpreted/epsilon/README.md) | Gamma evaluator on Alpha | Epsilon evaluator, interpreted by Gamma | Reconstructed the full evaluator in 567 s and passed its five portable language cases and two syntax controls. |
+| [Gamma compiled to Alpha](compiled_vm/README.md#compare-a-production-request-operation-across-evaluator-hosts) | Alpha | Epsilon evaluator on Alpha | Compiled the product's `Request.clear` and ran the resulting tape on Alpha. |
+| [Gamma compiled to native](independent/README.md) | Native | Native Epsilon evaluator | Compiled `Request.clear` and the product's complete wire decoder to Alpha. |
+| [Epsilon compiled to Delta, Alpha target](independent/README.md) | Alpha | Epsilon-to-Delta compiler on Alpha | Compiled the string scanner. Its 8,391,472-byte tape passed 17 cases. The full public scanner exceeded the Alpha tape limit. |
+| [Epsilon compiled to Delta, native target](independent/README.md) | Native | Native Epsilon-to-Delta compiler | Compiled the same string scanner and the full public lexer. The full lexer ran 23 cases. |
 
 The first three use one Delta-written evaluator to interpret the Epsilon-written
 [bootstrap compiler](interpreted/5_omega/README.md)
@@ -80,6 +80,12 @@ bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma-linux
 python3 tests/bootstrap/gamma_host_matrix.py --epsilon \
   /tmp/omega-gamma-alpha /tmp/omega-gamma-linux /tmp/omega-host-comparison
 ```
+
+Use `--wire` in place of `--epsilon` to take the same four constructions one
+step further. The test gives both target evaluators the complete Omega
+[wire decoder](../source/foundation/wire/codec.omg) and a caller that checks
+zero, `0x12345678` and `0xffffffff`. It compares the emitted Alpha programs
+byte for byte and executes the common tape on the seed VM.
 
 ## Building the compiler
 
