@@ -452,6 +452,12 @@ the final adapter. Both ran on the same original Beta-written Gamma interpreter 
 the same Epsilon requests. CPU seconds reflect one run per observation on a shared
 host.
 
+A separate run of the Delta compiler on the original Gamma interpreter reached the
+14:55 UTC cutoff after 500.933 CPU seconds (4,488.707 elapsed) with empty stdout. The
+construction terminal in this comparison used the Linux-produced evaluator. The
+777,500-byte framed request had SHA-256
+`af67a8764478daf8f77cf1c7a2d7475ee51aab3bef4e641605d5b2c05e715e40`.
+
 | Delta profile on original Gamma | Four input bytes | Sixteen input bytes | All 256 | Wrong-base refusal |
 | --- | ---: | ---: | ---: | ---: |
 | Conformance (default) | 22.151 | 44.233 | 703.145 | 14.662 |
