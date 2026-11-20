@@ -699,7 +699,7 @@ mod references {
 }
 mod traversal {
 
-    use crate::source_symbols::SymbolTable;
+    use crate::source_symbols::{JoinedPath, SymbolTable};
     use arena::HandleSpan;
     use symbols::SymbolHandle;
 
@@ -1091,6 +1091,25 @@ mod traversal {
                     for handle in cast.semantic_domain_arguments.handles() {
                         self.reassign_type_reference(handle);
                     }
+                    if !cast.semantic_domain_arguments.is_empty() {
+                        let path = self
+                            .expression_table
+                            .name_path_members(cast.semantic_domain);
+                        if let Some(name) = path.last() {
+                            crate::resolution::names::type_references::assign_domain_index_values(
+                                self.symbols,
+                                self.machine,
+                                self.parameters,
+                                &crate::source_resolved::name::DiagnosticName::from_str(
+                                    &path.joined_path(),
+                                    name.source_span(),
+                                ),
+                                cast.semantic_domain_arguments,
+                                self.child_type_references,
+                                self.declaration_references,
+                            );
+                        }
+                    }
                 }
                 ExpressionNode::Call(call) => {
                     if call.callee.is_valid() {
@@ -1293,7 +1312,6 @@ mod traversal {
                 TableBinaryExpression, TableDestructurePattern, TableMembershipExpression,
                 TableSavedSubject,
             };
-            use crate::source_symbols::JoinedPath;
             let (head, previous) = match arm.pattern {
                 MatchPattern::Value(head) => (head, None),
                 MatchPattern::Destructure(pattern) => (pattern.head, Some(pattern)),

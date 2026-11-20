@@ -462,12 +462,7 @@ mod assignment {
             );
             // The carrier binder of T::Quantity<U> is implicit. Each written
             // index after it takes its role from the family's own declaration.
-            let generic_carrier = type_parameters.first().is_some_and(|parameter| {
-                matches!(parameter.kind, TypeParameterKind::Type)
-                    && matches!(&domain.target_type, TypeReference::Named { symbol, .. }
-                        if symbol.is_valid() && *symbol == parameter.symbol)
-            });
-            let index_parameters = &type_parameters[usize::from(generic_carrier)..];
+            let index_parameters = domain.index_binders(&type_parameters);
             for (position, handle) in domain.index_arguments.handles().enumerate() {
                 if index_parameters
                     .get(position)
@@ -1741,6 +1736,15 @@ mod value_expressions {
                                 );
                                 *child_types.get_mut(handle) = reference;
                             }
+                            assign_domain_index_values(
+                                symbols,
+                                machine,
+                                parameters,
+                                &domain.name,
+                                domain.arguments,
+                                child_types,
+                                declaration_references,
+                            );
                         }
                         TypeConstraint::Named(_) | TypeConstraint::ArithmeticDomain(_) => {}
                     }
@@ -1850,6 +1854,65 @@ mod value_expressions {
             &mut type_reference,
         );
         *child_types.get_mut(handle) = type_reference;
+    }
+
+    /// Resolve named const indices in the domain's own slots. Type indices and
+    /// already normalized values retain the selections made for their roles.
+    pub(in crate::resolution::names) fn assign_domain_index_values(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        parameters: &[StateParameter],
+        domain_name: &DiagnosticName,
+        arguments: arena::HandleSpan<TypeReference>,
+        child_types: &mut crate::source_resolved::types::TypeReferenceArena,
+        declaration_references: &[source_text::SourceSpan],
+    ) {
+        if arguments.is_empty() {
+            return;
+        }
+        let crate::resolution::names::DomainMembership::Unique(domain) =
+            crate::resolution::names::membership_domain_lookup(
+                symbols,
+                domain_name.as_str(),
+                domain_name.source_span(),
+            )
+        else {
+            return;
+        };
+        let roles = machine.binder_roles.for_declaration(domain);
+        for (handle, role) in arguments.handles().zip(roles) {
+            let TypeReference::Named {
+                symbol,
+                name,
+                supplied_operand_owner,
+            } = child_types.get_mut(handle)
+            else {
+                continue;
+            };
+            if *role != crate::resolution::names::scopes::BinderRole::Value
+                || !name.is_source_backed()
+            {
+                continue;
+            }
+            let selected = if declaration_references.contains(&name.source_span()) {
+                Some(
+                    crate::resolution::names::lookup::top_level_symbol_for_source(
+                        symbols,
+                        SymbolKind::Const,
+                        name,
+                    ),
+                )
+            } else if supplied_operand_owner.is_valid() {
+                machine
+                    .supplied_scope(*supplied_operand_owner)
+                    .and_then(|scope| resolve_index_subject(symbols, &scope, &[], name))
+            } else {
+                resolve_index_subject(symbols, machine, parameters, name)
+            };
+            if let Some(selected) = selected {
+                *symbol = selected;
+            }
+        }
     }
 
     /*
@@ -2183,7 +2246,7 @@ mod value_expressions {
 }
 
 pub(super) use value_expressions::{
-    assign_declaration_type_value_expression_symbols,
+    assign_declaration_type_value_expression_symbols, assign_domain_index_values,
     assign_type_argument_value_expression_symbols, assign_type_value_expression_symbols,
     reassign_type_reference_symbols, reassign_type_reference_symbols_and_values,
 };

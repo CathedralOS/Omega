@@ -106,10 +106,9 @@ pub(super) fn bind_receiving_parameters(
     }
     for domain in program.roots.domain_definitions.iter() {
         let mut binders = domain.type_parameters;
-        if parameters.span_or_empty(binders).first().is_some_and(|parameter|
-            matches!(parameter.kind, crate::source_resolved::data::TypeParameterKind::Type)
-            && matches!(&domain.target_type, TypeReference::Named { symbol, .. } if *symbol == parameter.symbol))
-        {
+        let complete = parameters.span_or_empty(binders);
+        let indices = domain.index_binders(complete);
+        if indices.len() != complete.len() {
             binders = arena::HandleSpan::from_parts_or_empty(binders.handle_at(1), binders.count() - 1);
         }
         publish(domain.symbol, binders);

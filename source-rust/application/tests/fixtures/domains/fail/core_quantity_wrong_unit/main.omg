@@ -1,0 +1,17 @@
+use omega\language\core\Units;
+use omega\language\core\Quantity;
+use omega\language\core\kilometers_i64;
+use omega\language\core\kilometers_to_meters_trapping_i64;
+
+machine main() crashes Trap {
+    let start: i64 in Quantity<Units::KILOMETER> = kilometers_i64(2);
+    let distance: i64 in Quantity<Units::SECOND> = kilometers_to_meters_trapping_i64(start);
+}
+
+machine build(builder: @mut Build) {
+    Build::application(builder, "core_quantity_wrong_unit");
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64\ProgramEntry, main);
+}
