@@ -303,6 +303,7 @@ data OmegaRootKind {
     case Domain;
     case Implementation;
     case BoundaryMachine;
+    case Trait;
 }
 
 data OmegaRootSyntax {
@@ -328,6 +329,18 @@ data OmegaDomainSyntax {
 data OmegaBoundaryTraitSyntax {
     name: OmegaRelativeSpan;
     boundary_keyword: OmegaRelativeSpan;
+    first_requirement: i32;
+    requirement_count: i32;
+    is_public: i32;
+    start: i32;
+    end: i32;
+}
+
+// An ordinary trait never enters the boundary-service directory. Its signatures
+// share the parser's requirement arena and retain their source-owned range.
+data OmegaTraitSyntax {
+    name: OmegaRelativeSpan;
+    keyword: OmegaRelativeSpan;
     first_requirement: i32;
     requirement_count: i32;
     is_public: i32;
@@ -1114,10 +1127,15 @@ data OmegaParser {
     domain_count: i32;
     // Each trait is one root. Each requirement name consumes a path member.
     boundary_traits: [OmegaBoundaryTraitSyntax; 4096];
+    ordinary_traits: [OmegaTraitSyntax; 4096];
+    ordinary_trait_count: i32;
+    // Both trait kinds publish one distinct root, after the whole body closes.
+    pending_trait: OmegaTraitSyntax;
+    pending_trait_is_boundary: i32;
     boundary_requirements: [OmegaBoundaryRequirementSyntax; 16384];
     boundary_trait_count: i32;
     boundary_requirement_count: i32;
-    in_boundary_trait: i32;
+    in_trait: i32;
     implementations: [OmegaImplementationSyntax; 4096];
     // Every owned machine consumes a state row. Inline implementation
     // members form a contiguous range. A boundary root names one ordinal.

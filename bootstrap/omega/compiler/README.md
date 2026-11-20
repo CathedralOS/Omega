@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,795 lines / 1,031,761 bytes with SHA-256
-`8bc16c29cf64e78128722a935607123698bb49e509284719a6ac76c346585bc8`.
+The manifest materializes 26,844 lines / 1,033,558 bytes with SHA-256
+`f1d222fb59800e23a24487d3b49b755873627e2f505ab397ecc70e8db5587690`.
 The manifest itself is 2,381 bytes, SHA-256
-`ab7d537dd33bfed54702f367b371e365eb527f0829546d5b6b951ea034dee280`;
+`ec3f7544dbac4cb0b1838d073fef03d4007fd4c6bc6e2a1b446d75aff1068dcb`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -551,7 +551,7 @@ assignments.
 The explicit slow [complete-D parser customer](../../../_recycling/tests/bootstrap/omega-parser/README.md)
 checks this manifested implementation through the lower chain. Sum-valued
 parser guards use Epsilon case transitions; scalar equality is not a sum test.
-One root table preserves source order for imports, data, machines, domains and boundary traits. Optionally
+One root table preserves source order for imports, data, machines, domains, ordinary traits and boundary traits. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from
 the retained statement slice. An optional leading target selector is
@@ -566,6 +566,12 @@ its borrowed subject. A declaration ending directly in `;` has zero predicates.
 The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
 proof obligations.
+
+A nongeneric ordinary `trait` retains each bodyless machine signature in
+its declaring trait's range. `ConsoleByteOperations` and
+`PosixConsoleRawOperations` in std use this form. The parser keeps ordinary
+traits in a separate table from boundary services. Executable construction
+reports incomplete coverage at an ordinary trait until its conformance is checked.
 
 A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,
