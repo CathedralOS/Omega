@@ -28,18 +28,16 @@ struct Sibling {
 */
 pub(crate) fn bind_sibling_calls(
     program: &mut SymbolResolvedTrees,
-    inputs: &[crate::resolution::selections::body_calls::CallSelectionInput],
     work: &[SymbolHandle],
 ) {
     let symbols = std::mem::take(&mut program.symbols);
-    bind_sibling_calls_with(program, &symbols, inputs, work);
+    bind_sibling_calls_with(program, &symbols, work);
     program.symbols = symbols;
 }
 
 fn bind_sibling_calls_with(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
-    inputs: &[crate::resolution::selections::body_calls::CallSelectionInput],
     work: &[SymbolHandle],
 ) {
     let machine_families = program
@@ -150,6 +148,6 @@ fn bind_sibling_calls_with(
                 state.is_valid().then_some(state)
             })
         };
-        retarget_machine_calls(program, body, inputs, work.contains(&body), &mut decide);
+        retarget_machine_calls(program, body, work.contains(&body), &mut decide);
     }
 }

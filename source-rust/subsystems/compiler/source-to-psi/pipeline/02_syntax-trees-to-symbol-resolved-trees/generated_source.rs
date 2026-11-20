@@ -1,6 +1,5 @@
 use crate::resolution::{
-    DeferredResolvedFrontier, ResolutionRequest, begin_complete,
-    resolve_deferred_with_declarations, resolve_forest,
+    DeferredResolvedFrontier, ResolutionRequest, resolve_deferred_with_declarations,
 };
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
@@ -93,39 +92,17 @@ impl DeferredResolvedExtension {
     }
 }
 
-/*
-    Resolve one syntax extension against its retained base while keeping the
-    exact append frontier of every authored-selection occurrence store.
-
-    Existing arenas and symbol tables are consumed and extended in place; no
-    source bytes are read and neither forest is parsed again. The returned
-    carrier is readable, but its trees can enter a later seeded phase only by
-    transactionally rebasing the extension suffix against that phase's exact
-    retained authored-selection ledger.
-*/
+/// Materialize the fixture's complete forest through ordinary body completion.
+#[cfg(any(test, feature = "test-support"))]
 pub fn resolve_extension(
     request: ExtensionRequest,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
-    let ExtensionRequest {
-        base,
-        base_declarations,
-        syntax,
-        sources,
-        top_level_bindings,
-    } = request;
-    let authored_selection_frontier = base.authored_selection_extension_frontier();
-    let retained_base = Arc::clone(&base);
-    let request = ResolutionRequest {
-        syntax,
-        sources: Some(sources),
-        top_level_bindings,
-        retained_base: Some(base),
-    };
-    let (syntax, lowerer) = begin_complete(request, Some(&base_declarations))?;
-    let (trees, _, _) = resolve_forest(lowerer, &syntax)?;
+    let extension = resolve_deferred_extension(request)?;
     Ok(SeededSymbolResolvedTrees {
-        trees,
-        authored_selection_frontier,
-        retained_base,
+        trees: extension.successor.into_complete_trees()?,
+        authored_selection_frontier: extension
+            .predecessor
+            .authored_selection_extension_frontier(),
+        retained_base: extension.predecessor,
     })
 }

@@ -224,7 +224,6 @@ impl DefaultBodyScope {
 */
 pub(crate) fn route_named_implementation_calls(
     program: &mut SymbolResolvedTrees,
-    inputs: &[super::body_calls::CallSelectionInput],
     work: &[SymbolHandle],
 ) {
     let implementation_rows = program
@@ -257,7 +256,6 @@ pub(crate) fn route_named_implementation_calls(
         super::body_calls::retarget_machine_calls(
             program,
             machine,
-            inputs,
             work.contains(&machine),
             &mut select_requirement,
         );
@@ -470,7 +468,6 @@ fn named_requirement<'name>(
 */
 pub(crate) fn route_conformance_requirement_calls(
     program: &mut SymbolResolvedTrees,
-    inputs: &[super::body_calls::CallSelectionInput],
     work: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let trait_catalog = build_trait_catalog(program);
@@ -487,7 +484,6 @@ pub(crate) fn route_conformance_requirement_calls(
         retarget_machine_calls(
             program,
             plan.machine,
-            inputs,
             work.contains(&plan.machine),
             &mut |site| {
                 let routed = plan.binding(site).map(|binding| binding.selected);

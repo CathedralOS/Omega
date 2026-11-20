@@ -23,15 +23,6 @@ use crate::source_resolved::types::TypeReference;
 use crate::source_symbols::JoinedPath;
 use symbols::SymbolHandle;
 
-/*
-    Preparation-only expression roots retain their machine owner through final
-    call routing. They never populate executable state bodies.
-*/
-pub(crate) struct CallSelectionInput {
-    pub(crate) machine: SymbolHandle,
-    pub(crate) expression: ExpressionHandle,
-}
-
 /* One call the traversal offers to a decision. */
 pub(crate) struct CallSite<'a> {
     /* The target state symbol ordinary resolution assigned, or invalid. */
@@ -56,13 +47,11 @@ pub(crate) struct CallSite<'a> {
 
 /*
     Headers are refreshed even when a different body's completion caused the
-    global contract reference walk. Only selected bodies and explicitly supplied
-    preparation inputs belong to the executable work frontier.
+    global contract reference walk. Only selected bodies enter this completion.
 */
 pub(crate) fn retarget_machine_calls(
     program: &mut SymbolResolvedTrees,
     machine: SymbolHandle,
-    inputs: &[CallSelectionInput],
     include_body: bool,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
@@ -104,9 +93,7 @@ pub(crate) fn retarget_machine_calls(
     for expression in declaration_expressions {
         retarget_expression(program, expression, decide, &mut visited);
     }
-    for input in inputs.iter().filter(|input| input.machine == machine) {
-        retarget_expression(program, input.expression, decide, &mut visited);
-    }
+
     for statements in state_spans {
         retarget_statement_span(program, statements, decide);
     }

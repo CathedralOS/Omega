@@ -167,23 +167,17 @@ impl ResolveAndTypeRequest {
             if let (Some(typing), Some(base), Some(base_declarations)) =
                 (retained, resolved_base, retained_declaration_syntax)
             {
-                let extension = observer.record_result(PsiCompilationStage::Resolution, || {
-                    crate::resolution::resolve_deferred_extension(
-                        crate::resolution::ExtensionRequest {
-                            base,
-                            base_declarations,
-                            syntax,
-                            sources: self.sources,
-                            top_level_bindings: self.top_level_bindings,
-                        },
-                    )
-                })?;
-                observer.record_result(PsiCompilationStage::Typing, || {
-                    let (source, frontier) = extension.rebase_for_typed_continuation(
-                        typing.typed().authored_declaration_selections(),
-                    )?;
-                    Ok::<_, Vec<Diagnostic>>((typing.append_resolved(source)?, frontier))
-                })?
+                extend_declarations(
+                    typing,
+                    crate::resolution::ExtensionRequest {
+                        base,
+                        base_declarations,
+                        syntax,
+                        sources: self.sources,
+                        top_level_bindings: self.top_level_bindings,
+                    },
+                    observer,
+                )?
             } else {
                 let mut frontier = {
                     observer.record_result(PsiCompilationStage::Resolution, || {
@@ -474,6 +468,22 @@ fn type_completed_bodies(
     Ok((typing, frontier))
 }
 
+/// Resolve and type an appended source forest against its exact predecessor.
+fn extend_declarations(
+    typing: crate::typing::SeededTypingBase,
+    request: crate::resolution::ExtensionRequest,
+    observer: &mut impl PsiCompilationObserver,
+) -> Result<(crate::typing::SeededTypingBase, crate::resolution::DeferredResolvedFrontier), Vec<Diagnostic>> {
+    let extension = observer.record_result(PsiCompilationStage::Resolution, || {
+        crate::resolution::resolve_deferred_extension(request)
+    })?;
+    observer.record_result(PsiCompilationStage::Typing, || {
+        let (source, frontier) = extension
+            .rebase_for_typed_continuation(typing.typed().authored_declaration_selections())?;
+        Ok((typing.append_resolved(source)?, frontier))
+    })
+}
+
 fn complete_pending_bodies(
     mut typing: crate::typing::SeededTypingBase,
     mut pending_bodies: crate::resolution::DeferredResolvedFrontier,
@@ -542,20 +552,24 @@ impl CompletedSource {
             .and_then(|count| count.checked_add(1))
             .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
         syntax.begin_page(generation);
-        let seeded = observer.record_result(PsiCompilationStage::Resolution, || {
-            crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
+        let (typing, pending) = extend_declarations(
+            self.typing,
+            crate::resolution::ExtensionRequest {
                 base: resolved_base,
-                base_declarations: Arc::clone(&self.declaration_syntax),
+                base_declarations: self.declaration_syntax,
                 syntax,
                 sources: extension.sources,
                 top_level_bindings: Vec::new(),
-            })
-        })?;
-        let mut typed = observer
-            .record_result(PsiCompilationStage::Typing, || {
-                self.typing.lower_extension(seeded)
-            })?
-            .into_typed();
+            },
+            observer,
+        )?;
+        let (typing, _) = complete_pending_bodies(
+            typing,
+            pending,
+            crate::resolution::DeferredBodyScope::All,
+            observer,
+        )?;
+        let mut typed = typing.into_typed();
         PreCheckEvaluation::record_extension(pre_checks, wire_schema_frontier, &mut typed)?;
         Ok(PreparedSource {
             accounting: self.accounting,

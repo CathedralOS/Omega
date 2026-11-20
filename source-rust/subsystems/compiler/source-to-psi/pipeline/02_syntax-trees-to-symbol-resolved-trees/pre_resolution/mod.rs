@@ -13,7 +13,6 @@ use crate::resolution::declarations::module_normalization::validate_with_const_r
 pub use crate::resolution::declarations::trait_defaults::synthesize_trait_defaults;
 use crate::resolution::declarations::trait_defaults::synthesize_trait_defaults_after_module_validation;
 use crate::resolution::lowering::lowerer::{ConstResolutionMode, Lowerer};
-use crate::resolution::lowering::state::LexicalInputDemand;
 use crate::resolution::names::assign_lexical_inputs;
 use crate::resolution::tables::body_expressions;
 use crate::resolution::{
@@ -105,13 +104,13 @@ pub fn resolve_const_argument_selection(
 ) -> Result<ConstArgumentSelection, Vec<Diagnostic>> {
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
-    assign_lexical_inputs(&mut lowerer, &syntax, LexicalInputDemand::TypeOperands)?;
+    assign_lexical_inputs(&mut lowerer, &syntax)?;
     let expressions: Vec<_> = lowerer
         .pending_authored_expressions
         .iter()
         .map(|authored| authored.expression)
         .collect();
-    finish_resolution(&mut lowerer, &syntax, &[], &[])?;
+    finish_resolution(&mut lowerer, &syntax, &[])?;
     let program = lowerer.into_trees();
     Ok(ConstArgumentSelection {
         program,
@@ -252,21 +251,4 @@ fn finish_const_initializer_selection(
     let preparation = ConstInitializerSelection { frontier };
     preparation.validate_initializer_leaves(&preparation.frontier.syntax)?;
     Ok(preparation)
-}
-
-/*
-    Select call-result inputs without materializing unrelated runtime expressions.
-    Local headers establish the preceding-local scope; selected call roots retain
-    their receivers, arguments and machine owner through ordinary final routing.
-    This one-shot preparation product grants no body typing or execution authority.
-    Receipt-required helper bodies still complete through normal settlement.
-*/
-pub fn resolve_call_result_selection(
-    request: ResolutionRequest,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
-    index_declarations(&mut lowerer, &syntax)?;
-    let inputs = assign_lexical_inputs(&mut lowerer, &syntax, LexicalInputDemand::CallResults)?;
-    finish_resolution(&mut lowerer, &syntax, &inputs, &[])?;
-    Ok(lowerer.into_trees())
 }

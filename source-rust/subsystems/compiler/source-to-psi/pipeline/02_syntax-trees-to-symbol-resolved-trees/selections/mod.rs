@@ -1,7 +1,7 @@
 /*
     Exact declaration selection that lexical lookup alone cannot settle.
 
-    `resolve_forest` runs these in a fixed order. Operator homes are selected
+    The resolver runs these in a fixed order. Operator homes are selected
     before symbol assignment; the rest run once every declaration has a
     symbol: the authored-selection ledger, nominal machine-parameter
     requirements, closed conformance rows, domain establishment routes,

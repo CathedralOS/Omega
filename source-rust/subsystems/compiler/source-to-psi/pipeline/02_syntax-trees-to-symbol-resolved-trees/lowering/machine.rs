@@ -622,7 +622,6 @@ pub(crate) fn complete_machine_body(
 pub(crate) fn lower_pending_lexical_inputs(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
-    demand: crate::resolution::lowering::state::LexicalInputDemand,
 ) -> Result<Vec<crate::resolution::lowering::state::StateLexicalInputs>, Diagnostic> {
     let pending = lowerer.pending_machine_bodies.clone();
     let mut inputs = Vec::new();
@@ -637,7 +636,6 @@ pub(crate) fn lower_pending_lexical_inputs(
                         machine,
                         state,
                         syntax.items.state(syntax_state).statements,
-                        demand,
                     )?,
                 );
             }

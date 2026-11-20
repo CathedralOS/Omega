@@ -472,21 +472,7 @@ mod requirement_handoff_tests {
     use super::*;
 
     fn resolve(text: &str) -> SymbolResolvedTrees {
-        let tokens = crate::resolution::frontend_fixture::Lexer::new(text)
-            .tokenize()
-            .unwrap();
-        let syntax = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(
-            source_text::SourceId(1),
-            &tokens,
-        )
-        .unwrap();
-        crate::resolution::resolve(crate::resolution::ResolutionRequest {
-            syntax,
-            sources: None,
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-        })
-        .unwrap()
+        crate::resolution::resolve(crate::resolution::tests::source_request(text)).unwrap()
     }
 
     #[test]
