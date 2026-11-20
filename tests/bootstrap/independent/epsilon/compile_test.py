@@ -56,6 +56,21 @@ def identity(data):
     return {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
 
 
+def keyword_codes(closure, compile_delta, observe):
+    probe = compile_delta(closure + (FIXTURES / 'keyword_codes.delta').read_bytes(), 'keyword-codes')
+    words = (b'boundary trait data case machine state transition let return '
+             b'assert true false self mut i32 u8 never').split()
+    for code, word in enumerate(words, 10):
+        # The first and last input bytes fall outside the source window. Its
+        # final keyword ends at EOF even though the backing has an identifier suffix.
+        identifiers = [word[:-1], word.upper(), word + b'2', word + b'_', b'X' + word]
+        source = b'// skip\n' + word + b'; ' + b' '.join([*identifiers, word])
+        expected = bytes([code, 36, *([1] * len(identifiers)), code, 0])
+        assert observe(probe, b'X' + source + b'X') == expected, word
+    assert observe(probe, b'XX') == b'\x00'
+    assert observe(probe, b'') == b'\xff'
+
+
 def digit_scanner(base, boundary, program, observe, reference, compiler):
     lexer = (base / 'lexer.epsilon').read_bytes()
 
@@ -339,6 +354,7 @@ def run(work, vm, producer, realize, seconds):
     checkpoint()
     try:
         closure = vm.pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
+        keyword_codes(closure, compile_delta, observe)
         compiler_source = composition.compiler_source(closure)
         compiler = compile_delta(compiler_source, 'compiler')
         report['compiler_source'] = identity(compiler_source)
