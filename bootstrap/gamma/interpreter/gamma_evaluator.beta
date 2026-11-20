@@ -340,6 +340,7 @@
         ret
 0x670: ; parse_integer_positive:
         mov r0 r3
+0x673: ; parse_integer_success:
         mov r1 r91
         ret
 0x677: ; parse_integer_fail:
@@ -347,47 +348,51 @@
         mov r1 r90
         ret
 
-; Decode a quoted character from the current token start. Return its value
-; in r0, success in r1, and the offset after the closing apostrophe in r2.
+; Pack one to eight decoded bytes into a little-endian word in r0. The next
+; byte's place value in r4 wraps to zero after eight bytes. The source cursor
+; in r2 stops immediately after the closing apostrophe. Every decoded byte is
+; nonzero, so a zero result at the closing apostrophe means the literal is empty.
 0x67e: ; parse_character:
+        loadb r6 r86
         mov r2 r86
         add r2 r91
-        call 0x75d ; -> character_byte:
+        mov r0 r90
+        mov r4 r91
+        imm r5 0x100
+0x697: ; character_loop:
+        call 0x766 ; -> character_byte:
+        jeq r3 r6 0x753 ; -> character_done:
+        jz r4 0x1ac2 ; -> invalid:
         imm r1 0x5c
-        jeq r3 r1 0x6d8 ; -> character_escape:
+        jeq r3 r1 0x6e8 ; -> character_escape:
         imm r1 0x20
         jlt r3 r1 0x1ac2 ; -> invalid:
-        imm r1 0x27
-        jeq r3 r1 0x1ac2 ; -> invalid:
-        mov r0 r3
-        jmp 0x732 ; -> character_close:
-0x6d8: ; character_escape:
-        call 0x75d ; -> character_byte:
+        jmp 0x741 ; -> character_append:
+0x6e8: ; character_escape:
+        call 0x766 ; -> character_byte:
         imm r1 0x6e
-        jeq r3 r1 0x714 ; -> character_newline:
+        jeq r3 r1 0x724 ; -> character_newline:
         imm r1 0x73
-        jeq r3 r1 0x728 ; -> character_space:
+        jeq r3 r1 0x737 ; -> character_space:
         jmp 0x1ac2 ; -> invalid:
-0x714: ; character_newline:
-        imm r0 0xa
-        call 0x732 ; -> character_close:
-        ret
-0x728: ; character_space:
-        imm r0 0x20
-0x732: ; character_close:
-        call 0x75d ; -> character_byte:
-        imm r1 0x27
-        jeq r3 r1 0x759 ; -> character_done:
-        jmp 0x1ac2 ; -> invalid:
-0x759: ; character_done:
-        mov r1 r91
-        ret
+0x724: ; character_newline:
+        imm r3 0xa
+        jmp 0x741 ; -> character_append:
+0x737: ; character_space:
+        imm r3 0x20
+0x741: ; character_append:
+        mul r3 r4
+        add r0 r3
+        mul r4 r5
+        jmp 0x697 ; -> character_loop:
+0x753: ; character_done:
+        jz r0 0x1ac2 ; -> invalid:
+        jmp 0x673 ; -> parse_integer_success:
 
-; Read one source byte into r3. Never consume sealed guest input.
-0x75d: ; character_byte:
-        jlt r2 r82 0x771 ; -> character_byte_in_source:
-        jmp 0x1ac2 ; -> invalid:
-0x771: ; character_byte_in_source:
+; The cursor starts immediately after the opening apostrophe and advances
+; by one per read. Stop at the source end before touching sealed input.
+0x766: ; character_byte:
+        jeq r2 r82 0x1ac2 ; -> invalid:
         loadb r3 r2
         add r2 r91
         ret

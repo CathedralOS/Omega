@@ -248,51 +248,34 @@
   (let h Int (e_header s mainid)
     (i_stack_runtime (e_finish (if application (e_application h) (e_scalar h)) application))))
 
-; Compare only after the caller has checked the length of the symbol.
-(def c_chars2 ((at Int) (a Int) (b Int)) Int
-  (if (eq (read at) a) (eq (read (+ at 1)) b) 0))
-(def c_chars3 ((at Int) (a Int) (b Int) (c Int)) Int
-  (if (eq (read at) a) (c_chars2 (+ at 1) b c) 0))
-(def c_chars4 ((at Int) (a Int) (b Int) (c Int) (d Int)) Int
-  (if (eq (read at) a) (c_chars3 (+ at 1) b c d) 0))
-(def c_chars5 ((at Int) (a Int) (b Int) (c Int) (d Int) (e Int)) Int
-  (if (eq (read at) a) (c_chars4 (+ at 1) b c d e) 0))
-(def c_chars6 ((at Int) (a Int) (b Int) (c Int) (d Int) (e Int) (f Int)) Int
-  (if (eq (read at) a) (c_chars5 (+ at 1) b c d e f) 0))
+; Pack only a checked symbol span. Short builtin names fit in one Gamma Int.
+(def c_packed ((at Int) (length Int)) Int
+  (if (eq length 0) 0 (+ (read at) (* 256 (c_packed (+ at 1) (- length 1))))))
 
-(def c_operator_kind ((byte Int)) Int
-  (if (eq byte '+') 7
-    (if (eq byte '-') 8
-      (if (eq byte '*') 9
-        (if (eq byte '/') 10
-          (if (eq byte '%') 11 0))))))
-
-; A zero kind leaves the symbol available as an ordinary name.
+; Zero leaves the symbol available as an ordinary name.
 (def c_symbol_kind ((at Int) (size Int)) Int
-  (if (eq size 1) (c_operator_kind (read at))
+  (if (lt size 7)
+    (c_short_kind size (c_packed at size))
+    (if (eq size 12)
+      (if (eq (c_packed at 6) '$appli')
+        (if (eq (c_packed (+ at 6) 6) 'cation') 4 0)
+        0)
+      0)))
+
+(def c_short_kind ((size Int) (word Int)) Int
+  (if (eq size 1)
+    (if (eq word '+') 7 (if (eq word '-') 8 (if (eq word '*') 9
+      (if (eq word '/') 10 (if (eq word '%') 11 0)))))
   (if (eq size 2)
-    (if (c_chars2 at 'i' 'f') 5
-      (if (c_chars2 at 'e' 'q') 12
-        (if (c_chars2 at 'l' 't') 13 0)))
+    (if (eq word 'if') 5 (if (eq word 'eq') 12 (if (eq word 'lt') 13 0)))
   (if (eq size 3)
-    (if (c_chars3 at 'd' 'e' 'f') 1
-      (if (c_chars3 at 'I' 'n' 't') 2
-        (if (c_chars3 at 'l' 'e' 't') 6 0)))
+    (if (eq word 'def') 1 (if (eq word 'Int') 2 (if (eq word 'let') 6 0)))
   (if (eq size 4)
-    (if (c_chars4 at 'm' 'a' 'i' 'n') 3
-      (if (c_chars4 at 'p' 'a' 'i' 'r') 14
-        (if (c_chars4 at 'r' 'e' 'a' 'd') 15 0)))
+    (if (eq word 'main') 3 (if (eq word 'pair') 14 (if (eq word 'read') 15 0)))
   (if (eq size 5)
-    (if (c_chars5 at 'w' 'r' 'i' 't' 'e') 16
-      (if (c_chars5 at 'f' 'i' 'r' 's' 't') 17
-        (if (c_chars5 at 'i' 'n' 'p' 'u' 't') 19 0)))
-  (if (eq size 6)
-    (if (c_chars6 at 's' 'e' 'c' 'o' 'n' 'd') 18 0)
-  (if (eq size 12)
-    (if (c_chars6 at '$' 'a' 'p' 'p' 'l' 'i')
-      (if (c_chars6 (+ at 6) 'c' 'a' 't' 'i' 'o' 'n') 4 0)
-      0)
-    0))))))))
+    (if (eq word 'write') 16 (if (eq word 'first') 17 (if (eq word 'input') 19 0)))
+    (if (eq word 'second') 18 0)))))))
+
 (def c_kind ((node Int)) Int
   (if (eq (first node) 2)
     (let span Int (second node)
