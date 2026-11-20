@@ -51,7 +51,7 @@ pub(crate) fn canonical_dependency_statement(
             )
         }
     };
-    let description = format!("{DEPENDENCY_HELPER_OWNER}::{FROM_SOURCE_HELPER_NAME}({source})");
+    let description = format!("{DEPENDENCY_HELPER_OWNER}\\{FROM_SOURCE_HELPER_NAME}({source})");
     let Some(alias) = request.explicit_alias() else {
         return format!(
             "let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({BUILDER_PARAMETER_NAME}, {description});"
@@ -60,7 +60,7 @@ pub(crate) fn canonical_dependency_statement(
     let local = fresh_local(build_source, &format!("{base}_dependency"));
     format!(
         "let mut {local}: {DEPENDENCY_DESCRIPTION_TYPE_NAME} = {description};\n\
-         {DEPENDENCY_HELPER_OWNER}::{WITH_ALIAS_HELPER_NAME}(@mut {local}, {});\n\
+         {DEPENDENCY_HELPER_OWNER}\\{WITH_ALIAS_HELPER_NAME}(@mut {local}, {});\n\
          let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({BUILDER_PARAMETER_NAME}, {local});",
         source_text::display_literal_bytes(alias.as_str().as_bytes())
     )

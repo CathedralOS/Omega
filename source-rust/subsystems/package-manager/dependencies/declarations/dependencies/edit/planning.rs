@@ -252,7 +252,7 @@ mod tests {
         );
         assert!(
             edited.contains(
-                "    let mut other_dependency: DependencyDescription = dependency::from_source(Source::Path { location: \"../other\" });\n    dependency::with_alias(@mut other_dependency, \"other\");\n    let other_registration: DependencyRegistration = Build::dependency(builder, other_dependency);\n}"
+                "    let mut other_dependency: DependencyDescription = dependency\\from_source(Source::Path { location: \"../other\" });\n    dependency\\with_alias(@mut other_dependency, \"other\");\n    let other_registration: DependencyRegistration = Build::dependency(builder, other_dependency);\n}"
             ),
             "{edited}"
         );
@@ -275,7 +275,7 @@ mod tests {
             .expect("plan"),
         );
         assert!(
-            edited.contains("    let std_registration_2: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: \"../vendor/std\" }));\n}"),
+            edited.contains("    let std_registration_2: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../vendor/std\" }));\n}"),
             "{edited}"
         );
     }
@@ -300,7 +300,7 @@ mod tests {
             ]
         );
         assert!(
-            edited.contains("\n    dependency::with_alias(@mut kit_dependency_2, \"kit\");\n"),
+            edited.contains("\n    dependency\\with_alias(@mut kit_dependency_2, \"kit\");\n"),
             "{edited}"
         );
     }

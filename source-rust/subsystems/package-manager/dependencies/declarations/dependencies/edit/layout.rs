@@ -270,7 +270,7 @@ fn dependency_rows(
         )
     });
     let description_marker = format!(
-        ":{DEPENDENCY_DESCRIPTION_TYPE_NAME}={DEPENDENCY_HELPER_OWNER}::{FROM_SOURCE_HELPER_NAME}("
+        ":{DEPENDENCY_DESCRIPTION_TYPE_NAME}={DEPENDENCY_HELPER_OWNER}\\{FROM_SOURCE_HELPER_NAME}("
     );
     let is_registration = |text: &str| {
         discarded
