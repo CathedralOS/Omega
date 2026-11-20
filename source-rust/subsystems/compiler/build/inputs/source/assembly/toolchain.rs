@@ -1,7 +1,7 @@
 //! Seed the selected core Build, prelude and language vocabulary from captured source.
 
 use super::BuildSourceSelection;
-use super::imports::{ParsingTimings, SourceRouting, load_source_frontiers};
+use super::imports::{SourceRouting, load_source_frontiers};
 use crate::source::source_imports::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
@@ -48,7 +48,7 @@ pub(super) fn append_default_build(
         storage.syntax_trees.set_primary_source(admitted.source_id);
     }
     let parsed = SourceInput([admitted].into_iter().collect())
-        .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        .append(&mut storage.syntax_trees, timings)?;
     let [unit] = parsed.sources.span_or_empty(parsed.batch) else {
         return Err(vec![Diagnostic::error(
             "parser lost the core default Build source",
@@ -127,7 +127,7 @@ pub(super) fn append_build_prelude(
         units.push(admitted);
     }
     let parsed = SourceInput(units.into_iter().collect())
-        .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        .append(&mut storage.syntax_trees, timings)?;
     let mut package_requests = Vec::new();
     let discovered = routing.discover(&parsed, storage, &mut package_requests)?;
     storage.attach_parsed(parsed);

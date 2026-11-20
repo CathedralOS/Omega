@@ -221,7 +221,7 @@ impl<'a> StageSource<'a> {
         request.selection_authority = self.product.layout_selection_authority.clone();
         let continuation = request
             .with_build_entry(self.product.policy.activation)
-            .prepare(&mut UnmeasuredProduction)?;
+            .prepare(&mut CompileTimings::default())?;
         Ok((self.product, continuation))
     }
 }
@@ -239,7 +239,7 @@ impl ProductSourceInputs<'_> {
             inspection,
             test,
             None,
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
     }
 
@@ -250,7 +250,7 @@ impl ProductSourceInputs<'_> {
         let psi = checked.terminal_publication.publish(
             &self.optimizations,
             self.declaration_authority,
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )?;
         Ok(Arc::clone(psi.artifact()))
     }

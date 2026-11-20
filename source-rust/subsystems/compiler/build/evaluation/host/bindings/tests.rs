@@ -104,7 +104,7 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
     accepted
         .produce(
             Default::default(),
-            &mut source_compiler::UnmeasuredProduction,
+            &mut source_compiler::CompileTimings::default(),
         )
         .unwrap()
 }

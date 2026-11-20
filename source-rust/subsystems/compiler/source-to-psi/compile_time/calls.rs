@@ -74,7 +74,7 @@ impl PreparedBuildMachineEntry {
         self.accepted
             .produce(
                 Default::default(),
-                &mut crate::production::UnmeasuredProduction,
+                &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .map_err(|errors| diagnostics::join_messages(&errors))
     }

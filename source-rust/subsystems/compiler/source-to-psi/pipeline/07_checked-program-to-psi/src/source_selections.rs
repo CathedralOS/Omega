@@ -165,7 +165,7 @@ mod tests {
             let produced = accepted
                 .produce(
                     Default::default(),
-                    &mut crate::production::UnmeasuredProduction,
+                    &mut artifacts::compile_timings::CompileTimings::default(),
                 )
                 .unwrap();
             let questions = &produced.source_selections().unwrap().questions;
@@ -274,7 +274,7 @@ mod tests {
                         invocation_sources: consent,
                         ..Default::default()
                     },
-                    &mut crate::production::UnmeasuredProduction,
+                    &mut artifacts::compile_timings::CompileTimings::default(),
                 )
                 .unwrap()
         };

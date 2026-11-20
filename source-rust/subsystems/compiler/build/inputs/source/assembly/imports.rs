@@ -5,10 +5,10 @@ use crate::source::source_imports::{
     ImportQueue, PackageImportPhase, PendingPackageImport, SourceStorage, discover_imports,
     discover_package_imports, validate_package_source_frontier,
 };
-use artifacts::compile_timings::{CompileTimings, StageMeta};
+use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use source_admission::SourceResolutionStratum;
-use source_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
+use source_compiler::SourceInput;
 use std::path::{Path, PathBuf};
 
 pub(super) fn load_imports(
@@ -66,7 +66,7 @@ pub(super) fn load_source_frontiers(
         let loaded = crate::source::source_loading::load_source_files(
             frontier,
             &source_storage.filesystem,
-            &mut ParsingTimings(timings),
+            timings,
         )?;
         let admitted = loaded
             .into_iter()
@@ -138,7 +138,6 @@ impl SourceRouting<'_> {
         }
     }
 }
-pub(super) struct ParsingTimings<'timings>(pub(super) &'timings mut CompileTimings);
 
 /// Parses admitted sources into the storage's forest. A file discovery
 /// already parsed (`retained_unit`) adopts that parse when its bytes are
@@ -151,7 +150,7 @@ pub(super) fn parse_admitted(
     let owners = &storage.package_roots;
     SourceInput(admitted).append_reusing(
         &mut storage.syntax_trees,
-        &mut ParsingTimings(timings),
+        timings,
         |source| {
             storage
                 .entry
@@ -161,16 +160,4 @@ pub(super) fn parse_admitted(
                 .or_else(|| crate::source::source_imports::retained_unit(owners, &source.path))
         },
     )
-}
-
-impl PsiCompilationObserver for ParsingTimings<'_> {
-    fn record_result<Value, Error>(
-        &mut self,
-        stage: PsiCompilationStage,
-        operation: impl FnOnce() -> Result<Value, Error>,
-    ) -> Result<Value, Error> {
-        let (name, input, output) = stage.observation_labels();
-        self.0
-            .record_result(StageMeta::new(name, input, output), operation)
-    }
 }

@@ -35,10 +35,10 @@ impl PreparedTerminalPublication {
     pub fn publish(
         self,
         applications: &[crate::production::TerminalApplicationCustody<'_>],
-        observer: &mut impl crate::production::PsiCompilationObserver,
+        timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<crate::production::ProducedTerminalProgram, Vec<Diagnostic>> {
         let (program, evidence) =
-            observer.record_result(crate::production::PsiCompilationStage::Publication, || {
+            timings.record_result(artifacts::compile_timings::source::PUBLISH, || {
                 let published = match self.kind {
                     terminal_codec::TerminalPublication::Portable => {
                         self.module.publish().map(|publication| {
@@ -83,7 +83,7 @@ impl PreparedTerminalPublication {
                     program.view(),
                     program.portable(),
                     &provenance,
-                    observer,
+                    timings,
                 )
             })
             .collect();
@@ -296,10 +296,10 @@ impl AcceptedTerminalSource {
     pub fn produce(
         &self,
         custody: crate::production::TerminalProductionCustody<'_>,
-        observer: &mut impl crate::production::PsiCompilationObserver,
+        timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<crate::production::ProducedTerminalProgram, Vec<Diagnostic>> {
         self.prepare_publication(custody.invocation_sources)?
-            .publish(custody.applications, observer)
+            .publish(custody.applications, timings)
     }
 
     /// What this accepted Build program asks of its host, read from the
@@ -824,7 +824,7 @@ mod tests {
         drop(accepted);
         assert!(owner.upgrade().is_none());
         let published = prepared
-            .publish(&[], &mut crate::production::UnmeasuredProduction)
+            .publish(&[], &mut artifacts::compile_timings::CompileTimings::default())
             .unwrap()
             .into_shared_portable()
             .unwrap();

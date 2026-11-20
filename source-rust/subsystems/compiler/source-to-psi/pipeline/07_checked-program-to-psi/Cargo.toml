@@ -14,6 +14,7 @@ path = "lib.rs"
 test-support = ["prepared-typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
 
 [dependencies]
+artifacts = { path = "../../../foundation/measurements" }
 psi-publication-records = { path = "../../../psi-artifact/publication" }
 source-provider-publication = { path = "../../representations/published-target-providers" }
 psi-authorization = { path = "../../../psi-artifact/authorization" }

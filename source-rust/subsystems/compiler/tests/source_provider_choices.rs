@@ -84,8 +84,8 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
             scope: file.dependency_scope,
         })
         .collect();
-    let observer = &mut source_compiler::UnmeasuredProduction;
-    let parsed = source_compiler::SourceInput(files).append(&mut syntax, observer)?;
+    let timings = &mut source_compiler::CompileTimings::default();
+    let parsed = source_compiler::SourceInput(files).append(&mut syntax, timings)?;
     let request = source_compiler::ResolveAndTypeRequest {
         syntax,
         source_items: parsed
@@ -101,8 +101,8 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         top_level_bindings: Vec::new(),
         selection_authority: None,
     };
-    let source = request.prepare(observer)?;
-    let typed = source.complete_authored(observer)?.finish().typed;
+    let source = request.prepare(timings)?;
+    let typed = source.complete_authored(timings)?.finish().typed;
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
         source_provenance::DependencyScope::Product,
@@ -206,7 +206,7 @@ fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalT
     let program = accepted
         .produce(
             Default::default(),
-            &mut source_compiler::UnmeasuredProduction,
+            &mut source_compiler::CompileTimings::default(),
         )
         .expect("accepted source publishes")
         .into_shared_portable()

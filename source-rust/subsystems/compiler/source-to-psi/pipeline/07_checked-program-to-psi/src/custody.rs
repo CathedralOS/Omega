@@ -304,14 +304,14 @@ impl PortableTerminalProgram {
     pub fn attach_application(
         &self,
         application: &crate::production::TerminalApplicationCustody<'_>,
-        observer: &mut impl crate::production::PsiCompilationObserver,
+        timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
         crate::production::application::attach(
             application,
             self.artifact.view().into(),
             Ok(&self.artifact),
             self.machine_provenance(),
-            observer,
+            timings,
         )
     }
 

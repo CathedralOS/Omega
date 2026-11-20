@@ -1,6 +1,6 @@
 //! Measure the compiler's complete loaded-source to syntax operation.
 use source_files::{LoadedSource, LoadedSources};
-use source_compiler::{SourceInput, UnmeasuredProduction};
+use source_compiler::{SourceInput, CompileTimings};
 use source_text::SourceId;
 use std::hash::{Hash, Hasher};
 use std::hint::black_box;
@@ -43,7 +43,7 @@ fn measure() -> Result<(), String> {
     let mut fingerprint = std::collections::hash_map::DefaultHasher::new();
     let mut syntax = source_compiler::SourceSyntax::default();
     let parsed = SourceInput(sources.clone())
-        .append(&mut syntax, &mut UnmeasuredProduction)
+        .append(&mut syntax, &mut CompileTimings::default())
         .map_err(|error| format!("{error:?}"))?;
     syntax
         .snapshot_json()
@@ -55,7 +55,7 @@ fn measure() -> Result<(), String> {
     for _ in 0..black_box(repeats) {
         let mut syntax = source_compiler::SourceSyntax::default();
         let parsed = SourceInput(sources.clone())
-            .append(&mut syntax, &mut UnmeasuredProduction)
+            .append(&mut syntax, &mut CompileTimings::default())
             .map_err(|error| format!("{error:?}"))?;
         roots += black_box(syntax.root_item_count());
         black_box(parsed);

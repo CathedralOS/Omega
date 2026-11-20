@@ -3,7 +3,7 @@
 use super::source_imports::SourceStorage;
 use diagnostics::Diagnostic;
 use source_admission::LoadedSource;
-use source_compiler::{RetainedSourceParse, SourceInput, UnmeasuredProduction};
+use source_compiler::{RetainedSourceParse, SourceInput, CompileTimings};
 use source_provenance::DependencyScope;
 use source_text::SourceId;
 use std::path::{Path, PathBuf};
@@ -101,7 +101,7 @@ impl StageRoots {
             scope: DependencyScope::Build,
         };
         let syntax = SourceInput([unit].into_iter().collect())
-            .into_parsed_units(&mut UnmeasuredProduction)?
+            .into_parsed_units(&mut CompileTimings::default())?
             .pop()
             .ok_or_else(|| vec![Diagnostic::error("parser lost the selected source")])?;
         let build_name = {

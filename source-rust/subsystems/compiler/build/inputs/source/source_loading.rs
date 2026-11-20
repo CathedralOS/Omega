@@ -3,15 +3,15 @@ use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use source_admission::SourceContents;
 use source_capture::SourceFileSystem;
-use source_compiler::{PsiCompilationObserver, PsiCompilationStage};
+use artifacts::compile_timings::{CompileTimings, source as stages};
 use std::path::PathBuf;
 
 pub(crate) fn load_source_files(
     frontier: Vec<(PathBuf, DependencyScope)>,
     filesystem: &SourceFileSystem,
-    observer: &mut impl PsiCompilationObserver,
+    timings: &mut CompileTimings,
 ) -> Result<Vec<SourceContents>, Vec<Diagnostic>> {
-    observer.record_result(PsiCompilationStage::SourceParsing, || {
+    timings.record_result(stages::LOAD_FILES, || {
         let mut loaded = Vec::with_capacity(frontier.len());
 
         for (path, scope) in frontier {
@@ -38,7 +38,7 @@ mod tests {
     use super::load_source_files;
     use source_provenance::DependencyScope;
     use source_capture::SourceFileSystem;
-    use source_compiler::UnmeasuredProduction;
+    use super::CompileTimings;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -69,13 +69,14 @@ mod tests {
         let _temporary_source = TemporarySourceFile(path.clone());
         file.write_all(source.as_bytes()).unwrap();
         drop(file);
+        let mut timings = CompileTimings::enabled();
         let loaded = load_source_files(
             vec![
                 (path.clone(), DependencyScope::Build),
                 (path.clone(), DependencyScope::Product),
             ],
             &SourceFileSystem::new(),
-            &mut UnmeasuredProduction,
+            &mut timings,
         )
         .unwrap();
         let batch = loaded.as_slice();
@@ -93,9 +94,11 @@ mod tests {
         let errors = load_source_files(
             vec![(unreadable.clone(), DependencyScope::Product)],
             &SourceFileSystem::new(),
-            &mut UnmeasuredProduction,
+            &mut timings,
         )
         .unwrap_err();
+        assert_eq!(timings.phases().len(), 1);
+        assert_eq!(timings.phases()[0].phase, "Source acquisition: SourcePaths -> SourceFiles");
         assert_eq!(errors.len(), 1);
         assert!(
             errors[0]

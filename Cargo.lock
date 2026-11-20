@@ -515,6 +515,7 @@ name = "checked-program-to-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "artifacts",
  "bundled-declarations",
  "declaration-scope",
  "diagnostics",
@@ -3004,6 +3005,7 @@ dependencies = [
  "access-vocabulary",
  "application-identity",
  "arena",
+ "artifacts",
  "behavior-exclusion-requests",
  "bignum",
  "build-invocation",

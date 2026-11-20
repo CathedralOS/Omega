@@ -6,10 +6,10 @@
 use source_provenance::DependencyScope;
 use source_compiler::declaration_selection::BuildSelectionRequest;
 use source_compiler::declaration_selection::RootBindingOperand;
+use source_compiler::CompileTimings;
 use source_compiler::production::{
     AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
     TerminalBuildQueryOperation, TerminalBuildRequestOperation, TerminalProductionCustody,
-    UnmeasuredProduction,
 };
 use std::sync::Arc;
 
@@ -238,7 +238,7 @@ fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Dia
         .unwrap_or_else(|refused| panic!("{refused:?}"))
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
 }
 
@@ -499,7 +499,7 @@ machine watch() {{
     let produced = unreached
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     assert_eq!(
@@ -547,7 +547,7 @@ machine build(builder: @mut Build) {
     let program = outside
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     assert_eq!(published_boundary_calls(&program).len(), 2);
@@ -568,13 +568,14 @@ machine build(builder: @mut Build) {
 #[test]
 fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
     use record_storage::{Record, RecordLimits, RecordWriter};
-    use source_compiler::production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
+    use source_compiler::CompileTimings;
+use source_compiler::production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
 
     let program = accepted_for(ONE_BINDING, terminal_codec::TerminalPublication::Portable)
         .unwrap()
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     let refused = record_storage::encode(&program, RecordLimits::default()).unwrap_err();
@@ -631,7 +632,7 @@ fn a_portable_artifact_without_build_companions_still_round_trips() {
     .unwrap()
     .produce(
         TerminalProductionCustody::default(),
-        &mut UnmeasuredProduction,
+        &mut CompileTimings::default(),
     )
     .unwrap();
     let bytes =
@@ -745,7 +746,7 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
     .unwrap_or_else(|refused| panic!("the native binding must be checked: {refused:?}"))
     .produce(
         TerminalProductionCustody::default(),
-        &mut UnmeasuredProduction,
+        &mut CompileTimings::default(),
     )
     .unwrap()
 }
@@ -808,7 +809,7 @@ machine build(builder: @mut Build) {
     let refused = lookalike
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .expect_err("a same-shaped edited source cannot supply the native vocabulary");
     assert!(
@@ -878,7 +879,7 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
         .expect("the untouched generated calls are accepted")
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .expect("the untouched generated calls publish their host actions");
     let calls = published
@@ -999,7 +1000,7 @@ machine build(builder: @mut Build) { Probe::send::<u64>(9u64); Probe::send(11u64
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     let module = program.view().module();
@@ -1057,7 +1058,7 @@ machine build(builder: @mut Build) {
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     let view = program.view();
@@ -1284,7 +1285,7 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     assert!(
@@ -1351,7 +1352,7 @@ machine build(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
+            &mut CompileTimings::default(),
         )
         .unwrap();
     let queries = program
@@ -1405,7 +1406,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
             .unwrap()
             .produce(
                 TerminalProductionCustody::default(),
-                &mut UnmeasuredProduction,
+                &mut CompileTimings::default(),
             )
             .unwrap();
         let view = program.view();

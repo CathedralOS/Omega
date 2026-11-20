@@ -1,6 +1,5 @@
 //! Attach the generated source of each admitted dependency under its recorded custody.
 
-use super::imports::ParsingTimings;
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
     GeneratedSourceExtension, ImportQueue, SourceStorage, discover_imports_with_packages,
@@ -82,7 +81,7 @@ pub(super) fn append_dependency_build_handoffs_to_storage(
         let source_id = admitted.source_id;
         let parsed = SourceInput([admitted].into_iter().collect()).append(
             &mut source_storage.syntax_trees,
-            &mut ParsingTimings(timings),
+            timings,
         )?;
         let discovered = discover_imports_with_packages(
             &parsed,
@@ -167,7 +166,7 @@ pub(super) fn append_stage_generated_sources(
             )?;
             let source_id = unit.source_id;
             let parsed = SourceInput([unit].into_iter().collect())
-                .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+                .append(&mut storage.syntax_trees, timings)?;
             let discovered = inputs.discover(&parsed, storage)?;
             imports.enqueue(discovered)?;
             storage.attach_parsed(parsed);
