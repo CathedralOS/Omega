@@ -238,11 +238,13 @@ machine OmegaScalarCompiler::check_case_subject(
     }
     state local() {
         transition (self.place_types[subject] == kind) && (self.place_roots[subject] >= 16384) &&
-            (self.place_roots[subject] < 32768) && (self.place_fields[subject] < 0) &&
-            (self.place_available(source, subject, 0) == 1) {
-            true -> retain()
-            _ -> return 0
+            (self.place_roots[subject] < 32768) && (self.place_fields[subject] < 0) {
+            true -> available()
+            _ -> value()
         }
+    }
+    state available() {
+        transition self.place_available(source, subject, 0) { 1 -> retain() _ -> return 0 }
     }
     state retain() {
         self.value_states[subject] = state_index;
