@@ -9,7 +9,13 @@ import struct
 # Length in bytes, including opcode, register operands and any 64-bit word.
 # See bootstrap/alpha/SEMANTICS.md. Only the jump, conditional branches and
 # call carry a code address. An immediate can have any value and stays intact.
-WIDTHS = (2, 10, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 9, 10, 10, 11, 11, 2, 2, 9, 1)
+WIDTHS = (
+    2, 10,                 # halt, imm
+    3, 3, 3, 3, 3, 3,      # mov, add, sub, mul, div, mod
+    3, 3, 3, 3,            # loadb, storeb, load, store
+    9, 10, 10, 11, 11,     # jmp, jz, jnz, jlt, jeq
+    2, 2, 9, 1,            # read, write, call, ret
+)
 BRANCHES = (12, 13, 14, 15, 16, 19)
 
 
@@ -27,10 +33,12 @@ def inspect(tape, plain=None):
     base = immediate(42, 1)
     end = immediate(52, 2)
     cursor = table + table_size
-    if not (62 <= table <= cursor <= len(tape) <= 16_777_212 and
-            table_size % 16 == 0 and table_size <= 240 * 16 and
-            cursor + stream_size == len(tape) and 0x28000000 == base < end <= 0x30000000):
-        raise ValueError("invalid packed Alpha dimensions")
+    if not 62 <= table <= cursor <= len(tape) <= 16_777_212:
+        raise ValueError("dictionary outside the stamped tape")
+    if table_size % 16 or table_size > 240 * 16 or cursor + stream_size != len(tape):
+        raise ValueError("invalid dictionary or stream length")
+    if base != 0x28000000 or not base < end <= 0x30000000:
+        raise ValueError("expanded code outside its memory interval")
 
     entries = []
     for pos in range(table, cursor, 16):
@@ -51,7 +59,8 @@ def inspect(tape, plain=None):
             instruction = entries[token - 16]
         else:
             raise ValueError("invalid instruction token")
-        if not instruction or instruction[0] >= len(WIDTHS) or len(instruction) != WIDTHS[instruction[0]]:
+        if (not instruction or instruction[0] >= len(WIDTHS) or
+                len(instruction) != WIDTHS[instruction[0]]):
             raise ValueError(f"invalid instruction at expanded byte {size}")
         if instruction[0] in BRANCHES:
             target = int.from_bytes(instruction[-8:], "little")

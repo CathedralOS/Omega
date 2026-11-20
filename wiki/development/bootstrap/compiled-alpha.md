@@ -104,8 +104,8 @@ produced the expected 22-byte Alpha tape, SHA-256
 which exited 42 on the seed. On the 828-byte two-package wire decoder the
 same constructor produced a 1,607-byte tape, SHA-256
 `f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
-That tape exited 42 with empty stdout and stderr. Appending a byte to the
-package returned framing refusal 3. [Same package on original Gamma](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
+That tape exited 42 with empty stdout and stderr. Removing the package edge
+returned guest exit 1 at byte 11. Appending a byte returned framing refusal 3. [Same package on original Gamma](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
 
 For a large program the compiler takes up to 240 instructions seen twice
 among the first 4,096. Each becomes one byte in the encoded stream. Tokens
