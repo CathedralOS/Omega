@@ -79,11 +79,9 @@ class Route:
 
         def run():
             request = program.input(payload())
-            if self.shared is None:
-                self.publish(path, invoke([program.image], request, self.args.seconds))
-                return
             key = sha256(program.image.read_bytes()).hexdigest(), sha256(request).hexdigest()
-            previous = None if terminal else self.shared.get(key)
+            cache = None if terminal else self.shared
+            previous = cache.get(key) if cache is not None else None
             if previous is None:
                 data = invoke([program.image], request, self.args.seconds)
             else:
@@ -95,8 +93,8 @@ class Route:
             record.update(producer_sha256=key[0], request_sha256=key[1])
             if previous is not None:
                 record["reused_from"] = str(original.relative_to(self.work.parent))
-            elif not terminal:
-                self.shared[key] = path, record["sha256"]
+            elif cache is not None:
+                cache[key] = path, record["sha256"]
 
         self.stage(f"{description} [{chain}] -> {name}", run)
         return path
@@ -250,6 +248,8 @@ def execute_route(route, guest, stdin, expected, verbose):
               "delta_interpreter": args.delta_interpreter if args.delta == "interpret" else None,
               "source_sha256": sha256(guest).hexdigest(), "stdin_sha256": sha256(stdin).hexdigest(),
               "seconds_per_invocation": args.seconds, "stages": [], "artifacts": route.artifacts}
+    if expected is not None:
+        report["expected_observation_sha256"] = sha256(expected).hexdigest()
     status = 0
     try:
         log = nullcontext(sys.stdout) if verbose else (work / "stages.log").open("w")
@@ -290,6 +290,8 @@ def main():
     program.add_argument("--case", choices=("stdin", "exit", "trap", "omega-byte-classes", "omega-wrong-base"),
                          help="program with a known observation (default: stdin)")
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
+    parser.add_argument("--expect-observation", type=Path, metavar="FILE",
+                        help="exact binary Epsilon exit, trap or source rejection for --source")
     parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
                         help="interpret checked Delta directly or translate it to Gamma and interpret that source")
     parser.add_argument("--gamma-build", type=Path, help="reuse the selected Alpha or native cold build")
@@ -314,7 +316,16 @@ def main():
     matrix = "all" in choices
     if args.reuse_stages and not matrix:
         parser.error("--reuse-stages requires at least one selector set to all")
+    expected = None
     expect_rejection = args.case == "omega-wrong-base"
+    if args.expect_observation:
+        if not args.source:
+            parser.error("--expect-observation requires --source")
+        try:
+            expected = args.expect_observation.read_bytes()
+            expect_rejection = observation_kind(expected) == "reject"
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
     if not args.plan:
         if root.exists():
             parser.error(f"output already exists: {root}")
@@ -322,7 +333,6 @@ def main():
             if args.source:
                 guest = args.source.read_bytes()
                 stdin = args.stdin.read_bytes() if args.stdin else b""
-                expected = None
             elif expect_rejection:
                 guest, stdin, expected = byte_class_wrong_base_case(ROOT)
             elif args.case == "omega-byte-classes":

@@ -110,10 +110,37 @@ class RouteTests(unittest.TestCase):
                 self.assertEqual((status, report["result"]), (int(result == "failed"), result))
                 if exit_code == 0:
                     self.assertEqual((work / artifact).read_bytes(), output)
-                    self.assertEqual(report["artifacts"][artifact]["sha256"], sha256(output).hexdigest())
+                    receipt = report["artifacts"][artifact]
+                    self.assertEqual(receipt["sha256"], sha256(output).hexdigest())
+                    self.assertEqual(receipt["producer_sha256"], sha256(Path(sys.executable).read_bytes()).hexdigest())
+                    self.assertEqual(receipt["request_sha256"], sha256(script).hexdigest())
                 if status == 0:
                     self.assertEqual((report["rejection_code"], report["source_offset"]), (18, 123))
                     self.assertFalse(report["guest_executed"])
+
+    def test_custom_oracle_selects_the_terminal_stage_before_construction(self):
+        with tempfile.TemporaryDirectory() as temp:
+            oracle = Path(temp) / "expected.eeout"
+            command = [sys.executable, str(ROOT / "tests/bootstrap/route.py"), "--plan",
+                       "--gamma", "native", "--delta", "native", "--epsilon", "alpha",
+                       "--expect-observation", str(oracle)]
+            oracle.write_bytes(struct.pack('<BBI', 2, 18, 123))
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("--expect-observation requires --source", result.stderr)
+
+            command.extend(["--source", str(Path(temp) / "subject.epsilon")])
+            for observation, artifact in [(oracle.read_bytes(), "compiler.response"),
+                                          (struct.pack('<Bi', 0, 42), "guest.eeout"),
+                                          (bytes((1, 5)), "guest.eeout")]:
+                oracle.write_bytes(observation)
+                result = subprocess.run(command, capture_output=True, text=True, check=True)
+                self.assertTrue(result.stdout.rstrip().endswith(" -> " + artifact))
+
+            oracle.write_bytes(bytes((2, 18)))
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("invalid Epsilon observation", result.stderr)
 
     def test_custom_refusal_and_timed_out_named_rejection_remain_failures(self):
         args = argparse.Namespace(gamma="native", delta="native", epsilon="alpha",
