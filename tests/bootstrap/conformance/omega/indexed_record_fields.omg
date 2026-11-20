@@ -1,10 +1,3 @@
-// path_length and SourceRange are taken from the production source unit.
-public data SourceSet {
-    unit_count: u64;
-    paths: [SourceRange; 512];
-    canary: u8;
-}
-
 data Marker [copy] { copy: u8; }
 data Markers { rows: [Marker; 1]; }
 
@@ -13,7 +6,18 @@ machine indexed_record_fields() -> u8 {
     let mut selected: Markers;
     selected.rows[0] = Marker { copy: 42 };
     sources.unit_count = 2;
-    sources.canary = 73;
+    sources.unit_packages[0] = 73;
+    sources.byte_count = 4194262;
+    sources.path_byte_count = 16382;
+    let mut unit: SourceUnit;
+    let mut path: ModulePath;
+    unit.length = 42;
+    path.length = 2;
+    let fits: bool = has_room(@sources, @unit, @path);
+    unit.length = 43;
+    let extra_byte: bool = has_room(@sources, @unit, @path);
+    unit.length = 42;
+    path.length = 3;
     sources.paths[0] = SourceRange { start: 5 as +Trapping, length: 17 as +Trapping };
     sources.paths[1] = SourceRange { start: 31 as +Trapping, length: 42 as +Trapping };
     let snapshot: SourceRange = sources.paths[0];
@@ -22,9 +26,16 @@ machine indexed_record_fields() -> u8 {
     transition selected.rows[0].copy == 42 && snapshot.length == 17 && sources.paths[511].start == 5 &&
         path_length(@sources, 0 as +Trapping) == 18 &&
         path_length(@sources, 1 as +Trapping) == 42 &&
-        sources.paths[1].start == 31 && sources.canary == 73 {
+        sources.paths[1].start == 31 && sources.unit_packages[0] == 73 &&
+        fits && !extra_byte && !has_room(@sources, @unit, @path) {
         true -> pass(), _ -> miss()
     }
     machine pass() -> u8 { 42 }
     machine miss() -> u8 { 7 }
+}
+
+// The remaining-byte and remaining-path tests from source_set_add.
+machine has_room(sources: @SourceSet, unit: @SourceUnit, module_path: @ModulePath) -> bool {
+    unit.length <= 4194304 - sources.byte_count &&
+        module_path.length <= 16384 - sources.path_byte_count
 }

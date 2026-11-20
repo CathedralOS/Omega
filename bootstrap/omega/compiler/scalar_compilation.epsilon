@@ -26,6 +26,7 @@ data OmegaCheckedValueKind {
     case LowBits;
     case SharedByteRange;
     case SharedByteRead;
+    case ExactSubtraction;
 }
 
 // Each call or terminal transfer has one resolved target. Its incoming list
@@ -1705,14 +1706,14 @@ machine OmegaScalarCompiler::check_value(
         transition (expected == 32) && ((left == 32) || (right == 32)) &&
             ((left == 0) || (left == 32)) && ((right == 0) || (right == 32)) {
             true -> word_operator(row)
-            _ -> exact_operator(row)
+            _ -> exact_operator(row, left, right)
         }
     }
     state word_operator(row: OmegaBinaryExpressionSyntax) {
         transition row.operator {
             OmegaBinaryOperatorKind::Add -> word_operands(row)
             OmegaBinaryOperatorKind::Multiply -> word_operands(row)
-            _ -> exact_operator(row)
+            _ -> constant()
         }
     }
     state word_operands(row: OmegaBinaryExpressionSyntax) {
@@ -1722,9 +1723,10 @@ machine OmegaScalarCompiler::check_value(
             _ -> return 0
         }
     }
-    state exact_operator(row: OmegaBinaryExpressionSyntax) {
+    state exact_operator(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
         transition row.operator {
             OmegaBinaryOperatorKind::Add -> addition(row)
+            OmegaBinaryOperatorKind::Subtract -> subtraction(row, left, right)
             _ -> constant()
         }
     }
@@ -1820,6 +1822,30 @@ machine OmegaScalarCompiler::check_value(
     state checked_arithmetic() {
         transition true { true -> retain(OmegaCheckedValueKind::TrappingArithmetic, self.parser.expressions[expression].payload0) }
     }
+    // A plain unsigned difference needs evidence that its right operand
+    // cannot exceed its left operand. Only a small checked constant can
+    // become an endpoint in the interval proof.
+    state subtraction(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
+        transition (expected == 64) && ((left == 64) || (right == 64)) {
+            true -> subtract_operands(row)
+            _ -> constant()
+        }
+    }
+    state subtract_operands(row: OmegaBinaryExpressionSyntax) {
+        transition (self.check_value(source, owner, state_index, before, row.left, 64) == 1) &&
+            (self.check_value(source, owner, state_index, before, row.right, 64) == 1) {
+            true -> subtract_bounds(row, self.interval_literal(row.left), self.interval_literal(row.right))
+            _ -> return 0
+        }
+    }
+    state subtract_bounds(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
+        transition ((left >= 0) && (self.prove_ceiling(source, state_index, before, row.right, left) == 1)) ||
+            ((right >= 0) && ((right == 0) ||
+                (self.prove_bound(source, state_index, before, row.left, right, -1, -1, 0) == 1))) {
+            true -> retain(OmegaCheckedValueKind::ExactSubtraction, self.parser.expressions[expression].payload0)
+            _ -> unsupported(row.operator_start)
+        }
+    }
     state addition(row: OmegaBinaryExpressionSyntax) {
         transition self.expression_type(source, owner, state_index, before, row.left) == 64 {
             true -> unsigned_add(row)
@@ -1841,7 +1867,7 @@ machine OmegaScalarCompiler::check_value(
     state add_operands(row: OmegaBinaryExpressionSyntax) {
         transition (self.check_value(source, owner, state_index, before, row.left, 64) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, 64) == 1) {
-            true -> add_limit(row, self.value_payloads[row.right])
+            true -> add_limit(row, self.interval_literal(row.right))
             _ -> return 0
         }
     }
@@ -2558,6 +2584,7 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::SharedByteRange -> return self.emit_byte_range(expression)
         OmegaCheckedValueKind::SharedByteRead -> return self.emit_shared_byte_read(expression)
         OmegaCheckedValueKind::LowBits -> return self.emit_low_bits(expression)
+        OmegaCheckedValueKind::ExactSubtraction -> word(self.parser.binary_expressions[self.value_payloads[expression]])
         OmegaCheckedValueKind::ExactWordArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::WrappingArithmetic -> word(self.parser.binary_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
@@ -6847,6 +6874,15 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     }
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
 }
+// WideLiteral stores its high word separately. The low word alone cannot
+// establish a constant endpoint for the i32 interval proof.
+machine OmegaScalarCompiler::interval_literal(&mut self, expression: i32) -> i32 {
+    transition self.value_kinds[expression] {
+        OmegaCheckedValueKind::Literal -> return self.value_payloads[expression]
+        _ -> return -1
+    }
+}
+
 // Unsigned intervals have one meaning across entry contracts, indexed
 // access and invariant-preserving stores. Missing evidence is not a runtime
 // check or an inferred precondition. A copied immutable initializer keeps its

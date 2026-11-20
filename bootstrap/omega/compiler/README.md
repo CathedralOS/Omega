@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,700 lines / 1,027,480 bytes with SHA-256
-`bdfe92219ade41f478422acd91990359529feb4e65c4ee416abdb389f7d47b5c`.
+The manifest materializes 26,736 lines / 1,029,470 bytes with SHA-256
+`d3c881968a26a84e2e5c7188851856379817dae5bdc3b84c4fa5f6638bef1298`.
 The manifest itself is 2,381 bytes, SHA-256
-`8662dc177c905ab7af4456e658b2d971eb5c19b7905fe76f06e542b06608caf6`;
+`c9c35831cdf459751c2c5b46d9a738df77076447fb1f11acf293b5e1cf7b54df`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -202,6 +202,13 @@ coverage bound, not an Omega carrier inferred from the destination. Fractional,
 negative, and wider intermediates return `Incomplete`; division never silently
 truncates. Anonymous remainder and width-dependent bitwise/shift operations
 also return `Incomplete`. Typed operations need their own checked lowering.
+
+For plain `u64` subtraction, the compiler checks both operands as `u64`
+and proves the result is nonnegative. In `capacity - used`, a declared
+ceiling on `used` can establish the proof. In `value - count`, a floor on
+`value` can establish it. Subtracting zero preserves every bit of a `u64`.
+The interval checker accepts nonnegative literal endpoints through
+2,147,483,647. A wider literal cannot supply an endpoint from its low word.
 A direct out-of-range `u8` literal and division by zero reject. Full rational
 folding, broader explicit landing, and other typed runtime operations remain work.
 
@@ -377,8 +384,10 @@ Mutable slices, dynamic range endpoints, other domains and structural
 equivalence of separately spelled array value types remain outside this profile.
 
 The storage test runs the production `path_length` on two nonzero `SourceRange`
-elements in a reduced `SourceSet`. It checks a copy taken before a write,
-a keyword-spelled field and the field beside the last element. The complete
+elements of the production `SourceSet`. It checks a copy taken before a write,
+a keyword-spelled field and the field beside the last element. It evaluates
+both capacity differences from `source_set_add` at the boundary and with an
+extra source byte or path byte. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
