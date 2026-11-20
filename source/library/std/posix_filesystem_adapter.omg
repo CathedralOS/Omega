@@ -830,12 +830,12 @@ reaches FilesystemNamespaceMutation
 // Raw POSIX providers return negative errno on every supported target.
 // Preserve that code; each target maps its own errno catalog to portable kinds.
 machine posix_filesystem_native_error_code_i32(filesystem: @mut PosixFilesystem, result: i32) -> i32 {
-    let code: i32 in Wrapping = (0 as i32 in Wrapping) - (result as i32 in Wrapping);
+    let code: i32 in Wrapping = (0 as i32 +Wrapping) - (result as i32 in Wrapping);
     filesystem.err_code = code as i32;
     filesystem.err_code
 }
 machine posix_filesystem_native_error_code_i64(filesystem: @mut PosixFilesystem, result: i64) -> i32 {
-    let code: i64 in Wrapping = (0 as i64 in Wrapping) - (result as i64 in Wrapping);
+    let code: i64 in Wrapping = (0 as i64 +Wrapping) - (result as i64 in Wrapping);
     filesystem.err_code = narrow_i64_to_i32_wrapping(code as i64);
     filesystem.err_code
 }

@@ -268,26 +268,26 @@ requires
 machine bignum_render_decimal(value: @Bignum, digits: @mut [u8; 40]) {
     let mut work: Bignum = Bignum {
         limbs: [
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
     let mut next_work: Bignum = Bignum {
         limbs: [
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
     bignum_copy(value, @mut work);
@@ -353,81 +353,81 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // A = 2^65 - 1 = [0xFFFFFFFF, 0xFFFFFFFF, 1, 0, 0, 0, 0, 0]
     main.a = Bignum {
         limbs: [
-            (4294967295u32 as u32 in Wrapping),
-            (4294967295u32 as u32 in Wrapping),
-            (1u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (4294967295u32 as u32 +Wrapping),
+            (4294967295u32 as u32 +Wrapping),
+            (1u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
 
     // B = 3 * 2^64 + 3 * 2^32 - 1 = [0xFFFFFFFF, 2, 3, 0, 0, 0, 0, 0]
     main.b = Bignum {
         limbs: [
-            (4294967295u32 as u32 in Wrapping),
-            (2u32 as u32 in Wrapping),
-            (3u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (4294967295u32 as u32 +Wrapping),
+            (2u32 as u32 +Wrapping),
+            (3u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
 
     // Hand-computed constants for verification.
     main.expected_sum = Bignum {
         limbs: [
-            (4294967294u32 as u32 in Wrapping),
-            (2u32 as u32 in Wrapping),
-            (5u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (4294967294u32 as u32 +Wrapping),
+            (2u32 as u32 +Wrapping),
+            (5u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
 
     main.expected_diff = Bignum {
         limbs: [
-            (0u32 as u32 in Wrapping),
-            (3u32 as u32 in Wrapping),
-            (1u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (0u32 as u32 +Wrapping),
+            (3u32 as u32 +Wrapping),
+            (1u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
 
     main.expected_prod = Bignum {
         limbs: [
-            (1u32 as u32 in Wrapping),
-            (4294967293u32 as u32 in Wrapping),
-            (4294967290u32 as u32 in Wrapping),
-            (5u32 as u32 in Wrapping),
-            (6u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (1u32 as u32 +Wrapping),
+            (4294967293u32 as u32 +Wrapping),
+            (4294967290u32 as u32 +Wrapping),
+            (5u32 as u32 +Wrapping),
+            (6u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
 
     main.expected_quot = Bignum {
         limbs: [
-            (198321098u32 as u32 in Wrapping),
-            (116451454u32 as u32 in Wrapping),
-            (3306282068u32 as u32 in Wrapping),
-            (25u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping),
-            (0u32 as u32 in Wrapping)
+            (198321098u32 as u32 +Wrapping),
+            (116451454u32 as u32 +Wrapping),
+            (3306282068u32 as u32 +Wrapping),
+            (25u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping),
+            (0u32 as u32 +Wrapping)
         ]
     };
 

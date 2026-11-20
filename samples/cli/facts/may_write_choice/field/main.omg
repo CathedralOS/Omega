@@ -11,7 +11,7 @@ machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pi
 
 machine overwrite(slot: @mut u64) -> u64 in Wrapping {
     $slot = 9;
-    (1 as u64 in Wrapping)
+    (1 as u64 +Wrapping)
 }
 
 machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping {

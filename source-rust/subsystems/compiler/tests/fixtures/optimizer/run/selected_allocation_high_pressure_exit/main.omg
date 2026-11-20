@@ -2,7 +2,7 @@
 // Twenty-two values are live at once, more than allocation has registers,
 // so allocation must spill some of them.
 machine main() crashes Trap {
-    let seed: u64 in Wrapping = 0u64 as u64 in Wrapping;
+    let seed: u64 in Wrapping = 0u64 as u64 +Wrapping;
     let v1: u64 in Wrapping = seed + 1;
     let v2: u64 in Wrapping = v1 + 1;
     let v3: u64 in Wrapping = v2 + 1;

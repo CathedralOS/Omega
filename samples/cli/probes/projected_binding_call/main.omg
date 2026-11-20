@@ -27,11 +27,11 @@ Settler satisfies Settlement {
 }
 
 machine forward(prefix: i32, receipt: Receipt, suffix: i32) -> i32 reaches Settlement {
-    ((Settlement::settle(prefix, receipt, suffix) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+    ((Settlement::settle(prefix, receipt, suffix) as i32 in Wrapping) + (1 as i32 +Wrapping)) as i32
 }
 
 machine direct(receipt: Receipt) -> i32 reaches Settlement {
-    ((Settlement::settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+    ((Settlement::settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 +Wrapping)) as i32
 }
 
 data Main { hits: i32 in Wrapping; }
