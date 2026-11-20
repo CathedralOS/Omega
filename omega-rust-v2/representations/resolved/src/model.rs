@@ -33,6 +33,11 @@ pub enum Symbol {
         span: SourceSpan,
         kind: NodeKind,
     },
+    /// A compiler-supplied query with a declaration path as its operand.
+    DeclarationQuery {
+        package: String,
+        path: String,
+    },
     Builtin(String),
     /// L3 selects the member using the resolved receiver's type.
     Member(String),
@@ -225,4 +230,6 @@ pub struct InterfaceExport {
 pub struct CompiledInterface {
     pub modules: BTreeSet<(String, String)>,
     pub declarations: Vec<InterfaceExport>,
+    /// Public symbolic queries have names but no executable machine signature.
+    pub declaration_queries: BTreeSet<(String, String)>,
 }

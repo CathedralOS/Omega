@@ -259,7 +259,8 @@ impl Catalog<'_> {
                     .filter(|l| l.kind != LifetimeParam)
                     .map(super::Local::symbol)
                     .collect();
-                let slots = self.lookup(file, ctx, n, &path)?;
+                let found = self.lookup_names(file, ctx, n, &path)?;
+                let slots = &found.slots;
                 let attachments = self.attached_domains(file, ctx, n, &path, false)?;
                 let mut refusal = None;
                 for type_name in [true, false] {
@@ -290,6 +291,15 @@ impl Catalog<'_> {
                                 refusal.get_or_insert(error);
                             }
                         }
+                    }
+                }
+                if !ty || typed_argument {
+                    let values = slots
+                        .iter()
+                        .map(|&slot| &self.entries[slot].id)
+                        .filter(|id| !matches!(id.kind, Data | Trait | Domain | Case) || id.kind == Case && path.contains("::"));
+                    if let Some(query) = found.value_query(file, span, values)? {
+                        names.push(query.clone());
                     }
                 }
                 match names.len() {
@@ -335,7 +345,8 @@ impl Catalog<'_> {
             {
                 Symbol::Builtin(path.clone())
             } else {
-                let mut candidates = self.lookup(file, ctx, n, &path)?;
+                let mut found = self.lookup_names(file, ctx, n, &path)?;
+                let mut candidates = std::mem::take(&mut found.slots);
                 let mut attachments = Vec::new();
                 if (ty || membership_target) && !ctx.heads.contains(&n) {
                     attachments = self.attached_domains(file, ctx, n, &path, membership_target)?;
@@ -373,10 +384,17 @@ impl Catalog<'_> {
                 });
                 candidates.sort_unstable();
                 candidates.dedup();
-                if candidates.is_empty() {
+                let query = if ty {
+                    None
+                } else {
+                    found.value_query(file, span, candidates.iter().map(|&slot| &self.entries[slot].id))?
+                };
+                if candidates.is_empty() && query.is_none() {
                     return Err(ctx.unresolved_name(file, span, &path));
                 }
-                let symbol = if applied_expression_argument {
+                let symbol = if let Some(query) = query {
+                    query.clone()
+                } else if applied_expression_argument {
                     let mut names = Vec::new();
                     let mut refusal = None;
                     for type_name in [true, false] {

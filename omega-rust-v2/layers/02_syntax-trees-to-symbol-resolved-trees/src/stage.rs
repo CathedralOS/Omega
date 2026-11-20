@@ -271,7 +271,27 @@ pub fn resolve_stage_with_exports<'text>(
             ));
         }
     }
+    for (package, path) in &interface.declaration_queries {
+        let error = |kind, message| NameError::new(kind, package, path, SourceSpan::new(0, 0), message);
+        if files.binary_search_by(|f| f.package.cmp(package)).is_ok() {
+            return Err(error(
+                NameErrorKind::CompiledPackageCollision,
+                "source package collides with a compiled interface",
+            ));
+        }
+        let module = path.rsplit_once('\\').map_or("", |(owner, _)| owner);
+        if !interface.modules.contains(&(package.clone(), module.into())) {
+            return Err(error(NameErrorKind::CompiledExportWithoutModule, "compiled export has no defining module"));
+        }
+        if index.contains_key(&(package.clone(), path.clone())) {
+            return Err(error(
+                NameErrorKind::DuplicateCompiledDeclaration,
+                "duplicate declaration in compiled interface",
+            ));
+        }
+    }
     let mut catalog = Catalog {
+        declaration_queries: &interface.declaration_queries,
         entries,
         index: &index,
         modules: &modules,
@@ -565,6 +585,7 @@ pub fn resolve_stage_with_exports<'text>(
     Ok(SymbolResolvedTrees::new(files.into_iter().zip(bindings).collect(), resolution))
 }
 struct Catalog<'a> {
+    declaration_queries: &'a BTreeSet<(String, String)>,
     entries: Vec<Entry>,
     index: &'a Index,
     modules: &'a BTreeSet<(String, String)>,

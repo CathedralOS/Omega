@@ -1960,6 +1960,7 @@ fn compiled_exports_cannot_replace_source_identity_or_duplicate_an_admitted_decl
         let interface = CompiledInterface {
             modules: local.compiled_interface().modules,
             declarations,
+            ..CompiledInterface::default()
         };
         resolve_stage_with_exports(sources, &[], &Default::default(), &interface).map(|stage| stage.declarations.clone())
     };
@@ -1977,6 +1978,15 @@ fn compiled_exports_cannot_replace_source_identity_or_duplicate_an_admitted_decl
     ] {
         let error = check(sources, exports).unwrap_err();
         spec_corpus::assert_resolver_refusal!(error, kind, "wire", "Packet", omega_lexer::SourceSpan::new(0, 0), reason);
+    }
+    for (query, kind, reason) in [
+        ("Packet", DuplicateCompiledDeclaration, "duplicate declaration in compiled interface"),
+        (r"missing\query", omega_resolver::NameErrorKind::CompiledExportWithoutModule, "compiled export has no defining module"),
+    ] {
+        let mut interface = local.compiled_interface();
+        interface.declaration_queries.insert(("wire".into(), query.into()));
+        let error = resolve_stage_with_exports(&[], &[], &Default::default(), &interface).unwrap_err();
+        spec_corpus::assert_resolver_refusal!(error, kind, "wire", query, omega_lexer::SourceSpan::new(0, 0), reason);
     }
 }
 

@@ -18,6 +18,42 @@ fn fixed_integer_family(name: &str, applied: bool) -> Option<u8> {
     (matches!(first, b'u' | b'i') && (applied || !rest.is_empty()) && rest.iter().all(u8::is_ascii_digit)).then_some(first)
 }
 
+/// Module lookup can find a public declaration query as well as ordinary declaration slots.
+pub(super) struct NameMatches {
+    pub(super) slots: Vec<usize>,
+    queries: Vec<Symbol>,
+}
+
+impl NameMatches {
+    pub(super) fn value_query<'a>(
+        &self,
+        file: &File<'_>,
+        span: SourceSpan,
+        declarations: impl Iterator<Item = &'a DeclarationId>,
+    ) -> Result<Option<&Symbol>, NameError> {
+        let Some(first) = self.queries.first() else { return Ok(None) };
+        let mut declarations = declarations.peekable();
+        if declarations.peek().is_some() || self.queries.iter().any(|query| query != first) {
+            let mut competing: Vec<_> = declarations
+                .map(|id| format!("{}\\{}", id.package, id.path))
+                .collect();
+            for query in &self.queries {
+                if let Symbol::DeclarationQuery { package, path } = query {
+                    competing.push(format!("{package}\\{path}"));
+                }
+            }
+            competing.sort_unstable();
+            competing.dedup();
+            return Err(file.error(
+                NameErrorKind::CompetingDeclarations,
+                span,
+                format!("competing declarations: {}", competing.join(", ")),
+            ));
+        }
+        Ok(Some(first))
+    }
+}
+
 impl Context<'_> {
     fn opened_modules(&self, alias: &str) -> impl Iterator<Item = &(String, String)> {
         self.by_alias.get(alias).into_iter().flatten()
@@ -314,6 +350,18 @@ impl Catalog<'_> {
             );
         }
     }
+    fn query_symbol(
+        &self,
+        address: &(String, String),
+    ) -> Option<Symbol> {
+        self.declaration_queries
+            .get(address)
+            .map(|(package, path)| Symbol::DeclarationQuery {
+                package: package.clone(),
+                path: path.clone(),
+            })
+    }
+
     pub(super) fn collect_imports(
         &self,
         file: &File<'_>,
@@ -326,7 +374,7 @@ impl Catalog<'_> {
             let alias = path.rsplit([':', '\\']).next().unwrap();
             let site = ctx.imports.len();
             let slots = self.direct(file, &address);
-            if self.modules.contains(&address) && slots.is_empty() {
+            if self.modules.contains(&address) && slots.is_empty() && !self.declaration_queries.contains(&address) {
                 ctx.open_modules.insert(address.clone());
             }
             ctx.heads.insert(head);
@@ -391,6 +439,8 @@ impl Catalog<'_> {
                     package: package.clone(),
                     path: path.clone(),
                 }
+            } else if let Some(query) = self.query_symbol(&import.address) {
+                query
             } else {
                 if import.slots.is_empty() {
                     return Err(file.error(
@@ -744,6 +794,22 @@ impl Catalog<'_> {
         n: usize,
         path: &str,
     ) -> Result<Vec<usize>, NameError> {
+        Ok(self.lookup_names(file, ctx, n, path)?.slots)
+    }
+
+    /// Declarations and symbolic queries share module names, imports and precedence.
+    /// Only declarations occupy slots in the resolved declaration tables.
+    pub(super) fn lookup_names(
+        &self,
+        file: &File<'_>,
+        ctx: &Context<'_>,
+        n: usize,
+        path: &str,
+    ) -> Result<NameMatches, NameError> {
+        let at_address = |address: &(String, String)| NameMatches {
+            slots: self.visible(file, address),
+            queries: self.query_symbol(address).into_iter().collect(),
+        };
         if let Some((root, rest)) = path.split_once('\\') {
             let address = self.address(file, path, file.span(n))?;
             let mut modules = ctx.opened_modules(root);
@@ -755,9 +821,9 @@ impl Catalog<'_> {
                         .map_or(file.span(n), |word| word.span);
                     return Err(file.error(NameErrorKind::CompetingModulePaths, span, format!("competing module paths {root}")));
                 }
-                return Ok(self.visible(file, &(module.0.clone(), module_child(&module.1, rest))));
+                return Ok(at_address(&(module.0.clone(), module_child(&module.1, rest))));
             }
-            return Ok(self.visible(file, &address));
+            return Ok(at_address(&address));
         }
         let (root, rest) = path
             .split_once("::")
@@ -783,12 +849,16 @@ impl Catalog<'_> {
                         .iter()
                         .all(|&i| self.entries[i].id.kind == NodeKind::Case);
                 if !visible.is_empty() && !bare_cases_only {
-                    return Ok(visible);
+                    return Ok(NameMatches {
+                        slots: visible,
+                        queries: Vec::new(),
+                    });
                 }
             }
         }
-        let local = self.visible(file, &(file.package.into(), module_child(&file.namespace, path)));
+        let local = at_address(&(file.package.into(), module_child(&file.namespace, path)));
         let mut preferred: Vec<_> = local
+            .slots
             .iter()
             .copied()
             .filter(|&i| {
@@ -798,15 +868,19 @@ impl Catalog<'_> {
             })
             .collect();
         let mut imported = Vec::new();
+        let mut queries = Vec::new();
         for &site in ctx.by_alias.get(root).into_iter().flatten() {
             let address = &ctx.imports[site].address;
             if !ctx.open_modules.contains(address) {
                 imported.extend_from_slice(&ctx.imports[site].slots);
+                queries.extend(self.query_symbol(address));
             }
         }
         // Opening a module exposes its direct declarations under their own names.
         for (package, module) in &ctx.open_modules {
-            imported.extend(self.direct(file, &(package.clone(), module_child(module, root))));
+            let address = (package.clone(), module_child(module, root));
+            imported.extend(self.direct(file, &address));
+            queries.extend(self.query_symbol(&address));
         }
         if let Some(rest) = rest {
             for slot in imported {
@@ -816,13 +890,16 @@ impl Catalog<'_> {
         } else {
             preferred.extend(imported);
         }
-        if !preferred.is_empty() {
-            return Ok(preferred);
+        if rest.is_some() {
+            queries.clear();
         }
-        if !local.is_empty() || rest.is_none() {
+        if !preferred.is_empty() || !queries.is_empty() {
+            return Ok(NameMatches { slots: preferred, queries });
+        }
+        if !local.slots.is_empty() || rest.is_none() {
             return Ok(local);
         }
         let address = (file.package.into(), path.into());
-        Ok(self.visible(file, &address))
+        Ok(at_address(&address))
     }
 }
