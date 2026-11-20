@@ -40,6 +40,7 @@ def main():
             parser.exit(1, str(error) + "\n")
         program = program_source(module, runtime=runtime)
         support = (work / "support.bin").read_bytes()
+        write(work, "omega.delta", program)
         write(work, "omega.dcreq", delta_request(program, support, profile=2))
         return
     work.mkdir(parents=True)
@@ -68,6 +69,7 @@ def main():
         packages = [(name, role) for name, _, role in builder["PACKAGES"]]
         stdin, _, _, _ = builder["encode"](packages, builder["EDGES"], [(entry["package"], source)],
                                             0, builder["ENTRY_NAME"])
+        write(work, "entry-unit.bin", stdin)
         write(work, "entry-unit.eereq", epsilon_request(evaluator, guest, stdin))
 
     if args.receipt:

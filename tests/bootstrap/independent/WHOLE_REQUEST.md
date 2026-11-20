@@ -35,6 +35,16 @@ chmod +x "$work/omega"
 "$work/omega" < "$work/product.bin" > "$work/compiled.eeout"
 ```
 
+To run the same checked program directly in the Delta interpreter, give it the
+`omega.delta` produced by `--frame-result` and the desired product input.
+The runner saves the guest's result in `guest.output`.
+
+```sh
+python3 tests/bootstrap/interpreted/delta/interpreter.py "$work/direct" \
+    --host linux --profile construction --runner "$work/compiled/gamma-compiler" \
+    --source "$work/omega.delta" --stdin "$work/product.bin" --seconds 1200
+```
+
 The interpreted route passes the Epsilon source and the product input together
 as one sealed request. Reuse the seed-built Delta and Gamma compilers from
 above to build the interpreter.
@@ -50,7 +60,8 @@ chmod +x "$work/evaluator"
 Both executables emit the Epsilon guest's outcome before its payload. A successful
 constructor returns five zero bytes followed by the Alpha tape.
 The optional `--entry-control` also frames the original package and dependency
-rows with just the original entry unit in `entry-unit.eereq`. Both construction
+rows with just the original entry unit in `entry-unit.bin` and seals the same
+bytes for the evaluator in `entry-unit.eereq`. Both construction
 requests select Delta profile 2, which admits the combined source and product
 input and can publish a generated module larger than 4 MiB.
 
@@ -58,17 +69,22 @@ input and can publish a generated module larger than 4 MiB.
 
 The indexed Epsilon compiler compiled all 852,096 bytes of the bootstrap
 compiler and its construction entry. With Delta's construction profile, the
-Linux executable returned status 0, the `compiled-storage` marker and an
+Linux executable and the Alpha seed running the 4,324,897-byte compiler tape
+each returned status 0, the `compiled-storage` marker and the same
 18,269,324-byte Delta module. Adding the declared storage runtime and entry
-gave Delta an 18,365,364-byte program. The same whole Epsilon source reached
-the 4 MiB output guard with status 254 on the conformance profile.
+gave Delta an 18,365,364-byte program. Delta checked that complete source and
+published 26,398,215 bytes of Gamma with process status 0 and empty stderr.
+The same whole Epsilon source reached the 4 MiB output guard with status 254
+on the conformance profile.
 [Indexed lowering](../../../wiki/development/bootstrap/native.md)
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Epsilon source with construction entry | 852,096 | `01565beaf9f51478a156fa9b9ca997f5808b06ef39db66a41e4baf644ff59225` |
+| Epsilon compiler Alpha tape | 4,324,897 | `7154f042d57d71bdc293bac57871d4c3bebbac7825abdea8d43e42d7a04aded1` |
 | Epsilon compiler output, including marker | 18,269,341 | `60d0fce9fa52af3464e95c5d691882369e6d7417cb386258f41cde55b207a0f5` |
 | Delta source with runtime and entry | 18,365,364 | `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab` |
+| Gamma emitted by Delta | 26,398,215 | `2c9641632eb613696428a96903e02d126a6d7fc5fdbd78c9f08f3d3469f29329` |
 
 The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
