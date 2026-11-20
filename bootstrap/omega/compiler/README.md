@@ -80,10 +80,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,022 lines / 1,087,702 bytes with SHA-256
-`4467e3eb4f11643e56988be54dfeeaa409e4c61a91471d0d1a2aec2827c58181`.
+The manifest materializes 27,883 lines / 1,083,951 bytes with SHA-256
+`cc8798cbf0b70d0f89f52ab31c1eb52fefd492598c24f47bcae1b67588495e66`.
 The manifest itself is 2,729 bytes, SHA-256
-`0fdf169d4ea74847e0a0af55472e041ad27b69e497b7cd6f02f5a184f3e0767f`;
+`f477fb826b2a119d18a5ab18a3b9b580ee34c0657d0990d7b1f653e57445de72`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
