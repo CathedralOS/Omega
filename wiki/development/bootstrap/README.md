@@ -326,7 +326,154 @@ The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.m
 
 ## Whole Omega compiler
 
-### Current 305-unit product
+### Rebuilding the construction application
+
+The 305-unit construction application has yet to produce its own compiler
+tape. The seed builds the Epsilon-written Omega compiler, and that compiler
+builds the two-package wire decoder. The full application reaches a parser
+capacity limit in the independent Epsilon model.
+
+| Gamma route | What completed on the real bootstrap compiler | What limits the route |
+| --- | --- | --- |
+| Interpreter | Ran the Alpha-produced 26,354,274-byte constructor. It compiled a 111-byte Omega package into a 22-byte tape that exited 42 on the seed. | Source and nesting fit. The 305-unit application remains open on this interpreter. |
+| Compile to Alpha | Compiled all 899,962 bytes of the Epsilon-written compiler. Both its Delta response and the 26,354,274 bytes of generated Gamma matched Linux byte for byte. | The generated constructor exceeds the seed’s single-tape size limit with the current emitter. |
+| Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | The full-product run at `6e2b05e9599` crossed a 24 GiB memory guard before writing a result. |
+
+The first self-build milestone is an Alpha tape for
+`source/application/construction/main.omg::entry_start`. Then run that tape
+on the same package graph, and replay its output to check reproducibility.
+The construction driver accepts a framed producer with `--epsilon-compiler`
+and a raw Omega-built tape with `--compiler-tape`. [Construction driver](../../../source/application/construction/README.md)
+
+<details>
+<summary>Artifact sizes, inputs and refusal controls</summary>
+
+The 305-unit request at `c6d64f0f3c4` and `bc71e8f4e89` is 3,994,901 bytes,
+SHA-256 `4dd77c669bdd7efdc3834ffb37e2072e2ccae832c040f5bdd65c56b4dd570db5`.
+The first three builds started from Alpha and Beta. The fourth reused the
+third build's seed-built compilers after checking their inputs byte for byte.
+All sizes in the table are bytes.
+
+| Artifact | `c6d64f0f3c4` | `bc71e8f4e89` | `b491e657def` | `6e2b05e9599` |
+| --- | ---: | ---: | ---: | ---: |
+| Epsilon compiler source with Omega construction entry | 899,962 | 896,361 | 896,361 | 897,004 |
+| Epsilon compiler response, including runtime marker | 18,259,583 | 18,172,544 | 16,943,469 | 16,938,941 |
+| Delta input with runtime linked | 18,358,296 | 18,271,927 | 17,041,610 | 17,037,082 |
+| Generated Gamma | 26,354,274 | 26,221,619 | 25,368,076 | 25,362,658 |
+| Linux executable that consumes Omega sources | 56,583,468 | 56,327,274 | 54,086,757 | 54,069,152 |
+
+On the first snapshot, the Alpha-hosted and native Epsilon compilers
+produced identical responses, SHA-256
+`465430c3d84dea4b9373469e040e9a3bb43c88b46d0c0c36138563aa70a780f3`.
+The Alpha-hosted Delta compiler then produced the same 26,354,274 bytes
+of Gamma as Linux (SHA-256 `215cd20cbc51fcdff281fb1075c474fc0afe3f4d1b89d141c18a974da6cd19cd`).
+The original Gamma interpreter matched Linux on the empty input
+and on the 111-byte package. Its 22-byte tape has SHA-256
+`25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`.
+The interpreter took 613.32 CPU seconds on the Linux-produced Gamma. It
+then took 413.87 CPU seconds to run the freshly Alpha-produced Gamma on
+the same input. That second tape exited 42 on the seed with empty stdout
+and stderr. This chain starts at Alpha and Beta and uses the original Gamma
+interpreter for its final constructor. [Gamma source audit](source-audit.md) · [Reproduce the seed-only chain](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
+
+At `b491e657def` the Epsilon compiler releases state locals earlier.
+Just the 325,180 decimal literals and 301,689 single-name bindings in this
+Gamma require 17,877,512 bytes with the present Alpha emitter. The seed
+accepts 16,777,212 bytes per tape. This limits the single-tape route even
+on an idle machine. The input to the original Gamma interpreter fits its
+source, definition and nesting limits. On the earlier `bc71e8f4e89` Gamma
+it correctly rejected a one-byte-short 305-unit request. The interpreter
+and native executable both returned `00 03 00 00 00`. [Alpha emission costs](source-audit.md#why-the-full-constructor-changes-the-host-choice)
+
+Removing the final byte probes input staging before parsing. The first
+executable hit a 1 GiB RSS guard with empty stdout. The second returned guest exit 3 at 118,420 KiB peak RSS. Appending a byte
+returned the same refusal at 118,304 KiB. Replacing just the first source byte
+with NUL preserved the full request length and reached the lexer, which
+reported guest exit 1 at byte 169 at 372,896 KiB. All three completed refusals
+ended with host exit 0 and empty stderr. With the full, unmodified request,
+the earlier executable crossed a 7 GiB RSS guard and the later one crossed
+9 GiB. At `b491e657def` the native constructor also crossed 9 GiB on
+its 3,994,989-byte product (`ca9e2330e9f9…`). All three runs ended with
+empty stdout and stderr.
+
+On the last three snapshots Linux compiled the two-package wire decoder into a
+1,607-byte Alpha tape, SHA-256
+`f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+It exited 42 on the seed. Removing the import edge produced a refusal at
+byte 11 and appending data to the valid packet produced a framing refusal.
+The last executable also refused all 16 one-through-sixteen byte truncations.
+[Wire customer](../../../tests/bootstrap/independent/product_wire.py)
+
+Keeping units 0 and 19 through 25 in their original order, with the same
+packages, dependency edges, paths and entry, reproduces the 105,548-byte
+request `a463dcfcd415ff8301485adb87b72b2d93ea12362ecf5348fa2a5a52c450967f`.
+It contains the original cast from
+`operators.omg`. The independent Epsilon source model previously stopped on
+the second `as` at byte 101,919. After the chained-cast change the same
+request returned a rejection at byte 169, the first import in the entry
+unit. On a complete program using the same field and domain conversion, the
+seed-built evaluator compiled the cast to the same 377-byte Alpha tape as
+the explicitly grouped expression. Both tapes exited 42.
+[Cast rules](../../spec/language/domains.md#grouping) · [Compiler change](https://github.com/CathedralOS/Omega/pull/4667)
+
+At `6e2b05e9599` the 3,994,887-byte product has
+SHA-256 `a0e745fd4cc419d7bdee25e8590d3898ef3285549efab14b76c62c19c68f26f6`.
+On that product the native constructor exceeded the 24 GiB RSS guard after
+964.06 CPU seconds with empty stdout and stderr. The source model ran this entire request in 352.17 CPU seconds and returned
+`000300000027130700` for path member 16,385 at byte 463,655
+(`expressions.omg:1339:68`, token `expression`). The comparison model adds
+the read-only `remaining_input` field to the frozen model described below.
+Type formation returns a non-place `("view", U8)`. Execution returns
+`("view", U8, self.stdin, self.stdin_index, len(self.stdin))`. It passed
+all six independent input-view cases and the wire decoder’s three controls.
+[Input-view cases](../../../tests/bootstrap/conformance/vectors.py) · [Type-row change](https://github.com/CathedralOS/Omega/pull/4676)
+
+Retaining boundary trait signatures at `bcf71f0bbfc` added 12,527 bytes of
+Epsilon source. The seed-built tools compiled all 909,531 bytes and built
+a 54,882,761-byte Linux constructor. It returned the exact refusal
+`000200000088030000` on the core package with no provider. It also
+reproduced the wire decoder's 1,607-byte tape and all 18 refusal controls.
+[Boundary trait change](https://github.com/CathedralOS/Omega/pull/4681)
+
+</details>
+
+#### What blocks the self-build
+
+The independent Epsilon model reached byte 463,748 in unit 17,
+`expressions.omg:1340:54`. On the identical 3,994,901-byte request the
+earlier compiler reached byte 422,012, or 41,736 bytes earlier. At byte 463,748,
+the name `syntax` in the shift-right expression, the parser requested
+path member 16,385 of 16,384. That run still had 14,667 expression rows
+and 9,722 type rows live. With fresh parser tables the whole 101,821-byte
+file parsed using only 3,847 path members. [Replay and isolated-unit driver](https://github.com/CathedralOS/Omega/pull/4678)
+
+Several other parser tables also have independent size limits. A
+conservative census of the unchanged 305 units found at least 5,612 top-level
+declarations against 4,096 root slots, 25,642 typed parameters against
+16,384 parameter slots, and 44,059 type nodes against 16,384 type slots.
+The census counts only the declaration fragments that its independent parser
+reads successfully. A per-file parser could keep the declaration identity, package,
+visibility and signature location across files, then check every body using
+fresh syntax tables. The public request's existing resource diagnostics
+would still need their own accounting. [Reproduce the capacity census](../../../tests/bootstrap/independent/parser-capacity.rs) · [Counting method](https://github.com/CathedralOS/Omega/pull/4673)
+
+On `0eae05358c0` the isolated parser read all 20,914 bytes of the Omega
+construction entry. Its `Console` and `ProcessExit` dependencies both stopped
+at `boundary trait`. The updated Epsilon parser reads the entire core
+`ProcessExit` declaration and all five `Console` requirements. It reaches the
+next ordinary trait in `std/console.omg` at byte 2,259. The scalar compiler
+still refuses the 1,306-byte canonical core package at byte 904 until it can
+resolve a requirement to its provider. [Canonical reproducer](https://github.com/CathedralOS/Omega/pull/4674) · [Parser and refusal controls](https://github.com/CathedralOS/Omega/pull/4681)
+
+The Omega-written compiler's scalar entry lowerer admits a clause-free
+byte-returning machine. Its construction application returns unit,
+reads from `Console`, and ends
+through `ProcessExit`. A second-generation self-build needs lowering for
+that entry and its effects. [Construction entry](../../../source/application/construction/main.omg)
+
+<a id="current-305-unit-product"></a>
+
+### Earlier 305-unit measurements
 
 The Epsilon-written compiler with the quoted scanner and nested machine
 scopes occupies 899,660 bytes with its construction entry (SHA-256
