@@ -323,7 +323,7 @@ machine OmegaScalarCompiler::declares_terminal_requirement(
 // A checked supplier is still uninstalled in a v1 construction invocation.
 // A bare or qualified primitive and a static provider member have distinct
 // declaration identities. The final name must belong to the resolved owner.
-machine OmegaScalarCompiler::requires_service_installation(
+machine OmegaScalarCompiler::terminal_declaration_coordinate(
     &mut self, source: &[u8], first: i32, count: i32, name: OmegaRelativeSpan
 ) -> i32 {
     transition count > 0 {
@@ -334,14 +334,14 @@ machine OmegaScalarCompiler::requires_service_installation(
         transition self.read_query(source, start, name.end) {
             1 -> primitive(start)
             2 -> owner(start, end, self.resolve_declaration(source, start, end, OmegaDeclarationKind::Service))
-            _ -> return 0
+            _ -> return -1
         }
     }
     state primitive(start: i32) {
         transition (self.exit_primitive >= 0) &&
             (self.resolve_declaration(source, start, name.end, OmegaDeclarationKind::BoundaryMachine) == self.exit_primitive) {
-            true -> uninstalled(self.parser.owned_machines[self.parser.boundary_machines[self.exit_primitive]].start)
-            _ -> return 0
+            true -> located(self.parser.owned_machines[self.parser.boundary_machines[self.exit_primitive]].start)
+            _ -> return -1
         }
     }
     state owner(start: i32, end: i32, index: i32) {
@@ -353,22 +353,49 @@ machine OmegaScalarCompiler::requires_service_installation(
     state requirement(row: OmegaBoundaryTraitSyntax) {
         transition (row.requirement_count == 1) &&
             (self.parser.sources.equal_name(source, name, self.parser.boundary_requirements[row.first_requirement].name) == 1) {
-            true -> uninstalled(row.boundary_keyword.start)
-            _ -> return 0
+            true -> located(row.boundary_keyword.start)
+            _ -> return -1
         }
     }
     state implementation(index: i32) {
         transition (index >= 0) && (self.exit_primitive >= 0) {
             true -> supplied(self.parser.implementations[index])
-            _ -> return 0
+            _ -> return -1
         }
     }
     state supplied(row: OmegaImplementationSyntax) {
         let member: OmegaMachineSyntax = self.parser.owned_machines[row.first_member];
         transition self.parser.sources.equal_name(source, name, self.parser.members[member.first_path_member]) {
-            1 -> uninstalled(row.name.start)
+            1 -> located(row.name.start)
+            _ -> return -1
+        }
+    }
+    state located(coordinate: i32) { return coordinate; }
+}
+
+// First check the terminal call as an ordinary typed invocation. Even an
+// uninstalled v1 target cannot turn another type into a signed exit status.
+// All supported terminal declarations share one i32 input and no predicates.
+machine OmegaScalarCompiler::check_terminal_invocation(
+    &mut self, source: &[u8], owner: i32, state_index: i32, before: i32, first: i32,
+    count: i32, coordinate: i32, call_start: i32, name: OmegaRelativeSpan
+) -> i32 {
+    transition coordinate >= 0 {
+        true -> arity()
+        _ -> rejected(name.start)
+    }
+    state arity() {
+        transition count == 1 {
+            true -> status_value()
+            _ -> rejected(call_start)
+        }
+    }
+    state status_value() {
+        transition self.check_value(source, owner, state_index, before, self.parser.call_arguments[first], 33) {
+            1 -> uninstalled()
             _ -> return 0
         }
     }
-    state uninstalled(coordinate: i32) { self.record_incomplete(4, coordinate); return 1; }
+    state uninstalled() { self.record_incomplete(4, coordinate); return 0; }
+    state rejected(offset: i32) { self.record_reject(-1, 4, offset); return 0; }
 }

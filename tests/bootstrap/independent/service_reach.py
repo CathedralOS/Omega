@@ -79,10 +79,10 @@ def terminal_cases():
     bottom = (core / 'never.omg').read_bytes()
     names = [('app', 0), ('omega_language_core', 1)]
 
-    def trial(name, app, outcome, *, service=terminal, result=bottom):
-        units = [(0, app), (1, service), (1, result)]
-        packet, _, _, rows = encode(names, [], units, 0, b'main',
-                                    paths=['main.omg', 'process_exit.omg', 'never.omg'])
+    def trial(name, app, outcome, *, service=terminal, result=bottom, standalone=False):
+        units = [(0, app)] if standalone else [(0, app), (1, service), (1, result)]
+        paths = ['main.omg'] if standalone else ['main.omg', 'process_exit.omg', 'never.omg']
+        packet, _, _, rows = encode(names[:1] if standalone else names, [], units, 0, b'main', paths=paths)
         if isinstance(outcome, tuple):
             code, unit, spelling = outcome
             source_coordinate = rows[unit][1] + units[unit][1].rindex(spelling)
@@ -115,6 +115,23 @@ def terminal_cases():
                 (1, 0, b'Never {}'))
     yield trial('normal-result-lookalike', b'data Never [copy] {} machine fake()->Never {Never {}} '
                 b'machine main()->u8 {fake()}', (1, 0, b'fake()'))
+
+
+    call = import_exit + b'machine main()->u8 reaches ProcessExit {ProcessExit::exit_process('
+    yield trial('terminal-argument-type', call + b'true);}', (1, 0, b'true'))
+    yield trial('terminal-argument-carrier', call + b'255u32);}', (1, 0, b'255u32'))
+    yield trial('terminal-missing-argument', call + b');}', (1, 0, b'ProcessExit::exit_process'))
+    yield trial('terminal-extra-argument', call + b'0, 1);}', (1, 0, b'ProcessExit::exit_process'))
+    yield trial('terminal-valid-negative', call + b'-2147483648i32);}', (2, 1, b'boundary trait ProcessExit'))
+    yield trial('terminal-expression-type', call + b'false)}', (1, 0, b'false'))
+
+    yield trial('pure-unit-entry', b'machine main(){}', 0, standalone=True)
+    yield trial('unit-entry-calls-helper', b'machine helper(){} machine main(){helper();}', 0)
+    yield trial('unit-entry-trap', b'machine main() crashes Trap {crash Trap;}', 'trap')
+    yield trial('unit-entry-uninstalled', import_exit + b'machine main() reaches ProcessExit {ProcessExit::exit_process(16);}',
+                (2, 1, b'boundary trait ProcessExit'))
+    yield trial('entry-requires-parameter', b'machine main(value:u8){}', (2, 0, b'machine main'))
+    yield trial('entry-unsupported-result', b'machine main()->i32{42}', (2, 0, b'machine main'))
 
 
 def provider_cases():
@@ -222,7 +239,7 @@ def main():
         (work / f'{name}.output').write_bytes(observed)
         if code:
             raise SystemExit(f'{name}: host exit {code}')
-        if expected is None or expected == 'trap':
+        if expected is None or isinstance(expected, int) or expected == 'trap':
             if not observed.startswith(bytes(5)) or len(observed) <= 5:
                 raise SystemExit(f'{name}: expected compiled tape, got {observed[:32].hex()}')
             tape = work / f'{name}.tape'
@@ -234,10 +251,11 @@ def main():
                 if output or (code != -signal.SIGILL and code & 0xffffffff != 0xc000001d):
                     raise SystemExit(f'{name}: expected Alpha Trap, got {code} with {output!r}')
                 print(f'{name}: Alpha Trap', flush=True)
-            elif (code, output) == (42, b''):
-                print(f'{name}: Alpha exit 42', flush=True)
             else:
-                raise SystemExit(f'{name}: expected Alpha exit 42 and empty stdout')
+                expected_status = 42 if expected is None else expected
+                if (code, output) != (expected_status, b''):
+                    raise SystemExit(f'{name}: expected Alpha exit {expected_status} and empty stdout, got {code} and {output!r}')
+                print(f'{name}: Alpha exit {code}', flush=True)
         elif observed != expected:
             raise SystemExit(f'{name}: expected {expected.hex()}, got {observed[:32].hex()}')
         else:
