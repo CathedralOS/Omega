@@ -1,9 +1,8 @@
 //! Invocation-local syntax retained by source settlement. Package discovery
 //! receives authored import/name summaries and opaque reusable parses.
-use crate::PsiCompilationObserver;
 use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
-use source_files::{DependencyScope, LoadedSource, LoadedSources, SourceOrigin};
+use source_files::{DependencyScope, SourceOrigin};
 use source_text::{SourceId, SourceSpan};
 use std::{path::PathBuf, sync::Arc};
 use syntax_trees::{SyntaxTrees, item::Item};
@@ -50,7 +49,7 @@ impl SourceSyntax {
     pub fn share_pages(&mut self) {
         self.trees.share_pages();
     }
-    fn retain_batch(&mut self, parsed: syntax_trees::ParsedSources) -> ParsedSourceBatch {
+    pub(super) fn retain_batch(&mut self, parsed: syntax_trees::ParsedSources) -> ParsedSourceBatch {
         let batch = ParsedSourceBatch::project(parsed, &self.trees);
         self.files.extend(
             batch
@@ -211,7 +210,7 @@ impl ParsedSourceBatch {
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct RetainedSourceParse {
-    unit: syntax_trees::ParsedUnit,
+    pub(super) unit: syntax_trees::ParsedUnit,
 }
 
 pub struct SourceDeclarations {
@@ -255,45 +254,6 @@ impl RetainedSourceParse {
             declares_operator_family,
             declared,
         }
-    }
-}
-
-pub struct SourceInput(pub LoadedSources);
-impl SourceInput {
-    pub fn append(
-        self,
-        syntax: &mut SourceSyntax,
-        observer: &mut impl PsiCompilationObserver,
-    ) -> Result<ParsedSourceBatch, Vec<Diagnostic>> {
-        let parsed =
-            crate::source_parsing::SourceInput(self.0).append(&mut syntax.trees, observer)?;
-        Ok(syntax.retain_batch(parsed))
-    }
-    pub fn into_parsed_units(
-        self,
-        observer: &mut impl PsiCompilationObserver,
-    ) -> Result<Vec<RetainedSourceParse>, Vec<Diagnostic>> {
-        crate::source_parsing::SourceInput(self.0)
-            .into_parsed_units(observer)
-            .map(|units| {
-                units
-                    .into_iter()
-                    .map(|unit| RetainedSourceParse { unit })
-                    .collect()
-            })
-    }
-    pub fn append_reusing<'unit>(
-        self,
-        syntax: &mut SourceSyntax,
-        observer: &mut impl PsiCompilationObserver,
-        mut retained: impl FnMut(&LoadedSource) -> Option<&'unit RetainedSourceParse>,
-    ) -> Result<ParsedSourceBatch, Vec<Diagnostic>> {
-        let parsed = crate::source_parsing::SourceInput(self.0).append_reusing(
-            &mut syntax.trees,
-            observer,
-            |source| retained(source).map(|parse| &parse.unit),
-        )?;
-        Ok(syntax.retain_batch(parsed))
     }
 }
 

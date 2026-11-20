@@ -3,6 +3,11 @@
 #![forbid(unsafe_code)]
 
 use diagnostics::Diagnostic;
+mod parse_files;
+pub use parse_files::{
+    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
+    SourceInput, SourceItems, SourceSyntax,
+};
 mod stage_sources;
 pub use stage_sources::ParsedStageSources;
 

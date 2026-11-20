@@ -5,7 +5,15 @@ fn parse(
     first_page: u32,
     independent_units: bool,
 ) -> Result<(Vec<SyntaxTrees>, ParsedSources), Vec<Diagnostic>> {
-    SourceInput(loaded).parse_batch(first_page, independent_units, &mut UnmeasuredProduction)
+    SourceInput(loaded).parse_batch(
+        first_page,
+        if independent_units {
+            Layout::Independent
+        } else {
+            Layout::Shared
+        },
+        &mut UnmeasuredProduction,
+    )
 }
 use source_text::SourceId;
 use std::sync::Arc;
