@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,545 lines / 882,513 bytes with SHA-256
-`e71eadd8cc65ede1a16de0ecd83715b85ab01e3b3fefdf4419dea66eb64f5f83`.
+manifest materializes 23,525 lines / 882,084 bytes with SHA-256
+`d584dfb704b4b4104e9819b5d184fd44d06e8877986989e063e320ad4be6c1f8`.
 The manifest itself is 1,698 bytes, SHA-256
-`2ba9f3c9af317ef7daa3e4544bb8d753e3ac45eb4572cc677759964c205af776`;
+`62c666c97b8ee588eaa1365b9ea8ef14ad25c60048b1c6383cf852610c3180d2`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.

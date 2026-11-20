@@ -206,6 +206,17 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
+    # Mutate one header byte at a time. Each failure points to its own
+    # offset and clears both section spans before any contents are read.
+    for offset in range(8):
+        mutated = bytearray(valid)
+        mutated[offset] ^= 0x80
+        reply = observe(executable, bytes(mutated))
+        fields = struct.unpack('<14i', reply[5:])
+        assert reply[:5] == b'\0' + struct.pack('<i', 42)
+        assert fields[:6] == (0, offset, 0, 0, 0, 0), (offset, fields)
+        assert fields[6:8] == (0, offset), (offset, fields)
+
     # The production keyword classifier compares its actual literal views.
     lexer = (base / 'source-to-tokens/scan.epsilon').read_bytes()
     source = ((base / 'representations.epsilon').read_bytes()
