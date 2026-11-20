@@ -71,21 +71,23 @@ def encode(packages, edges, units, entry_unit, entry_name, *, paths=None):
 def compiler_input():
     sources = []
     declarations = []
-    for package, (_, directory, _) in enumerate(PACKAGES):
+    for package, (_, directory, role) in enumerate(PACKAGES):
         base = ROOT / directory
         if not base.is_dir():
             raise FileNotFoundError(base)
-        build = base / 'build.omg'
-        if build.is_file():
-            declarations.append({'path': build.relative_to(ROOT).as_posix(),
-                                 'sha256': digest(build.read_bytes())})
-        # A package root is explicit. Ignore only invocation build output and
-        # its Build declaration; no filename is translated into a module name.
+        build_inputs = {base / 'build.omg'}
+        if role == 1:
+            # The Rust driver admits the core default Build in build scope.
+            build_inputs.add(base / 'defaults/build.omg')
         for path in sorted(base.rglob('*.omg')):
             relative = path.relative_to(base)
-            if 'build' in relative.parts or path == build:
+            if 'build' in relative.parts:
                 continue
             data = path.read_bytes()
+            if path in build_inputs:
+                declarations.append({'path': path.relative_to(ROOT).as_posix(),
+                                     'sha256': digest(data)})
+                continue
             sources.append((package, path.relative_to(ROOT).as_posix(), data))
     paths = [path for _, path, _ in sources]
     entry_unit = paths.index(ENTRY)

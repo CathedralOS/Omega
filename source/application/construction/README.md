@@ -15,7 +15,8 @@ identity, graph, snapshot, admission and commitment implementations.
 [construct.py](construct.py) collects every source file the construction
 application needs: its own units, the driver, frontend, Alpha backend, wire foundation,
 standard library and core library. It copies each file byte for byte, keeps package
-and unit identities, and writes an exact manifest. The entry is
+and unit identities, and writes an exact manifest. Package Build declarations
+and core’s default Build are recorded separately as build inputs. The entry is
 `source/application/construction/main.omg::entry_start`.
 
 ```sh
