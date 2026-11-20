@@ -20,10 +20,19 @@ def embedding(library, deployment):
     return library + entry.replace(hook, b'self.construct_standalone("' + literal + b'");')
 
 
+DEPLOYMENTS = {
+    'selected': ('build-selection-grants-no-domain', True),
+    'unselected': ('build-missing-provider-no-domain', False),
+    'called-helper': ('build-called-helper', True),
+    'hosted-helper': ('build-hosted-helper', False),
+    'unreached-helper': ('build-unreached-helper', False),
+}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
-    parser.add_argument('--deployment', choices=('selected', 'unselected'), default='selected')
+    parser.add_argument('--deployment', choices=DEPLOYMENTS, default='selected')
     route = parser.add_mutually_exclusive_group()
     route.add_argument('--constructor', type=Path, help='native constructor built from the generated embedding')
     route.add_argument('--evaluator', type=Path, help='run the generated embedding under an Epsilon evaluator')
@@ -32,9 +41,9 @@ def main():
     work = args.output.resolve()
     work.mkdir(parents=True, exist_ok=True)
     cases = {name: (wire, outcome) for name, wire, outcome in rooted_application_cases()}
-    selected, _ = cases['build-selection-grants-no-domain']
-    unselected, refusal = cases['build-missing-provider-no-domain']
-    approved, other = (selected, unselected) if args.deployment == 'selected' else (unselected, selected)
+    case, exits = DEPLOYMENTS[args.deployment]
+    approved, refusal = cases[case]
+    other = cases['build-entry-without-selection'][0]
     library = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
     driver = embedding(library, approved)
     (work / 'constructor.epsilon').write_bytes(driver)
@@ -51,7 +60,7 @@ def main():
         (work / f'{name}.out').write_bytes(observed)
         if code:
             raise SystemExit(f'{name}: constructor exited {code}')
-        if name == 'other' or args.deployment == 'unselected':
+        if name == 'other' or not exits:
             expected = bytes([0, 3, 0, 0, 0]) if name == 'other' else refusal
             if observed != expected:
                 raise SystemExit(f'{name}: expected {expected.hex()}, got {observed[:32].hex()}')
