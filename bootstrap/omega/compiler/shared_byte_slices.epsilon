@@ -154,6 +154,34 @@ machine OmegaScalarCompiler::emit_byte_range(&mut self, expression: i32) -> i32 
         (self.tape.emit_imm(0, cell, 0) == 1);
 }
 
+// Only names from this invocation establish a relation. A parameter with
+// the same spelling in another machine or a pattern binding cannot supply it.
+machine OmegaScalarCompiler::slice_formal(
+    &mut self, source: &[u8], state_index: i32, before: i32, name: OmegaRelativeSpan
+) -> i32 {
+    transition self.pattern_binding(source, name) < 0 {
+        true -> cell(self.value_cell(source, state_index, before, name.start, name.end))
+        _ -> return -1
+    }
+    state cell(slot: i32) {
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        transition (slot >= body.first_parameter) && (slot < body.first_parameter + body.parameter_count) {
+            true -> return slot
+            _ -> return -1
+        }
+    }
+}
+
+machine OmegaScalarCompiler::shared_slice_formal(
+    &mut self, source: &[u8], state_index: i32, before: i32, name: OmegaRelativeSpan
+) -> i32 {
+    let cell: i32 = self.slice_formal(source, state_index, before, name);
+    transition (cell >= 0) && (self.parameter_types[cell] == omega_shared_byte_slice()) {
+        true -> return cell
+        _ -> return -1
+    }
+}
+
 machine OmegaScalarCompiler::byte_slice_parameter(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
 ) -> i32 {
@@ -164,45 +192,183 @@ machine OmegaScalarCompiler::byte_slice_parameter(
     }
     state path(row: OmegaExpressionSyntax) {
         transition (row.payload1 == 1) && (row.payload2 == 0) && (row.payload3 == 1) {
-            true -> name(self.parser.members[row.payload0])
+            true -> return self.shared_slice_formal(source, state_index, before, self.parser.members[row.payload0])
             _ -> return -1
         }
     }
-    state name(name: OmegaRelativeSpan) {
-        transition self.pattern_binding(source, name) < 0 {
-            true -> slot(self.value_cell(source, state_index, before, name.start, name.end))
+}
+
+machine OmegaScalarCompiler::slice_length_parameter(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind {
+        OmegaExpressionKind::Path -> path(row)
+        _ -> return -1
+    }
+    state path(row: OmegaExpressionSyntax) {
+        transition (row.payload1 == 2) && (row.payload2 == 0) && (row.payload3 == 1) {
+            true -> metadata(row, self.parser.members[row.payload0 + 1])
             _ -> return -1
         }
     }
-    state slot(cell: i32) {
-        transition (cell >= 0) && (cell < 16384) && (self.parameter_types[cell] == omega_shared_byte_slice()) {
+    state metadata(row: OmegaExpressionSyntax, name: OmegaRelativeSpan) {
+        transition self.span_equals(source, name.start, name.end, "len") {
+            1 -> return self.shared_slice_formal(source, state_index, before, self.parser.members[row.payload0])
+            _ -> return -1
+        }
+    }
+}
+
+// Removing Trapping preserves the u64 value. General arithmetic, casts to
+// another carrier, locals and projected fields do not preserve this identity.
+machine OmegaScalarCompiler::slice_index_parameter(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind {
+        OmegaExpressionKind::Path -> path(row, 0)
+        OmegaExpressionKind::Cast -> cast(self.parser.cast_expressions[row.payload0])
+        _ -> return -1
+    }
+    state cast(row: OmegaCastExpressionSyntax) {
+        transition row.kind {
+            OmegaCastKind::RemoveDomain -> policy(row)
+            _ -> return -1
+        }
+    }
+    state policy(row: OmegaCastExpressionSyntax) {
+        transition self.span_equals(source, row.domain.start, row.domain.end, "Trapping") {
+            1 -> operand(self.parser.expressions[row.value])
+            _ -> return -1
+        }
+    }
+    state operand(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Path -> path(row, 1)
+            _ -> return -1
+        }
+    }
+    state path(row: OmegaExpressionSyntax, removed: i32) {
+        transition (row.payload1 == 1) && (row.payload2 == 0) && (row.payload3 == 1) {
+            true -> slot(self.slice_formal(source, state_index, before, self.parser.members[row.payload0]), removed)
+            _ -> return -1
+        }
+    }
+    state slot(cell: i32, removed: i32) {
+        transition (cell >= 0) && ((self.parameter_types[cell] == 320) ||
+            ((removed == 0) && (self.parameter_types[cell] == 64))) {
             true -> return cell
             _ -> return -1
         }
     }
 }
 
-// The declared lower bound on this parameter's live length must exceed the
-// index. Every caller must establish that same bound on its actual slice.
+machine OmegaScalarCompiler::slice_relation(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    index: i32, slice: i32, guard: i32, truth: i32
+) -> i32 {
+    transition (index >= 0) && (slice >= 0) {
+        true -> guarded()
+        _ -> return 0
+    }
+    state guarded() {
+        transition (guard >= 0) && (truth == 1) && (self.pure_value(guard) == 1) {
+            true -> shape(self.parser.expressions[guard])
+            _ -> preserved()
+        }
+    }
+    state shape(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Binary -> operator(self.parser.binary_expressions[row.payload0])
+            _ -> preserved()
+        }
+    }
+    state operator(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Less -> operands(row.left, row.right)
+            OmegaBinaryOperatorKind::Greater -> operands(row.right, row.left)
+            _ -> preserved()
+        }
+    }
+    state operands(left: i32, right: i32) {
+        transition (self.slice_index_parameter(source, state_index, before, left) == index) &&
+            (self.slice_length_parameter(source, state_index, before, right) == slice) {
+            true -> return 1
+            _ -> preserved()
+        }
+    }
+    state preserved() {
+        transition (self.preserve_entry_place(state_index, before, index, 0) == 1) &&
+            (self.preserve_entry_place(state_index, before, slice, 8) == 1) {
+            true -> bound(0)
+            _ -> return 0
+        }
+    }
+    state bound(offset: i32) {
+        transition offset < self.bound_count[state_index] {
+            true -> pair(offset, self.entry_bounds[self.bound_first[state_index] + offset])
+            _ -> return 0
+        }
+    }
+    state pair(offset: i32, row: OmegaEntryBound) {
+        transition (row.root == index) && (row.slice == slice) {
+            true -> return 1
+            _ -> bound(offset + 1)
+        }
+    }
+}
+
+machine OmegaScalarCompiler::prove_actual_slice_index(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    index: i32, slice: i32, guard: i32, truth: i32
+) -> i32 {
+    transition self.value_kinds[slice] {
+        OmegaCheckedValueKind::SharedByteRange -> length(self.byte_ranges[slice].length)
+        OmegaCheckedValueKind::ForwardedReference -> forward(self.value_payloads[slice])
+        _ -> return 0
+    }
+    state length(count: i32) {
+        transition count > 0 {
+            true -> return self.prove_bound(source, state_index, before, index, 0, count - 1, guard, truth)
+            _ -> return 0
+        }
+    }
+    state forward(slot: i32) {
+        let literal: i32 = self.byte_range_bound(source, 1, index, 0);
+        transition (literal >= 0) && (literal < 2147483647) {
+            true -> return self.prove_place_bound(source, state_index, before, slot, 8, -1, 64,
+                literal + 1, -1, guard, truth)
+            _ -> return self.slice_relation(source, state_index, before,
+                self.slice_index_parameter(source, state_index, before, index), slot, guard, truth)
+        }
+    }
+}
+
+// The receiving machine needs a length bound for a literal index or a
+// relation between these exact index and slice parameters. Each caller checks
+// the corresponding arguments before the body can use the proof.
 machine OmegaScalarCompiler::check_shared_byte_read(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32,
     row: OmegaIndexedExpressionSyntax, slot: i32
 ) -> i32 {
-    let index: i32 = self.byte_range_bound(source, 1, row.index, 0);
-    transition (index >= 0) && (index < 2147483647) {
-        true -> prove(index)
-        _ -> unsupported()
+    transition self.check_value(source, self.state_owners[state_index], state_index, before, row.index, 64) {
+        1 -> bound(self.byte_range_bound(source, 1, row.index, 0))
+        _ -> return 0
     }
-    state prove(index: i32) {
-        transition self.prove_place_bound(source, state_index, before, slot, 8, -1, 64, index + 1, -1, -1, 0) {
-            1 -> retain(index)
-            _ -> unsupported()
+    state bound(index: i32) {
+        transition (index >= 0) && (index < 2147483647) {
+            true -> proved(self.prove_place_bound(source, state_index, before, slot, 8, -1, 64, index + 1, -1, -1, 0))
+            _ -> proved(self.slice_relation(source, state_index, before,
+                self.slice_index_parameter(source, state_index, before, row.index), slot, -1, 0))
         }
     }
-    state retain(index: i32) {
+    state proved(proof: i32) {
+        transition proof { 1 -> retain() _ -> unsupported() }
+    }
+    state retain() {
         self.value_kinds[expression] = OmegaCheckedValueKind::SharedByteRead;
         self.value_payloads[expression] = slot;
-        self.value_payloads[row.index] = index;
         return 1;
     }
     state unsupported() { self.record_incomplete(4, row.start); return 0; }
@@ -211,7 +377,7 @@ machine OmegaScalarCompiler::check_shared_byte_read(
 machine OmegaScalarCompiler::emit_shared_byte_read(&mut self, expression: i32) -> i32 {
     let slot: i32 = self.value_payloads[expression];
     let row: OmegaIndexedExpressionSyntax = self.parser.indexed_expressions[self.parser.expressions[expression].payload0];
-    return (self.emit_value_load(slot) == 1) && (self.tape.emit_rr(10, 0, 0) == 1) &&
-        (self.tape.emit_imm(1, self.value_payloads[row.index], 0) == 1) &&
-        (self.tape.emit_rr(3, 0, 1) == 1) && (self.tape.emit_rr(8, 0, 0) == 1);
+    return (self.emit_value(row.index) == 1) && (self.tape.emit_rr(2, 2, 0) == 1) &&
+        (self.emit_value_load(slot) == 1) && (self.tape.emit_rr(10, 0, 0) == 1) &&
+        (self.tape.emit_rr(3, 0, 2) == 1) && (self.tape.emit_rr(8, 0, 0) == 1);
 }
