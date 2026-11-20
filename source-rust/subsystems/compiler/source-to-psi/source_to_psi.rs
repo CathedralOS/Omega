@@ -9,7 +9,9 @@ pub use stage_sources::ParsedStageSources;
 mod build_invocation;
 pub mod compile_time;
 pub mod product;
-pub use build_invocation::{BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation};
+pub use build_invocation::{
+    BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation, ProductDeclarationSource,
+};
 mod package_handoff;
 pub use package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 

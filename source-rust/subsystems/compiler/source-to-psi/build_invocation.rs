@@ -25,6 +25,32 @@ pub struct BuildStageSource {
     pub entry: source_text::SourceSpan,
 }
 
+/// Complete Build and Product declarations for a suspended query or final
+/// source join. Product declarations can be described in this forest.
+pub struct ProductDeclarationSource(BuildStageSource);
+
+impl ProductDeclarationSource {
+    pub fn new(source: BuildStageSource) -> Self {
+        Self(source)
+    }
+
+    pub fn parsed(&self) -> &ParsedStageSources {
+        &self.0.parsed
+    }
+
+    pub fn prepare(
+        self,
+        preparation: &SourcePreparation,
+        host: &'static str,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Result<SourceContinuation, Vec<Diagnostic>> {
+        self.0
+            .request(preparation, host, authority, None)?
+            .prepare(&mut UnmeasuredProduction)
+            .map(|(declarations, _)| declarations)
+    }
+}
+
 impl BuildStageSource {
     pub fn prepare(
         self,
@@ -33,21 +59,9 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
-        let entry = self.entry.source_id;
+        let entry = self.entry;
         self.request(preparation, host, authority, Some((entry, index)))?
             .prepare(&mut UnmeasuredProduction)
-    }
-
-    /// Product descriptions use the complete declarations visible at the paused Build call.
-    pub fn prepare_product_query(
-        self,
-        preparation: &SourcePreparation,
-        host: &'static str,
-        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-    ) -> Result<SourceContinuation, Vec<Diagnostic>> {
-        self.request(preparation, host, authority, None)?
-            .prepare(&mut UnmeasuredProduction)
-            .map(|(declarations, _)| declarations)
     }
 
     fn request(
@@ -55,7 +69,7 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-        build_stage: Option<(SourceId, usize)>,
+        build_stage: Option<(source_text::SourceSpan, usize)>,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(

@@ -32,7 +32,7 @@ pub struct ResolveAndTypeRequest {
     pub frontends: SourceFrontends,
     pub build_helper_identity: &'static str,
     pub build_sources: std::collections::HashSet<source_text::SourceId>,
-    pub build_stage: Option<(source_text::SourceId, usize)>,
+    pub build_stage: Option<(source_text::SourceSpan, usize)>,
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,

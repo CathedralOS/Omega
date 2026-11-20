@@ -56,7 +56,7 @@ host served (`TerminalBuildActivation::carry`).
 
 use diagnostics::Diagnostic;
 use source_declarations::build_stage::BuildStage;
-use source_text::SourceId;
+use source_text::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern, TableDestructurePattern,
@@ -73,43 +73,35 @@ const BUILD_ENTRY: &str = "build";
 const BUILD_TYPE: &str = "Build";
 const PREPARATION: &str = "prepare_dependency";
 
-/// Keeps, in the Build entry of `build_source`, the statements of stage
+/// Keeps, in the selected Build entry, the statements of stage
 /// `stage` only, and reports how many stages the entry has. An entry with no
-/// top-level preparation is left as it is. A source with no Build entry has
-/// nothing to divide; entry selection reports that.
+/// top-level preparation is left as it is.
 pub(crate) fn select_build_stage(
     syntax: &mut SyntaxTrees,
-    build_source: SourceId,
+    selected_entry: SourceSpan,
     stage: usize,
 ) -> Result<BuildStage, Vec<Diagnostic>> {
-    let Some((item, machine, state)) = entry(syntax, build_source) else {
-        return Ok(BuildStage::WHOLE);
-    };
+    let (item, machine, state) = entry(syntax, selected_entry).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "selected Build entry is missing from the parsed stage",
+        )]
+    })?;
     let span = syntax.items.state(state).statements;
     let statements = syntax.items.statements(span).to_vec();
-    let ends = statements
+    let (ends, preparations): (Vec<_>, Vec<_>) = statements
         .iter()
         .enumerate()
-        .filter(|(_, statement)| divides(syntax, **statement))
-        .map(|(position, _)| position)
-        .collect::<Vec<_>>();
-    if ends.is_empty() {
-        return if stage == 0 {
-            Ok(BuildStage::WHOLE)
-        } else {
-            Err(vec![Diagnostic::error(
-                "Build entry has no dependency preparation to continue after",
-            )])
-        };
-    }
-    let selected = BuildStage {
-        index: stage,
-        count: ends.len() + 1,
-    };
-    if stage >= selected.count {
-        return Err(vec![Diagnostic::error(
+        .filter_map(|(position, &statement)| {
+            preparation(syntax, statement).map(|site| (position, site))
+        })
+        .unzip();
+    let selected = BuildStage::at(stage, preparations).ok_or_else(|| {
+        vec![Diagnostic::error(
             "Build entry has no stage after its last dependency preparation",
-        )]);
+        )]
+    })?;
+    if ends.is_empty() {
+        return Ok(selected);
     }
     refuse_uncarried_names(syntax, &machine, &statements, &ends)?;
     let first = match stage {
@@ -121,7 +113,7 @@ pub(crate) fn select_build_stage(
     let count = u32::try_from(end - first).expect("a statement span is counted by u32");
     syntax.items.state_mut(state).statements =
         arena::HandleSpan::from_parts_or_empty(span.handle_at(offset), count);
-    if !selected.is_last() {
+    if selected.next_index().is_some() {
         let mut declaration = machine;
         declaration.nested_machines = arena::HandleSpan::empty();
         syntax.items.replace_item(item, Item::Machine(declaration));
@@ -129,17 +121,17 @@ pub(crate) fn select_build_stage(
     Ok(selected)
 }
 
-/// The Build entry of `build_source` with the state that holds its
+/// The selected Build declaration with the state that holds its
 /// statements.
 fn entry(
     syntax: &SyntaxTrees,
-    build_source: SourceId,
+    selected_entry: SourceSpan,
 ) -> Option<(ItemHandle, Machine, StateHandle)> {
     syntax.root_item_handles().iter().find_map(|handle| {
         let machine = syntax.root_item(*handle).as_machine()?;
         if machine.attached_data.is_some()
             || machine.name.as_str(syntax) != BUILD_ENTRY
-            || machine.name.source_span().source_id != build_source
+            || machine.name.source_span() != selected_entry
         {
             return None;
         }
@@ -148,34 +140,30 @@ fn entry(
     })
 }
 
-/// Whether `statement` is `suspend Build::prepare_dependency(...);`.
-fn divides(syntax: &SyntaxTrees, statement: StatementHandle) -> bool {
-    match syntax.statements.statement(statement) {
-        StatementNode::Call(call) => {
-            call.operational_acknowledgement.acknowledges_suspend
-                && call.target.as_str(syntax) == PREPARATION
-                && matches!(
-                    syntax.statements.identifier_path_members(call.receiver),
-                    [owner] if owner.as_str(syntax) == BUILD_TYPE
-                )
-        }
+/// The authored operation name in a top-level dependency preparation.
+fn preparation(syntax: &SyntaxTrees, statement: StatementHandle) -> Option<Span> {
+    let target = match syntax.statements.statement(statement) {
+        StatementNode::Call(call) if call.operational_acknowledgement.acknowledges_suspend
+            && matches!(syntax.statements.identifier_path_members(call.receiver),
+                [owner] if owner.as_str(syntax) == BUILD_TYPE) => &call.target,
         StatementNode::Expression(expression) => {
             let ExpressionNode::Call(call) = syntax.expressions.expression(*expression) else {
-                return false;
+                return None;
             };
-            call.operational_acknowledgement.acknowledges_suspend
-                && call.target.as_str(syntax) == PREPARATION
-                && call.receiver.is_valid()
-                && matches!(
-                    syntax.expressions.expression(call.receiver),
+            if !call.operational_acknowledgement.acknowledges_suspend
+                || !call.receiver.is_valid()
+                || !matches!(syntax.expressions.expression(call.receiver),
                     ExpressionNode::Name { members, .. } if matches!(
                         syntax.expressions.identifier_path_members(*members),
-                        [owner] if owner.as_str(syntax) == BUILD_TYPE
-                    )
-                )
+                        [owner] if owner.as_str(syntax) == BUILD_TYPE))
+            {
+                return None;
+            }
+            &call.target
         }
-        _ => false,
-    }
+        _ => return None,
+    };
+    (target.as_str(syntax) == PREPARATION).then(|| target.source_span().span)
 }
 
 /// Refuses the two uses nothing carries across a preparation: a local of an
@@ -479,6 +467,8 @@ impl<'syntax> Uses<'syntax> {
 mod tests {
     use super::*;
 
+    use source_text::SourceId;
+
     const SOURCE: SourceId = SourceId(0);
 
     fn parse(text: &str) -> SyntaxTrees {
@@ -492,19 +482,49 @@ mod tests {
     /// statements this one keeps, and how many nested machines.
     fn stage(text: &str, stage: usize) -> Result<(usize, usize, usize), String> {
         let mut syntax = parse(text);
-        let selected = select_build_stage(&mut syntax, SOURCE, stage).map_err(|refusals| {
-            refusals
-                .into_iter()
-                .map(|refusal| refusal.message)
-                .collect::<Vec<_>>()
-                .join("\n")
-        })?;
-        let (_, machine, state) = entry(&syntax, SOURCE).unwrap();
+        let name = text.find("machine build").unwrap() + "machine ".len();
+        let selected_entry = SourceSpan::new(
+            SOURCE,
+            Span {
+                start: name,
+                end: name + "build".len(),
+            },
+        );
+        let selected =
+            select_build_stage(&mut syntax, selected_entry, stage).map_err(|refusals| {
+                refusals
+                    .into_iter()
+                    .map(|refusal| refusal.message)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })?;
+        let (_, machine, state) = entry(&syntax, selected_entry).unwrap();
         Ok((
-            selected.count,
+            selected.preparations().len() + 1,
             syntax.items.state(state).statements.len(),
             machine.nested_machines.len(),
         ))
+    }
+
+    #[test]
+    fn a_stage_uses_the_selected_declaration_occurrence_in_its_file() {
+        let text = "machine build(builder: @mut Build) {}\nmachine build(builder: @mut Build) suspends { suspend Build::prepare_dependency(builder, registration); }";
+        let mut syntax = parse(text);
+        let name = text.rfind("machine build").unwrap() + "machine ".len();
+        let occurrence = SourceSpan::new(
+            SOURCE,
+            Span {
+                start: name,
+                end: name + 5,
+            },
+        );
+        let stage = select_build_stage(&mut syntax, occurrence, 0).unwrap();
+        let [site] = stage.preparations() else {
+            panic!("selected one preparation")
+        };
+        assert_eq!(&text[site.start..site.end], "prepare_dependency");
+        let mut syntax = parse(text);
+        assert!(select_build_stage(&mut syntax, SourceSpan::default(), 0).is_err());
     }
 
     const STAGED: &str = "

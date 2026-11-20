@@ -536,12 +536,13 @@ pub struct TerminalBuildActivation {
     helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
 }
 
-pub struct TerminalBuildStep<'step> {
-    pub requests: &'step [IssuedBuildRequest],
-    pub returned: bool,
-    pub awaiting_provider: Option<crate::host::bindings::BuildProviderRequest>,
-    pub awaiting_preparation: Option<crate::host::requests::BuildDependencyPreparation>,
-    pub awaiting_query: Option<Arc<crate::host::bindings::BuildProductQuery>>,
+/// The single reason the interpreter returned control to the planner.
+pub enum TerminalBuildStep {
+    Returned,
+    NeedsWork,
+    Provide(crate::host::bindings::BuildProviderRequest),
+    Prepare(crate::host::requests::BuildDependencyPreparation),
+    Query(Arc<crate::host::bindings::BuildProductQuery>),
 }
 
 impl TerminalBuildActivation {
@@ -738,7 +739,7 @@ impl TerminalBuildActivation {
         })
     }
 
-    pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep<'_>, String> {
+    pub fn advance(&mut self, additional_work: u64) -> Result<TerminalBuildStep, String> {
         match self.state {
             ActivationState::Returned => return Err("Build activation has already returned".into()),
             ActivationState::Refused => return Err("Build activation has already failed".into()),
@@ -750,41 +751,37 @@ impl TerminalBuildActivation {
             .instance
             .invoke(&mut self.work)
             .map_err(|error| error.to_string())?;
-        let first_request = self.requests.len();
         self.requests.extend(self.host.requests.drain_requests()?);
-        let returned = match status {
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => true,
-            TerminalExecutionStatus::SponsorExhausted(_) => false,
-            TerminalExecutionStatus::AwaitingEffect(_) => {
-                if self.host.bindings.awaiting_provider()?.is_none()
-                    && self.host.requests.awaiting_preparation()?.is_none()
-                {
-                    return Err(
-                        "Build paused without an admitted provider or dependency demand".into(),
-                    );
-                }
-                false
+        let step = match status {
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                TerminalBuildStep::Returned
             }
-            TerminalExecutionStatus::HostComputationPending(_) => {
-                if self.host.bindings.awaiting_query()?.is_none() {
-                    return Err("Build paused without an admitted Product query".into());
+            TerminalExecutionStatus::SponsorExhausted(_) => TerminalBuildStep::NeedsWork,
+            TerminalExecutionStatus::AwaitingEffect(_) => match (
+                self.host.bindings.awaiting_provider()?,
+                self.host.requests.awaiting_preparation()?,
+            ) {
+                (Some(provider), None) => TerminalBuildStep::Provide(provider),
+                (None, Some(dependency)) => TerminalBuildStep::Prepare(dependency),
+                (None, None) => {
+                    return Err("Build paused without an admitted provider or dependency demand".into());
                 }
-                false
+                (Some(_), Some(_)) => {
+                    return Err("one Build effect requested both a provider and a dependency".into());
+                }
+            },
+            TerminalExecutionStatus::HostComputationPending(_) => {
+                let query = self.host.bindings.awaiting_query()?
+                    .ok_or("Build paused without an admitted Product query")?;
+                TerminalBuildStep::Query(query)
             }
             other => return Err(format!("Build did not return normally: {other:?}")),
         };
-        self.state = if returned {
-            ActivationState::Returned
-        } else {
-            ActivationState::Running
+        self.state = match &step {
+            TerminalBuildStep::Returned => ActivationState::Returned,
+            _ => ActivationState::Running,
         };
-        Ok(TerminalBuildStep {
-            requests: &self.requests[first_request..],
-            returned,
-            awaiting_provider: self.host.bindings.awaiting_provider()?,
-            awaiting_preparation: self.host.requests.awaiting_preparation()?,
-            awaiting_query: self.host.bindings.awaiting_query()?,
-        })
+        Ok(step)
     }
 
     pub fn complete(mut self) -> Result<ReturnedBuild, String> {

@@ -288,14 +288,16 @@ impl PlanningSource {
             .1;
         let (source, stage) = resolve(
             &mut assembled,
-            self.stage.index + 1,
+            self.stage
+                .next_index()
+                .ok_or_else(|| refusal("the selected Build stage has already finished".into()))?,
             &self.preparation,
             self.profile,
             authority.as_ref(),
         )?;
-        if stage.count != self.stage.count {
+        if stage.preparations() != self.stage.preparations() {
             return Err(vec![Diagnostic::error(
-                "the captured Build changed its number of stages",
+                "the captured Build changed its dependency preparation sites",
             )]
             .into());
         }
@@ -377,11 +379,9 @@ impl PlanningSource {
             .1;
         if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
             let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
-            let frontier = source.build_stage_source()?.prepare_product_query(
-                &self.preparation,
-                self.profile.target_name(),
-                authority,
-            )?;
+            let frontier =
+                source_compiler::ProductDeclarationSource::new(source.build_stage_source()?)
+                    .prepare(&self.preparation, self.profile.target_name(), authority)?;
             let declaration = evaluated
                 .configuration
                 .selected_build_declaration

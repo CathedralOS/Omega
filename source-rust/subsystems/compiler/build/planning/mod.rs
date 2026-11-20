@@ -14,7 +14,7 @@ use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
     BuildDependencySelection, BuildSourceResult, CompileFailure, EvaluatedBuild,
     PreparedBuildEvaluation, ProducedBuildProvider, ReturnedBuild, SourceBuildDeclaration,
-    TerminalBuildActivation,
+    TerminalBuildActivation, TerminalBuildStep,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -211,7 +211,7 @@ pub fn interpret(
             );
             let spent = activation.helper_evaluation_accounting().clone();
             ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
-            if source.stage.is_last() {
+            if source.stage.next_index().is_none() {
                 return activation
                     .complete()
                     .map_err(refusal)
@@ -240,55 +240,58 @@ fn run(
     build_dependencies: &mut Vec<ProductQueryDependency>,
 ) -> Result<(), CompileFailure> {
     loop {
-        let step = activation.advance(1024).map_err(refusal)?;
-        if let Some(query) = step.awaiting_query {
-            let (description, selections) =
-                source.describe_product(activation, &query, build_dependencies, services)?;
-            activation
-                .answer_query(&query, description, &selections)
-                .map_err(refusal)?;
-        } else if let Some(request) = step.awaiting_provider {
-            let (selection, provider) = services.provide(activation, &request)?;
-            activation
-                .install_provider(selection, &provider)
-                .map_err(refusal)?;
-        } else if let Some(request) = step.awaiting_preparation {
-            let dependency = services.prepare_dependency(activation, &request)?;
-            let registered_alias = activation
-                .requests()
-                .iter()
-                .filter_map(|issued| match issued.request() {
-                    BuildRequest::Dependency { purpose, alias, .. }
-                        if *purpose == request.purpose =>
-                    {
-                        Some(alias.as_ref())
-                    }
-                    _ => None,
-                })
-                .nth(request.request_ordinal)
-                .ok_or_else(|| {
-                    refusal("dependency preparation has no issued registration".into())
-                })?;
-            let root = dependency.inputs.root();
-            let alias = registered_alias
-                .map(|name| name.as_str())
-                .or_else(|| dependency.inputs.package_name(root));
-            if alias != Some(dependency.alias.as_str()) {
-                return Err(refusal(
-                    "prepared dependency differs from its registered alias".into(),
-                ));
+        match activation.advance(1024).map_err(refusal)? {
+            TerminalBuildStep::Returned => return Ok(()),
+            TerminalBuildStep::NeedsWork => continue,
+            TerminalBuildStep::Query(query) => {
+                let (description, selections) =
+                    source.describe_product(activation, &query, build_dependencies, services)?;
+                activation
+                    .answer_query(&query, description, &selections)
+                    .map_err(refusal)?;
             }
-            let selected = BuildDependencySelection {
-                purpose: request.purpose,
-                request_ordinal: request.request_ordinal,
-                package: root,
-            };
-            if request.purpose == DependencyPurpose::Build {
-                mount_build_dependency(build_dependencies, dependency)?;
+            TerminalBuildStep::Provide(request) => {
+                let (selection, provider) = services.provide(activation, &request)?;
+                activation
+                    .install_provider(selection, &provider)
+                    .map_err(refusal)?;
             }
-            activation.dependency_prepared(selected).map_err(refusal)?;
-        } else if step.returned {
-            return Ok(());
+            TerminalBuildStep::Prepare(request) => {
+                let dependency = services.prepare_dependency(activation, &request)?;
+                let registered_alias = activation
+                    .requests()
+                    .iter()
+                    .filter_map(|issued| match issued.request() {
+                        BuildRequest::Dependency { purpose, alias, .. }
+                            if *purpose == request.purpose =>
+                        {
+                            Some(alias.as_ref())
+                        }
+                        _ => None,
+                    })
+                    .nth(request.request_ordinal)
+                    .ok_or_else(|| {
+                        refusal("dependency preparation has no issued registration".into())
+                    })?;
+                let root = dependency.inputs.root();
+                let alias = registered_alias
+                    .map(|name| name.as_str())
+                    .or_else(|| dependency.inputs.package_name(root));
+                if alias != Some(dependency.alias.as_str()) {
+                    return Err(refusal(
+                        "prepared dependency differs from its registered alias".into(),
+                    ));
+                }
+                let selected = BuildDependencySelection {
+                    purpose: request.purpose,
+                    request_ordinal: request.request_ordinal,
+                    package: root,
+                };
+                if request.purpose == DependencyPurpose::Build {
+                    mount_build_dependency(build_dependencies, dependency)?;
+                }
+                activation.dependency_prepared(selected).map_err(refusal)?;
+            }
         }
     }
 }

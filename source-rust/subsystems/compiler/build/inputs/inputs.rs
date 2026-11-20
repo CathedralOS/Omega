@@ -27,7 +27,7 @@ authority boundaries that produced a compile.
 
 /*
 Start at `package.rs` for `PackageCompilationInputs` construction
-and admission, `source/source_assembly.rs` for Psi 00/01 source loading,
+and admission, `source/assembly/mod.rs` for Psi 00/01 source loading,
 `build_execution.rs` for `Build` evaluation scopes and output custody, and
 `reuse.rs` for compilation reuse keys and checked-source caching.
 */
@@ -43,8 +43,8 @@ mod reuse;
 mod source;
 pub(crate) use ::wire::digest_encoder;
 pub use build_execution::*;
-pub use source::source_assembly;
-pub use source::source_assembly::BuildSourceSelection;
+pub use source::assembly as source_assembly;
+pub use source::assembly::BuildSourceSelection;
 pub use source::source_imports;
 pub use source::toolchain_library;
 #[path = "source/diagnostic_locations.rs"]
