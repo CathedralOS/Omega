@@ -563,3 +563,47 @@ fn a_match_of_unsuffixed_integers_needs_a_result_type() {
     check_source_change(source, "false -> fallback", "false -> 2", refused_match,
         "dispatch needs a result type", "Patterns and places");
 }
+
+#[test]
+fn cleanup_must_select_one_exact_machine() {
+    let source = "data Handle dropped by release { mark: u8; }
+machine release(h: Handle) { let Handle { mark as _ } = h; }
+";
+    check_source_change(
+        source,
+        "dropped by release",
+        "dropped by true",
+        "true",
+        "cleanup must select one exact machine",
+        "Cleanup",
+    );
+}
+
+#[test]
+fn crashes_none_rejects_a_route_guard() {
+    check_source_change(
+        "machine f() crashes none {}\n",
+        "crashes none",
+        "crashes none true",
+        "crashes none true",
+        "crashes none cannot carry a route guard",
+        "Evidence and effects",
+    );
+}
+
+#[test]
+fn process_exit_requires_the_exact_boundary_call() {
+    let source = r"use omega\language\core;
+machine quit<const E:core\ProcessExit>(code:i32) -> core\Never reaches core\ProcessExit {
+    core\ProcessExit::exit_process(code)
+}
+";
+    check_source_change(
+        source,
+        r"core\ProcessExit::exit_process",
+        "E::exit_process",
+        "E::exit_process(code)",
+        "canonical process exit requires its exact boundary invocation",
+        "Evidence and effects",
+    );
+}
