@@ -118,6 +118,14 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             .ok_or_else(|| refused("Build preparation names no issued dependency"))?
             .unwrap_or_else(|| declaration.package_name())
             .to_owned();
+        if request.purpose == DependencyPurpose::Product {
+            // Its Build has returned. The Product's consumer will choose its deployment.
+            return Ok(ProductQueryDependency {
+                alias,
+                inputs: settled.inputs().clone(),
+                generated: None,
+            });
+        }
         let product = self.host.handoffs().dependency_product(
             settled,
             request.purpose,
