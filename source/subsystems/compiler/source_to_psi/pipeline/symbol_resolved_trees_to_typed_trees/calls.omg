@@ -909,7 +909,7 @@ crashes Trap
 machine bound_application(typer: @mut Typer, syntax: @SyntaxTrees, item: u64 in Trapping, declared: DataItem, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
+    let first: u64 in Trapping = typer.output.types.argument_count as +Trapping;
     transition { _ -> next(typer, syntax, item, declared, source_span, first, 0, 0) }
 
     machine next(typer: @mut Typer, syntax: @SyntaxTrees, item: u64 in Trapping, declared: DataItem, source_span: SourceSpan, first: u64 in Trapping, offset: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping {

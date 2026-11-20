@@ -146,7 +146,7 @@ crashes Trap
         item: u64 in Trapping,
         expected: u64 in Trapping
     ) {
-        let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
+        let first: u64 in Trapping = typer.output.types.argument_count as +Trapping;
         transition reference.argument_count == expected {
             true -> data_argument(typer, sources, syntax, resolution, index, reference, item, first, 0),
             _ -> arity_rejected(typer, reference)

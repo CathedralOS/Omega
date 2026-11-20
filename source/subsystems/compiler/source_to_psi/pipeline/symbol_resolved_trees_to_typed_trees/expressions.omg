@@ -360,7 +360,7 @@ crashes Trap
     machine data_subject(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, item: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = syntax_trees_expression(syntax, index);
         let declared: DataItem = syntax_trees_data_item(syntax, item);
-        let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
+        let first: u64 in Trapping = typer.output.types.argument_count as +Trapping;
         transition { _ -> argument(typer, syntax, item, expression, declared, first, 0) }
 
         machine argument(typer: @mut Typer, syntax: @SyntaxTrees, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
