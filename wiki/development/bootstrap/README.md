@@ -103,8 +103,10 @@ independently.
 
 To continue a long run in a fresh output directory, pass `--reuse-from DIR`
 with a previous row or matrix directory you trust. You can repeat it for
-several runs. Each finished stage updates its row's `result.json` atomically,
-so it survives interruption of a later stage. The runner matches the complete
+several runs. Each row updates `result.json` atomically when a stage starts
+and finishes. A last stage with `completed: false` shows where execution
+reached, including after interruption. Earlier completed outputs remain
+available for reuse. The runner matches the complete
 producer and request digests and checks the saved output digest. It records
 where each reused artifact came from. Final guest executions and expected
 refusals run again. Without either reuse option each row does its own work.
