@@ -6,6 +6,8 @@ data OmegaConstructionUnit {
     parameter_count: i32;
     data_count: i32;
     field_count: i32;
+    case_count: i32;
+    payload_count: i32;
 }
 
 data OmegaConstructionDeclaration {
@@ -16,7 +18,7 @@ data OmegaConstructionDeclaration {
 
 data OmegaConstructionDirectory {
     machines: [OmegaConstructionDeclaration; 4096];
-    records: [OmegaConstructionDeclaration; 4096];
+    types: [OmegaConstructionDeclaration; 4096];
     units: [OmegaConstructionUnit; 513];
     total: OmegaConstructionUnit;
     active: i32;
@@ -32,6 +34,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     self.construction.total.parameter_count = 0;
     self.construction.total.data_count = 0;
     self.construction.total.field_count = 0;
+    self.construction.total.case_count = 0;
+    self.construction.total.payload_count = 0;
     transition (self.parser.sources.unit_count > 1) && (self.parser.sources.valid(source) == 1) {
         true -> units(0, 1)
         _ -> pooled()
@@ -62,43 +66,56 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     state index_unit(unit: i32, eligible: i32) {
         transition (eligible == 1) && (self.parser.root_count == self.parser.machine_count + self.parser.use_count + self.parser.data_count) &&
             (self.parser.data_count <= 4096 - self.construction.total.data_count) &&
-            (self.parser.data_field_count <= 16384 - self.construction.total.field_count) &&
+            (self.parser.data_member_count <= 16384 - self.construction.total.field_count - self.construction.total.case_count) &&
+            (self.parser.data_payload_field_count <= 16384 - self.construction.total.payload_count) &&
             (self.parser.machine_count <= 4096 - self.construction.total.machine_count) &&
             (self.parser.machine_state_count <= 4096 - self.construction.total.state_count) &&
             (self.parser.machine_parameter_count <= 16384 - self.construction.total.parameter_count) {
-            true -> record(unit, 0)
+            true -> data_item(unit, 0)
             _ -> units(unit + 1, 0)
         }
     }
-    // Each retained record has scalar or named record fields. Keep its name even
+    // Each retained declaration has scalar or named fields. Keep its name even
     // when an earlier file's import is checked before these fields are loaded.
-    state record(unit: i32, index: i32) {
+    state data_item(unit: i32, index: i32) {
         transition index < self.parser.data_count {
-            true -> record_shape(unit, index, self.parser.data_items[index])
+            true -> data_shape(unit, index, self.parser.data_items[index])
             _ -> field(unit, 0)
         }
     }
-    state record_shape(unit: i32, index: i32, row: OmegaDataSyntax) {
-        transition (row.case_count == 0) && (row.requirement_count == 0) {
-            true -> retain_record(unit, index, self.construction.total.data_count + index, row)
+    state data_shape(unit: i32, index: i32, row: OmegaDataSyntax) {
+        transition row.requirement_count == 0 {
+            true -> retain_data(unit, index, self.construction.total.data_count + index, row)
             _ -> units(unit + 1, 0)
         }
     }
-    state retain_record(unit: i32, index: i32, global: i32, row: OmegaDataSyntax) {
-        self.construction.records[global].name = row.name;
-        self.construction.records[global].unit = unit;
-        self.construction.records[global].is_public = row.is_public;
-        transition true { true -> record(unit, index + 1) }
+    state retain_data(unit: i32, index: i32, global: i32, row: OmegaDataSyntax) {
+        self.construction.types[global].name = row.name;
+        self.construction.types[global].unit = unit;
+        self.construction.types[global].is_public = row.is_public;
+        transition true { true -> data_item(unit, index + 1) }
     }
     state field(unit: i32, index: i32) {
         transition index < self.parser.data_field_count {
             true -> field_type(unit, index, self.parser.data_fields[index].type_reference)
-            _ -> parameter(unit, 0)
+            _ -> payload(unit, 0)
         }
     }
     state field_type(unit: i32, index: i32, type_index: i32) {
         transition self.construction_value_type(source, type_index) == 1 {
             true -> field(unit, index + 1)
+            _ -> units(unit + 1, 0)
+        }
+    }
+    state payload(unit: i32, index: i32) {
+        transition index < self.parser.data_payload_field_count {
+            true -> payload_type(unit, index, self.parser.data_payload_fields[index].type_reference)
+            _ -> parameter(unit, 0)
+        }
+    }
+    state payload_type(unit: i32, index: i32, type_index: i32) {
+        transition self.construction_value_type(source, type_index) == 1 {
+            true -> payload(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
     }
@@ -151,6 +168,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         self.construction.total.state_count = self.construction.total.state_count + self.parser.machine_state_count;
         self.construction.total.data_count = self.construction.total.data_count + self.parser.data_count;
         self.construction.total.field_count = self.construction.total.field_count + self.parser.data_field_count;
+        self.construction.total.case_count = self.construction.total.case_count + self.parser.data_case_count;
+        self.construction.total.payload_count = self.construction.total.payload_count + self.parser.data_payload_field_count;
         self.construction.total.parameter_count = self.construction.total.parameter_count + self.parser.machine_parameter_count;
         transition true { true -> units(unit + 1, 1) }
     }
@@ -200,12 +219,15 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     self.parser.machine_parameter_count = first.parameter_count;
     self.parser.data_count = first.data_count;
     self.parser.data_field_count = first.field_count;
-    self.parser.data_member_count = first.field_count;
+    self.parser.data_member_count = first.field_count + first.case_count;
+    self.parser.data_case_count = first.case_count;
+    self.parser.data_payload_field_count = first.payload_count;
     self.parser.unit_index = unit;
     self.parser.append_unit(source[0..self.parser.sources.units[unit].end], self.parser.sources.units[unit].start);
     transition (self.parser.machine_count == end.machine_count) && (self.parser.machine_state_count == end.state_count) &&
         (self.parser.machine_parameter_count == end.parameter_count) && (self.parser.data_count == end.data_count) &&
-        (self.parser.data_field_count == end.field_count) {
+        (self.parser.data_field_count == end.field_count) && (self.parser.data_case_count == end.case_count) &&
+        (self.parser.data_payload_field_count == end.payload_count) {
         true -> expose_signatures()
         _ -> internal()
     }
@@ -215,11 +237,41 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
         self.parser.machine_parameter_count = self.construction.total.parameter_count;
         self.parser.data_count = self.construction.total.data_count;
         self.parser.data_field_count = self.construction.total.field_count;
+        self.parser.data_case_count = self.construction.total.case_count;
+        self.parser.data_payload_field_count = self.construction.total.payload_count;
     }
     state internal() { self.parser.status = OmegaParserStatus::InternalFailure; }
 }
 
-// Named records are resolved by their declaring package and imports during
+// All declarations in this file are known. Resolve its fields while its
+// imports and type references are loaded. The layout checker can then follow
+// a nested or forward type, including a by-value cycle, from any other file.
+// Direct fields and case payloads have separate, disjoint checked field IDs.
+machine OmegaScalarCompiler::retain_construction_field_types(&mut self, source: &[u8], unit: i32) {
+    transition true { true -> fields(self.construction.units[unit].field_count, self.construction.units[unit + 1].field_count) }
+    state fields(index: i32, limit: i32) {
+        transition index < limit {
+            true -> field(index, limit)
+            _ -> payloads(self.construction.units[unit].payload_count, self.construction.units[unit + 1].payload_count)
+        }
+    }
+    state field(index: i32, limit: i32) {
+        self.field_types[index] = self.scalar_type(source, self.parser.data_fields[index].type_reference);
+        transition true { true -> fields(index + 1, limit) }
+    }
+    state payloads(index: i32, limit: i32) {
+        transition index < limit {
+            true -> payload(index, limit)
+            _ -> return
+        }
+    }
+    state payload(index: i32, limit: i32) {
+        self.field_types[16384 + index] = self.scalar_type(source, self.parser.data_payload_fields[index].type_reference);
+        transition true { true -> payloads(index + 1, limit) }
+    }
+}
+
+// Named data types are resolved by their declaring package and imports during
 // signature checking. An unresolved spelling still receives the normal error.
 machine OmegaScalarCompiler::construction_value_type(&mut self, source: &[u8], index: i32) -> i32 {
     transition self.parser.type_references[index].kind {
