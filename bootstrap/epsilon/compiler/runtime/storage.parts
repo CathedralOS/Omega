@@ -31,6 +31,7 @@ runtime/scalars.delta
 ../interpreter/execution/storage/arrays/updates.delta
 ../interpreter/execution/scalars/value_outcomes.delta
 ../interpreter/execution/console/input.delta
+../interpreter/execution/console/output.delta
 ../interpreter/execution/views/backing.delta
 ../interpreter/execution/projections/field_values.delta
 ../interpreter/execution/projections/index_values.delta

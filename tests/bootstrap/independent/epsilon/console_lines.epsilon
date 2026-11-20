@@ -1,0 +1,15 @@
+data Main { console: Console; buffer: [u8; 4]; }
+
+machine Main::end_index(&mut self) -> i32 {
+    self.buffer[2] = 254;
+    self.console.write_byte(33);
+    return self.console.read_byte();
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("");
+    self.console.write_line("\x00\xff");
+    let view: &[u8] = self.buffer[1..3];
+    self.buffer[1] = 65;
+    self.console.write_line(view[..self.end_index()]);
+}

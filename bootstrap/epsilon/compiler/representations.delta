@@ -44,4 +44,5 @@
   (EpsilonDeltaStoredStateCall Bytes Bytes Bytes Bytes)
   (EpsilonDeltaStoredReadByte)
   (EpsilonDeltaStoredWriteByte)
+  (EpsilonDeltaStoredConsoleValue Int)
   (EpsilonDeltaStoredExit))

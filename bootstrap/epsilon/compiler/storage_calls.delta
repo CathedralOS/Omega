@@ -15,6 +15,8 @@
     (EpsilonDeltaStoredReadByte (epsilon_emit_call "epsilon_evaluator_read_input" (epsilon_emit_spaced store output)))
     (EpsilonDeltaStoredWriteByte (epsilon_emit_call "epsilon_compiled_write_byte"
       (epsilon_emit_spaced values (epsilon_emit_spaced store output))))
+    ((EpsilonDeltaStoredConsoleValue kind) (epsilon_emit_call "epsilon_evaluator_console_value"
+      (epsilon_emit_spaced (epsilon_emit_decimal kind) (epsilon_emit_spaced values (epsilon_emit_spaced store output)))))
     (EpsilonDeltaStoredExit (epsilon_emit_call "EpsilonEvaluatorExit" (epsilon_emit_spaced values output)))))
 
 (def epsilon_delta_stored_scalar_argument ((context EpsilonDeltaContext)
@@ -47,6 +49,8 @@
     (EpsilonDeltaStoredReadByte (EpsilonDeltaInternal (epsilon_expression_start expression)))
     (EpsilonDeltaStoredWriteByte
       (epsilon_delta_stored_scalar_argument context target parameters expression rest values store output))
+    ((EpsilonDeltaStoredConsoleValue kind)
+      (epsilon_delta_stored_value_argument context target parameters expression rest values store output))
     (EpsilonDeltaStoredExit
       (epsilon_delta_stored_scalar_argument context target parameters expression rest values store output))))
 
@@ -209,8 +213,8 @@
             (EpsilonStateApplicationComplete
               (epsilon_delta_stored_state_call context state arguments store output))))))))
 
-; The complete Epsilon judgment seals Console before lowering. Only its three
-; implemented primitive leaves lower; write_line remains explicitly unsupported.
+; The checker seals each Console signature. write_line passes the evaluated
+; view and its post-argument store to the same byte reader as the interpreter.
 (def epsilon_delta_stored_boundary_call ((context EpsilonDeltaContext)
   (member EpsilonBoundaryMachine) (base EpsilonExpression)
   (arguments EpsilonExpressionList) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
@@ -229,7 +233,11 @@
                     (epsilon_delta_stored_arguments context EpsilonDeltaStoredWriteByte parameters arguments "" store output)
                     (if (epsilon_name_is_exit_process source memberName)
                       (epsilon_delta_stored_arguments context EpsilonDeltaStoredExit parameters arguments "" store output)
-                      (EpsilonDeltaUnsupported memberStart))))))))))
+                      (if (epsilon_name_is_write_line source memberName)
+                        (epsilon_delta_stored_arguments context
+                          (EpsilonDeltaStoredConsoleValue (epsilon_console_member_kind source memberName))
+                          parameters arguments "" store output)
+                        (EpsilonDeltaUnsupported memberStart)))))))))))
     ((EpsilonIntegerExpression start end literal) (EpsilonDeltaInternal start))
     ((EpsilonCharacterExpression start end literal) (EpsilonDeltaInternal start))
     ((EpsilonStringExpression start end literal) (EpsilonDeltaInternal start))
