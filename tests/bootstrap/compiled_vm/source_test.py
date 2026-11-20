@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import compiled
+import packed_tape
 
 
 def digest(data):
@@ -39,9 +40,8 @@ def large_tape_control(work, compiler, seconds):
     tape = work / "large.tape"
     status, program = compiled.execute(compiler, guest, seconds)
     assert status == 0 and 0 < len(program) <= 16_777_212
-    # The packed entry loads its dictionary address into r3; ordinary Gamma
-    # output starts by setting the value-stack pointer in r246.
-    assert program.startswith(bytes((1, 3))), "large control compiled through the plain path"
+    expanded, _, _ = packed_tape.inspect(program)
+    assert expanded > 16_777_212, "large control fits in the ordinary stamp"
     tape.write_bytes(program)
     executable = work / "large"
     compiled.stamp(tape, executable)

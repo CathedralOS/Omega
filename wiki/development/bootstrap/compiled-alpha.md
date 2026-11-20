@@ -145,6 +145,37 @@ It checks byte output, a guest refusal, an arithmetic trap, and rejection
 of an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
 [Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 
+#### Checking the expanded instructions
+
+The external reader walks the tape, checks instruction widths against the
+Alpha instruction set and subtracts the code base only from absolute branch
+and call targets. The seed runs above exercise the shipped decoder. On the
+11,976,860-byte tape the reader recovers 57,004,893
+ordinary bytes, including 3,484,036 targets, with SHA-256
+`bc0af6bd305ffc11ab70a416de08811e849a2ddefdb54525472e425ec9fdf66a`.
+
+```sh
+python3 tests/bootstrap/compiled_vm/packed_tape.py /tmp/omega-packed-alpha/program.tape
+```
+
+To compare every instruction against a separate straight assembly, make a
+temporary copy of the Alpha backend that publishes the ordinary instruction
+list at address zero. Its oversized output serves as a measurement file.
+Use the same Gamma customer for both assemblies.
+
+```sh
+audit_dir=$(mktemp -d)
+PYTHONPATH=tests/bootstrap python3 - <<'PYCODE' > "$audit_dir/measure.gamma"
+import sys
+from compiled import gamma_backend_source
+signature = b"(def i_publish ((fields Int) (size Int) (labels Int)) Int"
+source, _ = gamma_backend_source("alpha").rsplit(signature, 1)
+sys.stdout.buffer.write(source + signature + b"\n  (i_output fields size labels size))\n")
+PYCODE
+tests/bootstrap/linux_x86_64/bootstrap . "$audit_dir/native" "$audit_dir/measure.gamma" /path/to/omega.gamma
+python3 tests/bootstrap/compiled_vm/packed_tape.py /tmp/omega-packed-alpha/program.tape "$audit_dir/native/producer.output"
+```
+
 <a id="can-the-whole-omega-constructor-fit-in-alpha"></a>
 
 ### Earlier single-tape size limits
