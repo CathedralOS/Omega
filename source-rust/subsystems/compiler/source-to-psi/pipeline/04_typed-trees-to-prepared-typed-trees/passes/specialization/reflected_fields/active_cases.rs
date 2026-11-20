@@ -10,6 +10,7 @@ use crate::source_state::TypedTrees;
 use crate::source_state::data::{
     DataField, DataMember, DataVariant, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
+use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
     StaticSymbolApplication, TableBinaryExpression, TableCallExpression, TableDestructurePattern,
@@ -152,8 +153,13 @@ pub(super) fn expand(
                 Some(&fields),
             ) {
                 Ok(()) => Ok(None),
-                Err(Stop::Rejected(message)) => Ok(Some(message)),
-                Err(Stop::Unserved(reason)) => Ok(Some(reason.into_owned())),
+                Err(Stop::Rejected(message)) => {
+                    Ok(Some((DeferredRequest::InvalidStaticApplication, message)))
+                }
+                Err(Stop::Unserved(reason)) => Ok(Some((
+                    DeferredRequest::StaticApplication,
+                    reason.into_owned(),
+                ))),
                 Err(defect @ Stop::Defect(_)) => Err(defect),
             }
         })
@@ -190,13 +196,8 @@ pub(super) fn expand(
             &format!("visit_case#{}.{}", site.arena_index(), arms.len()),
             inputs,
         );
-        if let Some(reason) = refusal {
-            program.record_deferred_refusal_with_detail(
-                branch.symbol,
-                crate::source_state::deferred_refusals::DeferredRequest::StaticApplication,
-                span,
-                reason,
-            );
+        if let Some((request, reason)) = refusal {
+            program.record_deferred_refusal_with_detail(branch.symbol, request, span, reason);
         }
         let branch_context = branch.parameters[0].symbol;
         let emission = CallbackSite {

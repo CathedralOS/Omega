@@ -127,6 +127,8 @@ pub enum DeferredRequest {
     /// Collisions reject rather than selecting by priority"
     /// (`data_and_literals.md`), so no machine can have that name.
     CaseCalledAsMachine,
+    /// Applying these static arguments violates the selected declaration.
+    InvalidStaticApplication,
 }
 
 impl DeferredRequest {
@@ -140,6 +142,7 @@ impl DeferredRequest {
                 | Self::UndeclaredValueName
                 | Self::CaseCalledAsMachine
                 | Self::CallResultDomainMismatch
+                | Self::InvalidStaticApplication
         )
     }
 
@@ -176,6 +179,7 @@ impl DeferredRequest {
             Self::StaticApplication => {
                 "holding a call whose static arguments no pass specializes yet"
             }
+            Self::InvalidStaticApplication => "invalid static application",
             Self::DomainCastOperandType => {
                 "holding a domain cast whose operand's declared type typing does not read yet"
             }
@@ -428,5 +432,15 @@ mod tests {
         let unserved = program.deferred_refusal(served).expect("the served row");
         assert_eq!(unserved.request, DeferredRequest::UnresolvedCallTarget);
         assert!(!unserved.request.is_violation());
+
+        program.record_deferred_refusal_with_detail(
+            served,
+            DeferredRequest::InvalidStaticApplication,
+            SourceSpan::default(),
+            "callback needs mutable access",
+        );
+        let invalid = program.deferred_refusal(served).expect("the selected callback");
+        assert!(invalid.request.is_violation());
+        assert_eq!(invalid.detail, "callback needs mutable access");
     }
 }

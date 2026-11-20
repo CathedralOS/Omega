@@ -6,12 +6,10 @@ list of passes over the typed trees and returns `PreparedTypedTrees`. Stage 05
 requires this output to lower a source compilation. A representation reader can
 freeze typed trees independently to inspect a read-only snapshot.
 
-A pass takes typed trees and returns typed trees. It either does its work or
-refuses, by name, a request it does not serve
-(`no product route yet: typed preparation: <pass>: <request>`). A pass with
-nothing to do for a program changes nothing; that is not a reason to skip the
-stage. What a pass writes is input the checker reads. No pass judges a
-program, and nothing here is an acceptance.
+Specialization reports an invalid static argument at the authored call. A
+request it cannot resolve stays on the owning declaration for lowering to
+report if the program needs it. The subsequent passes attach domain theories
+and field identities to the trees. Stage 06 checks the resulting lowered form.
 
 ## The list today
 

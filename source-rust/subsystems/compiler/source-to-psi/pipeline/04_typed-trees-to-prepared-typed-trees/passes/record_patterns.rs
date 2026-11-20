@@ -13,10 +13,9 @@ use crate::source_state::data::{DataDefinition, DataMember};
 use crate::source_state::expression::TableMatchField;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableLocalData};
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn prepare(program: &mut TypedTrees) {
     let mut resolutions = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -57,7 +56,6 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             }
         }
     }
-    Ok(())
 }
 
 /// The field of `record` spelled `name`, when exactly one is.
@@ -314,7 +312,7 @@ mod tests {
             markers,
         } = source(false, false);
         let authored = marker(&program, markers[0]).pattern_fields;
-        prepare(&mut program).expect("the pass refuses nothing");
+        prepare(&mut program);
         let resolved = marker(&program, markers[0]);
         assert_eq!(resolved.pattern_subject, pair);
         assert_ne!(resolved.pattern_fields, authored);
@@ -337,7 +335,7 @@ mod tests {
                 fields: [a, b],
                 markers,
             } = source(true, applied);
-            prepare(&mut program).expect("record preparation only resolves field identities");
+            prepare(&mut program);
             let resolved = marker(&program, markers[0]);
             assert_eq!(resolved.pattern_subject, pair);
             assert_eq!(
@@ -367,7 +365,7 @@ mod tests {
             ..
         } = source(false, false);
         let before = [markers[1], markers[2]].map(|handle| marker(&program, handle).clone());
-        prepare(&mut program).expect("the pass refuses nothing");
+        prepare(&mut program);
         for (handle, before) in [markers[1], markers[2]].into_iter().zip(before) {
             let after = marker(&program, handle);
             assert!(!after.pattern_subject.is_valid());

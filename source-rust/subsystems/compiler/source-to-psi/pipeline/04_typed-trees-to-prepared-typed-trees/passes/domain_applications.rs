@@ -1,11 +1,10 @@
 //! Apply each retained domain's argument telescope to its declaration after specialization.
 
 use crate::source_state::{CallableApplication, TypedTrees, domain, types};
-use diagnostics::Diagnostic;
 use semantic_vocabulary::SemanticDomainId;
 use symbols::SymbolHandle;
 
-pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn prepare(program: &mut TypedTrees) {
     // Copying a fact may retain more applications. Visit those rows in the same pass.
     let mut position = 0;
     while let Some(row) = program.applied_domain_applications.get(position) {
@@ -20,7 +19,6 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         }
         position += 1;
     }
-    Ok(())
 }
 
 fn apply(
@@ -185,7 +183,7 @@ mod tests {
                 .retain_domain_application(declaration, argument, indices)
                 .unwrap();
         }
-        prepare(&mut program).unwrap();
+        prepare(&mut program);
         let rows = &program.applied_domain_applications;
         assert_eq!(
             rows.get(0)
@@ -208,7 +206,7 @@ mod tests {
             &TypeReferenceNode::Unit
         );
         let prepared = rows.clone();
-        prepare(&mut program).unwrap();
+        prepare(&mut program);
         assert_eq!(program.applied_domain_applications, prepared);
     }
 }

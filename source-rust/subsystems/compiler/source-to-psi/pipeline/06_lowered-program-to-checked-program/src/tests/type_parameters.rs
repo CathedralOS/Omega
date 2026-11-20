@@ -2192,22 +2192,17 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/fail/constructed_slice_callback/main.omg"
     ));
-    let rejected = judge_prepared_source(invalid);
-    assert!(
-        rejected.iter().any(|verdict| {
-            let refusal = match verdict {
-                Err(crate::checking::CompilationRefusal::Elaboration(refusal))
-                | Ok(RouteVerdict::FallBack(refusal)) => refusal,
-                _ => return false,
-            };
-            refusal.reason == RefusalReason::ForeignIdentity
-                && refusal.detail.contains(
-                    "refinement structural formal has another carrier, access or identity",
-                )
-        }),
-        "the callback cannot strengthen shared access to mutable access: {:?}",
-        summarize(&rejected)
-    );
+    let errors = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(invalid), &[])
+        .expect_err("a callback cannot require mutable access to a shared input");
+    assert!(errors.iter().any(|error| {
+        error.message.contains("does not satisfy the callback binder of `apply::Read`")
+            && error.message.contains("passing mode")
+            && error.source_span.is_some_and(|site| {
+                invalid.get(site.span.start..site.span.end)
+                    .is_some_and(|text| text.contains("apply"))
+            })
+            && !error.message.contains("no product route")
+    }), "{errors:?}");
 }
 
 #[test]

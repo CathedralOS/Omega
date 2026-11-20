@@ -1,11 +1,5 @@
-//! Typed preparation: every program's typed trees cross this stage, by one
-//! path, on their way to the checker.
-//!
-//! The stage is the ordered list of passes in [`PASSES`]. Each pass takes
-//! typed trees and returns typed trees. A pass either does its work or
-//! refuses, by name, a request it does not serve; a pass with nothing to do
-//! for a program changes nothing. Only a program that has completed the list
-//! can enter source lowering. The checker judges what the passes write.
+//! Prepare typed source for lowering. Specialization binds static calls, then the
+//! domain and record passes resolve the declarations used by those bodies.
 
 #![forbid(unsafe_code)]
 
@@ -28,64 +22,23 @@ pub use product_operands::{
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
 
-/// Prepare the typed program for stage 05 in the order declared in `PASSES`.
+/// Prepare the typed program that stage 05 will lower.
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     wire_demands: &[WireCompatibilityDemand],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
     if !wire_demands.is_empty() {
-        return Err(vec![refusal(
-            "requested work",
-            "wire compatibility demands",
+        return Err(vec![Diagnostic::error(
+            "no product route yet: typed preparation: requested work: wire compatibility demands",
         )]);
     }
-    for pass in PASSES {
-        (pass.run)(&mut program).map_err(|refused| {
-            refused
-                .into_iter()
-                .map(|mut diagnostic| {
-                    diagnostic.message = refusal(pass.name, &diagnostic.message).message;
-                    diagnostic
-                })
-                .collect::<Vec<_>>()
-        })?;
-    }
+    passes::specialization::prepare(&mut program)?;
+    passes::domain_applications::prepare(&mut program);
+    passes::record_patterns::prepare(&mut program);
     Ok(PreparedTypedTrees(std::sync::Arc::new(program.into())))
 }
 
-/// One step of typed preparation and the name its refusals carry.
-struct Pass {
-    name: &'static str,
-    run: fn(&mut TypedTrees) -> Result<(), Vec<Diagnostic>>,
-}
-
-/// The order is part of the stage's contract: a later pass may read what an
-/// earlier one wrote. Specialization and selection passes belong before the
-/// annotations, which describe the bodies those passes produce.
-const PASSES: &[Pass] = &[
-    Pass {
-        name: "specialization",
-        run: crate::passes::specialization::prepare,
-    },
-    Pass {
-        name: "domain applications",
-        run: crate::passes::domain_applications::prepare,
-    },
-    Pass {
-        name: "record patterns",
-        run: crate::passes::record_patterns::prepare,
-    },
-];
-
 pub use source_declarations::source_selections::WireCompatibilityDemand;
-
-/// The one wording of a refusal from this stage, so a reader can tell which
-/// pass declined which request.
-fn refusal(pass: &str, request: &str) -> Diagnostic {
-    Diagnostic::error(format!(
-        "no product route yet: typed preparation: {pass}: {request}"
-    ))
-}
 
 /// A shared snapshot of the exact trees that completed every stage 04 pass.
 ///
