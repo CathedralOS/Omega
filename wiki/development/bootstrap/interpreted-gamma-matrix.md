@@ -137,6 +137,31 @@ Git tree `a0829d60b057e65aa9fef059dfbb4bd7362cad27`. Eighteen completed in
 the initial comparison. The separately rebuilt `interpret / native / interpret`
 route and the two routes joined above account for the other three.
 
+## Replaying those two stdin routes after the evaluator changed
+
+At `5144ec25e810`, the Epsilon interpreter closure had changed to SHA-256
+`7b214d058c086ffcf5e5481e5dd08e4e6f47275ae07a4cb2cb6b4d26764b1bae`.
+Both compiled Epsilon routes still selected the same Delta-written compiler.
+We rebuilt the Beta and Gamma tapes, stamped the reference executable and
+rematerialized the direct Delta interpreter, both compiler sources, support,
+linked guest and Gamma backends from that checkout. The reference executable
+and its complete inputs matched the original physical executions byte for byte.
+
+| Work done by the Beta-written Gamma interpreter | Input bytes | Input SHA-256 |
+| --- | ---: | --- |
+| Run the Epsilon compiler through direct Delta | 730,619 | `a520d687477929cbcca10d453777dbd4cf4974f4c4961672354bb70756d0e8b7` |
+| Translate the linked Delta program | 255,574 | `e848666217551587fdb2ddbd4a346d73dda5f79fbe7f1cc5563e87d3975ab29b` |
+| Produce the Alpha tape | 118,334 | `bcf0510aba80c6b9d021b2358a1c6c5e76bfe998c92b67c4fd0c757fd63a509b` |
+| Produce the Linux executable | 124,188 | `69d08f91082e9adfc7ee570cb63909ab52ad8f1678138e743579597611908ea7` |
+
+The retained Alpha and Linux executables also matched the corresponding target
+artifacts in the later inventory. Each ran again on its one-byte stdin and
+returned `00 5a 00 00 00 5a` with status zero. That proves the same two
+route selections on `bootstrap/` tree `2ddf96a8e34b8d46067f8128f96e8d9d3a525aeb`.
+At `bcffe3ee694`, rematerializing the direct Delta interpreter, Delta compiler,
+Epsilon compiler and linked Delta program produced different bytes. Those
+inputs require separate measurements.
+
 ## Omega lexical byte classes on the original Gamma route
 
 The Omega compiler's `byte_classes.epsilon` ran over all 256 byte values
@@ -173,3 +198,30 @@ To replay, use the frozen checkout's `epsilon_request` with the retained
 `epsilon.delta`, the classifier source and `bytes(range(256))`. Pass the
 resulting bytes on stdin to the retained `evaluator.elf` and compare the
 complete output to the expected digest above.
+
+The same classifier completed on the separately rebuilt `5144ec25e810`
+evaluator. Its Delta implementation was 623,481 bytes, SHA-256
+`605901123cdfa5537a81c7001a797aa66b8f1b14420d41a35d18bd3203fe3d0f`.
+The seed-built Gamma interpreter ran both compiler invocations.
+
+| Compiled output | SHA-256 of complete input to the reference | Output SHA-256 | Wall time |
+| --- | --- | --- | ---: |
+| 726,582-byte Gamma evaluator | `7bdf6b4aa5adf935fa053b6996b40a6553bccfadee82cb31b6de16ccd82a612c` | `e31ecf91fe85ce23b62206df2becfba0ac36d27d9e0dcbedf1f0c9804eca4d1b` | 3,268.098 s |
+| 1,985,896-byte Linux evaluator | `7a71d8abc39b015b24d2d5429daa989cd44bcef5e88b74fd9c2ed1d0c410ec20` | `1e688c2e8776d29d8f7ea932c527a850f13556470c4083c0c90b30ac8f9d4e47` | 5,308.292 s |
+
+The cold build ran the portable stdin control successfully. A fresh request
+then supplied the Omega classifiers and all 256 inputs to its Linux evaluator.
+That 4,056-byte request had SHA-256
+`9ddd09aa1a4f155a4872976d2946d508d5a6bc2aa2caa5e7410816d7cb48348e`.
+In 39.012 wall seconds the evaluator returned status zero and the same
+3,077-byte observation, SHA-256
+`9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225`.
+
+Changing the single call `omega_digit_in_base(value, selected)` to
+`omega_digit_in_base(value, value)` passed a byte value where the classifier
+requires an `OmegaNumericBase`. The 3,745-byte source had SHA-256
+`927259ff3b779b8109a2b747f4ba98ef6284210004e8032c82ca2be00a5af318`.
+The same executable and stdin received the resulting 4,053-byte request,
+SHA-256 `ca6c411cbc9efdfcf0e614399af5d11dcaecb8242196c45ffe26fb36251667b1`.
+In 0.131 seconds the evaluator returned process status zero and refusal bytes
+`02 12 f0 07 00 00`, locating the wrong-typed argument at byte 2,032.
