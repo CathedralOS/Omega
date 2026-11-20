@@ -75,7 +75,7 @@ pub(crate) fn select_build_stage(
     if ends.is_empty() {
         return Ok(selected);
     }
-    lexical_uses::refuse_uncarried_names(syntax, &machine, &statements, &ends)?;
+    lexical_uses::check_stage_bindings(syntax, &machine, &statements, &ends)?;
     let first = match stage {
         0 => 0,
         stage => ends[stage - 1] + 1,

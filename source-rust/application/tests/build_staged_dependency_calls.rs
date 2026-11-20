@@ -166,6 +166,22 @@ fn a_local_bound_before_the_wait_is_not_carried_across_it() {
 }
 
 #[test]
+fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
+    let (compiled, stderr) = check(
+        "duplicate-local",
+        "    Build::application(builder, \"second_role\");
+    let seven: i32 = 1;",
+        &after("kit\\v"),
+        7,
+    );
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("binding `seven` conflicts with a local still visible"),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn a_call_written_before_the_wait_names_nothing() {
     let (compiled, stderr) = check(
         "used-before",

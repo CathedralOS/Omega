@@ -1,6 +1,7 @@
 //! Check which local and nested machine names cross a preparation boundary.
 
 use diagnostics::Diagnostic;
+use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchFieldAction, MatchPattern, TableDestructurePattern,
@@ -13,10 +14,10 @@ use syntax_trees::statement::{
     TransitionTargetNode,
 };
 
-/// Refuses the two uses nothing carries across a preparation: a local of an
-/// earlier stage used in a later one, and a nested machine of the entry
-/// named before the last stage.
-pub(super) fn refuse_uncarried_names(
+/// The projection removes earlier statements, but a wait does not end their
+/// lexical scope. Stage 02 checks the bindings within a projected stage. Check
+/// bindings against earlier stages here, as well as uses we cannot carry.
+pub(super) fn check_stage_bindings(
     syntax: &SyntaxTrees,
     machine: &Machine,
     statements: &[StatementHandle],
@@ -30,8 +31,8 @@ pub(super) fn refuse_uncarried_names(
         .collect::<Vec<_>>();
     let last_end = *ends.last().expect("a divided entry has a preparation");
     // Locals bound by stages already passed, and by the stage being walked.
-    let mut earlier: Vec<&str> = Vec::new();
-    let mut current: Vec<&str> = Vec::new();
+    let mut earlier = HashSet::new();
+    let mut current = HashSet::new();
     let mut refusals = Vec::new();
     for (position, statement) in statements.iter().enumerate() {
         let node = syntax.statements.statement(*statement);
@@ -39,6 +40,7 @@ pub(super) fn refuse_uncarried_names(
             syntax,
             names: Vec::new(),
             machines: Vec::new(),
+            bindings: Vec::new(),
         };
         uses.statement(node);
         for name in uses.names {
@@ -65,9 +67,28 @@ pub(super) fn refuse_uncarried_names(
                 }
             }
         }
-        bound(syntax, node, &mut current);
+        let first_local = uses.bindings.len();
+        local_bindings(syntax, node, &mut uses.bindings);
+        for binding in &uses.bindings {
+            let name = binding.as_str(syntax);
+            if earlier.contains(name) {
+                refusals.push(
+                    Diagnostic::error(format!(
+                        "binding `{name}` conflicts with a local still visible across Build::prepare_dependency"
+                    ))
+                    .with_source_span(binding.source_span()),
+                );
+            }
+        }
+        // Arm bindings expire inside this statement. Only its own locals
+        // become visible to statements after it.
+        current.extend(
+            uses.bindings[first_local..]
+                .iter()
+                .map(|binding| binding.as_str(syntax)),
+        );
         if ends.contains(&position) {
-            earlier.append(&mut current);
+            earlier.extend(current.drain());
         }
     }
     if refusals.is_empty() {
@@ -78,23 +99,23 @@ pub(super) fn refuse_uncarried_names(
 }
 
 /// The locals `statement` binds for the statements after it.
-fn bound<'syntax>(
+fn local_bindings<'syntax>(
     syntax: &'syntax SyntaxTrees,
     statement: &'syntax StatementNode,
-    names: &mut Vec<&'syntax str>,
+    names: &mut Vec<&'syntax Identifier>,
 ) {
     match statement {
         StatementNode::LocalData(local) => {
-            names.push(local.name.as_str(syntax));
+            names.push(&local.name);
             for field in syntax.expressions.match_fields(local.pattern_fields) {
                 if let MatchFieldAction::Bind(binding) = &field.action {
-                    names.push(binding.as_str(syntax));
+                    names.push(binding);
                 }
             }
         }
         StatementNode::ProofOutputBindingStatement(binding) => {
             for selector in binding.bindings.iter() {
-                names.push(selector.binding.as_str(syntax));
+                names.push(&selector.binding);
             }
         }
         _ => {}
@@ -107,6 +128,7 @@ struct Uses<'syntax> {
     syntax: &'syntax SyntaxTrees,
     names: Vec<&'syntax Identifier>,
     machines: Vec<&'syntax Identifier>,
+    bindings: Vec<&'syntax Identifier>,
 }
 
 impl<'syntax> Uses<'syntax> {
@@ -181,6 +203,7 @@ impl<'syntax> Uses<'syntax> {
                     self.capture(pattern.capture);
                     self.pattern(&pattern.pattern);
                 }
+                self.proof_bindings(transition.proof_selectors);
                 self.target(transition.target);
                 self.target(transition.continuation);
                 if let TransitionGuardNode::When(guard) = transition.guard {
@@ -230,9 +253,36 @@ impl<'syntax> Uses<'syntax> {
     }
 
     fn pattern(&mut self, pattern: &TableDestructurePattern) {
+        let syntax = self.syntax;
+        if pattern.subject_binding.is_valid()
+            && let ExpressionNode::Name { members, .. } =
+                syntax.expressions.expression(pattern.subject_binding)
+            && let [name] = syntax.expressions.identifier_path_members(*members)
+        {
+            self.bindings.push(name);
+        }
+        for field in syntax.expressions.match_fields(pattern.fields) {
+            if let MatchFieldAction::Bind(binding) = &field.action {
+                self.bindings.push(binding);
+            }
+        }
+        self.proof_bindings(pattern.proof_selectors);
         self.expression(pattern.head);
         self.fields(self.syntax.expressions.match_fields(pattern.fields));
         self.expression(pattern.guard);
+    }
+
+    fn proof_bindings(
+        &mut self,
+        span: arena::HandleSpan<syntax_trees::statement::TableOutcomeProofSelector>,
+    ) {
+        self.bindings.extend(
+            self.syntax
+                .statements
+                .outcome_proof_selectors(span)
+                .iter()
+                .map(|selector| &selector.binding),
+        );
     }
 
     fn expression(&mut self, handle: ExpressionHandle) {

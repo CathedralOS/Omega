@@ -132,19 +132,41 @@ machine build(builder: @mut Build) suspends {{
             "{refusal}"
         );
     }
-    // The twin: a later stage that binds the same name again uses its
-    // own local, and the parameter is carried.
-    let rebound = "
-machine build(builder: @mut Build) suspends {
+}
+
+#[test]
+fn preparation_preserves_the_lexical_scope_of_earlier_locals() {
+    for declaration in [
+        "let value: i32 = 2;",
+        "let result: i32 = match 2 { value -> 7 };",
+        "transition 2 { value -> done() }",
+    ] {
+        let text = format!(
+            r#"
+machine build(builder: @mut Build) suspends {{
     let value: i32 = 1;
     let registered: DependencyRegistration = Build::build_dependency(builder, one());
     suspend Build::prepare_dependency(builder, registered);
-    let value: i32 = 2;
-    let after: i32 = value;
-    Build::application(builder, \"app\");
+    {declaration}
+    machine done() {{}}
+}}
+"#
+        );
+        let refusal = stage(&text, 0).unwrap_err();
+        assert!(
+            refusal.contains("binding `value` conflicts with a local still visible"),
+            "{refusal}"
+        );
+    }
+    let disjoint = r#"
+machine build(builder: @mut Build) suspends {
+    let first: i32 = match 1 { item -> 7 };
+    let registered: DependencyRegistration = Build::build_dependency(builder, one());
+    suspend Build::prepare_dependency(builder, registered);
+    let second: i32 = match 2 { item -> 7 };
 }
-";
-    assert_eq!(stage(rebound, 1), Ok((2, 3, 0)));
+"#;
+    assert_eq!(stage(disjoint, 1), Ok((2, 1, 0)));
 }
 
 /// The entry's nested machines are checked with the last stage, so an
