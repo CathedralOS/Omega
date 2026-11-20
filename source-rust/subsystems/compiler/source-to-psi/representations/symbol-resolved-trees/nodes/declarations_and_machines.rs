@@ -279,6 +279,23 @@ pub mod declarations {
             pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
         }
 
+        impl DomainDefinition {
+            /// The arguments written after the family name omit its generic carrier.
+            pub fn index_binders<'a>(
+                &self,
+                binders: &'a [crate::source_resolved::data::TypeParameter],
+            ) -> &'a [crate::source_resolved::data::TypeParameter] {
+                let generic_carrier = binders.first().is_some_and(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        crate::source_resolved::data::TypeParameterKind::Type
+                    ) && matches!(&self.target_type, TypeReference::Named { symbol, .. }
+                            if symbol.is_valid() && *symbol == parameter.symbol)
+                });
+                &binders[usize::from(generic_carrier)..]
+            }
+        }
+
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct DomainAliasDefinition {
             pub constituents: Vec<DomainAliasConstituent>,

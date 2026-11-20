@@ -346,19 +346,19 @@ impl BinderRole {
 }
 
 /*
-    Every machine's authored binder roles in declaration order, so a call
-    reads each static argument by the binder it fills once its target is
-    selected. Built once per assignment pass from the resolved machine
-    headers: one flat role list and one row per machine, sorted by symbol.
+    Binder roles of machines and indexed domain families in declaration order.
+    A call or domain application reads its named arguments in the role each
+    slot declares. A generic domain carrier is implicit at use sites.
 */
 pub(super) struct BinderRoles {
-    machines: Vec<(SymbolHandle, u32, u32)>,
+    declarations: Vec<(SymbolHandle, u32, u32)>,
     roles: Vec<BinderRole>,
 }
 
 impl BinderRoles {
     pub(super) fn of(program: &SymbolResolvedTrees, symbols: &SymbolTable) -> Self {
-        let mut machines = Vec::with_capacity(program.machines.len());
+        let mut declarations =
+            Vec::with_capacity(program.machines.len() + program.domain_definitions.len());
         let mut roles = Vec::new();
         for machine in program.machines.iter() {
             let binders = program.machine_type_parameters(machine);
@@ -379,10 +379,22 @@ impl BinderRoles {
                 roles.extend([BinderRole::Declaration; 2]);
             }
             roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
-            machines.push((machine.symbol, start, roles.len() as u32));
+            declarations.push((machine.symbol, start, roles.len() as u32));
         }
-        machines.sort_unstable_by_key(|(symbol, _, _)| symbol.arena_index());
-        Self { machines, roles }
+        for domain in &program.domain_definitions {
+            let binders = program.data_type_parameters(domain.type_parameters);
+            let indices = domain.index_binders(binders);
+            if domain.symbol.is_valid() && !indices.is_empty() {
+                let start = roles.len() as u32;
+                roles.extend(indices.iter().map(|binder| BinderRole::of(&binder.kind)));
+                declarations.push((domain.symbol, start, roles.len() as u32));
+            }
+        }
+        declarations.sort_unstable_by_key(|(symbol, _, _)| symbol.arena_index());
+        Self {
+            declarations,
+            roles,
+        }
     }
 
     /*
@@ -406,22 +418,26 @@ impl BinderRoles {
             symbols::SymbolKind::Machine => target,
             _ => return BinderRole::Declaration,
         };
-        let Ok(row) = self
-            .machines
-            .binary_search_by_key(&machine.arena_index(), |(symbol, _, _)| {
-                symbol.arena_index()
-            })
-        else {
-            return BinderRole::Declaration;
-        };
-        let (symbol, start, end) = self.machines[row];
-        if symbol != machine {
-            return BinderRole::Declaration;
-        }
-        self.roles[start as usize..end as usize]
+        self.for_declaration(machine)
             .get(position)
             .copied()
             .unwrap_or(BinderRole::Declaration)
+    }
+
+    pub(super) fn for_declaration(&self, declaration: SymbolHandle) -> &[BinderRole] {
+        let Ok(row) = self
+            .declarations
+            .binary_search_by_key(&declaration.arena_index(), |(symbol, _, _)| {
+                symbol.arena_index()
+            })
+        else {
+            return &[];
+        };
+        let (symbol, start, end) = self.declarations[row];
+        if symbol != declaration {
+            return &[];
+        }
+        &self.roles[start as usize..end as usize]
     }
 }
 

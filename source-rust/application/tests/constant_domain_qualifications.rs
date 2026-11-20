@@ -48,3 +48,21 @@ fn a_constant_cannot_reissue_a_domain_its_plan_restricts() {
         "{report}"
     );
 }
+
+#[test]
+fn a_core_quantity_conversion_preserves_its_unit_and_scale() {
+    let (succeeded, report) =
+        run_both("source-rust/application/tests/fixtures/domains/run/core_quantity_conversion");
+    assert!(succeeded, "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}
+
+#[test]
+fn a_meter_result_cannot_initialize_seconds() {
+    let (succeeded, report) =
+        run_both("source-rust/application/tests/fixtures/domains/fail/core_quantity_wrong_unit");
+    assert!(!succeeded, "{report}");
+    assert!(report.contains("Units::METER)") && report.contains("Units::SECOND)"), "{report}");
+}

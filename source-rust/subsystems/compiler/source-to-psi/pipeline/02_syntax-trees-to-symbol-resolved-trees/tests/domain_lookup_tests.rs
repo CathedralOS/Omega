@@ -138,6 +138,58 @@ fn domain_index_names_resolve_in_their_declared_type_or_const_role() {
 }
 
 #[test]
+fn a_domain_application_selects_its_const_in_signatures_and_casts() {
+    use crate::source_resolved::expression::ExpressionNode;
+    use crate::source_resolved::types::{TypeConstraint, TypeReference};
+
+    let program = resolve_source(
+        "data Survey {}
+         const Survey::LENGTH: u64 = 7;
+         domain<T, const N: u64> T::Scale<N>;
+         machine length(value: u32) -> u32 in Scale<Survey::LENGTH> {
+             value as +Scale<Survey::LENGTH>
+         }",
+    );
+    let constant = program.const_declarations.iter().next().unwrap().symbol;
+    let assert_selected = |arguments| {
+        let [TypeReference::Named { symbol, .. }] = program.child_type_references(arguments) else {
+            panic!("expected one named index")
+        };
+        assert_eq!(*symbol, constant);
+    };
+    let mut constraints = program
+        .tables
+        .types
+        .constraints
+        .iter()
+        .filter_map(|(_, constraint)| {
+            if let TypeConstraint::Domain(domain) = constraint {
+                Some(domain.arguments)
+            } else {
+                None
+            }
+        });
+    assert_selected(
+        constraints
+            .next()
+            .expect("the return type has an indexed domain"),
+    );
+    let mut casts = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, node)| {
+            if let ExpressionNode::Cast(cast) = node {
+                Some(cast.semantic_domain_arguments)
+            } else {
+                None
+            }
+        });
+    assert_selected(casts.next().expect("the body adds an indexed domain"));
+}
+
+#[test]
 fn explicit_domain_application_resolves_to_the_same_declared_type_equation() {
     let source = "
         domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
