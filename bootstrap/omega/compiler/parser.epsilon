@@ -7802,14 +7802,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
+    // Integer tokens of every lexer-admitted radix retain the same source
+    // interval and suffix boundary. The selected carrier checks the magnitude.
     state check_integer_expression() {
-        transition self.scan.numeric_base {
-            OmegaNumericBase::Decimal -> check_decimal_integer_expression()
-            _ -> incomplete_root()
-        }
-    }
-
-    state check_decimal_integer_expression() {
         transition (self.scan.numeric_empty_digits == 0) && (self.scan.numeric_has_exponent == 0) &&
             ((self.scan.numeric_has_suffix == 0) || omega_integer_suffix(
                 source[self.scan.numeric_suffix_start..self.scan.token_end], "18446744073709551615")) {

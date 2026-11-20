@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,620 lines / 1,023,549 bytes with SHA-256
-`ee9beeaad92dc5ee7dda1ee4eebf0d418a30de88827fbfc31ba8a07e04120f3e`.
+The manifest materializes 26,700 lines / 1,027,480 bytes with SHA-256
+`bdfe92219ade41f478422acd91990359529feb4e65c4ee416abdb389f7d47b5c`.
 The manifest itself is 2,381 bytes, SHA-256
-`a4d1cf6728fbe01a71ff3794214993bc4412cd4dd803e1e6158036b058755891`;
+`8662dc177c905ab7af4456e658b2d971eb5c19b7905fe76f06e542b06608caf6`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -220,13 +220,18 @@ An `i32` value retains its sign through local storage, parameters, and returns.
 Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
 Comparisons between unsigned words bias both operands by the high bit first.
 The construction writer can widen any output byte with `as i32`. A narrowing
-from an unrestricted `u32` has no such proof. A decimal expression with an
+from an unrestricted `u32` has no such proof. The core output helper
+`(value & 0xFF) as u8` uses its mask to prove the result is within `0..255`.
+For `i32`, a literal mask of contiguous low ones admits either operand order.
+The Alpha emitter evaluates the other operand once, then normalizes signed
+remainder modulo `mask + 1`. Integer expressions accept binary, octal, decimal
+and hexadecimal spellings and digit separators. An expression with an
 explicit `u8`, `u32`, `i32`, or `u64` suffix
 retains that carrier through storage,
 calls, domain casts, and returns. A mismatched destination rejects at the
 literal. Other valid integer carriers retain their spelling in the parser and
-remain outside executable coverage. Signed decimal literals cover
-`-2147483648..2147483647`. The compiler accepts unsigned decimal literals through
+remain outside executable coverage. Signed literals cover
+`-2147483648..2147483647`. The compiler accepts unsigned literals through
 18446744073709551615 for `u64` and emits both words in one Alpha immediate.
 Narrow integer predicates and index bounds require the complete magnitude to
 fit their proof representation. For plain `u32` addition, the compiler tracks which bits may be set
@@ -647,7 +652,7 @@ separate target and value handles. Their current target grammar is a self/name
 place path followed by zero or more indexes, each with a path, decimal, or
 canonical range over the retained path/decimal bound slice; current values are
 self-member paths, qualified-name paths, booleans, nonnegative
-decimal integer literals, or strings. Integer
+integer literals, or strings. Integer
 nodes retain the complete source span and the start of any explicit carrier suffix;
 strings retain the exact token span and scanner-proven decoded byte length
 without a decoded-byte mirror. Assignment values, local initializers, ordinary
