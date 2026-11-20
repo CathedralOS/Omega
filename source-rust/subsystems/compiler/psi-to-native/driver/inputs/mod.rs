@@ -4,7 +4,7 @@
 
 pub(crate) mod components;
 pub(crate) mod published_application;
-pub(crate) mod required_scalars;
+pub(crate) mod scalars;
 
 use provider_realization::native_execution::PreparedNativeExecution;
 use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
@@ -20,7 +20,7 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) recovery: ExecutableImageEmissionRequest,
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
-    pub(crate) scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
+    pub(crate) scalars: Option<std::borrow::Cow<'input, psi_scalar_applications::AdmittedScalarApplications>>,
     pub(crate) components: Vec<crate::driver::inputs::components::PreparedComponent<'input>>,
 }
 
@@ -83,11 +83,8 @@ pub(crate) fn prepare<'input>(
             .collect::<Vec<_>>();
         let execution = provider_realization::native_execution::prepare_program(proposal, retained.authorization(), &calls)?
             .with_operation_evidence(artifact, retained.evidence().cloned())?;
-        let scalars = self::required_scalars::required_scalars(
-            artifact,
-            &execution.scalar_application_demand(proposal.target_profile())?,
-            request.scalars,
-        )?;
+        let demand = execution.scalar_application_demand(proposal.target_profile())?;
+        let scalars = request.scalars.resolve(artifact, proposal, &demand)?;
         Ok((execution, recipes, scalars, components))
     })();
     match result {

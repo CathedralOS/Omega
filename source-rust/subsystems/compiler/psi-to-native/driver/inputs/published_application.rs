@@ -4,7 +4,6 @@ use provider_realization::published_application::{
     NativeApplicationSettings, bind_published_application,
 };
 use std::sync::Arc;
-use verified_optimization_input::TerminalNativeRealizationProposal;
 
 /// Target, permissions and installations explicitly supplied by the receiving host.
 pub struct SavedProgramTarget<'a> {
@@ -94,26 +93,4 @@ fn prepare_issued_program<Publisher>(
         subsystem,
         installation_assumptions,
     })
-}
-
-/// Complete exactly the scalar applications required by the authorized native entry.
-pub fn complete_entry_scalars(
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    proposal: &TerminalNativeRealizationProposal,
-    accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
-) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, Vec<Diagnostic>> {
-    let Some(demand) =
-        provider_realization::native_execution::entry_scalar_demand(proposal, authorization)?
-    else {
-        return Ok(None);
-    };
-    native_scalar_inputs::complete(
-        authorization.shared_artifact(),
-        proposal.target_profile().target_name(),
-        &demand,
-        proposal.target_provider_proposals(),
-        accounting,
-    )
-    .map(Some)
-    .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])
 }

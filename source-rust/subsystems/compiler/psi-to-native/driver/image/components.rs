@@ -65,7 +65,7 @@ pub(crate) fn emit_components<'input>(
         let exports = emit_component_exports(
             &component.input,
             work,
-            scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed }),
+            scalars.as_deref().map(|completed| artifact_lowering::NativeScalarApplications { completed }),
             ComponentExportRequest {
                 retain_native_stage_inputs,
                 accepted_package_permissions: component.accepted_package_permissions,
