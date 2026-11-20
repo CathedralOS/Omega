@@ -181,7 +181,7 @@ by machine, type-reference and expression handles use the same bounds.
 
 Checking the frontend's entire source with the Omega implementation still
 requires exact declaration imports. Its resolver currently selects whole
-modules, and its 1,024 use rows cannot hold the frontend's 2,004 explicit
+modules, and its 1,024 use rows cannot hold the frontend's more than 2,000 explicit
 imports. A self-compilation check must preserve each unit's directory namespace
 and exercise a member import together with a sibling that stays out of scope.
 
@@ -787,7 +787,7 @@ owns bounded token selection and trivia traversal;
 | `representations/source_files/source.omg` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
 | `representations/tokens/tokens.omg` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `representations/syntax_trees/syntax_trees.omg` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
-| `pipeline/source_files_to_tokens/lexer.omg` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
+| `pipeline/source_files_to_tokens/` | `digits.omg` owns base-specific ASCII recognition and digit values. `lexer.omg` owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
 | `pipeline/tokens_to_syntax_trees/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `requires proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `representations/symbol_resolved_trees/symbol_resolved_trees.omg` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `pipeline/syntax_trees_to_symbol_resolved_trees/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |

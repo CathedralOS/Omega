@@ -652,20 +652,6 @@ machine lex_block_comment(lexer: @mut Lexer) {
     }
 }
 
-// The value of a hexadecimal digit; 4294967295 when `byte` is not one.
-machine hex_digit_value(byte: u32 in Trapping) -> u32 in Trapping {
-    transition byte >= 48 && byte <= 57 {
-        true -> decimal(byte),
-        _ -> lower(byte)
-    }
-    machine decimal(byte: u32 in Trapping) -> u32 in Trapping { byte - 48 }
-    machine lower(byte: u32 in Trapping) -> u32 in Trapping { transition byte >= 97 && byte <= 102 { true -> lower_yes(byte), _ -> upper(byte) } }
-    machine lower_yes(byte: u32 in Trapping) -> u32 in Trapping { byte - 87 }
-    machine upper(byte: u32 in Trapping) -> u32 in Trapping { transition byte >= 65 && byte <= 70 { true -> upper_yes(byte), _ -> none() } }
-    machine upper_yes(byte: u32 in Trapping) -> u32 in Trapping { byte - 55 }
-    machine none() -> u32 in Trapping { 4294967295 }
-}
-
 // Append the source bytes `start..end` to the decoded stream.
 machine copy_source_to_decoded(lexer: @mut Lexer, start: u64 in Trapping, end: u64 in Trapping) {
     transition { _ -> scan(lexer, start, end) }
@@ -824,32 +810,6 @@ machine lex_cooked_string(lexer: @mut Lexer) {
     machine done() {}
 }
 
-// Whether `byte` is a digit of `base`.
-machine lexer_digit_in_base(byte: u32 in Trapping, base: NumericBase) -> bool {
-    transition base {
-        NumericBase::Binary -> binary(byte),
-        NumericBase::Octal -> octal(byte),
-        NumericBase::Decimal -> decimal(byte),
-        NumericBase::Hexadecimal -> hex(byte)
-    }
-    machine binary(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 49 { true -> true, _ -> false } }
-    machine octal(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 55 { true -> true, _ -> false } }
-    machine decimal(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 57 { true -> true, _ -> false } }
-    machine hex(byte: u32 in Trapping) -> bool {
-        transition byte >= 48 && byte <= 57 {
-            true -> true,
-            _ -> hex_alpha(byte)
-        }
-    }
-    machine hex_alpha(byte: u32 in Trapping) -> bool {
-        transition byte >= 65 && byte <= 70 {
-            true -> true,
-            _ -> hex_lower(byte)
-        }
-    }
-    machine hex_lower(byte: u32 in Trapping) -> bool { transition byte >= 97 && byte <= 102 { true -> true, _ -> false } }
-}
-
 // Fold one digit of `base` into the integer literal under way. A value past
 // 2^64 - 1 clears `literal_exact` rather than wrapping
 // (wiki/spec/language/numeric_values.md#literal-landing-and-destinations).
@@ -877,22 +837,6 @@ machine lexer_accumulate_digit(lexer: @mut Lexer, base: NumericBase, byte: u32 i
     machine overflows(lexer: @mut Lexer) {
         lexer.literal_exact = false;
     }
-}
-
-// A digit byte's value; the caller has checked it is a digit of its base.
-machine lexer_digit_value(byte: u32 in Trapping) -> u64 in Wrapping {
-    let value: u64 in Wrapping = ((byte as -Trapping) as u64) as +Wrapping;
-    transition byte <= 57 {
-        true -> answer(value - 48),
-        _ -> letter(value, byte)
-    }
-    machine letter(value: u64 in Wrapping, byte: u32 in Trapping) -> u64 in Wrapping {
-        transition byte >= 97 {
-            true -> answer(value - 87),
-            _ -> answer(value - 55)
-        }
-    }
-    machine answer(value: u64 in Wrapping) -> u64 in Wrapping { value }
 }
 
 // The carrier an integer literal's suffix, the bytes `start..end`, names.
