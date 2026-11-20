@@ -9,8 +9,19 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tests/bootstrap"))
-from compiled import execute, pack, stamp
+from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
+
+
+def check_tape(work, data, seconds):
+    if not data:
+        raise SystemExit("wire compilation produced no tape")
+    tape = work / "wire.tape"
+    tape.write_bytes(data)
+    stamp(tape, work / "wire")
+    if execute(work / "wire", timeout=seconds) != (42, b""):
+        raise SystemExit("wire program did not exit 42 with empty stdout")
+    print(f"Wire exited 42. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
 
 
 def main():
@@ -19,7 +30,8 @@ def main():
     route = parser.add_mutually_exclusive_group()
     route.add_argument("--evaluator", type=Path, help="also run and check a source-built Epsilon evaluator")
     route.add_argument("--constructor", type=Path, help="run and check a compiled construction executable")
-    parser.add_argument("--seconds", type=int, default=600, help="timeout per execution")
+    route.add_argument("--omega-constructor", type=Path, help="check the Omega-written construction executable")
+    add_invocation_budget(parser)
     args = parser.parse_args()
     work = args.output.resolve()
     work.mkdir(parents=True)
@@ -42,6 +54,16 @@ def main():
         inputs.update(truncations)
     for name, stdin in inputs.items():
         (work / f"{name}.stdin").write_bytes(stdin)
+    if args.omega_constructor:
+        runner = args.omega_constructor.resolve(strict=True)
+        status, output = execute(runner, linked, args.seconds)
+        if status:
+            raise SystemExit(f"Omega constructor refused linked wire package with exit {status}")
+        check_tape(work, output, args.seconds)
+        for name, expected in (("missing-edge", 248), ("trailing-byte", 253)):
+            if execute(runner, inputs[name], args.seconds) != (expected, b""):
+                raise SystemExit(f"{name}: expected exit {expected} with empty stdout")
+        return
     if args.evaluator:
         runner = args.evaluator.resolve(strict=True)
         closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "evaluator.delta")
@@ -68,13 +90,7 @@ def main():
     linked_output = evaluate("linked")
     if linked_output[:5] != bytes(5) or len(linked_output) <= 5:
         raise SystemExit(f"wire compilation failed: {linked_output[:40].hex()}")
-    tape = work / "wire.tape"
-    tape.write_bytes(linked_output[5:])
-    stamp(tape, work / "wire")
-    if execute(work / "wire", timeout=args.seconds) != (42, b""):
-        raise SystemExit("wire program did not exit 42 with empty stdout")
-    print(f"Wire exited 42. Alpha tape has {len(linked_output) - 5} bytes, "
-          f"sha256={sha256(linked_output[5:]).hexdigest()}", flush=True)
+    check_tape(work, linked_output[5:], args.seconds)
 
     # The first source unit starts with the unresolved import. A compiler
     # refusal publishes its coordinate; malformed transport publishes none.

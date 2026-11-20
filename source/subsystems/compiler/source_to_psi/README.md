@@ -808,9 +808,13 @@ Unicode identifier table, so none belongs here or under `generated/`.
 
 [`pipeline/checked_trees_to_scalar_operations/scalar.omg`](pipeline/checked_trees_to_scalar_operations/scalar.omg) lowers a
 bounded subset of checked scalar code into value and callable operations for
-Omega's Alpha realization. It keeps the existing portable operation meanings and
-is not a second serialized product. Unsupported forms and recursive call
+Omega's Alpha realization. A resolved `use` adds no instructions. Calls use
+the target machine identity selected during typing. The operation meanings
+remain portable. Unsupported forms and recursive call
 cycles refuse before publication. The [Alpha execution gate](../../../../_recycling/tests/product/alpha/README.md)
 runs the whole frontend, lowers the program and executes the resulting tape.
+The [wire package check](../../../../tests/bootstrap/independent/product_wire.py)
+accepts `--omega-constructor EXECUTABLE` to compile a caller and its imported
+decoder, run the tape and check the missing dependency's resolution error.
 Full portable publication still needs canonical declaration, contract and
 obligation identities; the checker currently records only verdicts and counts.
