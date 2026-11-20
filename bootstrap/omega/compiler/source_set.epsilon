@@ -42,20 +42,24 @@ machine OmegaSourceSet::identifier(&mut self, source: &[u8], name: OmegaRelative
 
 machine OmegaSourceSet::identifier_range(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
     transition (start >= 0) && (start < end) && (end <= source.len) {
-        true -> byte(start)
+        true -> first()
         _ -> return 0
+    }
+    state first() {
+        transition omega_is_identifier_start(source[start]) {
+            1 -> byte(start + 1)
+            _ -> return 0
+        }
     }
     state byte(index: i32) {
         transition index < end {
-            true -> classify(index, source[index])
+            true -> continuation(index)
             _ -> return 1
         }
     }
-    state classify(index: i32, value: i32) {
-        transition ((value >= 65) && (value <= 90)) ||
-            ((value >= 97) && (value <= 122)) || (value == 95) ||
-            ((index > start) && (value >= 48) && (value <= 57)) {
-            true -> byte(index + 1)
+    state continuation(index: i32) {
+        transition omega_is_identifier_continue(source[index]) {
+            1 -> byte(index + 1)
             _ -> return 0
         }
     }

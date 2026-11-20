@@ -233,9 +233,9 @@ data OmegaUseSyntax {
     end: i32;
 }
 
-// Invocation supplies package ownership and direct dependency aliases. Source
-// paths supply namespaces and source text supplies imports. Unit byte ranges are disjoint immutable
-// views in one buffer; sharing that buffer never shares a lexical/import scope.
+// The invocation supplies package ownership, dependency aliases and logical
+// paths. Imports belong to individual source units. Their byte intervals
+// share a buffer and each keeps its own lexical scope.
 data OmegaSourcePackage {
     name: OmegaRelativeSpan;
     // Invocation-owned trust: ordinary=0, toolchain core=1, toolchain std=2.
