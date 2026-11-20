@@ -310,7 +310,7 @@ pub(crate) fn check_static_indices(
                 "evaluation result has no matching specialized expression, carrier and owner arity",
             ));
         }
-        IndexSpecializations::check_receipt_arguments(units, &catalog.types, result)?;
+        IndexSpecializations::check_receipt_arguments(units, catalog, result)?;
         if !result.value.matches_carrier(&request.carrier, catalog) {
             return Err(TypeError::for_site(
                 &request.expression,

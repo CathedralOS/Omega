@@ -67,6 +67,7 @@ fn typed_fixtures_match_handwritten_expectations() {
                             .to_str()
                             .unwrap()
                             .replace('\\', "/"),
+                        None,
                     );
                     let position = LineIndex::new(bytes).get_position(e.span.get_start_offset());
                     lines.push(format!(

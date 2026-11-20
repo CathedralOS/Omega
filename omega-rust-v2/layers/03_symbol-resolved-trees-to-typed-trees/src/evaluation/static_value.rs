@@ -44,6 +44,13 @@ impl StaticValueCarrier for StaticValue {
                 let Some(fields) = catalog.fields.get(shape) else {
                     return false;
                 };
+                // A supplied snapshot can contain a nominal application whose
+                // argument count has never been checked against this package.
+                let Some(scopes) = catalog.types.scopes.get(declaration) else { return false };
+                let arity: usize = scopes.iter().map(|scope| catalog.types.arity(scope)).sum();
+                if arguments.len() != arity {
+                    return false;
+                }
                 let fields = &fields.ordered;
                 fields.len() == values.len()
                     && fields.iter().zip(values.iter()).all(|(field, value)| {

@@ -84,8 +84,12 @@ def record_return(report, stage, target, capture, line):
     try:
         if stage != "L3" or not capture or not re.fullmatch(r"tests/[^/]+\.rs", target):
             raise ValueError("outside a captured L3 integration test")
-        tag, fixture, path, rust_line, col, phase, package, file, start, end, size, message = line.split("\t")
-        if tag != "OMEGA_TYPING_RETURN" or phase not in {"refused", "pending"}:
+        fields = line.split("\t")
+        tag, fixture, path, rust_line, col, phase, package, file, start, end, size, message = fields[:12]
+        exact = tag == "OMEGA_TYPING_RETURN_CHECKED"
+        if len(fields) != (17 if exact else 12):
+            raise ValueError("incomplete or extra typing diagnostic fields")
+        if tag not in {"OMEGA_TYPING_RETURN", "OMEGA_TYPING_RETURN_CHECKED"} or phase not in {"refused", "pending"}:
             raise ValueError("unknown record or result phase")
         path, package, file, message = [unescape(v).decode("utf-8") for v in (path, package, file, message)]
         if fixture and ((target, capture[1]) != ("tests/expected.rs", GOLDEN_TEST) or not re.fullmatch(r"(?:prepared/)?reject/[a-zA-Z0-9_-]+\.omg", fixture)):
@@ -95,7 +99,13 @@ def record_return(report, stage, target, capture, line):
             raise ValueError("invalid origin, range or message length")
         if not (package and file) and (package or file or end):
             raise ValueError("incomplete program location")
-        report.setdefault("typing_returns", []).append({"target": target, "test": capture[1], "phase": phase, "fixture": fixture,
+        if exact:
+            wanted_package, wanted_file, wanted_start, wanted_end, wanted_reason = fields[12:]
+            expected = (unescape(wanted_package).decode("utf-8"), unescape(wanted_file).decode("utf-8"),
+                        int(wanted_start), int(wanted_end), unescape(wanted_reason).decode("utf-8"))
+            if fixture or phase != "refused" or expected != (package, file, start, end, message):
+                raise ValueError("returned typing refusal differs from its asserted API diagnostic")
+        report.setdefault("typing_returns", []).append({"target": target, "test": capture[1], "phase": phase, "fixture": fixture, "checked_api": exact,
             "package": package, "file": file, "start": start, "end": end, "reason": message,
             "compiler_site": {"path": path, "line": rust_line, "column": col}})
     except ValueError as error:
@@ -169,6 +179,10 @@ def attach_witnesses(inventory, report, fixture_root=FIXTURES):
         site = find_site(result["compiler_site"], name, result["phase"], result["reason"])
         if site is not None and name not in site.setdefault("stage_tests", []):
             site["stage_tests"].append(name)
+        if site is not None and result.get("checked_api"):
+            checks = site.setdefault("api_checks", {}).setdefault(result["reason"], [])
+            if name not in checks:
+                checks.append(name)
         if site is not None and site["class"] in {"dynamic", "template"}:
             witnesses = site.setdefault("returned_messages", {}).setdefault(result["reason"], [])
             if name not in witnesses:
@@ -204,9 +218,9 @@ def details(inventory, directory):
     for kind, title in CLASSES.items():
         selected = [r for r in rows if r["class"] == kind]
         if selected:
-            exact = sum(bool(r.get("package_tests") or r.get("fixtures")) for r in selected)
+            exact = sum(bool(r.get("package_tests") or r.get("fixtures") or r.get("api_checks")) for r in selected)
             reached_only = sum(
-                1 for r in selected if r.get("stage_tests") and not (r.get("package_tests") or r.get("fixtures")))
+                1 for r in selected if r.get("stage_tests") and not (r.get("package_tests") or r.get("fixtures") or r.get("api_checks")))
             lines.append(f"| {title} | {len(selected)} | {exact} | {reached_only} | {len(selected) - exact - reached_only} |")
     for kind, title in CLASSES.items():
         if not counts[kind]:
@@ -218,6 +232,9 @@ def details(inventory, directory):
             lines.append(f"- [{row['path']}:{row['line']}:{row['column']}]({link}#L{row['line']}) · {row['scope']} · {row['constructor']}{text}")
             for name in row.get("package_tests", []):
                 lines.append(f"  - Returned to package test `{name}`. [Original input and diagnostic](rule-diagnostics.md#l3)")
+            for message, tests in sorted(row.get("api_checks", {}).items()):
+                names = ", ".join(f"`{name}`" for name in sorted(tests))
+                lines.append(f"  - API tests checked the package, file, byte range and refusal “{readable(message)}” in {names}")
             if row.get("returned_messages"):
                 for message, tests in sorted(row["returned_messages"].items()):
                     names = ", ".join(f"`{name}`" for name in sorted(tests))
@@ -261,5 +278,6 @@ def summary(report):
     return ["", f"- L3 · {len(inventory['rows'])} explicit `TypeError` call sites ({parts or 'none'}).{flag} "
             f"The L3 test helper received errors from {sum(bool(r.get('stage_tests')) for r in inventory['rows'])} sites in passing tests. "
             f"Handwritten fixture diagnostics matched {sum(len(r.get('fixtures', [])) for r in inventory['rows'])} returned errors. "
+            f"Stage API tests checked the full refusal from {sum(bool(r.get('api_checks')) for r in inventory['rows'])} sites. "
             f"Package tests checked the full diagnostic from {sum(bool(r.get('package_tests')) for r in inventory['rows'])} sites. "
             "[Sites and their witnesses](typing-sites.md)"]

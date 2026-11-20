@@ -864,7 +864,7 @@ fn symbolic_queries_check_the_operand_and_cannot_escape_as_callbacks() {
         let error = type_source_package(&names)
             .expect_err("invalid selector must fail typing");
         #[cfg(feature = "diagnostic-origins")]
-        diagnostic_origin::report_return(&error, "");
+        diagnostic_origin::report_return(&error, "", None);
         assert_eq!(error.package, "app");
         assert_eq!((&*error.file, &*error.message), ("selector.omg", message), "{expression}");
         assert_eq!(

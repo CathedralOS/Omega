@@ -16,7 +16,7 @@ pub fn check_in(
     let result = type_stage_in_environment(&resolved, environment).map(|trees| trees.into_facts());
     #[cfg(feature = "diagnostic-origins")]
     if let Err(error) = &result {
-        report_return(error, "");
+        report_return(error, "", None);
     }
     result
 }
