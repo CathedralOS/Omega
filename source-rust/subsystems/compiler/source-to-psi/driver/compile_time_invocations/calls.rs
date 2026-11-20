@@ -72,7 +72,10 @@ impl PreparedBuildMachineEntry {
     ) -> Result<production::ProducedTerminalProgram, String> {
         self.accepted
             .produce(
-                Default::default(),
+                production::TerminalProductionCustody {
+                    invocation_sources: self.source_consent.as_deref(),
+                    ..Default::default()
+                },
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .map_err(|errors| diagnostics::join_messages(&errors))

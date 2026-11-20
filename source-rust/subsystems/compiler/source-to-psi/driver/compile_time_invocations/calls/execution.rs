@@ -137,6 +137,18 @@ impl PreparedBuildMachineEntry {
                 );
             }
         }
+        let mut authorities = psi_authorization::selection_questions::SelectionAuthorities {
+            build: None,
+            product: None,
+        };
+        match self.purpose {
+            source_provenance::DependencyScope::Build => authorities.build = self.authority.as_deref(),
+            source_provenance::DependencyScope::Product => authorities.product = self.authority.as_deref(),
+        }
+        produced
+            .source_selections()
+            .ok_or("source invocation lost its declaration selections")?
+            .admit(produced.view(), &authorities)?;
         use terminal_interpreter::TerminalProgram;
         let program = TerminalProgram::borrow(produced.view());
         let unselected = psi_provider_selections::admit_provider_execution_installation(

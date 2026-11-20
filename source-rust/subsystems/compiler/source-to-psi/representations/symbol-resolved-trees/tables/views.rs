@@ -31,10 +31,11 @@ impl SymbolResolvedTrees {
             AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
             AuthoredDeclarationSelectionTarget::LateBound,
         };
-        let selections = self.authored_declaration_selections().iter().filter_map(|selection| {
-            (selection.target() == LateBound(CheckedStructLiteralType))
-                .then(|| selection.source_span())
-        });
+        let selections = self
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| selection.target() == LateBound(CheckedStructLiteralType))
+            .map(|selection| selection.source_span());
         self.tables.types.references.missing_names().iter().copied().chain(selections)
     }
 

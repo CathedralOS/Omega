@@ -1,4 +1,8 @@
 use super::*;
+use diagnostics::DiagnosticStage;
+use source_text::SourceId;
+use std::sync::Arc;
+
 fn parse(
     loaded: LoadedSources,
     first_page: u32,
@@ -14,8 +18,6 @@ fn parse(
         &mut CompileTimings::default(),
     )
 }
-use source_text::SourceId;
-use std::sync::Arc;
 
 fn loaded(texts: &[&str]) -> LoadedSources {
     texts
@@ -43,7 +45,7 @@ fn stage_batch_preserves_lexical_error_priority_and_source_order() {
                 .into_diagnostic(),
         ];
         let actual = parse(input, 1, false).unwrap_err();
-        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+        assert_eq!(actual, DiagnosticStage::Lexing.attribute(expected));
     }
     let input = loaded(&["machine", "data"]);
     let lexed = source_lexer::lex(input.clone()).unwrap();
@@ -52,7 +54,7 @@ fn stage_batch_preserves_lexical_error_priority_and_source_order() {
         .err()
         .unwrap();
     let actual = parse(input, 1, false).unwrap_err();
-    assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+    assert_eq!(actual, DiagnosticStage::Parsing.attribute(expected));
 }
 
 #[test]

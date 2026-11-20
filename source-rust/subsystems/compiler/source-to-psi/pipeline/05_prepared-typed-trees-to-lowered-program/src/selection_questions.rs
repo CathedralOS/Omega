@@ -237,9 +237,55 @@ pub struct RawSelectionDependency {
 
 #[derive(Debug, Clone, Default)]
 pub struct RawSelectionQuestions {
+    /// Anonymous source declarations in this form can own an application
+    /// without supplying emitted code. Their identity belongs to the same
+    /// invocation as the machine and record identities in the lowered form.
+    invocation_declarations: Vec<(SymbolHandle, String)>,
     pub declarations: Vec<SymbolHandle>,
     pub questions: Vec<RawSelectionQuestion>,
     pub dependencies: Vec<RawSelectionDependency>,
+}
+
+impl RawSelectionQuestions {
+    pub fn invocation_declarations(&self) -> &[(SymbolHandle, String)] {
+        &self.invocation_declarations
+    }
+
+    pub(super) fn bind_invocation_declarations(
+        mut self,
+        typed: &TypedTrees,
+        form: &mut super::Elaboration,
+        records: &[crate::source_state::SourceRecordCorrespondence],
+    ) -> Result<Self, &'static str> {
+        if form.module.identities.invocation_scope().is_none() {
+            return Ok(self);
+        }
+        // These declarations already receive an identity from the row they emit.
+        // A record's checked source identity can differ from a callable coordinate.
+        let mut emitted = Membership::default();
+        emitted.extend(form.machines.iter().map(|(_, symbol)| *symbol));
+        emitted.extend(form.boundaries.iter().map(|(_, symbol)| *symbol));
+        for record in records {
+            emitted.insert(record.declaration);
+            emitted.extend(record.fields.iter().map(|field| field.declaration));
+        }
+        let mut identities = std::mem::take(&mut form.module.identities).into_builder();
+        for &symbol in &self.declarations {
+            if !emitted.contains(&symbol)
+                && typed.symbols.symbol_source_origin(symbol)
+                    == Some(source_admission::SourceOrigin::User)
+                && typed.symbols.symbol_package_identity(symbol).is_none()
+            {
+                let identity = super::declare::invocation_local(typed, symbol, &mut identities)?
+                    .and_then(|id| identities.text(id))
+                    .ok_or("anonymous selection declaration lost its invocation identity")?;
+                self.invocation_declarations
+                    .push((symbol, identity.to_owned()));
+            }
+        }
+        form.module.identities = identities.build();
+        Ok(self)
+    }
 }
 
 #[derive(Debug, Clone)]

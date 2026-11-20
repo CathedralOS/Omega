@@ -16,16 +16,24 @@ use syntax_trees_to_symbol_resolved_trees::resolution;
 
 fn typed_source(text: &str) -> TypedTrees {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x52; 32]).unwrap();
+    typed_source_in(text, Some(package), DependencyScope::Product)
+}
+
+fn typed_source_in(
+    text: &str,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    purpose: DependencyScope,
+) -> TypedTrees {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             "constants/main.omg".into(),
             text,
             "constants".into(),
-            Some(package),
+            package,
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            DependencyScope::Product,
+            purpose,
         )
         .source_id;
     let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
@@ -126,6 +134,77 @@ fn only_a_reader_of_an_array_requests_its_extent() {
             ),
             computes_extent
         );
+    }
+}
+
+#[test]
+fn anonymous_const_argument_requires_the_build_capture_that_owns_the_call() {
+    use crate::compile_time_invocations::InvocationSourceConsent;
+    use crate::source_inputs::SourceMap;
+
+    struct Capture(Arc<SourceMap>);
+    impl InvocationSourceConsent for Capture {
+        fn allows_selection(
+            &self,
+            sources: &Arc<SourceMap>,
+            requester: source_text::SourceSpan,
+            selected: source_text::SourceSpan,
+            purpose: DependencyScope,
+        ) -> bool {
+            Arc::ptr_eq(&self.0, sources)
+                && purpose == DependencyScope::Build
+                && [requester, selected].into_iter().all(|span| {
+                    sources.get(span.source_id).is_some_and(|file| {
+                        file.package_identity.is_none()
+                            && file.dependency_scope == purpose
+                            && file.source.get(span.span.start..span.span.end).is_some()
+                    })
+                })
+        }
+    }
+
+    let source = "data Buffer<const N: u64> { bytes: [u8; N]; }
+        machine size() -> u64 { 4u64 }
+        machine build() { let held: Buffer<size()>; }";
+    let typed = typed_source_in(source, None, DependencyScope::Build);
+    let edited = typed_source_in(
+        &source.replace("4u64", "5u64"),
+        None,
+        DependencyScope::Build,
+    );
+    let entry = typed.realized_machine_named("build").unwrap().symbol;
+    let sources = typed.symbols.source_map().unwrap();
+    let captures = [
+        (Some(sources), true),
+        (edited.symbols.source_map(), false),
+        (None, false),
+    ];
+    for (capture, allowed) in captures {
+        let mut candidate = typed.clone();
+        let mut accounting = SourceCompletionAccounting::default();
+        let result = evaluate_const_arguments(
+            &mut candidate,
+            production::TerminalSourceCompilation {
+                purpose: DependencyScope::Build,
+                ..request(&[entry])
+            },
+            None,
+            capture.map(|sources| Arc::new(Capture(sources)) as Arc<_>),
+            &mut accounting,
+        );
+        if allowed {
+            result.unwrap();
+            assert_eq!(accounting.receipts().len(), 1);
+        } else {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("without reconciled package custody")),
+                "{errors:?}"
+            );
+            assert!(accounting.receipts().is_empty());
+        }
     }
 }
 
@@ -257,42 +336,83 @@ fn an_externally_declared_provider_member_requests_its_parameter_layout() {
 #[test]
 fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
     use crate::compile_time_invocations::{InvocationTarget, PreparedBuildMachineProgram};
+    use build_time_values::BuildTimeValue;
 
     let source = typed_source(
-        "machine compute() -> u32 crashes none { 17 }
+        "machine compute(flag: bool) -> u32 crashes none { 17 }
          machine fail() crashes Trap { crash Trap; }",
     );
+    let symbol = source.realized_machine_named("compute").unwrap().symbol;
     let prepared = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+    let entry = prepared
+        .entry(symbol, symbol, &[BuildTimeValue::Bool(true)])
+        .unwrap();
+    let produced = Arc::new(entry.produce_invocation().unwrap());
+    let module = produced.view().module();
+    let Some(semantic_vocabulary::TargetMachineCallable::Machine(caller)) = module.entry else {
+        panic!("the generated invocation has a machine entry");
+    };
+    let call = module
+        .machine(caller)
+        .unwrap()
+        .module_invocations()
+        .next()
+        .unwrap();
+    // The interpreter starts the call, then refuses to capture the boolean.
+    // Without the observation the same program returns its ordinary integer.
+    let observe_flag = [terminal_interpreter::TerminalCallObservation {
+        caller,
+        site: call.site,
+        callee: call.inputs.callee,
+        argument: 0,
+    }];
     let target = InvocationTarget {
         name: None,
         layout_target: None,
         carrier_layout: None,
         address_model: None,
     };
-    for (name, returns_value) in [("compute", true), ("fail", false)] {
-        let symbol = source.realized_machine_named(name).unwrap().symbol;
-        let entry = prepared.entry(symbol, symbol, &[]).unwrap();
-        let produced = Arc::new(entry.produce_invocation().unwrap());
+    let fail = source.realized_machine_named("fail").unwrap().symbol;
+    let mut before_execution = SourceCompletionAccounting::default();
+    let refusal = prepared
+        .entry(fail, fail, &[])
+        .unwrap()
+        .invoke_recorded(target, &mut before_execution)
+        .unwrap_err();
+    assert!(
+        refusal.contains("no crash route can occur before execution"),
+        "{refusal}"
+    );
+    assert!(before_execution.receipts().is_empty());
+
+    for observations in [&[][..], &observe_flag[..]] {
         let mut accounting = SourceCompletionAccounting::default();
         let mut decoded = false;
-        let reason = "test decoder rejected the returned observations";
         let refusal = entry
             .invoke_with_observations(
                 Arc::clone(&produced),
                 target,
                 &mut accounting,
-                &[],
+                observations,
                 |value, _| {
                     decoded = true;
-                    assert_eq!(value, build_time_values::BuildTimeValue::Int(17));
-                    Err::<(), _>(reason.to_owned())
+                    assert_eq!(value, BuildTimeValue::Int(17));
+                    Err::<(), _>("test decoder refused the observations".to_owned())
                 },
             )
             .unwrap_err();
-        assert_eq!(decoded, returns_value);
-        assert_eq!(refusal == reason, returns_value);
+        assert_eq!(decoded, observations.is_empty(), "{refusal}");
+        if decoded {
+            assert_eq!(refusal, "test decoder refused the observations");
+        } else {
+            assert!(
+                refusal.contains("source invocation execution")
+                    && refusal.contains("compiler call observation requires"),
+                "{refusal}"
+            );
+        }
         let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
-            panic!("one actual invocation");
+            panic!("expected the actual invocation receipt: {refusal}");
         };
         assert!(std::ptr::eq(receipt.program(), produced.as_ref()));
         assert!(

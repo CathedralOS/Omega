@@ -17,6 +17,21 @@ use typed_trees::source_state;
 mod frontend_fixture;
 
 #[cfg(test)]
+fn resolve_fixture(text: &str) -> source_resolved::SymbolResolvedTrees {
+    let mut files = source_inputs::SourceMap::default();
+    let source = files.add("test/main.omg".into(), text.to_owned()).source_id;
+    let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
+    let syntax = frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    resolution::resolve(resolution::ResolutionRequest {
+        syntax,
+        sources: Some(std::sync::Arc::new(files)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
+    .expect("fixture declarations and bodies resolve")
+}
+
+#[cfg(test)]
 #[path = "src/data_application_tests.rs"]
 mod data_application_tests;
 #[path = "src/lib.rs"]
