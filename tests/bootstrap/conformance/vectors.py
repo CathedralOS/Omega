@@ -54,16 +54,38 @@ INVALID_GAMMA = [
 ]
 
 
-def epsilon_observations(closure):
-    console = b"""boundary trait Console {
+def _epsilon_console(view, receiver):
+    return b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: @[u8]);
+  machine write_line(text: %s);
 }
 data Main { console: Console; }
-machine Main::main(@mut self) {
-"""
+machine Main::main(%s) {
+""" % (view, receiver)
+
+
+def epsilon_observations(closure):
+    return _epsilon_observations(closure, _epsilon_console(b"&[u8]", b"&mut self"))
+
+
+def epsilon_historical_at_observations(closure):
+    # The inputs and observations originally published in 3507de61f2b8.
+    return _epsilon_observations(closure, _epsilon_console(b"@[u8]", b"@mut self"))
+
+
+def epsilon_syntax_controls(closure):
+    for name, view, receiver in [
+        ("invalid @ in view type", b"@[u8]", b"&mut self"),
+        ("invalid @ in receiver", b"&[u8]", b"@mut self"),
+    ]:
+        source = _epsilon_console(view, receiver) + b"self.console.exit_process(42); }"
+        invalid_token = b"\x02\x02" + struct.pack("<I", source.index(b"@"))
+        yield name, epsilon_request(closure, source, b""), (0, invalid_token)
+
+
+def _epsilon_observations(closure, console):
     cases = [
         ("empty source", b"", b"", b"\x02\x08\x00\x00\x00\x00"),
         ("exit", console + b"self.console.write_byte(65); self.console.exit_process(42); }", b"", b"\x00" + struct.pack("<i", 42) + b"A"),

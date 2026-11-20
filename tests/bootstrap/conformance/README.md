@@ -12,4 +12,6 @@ A route supplies the adapter for the interface it implements. The compiled route
 
 Construction, seed audits, rebuild equality and route-specific limits live with the candidate. The portable checks exercise observable behavior.
 
-At revision `7e358753723`, the compiled Epsilon evaluator refuses the specified `@[u8]` Console declaration at the `@` in the exit case. The check retains the expected exit and output so a future run can distinguish that refusal from a working implementation.
+The Epsilon grammar spells a view `&[u8]` and a receiver `&mut self`. The default Epsilon profile exercises that grammar. Change #4220 migrated Omega borrows to `@` and also changed two Epsilon examples. The published portable vectors copied those examples. [Change #4220](https://github.com/CathedralOS/Omega/pull/4220) · [Epsilon grammar](https://github.com/CathedralOS/Omega/blob/e488ba404bf/bootstrap/interpreted/4_epsilon/LANGUAGE.md#3-grammar)
+
+Run `epsilon --profile historical-at` with the same evaluator and closure to reproduce the original five inputs and expectations. The compiled evaluator passes two and refuses the exit, stdin and trap programs at byte 167. Run `epsilon --profile syntax-controls` to check that each `@` independently yields `InvalidToken` at its own byte offset. On the same evaluator the language profile passes all five observations and both syntax controls pass.
