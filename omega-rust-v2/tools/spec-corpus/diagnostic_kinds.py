@@ -2,6 +2,8 @@
 from pathlib import Path
 import re
 
+from diagnostic_fields import unescape
+
 
 FAMILIES = {
     "L0": ("lex_errors", "layers/00_bytes-to-tokens/src/errors/lex_error_kind.rs", "LexErrorKind"),
@@ -32,6 +34,26 @@ def kinds(path, enum, *, payload=None):
     return members
 
 
+def source_bytes(field):
+    # The producer uses printable ASCII and %XX, including for non-UTF-8 input.
+    if not re.fullmatch(r"[ -~]*", field):
+        raise ValueError("unescaped source byte")
+    return unescape(field)
+
+
+def check_occurrence(witness, file, row, column, start, end):
+    name, source_field, offset, spelling_field = witness
+    source, spelling = source_bytes(source_field), source_bytes(spelling_field)
+    if unescape(name).decode("utf-8") != file:
+        raise ValueError("diagnostic names a different source file")
+    if not 0 <= start <= end <= len(source) or (start == end and end != len(source)):
+        raise ValueError("diagnostic range outside source or empty before EOF")
+    if offset != str(start) or source[start:end] != spelling:
+        raise ValueError("diagnostic misses the selected source occurrence")
+    if (row, column) != (1 + source.count(b"\n", 0, start), start - source.rfind(b"\n", 0, start)):
+        raise ValueError("line or byte column differs from the source position")
+
+
 def measure(report, log):
     errors = report["measurement_errors"]
     inventory = {}
@@ -45,7 +67,10 @@ def measure(report, log):
     statuses = {}
     observations = {}
     invalid = set()
-    for line in log.splitlines():
+    # Only LF/CRLF frame records. A raw vertical tab, for example, must not
+    # truncate a malformed final spelling field into a valid one.
+    for line in log.split("\n"):
+        line = line.removesuffix("\r")
         if header := re.match(r"^\s*Running (.+?) \(", line):
             target, current = header[1].replace("\\", "/"), ""
         elif outcome := re.fullmatch(r"test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?", line):
@@ -56,23 +81,41 @@ def measure(report, log):
             current = ""
         elif line.startswith("OMEGA_DIAGNOSTIC_KIND"):
             fields = line.split("\t")
-            if len(fields) != 7 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
-                errors.append(f"malformed diagnostic kind: {line}")
+            if len(fields) != 10 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
+                if len(fields) == 6 and fields[0] == "OMEGA_DIAGNOSTIC_KIND":
+                    errors.append(f"{fields[1]} {fields[2]}: historical diagnostic kind lacks source occurrence evidence")
+                else:
+                    errors.append(f"malformed diagnostic kind: {line}")
                 if len(fields) >= 3:
                     invalid.add((fields[1], fields[2]))
                 continue
-            _, stage, kind, file, start, end, reason = fields
+            _, stage, kind, actual_kind, expected_text, actual_text, *witness = fields
             if kind not in inventory.get(stage, {}):
                 errors.append(f"unknown diagnostic kind: {stage} {kind}")
                 continue
             binary = FAMILIES[stage][0]
             expected = f"tests/{binary}.rs", f"public_diagnostics_match_the_{binary}_inventory"
-            if ((target, current) != expected or not file or not start.isdecimal() or not end.isdecimal()
-                    or int(end) < int(start) or not reason or (stage, kind) in observations):
-                errors.append(f"misplaced, repeated or invalid diagnostic kind in {target}::{current}: {line}")
+            try:
+                if kind != actual_kind or expected_text != actual_text:
+                    raise ValueError("the observed kind or CLI diagnostic differs from the expected one")
+                if (stage, kind) == ("L1", "SourceTooLarge"):
+                    raise ValueError("parser index capacity has a direct boundary test")
+                if (target, current) != expected or (stage, kind) in observations:
+                    raise ValueError("misplaced or repeated observation")
+                producer = {"L0": "lexer", "L1": "parser"}[stage]
+                rendered = unescape(actual_text).decode("utf-8")
+                match = re.fullmatch(rf"([^:\n]+):([0-9]+):([0-9]+): {producer}: (.+) \(bytes ([0-9]+)\.\.([0-9]+)\)", rendered, re.S)
+                if not match:
+                    raise ValueError("invalid CLI diagnostic")
+                file, row, column, reason, start, end = match.groups()
+                row, column, start, end = map(int, (row, column, start, end))
+                check_occurrence(witness, file, row, column, start, end)
+            except ValueError as exc:
+                errors.append(f"{target}::{current}: {stage} {kind}: {exc}")
                 invalid.add((stage, kind))
                 continue
-            observations[stage, kind] = expected, {"file": file, "byte_start": int(start), "byte_end": int(end), "reason": reason}
+            observations[stage, kind] = expected, {"file": file, "line": row, "byte_column": column,
+                                                   "byte_start": start, "byte_end": end, "reason": reason}
     for stage, rows in inventory.items():
         for kind, row in rows.items():
             if (stage, kind) in invalid:

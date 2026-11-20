@@ -163,7 +163,19 @@ machine OmegaScalarCompiler::check_service_calls(&mut self) -> i32 {
         let authored: i32 = self.authored_reach(owner, index);
         transition authored == 1 {
             true -> publish(index, position, owner, 1)
+            _ -> direct(index, position, owner, authored)
+        }
+    }
+    state direct(index: i32, position: i32, owner: i32, authored: i32) {
+        transition (index == self.exit_service) && (self.terminal_calls[owner] >= 0) {
+            true -> allowed(index, position, owner, authored)
             _ -> call(index, position, owner, authored, self.call_edge_heads[owner])
+        }
+    }
+    state allowed(index: i32, position: i32, owner: i32, authored: i32) {
+        transition authored == 0 {
+            true -> rejected(self.terminal_calls[owner])
+            _ -> publish(index, position, owner, 1)
         }
     }
     state call(index: i32, position: i32, owner: i32, authored: i32, edge: i32) {
@@ -392,10 +404,37 @@ machine OmegaScalarCompiler::check_terminal_invocation(
     }
     state status_value() {
         transition self.check_value(source, owner, state_index, before, self.parser.call_arguments[first], 33) {
-            1 -> uninstalled()
+            1 -> domain()
             _ -> return 0
         }
     }
+    state domain() {
+        transition (self.process_entry.end > 0) && (self.exit_service >= 0) {
+            true -> requirement(self.parser.boundary_traits[self.exit_service])
+            _ -> uninstalled()
+        }
+    }
+    state requirement(row: OmegaBoundaryTraitSyntax) {
+        transition (coordinate == row.boundary_keyword.start) && (row.name.start == self.build.slot_definition.start) &&
+            (self.build.slot_definition.end > 0) && (self.build.provider_definition.end > 0) &&
+            (self.exit_primitive >= 0) {
+            true -> primitive(self.declaration_name(OmegaDeclarationKind::BoundaryMachine, self.exit_primitive))
+            _ -> uninstalled()
+        }
+    }
+    state primitive(site: OmegaRelativeSpan) {
+        transition (site.start == self.build.primitive_definition.start) && (site.end == self.build.primitive_definition.end) {
+            true -> reached()
+            _ -> uninstalled()
+        }
+    }
+    state reached() {
+        transition self.terminal_calls[owner] < 0 {
+            true -> first_call()
+            _ -> return 1
+        }
+    }
+    state first_call() { self.terminal_calls[owner] = call_start; return 1; }
     state uninstalled() { self.record_incomplete(4, coordinate); return 0; }
     state rejected(offset: i32) { self.record_reject(-1, 4, offset); return 0; }
 }

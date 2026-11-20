@@ -800,13 +800,23 @@ crashes Trap
     let mut handles: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
     let mut offsets: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
     handles[0] = handle;
-    transition { _ -> visit(syntax, typing, @mut handles, @mut offsets, 0) }
+    walk_reference_types(syntax, typing, @mut handles, @mut offsets)
+}
+
+// The caller owns the traversal buffers for this entire ordinary call.
+// Each nested state forwards the same two exclusive loans.
+machine walk_reference_types(syntax: @SyntaxTrees, typing: @Typing,
+    handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9]) -> bool
+crashes Trap
+{
+    transition { _ -> visit(syntax, typing, handles, offsets, 0 as +Trapping) }
 
     machine visit(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
     requires depth < 9
     {
-        let handle: u64 in Trapping = handles[depth];
-        let offset: u64 in Trapping = offsets[depth];
+        let index: u64 = depth as -Trapping;
+        let handle: u64 in Trapping = handles[index];
+        let offset: u64 in Trapping = offsets[index];
         let row: TypeRow = type_table_row(@typing.types, handle);
         transition row.kind {
             TypeKind::Reference -> answer(true),
@@ -877,10 +887,13 @@ crashes Trap
     machine descend(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool
     requires depth < 8
     {
-        offsets[depth] = offset + 1;
-        handles[depth + 1] = handle;
-        offsets[depth + 1] = 0;
-        transition { _ -> visit(syntax, typing, handles, offsets, depth + 1) }
+        let index: u64 = depth as -Trapping;
+        let next_depth: u64 in Trapping = depth + 1;
+        let next_index: u64 = next_depth as -Trapping;
+        offsets[index] = offset + 1;
+        handles[next_index] = handle;
+        offsets[next_index] = 0 as +Trapping;
+        transition { _ -> visit(syntax, typing, handles, offsets, next_depth) }
     }
 
     machine finished(syntax: @SyntaxTrees, typing: @Typing, handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool

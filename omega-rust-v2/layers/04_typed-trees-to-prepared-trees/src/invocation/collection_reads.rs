@@ -72,7 +72,7 @@ impl ConstantEvaluation<'_, '_> {
             return Err(UNSUPPORTED_BODY.into());
         }
         execution.steps.extend([
-            Step::ReadArray,
+            Step::ReadArray { initializer_site: matches!(scope, Scope::Initializer { .. }).then_some(site) },
             Step::Evaluate(selector, index_type, scope.clone()),
             Step::Evaluate(base, base_type, scope.clone()),
         ]);

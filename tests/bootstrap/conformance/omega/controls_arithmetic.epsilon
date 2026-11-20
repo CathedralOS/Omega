@@ -41,6 +41,7 @@ machine Main::main(&mut self) {
             13 -> batch_13()
             14 -> array_literals()
             15 -> array_loans()
+            16 -> batch_0()
             _ -> self.console.exit_process(99)
         }
     }

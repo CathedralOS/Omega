@@ -25,6 +25,16 @@ def inspect(**logs):
 
 
 class NamedRequirements(unittest.TestCase):
+    def test_a_failed_parser_fixture_cannot_satisfy_either_side_of_a_handoff(self):
+        target, test, _ = handoffs.GOLDEN_TESTS["L1"]
+        receipt = "OMEGA_GOLDEN_MATCH\tlayers/01_tokens-to-syntax-trees/fixtures/accept/right_shift.omg"
+        for status in ("ok", "FAILED"):
+            _, report = inspect(L1=libtest(f"tests/{target}.rs", (test, status, [receipt])))
+            producer = next(r for r in report["handoff_rules"]["L1"] if r["rule"] == "right shift")
+            consumer = next(r for r in report["handoff_rules"]["L0"] if r["rule"] == "R16")
+            self.assertEqual("accept/right_shift.omg" in producer["direct"], status == "ok")
+            self.assertEqual(any("accept/right_shift.omg" in item for item in consumer["consumer"]), status == "ok")
+
     def test_unknown_contract_reference_is_not_silently_dropped(self):
         for cell in ("`unclosed", "byte_cases::missing", "`other_target::test`", "`one`, `one`"):
             with self.subTest(cell=cell), self.assertRaises(ValueError):

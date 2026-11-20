@@ -17,7 +17,7 @@ from time import monotonic
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tests/bootstrap"))
-from compiled import execute, pack, stamp
+from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
 
 CALLER = b"""machine main() -> u8 {
@@ -78,7 +78,7 @@ def staging_cases(product):
         yield name, packet, expected
 
 
-def compile_request(executable: Path, request: bytes, timeout: int) -> bytes:
+def compile_request(executable: Path, request: bytes, timeout: int | None) -> bytes:
     started = monotonic()
     try:
         status, output = execute(executable, request, timeout=timeout)
@@ -122,11 +122,8 @@ def main() -> None:
                         help="run the complete request unit through a compiled construction executable")
     parser.add_argument("--compare-with", type=Path, metavar="EXECUTABLE",
                         help="require a byte-identical observation from a second executable of the same kind")
-    parser.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
-                        help="seconds per invocation (default 600)")
+    add_invocation_budget(parser, "--timeout")
     args = parser.parse_args()
-    if args.timeout <= 0:
-        parser.error("--timeout must be positive")
     product = (ROOT / "source/subsystems/compiler/request/request.omg").read_bytes()
     with TemporaryDirectory() as directory:
         work = Path(directory)

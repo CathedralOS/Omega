@@ -4,18 +4,16 @@ import hashlib
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'tests/bootstrap'))
+from compiled import add_invocation_budget
+
+
 MIB = 1024 * 1024
-
-
-def execute(program, data, status=0):
-    result = subprocess.run([program], input=data, capture_output=True, timeout=120)
-    if result.returncode != status or result.stderr:
-        raise AssertionError((program, result.returncode, result.stderr[:80], result.stdout[:40]))
-    return result.stdout
 
 
 def check(actual, expected, label):
@@ -32,7 +30,13 @@ def failure(tag, space, code, coordinate, limit=0, requested=0):
                        code, coordinate, limit, requested)
 
 
-def run(delta, gamma, work, full_output):
+def run(delta, gamma, work, full_output, seconds=None):
+    def execute(program, data, status=0):
+        result = subprocess.run([program], input=data, capture_output=True, timeout=seconds)
+        if result.returncode != status or result.stderr:
+            raise AssertionError((program, result.returncode, result.stderr[:80], result.stdout[:40]))
+        return result.stdout
+
     root = ROOT / 'bootstrap/delta/compiler'
     members = []
     for row in (root / 'support/support.gamma.sources').read_text().splitlines()[1:]:
@@ -163,7 +167,7 @@ def run(delta, gamma, work, full_output):
         if full_output or profile == 1:
             with tempfile.TemporaryFile() as stream:
                 result = subprocess.run([program], input=payload, stdout=stream,
-                                        stderr=subprocess.PIPE, timeout=600)
+                                        stderr=subprocess.PIPE, timeout=seconds)
                 if result.returncode or result.stderr or stream.tell() != output_limit:
                     raise AssertionError(('exact output limit', profile, result.returncode, stream.tell()))
                 stream.seek(0)
@@ -178,7 +182,8 @@ if __name__ == '__main__':
     parser.add_argument('gamma', type=Path)
     parser.add_argument('--full-output', action='store_true',
                         help='also publish and compare all 128 MiB at the profile-2 limit')
+    add_invocation_budget(parser)
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
-        run(args.delta.resolve(), args.gamma.resolve(), Path(directory), args.full_output)
+        run(args.delta.resolve(), args.gamma.resolve(), Path(directory), args.full_output, args.seconds)
     print('Both DCREQ byte profiles passed source, schema, custody, traversal and extent checks.')

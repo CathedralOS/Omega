@@ -155,226 +155,87 @@ machine OmegaLexScan::classify_keyword(
         }
     }
 
+    // Identifier is the result for every unlisted spelling. Only spellings of
+    // the exact token length can replace it with a keyword.
     state classify() {
-        transition self.span_equals(source, self.token_start, self.token_end, "as") {
-            1 -> self.set_keyword(OmegaKeywordKind::As)
-            _ -> calling_convention()
+        self.emit(OmegaTokenKind::Identifier, self.token_end);
+        transition self.token_end - self.token_start {
+            2 -> two()
+            3 -> three()
+            4 -> four()
+            5 -> five()
+            6 -> six()
+            7 -> seven()
+            8 -> eight()
+            10 -> ten()
+            18 -> eighteen()
+            _ -> return
         }
     }
 
-    state calling_convention() {
-        transition self.span_equals(
-            source,
-            self.token_start,
-            self.token_end,
-            "calling_convention"
-        ) {
-            1 -> self.set_keyword(OmegaKeywordKind::CallingConvention)
-            _ -> capability()
-        }
+    state two() {
+        self.keyword_if(source, "as", OmegaKeywordKind::As);
+        self.keyword_if(source, "if", OmegaKeywordKind::If);
     }
 
-    state capability() {
-        transition self.span_equals(source, self.token_start, self.token_end, "capability") {
-            1 -> self.set_keyword(OmegaKeywordKind::Capability)
-            _ -> contains()
-        }
+    state three() {
+        self.keyword_if(source, "let", OmegaKeywordKind::Let);
+        self.keyword_if(source, "use", OmegaKeywordKind::Use);
     }
 
-    state contains() {
-        transition self.span_equals(source, self.token_start, self.token_end, "contains") {
-            1 -> self.set_keyword(OmegaKeywordKind::Contains)
-            _ -> data_word()
-        }
+    state four() {
+        self.keyword_if(source, "Self", OmegaKeywordKind::SelfType);
+        self.keyword_if(source, "case", OmegaKeywordKind::Case);
+        self.keyword_if(source, "copy", OmegaKeywordKind::Copy);
+        self.keyword_if(source, "data", OmegaKeywordKind::Data);
+        self.keyword_if(source, "else", OmegaKeywordKind::Else);
+        self.keyword_if(source, "enum", OmegaKeywordKind::Enum);
+        self.keyword_if(source, "host", OmegaKeywordKind::Host);
+        self.keyword_if(source, "loop", OmegaKeywordKind::Loop);
+        self.keyword_if(source, "owns", OmegaKeywordKind::Owns);
+        self.keyword_if(source, "self", OmegaKeywordKind::SelfValue);
+        self.keyword_if(source, "true", OmegaKeywordKind::True);
+        self.keyword_if(source, "when", OmegaKeywordKind::When);
     }
 
-    state data_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "data") {
-            1 -> self.set_keyword(OmegaKeywordKind::Data)
-            _ -> else_word()
-        }
+    state five() {
+        self.keyword_if(source, "false", OmegaKeywordKind::False);
+        self.keyword_if(source, "match", OmegaKeywordKind::Match);
+        self.keyword_if(source, "while", OmegaKeywordKind::While);
     }
 
-    state else_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "else") {
-            1 -> self.set_keyword(OmegaKeywordKind::Else)
-            _ -> enum_word()
-        }
+    state six() {
+        self.keyword_if(source, "public", OmegaKeywordKind::Pub);
+        self.keyword_if(source, "return", OmegaKeywordKind::Return);
+        self.keyword_if(source, "struct", OmegaKeywordKind::Struct);
+        self.keyword_if(source, "target", OmegaKeywordKind::Target);
     }
 
-    state enum_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "enum") {
-            1 -> self.set_keyword(OmegaKeywordKind::Enum)
-            _ -> false_word()
-        }
+    state seven() {
+        self.keyword_if(source, "foreign", OmegaKeywordKind::Foreign);
+        self.keyword_if(source, "library", OmegaKeywordKind::Library);
+        self.keyword_if(source, "machine", OmegaKeywordKind::Machine);
     }
 
-    state false_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "false") {
-            1 -> self.set_keyword(OmegaKeywordKind::False)
-            _ -> foreign()
-        }
+    state eight() {
+        self.keyword_if(source, "contains", OmegaKeywordKind::Contains);
+        self.keyword_if(source, "platform", OmegaKeywordKind::Platform);
     }
 
-    state foreign() {
-        transition self.span_equals(source, self.token_start, self.token_end, "foreign") {
-            1 -> self.set_keyword(OmegaKeywordKind::Foreign)
-            _ -> host()
-        }
+    state ten() {
+        self.keyword_if(source, "capability", OmegaKeywordKind::Capability);
+        self.keyword_if(source, "transition", OmegaKeywordKind::Transition);
     }
 
-    state host() {
-        transition self.span_equals(source, self.token_start, self.token_end, "host") {
-            1 -> self.set_keyword(OmegaKeywordKind::Host)
-            _ -> if_word()
-        }
+    state eighteen() {
+        self.keyword_if(source, "calling_convention", OmegaKeywordKind::CallingConvention);
     }
+}
 
-    state if_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "if") {
-            1 -> self.set_keyword(OmegaKeywordKind::If)
-            _ -> let_word()
-        }
-    }
-
-    state let_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "let") {
-            1 -> self.set_keyword(OmegaKeywordKind::Let)
-            _ -> library()
-        }
-    }
-
-    state library() {
-        transition self.span_equals(source, self.token_start, self.token_end, "library") {
-            1 -> self.set_keyword(OmegaKeywordKind::Library)
-            _ -> loop_word()
-        }
-    }
-
-    state loop_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "loop") {
-            1 -> self.set_keyword(OmegaKeywordKind::Loop)
-            _ -> machine_word()
-        }
-    }
-
-    state machine_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "machine") {
-            1 -> self.set_keyword(OmegaKeywordKind::Machine)
-            _ -> match_word()
-        }
-    }
-
-    state match_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "match") {
-            1 -> self.set_keyword(OmegaKeywordKind::Match)
-            _ -> owns()
-        }
-    }
-
-    state owns() {
-        transition self.span_equals(source, self.token_start, self.token_end, "owns") {
-            1 -> self.set_keyword(OmegaKeywordKind::Owns)
-            _ -> platform()
-        }
-    }
-
-    state platform() {
-        transition self.span_equals(source, self.token_start, self.token_end, "platform") {
-            1 -> self.set_keyword(OmegaKeywordKind::Platform)
-            _ -> pub_word()
-        }
-    }
-
-    state pub_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "public") {
-            1 -> self.set_keyword(OmegaKeywordKind::Pub)
-            _ -> return_word()
-        }
-    }
-
-    state return_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "return") {
-            1 -> self.set_keyword(OmegaKeywordKind::Return)
-            _ -> self_type()
-        }
-    }
-
-    state self_type() {
-        transition self.span_equals(source, self.token_start, self.token_end, "Self") {
-            1 -> self.set_keyword(OmegaKeywordKind::SelfType)
-            _ -> self_value()
-        }
-    }
-
-    state self_value() {
-        transition self.span_equals(source, self.token_start, self.token_end, "self") {
-            1 -> self.set_keyword(OmegaKeywordKind::SelfValue)
-            _ -> struct_word()
-        }
-    }
-
-    state struct_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "struct") {
-            1 -> self.set_keyword(OmegaKeywordKind::Struct)
-            _ -> target()
-        }
-    }
-
-    state target() {
-        transition self.span_equals(source, self.token_start, self.token_end, "target") {
-            1 -> self.set_keyword(OmegaKeywordKind::Target)
-            _ -> transition_word()
-        }
-    }
-
-    state transition_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "transition") {
-            1 -> self.set_keyword(OmegaKeywordKind::Transition)
-            _ -> true_word()
-        }
-    }
-
-    state true_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "true") {
-            1 -> self.set_keyword(OmegaKeywordKind::True)
-            _ -> use_word()
-        }
-    }
-
-    state use_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "use") {
-            1 -> self.set_keyword(OmegaKeywordKind::Use)
-            _ -> when_word()
-        }
-    }
-
-    state when_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "when") {
-            1 -> self.set_keyword(OmegaKeywordKind::When)
-            _ -> while_word()
-        }
-    }
-
-    state while_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "while") {
-            1 -> self.set_keyword(OmegaKeywordKind::While)
-            _ -> case_word()
-        }
-    }
-
-    state case_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "case") {
-            1 -> self.set_keyword(OmegaKeywordKind::Case)
-            _ -> copy_word()
-        }
-    }
-
-    state copy_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "copy") {
-            1 -> self.set_keyword(OmegaKeywordKind::Copy)
-            _ -> self.emit(OmegaTokenKind::Identifier, self.token_end)
-        }
+machine OmegaLexScan::keyword_if(&mut self, source: &[u8], spelling: &[u8], kind: OmegaKeywordKind) {
+    transition self.span_equals(source, self.token_start, self.token_end, spelling) {
+        1 -> self.set_keyword(kind)
+        _ -> return
     }
 }
 

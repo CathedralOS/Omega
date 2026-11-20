@@ -610,3 +610,36 @@ fn fixed_array_residuals_follow_the_declared_extent_above_four_thousand() {
         assert!(matches!(action, CleanupAction::DiscardResidual{place,..} if place.root==items && place.path==[PlaceProjection::FixedIndex(ordinal)]));
     }
 }
+
+#[test]
+fn a_grouped_call_argument_transfers_the_selected_field_to_the_callee() {
+    spec_corpus::observe_handoff!("grouped-call-field/consumer", {
+        for (property, access, refill, obligation) in [
+            (" [copy]", "@", "", "CopyRead"),
+            ("", "@mut ", "h.item=B{n:0};", "RestoreBorrowed"),
+        ] {
+            let src = format!("data B{property} {{n:u8;}} data H{{item:B;}} data W{{b:B;}} machine wrap(b:B)->W{{W{{b:b}}}} machine run(h:{access}H)->W{{let w=wrap((h.item));{refill}w}}");
+            let lowered = pipeline::lower(&src);
+            let body = &lowered.package.machines.iter().find(|m| m.declaration.path == "run").unwrap().body;
+            let obligations = lowered.obligations(obligation);
+            let [transfer] = obligations.as_slice() else { panic!("expected one {obligation}") };
+            assert_eq!(lowered.spelling(&transfer.site), "h.item");
+            let operation = pipeline::operation_at(body, &transfer.site);
+            let source = match (&operation.kind, access) {
+                (OperationKind::CopyStructural { source }, "@") | (OperationKind::BorrowedMove { source }, "@mut ") => source,
+                _ => panic!("wrong transfer for {access}: {:?}", operation.kind),
+            };
+            assert!(matches!(source.path.as_slice(), [PlaceProjection::Referent, PlaceProjection::Field(field)] if field.path == "H::item"));
+            let OperationResult::Structural(argument) = operation.result else { panic!("expected a field value") };
+            let calls: Vec<_> = body.operations.iter().filter_map(|op| match &op.kind {
+                OperationKind::Call { arguments, .. } => Some(arguments.as_slice()),
+                _ => None,
+            }).collect();
+            let expected = match access {
+                "@" => CallArgument::CopyWhole(argument),
+                _ => CallArgument::MoveWhole(argument),
+            };
+            assert_eq!(calls, [&[expected][..]], "{access} field supplied to wrap");
+        }
+    });
+}

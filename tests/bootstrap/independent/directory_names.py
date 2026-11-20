@@ -133,6 +133,7 @@ def cases():
 
 
     yield from nominal_record_cases(encode)
+    yield from record_bound_cases(encode)
     yield from nominal_sum_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
@@ -205,6 +206,81 @@ machine main()->u8 {
         else:
             coordinate = rows[0][1] + caller.index(b"machine main")
             yield "different-nominal-field-owner", packet, struct.pack("<BII", 0, 1, coordinate)
+
+
+def record_bound_cases(encode):
+    # Each length belongs to a different declaration. The enclosing record's
+    # own bound must survive laying out both of its forward-declared fields.
+    source = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
+    source_unit = declaration(source, b"public data SourceUnit\n")
+    module_path = declaration(source, b"public data ModulePath\n")
+    source_id = declaration(source, b"public data SourceId ")
+    buffers = b"""public data Buffers
+requires marker <= 7,
+{
+    unit:SourceUnit;
+    path:ModulePath;
+    marker:u64;
+}"""
+    caller = b"""use types\\Buffers;
+machine main()->u8{
+    let mut pair:Buffers;
+    pair.unit.length=131072;
+    pair.path.length=256;
+    pair.marker=7;
+    let remaining:u64=131072-pair.unit.length;
+    let free_path:u64=256-pair.path.length;
+    let room:u64=7-pair.marker;
+    transition remaining==0 && free_path==0 && room==0 {true->42,_->1}
+}"""
+
+    def packet(main=caller, record=buffers, unit=source_unit):
+        files = [(0, main), (1, record), (1, module_path), (1, unit), (1, source_id)]
+        return encode([("app", 0), ("types", 0)], [(0, 1, "types")], files, 0, b"main",
+                      paths=["main.omg", "buffers.omg", "path.omg", "unit.omg", "id.omg"])
+
+    wire, _, _, _ = packet()
+    yield "product-record-bound-owners", wire, 42
+    for label, store, excess in [
+        ("source-unit", b"length=131072", b"length=131073"),
+        ("module-path", b"length=256", b"length=257"),
+        ("enclosing-record", b"marker=7", b"marker=8"),
+    ]:
+        wire, _, _, rows = packet(main=caller.replace(store, excess))
+        yield f"{label}-bound-exceeded", wire, struct.pack("<BII", 0, 2, rows[0][1] + caller.index(b"machine main"))
+
+    wire, _, _, rows = packet(record=buffers.replace(b"marker <= 7", b"length <= 7"))
+    yield "field-bound-names-another-record", wire, struct.pack("<BII", 0, 2, rows[1][1])
+    wire, _, _, rows = packet(unit=source_unit.replace(b"length <= 131072", b"length >= 131072"))
+    yield "unsupported-later-record-predicate", wire, struct.pack("<BII", 0, 2, rows[3][1])
+
+
+    # SourceSet carries five independent field bounds, including its four-MiB
+    # arena. A valid full byte arena cannot establish capacity in the path arena.
+    files = [declaration(source, b"public data SourceSet\n")]
+    files.extend(copy_declaration(source, name) for name in [b"DependencyRow", b"PackageRow", b"SourceRange", b"DependencyScope"])
+    reader = b"""use inputs\\SourceSet;
+machine main()->u8{
+ let mut sources:SourceSet;
+ sources.unit_count=512;
+ sources.byte_count=4194304;
+ sources.path_byte_count=16384;
+ sources.package_count=64;
+ sources.dependency_count=256;
+ sources.bytes[4194303]=42;
+ transition 512-sources.unit_count==0 && 4194304-sources.byte_count==0 &&
+   16384-sources.path_byte_count==0 && 64-sources.package_count==0 && 256-sources.dependency_count==0 {
+   true->sources.bytes[4194303],_->1
+ }}"""
+    for label, program in [("source-set-field-bounds", reader),
+                           ("source-set-path-bound-exceeded", reader.replace(b"path_byte_count=16384", b"path_byte_count=16385"))]:
+        wire, _, _, rows = encode([("app", 0), ("inputs", 0)], [(0, 1, "inputs")],
+                                  [(0, program)] + [(1, data) for data in files], 0, b"main",
+                                  paths=["main.omg", "sources.omg", "dep.omg", "pack.omg", "range.omg", "scope.omg"])
+        if program == reader:
+            yield label, wire, 42
+        else:
+            yield label, wire, struct.pack("<BII", 0, 2, rows[0][1] + reader.index(b"machine main"))
 
 
 def nominal_sum_cases(encode):

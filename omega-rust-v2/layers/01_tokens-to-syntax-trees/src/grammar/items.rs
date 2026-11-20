@@ -233,9 +233,10 @@ impl SyntaxParser<'_> {
 
         self.parse_module_name("a name")?;
 
-        while self.at(Punctuation::ColonColon) && self.nth_at_word(1) {
-            self.bump();
-            self.bump();
+        // A `::` in a plain path commits to another component. Do not leave it
+        // for the enclosing rule to mistake for a missing path terminator.
+        while self.eat(Punctuation::ColonColon) {
+            self.expect_word("a name after `::`")?;
         }
 
         self.close(path, NodeKind::Path);

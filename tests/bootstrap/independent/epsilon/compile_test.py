@@ -252,11 +252,18 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     diagnostic_report['cases'] = []
     keyword = case_span(b'OmegaTokenKind', b'Keyword')
     identifier = case_span(b'OmegaTokenKind', b'Identifier')
-    for label, word, observed_cases in [
-            ('empty', b'', b''), ('as', b'as', keyword + case_span(b'OmegaKeywordKind', b'As')),
-            ('copy', b'copy', keyword + case_span(b'OmegaKeywordKind', b'Copy')),
-            ('identifier', b'aside', identifier),
-            ('bounds', b'\xff', identifier)]:
+    keyword_start = source.index(b'data OmegaKeywordKind {')
+    keyword_end = source.index(b'}', keyword_start)
+    names = re.findall(rb'case (\w+);', source[keyword_start:keyword_end])
+    spellings = {b'CallingConvention': b'calling_convention', b'Pub': b'public',
+                 b'SelfType': b'Self', b'SelfValue': b'self'}
+    cases = [('empty', b'', b''), ('identifier', b'aside', identifier),
+             ('case-sensitive', b'SELF', identifier), ('suffix', b'machinex', identifier),
+             ('bounds', b'\xff', identifier)]
+    for name in names:
+        word = spellings.get(name, name.lower())
+        cases.append((word.decode('ascii'), word, keyword + case_span(b'OmegaKeywordKind', name)))
+    for label, word, observed_cases in cases:
         expected = b'\x01\x06' if label == 'bounds' else expected_exit
         assert reference(source, word, f'lexer-diagnostic-{label}') == expected
         output = observe(executable, word)

@@ -58,12 +58,16 @@ pub(crate) fn check_machine_effects(
     for &index in &graph.indirect {
         let call = &out.indirect_calls[index];
         let Some(caller) = &call.caller else { continue };
-        if let Some(row) = &call.contract.reach {
-            if let Some(ceiling) = &catalog.signatures[caller].reach
-                && row.iter().any(|service| !ceiling.contains(service))
-            {
-                return Err(TypeError::for_site(&call.site, "callback exceeds the machine's service reach"));
+        if let Some(ceiling) = &catalog.signatures[caller].reach {
+            // The generic body must fit its ceiling for every permitted callback selection.
+            let Some(row) = &call.contract.reach else {
+                return Err(TypeError::for_reason(&call.site, crate::CallbackEffectError::OpenReachUnderCeiling));
+            };
+            if row.iter().any(|service| !ceiling.contains(service)) {
+                return Err(TypeError::for_reason(&call.site, crate::CallbackEffectError::ExceedsServiceReach));
             }
+        }
+        if let Some(row) = &call.contract.reach {
             reach.get_mut(caller).unwrap().extend(row.iter().cloned());
         }
         for &cause in call.contract.crash_ceiling.iter().flatten() {
@@ -286,7 +290,7 @@ fn derive_pause<'a>(
         let pause = call.contract.pause;
         let ceiling = catalog.signatures[caller].pause;
         if pause.suspend && ceiling.suspend == Some(false) || pause.block && ceiling.block == Some(false) {
-            return Err(TypeError::for_site(&call.site, "callback exceeds the machine's pause ceiling"));
+            return Err(TypeError::for_reason(&call.site, crate::CallbackEffectError::ExceedsPauseCeiling));
         }
         let f = formulas.get_mut(caller).unwrap();
         if let crate::InvocationTarget::StaticParameter { owner, index } = &call.entry

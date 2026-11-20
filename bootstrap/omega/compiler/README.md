@@ -58,14 +58,47 @@ under [the hosted application](../../../source/application/ocreq) does not decla
 list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 
+The v2 construction entry interprets a ground application Build and the
+empty activated core default. It checks the application role, the authored
+`alpha_bootstrap\ProgramEntry` binding, and ProcessExit selections for the
+six supported targets. Local Build helpers receive the caller's mutable Build
+handle. Every helper body is checked. Only executed calls contribute a
+selection, and each target retains its own provider. The file's own imports resolve each designated Product operand.
+An incomplete activation stops before code publication. A completed pure
+application compiles from its resolved entry declaration. The selected
+terminal provider remains separate from the runtime's process-domain grant.
+
+The default construction entry has no process domain. A standalone Alpha
+embedding can pass its independently approved, immutable deployment to
+`Main::construct_standalone`. The entire guest frame must match. The
+constructor then executes the scoped Build, resolves its entry and selected
+provider, checks each call's reach and emits Alpha HALT with the evaluated
+signed i32 status. A different deployment refuses before publication.
+The independent process-domain test builds an embedding with a fixed
+deployment and checks the full status alongside the Linux seed observation.
+[Standalone test](../../../tests/bootstrap/independent/process_domain.py)
+
+A standalone deployment can also supply the distinct package roots of a
+verified immutable Git snapshot. The covered application registers one Product
+dependency with `Build::dependency(builder, dependency\from_source(Source::Path { location: "…" }))`.
+The canonical location is relative to the application's root. Its target must
+own the supplied dependency package, default alias and source bytes. The
+dependency's own `Build::package` activation can select its provider. The
+remaining package supplies the trusted core default. Build-only dependencies,
+additional graph edges and overlapping package selections require further
+coverage. To prepare this embedding, pass the snapshot, immutable commit,
+request, output path and package roots in ordinal order to the origin verifier
+with `--embedding FILE`. It checks every Product and Build file against Git.
+[Origin verifier](../../../tests/bootstrap/independent/deployment_origins.py)
+
 The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,258 lines / 1,053,362 bytes with SHA-256
-`c28d9252a6764acbab11b12f0ee1000bc48be4b9523fa75155c3f1e5802098cd`.
-The manifest itself is 2,381 bytes, SHA-256
-`bb4f012df8907d74204dd3e075bb55d7bf450b28294a87a899c791c820748d24`;
+The manifest materializes 28,274 lines / 1,104,746 bytes with SHA-256
+`c915e3762337f183590e3f24cc79d12ed84b29de4d0f5a3fe12ad87b6eafccb8`.
+The manifest itself is 2,905 bytes, SHA-256
+`e1efeac4ecf2e9f5eaeaa142458091676f23fb331a7df1fc75e8c8f6b12def56`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -125,9 +158,12 @@ same local row number while its caller's value remains live. Call cycles and
 effects are checked before publishing the tape.
 
 Shared byte-slice parameters carry a borrowed range and its live length across
-a file boundary. Nested array fields, array-valued parameters and results,
-other references, machine clauses and authored requirements still use the pooled checker. The single-unit public resource
-limits remain in force.
+a file boundary. Sum predicates and machine entry requirements resolve in the
+declaring file. The checked case bounds, parameter bounds and crash ceilings
+remain available after that file's syntax is released. Nested array fields,
+array-valued parameters and results, other references and clauses naming
+services still use the pooled checker. The single-unit public resource limits
+remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
 Imports are file-local. Exact imports select declarations; namespace imports
@@ -187,8 +223,19 @@ Case transitions evaluate the subject once. A braced arm can bind a field by
 its own name, rename it with `field as name`, or waive it with `field as _`.
 An explicit `..` waives remaining fields. The checker resolves the source
 field within the selected case, checks duplicate fields and binding names, and
-exposes each binding only in that arm's target. Non-copy sums, custom sum
-requirements and payload equality guards remain outside this backend.
+exposes each binding only in that arm's target. A fresh affine sum can be
+returned or held in a local. A terminal transition can inspect its tag and
+bind copyable payloads. Passing an existing affine local by value and
+payload equality guards still need broader checking.
+
+The standard `ByteRead` declaration permits `Eof` and requires the signed
+payload of `Byte` to lie between 0 and 255. The checker resolves each
+case against its owning declaration and checks both endpoints on the same
+payload field. Every declared case must occur exactly once in the predicate.
+Each construction establishes the selected case’s range. Pattern matching
+carries this range into the selected arm. A machine guard or an explicit
+entry requirement can establish a signed bound. A signed upper bound gives
+no evidence for the lower bound. [Case requirements](checking/case_requirements.epsilon)
 [Payload binding rules](../../../wiki/spec/language/patterns.md) and
 [runnable selection](../../../tests/bootstrap/conformance/omega/payload_bindings.omg)
 and [zero omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
