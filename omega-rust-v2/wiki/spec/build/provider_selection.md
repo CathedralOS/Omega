@@ -54,7 +54,7 @@ boundary requirement; it cannot activate the trait's token, displace primitive
 or direct operator meaning, resolve missing/ambiguous source evidence, or make
 the same source select another operation on a different target.
 
-`Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
+`Build::select_provider::<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait or package-qualified same-path boundary-
 operator family. Provider resolves to one
 fully evaluated static record of the required provider schema, whether constructed
@@ -79,10 +79,10 @@ value, passed explicitly as for other static Build operations. Helpers forward
 that argument; neither the `Build::` namespace nor a same-shaped fabricated
 value grants selection authority. The interpreter verifies the activation's
 identity, not merely the argument's type. Receiver-style
-`builder.select_provider<Slot, Provider>()` is not an alternate call form.
+`builder.select_provider::<Slot, Provider>()` is not an alternate call form.
 
 An explicit root trust grant uses
-`Build::accept_boundary<Subject>(builder)`. Subject names an exact selected
+`Build::accept_boundary::<Subject>(builder)`. Subject names an exact selected
 provider or accepted machine under the existing admission policy; accepting it
 does not select a provider or invent a new implementation. The Build argument
 is explicit and must belong to the current activation. An ordinary declaration
@@ -178,7 +178,7 @@ call encoding.
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its
 [calling-policy application](calling_plans.md#identity-and-selection).
-The owning package records `Build::bind<Requirement>(builder, target, locator)`
+The owning package records `Build::bind::<Requirement>(builder, target, locator)`
 for irreducible native supply. The requirement operand is an exact designated
 product reference; target is an ordinary validated catalog reference, and the
 locator is ordinary compile-time data with literal byte lengths inferred.
@@ -332,7 +332,7 @@ Composite adapters are ordinary checked machines, not plan-shaped call sequences
 Build-time code may choose declared candidates or compute a leaf binding; it
 cannot append plan rows. Structural coincidence never supplies a satisfaction.
 
-`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
+`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)`
 records a relationship for the compiler to validate and derive, not authored
 ProviderPlan rows. It retains the caller contract and actual supplied operation
 separately. The supplier's body stays checked against its own contract; the

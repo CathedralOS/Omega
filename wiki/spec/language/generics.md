@@ -930,4 +930,3 @@ an applied name qualifies a member in an expression, as in
 `Sensor::<29u64>::read()`. A type application uses `Buffer<8>`, and a
 declaration introduces its parameters with `machine id<T>(value: T)`.
 Reference spellings are described under [borrows and aliases](ownership.md#borrows-and-aliases).
-The V1 compiler uses `&T`.

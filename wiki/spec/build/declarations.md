@@ -84,7 +84,7 @@ The entry-binding overload of `Build::bind` is a separate operation.
 
 ## Project role
 
-A selected `build.omg` has exactly one free build entry with the explicit mutable
+A selected build file has exactly one free build entry with the explicit mutable
 Build parameter and any declared execution-backing parameters selected and
 admitted by its invocation. A simple entry remains
 `machine build(builder: @mut Build)`; a filesystem-using entry may additionally
@@ -104,14 +104,15 @@ noncanonical results reject.
 `Owner::build` is not a project root and cannot acquire a synthesized receiver.
 An ordinary same-spelled machine remains ordinary source.
 
-With no selected `build.omg`, the compiler supplies ordinary default Build
+With no selected build file, the compiler supplies ordinary default Build
 source and runs it through the same one-entry checking, interpretation, join,
 and freeze route. No file need be written. A standalone loose root defaults to
 application role; an already resolved package retains its supplied role and
 owner. Checking source does not require an executable entry. Executable output
-still needs ordinary target-slot selections and provider checks; the default
-does not discover a machine named `main` or bypass
-[entry admission](entry_roots.md).
+still needs ordinary target-slot selections and provider checks. When the
+named root has no build entry, core supplies the product entry binding under
+[build-first entry selection](command_line.md#build-first-entry-selection).
+The target checks that binding under [entry admission](entry_roots.md).
 
 `package`, `application`, `member`, `dependency` and `build_dependency` are
 compiler-owned operations on the activation's Build value. Product and build

@@ -53,7 +53,7 @@ alternate spelling; neither arbitrary value-to-address conversions nor the
 inverse address-to-borrow/callable conversion follow from these queries.
 
 The companion [data queries](../layouts/plans.md#size-and-alignment-queries)
-are `size_of<T>()` and `align_of<T>()`, both returning `u64`. A numeric result
+are `size_of::<T>()` and `align_of::<T>()`, both returning `u64`. A numeric result
 type does not choose a property to inspect: sizes and alignments are not casts
 to a count or a distinct alignment carrier.
 
@@ -175,13 +175,13 @@ assumption is needed.
 Interpretation observes selected-target alignment through the admitted storage
 mapping, not the low bits of an opaque entry/storage ID or the alignment of a
 host interpreter object. Missing required geometry rejects rather than
-fabricating a result. The type form `align_of<T>()` continues to report the
+fabricating a result. The type form `align_of::<T>()` continues to report the
 selected layout's minimum, independent of any particular allocation; see
 [layout queries](../layouts/plans.md#size-and-alignment-queries).
 
 ## Native code layout queries
 
-`code_layout<SelectedMachine<Arguments>>()` describes the exact selected native
+`code_layout::<SelectedMachine<Arguments>>()` describes the exact selected native
 realization. Like `address_of`, it is a compiler-known core query, not a keyword
 or an invocation of that machine. Its retained use creates the same executable
 demand. The description contains an entry `addr` and a finite sequence of code
@@ -204,7 +204,7 @@ sizes nor its addresses may feed that same program's semantic constants, type
 arguments, layout policies or optimization decisions through a circular query.
 A separately completed artifact may be inspected as an ordinary explicit input.
 
-`size_of<Machine>()` and `align_of<Machine>()` reject: a machine declaration is
+`size_of::<Machine>()` and `align_of::<Machine>()` reject: a machine declaration is
 not a data carrier. A sum of code-region lengths does not make the interval
 `[entry, entry + sum)` valid. A purely interpreted body has no native regions;
 its entry ID is not a bytecode address, and this query supplies neither a fake

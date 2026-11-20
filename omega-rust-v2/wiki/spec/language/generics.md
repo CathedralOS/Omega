@@ -229,7 +229,7 @@ requires
 }
 ```
 
-Both `prefix_count<16>(items)` and `prefix_count<count>(items)` are eligible when
+Both `prefix_count::<16>(items)` and `prefix_count::<count>(items)` are eligible when
 the caller establishes the requirement. The dynamic case may lower to one body
 taking Count as an ordinary argument. It does not compile a new machine for
 each input value. This simple example could use an ordinary value parameter;
@@ -427,7 +427,7 @@ A `const` index needs static inputs; a runtime index can bind only where
 the value binder and its exact subject/lifetime rules permit dynamic values.
 
 A zero-argument machine `upper_bound<const N: u64>() -> u64 { N }` merely
-returns an already bound N. `upper_bound<N>()` needs no reflection, and
+returns an already bound N. `upper_bound::<N>()` needs no reflection, and
 `upper_bound()` cannot discover an unconstrained N from nothing. No compiler
 primitive with the name upper_bound is required.
 
@@ -730,7 +730,7 @@ runtime parameter when it is closed.
 
 A static selection whose executable application is closed may construct or
 return a machine value through ordinary callable-contract refinement. It may
-also be observed with `address_of<Selected<Arguments>>()` under
+also be observed with `address_of::<Selected<Arguments>>()` under
 [address exposure](counts_and_addresses.md#address-exposure). That query
 creates an entry demand, not a callable value or an implicit callback selection.
 [Private callback realization](../build/private_callbacks.md) remains contextual:
@@ -921,3 +921,12 @@ contract, not separately on each instance. Instances retain selected contract
 identity and the template receipt. Instance-specific trust instead uses an
 explicit nongeneric admitted fact. [Proof receiving policy](../proofs/contracts.md#axioms-and-receiving-policy)
 owns those grants; specialization never launders admitted premises into proofs.
+
+## Source spelling
+
+An expression supplies explicit generic arguments with `::<…>`, as in
+`id::<u32>(value)` and `integer::max::<u32>()`. The same rule applies when
+an applied name qualifies a member in an expression, as in
+`Sensor::<29u64>::read()`. A type application uses `Buffer<8>`, and a
+declaration introduces its parameters with `machine id<T>(value: T)`.
+Reference spellings are described under [borrows and aliases](ownership.md#borrows-and-aliases).

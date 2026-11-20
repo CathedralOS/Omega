@@ -256,7 +256,7 @@ records and payload-bearing sums select the declared synthesis/conformance
 required by [Equatable](conformances.md#core-equality-acquisition). Adding a
 payload requires that declaration rather than silently changing tag equality
 into field equality. Value `==` retains that selected comparison in facts.
-Explicit `core::Identity<T>(left, right)` states
+Explicit `core::Identity::<T>(left, right)` states
 [proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) without
 requiring an executable equality algorithm. Structural comparison exposes
 checked component comparisons; conversion to identity requires the applicable

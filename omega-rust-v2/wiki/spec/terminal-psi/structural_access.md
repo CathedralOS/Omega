@@ -669,10 +669,6 @@ the root, though producers read a root sum's payload as parameters of its
 dispatch block. Unknown, erased, truncated, and non-record carriers reject;
 consumers must not infer a path from names or layout offsets. Terminal validation
 checks the declared path, exact scalar type and access independently.
-The lowered-form checker owns the case-refutation judgment but does not make it
-yet: it refuses a payload read that only a refutation would justify, such as
-the untested final arm of an exhaustive test chain (`TASKS.md`,
-**LOWERED-FORM-CHECKER**).
 
 Reading a nested field observes the original backing below that root, not a
 copied child or a new borrow. Independent validation retains the root's readable

@@ -67,7 +67,7 @@ fn the_published_vector_operator_selects_the_same_machine_as_a_named_call() {
     let example = spec_corpus::extract_omega_examples(&spec)
         .unwrap()
         .into_iter()
-        .find(|example| example.get_label() == "language/expressions.md:151")
+        .find(|example| example.get_label() == "language/expressions.md:157")
         .unwrap();
 
     // Supply the types and helper omitted by the example. A second overload
@@ -123,8 +123,8 @@ fn the_published_command_pattern_requires_both_operation_cases() {
             .source_text
             .trim()
     };
-    let declarations = example_at(46);
-    let pattern = example_at(158);
+    let declarations = example_at(50);
+    let pattern = example_at(162);
     let (binding, dispatch) = pattern.split_once("\n\n").unwrap();
     let caller = |dispatch: &str| format!("machine inspect_pattern(command: @Command) -> bool {{\n{binding}\n\n{dispatch}\n}}");
 
