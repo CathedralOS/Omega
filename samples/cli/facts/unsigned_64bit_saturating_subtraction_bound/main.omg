@@ -12,8 +12,8 @@ machine verify_diff(value: u64) -> u64
 machine compute_root(lhs: u64, rhs: u64) -> u64
     requires lhs >= 80 && lhs <= 120 && rhs >= 20 && rhs <= 40
 {
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
+    let a: u64 in Saturating = lhs as +Saturating;
+    let b: u64 in Saturating = rhs as +Saturating;
     let sat: u64 in Saturating = a - b;
     let diff: u64 = sat as u64;
     verify_diff(diff)

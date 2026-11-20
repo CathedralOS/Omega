@@ -18,7 +18,7 @@ machine choose(claim: Claim in Issued, select: bool) -> Claim in Issued {
     machine right(claim: Claim in Issued) -> Claim in Issued { claim }
 }
 machine exercise(select: bool) -> u64 {
-    let tagged: Claim in Tagged = choose(issue(29), select) as Claim in Tagged;
+    let tagged: Claim in Tagged = choose(issue(29), select) as Claim +Tagged;
     consume(tagged)
 }
 

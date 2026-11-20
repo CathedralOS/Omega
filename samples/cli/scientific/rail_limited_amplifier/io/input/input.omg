@@ -47,7 +47,7 @@ public machine parse(bytes: @[u8]) -> Inputs {
     }
     machine accumulate(bytes: @[u8], index: u64, input: Inputs, byte: i32) -> Inputs {
         let mut changed: Inputs = input;
-        changed.magnitude = changed.magnitude * 10 + ((byte as i32 in Wrapping) - 48);
+        changed.magnitude = changed.magnitude * 10 + ((byte as +Wrapping) - 48);
         changed.started = true;
         changed.digits = true;
         transition changed.magnitude <= 10000 {

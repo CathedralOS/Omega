@@ -28,7 +28,7 @@ reaches Console blocks crashes Trap {
   transition protocol.digits < 12 { true -> accumulate(protocol, value), false -> rejected() }
  }
  machine accumulate(protocol: @mut Protocol, value: i32) -> bool {
-  let character: i32 in Wrapping = value as i32 in Wrapping;
+  let character: i32 in Wrapping = value as i32 +Wrapping;
   let digit: f64 = (character - 48) as f64;
   protocol.accumulator = protocol.accumulator * 10.0 + digit;
   protocol.digits = protocol.digits + 1; protocol.started = true;
@@ -164,7 +164,7 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0
     {
         let mantissa: i32 = I32::from_f64(scaled);
-        integer(protocol, mantissa as i32 in Wrapping);
+        integer(protocol, mantissa as +Wrapping);
         Console::write("e");
         integer(protocol, exponent - 8);
     }

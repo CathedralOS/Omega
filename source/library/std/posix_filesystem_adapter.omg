@@ -830,12 +830,12 @@ reaches FilesystemNamespaceMutation
 // Raw POSIX providers return negative errno on every supported target.
 // Preserve that code; each target maps its own errno catalog to portable kinds.
 machine posix_filesystem_native_error_code_i32(filesystem: @mut PosixFilesystem, result: i32) -> i32 {
-    let code: i32 in Wrapping = (0 as i32 +Wrapping) - (result as i32 in Wrapping);
+    let code: i32 in Wrapping = (0 as i32 +Wrapping) - (result as i32 +Wrapping);
     filesystem.err_code = code as i32;
     filesystem.err_code
 }
 machine posix_filesystem_native_error_code_i64(filesystem: @mut PosixFilesystem, result: i64) -> i32 {
-    let code: i64 in Wrapping = (0 as i64 +Wrapping) - (result as i64 in Wrapping);
+    let code: i64 in Wrapping = (0 as i64 +Wrapping) - (result as i64 +Wrapping);
     filesystem.err_code = narrow_i64_to_i32_wrapping(code as i64);
     filesystem.err_code
 }
@@ -1181,7 +1181,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     machine rd_read(filesystem: @mut PosixFilesystem, dfd: i32) -> IoResult {
         filesystem.rd_off = 0u64 as +Wrapping;
         let total: i64 = PosixFilesystemHost::read_dir(dfd, @mut filesystem.dir_buf[..], 512, @mut filesystem.rd_position);
-        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 +Wrapping;
         transition total > 0 { true -> rd_walk(filesystem, dfd), _ -> rd_nonpositive(filesystem, dfd, total) }
     }
     machine rd_nonpositive(filesystem: @mut PosixFilesystem, dfd: i32, total: i64) -> IoResult {
@@ -1262,7 +1262,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     filesystem.rd_position = 0;
     filesystem.rd_off = 0u64 as +Wrapping;
     filesystem.rd_recno = 0u64 as +Wrapping;
-    filesystem.rd_target = n as u64 in Wrapping;
+    filesystem.rd_target = n as u64 +Wrapping;
 
     filesystem.rd_seek_rc = PosixFilesystemHost::seek(dfd, 0, 0);
     let seek_rc: i64 = filesystem.rd_seek_rc;
@@ -1270,7 +1270,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     machine rdef_read(filesystem: @mut PosixFilesystem, dfd: i32) -> DirEntryResult {
         filesystem.rd_off = 0u64 as +Wrapping;
         let total: i64 = PosixFilesystemHost::read_dir(dfd, @mut filesystem.dir_buf[..], 512, @mut filesystem.rd_position);
-        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 +Wrapping;
         transition total > 0 { true -> rdef_walk(filesystem, dfd), _ -> rdef_nonpositive(filesystem, total) }
     }
     machine rdef_nonpositive(filesystem: @mut PosixFilesystem, total: i64) -> DirEntryResult {
@@ -1301,7 +1301,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         transition filesystem.rd_reclen >= 24 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdef_name(filesystem, dfd), _ -> rdef_malformed(filesystem) }
     }
     machine rdef_name(filesystem: @mut PosixFilesystem, dfd: i32) -> DirEntryResult {
-        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystemTarget::directory_name_offset() as u64 in Wrapping);
+        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystemTarget::directory_name_offset() as u64 +Wrapping);
         transition filesystem.rd_idx < 510 { true -> rdef_dot(filesystem, dfd), _ -> rdef_malformed(filesystem) }
     }
     machine rdef_dot(filesystem: @mut PosixFilesystem, dfd: i32) -> DirEntryResult
@@ -1324,7 +1324,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         transition { _ -> rdef_walk(filesystem, dfd) }
     }
     machine rdef_extract(filesystem: @mut PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystemTarget::directory_type_offset() as u64 in Wrapping);
+        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystemTarget::directory_type_offset() as u64 +Wrapping);
         transition filesystem.rd_idx < 512 { true -> rdef_type(filesystem), _ -> rdef_malformed(filesystem) }
     }
     machine rdef_type(filesystem: @mut PosixFilesystem) -> DirEntryResult
@@ -1348,7 +1348,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         transition { _ -> rdef_build(filesystem) }
     }
     machine rdef_cbyte(filesystem: @mut PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_ridx = filesystem.rd_off + (PosixFilesystemTarget::directory_name_offset() as u64 in Wrapping) + filesystem.rd_j;
+        filesystem.rd_ridx = filesystem.rd_off + (PosixFilesystemTarget::directory_name_offset() as u64 +Wrapping) + filesystem.rd_j;
         transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_off + filesystem.rd_reclen { true -> rdef_cdo(filesystem), _ -> rdef_malformed(filesystem) }
     }
     machine rdef_cdo(filesystem: @mut PosixFilesystem) -> DirEntryResult

@@ -20,7 +20,7 @@ crashes Trap
 }
 
 machine digits(scaled: i32) reaches Console {
-    let value: i32 in Wrapping = scaled as i32 in Wrapping;
+    let value: i32 in Wrapping = scaled as i32 +Wrapping;
     integer((value / 1000000) as i32);
     Console::write(".");
     Console::write_byte(((value / 100000 % 10) + 48) as i32);
@@ -35,7 +35,7 @@ public machine integer(value: i32)
 reaches Console
 invokes Console
 {
-    let wrapped: i32 in Wrapping = value as i32 in Wrapping;
+    let wrapped: i32 in Wrapping = value as i32 +Wrapping;
     transition { _ -> emit(wrapped, 1000000000, false) }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool)
         requires divisor > 0

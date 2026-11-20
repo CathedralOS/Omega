@@ -48,7 +48,7 @@ data Main {
 
 machine Main::main(main: @mut Main) {
     main.hits = 0;
-    let counter: Counter in Ready = (Counter { code: 0 } as Counter in Ready);
+    let counter: Counter in Ready = (Counter { code: 0 } as +Ready);
     transition is_ready(@counter) {
         true -> pass(main),
         _ -> fail(main)

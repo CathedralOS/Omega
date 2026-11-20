@@ -72,7 +72,7 @@ crashes Trap
     }
     machine validate(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
         transition value >= 65 && value <= 74 {
-            true -> insert(mask, duplicates, count, (value - 65) as u64 in Wrapping),
+            true -> insert(mask, duplicates, count, (value - 65) as u64 +Wrapping),
             false -> invalid()
         }
     }

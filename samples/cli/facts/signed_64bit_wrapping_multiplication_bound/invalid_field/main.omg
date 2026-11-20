@@ -16,8 +16,8 @@ data MulPacket {
 machine sat_field(packet: MulPacket) -> i64
 requires packet.lhs >= 10 && packet.lhs <= 21 && packet.rhs >= 5 && packet.rhs <= 10
 {
-    let a: i64 in Wrapping = packet.lhs as i64 in Wrapping;
-    let b: i64 in Wrapping = packet.rhs as i64 in Wrapping;
+    let a: i64 in Wrapping = packet.lhs as i64 +Wrapping;
+    let b: i64 in Wrapping = packet.rhs as i64 +Wrapping;
     let wrap_prod: i64 in Wrapping = a * b;
     let prod: i64 = wrap_prod as i64;
     verify_prod(prod)

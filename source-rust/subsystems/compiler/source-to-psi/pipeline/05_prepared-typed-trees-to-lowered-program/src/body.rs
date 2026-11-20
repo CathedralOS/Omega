@@ -1225,7 +1225,7 @@ pub enum ExpressionKind {
     /// proved. The denoted value does not change."
     Cast(Box<Expression>),
     /// A cast that adds or removes an arithmetic policy and keeps the carrier,
-    /// `x as u32 in Wrapping` or `w as u32`: the operand, whose value is the
+    /// `x as +Wrapping` or `w as -Wrapping`: the operand, whose value is the
     /// result. Only `result` differs from the operand, and only in its
     /// policy, so no operation is emitted and the operand keeps the
     /// operations its own type chose.

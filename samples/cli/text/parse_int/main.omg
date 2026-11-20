@@ -43,7 +43,7 @@ machine parse_decimal(text: @[u8; 3] in Utf8) -> i32 in Wrapping {
     requires index >= 0
     {
         let byte: u8 = text[index];
-        let digit_value: i32 in Wrapping = (widen_u8_to_i32(byte) as i32 in Wrapping) - 48;
+        let digit_value: i32 in Wrapping = (widen_u8_to_i32(byte) as i32 +Wrapping) - 48;
         let next_result: i32 in Wrapping = result * 10 + digit_value;
         // Re-guard against the carrier CAPACITY (8) so the increment's direct
         // edge proves `i + 1` lands in [1..=8] -- len <= 8, so this is always true.

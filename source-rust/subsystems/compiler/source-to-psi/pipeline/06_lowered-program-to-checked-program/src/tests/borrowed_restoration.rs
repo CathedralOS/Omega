@@ -942,7 +942,7 @@ machine take(choice: Choice) -> u64 {
 machine repair(choice: @mut Choice) {
     let old: Choice = move $choice;
     let value: u64 = take(old);
-    $choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };
+    $choice = Choice::Right { token: Token { value: ((value as +Wrapping) + 1) as -Wrapping } };
 }
 machine build_entry() crashes Trap {
     let mut boxed: Boxed = Boxed { marker: 19u64, choice: Choice::Left { token: Token { value: 41u64 } } };
@@ -1009,7 +1009,7 @@ machine build_entry() crashes Trap {
         "{status:?}"
     );
     let missing = source.replace(
-        "$choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };",
+        "$choice = Choice::Right { token: Token { value: ((value as +Wrapping) + 1) as -Wrapping } };",
         "",
     );
     let rejected = super::build_purpose::judge_build(&missing).unwrap();

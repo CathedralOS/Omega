@@ -16,7 +16,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine command(main: @mut Main, value: i32) {
         transition value >= 48 && value <= 55 {
-            true -> execute(main, (value - 48) as u64 in Wrapping),
+            true -> execute(main, (value - 48) as u64 +Wrapping),
             false -> invalid(main)
         }
     }

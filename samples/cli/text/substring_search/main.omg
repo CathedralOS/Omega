@@ -69,8 +69,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine compare(main: @mut Main) {
-        main.tb = main.text[main.k] as u8 in Wrapping;
-        main.pb = main.pat[main.j] as u8 in Wrapping;
+        main.tb = main.text[main.k] as u8 +Wrapping;
+        main.pb = main.pat[main.j] as u8 +Wrapping;
         transition main.tb == main.pb {
             true -> block adv_inner(main),
             false -> block mismatch(main)
@@ -82,7 +82,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block inner(main) }
     }
     machine matched(main: @mut Main) {
-        main.found = narrow_u32_to_i32_trapping(main.i as u32) as i32 in Wrapping;
+        main.found = narrow_u32_to_i32_trapping(main.i as u32) as i32 +Wrapping;
         transition { _ -> block done(main) }
     }
     machine mismatch(main: @mut Main) {

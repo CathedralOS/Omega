@@ -47,8 +47,8 @@ public machine analyze(model: @Model) -> Inference {
     }
     machine candidate(model: @Model, result: Inference, first: u64, second: u64) -> Inference
     requires first < 9 && second < 9 {
-        let a: u64 in Wrapping = first as u64 in Wrapping;
-        let b: u64 in Wrapping = second as u64 in Wrapping;
+        let a: u64 in Wrapping = first as +Wrapping;
+        let b: u64 in Wrapping = second as +Wrapping;
         transition a + b <= model.rows[0] && a <= model.columns[0] && b <= model.columns[1] {
             true -> construct(model, result, first, second, a, b),
             false -> inner(model, result, first, second + 1)

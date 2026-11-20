@@ -23,8 +23,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine parse(main: @mut Main, input: @[u8; 8]) {
         transition input[0] >= 48 && input[0] <= 53 && input[1] == 32 &&
                    input[2] >= 48 && input[2] <= 49 && input[3] == 10 {
-            true -> plan(main, (input[0] as i64 in Wrapping) - 48,
-                         (input[2] as i32 in Wrapping) - 48),
+            true -> plan(main, (input[0] as i64 +Wrapping) - 48,
+                         (input[2] as i32 +Wrapping) - 48),
             false -> invalid(main)
         }
     }
@@ -33,7 +33,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         fixtures\load(@mut scene, variant);
         Console::write_line("clearance_route_planner");
         Console::write("radius="); number(main, radius); Console::write_line("");
-        Console::write("scene="); number(main, variant as i64 in Wrapping); Console::write_line("");
+        Console::write("scene="); number(main, variant as -Wrapping as i64 +Wrapping); Console::write_line("");
         let start: i64 in Wrapping = graph\edge(@scene, 0, 0, radius);
         let goal: i64 in Wrapping = graph\edge(@scene, 1, 1, radius);
         transition start >= 0 && goal >= 0 {
@@ -52,7 +52,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires node >= 0 && node < 6
     {
         Console::write_line("status=endpoint_blocked");
-        Console::write("node="); number(main, node as i64 in Wrapping); Console::write_line("");
+        Console::write("node="); number(main, node as -Wrapping as i64 +Wrapping); Console::write_line("");
         Console::write("minimum_clearance_milli=");
         number(main, graph\edge(scene, node, node, 0)); Console::write_line("");
         ProcessExit::exit_process(2);
@@ -123,7 +123,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine witness(main: @mut Main, planner: @graph\Planner) {
         Console::write_line("status=infeasible");
-        Console::write("reachable_mask="); number(main, planner.witness as i64 in Wrapping);
+        Console::write("reachable_mask="); number(main, planner.witness as i64 +Wrapping);
         Console::write_line(""); Console::write_line("cut_validated=1"); ProcessExit::exit_process(2);
     }
     machine invalid(main: @mut Main) {

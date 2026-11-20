@@ -150,7 +150,7 @@ crashes Trap
     {
         let aliased: u64 = checker.aliases.places[index];
         let condition: u64 = checker.aliases.conditions[index];
-        let found: u64 in Trapping = (condition as u64 in Trapping) + 1;
+        let found: u64 in Trapping = (condition as u64 +Trapping) + 1;
         transition aliased == place {
             true -> answer(found),
             _ -> next(checker, place, index + 1)

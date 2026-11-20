@@ -14,16 +14,16 @@ public data Balance {
 }
 public machine reconcile(frame: @Frame) -> Balance {
     let mut result: Balance;
-    let a: i64 in Wrapping = frame.values[0] as i64 in Wrapping;
-    let b: i64 in Wrapping = frame.values[1] as i64 in Wrapping;
-    let c: i64 in Wrapping = frame.values[2] as i64 in Wrapping;
-    let d: i64 in Wrapping = frame.values[3] as i64 in Wrapping;
+    let a: i64 in Wrapping = frame.values[0] as i64 +Wrapping;
+    let b: i64 in Wrapping = frame.values[1] as i64 +Wrapping;
+    let c: i64 in Wrapping = frame.values[2] as i64 +Wrapping;
+    let d: i64 in Wrapping = frame.values[3] as i64 +Wrapping;
     result.force = a + b + c + d;
     result.moment_x = (b + c - a - d) * 200;
     result.moment_y = (c + d - a - b) * 100;
-    result.force_residual = result.force - (frame.values[4] as i64 in Wrapping);
-    result.x_residual = result.moment_x - (frame.values[5] as i64 in Wrapping);
-    result.y_residual = result.moment_y - (frame.values[6] as i64 in Wrapping);
+    result.force_residual = result.force - (frame.values[4] as i64 +Wrapping);
+    result.x_residual = result.moment_x - (frame.values[5] as i64 +Wrapping);
+    result.y_residual = result.moment_y - (frame.values[6] as i64 +Wrapping);
     transition {
         a < 0 || b < 0 || c < 0 || d < 0 -> invalid(result, 1),
         a > 1000 || b > 1000 || c > 1000 || d > 1000 -> invalid(result, 2),

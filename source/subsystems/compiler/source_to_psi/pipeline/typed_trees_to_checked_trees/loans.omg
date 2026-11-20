@@ -1190,7 +1190,7 @@ crashes Trap
     requires index < 128
     {
         let last: u64 = ownership.use_last[index];
-        let counted: u64 in Trapping = last as u64 in Trapping;
+        let counted: u64 in Trapping = last as u64 +Trapping;
         transition { _ -> answer(counted) }
     }
 
@@ -1277,7 +1277,7 @@ crashes Trap
     requires index < 64
     {
         let holder: u64 = ownership.loan_holders[index];
-        holder as u64 in Trapping
+        holder as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1297,7 +1297,7 @@ crashes Trap
     requires index < 64
     {
         let place: u64 = ownership.loan_places[index];
-        place as u64 in Trapping
+        place as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {

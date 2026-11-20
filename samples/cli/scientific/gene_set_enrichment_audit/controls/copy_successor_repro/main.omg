@@ -18,7 +18,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> finish(context, 7 as +Wrapping),
-        ByteRead::Byte { value } -> finish(context, value as u64 in Wrapping)
+        ByteRead::Byte { value } -> finish(context, value)
     }
     machine finish(context: @mut Main, value: u64 in Wrapping) {
         let result: u64 in Wrapping = calculate(value > 70, value);

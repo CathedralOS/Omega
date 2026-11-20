@@ -22,7 +22,7 @@ machine number(value: f64) reaches Console {
         }
     }
     machine write(value: u32, place: u32, character: u32) requires place >= 1 {
-        let character_code: u32 in Saturating = (character as u32 in Saturating) + 48;
+        let character_code: u32 in Saturating = (character as +Saturating) + 48;
         Console::write_byte(narrow_u32_to_i32_trapping(character_code as u32));
         transition { _ -> advance(value, place, true) }
     }

@@ -51,7 +51,7 @@ crashes Trap
         }
     }
     machine digit(input: @mut Input, value: i32) {
-        input.number = input.number * 10 + ((value - 48) as u64 in Wrapping);
+        input.number = input.number * 10 + ((value - 48) as u64 +Wrapping);
         input.active = true;
         transition input.number <= 1000000000000 {
             true -> scan(input),

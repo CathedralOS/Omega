@@ -67,7 +67,7 @@ public machine step(problem: @mut Problem) {
         transition { _ -> rhs_row(problem, row + 1) }
     }
     machine forward(problem: @mut Problem, row: i32) {
-        let last: i32 in Wrapping = (problem.cells as i32 in Wrapping) - 1;
+        let last: i32 in Wrapping = (problem.cells as i32 +Wrapping) - 1;
         transition row >= 0 && row < problem.cells && row < 32 { true -> forward_column(problem, row, 0, Complex { real: 0.0, imaginary: 0.0 }), false -> backward(problem, last as i32) }
     }
     machine forward_column(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 {

@@ -53,7 +53,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine store(main: @mut Main, position: u64, byte: u8)
     requires position < 17 {
-        main.digits[position] = (byte as u64 in Wrapping) - 48;
+        main.digits[position] = (byte as u64 +Wrapping) - 48;
         transition { _ -> parse(main, position + 1) }
     }
     machine calculate(main: @mut Main) {

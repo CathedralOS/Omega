@@ -78,7 +78,7 @@ crashes Trap
     }
     machine accumulate(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                      digits: i32 in Wrapping, negative: bool) -> Token {
-        let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
+        let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 +Wrapping) - 48;
         transition updated <= 1000 {
             true -> block next(reader, updated, digits + 1, negative),
             _ -> Token::Invalid

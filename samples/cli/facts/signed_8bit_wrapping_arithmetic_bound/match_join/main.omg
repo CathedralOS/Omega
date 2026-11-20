@@ -14,8 +14,8 @@ machine choose_wrapping(flag: bool, lhs: i8, rhs: i8) -> i8
 requires lhs >= 40i8 && lhs <= 80i8 && rhs >= 10i8 && rhs <= 20i8
 ensures result >= 50i8 && result <= 100i8
 {
-    let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
-    let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+    let w_lhs: i8 in Wrapping = lhs as +Wrapping;
+    let w_rhs: i8 in Wrapping = rhs as +Wrapping;
     let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
     let sum: i8 = sum_wrap as i8;
     match flag {

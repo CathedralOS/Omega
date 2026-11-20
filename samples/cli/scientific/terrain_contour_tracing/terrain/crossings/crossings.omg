@@ -51,8 +51,8 @@ public machine crossings(terrain: @Terrain, graph: @mut Contours) {
     }
     machine store(terrain: @Terrain, graph: @mut Contours, edge: u64, a: i32 in Wrapping, denominator: i32 in Wrapping, column: u64, row: u64, horizontal: bool) requires edge < 12 requires denominator != 0 {
         let fraction: i32 in Wrapping = (terrain.level - a) * 2520 / denominator;
-        graph.x[edge] = (narrow_u64_to_i32_wrapping(column) as i32 in Wrapping) * 2520;
-        graph.y[edge] = (narrow_u64_to_i32_wrapping(row) as i32 in Wrapping) * 2520;
+        graph.x[edge] = (narrow_u64_to_i32_wrapping(column) as i32 +Wrapping) * 2520;
+        graph.y[edge] = (narrow_u64_to_i32_wrapping(row) as i32 +Wrapping) * 2520;
         transition horizontal {
             true -> shift_x(terrain, graph, edge, fraction),
             false -> shift_y(terrain, graph, edge, fraction)

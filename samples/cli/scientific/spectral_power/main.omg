@@ -48,10 +48,10 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         let converted_overlap: i32 in Saturating = I32::from_f64(overlap);
         let converted_window: i32 in Saturating = I32::from_f64(window);
         let converted_length: i32 in Saturating = I32::from_f64(length);
-        application.size = converted_size as i32 in Wrapping;
-        application.overlap = converted_overlap as i32 in Wrapping;
+        application.size = converted_size as -Saturating +Wrapping;
+        application.overlap = converted_overlap as -Saturating +Wrapping;
         application.window = converted_window as i32;
-        application.length = converted_length as i32 in Wrapping;
+        application.length = converted_length as -Saturating +Wrapping;
         application.index = 0;
         transition { _ -> block read(application) }
     }

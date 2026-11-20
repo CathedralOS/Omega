@@ -12,7 +12,7 @@ machine attempt(token: Token, succeed: bool, observed: u64) -> Outcome {
     machine success(token: Token) -> Outcome {
         let value: u64 = token.value;
         drop(token);
-        Outcome::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
+        Outcome::Success { token: Token { value: ((value as +Wrapping) + 1) as u64 } }
     }
 }
 machine recover(outcome: Outcome) -> Token {

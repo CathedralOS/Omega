@@ -23,7 +23,7 @@ invokes Console
         false -> corrupt()
     }
     machine emit(event: u64) {
-        number((event as i32 in Saturating) + 1);
+        number((event as i32 +Saturating) + 1);
     }
     machine corrupt() {
         Console::write_line("INTERNAL: route event outside 0..3");

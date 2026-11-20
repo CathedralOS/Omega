@@ -68,7 +68,7 @@ machine Main::seed(context: @mut Main) {
 machine Main::step(context: @mut Main) {
     cell_is_bit(@context.g.board, 1);
     cell_is_bit(@context.g.board, 2);
-    let neighbours: i32 in Wrapping = (context.g.board[1] + context.g.board[2]) as i32 in Wrapping;
+    let neighbours: i32 in Wrapping = (context.g.board[1] + context.g.board[2]) as i32 +Wrapping;
     transition neighbours == 2 {
         true -> live(context),
         _ -> die(context)

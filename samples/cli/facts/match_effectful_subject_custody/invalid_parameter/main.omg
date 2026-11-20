@@ -5,7 +5,7 @@ data Counter { count: u64 in Wrapping; }
 data Token<'c> dropped by drop_token<'c> { counter: @'c mut Counter; mark: u64; }
 
 machine drop_token<'c>(token: @mut Token<'c>) {
-    token.counter.count = token.counter.count + (token.mark as u64 in Wrapping);
+    token.counter.count = token.counter.count + (token.mark as u64 +Wrapping);
 }
 
 machine relay<'c>(token: Token<'c>) -> Token<'c> {

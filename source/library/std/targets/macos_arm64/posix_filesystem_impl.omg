@@ -56,14 +56,14 @@ requires bytes.len == 8
 {
     // Each byte lands in its own eight bits, so `+` assembles the word exactly
     // as `|` would; the Wrapping policy declares `+` and no bitwise operator.
-    let word: u64 in Wrapping = (widen_u8_to_u64(bytes[0]) as u64 in Wrapping)
-        + ((widen_u8_to_u64(bytes[1]) as u64 in Wrapping) << 8)
-        + ((widen_u8_to_u64(bytes[2]) as u64 in Wrapping) << 16)
-        + ((widen_u8_to_u64(bytes[3]) as u64 in Wrapping) << 24)
-        + ((widen_u8_to_u64(bytes[4]) as u64 in Wrapping) << 32)
-        + ((widen_u8_to_u64(bytes[5]) as u64 in Wrapping) << 40)
-        + ((widen_u8_to_u64(bytes[6]) as u64 in Wrapping) << 48)
-        + ((widen_u8_to_u64(bytes[7]) as u64 in Wrapping) << 56);
+    let word: u64 in Wrapping = (widen_u8_to_u64(bytes[0]) as u64 +Wrapping)
+        + ((widen_u8_to_u64(bytes[1]) as u64 +Wrapping) << 8)
+        + ((widen_u8_to_u64(bytes[2]) as u64 +Wrapping) << 16)
+        + ((widen_u8_to_u64(bytes[3]) as u64 +Wrapping) << 24)
+        + ((widen_u8_to_u64(bytes[4]) as u64 +Wrapping) << 32)
+        + ((widen_u8_to_u64(bytes[5]) as u64 +Wrapping) << 40)
+        + ((widen_u8_to_u64(bytes[6]) as u64 +Wrapping) << 48)
+        + ((widen_u8_to_u64(bytes[7]) as u64 +Wrapping) << 56);
     narrow_u64_to_i64_wrapping(word as u64)
 }
 

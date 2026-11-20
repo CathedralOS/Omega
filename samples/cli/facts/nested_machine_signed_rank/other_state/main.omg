@@ -36,7 +36,7 @@ machine perform(counter: @mut u64, active: bool, second: bool) crashes Trap {
         terminates by pending.values[selected] -> Remaining::Complement in -128..=127
         requires selected < 2 && pending.values[selected] >= 4 && pending.values[selected] < 7
         {
-            $counter = (($counter as u64 in Wrapping) + 1) as u64;
+            $counter = (($counter as u64 +Wrapping) + 1) as u64;
             pending.values[selected] = pending.values[selected] + 1;
             transition { _ -> count(counter, pending, selected) }
         }

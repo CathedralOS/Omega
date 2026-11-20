@@ -8,9 +8,9 @@ invokes Console
 {
     decision(decision);
     Console::write(" owner=");
-    number(laboratory.owner as i32 in Saturating);
+    number(laboratory.owner as i32 +Saturating);
     Console::write(" phase=");
-    number(laboratory.phase as i32 in Saturating);
+    number(laboratory.phase as i32 +Saturating);
     Console::write(" lid=");
     report_lid(laboratory.closed);
     Console::write(" tick=");

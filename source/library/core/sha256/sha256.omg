@@ -153,10 +153,10 @@ machine Sha256::compress(sha256: @mut Sha256) {
         }
     }
     machine apply_w(sha256: @mut Sha256) {
-        sha256.w[sha256.w0 as u64] = ((sha256.block[sha256.j0 as u64] as u32 in Wrapping) << 24)
-            | ((sha256.block[sha256.j1 as u64] as u32 in Wrapping) << 16)
-            | ((sha256.block[sha256.j2 as u64] as u32 in Wrapping) << 8)
-            | (sha256.block[sha256.j3 as u64] as u32 in Wrapping);
+        sha256.w[sha256.w0 as u64] = ((sha256.block[sha256.j0 as u64] as u32 +Wrapping) << 24)
+            | ((sha256.block[sha256.j1 as u64] as u32 +Wrapping) << 16)
+            | ((sha256.block[sha256.j2 as u64] as u32 +Wrapping) << 8)
+            | (sha256.block[sha256.j3 as u64] as u32 +Wrapping);
         sha256.i = sha256.i + 1;
         transition { _ -> load_w(sha256) }
     }

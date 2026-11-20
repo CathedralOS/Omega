@@ -27,7 +27,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine add_byte(sum: i32 in Wrapping, count: i32 in Wrapping, value: i32)
     requires value >= 0 && value <= 0xFF {
-        let byte: i32 in Wrapping = value as i32 in Wrapping;
+        let byte: i32 in Wrapping = value as +Wrapping;
         transition { _ -> block read_next_byte(sum + byte, count + 1) }
     }
 

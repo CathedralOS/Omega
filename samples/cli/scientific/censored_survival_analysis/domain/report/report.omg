@@ -28,11 +28,11 @@ invokes Console
     }
     machine negative(reader: @mut Reader, value: i64) {
         Console::write_byte(45);
-        let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
+        let absolute: i64 in Wrapping = 0 - (value as i64 +Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
     machine digits(reader: @mut Reader, value: i64) {
-        transition { _ -> seek(reader, value as i64 in Wrapping, 1) }
+        transition { _ -> seek(reader, value as i64 +Wrapping, 1) }
     }
     machine seek(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
@@ -59,7 +59,7 @@ invokes Console
 }
 machine real(reader: @mut Reader, value: f64) reaches Console {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0 + 0.5);
-    let amount: i64 in Wrapping = scaled as i64 in Wrapping;
+    let amount: i64 in Wrapping = scaled as -Saturating +Wrapping;
     integer(reader, (amount / 1000000000000) as i64);
     Console::write_byte(46);
     transition { _ -> fraction(reader, amount % 1000000000000, 100000000000) }

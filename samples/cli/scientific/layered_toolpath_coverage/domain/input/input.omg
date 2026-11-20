@@ -21,7 +21,7 @@ machine digit() -> i32 in Wrapping reaches Console {
     machine again() -> i32 in Wrapping { transition { _ -> read() } }
     machine number(value: i32) -> i32 in Wrapping {
         transition value >= 48 && value <= 57 {
-            true -> ((value as i32 in Wrapping) - 48),
+            true -> ((value as i32 +Wrapping) - 48),
             _ -> (0 - 1)
         }
     }

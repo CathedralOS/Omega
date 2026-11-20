@@ -41,8 +41,8 @@ X86Probe satisfies SelectedProbe {
         requires lhs >= 80 && lhs <= 120 && rhs >= 20 && rhs <= 40
     {
         SelectedBodyCheck::require_tag(17u64);
-        let a: u64 in Saturating = lhs as u64 in Saturating;
-        let b: u64 in Saturating = rhs as u64 in Saturating;
+        let a: u64 in Saturating = lhs as +Saturating;
+        let b: u64 in Saturating = rhs as +Saturating;
         let sat: u64 in Saturating = a - b;
         let diff: u64 = sat as u64;
         verify_diff(diff)
@@ -55,8 +55,8 @@ ArmProbe satisfies SelectedProbe {
         requires lhs >= 80 && lhs <= 120 && rhs >= 20 && rhs <= 40
     {
         SelectedBodyCheck::require_tag(29u64);
-        let a: u64 in Saturating = lhs as u64 in Saturating;
-        let b: u64 in Saturating = rhs as u64 in Saturating;
+        let a: u64 in Saturating = lhs as +Saturating;
+        let b: u64 in Saturating = rhs as +Saturating;
         let sat: u64 in Saturating = a - b;
         let diff: u64 = sat as u64;
         verify_diff(diff)

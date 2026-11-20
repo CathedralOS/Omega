@@ -16,7 +16,7 @@ machine exercise(select: bool) -> u64 {
     let claim: Claim in Issued = issue(29);
     transition { _ -> label(claim) }
     machine label(claim: Claim in Issued) -> u64 {
-        let tagged: Claim in Tagged = claim as Claim in Tagged;
+        let tagged: Claim in Tagged = claim as Claim +Tagged;
         consume(tagged)
     }
 }

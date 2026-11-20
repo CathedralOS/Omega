@@ -22,7 +22,7 @@ crashes Trap
         _ -> false
     }
     machine header(pedigree: @mut Pedigree, tokens: @Tokens) -> bool {
-        pedigree.count = tokens.values[0] as i32 in Wrapping;
+        pedigree.count = tokens.values[0] as i32 +Wrapping;
         transition pedigree.count >= 1 && pedigree.count <= 6 &&
                    tokens.count == 1 + 3 * pedigree.count {
             true -> row(pedigree, tokens, 0),

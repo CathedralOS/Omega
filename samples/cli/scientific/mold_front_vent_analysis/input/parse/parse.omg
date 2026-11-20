@@ -7,7 +7,7 @@ use model\fill\valid;
 // The input reader passes only its initialized prefix. No number accepts a
 // sign, junk suffix, overflowing digit sequence, or implicit default.
 machine hexadecimal(byte: u8) -> i32 in Wrapping {
-    let value: i32 in Wrapping = widen_u8_to_i32(byte) as i32 in Wrapping;
+    let value: i32 in Wrapping = widen_u8_to_i32(byte) as i32 +Wrapping;
     transition {
         value >= 48 && value <= 57 -> (value - 48),
         value >= 65 && value <= 70 -> (value - 55),
@@ -87,8 +87,8 @@ public machine parse_input(text: @[u8], cavity: @mut Cavity) -> bool {
         let walls: i32 in Wrapping = parse_hex(text, 0);
         let gates: i32 in Wrapping = parse_hex(text, 5);
         let vents: i32 in Wrapping = parse_hex(text, 10);
-        let tens: i32 in Wrapping = widen_u8_to_i32(text[15]) as i32 in Wrapping;
-        let ones: i32 in Wrapping = widen_u8_to_i32(text[16]) as i32 in Wrapping;
+        let tens: i32 in Wrapping = widen_u8_to_i32(text[15]) as i32 +Wrapping;
+        let ones: i32 in Wrapping = widen_u8_to_i32(text[16]) as i32 +Wrapping;
         transition walls >= 0 && gates >= 0 && vents >= 0
             && tens >= 48 && tens <= 57 && ones >= 48 && ones <= 57 {
             true -> store(cavity, walls, gates, vents, (tens - 48) * 10 + ones - 48),

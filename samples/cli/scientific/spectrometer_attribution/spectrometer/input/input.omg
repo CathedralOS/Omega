@@ -49,7 +49,7 @@ crashes Trap
     }
     machine append(application: @mut Spectrometer, byte: i32,
                  magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
-        let value: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
+        let value: i32 in Wrapping = magnitude * 10 + (byte as +Wrapping) - 48;
         transition value <= 1000000 {
             true -> block following(application, value, sign, true),
             false -> (IntegerRead::Invalid)

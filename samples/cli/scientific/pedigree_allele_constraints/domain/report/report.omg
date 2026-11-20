@@ -49,7 +49,7 @@ invokes Console
     }
     machine probability(pedigree: @Pedigree, result: @Inference,
                       position: i32 in Wrapping) {
-        let weight: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
+        let weight: i32 in Wrapping = result.marginals[position] as i32 +Wrapping;
         transition weight > 0 {
             true -> possible(pedigree, result, position, weight),
             _ -> marginal(pedigree, result, position + 1)

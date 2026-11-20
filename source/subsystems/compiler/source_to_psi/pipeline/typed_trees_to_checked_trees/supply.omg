@@ -160,8 +160,8 @@ crashes Trap
     }
 
     machine call(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, caller: u64 in Trapping, index: u64 in Trapping, supplied: SuppliedCall) {
-        let call: u64 in Trapping = supplied.call as u64 in Trapping;
-        let callee: u64 in Trapping = supplied.callee as u64 in Trapping;
+        let call: u64 in Trapping = supplied.call as u64 +Trapping;
+        let callee: u64 in Trapping = supplied.callee as u64 +Trapping;
         refine_static_arguments(checker, syntax, resolution, typing, call, callee);
         transition { _ -> next(checker, syntax, resolution, typing, caller, index + 1) }
     }

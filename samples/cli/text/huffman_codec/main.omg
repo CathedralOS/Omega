@@ -253,7 +253,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine find_first_loop(main: @mut Main) {
-        let limit: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 in Wrapping);
+        let limit: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 +Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
             true -> check_first_candidate(main),
             _ -> after_find_first(main)
@@ -299,7 +299,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine find_second_loop(main: @mut Main) {
-        let limit: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 in Wrapping);
+        let limit: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 +Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
             true -> check_second_candidate(main),
             _ -> after_find_second(main)
@@ -329,7 +329,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine after_find_second(main: @mut Main) {
-        let branch_wrap: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 in Wrapping);
+        let branch_wrap: u64 in Wrapping = (5 as u64 +Wrapping) + (main.step as u64 +Wrapping);
         let branch_idx: u64 = branch_wrap as u64;
         transition main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
             true -> create_branch(main, branch_idx),
@@ -340,9 +340,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine create_branch(main: @mut Main, branch_idx: u64)
     requires main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
         main.nodes[main.second_min].active = false;
-        main.nodes[main.first_min].parent = branch_idx as u64 in Wrapping;
+        main.nodes[main.first_min].parent = branch_idx as +Wrapping;
         main.nodes[main.first_min].parent_bit = 0;
-        main.nodes[main.second_min].parent = branch_idx as u64 in Wrapping;
+        main.nodes[main.second_min].parent = branch_idx as +Wrapping;
         main.nodes[main.second_min].parent_bit = 1;
         let combined: u32 in Wrapping = main.nodes[main.first_min].weight + main.nodes[main.second_min].weight;
         main.nodes[branch_idx] = TreeNode::Branch {
@@ -353,7 +353,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             left: main.first_min,
             right: main.second_min,
         };
-        let next_step: u64 in Wrapping = (main.step as u64 in Wrapping) + 1;
+        let next_step: u64 in Wrapping = (main.step as u64 +Wrapping) + 1;
         main.step = next_step as u64;
         transition { _ -> merge_loop(main) }
     }
@@ -540,7 +540,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine set_packed_bit(main: @mut Main, byte_idx: u64, bit_offset: u64)
     requires byte_idx < 4 && bit_offset < 8 {
-        let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
+        let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 +Wrapping;
         let mask: u8 in Wrapping = (1 as u8 +Wrapping) << shift_amt;
         main.packed[byte_idx] = main.packed[byte_idx] | mask;
         transition { _ -> advance_bit_cursor(main) }
@@ -553,7 +553,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine next_encode_byte(main: @mut Main) {
-        let next_cur: u64 in Wrapping = (main.cursor as u64 in Wrapping) + 1;
+        let next_cur: u64 in Wrapping = (main.cursor as u64 +Wrapping) + 1;
         main.cursor = next_cur as u64;
         transition { _ -> encode_byte_loop(main) }
     }
@@ -611,7 +611,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine read_stream_bit(main: @mut Main, left: u64, right: u64, byte_idx: u64, bit_offset: u64)
     requires left < 9 && right < 9 && byte_idx < 4 && bit_offset < 8 {
-        let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 in Wrapping;
+        let shift_amt: u8 in Wrapping = (7 - bit_offset) as u8 +Wrapping;
         let byte_val: u8 in Wrapping = main.packed[byte_idx];
         let bit: u8 in Wrapping = (byte_val >> shift_amt) & 1;
         main.bit_cursor = main.bit_cursor + 1;

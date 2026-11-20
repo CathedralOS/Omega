@@ -74,7 +74,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine interpret(main: @mut Main, final: bool) {
-        let argument: i32 in Saturating = (main.second - 48) as i32 in Saturating;
+        let argument: i32 in Saturating = (main.second - 48) as i32 +Saturating;
         main.decision = protocol\model\apply(@mut main.laboratory, main.first, argument);
         transition { _ -> block report(main, final) }
     }

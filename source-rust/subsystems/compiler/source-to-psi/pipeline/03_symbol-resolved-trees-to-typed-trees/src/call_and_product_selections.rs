@@ -4194,7 +4194,7 @@ pub(crate) mod qualification_casts {
                 continue;
             };
             let authored = *authored;
-            if let Some(entry) = authored.form.entry() {
+            if authored.form.entry().is_some() {
                 // Accounting fixed this entry's target and result. Every
                 // named entry retains the selected declaration and arguments:
                 // the checker must distinguish keeping/removing that domain
@@ -4205,9 +4205,6 @@ pub(crate) mod qualification_casts {
                 };
                 cast.semantic_domain_symbol = domain;
                 cast.semantic_domain_id = semantic_id;
-                if entry.kind != language_core::cast_form::CastEntryKind::Add {
-                    cast.semantic_domain = arena::HandleSpan::empty();
-                }
                 continue;
             }
             let result_type = if let Some(declaration) = program.domain_definition(domain) {

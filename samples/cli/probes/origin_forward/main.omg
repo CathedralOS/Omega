@@ -35,7 +35,7 @@ ensures result == input
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: @mut Main) {
-    main.hits = (held_local(7) as i32 in Wrapping) + (held_chained(9) as i32 in Wrapping);
+    main.hits = (held_local(7) as i32 +Wrapping) + (held_chained(9) as i32 +Wrapping);
 }
 
 // The entry owns ordinary local state; selection supplies no context.

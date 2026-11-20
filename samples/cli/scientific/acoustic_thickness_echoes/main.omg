@@ -34,8 +34,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine reference_check(acquisition: @mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating)
     requires layers >= 1 && layers <= 4
     requires echoes >= 1 && echoes <= 8 {
-        acquisition.layers = layers as u64 in Saturating;
-        acquisition.echoes = echoes as u64 in Saturating;
+        acquisition.layers = layers as u64 +Saturating;
+        acquisition.echoes = echoes as u64 +Saturating;
         acquisition.window = window;
         acquisition.reference_present = present;
         acquisition.reference = reference;

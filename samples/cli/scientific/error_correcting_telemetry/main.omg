@@ -100,7 +100,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine limit(main: @mut Main) { Console::write_line("LIMIT"); ProcessExit::exit_process(3); }
 }
 machine symbol(byte: u8) -> i32 in Wrapping {
-    transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 in Wrapping) - 48),
+    transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 +Wrapping) - 48),
         byte == 95 -> 5, _ -> 6 }
 }
 machine digit(main: @mut Main, value: i32 in Wrapping) reaches Console {

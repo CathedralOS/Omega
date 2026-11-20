@@ -31,7 +31,7 @@ machine number(reader: @mut Reader) -> Number reaches Console {
         }
     }
     machine append(reader: @mut Reader, byte: i32, value: i32 in Wrapping, count: i32 in Wrapping) -> Number {
-        let next: i32 in Wrapping = value * 10 + (byte as i32 in Wrapping) - 48;
+        let next: i32 in Wrapping = value * 10 + (byte as i32 +Wrapping) - 48;
         let observed: i32 = block character(reader);
         transition { _ -> digits(reader, observed, next, count + 1) }
     }

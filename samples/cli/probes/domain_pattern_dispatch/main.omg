@@ -54,7 +54,7 @@ machine Main::main(main: @mut Main) {
     }
     // Gauge literals grant i32::Ten at construction (7 <= 10);
     // refusing 11 here is the negative twin of this probe.
-    main.hits = main.hits + (main.gauge.level as i32 in Wrapping);
+    main.hits = main.hits + (main.gauge.level as i32 +Wrapping);
 }
 
 machine Main::alive(main: @mut Main) {

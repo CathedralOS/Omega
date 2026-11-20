@@ -202,7 +202,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine digit(main: @mut Main, value: i32) {
-        let digit: i32 in Wrapping = value as i32 in Wrapping;
+        let digit: i32 in Wrapping = value as i32 +Wrapping;
         main.number = main.number * 10 + digit - 48;
         main.in_number = true;
         transition { _ -> block read(main) }

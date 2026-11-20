@@ -44,7 +44,7 @@ crashes Trap
     }
     machine digit(value: i64 in Wrapping, digits: i64 in Wrapping, byte: i32) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 19 {
-            true -> bounded(value, digits, (widen_i32_to_i64(byte) as i64 in Wrapping) - 48),
+            true -> bounded(value, digits, (widen_i32_to_i64(byte) as i64 +Wrapping) - 48),
             false -> (Token::Invalid)
         }
     }

@@ -20,13 +20,13 @@ machine field(value:f64) reaches ProcessExit + Console invokes Console {
  }
  machine emit(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   let integer:i64=I64::from_f64(scaled);
-  number(integer as i64 in Wrapping);
+  number(integer as +Wrapping);
  }
  machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }
 machine count(value:u64 in Saturating) reaches ProcessExit + Console invokes Console {
  transition value <= 1000 { true -> bounded(value), false -> failure() }
- machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 in Wrapping); }
+ machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 +Wrapping); }
  machine failure() { Console::write_line("REJECT report count"); ProcessExit::exit_process(70); }
 }
 data Main { }
@@ -86,7 +86,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console invokes Console {
  machine execute(grid:@mut domain\grid\Grid) {
   let status:i32=domain\solver\solve(grid);
   Console::write("GRID "); count(grid.n); count(grid.count); count(grid.nonzeros); Console::write_line("");
-  Console::write("CG "); number(status as i64 in Wrapping); count(grid.iterations); field(grid.norm); field(grid.threshold); field(grid.error); Console::write_line("");
+  Console::write("CG "); number(status as i64 +Wrapping); count(grid.iterations); field(grid.norm); field(grid.threshold); field(grid.error); Console::write_line("");
   transition { _ -> report(grid,status,0) }
  }
  machine report(grid:@domain\grid\Grid,status:i32,index:u64 in Saturating) {

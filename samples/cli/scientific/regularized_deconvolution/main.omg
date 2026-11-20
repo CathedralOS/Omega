@@ -31,7 +31,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     machine configure(application: @mut Application, length: f64, width: f64, regularization: f64) {
         let count: i32 in Saturating = I32::from_f64(length);
         let taps: i32 in Saturating = I32::from_f64(width);
-        application.length = count as i32 in Wrapping; application.width = taps as i32 in Wrapping; application.regularization = regularization;
+        application.length = count as -Saturating +Wrapping; application.width = taps as -Saturating +Wrapping; application.regularization = regularization;
         application.index = 0; application.kernel_sum = 0.0;
         let recovered: f64 = F64::from_i32(count as i32);
         transition recovered == length { true -> block kernel(application), _ -> invalid(application) }

@@ -72,7 +72,7 @@ machine dungeon_use_event(
         dungeon: @mut Dungeon,
         line: @mut TextBuffer
     ) {
-        dungeon.player.health = min_i32(dungeon.player.max_health as i32, (dungeon.player.health + 12) as i32) as i32 in Wrapping;
+        dungeon.player.health = min_i32(dungeon.player.max_health as i32, (dungeon.player.health + 12) as i32) as i32 +Wrapping;
         dungeon.fountain_used = true;
         text_buffer_set(line, "The fountain heals your wounds.");
     }

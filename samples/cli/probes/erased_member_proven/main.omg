@@ -14,7 +14,7 @@ machine Main::main(main: @mut Main) {
         Certified::Void -> bad(main)
     }
     machine seen(main: @mut Main, value: i32) {
-        main.hits = main.hits + (value as i32 in Wrapping);
+        main.hits = main.hits + (value as +Wrapping);
     }
     machine bad(main: @mut Main) { }
 }

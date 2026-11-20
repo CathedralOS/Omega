@@ -26,8 +26,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
  machine counts(main: @mut Main, layers: f64, offsets: f64)
  requires layers >= 1.0 && layers <= 4.0
  requires offsets >= 0.0 && offsets <= 16.0 {
-  main.model.layers = I32::from_f64(layers) as i32 in Wrapping;
-  main.model.offsets = I32::from_f64(offsets) as i32 in Wrapping;
+  main.model.layers = I32::from_f64(layers) as i32 +Wrapping;
+  main.model.offsets = I32::from_f64(offsets) as i32 +Wrapping;
   let layer_value: f64 = main.model.layers as f64; let offset_value: f64 = main.model.offsets as f64;
   transition layers == layer_value && offsets == offset_value && main.protocol.position == 1 + 2 * main.model.layers + main.model.offsets {
    true -> velocity(main, 0, 0.0), false -> syntax(main)
@@ -99,8 +99,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
   }
  }
  machine direct(main: @mut Main, index: i32 in Wrapping, distance: f64) {
-  let offset: f64 in SurfaceOffset = distance as f64 in SurfaceOffset;
-  let speed: f64 in Velocity = main.model.velocities[0] as f64 in Velocity;
+  let offset: f64 in SurfaceOffset = distance as +SurfaceOffset;
+  let speed: f64 in Velocity = main.model.velocities[0] as f64 +Velocity;
   let duration: f64 in TravelTime = direct_time(offset, speed);
   main.best_time = duration as f64; main.best_branch = 0;
   let time: f64 = main.best_time;

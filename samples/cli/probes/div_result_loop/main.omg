@@ -44,8 +44,8 @@ machine Main::main(main: @mut Main) {
         }
     }
     machine compute(main: @mut Main) {
-        main.a = main.aa[main.i] as i32 in Wrapping;
-        main.b = main.bb[main.i] as i32 in Wrapping;
+        main.a = main.aa[main.i] as i32 +Wrapping;
+        main.b = main.bb[main.i] as i32 +Wrapping;
         transition main.b != 0 {
             true -> ok(main),
             _ -> err(main)

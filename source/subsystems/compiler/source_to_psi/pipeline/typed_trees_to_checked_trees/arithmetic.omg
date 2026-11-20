@@ -329,7 +329,7 @@ public machine require_shift_count(checker: @mut Checker, expression: Expression
 crashes Trap
 {
     let width: u64 in Trapping = checker_width(row.builtin);
-    let magnitude: u64 in Wrapping = width as u64 in Wrapping;
+    let magnitude: u64 in Wrapping = width as -Trapping +Wrapping;
     let bits: Value = value_constant(ExactInteger { negative: false, magnitude: magnitude });
     let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
     let below: bool = proves_less(checker, count, bits);

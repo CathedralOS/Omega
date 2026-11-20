@@ -32,7 +32,7 @@ public machine parse_transport(bytes: @[u8], input: @mut TransportInput) -> bool
                   token: u64, value: i32 in Wrapping, negative: bool, character: u8) -> bool {
         transition character >= 48 && character <= 57 && value <= 9 {
             true -> scan(bytes, input, position + 1, token,
-                         value * 10 + (character as i32 in Wrapping) - 48, negative, true, true),
+                         value * 10 + (character as i32 +Wrapping) - 48, negative, true, true),
             false -> false
         }
     }

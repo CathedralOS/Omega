@@ -18,7 +18,7 @@ requires storage.length == 0
 ensures result.count == 0, result.storage.base == storage.base,
     result.storage.length == storage.length
 {
-    let result: Run<P, T> = Run { storage: storage as Extent in Granted, count: 0 };
+    let result: Run<P, T> = Run { storage: storage as =Granted -Vacant, count: 0 };
     result
 }
 

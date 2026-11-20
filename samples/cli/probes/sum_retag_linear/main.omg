@@ -27,7 +27,7 @@ machine change(token: Token, increment: bool) -> Choice {
     machine replace(token: Token) -> Choice {
         let value: u64 = token.value;
         drop(token);
-        Choice::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
+        Choice::Success { token: Token { value: ((value as +Wrapping) + 1) as u64 } }
     }
 }
 

@@ -28,11 +28,11 @@ Other satisfies Family {
 machine row16(selected: dyn Family, value: Prepared<16>) -> Prepared<16> { Family::row::<16>(selected, value) }
 machine row32(selected: dyn Family, value: Prepared<32>) -> Prepared<32> { Family::row::<32>(selected, value) }
 machine input16(value: Prepared<16>, calls: @mut [u64; 1]) -> Prepared<16> {
-    calls[0] = ((calls[0] as u64 in Wrapping) + 1) as u64;
+    calls[0] = ((calls[0] as u64 +Wrapping) + 1) as u64;
     value
 }
 machine input32(value: Prepared<32>, calls: @mut [u64; 1]) -> Prepared<32> {
-    calls[0] = ((calls[0] as u64 in Wrapping) + 1) as u64;
+    calls[0] = ((calls[0] as u64 +Wrapping) + 1) as u64;
     value
 }
 machine escape(input: InlineInput, calls: @mut [u64; 1]) -> Escaped {

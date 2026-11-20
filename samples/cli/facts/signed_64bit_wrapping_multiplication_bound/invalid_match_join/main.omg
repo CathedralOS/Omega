@@ -21,8 +21,8 @@ machine sat_match_join(rhs: i64) -> i64
 requires rhs >= 5 && rhs <= 10
 {
     let lhs: i64 = choose_lhs(true);
-    let a: i64 in Wrapping = lhs as i64 in Wrapping;
-    let b: i64 in Wrapping = rhs as i64 in Wrapping;
+    let a: i64 in Wrapping = lhs as +Wrapping;
+    let b: i64 in Wrapping = rhs as +Wrapping;
     let wrap_prod: i64 in Wrapping = a * b;
     let prod: i64 = wrap_prod as i64;
     verify_prod(prod)

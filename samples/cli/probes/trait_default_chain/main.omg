@@ -74,7 +74,7 @@ LedgerStore satisfies Store<Ledger, i32> {
 }
 
 machine Ledger::put(ledger: @mut Ledger, item: i32) {
-    ledger.total = ledger.total + (item as i32 in Wrapping);
+    ledger.total = ledger.total + (item as i32 +Wrapping);
     ledger.count = ledger.count + 1;
 }
 

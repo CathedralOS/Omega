@@ -338,8 +338,8 @@ crashes Trap
 public machine resolver_visible(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared: SourceId, is_public: bool) -> bool
 crashes Trap
 {
-    let from_unit: u64 in Trapping = from.value as u64 in Trapping;
-    let declared_unit: u64 in Trapping = declared.value as u64 in Trapping;
+    let from_unit: u64 in Trapping = from.value as u64 +Trapping;
+    let declared_unit: u64 in Trapping = declared.value as u64 +Trapping;
     let same_module: bool = resolver_same_module(sources, from_unit, declared_unit);
     let same_package: bool = resolver_same_package(sources, from_unit, declared_unit);
     transition from_unit == declared_unit || same_module {

@@ -85,7 +85,7 @@ machine constructed(value: i32) -> EquivalenceClass { Representative { value: va
 machine computed_result() -> i32 in Trapping crashes Trap {
     let local: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
     let field: Holder = Holder { item: Representative { value: 13 } as EquivalenceClass };
-    (observe(admitted(local)) as i32 in Trapping) + (observe(lifted(field.item)) as i32 in Trapping) + (forwarded(constructed(17)) as i32 in Trapping) + (observe(constructed(29)) as i32 in Trapping)
+    (observe(admitted(local)) as i32 +Trapping) + (observe(lifted(field.item)) as i32 +Trapping) + (forwarded(constructed(17)) as i32 +Trapping) + (observe(constructed(29)) as i32 +Trapping)
 }
 
 

@@ -53,7 +53,7 @@ crashes Trap
     machine append(reader: @mut Reader, value: i32, sign: i64 in Wrapping, accumulated: i64 in Wrapping, digits: i32, fraction: i32, decimal: bool, divisor: i64 in Wrapping) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 13 && fraction >= 0 && fraction < 9
     {
-        let numeric: i64 in Wrapping = (value - 48) as i64 in Wrapping;
+        let numeric: i64 in Wrapping = (value - 48) as i64 +Wrapping;
         let next_divisor: i64 in Wrapping = match decimal { true -> divisor * 10, _ -> divisor };
         let next: i64 in Wrapping = accumulated * 10 + numeric;
         let next_fraction: i32 = match decimal { true -> fraction + 1, _ -> fraction };

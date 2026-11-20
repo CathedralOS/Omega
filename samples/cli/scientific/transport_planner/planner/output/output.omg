@@ -42,7 +42,7 @@ invokes Console
         }
     }
     machine write_cell(plan: @TransportPlan, index: u64) {
-        let digit: i32 in Wrapping = (plan.shipments[index] as i32 in Wrapping) + 48;
+        let digit: i32 in Wrapping = (plan.shipments[index] as i32 +Wrapping) + 48;
         Console::write_byte(digit as i32);
         transition index % 3 == 2 {
             true -> newline(plan, index),

@@ -1606,7 +1606,7 @@ crashes Trap
     requires index < 64
     {
         let place: u64 = set.places[index];
-        place as u64 in Trapping
+        place as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1736,7 +1736,7 @@ crashes Trap
     requires index < 64
     {
         let key: u64 = ownership.owed[index];
-        key as u64 in Trapping
+        key as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1894,7 +1894,7 @@ crashes Trap
     requires slot < 8
     {
         let handle: u64 = ownership.matches[slot];
-        handle as u64 in Trapping
+        handle as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1914,7 +1914,7 @@ crashes Trap
     requires slot < 8
     {
         let arm: u64 = ownership.match_arms[slot];
-        arm as u64 in Trapping
+        arm as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -1934,7 +1934,7 @@ crashes Trap
     requires slot < 8
     {
         let ended: u64 = ownership.match_ended[slot];
-        ended as u64 in Trapping
+        ended as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -2151,7 +2151,7 @@ crashes Trap
     requires cell < 512
     {
         let votes: u64 = ownership.votes[cell];
-        votes as u64 in Trapping
+        votes as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {

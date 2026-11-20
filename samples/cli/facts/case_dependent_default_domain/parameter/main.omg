@@ -87,7 +87,7 @@ machine width_named(span: NamedInterval in Ordered<32>) -> u64 {
     }
 }
 machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
-    let qualified: u64 in AtMost<32> = lo as u64 in AtMost<32>;
+    let qualified: u64 in AtMost<32> = lo as u64 +AtMost<32>;
     hi - (qualified as u64)
 }
 data Bundle [copy] {
@@ -116,9 +116,9 @@ machine first() -> Bundle { Bundle {
     number: Value::Integer { value: 42 },
     flag: Value::Boolean { value: true },
     span: Interval::Range { lo: 17, hi: 21 },
-    named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
-    named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
-    named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+    named_number: (NamedValue::Integer { value: -7 }) as +Typed<i32>,
+    named_flag: (NamedValue::Boolean { value: false }) as +Typed<bool>,
+    named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as +Ordered<32>,
     back: 0xFEDC_BA98
 } }
 machine second() -> Bundle { Bundle {
@@ -126,9 +126,9 @@ machine second() -> Bundle { Bundle {
     number: Value::Integer { value: -13 },
     flag: Value::Boolean { value: false },
     span: Interval::Empty,
-    named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
-    named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
-    named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+    named_number: (NamedValue::Integer { value: 23 }) as +Typed<i32>,
+    named_flag: (NamedValue::Boolean { value: true }) as +Typed<bool>,
+    named_span: NamedInterval::Empty as +Ordered<32>,
     back: 0xFEDC_BA98
 } }
 machine raw_case(value: NamedValue) -> u64 {

@@ -275,7 +275,7 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0
     {
         let mantissa: i32 = I32::from_f64(scaled);
-        integer(protocol, mantissa as i32 in Wrapping);
+        integer(protocol, mantissa as +Wrapping);
         Console::write("e");
         integer(protocol, exponent - 8);
     }
@@ -355,7 +355,7 @@ machine fraction_bit(protocol: @mut Protocol) -> bool {
     machine digit(protocol: @mut Protocol, position: u64, carry: i32 in Wrapping) -> bool
     requires position < 256
     {
-        let prior: i32 in Wrapping = protocol.fraction_digits[position] as i32 in Wrapping;
+        let prior: i32 in Wrapping = protocol.fraction_digits[position] as i32 +Wrapping;
         let value: i32 in Wrapping = prior * 2 + carry;
         transition value >= 10 { true -> store(protocol, position, value - 10, 1), false -> store(protocol, position, value, 0) }
     }

@@ -18,8 +18,8 @@ machine forward_param(d: i64) -> i64
 machine compute_parameter(lhs: i64, rhs: i64) -> i64
     requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
 {
-    let a: i64 in Saturating = lhs as i64 in Saturating;
-    let b: i64 in Saturating = rhs as i64 in Saturating;
+    let a: i64 in Saturating = lhs as +Saturating;
+    let b: i64 in Saturating = rhs as +Saturating;
     let sat: i64 in Saturating = a * b;
     let prod: i64 = sat as i64;
     let transported: i64 = forward_param(prod);

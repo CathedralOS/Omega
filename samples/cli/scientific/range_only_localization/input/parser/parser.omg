@@ -29,7 +29,7 @@ public machine parse(bytes: @[u8], problem: @mut Problem) -> bool {
         magnitude: i32 in Wrapping, negative: bool, value: u8) -> bool
     requires cursor < bytes.len
     {
-        let next: i32 in Wrapping = magnitude * 10 + (value as i32 in Wrapping) - 48;
+        let next: i32 in Wrapping = magnitude * 10 + (value as i32 +Wrapping) - 48;
         transition next <= 20 {
             true -> scan(bytes, problem, cursor + 1, field, next, negative, true, true),
             false -> (false)

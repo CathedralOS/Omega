@@ -15,7 +15,7 @@ machine digit(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturat
         false -> undefined()
     }
     machine divide(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturating {
-        ((code / divisor) % 10) as i32 in Saturating
+        ((code / divisor) % 10) as i32 +Saturating
     }
     machine undefined() -> i32 in Saturating { 0 }
 }
@@ -32,10 +32,10 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     }
     machine candidate(plan: @Plan, certificate: @mut Certificate, code: u64) {
         let mut travel: Travel;
-        travel.heights[0] = digit(code as u64 in Wrapping, 1000);
-        travel.heights[1] = digit(code as u64 in Wrapping, 100);
-        travel.heights[2] = digit(code as u64 in Wrapping, 10);
-        travel.heights[3] = digit(code as u64 in Wrapping, 1);
+        travel.heights[0] = digit(code as u64 +Wrapping, 1000);
+        travel.heights[1] = digit(code as u64 +Wrapping, 100);
+        travel.heights[2] = digit(code as u64 +Wrapping, 10);
+        travel.heights[3] = digit(code as u64 +Wrapping, 1);
         let valid: bool = evaluate(plan, @mut travel);
         transition valid {
             true -> feasible(plan, certificate, code, @travel),

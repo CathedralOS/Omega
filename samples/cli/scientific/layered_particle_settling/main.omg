@@ -110,7 +110,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let after: i32 = selected_layer(main.mode, main.particle.depth);
         crossing(step, before, after, main.particle.density);
         trace(step, before, main.particle, result.force, result.residual);
-        transition { _ -> iterate(main, remaining - 1, ((step as i32 in Wrapping) + 1) as i32) }
+        transition { _ -> iterate(main, remaining - 1, ((step as +Wrapping) + 1) as i32) }
     }
     machine bottom(main: @mut Main, step: i32, before: i32, result: Step) {
         main.particle.depth = 8.0;

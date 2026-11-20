@@ -274,7 +274,7 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 10000000000000000.0
     {
         let mantissa: i64 = I64::from_f64(scaled);
-        wide_integer(protocol, mantissa as i64 in Wrapping);
+        wide_integer(protocol, mantissa as +Wrapping);
         Console::write("e");
         integer(protocol, exponent - 15);
     }

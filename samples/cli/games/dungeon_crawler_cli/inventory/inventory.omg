@@ -63,7 +63,7 @@ machine inventory_system_add_item(
     let existing_index: u64 = find_item(inventory_system, inventory, kind);
 
     transition existing_index < 32 {
-        true -> increment_existing(inventory_system, inventory, kind, existing_index as u64 in Wrapping),
+        true -> increment_existing(inventory_system, inventory, kind, existing_index as +Wrapping),
         false -> append_item(inventory_system, inventory, kind)
     }
 

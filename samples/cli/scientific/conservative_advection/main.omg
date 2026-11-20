@@ -24,7 +24,7 @@ machine main(context:@mut Main) reaches ProcessExit + Console {
   transition model\transport\finite(field.mass) && model\transport\finite(field.minimum) && model\transport\finite(field.maximum) { true -> output(field), false -> bad_data() }
  }
  machine output(field:@model\transport\Field) {
-  Console::write("MASS "); io\report\scaled(field.mass,field.mass_exponent as i64 in Wrapping); Console::write_line("");
+  Console::write("MASS "); io\report\scaled(field.mass,field.mass_exponent as i64 +Wrapping); Console::write_line("");
   Console::write("MIN "); value(field,field.minimum_index); Console::write_line("");
   Console::write("MAX "); value(field,field.maximum_index); Console::write_line("");
   Console::write("CFL "); io\report\number(field.cfl); Console::write_line("");
@@ -45,8 +45,8 @@ machine main(context:@mut Main) reaches ProcessExit + Console {
 machine value(field:@model\transport\Field,index:u32 in Saturating) reaches Console {
  transition field.exact { true -> exact(field,index), false -> computed(field,index) }
  machine exact(field:@model\transport\Field,index:u32 in Saturating) {
-  io\decimal\number(narrow_u64_to_i64_saturating(field.coefficients[index%64] as u64) as i64 in Wrapping);
-  io\decimal\number(field.original_powers[index%64] as i64 in Wrapping);
+  io\decimal\number(narrow_u64_to_i64_saturating(field.coefficients[index%64] as u64) as i64 +Wrapping);
+  io\decimal\number(field.original_powers[index%64] as i64 +Wrapping);
  }
  machine computed(field:@model\transport\Field,index:u32 in Saturating) {
   io\report\field(field.current[index%64],field.powers[index%64],field.lower_coefficient,field.lower_power,field.upper_coefficient,field.upper_power,field.lower_value,field.lower_value_power,field.upper_value,field.upper_value_power);

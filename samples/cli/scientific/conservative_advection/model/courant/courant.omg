@@ -77,8 +77,8 @@ machine complementary_digits(product:@Digits,product_power:i32 in Wrapping,spaci
  transition product.length == 0 { true -> zero(), false -> lengths(product,product_power,spacing,spacing_power,rounded_fraction) }
  machine zero() -> f64 { 1.0 }
  machine lengths(product:@Digits,product_power:i32 in Wrapping,spacing:@Digits,spacing_power:i32 in Wrapping,rounded_fraction:f64) -> f64 {
-  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 in Wrapping)+product_power;
-  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 in Wrapping)+spacing_power;
+  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 +Wrapping)+product_power;
+  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 +Wrapping)+spacing_power;
   transition left < right-1 { true -> separated(rounded_fraction), false -> align(product,product_power,spacing,spacing_power) }
  }
  machine separated(rounded_fraction:f64) -> f64 {
@@ -98,10 +98,10 @@ machine complementary_digits(product:@Digits,product_power:i32 in Wrapping,spaci
  machine invalid() -> f64 { -1.0 }
 }
 machine aligned_digit(number:@Digits,shift:i32 in Wrapping,index:u32 in Saturating) -> u64 in Wrapping {
- let offset:i32 in Wrapping=(narrow_u32_to_i32_saturating(index as u32) as i32 in Wrapping)-shift;
- transition offset >= 0 && offset < (narrow_u32_to_i32_saturating(number.length as u32) as i32 in Wrapping) { true -> present(number,offset), false -> absent() }
+ let offset:i32 in Wrapping=(narrow_u32_to_i32_saturating(index as u32) as i32 +Wrapping)-shift;
+ transition offset >= 0 && offset < (narrow_u32_to_i32_saturating(number.length as u32) as i32 +Wrapping) { true -> present(number,offset), false -> absent() }
  machine present(number:@Digits,offset:i32 in Wrapping) -> u64 in Wrapping {
-  number.values[(narrow_i32_to_u32_saturating(offset as i32) as u32 in Saturating)%36]
+  number.values[(narrow_i32_to_u32_saturating(offset as i32) as u32 +Saturating)%36]
  }
  machine absent() -> u64 in Wrapping { 0 }
 }
@@ -135,8 +135,8 @@ machine compare_digits(product:@Digits,left_power:i32 in Wrapping,spacing:@Digit
   transition spacing.length == 0 { true -> above(), false -> lengths(product,left_power,spacing,right_power) }
  }
  machine lengths(product:@Digits,left_power:i32 in Wrapping,spacing:@Digits,right_power:i32 in Wrapping) -> i32 in Wrapping {
-  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 in Wrapping)+left_power;
-  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 in Wrapping)+right_power;
+  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 +Wrapping)+left_power;
+  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 +Wrapping)+right_power;
   transition left < right { true -> below(), false -> upper(product,spacing,left,right) }
  }
  machine upper(product:@Digits,spacing:@Digits,left:i32 in Wrapping,right:i32 in Wrapping) -> i32 in Wrapping {

@@ -7,7 +7,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     _ = block Console::read_line(@mut input[..]);
     let coordinates: [i64; 6] = [0,10,3,7,3,7];
-    let value: i64 = nodes\unguarded(@coordinates, input[0] as i32 in Wrapping);
+    let value: i64 = nodes\unguarded(@coordinates, input[0] as i32 +Wrapping);
     ProcessExit::exit_process(0);
 }
 

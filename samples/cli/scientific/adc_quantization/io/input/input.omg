@@ -39,7 +39,7 @@ crashes Trap
         }
     }
     machine accumulate(magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
-        let next: i64 in Wrapping = magnitude * 10 + (widen_i32_to_i64(character) as i64 in Wrapping) - 48;
+        let next: i64 in Wrapping = magnitude * 10 + (widen_i32_to_i64(character) as i64 +Wrapping) - 48;
         transition next <= 1000 { true -> block scan(next, negative, true, true), _ -> (2001) }
     }
     machine finish(magnitude: i64 in Wrapping, negative: bool, digits: bool) -> i64 in Wrapping {

@@ -91,7 +91,7 @@ invokes Console
     machine header(partition: @Partition, owner: u64)
     requires owner < 8
     {
-        Console::write("CELL "); integer(owner as i64 in Saturating);
+        Console::write("CELL "); integer(owner as i64 +Saturating);
         Console::write(" AREA "); micro(partition.areas[owner]); Console::write_line("");
         transition { _ -> vertex(partition, owner, 0) }
     }
@@ -129,7 +129,7 @@ invokes Console
     machine connected(partition: @Partition, owner: u64, rival: u64)
     requires owner < 8
     {
-        Console::write("ADJACENT "); integer(rival as i64 in Saturating); Console::write_line("");
+        Console::write("ADJACENT "); integer(rival as i64 +Saturating); Console::write_line("");
         transition { _ -> adjacent(partition, owner, rival + 1) }
     }
     machine checked(partition: @Partition, owner: u64)

@@ -1,7 +1,7 @@
 // Fact: A supplied static callable retains its exact applied type requirements through mutable values and calls without runtime operands.
 // Expected exit: 0
-machine increment32(value: @mut u32) { $value = (($value as u32 in Wrapping) + (1u32 as u32 +Wrapping)) as u32; }
-machine increment64(value: @mut u64) { $value = (($value as u64 in Wrapping) + (1u64 as u64 +Wrapping)) as u64; }
+machine increment32(value: @mut u32) { $value = (($value as u32 +Wrapping) + (1u32 as u32 +Wrapping)) as u32; }
+machine increment64(value: @mut u64) { $value = (($value as u64 +Wrapping) + (1u64 as u64 +Wrapping)) as u64; }
 machine increment<Kind>(value: @mut Kind)
 requires Kind == u32
 {

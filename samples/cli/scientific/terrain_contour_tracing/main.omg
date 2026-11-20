@@ -35,8 +35,8 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine decode_header(context: @mut Main) {
-        context.terrain.level = (widen_u8_to_i32(context.input[0]) as i32 in Wrapping) - 48;
-        context.terrain.policy = (widen_u8_to_i32(context.input[1]) as i32 in Wrapping) - 48;
+        context.terrain.level = (widen_u8_to_i32(context.input[0]) as i32 +Wrapping) - 48;
+        context.terrain.policy = (widen_u8_to_i32(context.input[1]) as i32 +Wrapping) - 48;
         transition { _ -> digit(context, 0) }
     }
     machine digit(context: @mut Main, index: u64) {
@@ -46,7 +46,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         transition context.input[index + 2] >= 48 && context.input[index + 2] <= 57 { true -> decode(context, index), false -> invalid(context) }
     }
     machine decode(context: @mut Main, index: u64) requires index < 9 {
-        let height: i32 in Wrapping = (widen_u8_to_i32(context.input[index + 2]) as i32 in Wrapping) - 48;
+        let height: i32 in Wrapping = (widen_u8_to_i32(context.input[index + 2]) as i32 +Wrapping) - 48;
         transition height != context.terrain.level { true -> store(context, index, height), false -> invalid(context) }
     }
     machine store(context: @mut Main, index: u64, height: i32 in Wrapping) requires index < 9 {

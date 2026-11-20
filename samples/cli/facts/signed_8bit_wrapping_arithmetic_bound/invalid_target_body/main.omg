@@ -42,8 +42,8 @@ X86VerifyTarget satisfies SelectedVerifyTarget {
         SelectedBodyCheck::require_tag(17u64);
         let lhs: i8 = 81i8;
         let rhs: i8 = 20i8;
-        let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
-        let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+        let w_lhs: i8 in Wrapping = lhs as +Wrapping;
+        let w_rhs: i8 in Wrapping = rhs as +Wrapping;
         let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
         let sum: i8 = sum_wrap as i8;
         verify_sum(sum)
@@ -57,8 +57,8 @@ ArmVerifyTarget satisfies SelectedVerifyTarget {
         SelectedBodyCheck::require_tag(29u64);
         let lhs: i8 = 81i8;
         let rhs: i8 = 20i8;
-        let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
-        let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+        let w_lhs: i8 in Wrapping = lhs as +Wrapping;
+        let w_rhs: i8 in Wrapping = rhs as +Wrapping;
         let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
         let sum: i8 = sum_wrap as i8;
         verify_sum(sum)

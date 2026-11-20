@@ -3,7 +3,7 @@
 // Place: const_name.
 data Token<'counter> [linear] dropped by drop_token { drops: @'counter mut [u64; 1]; }
 machine drop_token<'counter>(token: @mut Token<'counter>) {
-    token.drops[0] = ((token.drops[0] as u64 in Wrapping) + 1) as u64;
+    token.drops[0] = ((token.drops[0] as u64 +Wrapping) + 1) as u64;
 }
 data Ticket<'counter> { token: Token<'counter>; marker: u32; }
 data Delivery<'counter> { case Narrow(ticket: Ticket<'counter>); case Wide(ticket: Ticket<'counter>); }

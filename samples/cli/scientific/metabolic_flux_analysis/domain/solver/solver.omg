@@ -80,7 +80,7 @@ machine candidate(solver: @mut Solver, code: i32 in Wrapping) -> bool crashes Tr
         transition selected == 2 { true -> free_reaction(solver, index, code), _ -> fixed_reaction(solver, index, code, selected) }
     }
     machine free_reaction(solver: @mut Solver, index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
-        write_six(@mut solver.free, solver.free_count, index as i64 in Wrapping);
+        write_six(@mut solver.free, solver.free_count, index as -Wrapping as i64 +Wrapping);
         solver.free_count = solver.free_count + 1;
         write_six(@mut solver.flux, index, 0);
         transition { _ -> decode(solver, index + 1, code / 3) }
@@ -120,7 +120,7 @@ machine candidate(solver: @mut Solver, code: i32 in Wrapping) -> bool crashes Tr
     }
     machine free_column(solver: @mut Solver, row: i32 in Wrapping, column: i32 in Wrapping) -> bool {
         let reaction: i64 in Wrapping = read_six(@solver.free, column);
-        let coefficient: i64 in Wrapping = read_matrix(@solver.matrix, row * 6 + (narrow_i64_to_i32_wrapping(reaction as i64) as i32 in Wrapping));
+        let coefficient: i64 in Wrapping = read_matrix(@solver.matrix, row * 6 + (narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping));
         write_work(@mut solver.work, row * 7 + column, coefficient);
         transition { _ -> free_columns(solver, row, column + 1) }
     }
@@ -194,7 +194,7 @@ machine candidate(solver: @mut Solver, code: i32 in Wrapping) -> bool crashes Tr
     }
     machine subtracted(solver: @mut Solver, column: i32 in Wrapping, entry: i32 in Wrapping, numerator: i64 in Wrapping) -> bool {
         let reaction: i64 in Wrapping = read_six(@solver.free, entry);
-        let value: i64 in Wrapping = read_six(@solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 in Wrapping);
+        let value: i64 in Wrapping = read_six(@solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping);
         let coefficient: i64 in Wrapping = read_work(@solver.work, column * 7 + entry);
         transition { _ -> subtract(solver, column, entry + 1, numerator - coefficient * value) }
     }
@@ -202,7 +202,7 @@ machine candidate(solver: @mut Solver, code: i32 in Wrapping) -> bool crashes Tr
         let diagonal: i64 in Wrapping = read_work(@solver.work, column * 7 + column);
         let value: i64 in Wrapping = quotient(numerator, diagonal);
         let reaction: i64 in Wrapping = read_six(@solver.free, column);
-        write_six(@mut solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 in Wrapping, value);
+        write_six(@mut solver.flux, narrow_i64_to_i32_wrapping(reaction as i64) as i32 +Wrapping, value);
         transition { _ -> backwards(solver, column - 1) }
     }
     machine normalize(solver: @mut Solver) -> bool {

@@ -1,5 +1,5 @@
 // `ensures result ==` on folded policy arithmetic: exact
-// `3u8 + 4u8`, `255u8 as u8 in Wrapping) + 2`, the same
+// `3u8 + 4u8`, `(255u8 as u8 +Wrapping) + 2`, the same
 // operands `in Saturating`, and a wrapped-shift mix —
 // each `ensures` pins the folded policy result.
 //

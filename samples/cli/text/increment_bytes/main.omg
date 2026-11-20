@@ -26,7 +26,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine write_incremented_byte(count: i32 in Wrapping, value: i32)
     requires value >= 0 && value <= 0xFF {
-        let byte: i32 in Wrapping = value as i32 in Wrapping;
+        let byte: i32 in Wrapping = value as +Wrapping;
         let incremented: i32 in Wrapping = byte + 1;
         let output: i32 = incremented as i32;
         Console::write_byte(output);

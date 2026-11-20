@@ -1638,7 +1638,7 @@ crashes Trap
     }
 
     machine push(parser: @mut Parser, handle: u64 in Trapping) {
-        parser.expression_operands[parser.expression_operand_depth] = handle as u64 in Trapping;
+        parser.expression_operands[parser.expression_operand_depth] = handle;
         parser.expression_operand_depth = parser.expression_operand_depth + 1;
     }
 
@@ -2266,7 +2266,7 @@ crashes Trap
     }
 
     machine stage(parser: @mut Parser, argument: u64 in Trapping) {
-        parser.pending_arguments[parser.pending_argument_count] = argument as u64 in Trapping;
+        parser.pending_arguments[parser.pending_argument_count] = argument;
         parser.pending_argument_count = parser.pending_argument_count + 1;
     }
 

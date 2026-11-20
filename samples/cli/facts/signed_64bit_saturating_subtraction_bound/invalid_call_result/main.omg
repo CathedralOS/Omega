@@ -8,8 +8,8 @@ machine compute_sat_diff(l: i64, r: i64) -> i64
     requires r >= 20i64 && r <= 40i64
     ensures result >= 40i64 && result <= 105i64
 {
-    let a: i64 in Saturating = l as i64 in Saturating;
-    let b: i64 in Saturating = r as i64 in Saturating;
+    let a: i64 in Saturating = l as +Saturating;
+    let b: i64 in Saturating = r as +Saturating;
     let d_sat: i64 in Saturating = a - b;
     d_sat as i64
 }

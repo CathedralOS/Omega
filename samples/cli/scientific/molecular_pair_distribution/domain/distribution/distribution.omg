@@ -22,14 +22,14 @@ requires box > 0
 machine separation(first: i32, second: i32, box: i32) -> f64 crashes Trap {
     transition box > 0 { true -> calculate(first, second, box), _ -> invalid_box() }
     machine calculate(first: i32, second: i32, box: i32) -> f64 requires box > 0 {
-    let a: i32 in Wrapping = wrap(first as i32 in Wrapping, box as i32 in Wrapping);
-    let b: i32 in Wrapping = wrap(second as i32 in Wrapping, box as i32 in Wrapping);
+    let a: i32 in Wrapping = wrap(first as i32 +Wrapping, box as i32 +Wrapping);
+    let b: i32 in Wrapping = wrap(second as i32 +Wrapping, box as i32 +Wrapping);
     let delta: i32 in Wrapping = a - b;
     transition delta < 0 { true -> folded((0 - delta) as i32, box), _ -> folded(delta as i32, box) }
     }
     machine invalid_box() -> f64 { crash Trap; }
     machine folded(delta: i32, box: i32) -> f64 {
-        transition delta > box / 2 { true -> F64::from_i32(((box as i32 in Wrapping) - (delta as i32 in Wrapping)) as i32), _ -> F64::from_i32(delta) }
+        transition delta > box / 2 { true -> F64::from_i32(((box as i32 +Wrapping) - (delta as i32 +Wrapping)) as i32), _ -> F64::from_i32(delta) }
     }
 }
 public machine histogram(distribution: @mut Distribution) crashes Trap {
@@ -97,8 +97,8 @@ public machine report(distribution: @Distribution) reaches Console invokes Conso
         let cubes: f64 = upper*upper*upper - lower*lower*lower;
         let g: Precise = normalized(F64::from_i32(count as i32), box, snapshots, particles, cubes);
         let coordination: f64 = 2.0 * F64::from_i32(total as i32) / (snapshots * particles);
-        integer(widen_i32_to_i64(bin as i32) as i64 in Wrapping); Console::write(" ");
-        integer(widen_i32_to_i64(count as i32) as i64 in Wrapping); Console::write(" ");
+        integer(widen_i32_to_i64(bin as i32) as i64 +Wrapping); Console::write(" ");
+        integer(widen_i32_to_i64(count as i32) as i64 +Wrapping); Console::write(" ");
         precise_real(g); Console::write(" "); real(coordination); Console::write_line("");
         transition { _ -> row(distribution, bin + 1, upper, total) }
     }

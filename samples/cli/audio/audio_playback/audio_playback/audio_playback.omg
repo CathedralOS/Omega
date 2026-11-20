@@ -217,11 +217,11 @@ MacosAudioPlayback satisfies AudioPlayback {
             // Read the queue-owned mAudioData pointer out of the AudioQueueBuffer.
             // Foreign addresses are wrapping arithmetic: an AudioToolbox-owned
             // pointer has no provable headroom for exact `+`.
-            let pointer_field: u64 = ((buffer as u64 in Wrapping) + 8) as u64;
+            let pointer_field: u64 = ((buffer as u64 +Wrapping) + 8) as u64;
             let mut data: u64 = 0;
             MacosAudioPlaybackIo::c_load_pointer(pointer_field, @mut data, 8);
             // mAudioDataByteSize (offset 16) is the frame count; then copy PCM.
-            let size_field: u64 = ((buffer as u64 in Wrapping) + 16) as u64;
+            let size_field: u64 = ((buffer as u64 +Wrapping) + 16) as u64;
             let mut bytes: [u8; 4] = [0, 0, 0, 0];
             bytes[0] = narrow_u32_to_u8_wrapping(frames);
             bytes[1] = narrow_u32_to_u8_wrapping(frames / 256);
@@ -240,7 +240,7 @@ MacosAudioPlayback satisfies AudioPlayback {
         machine start(queue: u64, frames: u32) -> i32 {
             let rc: i32 = MacosAudioPlaybackIo::c_start(queue, 0);
             transition rc == 0 {
-                true -> block rest(queue, (frames as u32 in Wrapping) / 400 + 5),
+                true -> block rest(queue, (frames as u32 +Wrapping) / 400 + 5),
                 _ -> teardown(queue, rc)
             }
         }

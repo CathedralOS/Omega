@@ -134,9 +134,9 @@ machine bignum_add(left: @Bignum, right: @Bignum, out: @mut Bignum) -> u32 {
     machine step(left: @Bignum, right: @Bignum, out: @mut Bignum, index: u64, carry: u32) -> u32 {
         let l_wrap: u32 in Wrapping = left.limbs[index];
         let r_wrap: u32 in Wrapping = right.limbs[index];
-        let c_wrap: u32 in Wrapping = carry as u32 in Wrapping;
+        let c_wrap: u32 in Wrapping = carry as u32 +Wrapping;
         let low_sum_64: u64 = ((l_wrap + r_wrap + c_wrap) as u32) as u64;
-        out.limbs[index] = (low_sum_64 as u32) as u32 in Wrapping;
+        out.limbs[index] = (low_sum_64 as u32) as u32 +Wrapping;
 
         let l64: u64 = (l_wrap as u32) as u64;
         let r64: u64 = (r_wrap as u32) as u64;
@@ -163,13 +163,13 @@ machine bignum_sub(left: @Bignum, right: @Bignum, out: @mut Bignum) -> u32 {
     machine step(left: @Bignum, right: @Bignum, out: @mut Bignum, index: u64, borrow: u32) -> u32 {
         let l_wrap: u32 in Wrapping = left.limbs[index];
         let r_wrap: u32 in Wrapping = right.limbs[index];
-        let b_wrap: u32 in Wrapping = borrow as u32 in Wrapping;
+        let b_wrap: u32 in Wrapping = borrow as +Wrapping;
         let low_diff: u32 in Wrapping = l_wrap - r_wrap - b_wrap;
         out.limbs[index] = low_diff;
 
-        let l64: u64 in Wrapping = widen_u32_to_u64(l_wrap as u32) as u64 in Wrapping;
-        let r64: u64 in Wrapping = widen_u32_to_u64(r_wrap as u32) as u64 in Wrapping;
-        let b64: u64 in Wrapping = widen_u32_to_u64(borrow) as u64 in Wrapping;
+        let l64: u64 in Wrapping = widen_u32_to_u64(l_wrap as u32) as u64 +Wrapping;
+        let r64: u64 in Wrapping = widen_u32_to_u64(r_wrap as u32) as u64 +Wrapping;
+        let b64: u64 in Wrapping = widen_u32_to_u64(borrow) as u64 +Wrapping;
         let need64: u64 in Wrapping = r64 + b64;
         transition (l64 as u64) < (need64 as u64) {
             true -> loop_(left, right, out, index + 1, 1),
@@ -204,7 +204,7 @@ machine bignum_mul_schoolbook(left: @Bignum, right: @Bignum, out: @mut Bignum) {
         let cur64: u64 = (out.limbs[pos] as u32) as u64;
         let prod: u64 = a64 * b64 + cur64 + carry;
         let low: u32 = (prod & 4294967295) as u32;
-        out.limbs[pos] = low as u32 in Wrapping;
+        out.limbs[pos] = low as +Wrapping;
         let next_carry: u64 = prod >> 32;
         transition { _ -> inner(left, right, out, i, j + 1, next_carry) }
     }
@@ -219,7 +219,7 @@ machine bignum_mul_schoolbook(left: @Bignum, right: @Bignum, out: @mut Bignum) {
     machine store_row_carry(left: @Bignum, right: @Bignum, out: @mut Bignum, i: u64, carry: u64) {
         let tail: u64 = i + 4;
         let cur: u32 in Wrapping = out.limbs[tail];
-        let c32: u32 in Wrapping = (carry as u32) as u32 in Wrapping;
+        let c32: u32 in Wrapping = (carry as u32) as u32 +Wrapping;
         out.limbs[tail] = cur + c32;
         transition { _ -> outer(left, right, out, i + 1) }
     }
@@ -259,7 +259,7 @@ requires
         let q_limb64: u64 = combined / d64;
         let next_rem: u64 = combined % d64;
         let q_limb32: u32 = narrow_u64_to_u32_wrapping(q_limb64);
-        quotient.limbs[index] = q_limb32 as u32 in Wrapping;
+        quotient.limbs[index] = q_limb32 as +Wrapping;
         transition { _ -> loop_(dividend, d64, quotient, index, next_rem) }
     }
 }
@@ -303,7 +303,7 @@ machine bignum_render_decimal(value: @Bignum, digits: @mut [u8; 40]) {
     machine extract_digit(work: @mut Bignum, next_work: @mut Bignum, digits: @mut [u8; 40], pos: u64) {
         let rem: u32 = bignum_divmod_small(work, 10, next_work);
         bignum_copy(next_work, work);
-        let ascii_u32: u32 in Wrapping = (rem as u32 in Wrapping) + 48;
+        let ascii_u32: u32 in Wrapping = (rem as u32 +Wrapping) + 48;
         digits[pos] = narrow_u32_to_u8_wrapping(ascii_u32 as u32);
         transition { _ -> loop_(work, next_work, digits, pos) }
     }

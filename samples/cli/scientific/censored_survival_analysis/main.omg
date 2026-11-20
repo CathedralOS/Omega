@@ -26,7 +26,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     let count: Number = block number(@mut main.reader);
     let integer: i32 in Saturating = I32::from_f64(count.value);
     transition count.valid && count.value >= 1.0 && count.value <= 32.0 && F64::from_i32(integer as i32) == count.value {
-        true -> block configure(main, integer as i32 in Wrapping),
+        true -> block configure(main, integer as -Saturating +Wrapping),
         false -> invalid(main)
     }
     machine configure(main: @mut Main, count: i32 in Wrapping) {

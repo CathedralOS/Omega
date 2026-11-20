@@ -44,7 +44,7 @@ reaches Console {
         }
     }
     machine accumulate(token: @mut Token, character: i32, count: i32 in Wrapping) {
-        token.value = token.value * 10 + (character as i32 in Wrapping) - 48;
+        token.value = token.value * 10 + (character as +Wrapping) - 48;
         transition { _ -> next(token, count + 1) }
     }
     machine next(token: @mut Token, count: i32 in Wrapping) {

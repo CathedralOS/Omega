@@ -33,9 +33,9 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         Console::write_line("ERROR input"); ProcessExit::exit_process(10);
     }
     machine configure(application: @mut Application, metabolites: i64 in Wrapping, reactions: i64 in Wrapping, biomass: i64 in Wrapping) {
-        application.solver.metabolites = narrow_i64_to_i32_wrapping((metabolites / 1000000000) as i64) as i32 in Wrapping;
-        application.solver.reactions = narrow_i64_to_i32_wrapping((reactions / 1000000000) as i64) as i32 in Wrapping;
-        application.solver.biomass = narrow_i64_to_i32_wrapping((biomass / 1000000000) as i64) as i32 in Wrapping;
+        application.solver.metabolites = narrow_i64_to_i32_wrapping((metabolites / 1000000000) as i64) as i32 +Wrapping;
+        application.solver.reactions = narrow_i64_to_i32_wrapping((reactions / 1000000000) as i64) as i32 +Wrapping;
+        application.solver.biomass = narrow_i64_to_i32_wrapping((biomass / 1000000000) as i64) as i32 +Wrapping;
         transition { _ -> block matrix_row(application, 0, 0) }
     }
     machine matrix_row(application: @mut Application, row: i32 in Wrapping, column: i32 in Wrapping) {

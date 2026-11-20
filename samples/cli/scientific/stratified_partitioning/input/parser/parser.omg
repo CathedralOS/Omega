@@ -45,7 +45,7 @@ crashes Trap
         }
     }
     machine accumulate(tokens: @mut Tokens, byte: i32) {
-        tokens.value = tokens.value * 10 + (byte as i32 in Saturating) - 48;
+        tokens.value = tokens.value * 10 + (byte as +Saturating) - 48;
         tokens.digits = true;
         transition { _ -> scan(tokens) }
     }

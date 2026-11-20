@@ -54,7 +54,7 @@ public machine match_echo(acquisition: @Acquisition, arrival: i64 in Saturating)
         // A unique primary has nonnegative delta: any arrival before the
         // previous boundary would also match that earlier primary path.
         let estimate: i64 in Saturating = (relative - previous) * acquisition.speeds[layer] / 2000;
-        let next: EchoResult = EchoResult { matches: result.matches + 1, layer: (layer as i64 in Saturating) + 1, order: order, thickness: estimate };
+        let next: EchoResult = EchoResult { matches: result.matches + 1, layer: (layer as i64 +Saturating) + 1, order: order, thickness: estimate };
         transition { _ -> advance(acquisition, relative, layer, previous, order, next) }
     }
     machine advance(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: EchoResult) -> EchoResult

@@ -229,7 +229,7 @@ machine read(context: @mut Main, input: @mut Input) reaches ProcessExit + Consol
         }
     }
     machine digit(context: @mut Main, input: @mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping, byte: i32) {
-        let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 in Wrapping;
+        let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 +Wrapping;
         let next: i64 in Wrapping = value * 10 + wide - 48;
         transition next <= 2147483647 {
             true -> block scan(context, input, next, true, consumed),

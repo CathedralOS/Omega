@@ -20,7 +20,7 @@ machine fold_bytes(values: @[u8], checksum: u32 in Wrapping) -> u32 in Wrapping 
     }
     machine read(values: @[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
     requires cursor < values.len {
-        let next: u32 in Wrapping = checksum * 31 + (values[cursor] as u32 in Wrapping);
+        let next: u32 in Wrapping = checksum * 31 + (values[cursor] as u32 +Wrapping);
         transition { _ -> scan(values, cursor + 1, next) }
     }
 }

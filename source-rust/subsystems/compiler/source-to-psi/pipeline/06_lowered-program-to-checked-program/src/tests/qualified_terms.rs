@@ -192,6 +192,21 @@ machine entry() -> i64 {{
 }
 
 #[test]
+fn an_explicit_carrier_lands_an_anonymous_literal_before_adding_a_domain() {
+    let verdict = judge(invocation(
+        r#"
+domain i32::Positive requires self > 0;
+machine entry() -> i32 ensures result == 5 {
+    let five: i32 in Positive = 5 as i32 +Positive;
+    five as -Positive
+}
+"#,
+    ))
+    .unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
 fn explicit_domain_removal_keeps_the_call_precondition_and_value_fact() {
     let requirement = "(handle as -Classified) != 0";
     let accepted = judge(invocation(&consumer(7, requirement))).unwrap();

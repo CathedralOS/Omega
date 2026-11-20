@@ -44,7 +44,7 @@ public machine parse(packet: @mut Packet, bytes: @[u8; 256]) {
     }
     machine accumulate(packet: @mut Packet, bytes: @[u8; 256], cursor: i32 in Wrapping,
                      value: i32 in Wrapping, negative: bool, character: i32) {
-        let next: i32 in Wrapping = value * 10 + (character as i32 in Wrapping) - 48;
+        let next: i32 in Wrapping = value * 10 + (character as +Wrapping) - 48;
         transition next <= 100000000 {
             true -> scan(packet, bytes, cursor + 1, next, negative, true),
             _ -> done()

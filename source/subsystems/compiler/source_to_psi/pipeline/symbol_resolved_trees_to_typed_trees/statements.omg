@@ -438,7 +438,7 @@ crashes Trap
 
     machine complete_pattern(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, arm: TransitionArm, declared: DataItem, data_case: u64 in Trapping) {
         let selected: DataCase = syntax_trees_data_case(syntax, data_case);
-        let expected: u64 in Trapping = (declared.field_count as u64 in Trapping) + (selected.payload_field_count as u64 in Trapping);
+        let expected: u64 in Trapping = (declared.field_count as u64 +Trapping) + (selected.payload_field_count as u64 +Trapping);
         validate_pattern_fields(typer, sources, syntax, arm, expected);
     }
 

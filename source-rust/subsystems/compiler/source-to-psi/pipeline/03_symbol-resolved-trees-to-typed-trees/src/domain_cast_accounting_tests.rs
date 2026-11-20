@@ -327,6 +327,7 @@ machine remove(value: i64 in Marked<u32>) -> i64 { value as -Marked<u32> }
         };
         assert!(cast.result_type.is_valid());
         assert!(cast.semantic_domain_symbol.is_valid());
+        assert_eq!(typed.expression_table.name_path_string(cast.semantic_domain), "Marked");
         let arguments = typed
             .type_reference_table
             .type_reference_handles(cast.semantic_domain_arguments);

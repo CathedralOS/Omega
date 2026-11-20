@@ -44,10 +44,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         let bump: u8 =
-            ((narrow_u32_to_u8_trapping(y) as u8 in Wrapping)
-            + (narrow_u32_to_u8_trapping(x) as u8 in Wrapping)) as u8;
+            ((narrow_u32_to_u8_trapping(y) as u8 +Wrapping)
+            + (narrow_u32_to_u8_trapping(x) as u8 +Wrapping)) as u8;
         let cur: u8 = grid.cells[y * 4 + x];
-        let next: u8 = ((cur as u8 in Wrapping) + (bump as u8 in Wrapping)) as u8;
+        let next: u8 = ((cur as +Wrapping) + (bump as +Wrapping)) as u8;
         grid.cells[y * 4 + x] = next;
         let heat: u32 = widen_u8_to_u32(next);
         transition heat > hottest {

@@ -13,8 +13,8 @@ machine get_prod(lhs: i64, rhs: i64) -> i64
     requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
     ensures result >= 50 && result <= 210
 {
-    let a: i64 in Saturating = lhs as i64 in Saturating;
-    let b: i64 in Saturating = rhs as i64 in Saturating;
+    let a: i64 in Saturating = lhs as +Saturating;
+    let b: i64 in Saturating = rhs as +Saturating;
     let sat: i64 in Saturating = a * b;
     sat as i64
 }

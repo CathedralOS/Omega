@@ -61,8 +61,8 @@ public machine force_event(assignment: i32, event: i32, present: bool) -> i32 {
     }
     machine alter(assignment: i32, bit: i32, present: bool) -> i32 {
         transition present {
-            true -> ((assignment as i32 in Wrapping) + (bit as i32 in Wrapping)) as i32,
-            _ -> ((assignment as i32 in Wrapping) - (bit as i32 in Wrapping)) as i32
+            true -> ((assignment as +Wrapping) + (bit as +Wrapping)) as i32,
+            _ -> ((assignment as +Wrapping) - (bit as +Wrapping)) as i32
         }
     }
 }

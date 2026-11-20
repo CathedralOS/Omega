@@ -41,10 +41,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine parse(input: @[u8; 16]) {
         let mut request: Request;
-        request.treatments = (widen_u8_to_i32(input[0]) as i32 in Wrapping) - 48;
-        request.subjects = (widen_u8_to_i32(input[2]) as i32 in Wrapping) - 48;
-        request.cap = (widen_u8_to_i32(input[4]) as i32 in Wrapping) - 48;
-        request.forbidden = (widen_u8_to_i32(input[6]) as i32 in Wrapping) - 48;
+        request.treatments = (widen_u8_to_i32(input[0]) as i32 +Wrapping) - 48;
+        request.subjects = (widen_u8_to_i32(input[2]) as i32 +Wrapping) - 48;
+        request.cap = (widen_u8_to_i32(input[4]) as i32 +Wrapping) - 48;
+        request.forbidden = (widen_u8_to_i32(input[6]) as i32 +Wrapping) - 48;
         transition (request.treatments == 2 || request.treatments == 3)
             && request.subjects >= 1 && request.subjects <= 6 && request.cap <= 6
             && request.forbidden <= 6

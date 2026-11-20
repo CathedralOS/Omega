@@ -26,7 +26,7 @@ invokes Console
     }
     machine digit(value: i32, place: i32 in Wrapping)
     requires place > 0 {
-        Console::write_byte((((value as i32 in Wrapping) / place) + 48) as i32);
+        Console::write_byte((((value as +Wrapping) / place) + 48) as i32);
         transition place > 1 {
             true -> rest(value, place),
             _ -> done()
@@ -34,7 +34,7 @@ invokes Console
     }
     machine rest(value: i32, place: i32 in Wrapping)
     requires place > 1 {
-        transition { _ -> emit(((value as i32 in Wrapping) % place) as i32, place / 10) }
+        transition { _ -> emit(((value as +Wrapping) % place) as i32, place / 10) }
     }
     machine done() { }
 }

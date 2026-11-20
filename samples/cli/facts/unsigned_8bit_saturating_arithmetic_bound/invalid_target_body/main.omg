@@ -33,8 +33,8 @@ X86AddTarget satisfies SelectedAddTarget {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 40u8 && lhs <= 85u8 requires rhs >= 10u8 && rhs <= 20u8
     {
         SelectedBodyCheck::require_tag(17u64);
-        let a: u8 in Saturating = lhs as u8 in Saturating;
-        let b: u8 in Saturating = rhs as u8 in Saturating;
+        let a: u8 in Saturating = lhs as +Saturating;
+        let b: u8 in Saturating = rhs as +Saturating;
         let s_sat: u8 in Saturating = a + b;
         let sum: u8 = s_sat as u8;
         let headroom: u8 = 100u8 - sum;
@@ -53,8 +53,8 @@ ArmAddTarget satisfies SelectedAddTarget {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires lhs >= 40u8 && lhs <= 85u8 requires rhs >= 10u8 && rhs <= 20u8
     {
         SelectedBodyCheck::require_tag(29u64);
-        let a: u8 in Saturating = lhs as u8 in Saturating;
-        let b: u8 in Saturating = rhs as u8 in Saturating;
+        let a: u8 in Saturating = lhs as +Saturating;
+        let b: u8 in Saturating = rhs as +Saturating;
         let s_sat: u8 in Saturating = a + b;
         let sum: u8 = s_sat as u8;
         let headroom: u8 = 100u8 - sum;

@@ -14,7 +14,7 @@ data Token { code: i32; }
 data Pair { left: Token; right: Token; }
 
 machine settle(pair: Pair) -> i32 {
-    ((pair.left.code as i32 in Wrapping) + (pair.right.code as i32 in Wrapping)) as i32
+    ((pair.left.code as i32 +Wrapping) + (pair.right.code as i32 +Wrapping)) as i32
 }
 
 data Main { hits: i32 in Wrapping; }

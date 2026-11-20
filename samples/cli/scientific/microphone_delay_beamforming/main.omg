@@ -51,7 +51,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     }
     machine reject(context: @mut Main, status: u64) {
         Console::write("ERROR ");
-        print_integer(context, status as i64 in Wrapping);
+        print_integer(context, status as i64 +Wrapping);
         Console::write_line("");
         ProcessExit::exit_process(64);
     }
@@ -64,7 +64,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     }
     machine direction(context: @mut Main, direction: u64) requires direction < 4 {
         Console::write("DIRECTION ");
-        print_integer(context, direction as i64 in Wrapping);
+        print_integer(context, direction as i64 +Wrapping);
         Console::write(" WAVE");
         transition { _ -> wave(context, direction, 0) }
     }
@@ -108,7 +108,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     }
     machine emit_winner(context: @mut Main, direction: u64) requires direction < 4 {
         Console::write(" ");
-        print_integer(context, direction as i64 in Wrapping);
+        print_integer(context, direction as i64 +Wrapping);
         transition { _ -> next_winner(context, direction + 1) }
     }
     machine next_winner(context: @mut Main, next: u64) {

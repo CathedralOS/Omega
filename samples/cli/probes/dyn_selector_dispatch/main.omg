@@ -43,7 +43,7 @@ machine dyn_selector_dispatch() {
     let mut item: Item = Item { sides: 4 };
     let a: i32 = pick(CircleShape as dyn Shape<Item>, @mut item);
     let b: i32 = pick(SquareShape as dyn Shape<Item>, @mut item);
-    let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
+    let n: i32 in Wrapping = (a as +Wrapping) * 10 + (b as +Wrapping);
     transition n == 94 {
         true -> done(70),
         _ -> done(71)

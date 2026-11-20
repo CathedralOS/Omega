@@ -85,7 +85,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine lower_offender(main: @mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
         Console::write_line("lower_offender_index_zero_based");
-        write_integer(index as i32 in Saturating);
+        write_integer(index as i32 +Saturating);
         Console::write_line("deviation_um");
         write_integer(deviation);
         transition { _ -> upper(main, index) }
@@ -103,7 +103,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine upper_offender(main: @mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
         Console::write_line("upper_offender_index_zero_based");
-        write_integer(index as i32 in Saturating);
+        write_integer(index as i32 +Saturating);
         Console::write_line("deviation_um");
         write_integer(deviation);
         transition { _ -> contributors(main, index + 1) }

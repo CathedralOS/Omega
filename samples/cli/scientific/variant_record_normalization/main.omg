@@ -41,8 +41,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut line: [u8; 64];
         let result: LineReadResult = block Console::read_line(@mut line[..]);
         transition result {
-            LineReadResult::LineComplete { count } -> process(application, @line, count as u64 in Wrapping, false),
-            LineReadResult::EndOfInput { count } -> eof(application, @line, count as u64 in Wrapping),
+            LineReadResult::LineComplete { count } -> process(application, @line, count, false),
+            LineReadResult::EndOfInput { count } -> eof(application, @line, count),
             LineReadResult::Full { count } -> overflow(application),
             LineReadResult::Invalid -> overflow(application)
         }

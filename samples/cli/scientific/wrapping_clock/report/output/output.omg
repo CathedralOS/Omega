@@ -29,7 +29,7 @@ crashes Trap
     requires count >= 0 && count < 19
     {
         let digit: i64 in Wrapping = value % 10 + 48;
-        digits[count] = narrow_i64_to_i32_trapping(digit as i64) as i32 in Wrapping;
+        digits[count] = narrow_i64_to_i32_trapping(digit as i64) as i32 +Wrapping;
         transition value >= 10 {
             true -> fill(digits, count + 1, value / 10),
             false -> drain(digits, count + 1)

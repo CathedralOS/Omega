@@ -50,9 +50,9 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     // Widen through visible calls, then qualify the Exact results for the
     // saturating arithmetic chain.
     let flags_i32: i32 in Saturating =
-        widen_u8_to_i32(main.data.flags) as i32 in Saturating;
+        widen_u8_to_i32(main.data.flags) as i32 +Saturating;
     let offset_i32: i32 in Saturating =
-        widen_i16_to_i32(main.data.offset) as i32 in Saturating;
+        widen_i16_to_i32(main.data.offset) as i32 +Saturating;
     let contrib: i32 in Saturating = flags_i32 * 10;
     main.data.total = contrib + offset_i32 + 320;
 

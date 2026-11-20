@@ -23,7 +23,7 @@ crashes Trap
     }
     machine identifier(value: i32) -> Request {
         transition value >= 48 && value <= 53 {
-            true -> separator((value - 48) as u64 in Saturating),
+            true -> separator((value - 48) as u64 +Saturating),
             false -> invalid()
         }
     }
@@ -43,7 +43,7 @@ crashes Trap
     }
     machine digit(identifier: u64 in Saturating, value: i32) -> Request {
         transition value >= 49 && value <= 57 {
-            true -> second(identifier, (value - 48) as u64 in Saturating),
+            true -> second(identifier, (value - 48) as u64 +Saturating),
             false -> invalid()
         }
     }
@@ -57,7 +57,7 @@ crashes Trap
     }
     machine second_digit(identifier: u64 in Saturating, horizon: u64 in Saturating, value: i32) -> Request {
         transition value >= 48 && value <= 57 {
-            true -> newline(identifier, horizon * 10 + ((value - 48) as u64 in Saturating)),
+            true -> newline(identifier, horizon * 10 + ((value - 48) as u64 +Saturating)),
             false -> invalid()
         }
     }

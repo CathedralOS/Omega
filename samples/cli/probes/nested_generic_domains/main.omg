@@ -10,7 +10,7 @@
 //     re-prove their clauses at use (the const does not carry an opaque
 //     qualification — see README).
 //   * `domain u64::Below<Bound>` is const-generic: scalar `as`-grants
-//     DO discharge it (`3 as u64 in Below<5>`), but plain value/const
+//     DO discharge it (`3 as u64 +Below<5>`), but plain value/const
 //     arguments cannot — filed gap.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -41,7 +41,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     // SCALAR/RECORD literals re-prove their nested requires; Below<5>
     // needs an explicit `as` grant (literal/const args can't prove it).
-    Main::accept(SCALAR, 3 as u64 in Below<5>, RECORD);
+    Main::accept(SCALAR, 3 as u64 +Below<5>, RECORD);
     main.hits = 1;
 }
 

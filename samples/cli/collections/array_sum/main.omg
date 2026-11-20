@@ -46,7 +46,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine add(main: @mut Main) {
         main.sum =
             main.sum
-            + (widen_i32_to_i64(main.nums[main.i]) as i64 in Wrapping);
+            + (widen_i32_to_i64(main.nums[main.i]) as i64 +Wrapping);
         main.i = main.i + 1;
         transition {
             _ -> block step(main)

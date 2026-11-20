@@ -37,7 +37,7 @@ crashes Trap
     }
     machine accumulate(accumulated: i32 in Saturating, digits: u64, byte: i32) -> i32 in Saturating
     requires digits < 4 {
-        let next: i32 in Saturating = accumulated * 10 + (byte as i32 in Saturating) - 48;
+        let next: i32 in Saturating = accumulated * 10 + (byte as +Saturating) - 48;
         transition next <= 1000 {
             true -> block scan(next, true, digits + 1),
             false -> (-1)

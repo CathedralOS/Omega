@@ -13,8 +13,8 @@ machine get_diff(lhs: u64, rhs: u64) -> u64
     requires lhs >= 80 && lhs <= 120 && rhs >= 20 && rhs <= 40
     ensures result >= 40 && result <= 100
 {
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
+    let a: u64 in Saturating = lhs as +Saturating;
+    let b: u64 in Saturating = rhs as +Saturating;
     let sat: u64 in Saturating = a - b;
     sat as u64
 }

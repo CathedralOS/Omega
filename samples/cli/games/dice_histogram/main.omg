@@ -53,7 +53,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.st = main.st ^ main.sc;
         main.sc = main.st << 5;
         main.st = main.st ^ main.sc;
-        main.v = (main.st % 6) as i32 in Wrapping;
+        main.v = (main.st % 6) as i32 +Wrapping;
         transition main.v >= 0 && main.v < 6 { true -> block tally(main), _ -> block bad(main) }
     }
     machine tally(main: @mut Main) {

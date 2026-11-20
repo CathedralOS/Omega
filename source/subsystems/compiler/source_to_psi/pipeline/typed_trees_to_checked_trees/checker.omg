@@ -671,7 +671,7 @@ crashes Trap
     requires offset < 128
     {
         checker.queued[offset] = false;
-        offset as u64 in Trapping
+        offset as u64 +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
