@@ -112,6 +112,34 @@ class ReceiptTests(unittest.TestCase):
                 self.assertEqual(any(label in error for error in errors), has_error)
                 self.assertTrue(all(states[k] == "missing" for k in others))
 
+    def test_a_repeated_or_misplaced_observation_invalidates_only_its_own_label(self):
+        first, second = list(evidence.ASSERTIONS.items())[:2]
+        def capture(item):
+            label, owner = item
+            return (f"Running {owner.target} (binary)\n---- {owner.test} stdout ----\n"
+                    f"OMEGA_L5_ASSERT\t{label}\tassert_eq!(actual, expected)\n")
+
+        valid = capture(first) + capture(second)
+        for extra in [capture(first), capture(first).replace(first[1].test + " stdout", "other stdout")]:
+            for log in (valid + extra, extra + valid):
+                errors = []
+                receipts, _ = evidence.observe(log, errors)
+                self.assertNotIn(first[0], receipts)
+                self.assertIn(second[0], receipts)
+                self.assertTrue(errors)
+
+    def test_an_earlier_layer_comparison_requires_an_unambiguous_success(self):
+        row = next(r for r in evidence.reviewed_comparisons.registrations() if r.suite == "L5")
+        one = {"target": row.target, "test": row.test, "status": "ok"}
+        for tests, receipt, failures, expected in [
+            ([one], "asserted", {}, True), ([one, one], "asserted", {}, False),
+            ([one], None, {}, False), ([one], "asserted", {row.comparison: "failed"}, False),
+        ]:
+            report = {"suites": {"L5": {"tests": tests}}, "reviewed_comparisons": {row.comparison: receipt},
+                      "failed_comparisons": failures}
+            rows = evidence.earlier_consumers(report, evidence.test_results(report))
+            self.assertEqual(next(r["credited"] for r in rows if r["comparison"] == row.comparison), expected)
+
     def test_psi_output_requires_the_comparison_from_its_registered_test(self):
         label = "psi-output/call-operands"
         check = evidence.ASSERTIONS[label]
