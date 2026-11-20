@@ -42,10 +42,10 @@ against every materialization and by `tests/bootstrap/interpreted/delta-identity
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `delta_compiler.gamma` request entry | 792 | `caaccc0f930aed311572dbcfa8ed66eae46ac279d42c85bbf6d2e249e46abcfd` |
-| `implementation/implementation.gamma.sources` manifest | 11,470 | `b43e0a26afdcec4b802d1086cb6933aeb7917fb69099902f334f683dcfee7a56` |
+| `implementation/implementation.gamma.sources` manifest | 11,470 | `b9f671a1db5482bcd7474ff0c257a600fc5921343f4a0704212376becf6e2d60` |
 | `support/support.gamma.sources` manifest | 651 | `257115ba5c85aad7574417a19a7ac5e439391ebedbaedc4b7a70fdc4ac94b833` |
-| `delta_compiler.composed` record | 298 | `f753843dba89319f900623f6527702950fb40c72f93fd28afca6d54f55b80cfd` |
-| Packed canonical closure | 152,360 | `1ff70c31da6f989e34f467815ad205fe481a725d109e74abf4a41bd7cca85723` |
+| `delta_compiler.composed` record | 298 | `2dbdb39bfcdef33c0e4956f521f1060fa67226aa9bb15793cf83deff43fec0e7` |
+| Packed canonical closure | 152,036 | `ed5d145037e7a3669c31422f619a7c372f1fc5f15b2bbeab46e641976bd00ac6` |
 | Packed support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
 
 A digest is an identity check on the bytes being compiled, not a proof of the
