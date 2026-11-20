@@ -130,6 +130,7 @@ def main():
             return result
 
     vm.controls(work, work / "reference", compiler=NativeCompiler, realize=realize)
+    vm.call_depth_controls(work, NativeCompiler, args.seconds, realize=realize)
     boundaries(work, native_source, NativeCompiler, args.seconds)
     # The existing Alpha compiler is a real source-transforming successor. It
     # is compiled as written, not replaced by a source hash or precomputed tape.

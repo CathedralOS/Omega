@@ -119,9 +119,20 @@ terminate execution separately: a pipe with no reader has the ordinary default
 `SIGPIPE` behavior, rather than guaranteeing status 3. Physical memory and sufficient
 process stack remain host dependencies; `MAP_NORESERVE` does not promise physical
 memory availability. With the shared 131,072 call-depth limit, native return
-addresses use at most 1,048,584 bytes plus the 2,048-byte register file and one
+addresses use at most 1,048,592 bytes plus the 2,048-byte register file and one
 8-byte I/O scratch slot. Existing source bounds protect Gamma data accesses;
 this experiment does not claim a machine-checked implementation proof.
+
+A generated call site uses a five-byte native call for a Gamma primitive,
+a push or a pop. Frame-slot access passes the byte offset in register 11
+to a shared load or store routine. A tail call passes its argument word count
+to a loop that copies them in their original order. The compiler generates the
+same tag checks and allocation bounds in these shared routines. A primitive
+can call a stack routine or the buffered writer, so at most two helper return
+addresses are live beneath a Gamma call. The call-depth test executes the
+last admitted frame and checks the adjacent refusal on both compiled targets.
+[Shared operations](../../../bootstrap/gamma/compiler/compiler.gamma) ·
+[Native helpers](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma)
 
 The native assembler uses x86-64 direct branches and calls. For `i_jz`,
 `test rax,rax` sets the flags and `0f 84` jumps on zero. The next four

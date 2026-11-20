@@ -91,9 +91,18 @@
         (b Int (i_load a (+ value 1) 246))
         (c Int (e_add b 246 -8)))
     (i_load c value 246)))
-(def e_slot ((s Int) (offset Int) (store Int)) Int
-  (let ((a Int (e_add (i_mov s 10 247) 10 (* offset 16)))
-        (b Int (if store (i_store a 10 0) (i_load a 0 10)))
+; Both targets share the two result registers and the two operand registers.
+; Labels 14..16 are the push and two pop bodies; function labels begin at 100.
+(def e_push ((s Int)) Int (i_call s 14))
+(def e_pop ((s Int) (value Int)) Int (i_call s (if value 16 15)))
+(def e_stack_helpers ((s Int)) Int
+  (let ((push Int (i_ret (e_push_body (s_mark s 14))))
+        (left Int (i_ret (e_pop_body (s_mark push 15) 0))))
+    (i_ret (e_pop_body (s_mark left 16) 2))))
+
+; Register 10 holds the address of the value and tag in one frame slot.
+(def e_slot_at ((s Int) (store Int)) Int
+  (let ((b Int (if store (i_store s 10 0) (i_load s 0 10)))
         (c Int (e_add b 10 8)))
     (if store (i_store c 10 1) (i_load c 1 10))))
 
@@ -471,11 +480,9 @@
 (def c_is_primitive ((kind Int)) Int (* (lt 6 kind) (lt kind 20)))
 
 ; Argument values are on the evaluation stack before any caller binding moves.
-(def e_move_args ((s Int) (words Int)) Int
-  (if words
-    (let ((a Int (i_load s 0 8)) (b Int (i_store a 9 0))
-          (c Int (e_add b 8 8)) (d Int (e_add c 9 8)))
-      (e_move_args d (- words 1))) s))
+(def e_move_arg_word ((s Int)) Int
+  (let ((a Int (i_load s 0 8)) (b Int (i_store a 9 0)))
+    (e_add (e_add b 8 8) 9 8)))
 (def e_call ((s Int) (id Int) (argc Int) (tail Int) (parameters Int)) Int
   (if tail
     (let ((a Int (e_slot s parameters 0))
@@ -531,7 +538,7 @@
         (if (eq kind 15) (e_read s)
           (if (eq kind 16) (i_call s 6)
             (if (eq kind 19) (i_mov s 0 249) (p_fail))))))))
-(def e_primitive ((s Int) (kind Int)) Int
+(def e_primitive_body ((s Int) (kind Int)) Int
   (let ((arity Int (c_arity kind))
         (a Int (if (eq arity 2) (e_pop s 2) s))
         (b Int (if arity (e_pop a 0) a)))

@@ -33,15 +33,14 @@
 (def i_call ((s Int) (label Int)) Int (i_address (i_field s 1 19) label))
 (def i_ret ((s Int)) Int (i_field s 1 20))
 
-; The evaluation stack carries a word/tag pair. A call here adds one
-; transient return address below the Gamma call frames. Labels 14..16
-; belong to these leaf routines; user functions start at label 100.
-(def e_push ((s Int)) Int (i_call s 14))
-(def e_pop ((s Int) (value Int)) Int (i_call s (if value 16 15)))
-(def i_stack_runtime ((s Int)) Int
-  (let ((push Int (i_ret (e_push_body (s_mark s 14))))
-        (left Int (i_ret (e_pop_body (s_mark push 15) 0))))
-    (i_ret (e_pop_body (s_mark left 16) 2))))
+; Alpha emits the operations inside each primitive and copies tail-call
+; arguments in place. Its push and pop routines each use one return address.
+(def i_stack_runtime ((s Int)) Int (e_stack_helpers s))
+(def e_primitive ((s Int) (kind Int)) Int (e_primitive_body s kind))
+(def e_slot ((s Int) (offset Int) (store Int)) Int
+  (e_slot_at (e_add (i_mov s 10 247) 10 (* offset 16)) store))
+(def e_move_args ((s Int) (words Int)) Int
+  (if words (e_move_args (e_move_arg_word s) (- words 1)) s))
 
 ; Alpha jumps and calls carry an absolute byte offset from the first opcode.
 (def i_target_width () Int 8)
