@@ -77,3 +77,25 @@ public machine main()->u8 crashes Trap {
     unrestricted = declaration.replace(b' && (self.value >= 0 && self.value <= 255)', b'')
     yield trial('byte-input-unbounded-binding', program(42).replace(declaration, unrestricted),
                 (2, b'public machine main'))
+
+    # The caller and both suppliers can give different meanings to ByteRead.
+    # Each predicate must resolve under its declaring package and its file.
+    caller = b'use api\\ByteRead;\n' + decoder + entry.replace(b'INPUT', b'255').replace(b'EXPECT', b'255').replace(b'EOF', b'0')
+    tighter = declaration.replace(b'<= 255', b'<= 10')
+    for name, app, broad, expected in [
+        ('forward', caller, declaration, 42),
+        ('forward-wrong-owner', caller.replace(b'use api', b'use strict'), declaration, (0, b'machine decode', 2)),
+        ('unreachable-invalid-case', caller, declaration.replace(b'self in ByteRead::Eof', b'self in ByteRead::Missing'),
+         (1, b'public data', 2)),
+        ('bad-guard', caller.replace(b'word >= 0 && word <= 255 {true', b'word <= 255 {true'), declaration,
+         (0, b'machine decode', 2)),
+        ('forbidden-crash', caller.replace(b'public machine main()->u8 crashes Trap', b'public machine main()->u8 crashes none'),
+         declaration, (0, b'public machine main', 2)),
+    ]:
+        inputs = [(0, app), (1, broad), (2, tighter)]
+        wire, _, _, rows = encode([('app', 0), ('broad', 0), ('other', 0)], [(0, 1, 'api'), (0, 2, 'strict')],
+                                  inputs, 0, b'main', paths=['main.omg', 'result.omg', 'strict.omg'])
+        if isinstance(expected, tuple):
+            unit, marker, code = expected
+            expected = struct.pack('<BII', 0, code, rows[unit][1] + inputs[unit][1].index(marker))
+        yield 'byte-input-files-' + name, wire, expected

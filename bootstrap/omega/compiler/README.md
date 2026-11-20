@@ -95,10 +95,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 28,144 lines / 1,097,998 bytes with SHA-256
-`0ba7e5a638eb79e0a31d17c055243dda75d08d45da510b994240f7bd96e0da71`.
+The manifest materializes 28,176 lines / 1,099,574 bytes with SHA-256
+`bb4a357f161173ef9873f3827303ef6f373dc393f58cf0e03f56ff62a3febe36`.
 The manifest itself is 2,905 bytes, SHA-256
-`98cb6c5b38f65d1d8a5743c9fca778bf5bc33bb9e948e846616ca00784167441`;
+`bf99ccba7eecf973501cc94ad5e9b75300eb312c113b36f47dcfb9f66423e916`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -153,9 +153,12 @@ same local row number while its caller's value remains live. Call cycles and
 effects are checked before publishing the tape.
 
 Shared byte-slice parameters carry a borrowed range and its live length across
-a file boundary. Nested array fields, array-valued parameters and results,
-other references, machine clauses and authored requirements still use the pooled checker. The single-unit public resource
-limits remain in force.
+a file boundary. Sum predicates and machine entry requirements resolve in the
+declaring file. The checked case bounds, parameter bounds and crash ceilings
+remain available after that file's syntax is released. Nested array fields,
+array-valued parameters and results, other references and clauses naming
+services still use the pooled checker. The single-unit public resource limits
+remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
 Imports are file-local. Exact imports select declarations; namespace imports

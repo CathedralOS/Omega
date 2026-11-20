@@ -93,8 +93,9 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state data_shape(unit: i32, index: i32, row: OmegaDataSyntax) {
-        // A record checks its field bounds in the file that declared them.
-        transition (row.requirement_count == 0) || ((row.field_count > 0) && (row.case_count == 0)) {
+        // Records and sums check their predicates in the declaring file.
+        // A constrained fieldless, caseless data item still needs the pooled checker.
+        transition (row.requirement_count == 0) || (row.field_count > 0) || (row.case_count > 0) {
             true -> retain_data(unit, index, self.construction.total.data_count + index, row)
             _ -> units(unit + 1, 0)
         }
@@ -155,8 +156,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state signature(unit: i32, index: i32, row: OmegaMachineStateSyntax) {
-        transition (row.requirement_count == 0) && ((row.has_return_type == 0) ||
-            (self.construction_value_type(source, row.return_type) == 1)) {
+        transition (row.has_return_type == 0) || (self.construction_value_type(source, row.return_type) == 1) {
             true -> state_item(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
@@ -169,8 +169,23 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     }
     state name(unit: i32, local: i32, row: OmegaMachineSyntax) {
         transition (row.path_member_count == 1) && (row.state_count >= 1) &&
-            (row.is_bodyless == 0) && (row.has_target == 0) && (row.clause_count == 0) {
-            true -> retain(unit, local, row, self.construction.total.machine_count + local)
+            (row.is_bodyless == 0) && (row.has_target == 0) {
+            true -> clauses(unit, local, row, 0)
+            _ -> units(unit + 1, 0)
+        }
+    }
+    // Checked crash ceilings survive as per-machine and per-state effect facts.
+    // Clauses that retain file-local names still require the pooled checker.
+    state clauses(unit: i32, local: i32, row: OmegaMachineSyntax, offset: i32) {
+        transition offset < row.clause_count {
+            true -> clause(unit, local, row, offset, self.parser.machine_clauses[row.first_clause + offset].kind)
+            _ -> retain(unit, local, row, self.construction.total.machine_count + local)
+        }
+    }
+    state clause(unit: i32, local: i32, row: OmegaMachineSyntax, offset: i32, kind: OmegaMachineClauseKind) {
+        transition kind {
+            OmegaMachineClauseKind::CrashesTrap -> clauses(unit, local, row, offset + 1)
+            OmegaMachineClauseKind::CrashesNone -> clauses(unit, local, row, offset + 1)
             _ -> units(unit + 1, 0)
         }
     }

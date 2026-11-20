@@ -3647,6 +3647,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition true { true -> labels(0) }
     }
     state decode_entry_bounds(state_index: i32) {
+        // Read predicates in the state owner's source file. Their checked
+        // bounds then use stable parameter and field IDs across files.
+        transition self.select_construction_unit(source, self.construction.machines[self.state_owners[state_index]].unit) {
+            1 -> loaded_entry_bounds(state_index)
+            _ -> return
+        }
+    }
+    state loaded_entry_bounds(state_index: i32) {
         transition self.decode_entry_bounds(source, state_index) {
             1 -> check_entry_bounds(state_index + 1)
             _ -> return
