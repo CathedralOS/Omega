@@ -68,6 +68,15 @@ def run(delta, gamma, work, full_output):
         binary.chmod(0o700)
         return binary, receipt
 
+    # Both profiles publish the same shared value. Each copy has 1,024 empty
+    # prefixes, so logical length and the number of visited nodes differ.
+    wrapped = Path(__file__).with_name('shared_empty_rope.delta').read_bytes()
+    for profile in (1, 2):
+        program, _ = build(profile, wrapped, f'shared-rope-{profile}')
+        for doublings in (8, 10):
+            check(execute(program, bytes(doublings)), b'Z' * (1 << doublings),
+                  f'shared rope with empty prefixes, profile {profile}, {doublings} doublings')
+
     source = b'(def main ((s Bytes)) Bytes (bytes_concat (bytes_empty) s))\n'
     receipts = []
     for profile, source_limit, input_limit in [(1, 4 * MIB, 4 * MIB), (2, 64 * MIB, 8 * MIB)]:
