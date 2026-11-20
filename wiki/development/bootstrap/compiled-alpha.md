@@ -87,7 +87,60 @@ checks, run `python3 tests/bootstrap/independent/successor_test.py --compile-eps
 The route writes the public Gamma receipt, Alpha tape and observations under
 `build/independent-successors/compiled-epsilon/`.
 
-### Can the whole Omega constructor fit in Alpha?
+### Running the whole Omega constructor on one tape
+
+The Gamma-to-Alpha compiler assembled the 25,733,081-byte Gamma constructor
+from `bcf71f0bbfc` into one 11,976,860-byte tape, SHA-256
+`172bd421b5c2cf334a7a5688c843e1e9dc24cefe11d7bb2b25a9d514ad17d491`.
+The uncompressed instructions occupy 57,004,893 bytes. The stamped program
+starts with a 340-byte Alpha decoder and a 3,840-byte dictionary. The stamped decoder runs on the seed itself. The compiler continues to publish plain Alpha
+instructions for programs that fit the seed directly. The Alpha backend grew
+from 3,681 to 11,753 authored bytes. Using the original Gamma interpreter to
+run the final constructor avoids this packing algorithm.
+
+The seed ran the packed constructor on a 111-byte Omega package. It
+produced the expected 22-byte Alpha tape, SHA-256
+`25c789ed6ce473847a1dc82854aad7b59d3ff336d4ed73a64a56c540b5d78384`,
+which exited 42 on the seed. A malformed package returned the original
+five-byte framing refusal. [Same package on original Gamma](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#running-the-compiled-omega-constructor-as-gamma-on-the-seed)
+
+For a large program the compiler takes up to 240 instructions seen twice
+among the first 4,096. Each becomes one byte in the encoded stream. Tokens
+1 through 11 introduce that many literal instruction bytes, and tokens
+16 through 255 select a 16-byte dictionary record. The first byte of each
+record is the instruction's original length. Only the compiler builds
+the dictionary. The seed runs ordinary load, store and branch instructions
+to copy the indicated bytes into `[0x28000000, 0x30000000)`. The output
+buffer ends at the first address and the pair heap starts at the second.
+The decoder checks the stream end, dictionary indexes, copy lengths and
+destination end before restoring its registers and jumping to the program.
+
+The compiler resolves each branch and call for this interval while preserving
+literal integers, including integers equal to an old branch address. An
+independent expansion of the measured tape matched the original instructions,
+with exactly the placement offset added to all 3,484,036 branch and call
+addresses. The complete encoded tape must fit the original stamp even when
+the expanded instructions fit the separate code interval. Source validation
+still precedes publication, including functions that are never called.
+[Alpha encoder and decoder](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma) ·
+[Seed instructions](../../../bootstrap/alpha/SEMANTICS.md#5-transition-rules)
+
+To build and run the constructor through the normal Alpha launcher, use the
+`omega.gamma` produced by the whole-constructor construction and an empty
+output directory. The genuine standalone wire customer checks the resulting
+tape and its missing-edge and framing controls.
+
+```sh
+tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-packed-alpha /path/to/omega.gamma
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-packed-wire --constructor /tmp/omega-packed-alpha/program
+```
+
+[Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md) ·
+[Source-owned large-program controls](../../../tests/bootstrap/compiled_vm/source_test.py)
+
+<a id="can-the-whole-omega-constructor-fit-in-alpha"></a>
+
+### Earlier single-tape size limits
 
 The 27,177,694-byte Gamma constructor (SHA-256
 `b2160c526041d7d695bbe133f0ef4cb9d3b2f403a5cf901e0b9cd625e5f9454f`)
@@ -376,7 +429,8 @@ Source construction artifacts and the exact source/request bytes go to ignored
 `build/source-gamma-reference/`; the accelerated source run uses
 `build/source-gamma-accelerated/`. Host-compiler tests use `build/compiled-vm/`.
 `source_test.py --seconds N` sets a positive watchdog for compiler construction,
-self-rebuilds, source compilation, and Omega execution (3,600 seconds by default).
+self-rebuilds, source compilation and Omega execution. These invocations wait
+for completion by default.
 A refused source compilation publishes no bytes. Malformed source deliberately
 traps with status 249; negative controls require that status and empty output.
 Other runtime statuses fail the gate.
@@ -384,9 +438,8 @@ Other runtime statuses fail the gate.
 Tests use the existing closure packer, identity checks, and platform seed
 stamper. The host frames byte requests and compares observations;
 Gamma, Delta, Epsilon, and Omega execution happens in the generated tapes or the
-explicitly identified reference evaluator. Gamma compilation and customer
-execution have process watchdogs; the short Beta reconstruction shell commands
-have no watchdog. A timeout makes no language judgment. The Omega allowance is
+explicitly identified reference evaluator. The short Beta reconstruction shell
+commands wait for completion. A timeout makes no language judgment. The Omega allowance is
 adjustable because checking the complete compiler is a materially larger
 workload.
 
@@ -600,9 +653,10 @@ with their bodies and signatures unchanged, through the source-built Epsilon
 tape above. The wrapper uses explicit `as +Trapping` casts and tests both
 predicates across ASCII boundaries and the upper half of `u32`.
 
-The runtime-control observation defaults to 7,200 seconds; `--seconds` on the
-source-built route and `--omega-timeout` on the development route retain explicit
-overrides. Timeout is an observation failure, not an Omega result. Additional
+The source-built runtime control runs to completion by default. It accepts an
+optional `--seconds` limit. The development route uses `--omega-timeout`
+and defaults to 7,200 seconds for this control. A timeout leaves the
+Omega result open. Additional
 source-owned cases check staged parallel transfers, skipped looping Boolean
 operands, nested calls/comparisons, domain casts, refusals and compiler reuse.
 This extends the bootstrap compiler toward an actual successor source unit;
