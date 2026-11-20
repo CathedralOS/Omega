@@ -41,8 +41,8 @@ crashes Trap
     }
 
     machine write(typer: @mut Typer, parameter: u64 in Trapping, handle: u64 in Trapping) {
-        typer.bound[parameter] = handle as u64;
-        typer.bound_stamps[parameter] = typer.binding_generation as u64;
+        typer.bound[parameter] = handle as -Trapping;
+        typer.bound_stamps[parameter] = typer.binding_generation as -Wrapping;
     }
 
     machine invalid() {
@@ -449,7 +449,7 @@ crashes Trap
     }
 
     machine write(typer: @mut Typer, depth: u64 in Trapping, value: u64 in Trapping) {
-        typer.work[depth] = value as u64;
+        typer.work[depth] = value as -Trapping;
     }
 
     machine invalid() {
@@ -519,8 +519,8 @@ crashes Trap
     }
 
     machine write(typer: @mut Typer, handle: u64 in Trapping, mapped: u64 in Trapping) {
-        typer.memo[handle] = mapped as u64;
-        typer.memo_stamps[handle] = typer.memo_generation as u64;
+        typer.memo[handle] = mapped as -Trapping;
+        typer.memo_stamps[handle] = typer.memo_generation as -Wrapping;
     }
 
     machine invalid() {
