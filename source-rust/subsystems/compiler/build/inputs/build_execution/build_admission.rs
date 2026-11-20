@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
     receiver: super::build_receiver::BuildReceiver,
-    returned_integers: Box<[source_compiler::ReturnedIntegerFact]>,
+    returned_scalars: Box<[source_compiler::ReturnedScalarFact]>,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -41,8 +41,8 @@ impl SelectedBuildMachine {
         self.receiver.registration_frame_positions()
     }
 
-    pub fn returned_integers(&self) -> &[source_compiler::ReturnedIntegerFact] {
-        &self.returned_integers
+    pub fn returned_scalars(&self) -> &[source_compiler::ReturnedScalarFact] {
+        &self.returned_scalars
     }
 
     pub fn has_same_frame(&self, previous: &Self) -> bool {
@@ -127,7 +127,7 @@ pub fn admit_build_machine(
     };
     Ok(SelectedBuildMachine {
         receiver,
-        returned_integers: prepared.closure().returned_integers().into(),
+        returned_scalars: prepared.closure().returned_scalars().into(),
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,

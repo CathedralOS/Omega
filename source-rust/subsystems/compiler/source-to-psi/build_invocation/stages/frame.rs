@@ -171,7 +171,7 @@ pub(super) fn project(
     plan: &EntryPlan,
     stage: &BuildStage,
     declaration: &mut Machine,
-    established: &[crate::ReturnedIntegerFact],
+    established: &[crate::ReturnedScalarFact],
 ) -> Result<(), Vec<Diagnostic>> {
     let state = plan.state;
     let statements = &plan.statements;

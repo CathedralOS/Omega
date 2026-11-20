@@ -14,9 +14,9 @@ pub(super) fn require(
     statements: &[StatementHandle],
     homes: &[usize],
     incoming: &Cut,
-    facts: &[crate::ReturnedIntegerFact],
+    facts: &[crate::ReturnedScalarFact],
 ) -> Result<(), Vec<Diagnostic>> {
-    use lowered_program_to_checked_program::checking::IntegerBound;
+    use lowered_program_to_checked_program::checking::{ReturnedComparison, ReturnedOperand};
     use semantic_vocabulary::IntegerValue;
     use syntax_trees::expression::{BinaryOperator, TableBinaryExpression};
     use syntax_trees::item::{CapabilityContract, CapabilityContractKind, ProofFact};
@@ -28,42 +28,66 @@ pub(super) fn require(
         .capability_contracts(machine.contracts)
         .to_vec();
     for fact in facts {
-        let Some(&home) = fact
-            .position()
-            .checked_sub(1)
-            .and_then(|i| homes.get(i as usize))
-        else {
-            return Err(vec![Diagnostic::error(
-                "returned integer fact has no matching Build frame home",
-            )]);
+        let mut span = None;
+        let mut expression_for = |operand| -> Result<_, Vec<Diagnostic>> {
+            let node = match operand {
+                ReturnedOperand::Parameter(position) => {
+                    let home = position
+                        .checked_sub(1)
+                        .and_then(|i| homes.get(i as usize))
+                        .copied()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "returned fact has no matching Build frame home",
+                            )]
+                        })?;
+                    if !incoming.bindings.iter().any(|binding| binding.home == home) {
+                        return Ok(None);
+                    }
+                    let name = parameter(local(syntax, statements[home]));
+                    span = Some(name.source_span());
+                    return Ok(Some(read(syntax, name, false)));
+                }
+                ReturnedOperand::Boolean(value) => ExpressionNode::Boolean(value),
+                ReturnedOperand::Integer(value) => {
+                    let (negative, magnitude) = match value {
+                        IntegerValue::Signed(n) => (n < 0, n.unsigned_abs()),
+                        IntegerValue::Unsigned(n) => (false, n),
+                    };
+                    ExpressionNode::Integer(
+                        numeric_literals::IntegerLiteral::from_parts(
+                            negative,
+                            numeric_literals::IntegerRadix::Decimal,
+                            &magnitude.to_string(),
+                        )
+                        .expect("integer magnitude has decimal digits"),
+                    )
+                }
+            };
+            Ok(Some(syntax.expressions.insert(node)))
         };
-        if !incoming.bindings.iter().any(|binding| binding.home == home) {
+        let [a, b] = fact.operands();
+        let Some(left) = expression_for(a)? else {
             continue;
+        };
+        let Some(right) = expression_for(b)? else {
+            continue;
+        };
+        let span = span.expect("a returned fact names a frame parameter");
+        for (node, operand) in [(left, a), (right, b)] {
+            if !matches!(operand, ReturnedOperand::Parameter(_)) {
+                syntax.expressions.set_source_span(node, span);
+            }
         }
-        let name = parameter(local(syntax, statements[home]));
-        let span = name.source_span();
-        let formal = read(syntax, name, false);
-        let (operator, value) = match fact.bound() {
-            IntegerBound::Equal(n) => (BinaryOperator::Equal, n),
-            IntegerBound::AtLeast(n) => (BinaryOperator::GreaterOrEqual, n),
-            IntegerBound::AtMost(n) => (BinaryOperator::LessOrEqual, n),
+        let operator = match fact.comparison() {
+            ReturnedComparison::Equal => BinaryOperator::Equal,
+            ReturnedComparison::LessThan => BinaryOperator::Less,
+            ReturnedComparison::LessOrEqual => BinaryOperator::LessOrEqual,
         };
-        let (negative, magnitude) = match value {
-            IntegerValue::Signed(n) => (n < 0, n.unsigned_abs()),
-            IntegerValue::Unsigned(n) => (false, n),
-        };
-        let literal = numeric_literals::IntegerLiteral::from_parts(
-            negative,
-            numeric_literals::IntegerRadix::Decimal,
-            &magnitude.to_string(),
-        )
-        .expect("integer magnitude has decimal digits");
-        let right = syntax.expressions.insert(ExpressionNode::Integer(literal));
-        syntax.expressions.set_source_span(right, span);
         let expression = syntax
             .expressions
             .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: formal,
+                left,
                 operator,
                 right,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,

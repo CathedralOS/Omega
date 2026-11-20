@@ -75,8 +75,8 @@ mod prove;
 mod rankings;
 mod refinement;
 mod result_summaries;
-mod returned_integers;
-pub use returned_integers::{IntegerBound, ReturnedIntegerFact};
+mod returned_scalars;
+pub use returned_scalars::{ReturnedComparison, ReturnedOperand, ReturnedScalarFact};
 mod reuse;
 mod static_contracts;
 mod static_reach;
@@ -296,7 +296,7 @@ pub struct MachineDischarge {
     /// Prepared warning inputs are consumed only by accepted diagnostics.
     /// They never decide a mandatory obligation or storage/loan judgment.
     branch_warnings: branch_warnings::Deferred,
-    returned_integers: Vec<ReturnedIntegerFact>,
+    returned_scalars: Vec<ReturnedScalarFact>,
 }
 
 /// An authored transition arm whose condition contradicts the facts in force
@@ -572,7 +572,7 @@ fn discharge_inner(
                     windows: Vec::new(),
                     weakened_joins: Vec::new(),
                     conflicts: Vec::new(),
-                    returned_integers: Vec::new(),
+                    returned_scalars: Vec::new(),
                     branch_warnings: branch_warnings::Deferred::default(),
                 });
             }
@@ -1113,9 +1113,9 @@ fn check_prepared_machine(
             verdict,
         });
     }
-    let returned_integers = returned_integers::prove(&mut prepared, tables, unreached, activity)?;
+    let returned_scalars = returned_scalars::prove(&mut prepared, tables, unreached, activity)?;
     Ok(MachineDischarge {
-        returned_integers,
+        returned_scalars,
         verdicts: settled,
         uses,
         windows: closures,

@@ -212,7 +212,7 @@ impl EntryPlan {
         &self,
         syntax: &mut SyntaxTrees,
         use_frame: bool,
-        facts: &[crate::ReturnedIntegerFact],
+        facts: &[crate::ReturnedScalarFact],
     ) -> Result<BuildStage, Vec<Diagnostic>> {
         let mut stage = self.stage.clone();
         stage.index = if use_frame {

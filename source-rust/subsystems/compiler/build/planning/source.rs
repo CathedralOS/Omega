@@ -214,7 +214,7 @@ pub fn prepare(
 fn resolve(
     assembled: &mut AssembledSyntax,
     previous: Option<&BuildStage>,
-    facts: &[source_compiler::ReturnedIntegerFact],
+    facts: &[source_compiler::ReturnedScalarFact],
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
@@ -292,7 +292,7 @@ impl PlanningSource {
         let (source, stage) = resolve(
             &mut assembled,
             Some(&self.stage),
-            evaluation.returned_integers(),
+            evaluation.returned_scalars(),
             &self.preparation,
             self.profile,
             authority.as_ref(),

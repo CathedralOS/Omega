@@ -43,8 +43,8 @@ pub struct PreparedBuildExecution {
 }
 
 impl PreparedBuildExecution {
-    pub(crate) fn returned_integers(&self) -> &[source_compiler::ReturnedIntegerFact] {
-        self.machine.returned_integers()
+    pub(crate) fn returned_scalars(&self) -> &[source_compiler::ReturnedScalarFact] {
+        self.machine.returned_scalars()
     }
 
     pub(crate) fn prepare(
@@ -198,11 +198,10 @@ impl PreparedBuildExecution {
             return Err(self.refuse("Build continuation storage belongs to different local declarations"));
         }
         let parameters = self.machine.entry_storage_for(successor).map_err(|reason| self.refuse(&reason))?;
-        let established = previous.host.machine.returned_integers().iter()
+        let established = previous.host.machine.returned_scalars().iter()
             .map(|fact| {
-                parameters.get(fact.position() as usize)
-                    .and_then(|parameter| fact.on_parameter(successor, parameter))
-                    .ok_or_else(|| self.refuse("a returned integer bound changed its receiving declaration"))
+                fact.on_entry(successor)
+                    .ok_or_else(|| self.refuse("a returned scalar fact changed its receiving declarations"))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut carried = previous

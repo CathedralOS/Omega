@@ -20,8 +20,8 @@ impl AcceptedClosure {
         &self.discharge
     }
 
-    /// Bounds established on a borrowed integer at every normal return of the entry.
-    pub fn returned_integers(&self) -> &[crate::checking::ReturnedIntegerFact] {
+    /// Scalar comparisons established on borrowed storage at every normal return of the entry.
+    pub fn returned_scalars(&self) -> &[crate::checking::ReturnedScalarFact] {
         let Some(semantic_vocabulary::TargetMachineCallable::Machine(id)) =
             self.elaboration.module.entry
         else {
@@ -30,7 +30,7 @@ impl AcceptedClosure {
         self.discharge
             .machines
             .get(id)
-            .map_or(&[], |row| &row.returned_integers)
+            .map_or(&[], |row| &row.returned_scalars)
     }
 
     pub fn seals(&self) -> &[ObligationEvidenceSeal] {

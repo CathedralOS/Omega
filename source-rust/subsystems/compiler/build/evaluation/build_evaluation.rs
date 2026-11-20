@@ -90,8 +90,8 @@ mod catalog_declaration;
 pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
-    pub fn returned_integers(&self) -> &[source_compiler::ReturnedIntegerFact] {
-        self.execution.returned_integers()
+    pub fn returned_scalars(&self) -> &[source_compiler::ReturnedScalarFact] {
+        self.execution.returned_scalars()
     }
 
     /// Judges and admits the next stage of this Build and makes it the

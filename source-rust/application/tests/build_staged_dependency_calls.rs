@@ -269,6 +269,69 @@ fn preparation_preserves_only_the_proved_range_of_a_local() {
 }
 
 #[test]
+fn resumed_calls_use_proved_relations_between_the_captured_locals() {
+    let helpers = "machine next(n: i32) -> i32 requires n <= 9 ensures result > n { n + 1 }
+machine require_related(a: i32, b: i32, larger: i32, flag: bool, second: bool, enabled: bool)
+requires a == b && a < larger && flag == second && enabled { }";
+    // Both flags happen to be false at run time. Only copying the original
+    // result establishes equality for every possible input.
+    for (name, other, accepted) in [
+        ("copied-local", "amount", true),
+        (
+            "independent-local",
+            "choose_amount(builder.freestanding)",
+            false,
+        ),
+    ] {
+        let before = format!(
+            "    let flag: bool = builder.freestanding;
+    let second: bool = flag;
+    let enabled: bool = true;
+    let amount: i32 = choose_amount(!builder.tests.disabled);
+    let expected: i32 = {other};
+    let larger: i32 = next(amount);"
+        );
+        let target = target::TargetProfile::host_if_supported()
+            .unwrap()
+            .target_name();
+        let build = format!(
+            r#"use kit;
+machine build(builder: @mut Build) suspends {{
+    Build::application(builder, "staged");
+    builder.tests.disabled = true;
+    let mut request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+{before}
+    suspend Build::prepare_dependency(builder, registered);
+    let seven: i32 = kit\v();
+    require_related(amount, expected, larger, flag, second, enabled);
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, {target}\ProgramEntry, main);
+}}
+machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
+    match flag {{ true -> 9, _ -> 7 }}
+}}
+{helpers}
+"#
+        );
+        let (ran, output) = check_project(name, &build, 7, "", &["run", "--both", "build.omg"]);
+        assert_eq!(ran, accepted, "{output}");
+        if accepted {
+            assert!(
+                output.contains("native exit 0") && output.contains("interp exit: 0"),
+                "{output}"
+            );
+        } else {
+            assert!(
+                output.contains("cannot prove requires contract for call require_related"),
+                "{output}"
+            );
+        }
+    }
+}
+
+#[test]
 fn the_prepared_package_cannot_change_a_home_while_its_shared_loan_is_live() {
     let (compiled, report) = check(
         "live-loan-conflict-in-extended-scope",
