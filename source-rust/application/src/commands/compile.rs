@@ -381,13 +381,18 @@ fn compile_target(
                 }
             })?;
         if arguments.emit_psi.is_some() {
-            let (Artifact::Psi(artifact), _) = compiler::compile_with_observations(
+            let Artifact::Psi(artifact) = compiler::compile(
                 CompileRequest::Psi(stage.source()),
-                &Default::default(),
-                Some(&mut advisories),
+                compiler::CompileOptions {
+                    advisories: Some(&mut advisories),
+                    ..Default::default()
+                },
             )?
+            .artifact
             else {
-                return Err(output_error("source compilation returned an unexpected product"));
+                return Err(output_error(
+                    "source compilation returned an unexpected product",
+                ));
             };
             portable = Some(
                 CompletedProduct::from_published_psi(artifact, rollback.cloned())
@@ -406,16 +411,18 @@ fn compile_target(
                 .cloned()
                 .collect(),
         )?;
-        let (artifact, validations) = compiler::compile_with_observations(
+        let compiled = compiler::compile(
             CompileRequest::Native {
                 program,
                 entry_memory: &[],
             },
-            &arguments.stage_validators,
-            Some(&mut advisories),
+            compiler::CompileOptions {
+                validators: Some(&arguments.stage_validators),
+                advisories: Some(&mut advisories),
+            },
         )?;
-        rows = validations;
-        let Artifact::Native(product) = artifact else {
+        rows = compiled.validations;
+        let Artifact::Native(product) = compiled.artifact else {
             return Err(output_error(
                 "native compilation returned an unexpected product",
             ));

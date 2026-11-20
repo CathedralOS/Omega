@@ -130,11 +130,16 @@ fn authored_build_returns_its_application_and_target_bindings() {
             NativeBindingLocator::Syscall { number: syscall }
         );
     }
-    let compiler::Artifact::Native(output) = compiler::compile(compiler::CompileRequest::Native {
-        program,
-        entry_memory: &[],
-    })
-    .expect("the selected getpid binding must reach the native emitter") else {
+    let compiler::Artifact::Native(output) = compiler::compile(
+        compiler::CompileRequest::Native {
+            program,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .expect("the selected getpid binding must reach the native emitter")
+    .artifact
+    else {
         panic!("the Linux request must yield a native executable");
     };
     let artifact = output.retained_native_artifact().unwrap();
@@ -180,12 +185,16 @@ fn authored_build_returns_its_application_and_target_bindings() {
         },
         program: authorized,
     };
-    let refusal = compiler::compile(compiler::CompileRequest::Native {
-        program: saved,
-        entry_memory: &[],
-    })
+    let refusal = compiler::compile(
+        compiler::CompileRequest::Native {
+            program: saved,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
     .err()
-    .expect("a saved program needs the receiving host's process-ID provider");
+    .expect("a saved program needs the receiving host's process-ID provider")
+    .into_diagnostics();
     assert!(
         refusal
             .iter()

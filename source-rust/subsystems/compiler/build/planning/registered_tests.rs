@@ -45,10 +45,15 @@ impl ProductStage<'_> {
                     runtime_consent: self.runtime_consent(profile)?,
                     target: self.native_target(profile, assumptions.to_vec())?,
                 };
-                let Artifact::Native(product) = compiler::compile(CompileRequest::Native {
-                    program,
-                    entry_memory: &[],
-                })?
+                let Artifact::Native(product) = compiler::compile(
+                    CompileRequest::Native {
+                        program,
+                        entry_memory: &[],
+                    },
+                    Default::default(),
+                )
+                .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)?
+                .artifact
                 else {
                     return Err(vec![Diagnostic::error(
                         "the requested native test product was absent",

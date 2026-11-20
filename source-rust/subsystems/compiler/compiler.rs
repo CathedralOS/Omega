@@ -60,90 +60,73 @@ pub enum Artifact {
     Native(product_publication::CompletedProduct),
 }
 
-pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>> {
-    compile_reporting(request, None)
+#[derive(Default)]
+pub struct CompileOptions<'a> {
+    pub validators: Option<&'a stage_validators::StageValidatorRequest>,
+    pub advisories: Option<&'a mut Vec<Diagnostic>>,
 }
 
-fn compile_reporting(
+pub struct CompileOutput {
+    pub artifact: Artifact,
+    pub validations: Vec<stage_validators::StageValidationRow>,
+}
+
+/// Compile the requested product and check any selected native stages before
+/// releasing their image. Earlier stopping points report stages they did not produce.
+pub fn compile(
     request: CompileRequest<'_>,
-    advisories: Option<&mut Vec<Diagnostic>>,
-) -> Result<Artifact, Vec<Diagnostic>> {
+    options: CompileOptions<'_>,
+) -> Result<CompileOutput, stage_validators::NativeValidationError> {
+    let none = stage_validators::StageValidatorRequest::default();
+    let validators = options.validators.unwrap_or(&none);
     match request {
         CompileRequest::Psi(source) => {
-            source_to_psi::compile_reporting(source, advisories).map(Artifact::Psi)
+            let validations = validators.stages_not_produced(
+                source.product.calling_targets,
+                |_| "this product stops at Terminal Psi before target operations",
+            )?;
+            let artifact = source_to_psi::compile_reporting(source, options.advisories)?;
+            Ok(CompileOutput {
+                artifact: Artifact::Psi(artifact),
+                validations,
+            })
         }
         CompileRequest::Runtime {
             program,
             entry_memory,
         } => {
+            let validations = validators.stages_not_produced(
+                &[program.profile().target_name()],
+                |_| "runtime admission stops before target lowering",
+            )?;
             let admitted = program
-                .prepare(advisories)?
+                .prepare(options.advisories)?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
-            Ok(Artifact::Runtime(
-                product_publication::CompletedProduct::from_runtime(admitted, None),
-            ))
+            Ok(CompileOutput {
+                artifact: Artifact::Runtime(product_publication::CompletedProduct::from_runtime(
+                    admitted, None,
+                )),
+                validations,
+            })
         }
         CompileRequest::Native {
             program,
             entry_memory,
         } => {
             let application = program.application().clone();
-            let image = program.prepare(advisories)?.emit(entry_memory)?;
-            Ok(Artifact::Native(
-                product_publication::CompletedProduct::from_native(image, None, application),
-            ))
+            let emitted = program
+                .prepare(options.advisories)?
+                .emit(entry_memory, validators)?;
+            Ok(CompileOutput {
+                artifact: Artifact::Native(product_publication::CompletedProduct::from_native(
+                    emitted.image,
+                    None,
+                    application,
+                )),
+                validations: emitted.validations,
+            })
         }
     }
-}
-
-/// Compile exactly the requested product, running stage checks only when it
-/// emits a native image. Planning-stage Psi does not receive the final request.
-pub fn compile_with_validators(
-    request: CompileRequest<'_>,
-    validators: &stage_validators::StageValidatorRequest,
-) -> Result<
-    (Artifact, Vec<stage_validators::StageValidationRow>),
-    stage_validators::NativeValidationError,
-> {
-    compile_with_observations(request, validators, None)
-}
-
-/// Collect the accepted source judgment's advisories during this compilation.
-pub fn compile_with_observations(
-    request: CompileRequest<'_>,
-    validators: &stage_validators::StageValidatorRequest,
-    advisories: Option<&mut Vec<Diagnostic>>,
-) -> Result<
-    (Artifact, Vec<stage_validators::StageValidationRow>),
-    stage_validators::NativeValidationError,
-> {
-    use stage_validators::NativeValidationError;
-
-    let rows = match request {
-        CompileRequest::Native {
-            program,
-            entry_memory,
-        } => {
-            let application = program.application().clone();
-            let (image, rows) = program
-                .prepare(advisories)?
-                .emit_with_validators(entry_memory, validators)?;
-            let product =
-                product_publication::CompletedProduct::from_native(image, None, application);
-            return Ok((Artifact::Native(product), rows));
-        }
-        CompileRequest::Psi(ref source) => validators.stages_not_produced(
-            source.product.calling_targets,
-            |_| "this product stops at Terminal Psi before target operations",
-        )?,
-        CompileRequest::Runtime { ref program, .. } => validators.stages_not_produced(
-            &[program.profile().target_name()],
-            |_| "runtime admission stops before target lowering",
-        )?,
-    };
-    let product =
-        compile_reporting(request, advisories).map_err(NativeValidationError::Compilation)?;
-    Ok((product, rows))
 }
 
 impl Program<'_> {

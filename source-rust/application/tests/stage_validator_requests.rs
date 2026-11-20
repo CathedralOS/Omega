@@ -200,7 +200,7 @@ fn failed_target_output_directory_still_reports_and_builds_a_valid_sibling() {
         .arg(outputs.path())
         .arg("--report-file")
         .arg(&report)
-        .arg("main.omg")
+        .args(["--build-input", "build.omg", "--build-input", "main.omg", "build.omg"])
         .current_dir(&directory)
         .output()
         .unwrap();

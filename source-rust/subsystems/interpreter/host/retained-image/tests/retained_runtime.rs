@@ -23,22 +23,27 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     );
     let producer = HostProducerTrust::accept("retained runtime fixture");
     let program = authorize_terminal_artifact(artifact, Some(&producer)).unwrap();
-    let Artifact::Native(report) = compiler::compile(CompileRequest::Native {
-        program: Program::Psi {
-            program,
-            target: NativeTarget {
-                profile,
-                installation,
-                optimizations: &Default::default(),
-                requested_boundaries: Vec::new(),
-                application: Default::default(),
-                behavior_exclusions: &[],
-                x86_scalar_fma_provider: None,
+    let Artifact::Native(report) = compiler::compile(
+        CompileRequest::Native {
+            program: Program::Psi {
+                program,
+                target: NativeTarget {
+                    profile,
+                    installation,
+                    optimizations: &Default::default(),
+                    requested_boundaries: Vec::new(),
+                    application: Default::default(),
+                    behavior_exclusions: &[],
+                    x86_scalar_fma_provider: None,
+                },
             },
+            entry_memory: &[],
         },
-        entry_memory: &[],
-    })
-    .unwrap() else {
+        Default::default(),
+    )
+    .unwrap()
+    .artifact
+    else {
         panic!("native compilation must retain the completed image");
     };
     let native = report.retained_native_artifact().unwrap();
