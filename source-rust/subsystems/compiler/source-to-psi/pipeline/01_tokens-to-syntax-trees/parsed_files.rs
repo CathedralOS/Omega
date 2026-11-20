@@ -11,6 +11,18 @@ use syntax_trees::{SyntaxTrees, item::Item};
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
 pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
+    files: Vec<ParsedFile>,
+}
+
+/// File and item coordinates issued together by the parser.
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+struct ParsedFile {
+    id: SourceId,
+    path: PathBuf,
+    source: Arc<str>,
+    scope: DependencyScope,
+    origin: Option<SourceOrigin>,
+    items: SourceItems,
 }
 
 impl SourceSyntax {
@@ -26,6 +38,7 @@ impl SourceSyntax {
     pub fn new(source: SourceId) -> Self {
         Self {
             trees: SyntaxTrees::new(source),
+            files: Vec::new(),
         }
     }
     pub fn primary_source(&self) -> SourceId {
@@ -37,6 +50,55 @@ impl SourceSyntax {
     pub fn share_pages(&mut self) {
         self.trees.share_pages();
     }
+    fn retain_batch(&mut self, parsed: syntax_trees::ParsedSources) -> ParsedSourceBatch {
+        let batch = ParsedSourceBatch::project(parsed, &self.trees);
+        self.files.extend(
+            batch
+                .sources
+                .span_or_empty(batch.batch)
+                .iter()
+                .map(|unit| ParsedFile {
+                    id: unit.source_id,
+                    path: unit.path.clone(),
+                    source: Arc::clone(&unit.source),
+                    scope: unit.scope,
+                    origin: unit.origin,
+                    items: unit.root_items.clone(),
+                }),
+        );
+        batch
+    }
+
+    pub(crate) fn take_selected_items(
+        &mut self,
+        files: &crate::source_inputs::SourceMap,
+    ) -> Result<Vec<(SourceId, SourceItems)>, Vec<Diagnostic>> {
+        let mut seen = std::collections::HashSet::new();
+        let mut items = Vec::with_capacity(self.files.len());
+        for unit in self.files.drain(..) {
+            let selected = files.get(unit.id).filter(|file| {
+                files.source_is_selected(unit.id)
+                    && file.path == unit.path
+                    && file.source == unit.source
+                    && file.dependency_scope == unit.scope
+                    && Some(file.origin) == unit.origin
+            });
+            if selected.is_none() || !seen.insert(unit.id) {
+                return Err(vec![Diagnostic::error(format!(
+                    "parsed file {} does not match its selected source occurrence",
+                    unit.path.display()
+                ))]);
+            }
+            items.push((unit.id, unit.items));
+        }
+        if seen.len() != files.selected_files().count() {
+            return Err(vec![Diagnostic::error(
+                "selected source is missing from the parsed stage",
+            )]);
+        }
+        Ok(items)
+    }
+
     pub fn float_literal_spans(&self) -> impl Iterator<Item = SourceSpan> + '_ {
         self.trees
             .tables
@@ -205,7 +267,7 @@ impl SourceInput {
     ) -> Result<ParsedSourceBatch, Vec<Diagnostic>> {
         let parsed =
             crate::source_parsing::SourceInput(self.0).append(&mut syntax.trees, observer)?;
-        Ok(ParsedSourceBatch::project(parsed, &syntax.trees))
+        Ok(syntax.retain_batch(parsed))
     }
     pub fn into_parsed_units(
         self,
@@ -231,7 +293,7 @@ impl SourceInput {
             observer,
             |source| retained(source).map(|parse| &parse.unit),
         )?;
-        Ok(ParsedSourceBatch::project(parsed, &syntax.trees))
+        Ok(syntax.retain_batch(parsed))
     }
 }
 

@@ -85,7 +85,8 @@ fn authored_build_returns_its_application_and_target_bindings() {
     assert!(
         product
             .source()
-            .sources
+            .parsed
+            .files
             .selected_files()
             .any(|file| file.path == root)
     );
@@ -97,18 +98,18 @@ fn authored_build_returns_its_application_and_target_bindings() {
     let compiler::Program::Source { source, target, .. } = &program else {
         panic!("the named project must produce a source request");
     };
-    assert_eq!(source.selections.subject, Some(subject));
-    assert_eq!(source.selections.calling_targets, &["linux_x86_64"]);
+    assert_eq!(source.product.subject, Some(subject));
+    assert_eq!(source.product.calling_targets, &["linux_x86_64"]);
     assert!(std::ptr::eq(
-        source.build_accounting.unwrap(),
+        source.product.build_accounting.unwrap(),
         &product.evaluated().source_completion_accounting,
     ));
     assert_eq!(
         target.settings.application.name.as_deref(),
         Some("native_boundary_supply")
     );
-    assert_eq!(source.selections.policy.native_bindings.len(), 4);
-    assert!(source.selections.native_bindings.evaluation.is_some());
+    assert_eq!(source.product.policy.native_bindings.len(), 4);
+    assert!(source.product.native_bindings.evaluation.is_some());
     let computed = &product.evaluated().configuration;
     assert_eq!(computed.root_binding_requests.len(), 5);
     assert!(

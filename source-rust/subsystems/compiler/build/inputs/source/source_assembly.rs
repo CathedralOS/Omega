@@ -60,20 +60,26 @@ impl BuildStageAcquisition {
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
-    pub root_sources: Vec<source_text::SourceId>, // Selected root-package `SourceId`s.
-    pub syntax_trees: SourceSyntax,               // Parsed syntax forest.
-    pub source_items: Vec<(source_text::SourceId, source_compiler::SourceItems)>, // Parser-issued authored item roots per source.
-    pub sources: Arc<source_compiler::source_inputs::SourceMap>, // Selected `SourceMap` cohort.
+    pub parsed: source_compiler::ParsedStageSources,
     pub build_source_acquisition: Option<BuildStageAcquisition>,
     pub anonymous_owner: Option<crate::AnonymousSourceCapture>, // Unbound anonymous capture carried until `Product` sealing.
     pub product_sources: Option<DeferredProductSources>, // Deferred `Product` continuation held during `Build` evaluation.
     pub default_product_entry: Option<source_admission::RetainedDeclaration>,
     pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
-    pub source_scoped_top_level_bindings:
-        Vec<source_compiler::source_symbols::SourceScopedTopLevelBinding>, // Build-prelude aliases and module import bindings.
     pub generated_source_custody:
         Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, // Admitted dependency-generated sources keyed by `SourceId`.
     pub build_scope_sources: HashSet<source_text::SourceId>, // Sources owned by the `Build` execution scope.
+}
+
+impl AssembledSyntax {
+    pub fn build_stage_source(&self) -> Result<source_compiler::BuildStageSource, Vec<Diagnostic>> {
+        let selection = self.build_source.ok_or_else(|| vec![Diagnostic::error("Build stage requires a selected declaration")])?;
+        Ok(source_compiler::BuildStageSource {
+            parsed: self.parsed.clone(),
+            build_sources: self.build_scope_sources.clone(),
+            entry: selection.entry(),
+        })
+    }
 }
 
 #[derive(record_storage::Record)]
@@ -189,11 +195,6 @@ impl DeferredProductSources {
         )?;
         bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
-        let source_items = storage
-            .source_roots
-            .iter()
-            .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
-            .collect();
         let build_scope_sources = storage
             .sources
             .selected_files()
@@ -203,17 +204,19 @@ impl DeferredProductSources {
             })
             .map(|file| file.source_id)
             .collect();
+        storage.syntax_trees.share_pages();
         Ok(AssembledSyntax {
-            root_sources,
-            source_items,
-            syntax_trees: storage.syntax_trees,
-            sources: Arc::new(storage.sources),
+            parsed: source_compiler::ParsedStageSources {
+                roots: root_sources,
+                syntax: storage.syntax_trees,
+                files: Arc::new(storage.sources),
+                imports: bindings,
+            },
             build_source_acquisition: None,
             anonymous_owner: None,
             product_sources: None,
             default_product_entry: None,
             build_source,
-            source_scoped_top_level_bindings: bindings,
             generated_source_custody: Vec::new(),
             build_scope_sources,
         })
@@ -314,11 +317,6 @@ impl DeferredProductSources {
         bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
         let source_file_count = storage.file_count();
-        let source_items = storage
-            .source_roots
-            .iter()
-            .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
-            .collect();
         let build_scope_sources = storage
             .sources
             .selected_files()
@@ -334,24 +332,26 @@ impl DeferredProductSources {
             Some(capture) => (capture.sources().clone(), Some(capture)),
             None => (Arc::new(storage.sources), None),
         };
+        storage.syntax_trees.share_pages();
         Ok((
             source_file_count,
             AssembledSyntax {
-                root_sources,
-                source_items,
-                syntax_trees: storage.syntax_trees,
                 build_source_acquisition: acquisition.map(|capture| BuildStageAcquisition {
                     capture,
                     sources: Arc::clone(&sources),
                 }),
-                sources,
+                parsed: source_compiler::ParsedStageSources {
+                    roots: root_sources,
+                    syntax: storage.syntax_trees,
+                    files: sources,
+                    imports: bindings,
+                },
                 anonymous_owner,
                 product_sources: Some(DeferredProductSources {
                     checkpoint: deferred,
                 }),
                 default_product_entry: None,
                 build_source,
-                source_scoped_top_level_bindings: bindings,
                 generated_source_custody,
                 build_scope_sources,
             },
@@ -828,21 +828,19 @@ impl ImmutableSourceParseCheckpoint {
             (Some(named), Some(build)) if build.is_default() => named.product_main(&sources)?,
             _ => None,
         };
+        source_storage.syntax_trees.share_pages();
         let syntax = AssembledSyntax {
-            root_sources,
-            source_items: source_storage
-                .source_roots
-                .iter()
-                .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
-                .collect(),
-            syntax_trees: source_storage.syntax_trees,
+            parsed: source_compiler::ParsedStageSources {
+                roots: root_sources,
+                syntax: source_storage.syntax_trees,
+                files: Arc::clone(&sources),
+                imports: source_scoped_top_level_bindings,
+            },
             build_source_acquisition: None,
-            sources,
             anonymous_owner,
             product_sources,
             default_product_entry,
             build_source: self.build_source,
-            source_scoped_top_level_bindings,
             generated_source_custody,
             build_scope_sources,
         };
@@ -1542,7 +1540,8 @@ mod requirement_preparation_tests {
         let indexing = core.join("indexing/indexing.omg");
         let collection_source = |assembled: &AssembledSyntax, scope| {
             let files = assembled
-                .sources
+                .parsed
+                .files
                 .selected_files()
                 .filter(|file| file.path == indexing && file.dependency_scope == scope)
                 .collect::<Vec<_>>();
@@ -1574,14 +1573,10 @@ mod requirement_preparation_tests {
         let (_, mut build) = checkpoint
             .assemble(None, &mut timings, &mut catalogue)
             .expect("the initial Build source assembly");
-        let build_source = collection_source(
-            &build,
-            source_provenance::DependencyScope::Build,
-        );
-        assert!(!build.sources.selected_files().any(|file| {
+        let build_source = collection_source(&build, source_provenance::DependencyScope::Build);
+        assert!(!build.parsed.files.selected_files().any(|file| {
             file.path == indexing
-                && file.dependency_scope
-                    == source_provenance::DependencyScope::Product
+                && file.dependency_scope == source_provenance::DependencyScope::Product
         }));
         let continuation = build
             .product_sources
@@ -1612,7 +1607,8 @@ mod requirement_preparation_tests {
         assert_eq!(query_source, product_source);
         let consumer = |assembled: &AssembledSyntax| {
             let sources = assembled
-                .sources
+                .parsed
+                .files
                 .selected_files()
                 .filter(|file| {
                     file.path == root
@@ -1623,7 +1619,7 @@ mod requirement_preparation_tests {
                 .map(|file| file.source_id)
                 .collect::<Vec<_>>();
             assert_eq!(sources.len(), 1, "one actual authored Product root");
-            assert!(assembled.root_sources.contains(&sources[0]));
+            assert!(assembled.parsed.roots.contains(&sources[0]));
             sources[0]
         };
         assert_ne!(consumer(&query), consumer(&product));
@@ -1634,9 +1630,8 @@ mod requirement_preparation_tests {
         // Read the existing program and the production Build prelude through
         // the normal source owner. Preparing their calls supplies no receiver,
         // provider, invocation verdict or host activation ticket.
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../../../../tests/fixtures/generics/run/implementation_parameter_contract/main.omg",
-        );
+        let root = fixture_repository::root()
+            .join("tests/fixtures/generics/run/implementation_parameter_contract/build.omg");
         let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
         let mut timings = CompileTimings::default();
         let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
@@ -1650,21 +1645,11 @@ mod requirement_preparation_tests {
         let (_, assembled) = checkpoint
             .assemble(None, &mut timings, &mut catalogue)
             .expect("the ordinary Build source and real toolchain prelude");
-        let sources = Arc::clone(&assembled.sources);
-        let request = source_compiler::ResolveAndTypeRequest {
-            syntax: assembled.syntax_trees,
-            source_items: assembled.source_items,
-            root_sources: assembled.root_sources,
-            frontends: Default::default(),
-            build_helper_identity: "linux_x86_64",
-            build_sources: Default::default(),
-            build_stage: None,
-            sources: assembled.sources,
-            top_level_bindings: assembled.source_scoped_top_level_bindings,
-            selection_authority: None,
-        };
-        let (prepared, _) = request
-            .prepare(&mut source_compiler::UnmeasuredProduction)
+        let sources = Arc::clone(&assembled.parsed.files);
+        let (prepared, _) = assembled
+            .build_stage_source()
+            .unwrap()
+            .prepare(0, &Default::default(), "linux_x86_64", None)
             .expect("exact declared requirement calls reach typed preparation");
         let typed = prepared.typed();
         let unresolved: Vec<_> = typed
@@ -1673,7 +1658,8 @@ mod requirement_preparation_tests {
             .filter(|row| {
                 row.request == source_compiler::source_state::deferred_refusals::DeferredRequest::UnresolvedCallTarget
                     && sources.file_at(row.source_span).is_some_and(|file| {
-                        file.origin == SourceOrigin::Toolchain || file.path.ends_with("build.omg")
+                        file.path == root || (file.origin == SourceOrigin::Toolchain
+                            && source_admission::source_identity::is_build_prelude_path(&file.path))
                     })
             })
             .map(|row| {

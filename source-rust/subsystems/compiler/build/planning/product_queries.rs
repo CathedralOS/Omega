@@ -1,6 +1,6 @@
 //! Describe the Product declarations mounted for a paused Build call and bind
 //! each acquired graph to the Product registration that made it visible.
-use super::{PlanningServices, PlanningSource, refusal, stage_source};
+use super::{PlanningServices, PlanningSource, refusal};
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::{BuildProductDescription, BuildProductQuery};
 use build_execution::{BuildDependencySelection, CompileFailure, TerminalBuildActivation};
@@ -69,12 +69,12 @@ impl PlanningSource {
             .as_ref()
             .is_none_or(|(previous, _)| previous != &inputs)
         {
-            let mut assembled = self.deferred.assemble_query(
+            let assembled = self.deferred.assemble_query(
                 &inputs,
                 &mut self.timings,
                 &mut *self.preparation.catalogue()?,
             )?;
-            let source = stage_source(&mut assembled)?.prepare_product_query(
+            let source = assembled.build_stage_source()?.prepare_product_query(
                 &self.preparation,
                 self.profile.target_name(),
                 self.original

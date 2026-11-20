@@ -476,7 +476,7 @@ fn compile_target(
         diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
         eprintln!("{text}");
     }
-    let sources = &planned.source().sources;
+    let sources = &planned.source().parsed.files;
     let file_count = sources
         .files()
         .filter(|file| sources.source_is_selected(file.source_id))

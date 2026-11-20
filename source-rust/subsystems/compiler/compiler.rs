@@ -133,7 +133,7 @@ pub fn compile_with_observations(
             return Ok((Artifact::Native(product), rows));
         }
         CompileRequest::Psi(ref source) => validators.stages_not_produced(
-            source.selections.calling_targets,
+            source.product.calling_targets,
             |_| "this product stops at Terminal Psi before target operations",
         )?,
         CompileRequest::Runtime { ref program, .. } => validators.stages_not_produced(

@@ -525,13 +525,12 @@ machine build(builder: @mut Build) suspends {
 ";
 
     /// Each top-level wait ends a stage. The nested machines and the closing
-    /// dispatch stay with the last one: its `let` and the three statements
-    /// the two-armed dispatch is stored as.
+    /// dispatch stay with the last one: its `let` and the dispatch statement that owns both arms.
     #[test]
     fn an_entry_is_divided_at_each_top_level_preparation() {
         assert_eq!(stage(STAGED, 0), Ok((3, 3, 0)));
         assert_eq!(stage(STAGED, 1), Ok((3, 2, 0)));
-        assert_eq!(stage(STAGED, 2), Ok((3, 4, 2)));
+        assert_eq!(stage(STAGED, 2), Ok((3, 2, 2)));
         assert!(stage(STAGED, 3).is_err());
     }
 

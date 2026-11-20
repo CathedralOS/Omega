@@ -76,7 +76,7 @@ fn satisfiers<'a>(
 }
 
 pub struct RegisteredTests<'a> {
-    source: StageSource<'a>,
+    source: ProductSourceInputs<'a>,
     continuation: SourceContinuation,
     pub roots: Vec<TestRoot>,
     pub notes: Vec<String>,
@@ -88,17 +88,17 @@ impl<'a> RegisteredTests<'a> {
         target: &str,
         disabled: bool,
     ) -> Result<Option<Self>, Vec<Diagnostic>> {
-        if !source.selections.policy.executed.iter().any(|event| {
+        if !source.product.policy.executed.iter().any(|event| {
             event.request.operation == declaration_selection::BuildOperation::TestGroupRegistration
         }) {
             return Ok(None);
         }
-        if !source.selections.calling_targets.contains(&target) {
+        if !source.product.calling_targets.contains(&target) {
             return Err(vec![Diagnostic::error(
                 "test target is outside its Product deployment",
             )]);
         }
-        let continuation = source.resolve()?;
+        let (source, continuation) = source.resolve()?;
         let checked = source.judge(continuation.clone(), None, None)?;
         let typed = &checked.program;
         let retain = |symbol| {
@@ -182,6 +182,6 @@ impl<'a> RegisteredTests<'a> {
             .source
             .judge(self.continuation.clone(), None, Some((root, target)))?;
         let psi = self.source.publish(&checked)?;
-        published_target(psi, checked, target, self.source.selections.subject)
+        published_target(psi, checked, target, self.source.subject)
     }
 }
