@@ -207,14 +207,19 @@ exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or work
 bound; a nonterminating program diverges.
 
 The selected implementation is
-[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,673-line,
-48,077-byte addressed Beta program assembling to an 8,575-byte Alpha tape. Its
+[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,660-line,
+48,043-byte addressed Beta program assembling to an 8,447-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  0212314445b22655359d7e8477184fed129f15d6d7e1051f56069842bb06a1a8
-Alpha tape   9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a
+Beta source  3a41a36bb5af68454a92fda0e3c5dd6b78784cb62aa9bc2eb10e2cc6ddc53f71
+Alpha tape   d6265bba615fab3bd7d3fd3432f416e28c5668e17119d1970e9d3960b315fe4b
 ```
+
+The list-head classifier reads at most eight bytes from the token and compares
+the packed word with the 15 intrinsic spellings in class order. Gamma rejects
+NUL throughout the source before tokenization, so zero padding preserves exact
+spelling and length. Longer heads go directly to function lookup.
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
 outcomes, bounded output, profile-owned arithmetic traps, and provenance-tagged
@@ -297,8 +302,8 @@ The punctuation helpers now compare the token's first byte directly. The
 existing tokenizer isolates parentheses as singleton tokens and gives character
 literals an apostrophe prefix, so this preserves the full token test without a
 second lexer or index. Both 30-byte helper slots and every control address stay
-fixed; only 36 tape bytes change. The generic string comparison still handles
-ordinary names and keywords.
+fixed; only 36 tape bytes change. That punctuation change left the ordinary name
+and keyword comparisons in place.
 
 The punctuation calls have a nonempty source token: `need_token` rejects EOF,
 and the census checks `next_token`'s success before calling either helper.

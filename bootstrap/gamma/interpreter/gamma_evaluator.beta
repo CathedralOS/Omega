@@ -44,7 +44,7 @@
 0x9b: ; read_full:
         read r1
         jlt r1 r90 0xb1 ; -> read_done:
-        jmp 0x1ee4 ; -> request_extent_failure:
+        jmp 0x1e64 ; -> request_extent_failure:
 0xb1: ; read_done:
         mov r80 r0
         mov r1 r92
@@ -69,7 +69,7 @@
         mov r8c r90
         mov r8a r96
         mov r8e r90
-        call 0x1d63 ; -> validate_and_classify_program:
+        call 0x1ce3 ; -> validate_and_classify_program:
         mov r89 r90
         mov r8c r90
         mov r8a r96
@@ -234,6 +234,7 @@
 ; r0 packed ASCII, r1 length. Return r0=0/1 against current token.
 0x4a6: ; token_equals:
         jeq r87 r1 0x4b5 ; -> token_equals_begin:
+0x4b1: ; token_no_match:
         mov r0 r90
         ret
 0x4b5: ; token_equals_begin:
@@ -258,30 +259,32 @@
         mov r0 r91
         ret
 
-; Classify the current list head through the explicit table below. Zero is call.
+; Pack the nonempty head once, reading only bytes within the token. Source
+; bytes are nonzero ASCII, so zero padding distinguishes every short token.
+; A longer head cannot equal a word in the table and names a function call.
 0x501: ; classify_list_head:
-        imm r8 0x1c63 ; -> list_head_table:
-0x50b: ; classify_list_head_loop:
-        load r0 r8
         imm r1 0x8
-        add r8 r1
-        load r3 r8
-        jz r3 0x572 ; -> classify_list_head_call:
-        mov r1 r3
+        jlt r1 r87 0x4b1 ; -> token_no_match:
+        mov r2 r86
+        add r2 r87
+        mov r3 r90
         imm r4 0x100
-        mod r1 r4
-        call 0x4a6 ; -> token_equals:
-        jnz r0 0x561 ; -> classify_list_head_found:
-        imm r1 0x8
+0x529: ; pack_list_head_byte:
+        sub r2 r91
+        loadb r0 r2
+        mul r3 r4
+        add r3 r0
+        jlt r86 r2 0x529 ; -> pack_list_head_byte:
+        imm r8 0x1c63 ; -> list_head_table:
+        mov r0 r91
+0x54d: ; classify_list_head_loop:
+        load r4 r8
+        jeq r4 r90 0x4b1 ; -> token_no_match:
+        jeq r4 r3 0x575 ; -> classify_list_head_found:
+        add r0 r91
         add r8 r1
-        jmp 0x50b ; -> classify_list_head_loop:
-0x561: ; classify_list_head_found:
-        load r0 r8
-        imm r1 0x100
-        div r0 r1
-        ret
-0x572: ; classify_list_head_call:
-        mov r0 r90
+        jmp 0x54d ; -> classify_list_head_loop:
+0x575: ; classify_list_head_found:
         ret
 
 ; next_token isolates parentheses; character literals start with an apostrophe.
@@ -410,7 +413,7 @@
         mov r1 r8a
         imm r2 0x10
         add r1 r2
-        jlt r97 r1 0x1e87 ; -> stack_failure:
+        jlt r97 r1 0x1e07 ; -> stack_failure:
         store r8a r0
         imm r1 0x8
         add r8a r1
@@ -476,7 +479,7 @@
 
 ; Current token lookup through a sorted index; keep original control addresses.
 0x8b5: ; find_function:
-        jmp 0x1f77 ; -> indexed_find_function:
+        jmp 0x1ef7 ; -> indexed_find_function:
         dw 0x0
         dw 0x0
         dw 0x0
@@ -513,7 +516,7 @@
         call 0x8f9 ; -> find_environment:
         jnz r0 0x1ac2 ; -> invalid:
         imm r1 0x20000
-        jeq r89 r1 0x1e87 ; -> stack_failure:
+        jeq r89 r1 0x1e07 ; -> stack_failure:
         imm r0 0x20
         mul r0 r89
         add r0 r95
@@ -618,7 +621,7 @@
         call 0x9a2 ; -> skip_expression:
         call 0x5cf ; -> expect_close:
         add r88 r91
-        jmp 0x2079 ; -> index_completed_function:
+        jmp 0x1ff9 ; -> index_completed_function:
 0xbd4: ; census_done:
         jz r8b 0x1ac2 ; -> invalid:
         mov r0 r8b
@@ -790,7 +793,7 @@
         mov r6 r0
         mov r5 r1
         imm r1 0x100
-        jeq r8e r1 0x1e87 ; -> stack_failure:
+        jeq r8e r1 0x1e07 ; -> stack_failure:
         add r8e r91
 0xfb2: ; begin_call_context_ready:
         call 0xf79 ; -> call_context:
@@ -828,7 +831,7 @@
         imm r4 0x30
         add r4 r3
         imm r5 0x1f00000
-        jlt r5 r4 0x1e87 ; -> stack_failure:
+        jlt r5 r4 0x1e07 ; -> stack_failure:
         store r3 r85
         imm r5 0x8
         add r3 r5
@@ -1224,7 +1227,7 @@
         mov r2 ra0
         imm r1 0x28
         add r2 r1
-        jlt ra1 r2 0x1ea6 ; -> heap_failure:
+        jlt ra1 r2 0x1e26 ; -> heap_failure:
         mov r0 ra0
         imm r1 0x50414952
         store r0 r1
@@ -1313,20 +1316,20 @@
         imm r0 0x1
         halt r0
 0x1ace: ; authored_trap:
-        jmp 0x1e21 ; -> authored_failure:
+        jmp 0x1da1 ; -> authored_failure:
         mov r0 r0
 0x1ada: ; incomplete:
-        jmp 0x1e43 ; -> incomplete_failure:
+        jmp 0x1dc3 ; -> incomplete_failure:
         mov r0 r0
 0x1ae6: ; internal:
-        jmp 0x1e65 ; -> internal_failure:
+        jmp 0x1de5 ; -> internal_failure:
         mov r0 r0
 
 ; Scalar main preserves transformer behavior. Pair main is a generic
 ; application result and never exposes buffered bytes before validation.
 0x1af2: ; finish_main:
         jnz ra2 0x1b48 ; -> application_main:
-        call 0x1f4f ; -> require_transformer_scalar:
+        call 0x1ecf ; -> require_transformer_scalar:
         jlt r0 r90 0x1ace ; -> authored_trap:
         imm r1 0x100
         jlt r0 r1 0x1b2e ; -> scalar_main_valid:
@@ -1339,7 +1342,7 @@
         halt r0
 
 0x1b48: ; application_main:
-        call 0x1f63 ; -> validate_application_pair:
+        call 0x1ee3 ; -> validate_application_pair:
         mov r6 r0
         imm r1 0x8
         add r0 r1
@@ -1376,7 +1379,7 @@
         halt r0
 
 0x1c17: ; buffer_output:
-        jeq rb0 rb1 0x1ec5 ; -> output_failure:
+        jeq rb0 rb1 0x1e45 ; -> output_failure:
         imm r1 0x18300000
         add r1 rb0
         storeb r1 r0
@@ -1396,61 +1399,45 @@
         add r0 r91
         jmp 0x1c46 ; -> flush_output_loop:
 
-; Packed ASCII followed by (class * 256 + token length). Zero terminates.
+; One packed ASCII word per intrinsic. Its one-based position is the class.
 0x1c63: ; list_head_table:
         dw 0x6669             ; 1 if
-        dw 0x102
         dw 0x74656c           ; 2 let
-        dw 0x203
         dw 0x2b               ; 3 +
-        dw 0x301
         dw 0x2d               ; 4 -
-        dw 0x401
         dw 0x2a               ; 5 *
-        dw 0x501
         dw 0x2f               ; 6 /
-        dw 0x601
         dw 0x25               ; 7 %
-        dw 0x701
         dw 0x7165             ; 8 eq
-        dw 0x802
         dw 0x746c             ; 9 lt
-        dw 0x902
         dw 0x72696170         ; 10 pair
-        dw 0xa04
         dw 0x7475706e69       ; 11 input
-        dw 0xb05
         dw 0x64616572         ; 12 read
-        dw 0xc04
         dw 0x6574697277       ; 13 write
-        dw 0xd05
         dw 0x7473726966       ; 14 first
-        dw 0xe05
         dw 0x646e6f636573     ; 15 second
-        dw 0xf06
-        dw 0x0
-        dw 0x0
+        dw 0x0              ; End.
 
 ; Validate every body first, then classify the exact first function name.
 ; `$application` is a generic evaluator convention, not a Delta profile name.
-0x1d63: ; validate_and_classify_program:
+0x1ce3: ; validate_and_classify_program:
         call 0xbfc ; -> validate_program:
         mov rb2 r90
         mov r85 r81
         call 0x28c ; -> next_token:
         call 0x576 ; -> is_open:
-        jz r0 0x1e20 ; -> classify_program_done:
+        jz r0 0x1da0 ; -> classify_program_done:
         call 0x492 ; -> need_token:
         call 0x492 ; -> need_token:
         imm r0 0xc
-        jeq r87 r0 0x1dbe ; -> classify_marker_length:
-        jmp 0x1e20 ; -> classify_program_done:
-0x1dbe: ; classify_marker_length:
+        jeq r87 r0 0x1d3e ; -> classify_marker_length:
+        jmp 0x1da0 ; -> classify_program_done:
+0x1d3e: ; classify_marker_length:
         load r0 r86
         imm r1 0x6163696c70706124
-        jeq r0 r1 0x1ddf ; -> classify_marker_tail:
-        jmp 0x1e20 ; -> classify_program_done:
-0x1ddf: ; classify_marker_tail:
+        jeq r0 r1 0x1d5f ; -> classify_marker_tail:
+        jmp 0x1da0 ; -> classify_program_done:
+0x1d5f: ; classify_marker_tail:
         mov r0 r86
         imm r1 0x8
         add r0 r1
@@ -1458,85 +1445,85 @@
         imm r1 0x100000000
         mod r0 r1
         imm r1 0x6e6f6974
-        jeq r0 r1 0x1e1d ; -> classify_application:
-        jmp 0x1e20 ; -> classify_program_done:
-0x1e1d: ; classify_application:
+        jeq r0 r1 0x1d9d ; -> classify_application:
+        jmp 0x1da0 ; -> classify_program_done:
+0x1d9d: ; classify_application:
         mov rb2 r91
-0x1e20: ; classify_program_done:
+0x1da0: ; classify_program_done:
         ret
 
-0x1e21: ; authored_failure:
-        jnz rb2 0x1e37 ; -> application_authored_failure:
+0x1da1: ; authored_failure:
+        jnz rb2 0x1db7 ; -> application_authored_failure:
         imm r0 0x2
         halt r0
-0x1e37: ; application_authored_failure:
+0x1db7: ; application_authored_failure:
         imm r0 0xf9
         halt r0
 
-0x1e43: ; incomplete_failure:
-        jnz rb2 0x1e59 ; -> application_incomplete_failure:
+0x1dc3: ; incomplete_failure:
+        jnz rb2 0x1dd9 ; -> application_incomplete_failure:
         imm r0 0x3
         halt r0
-0x1e59: ; application_incomplete_failure:
+0x1dd9: ; application_incomplete_failure:
         imm r0 0xf8
         halt r0
 
-0x1e65: ; internal_failure:
-        jnz rb2 0x1e7b ; -> application_internal_failure:
+0x1de5: ; internal_failure:
+        jnz rb2 0x1dfb ; -> application_internal_failure:
         imm r0 0x4
         halt r0
-0x1e7b: ; application_internal_failure:
+0x1dfb: ; application_internal_failure:
         imm r0 0xf8
         halt r0
 
-0x1e87: ; stack_failure:
-        jnz rb2 0x1e9a ; -> application_stack_failure:
+0x1e07: ; stack_failure:
+        jnz rb2 0x1e1a ; -> application_stack_failure:
         jmp 0x1ada ; -> incomplete:
-0x1e9a: ; application_stack_failure:
+0x1e1a: ; application_stack_failure:
         imm r0 0xfa
         halt r0
 
-0x1ea6: ; heap_failure:
-        jnz rb2 0x1eb9 ; -> application_heap_failure:
+0x1e26: ; heap_failure:
+        jnz rb2 0x1e39 ; -> application_heap_failure:
         jmp 0x1ada ; -> incomplete:
-0x1eb9: ; application_heap_failure:
+0x1e39: ; application_heap_failure:
         imm r0 0xfc
         halt r0
 
-0x1ec5: ; output_failure:
-        jnz rb2 0x1ed8 ; -> application_output_failure:
+0x1e45: ; output_failure:
+        jnz rb2 0x1e58 ; -> application_output_failure:
         jmp 0x1ada ; -> incomplete:
-0x1ed8: ; application_output_failure:
+0x1e58: ; application_output_failure:
         imm r0 0xfe
         halt r0
 
 ; Request overflow occurs before census. The generated marker is deliberately
 ; first so this one pre-validation resource can still retain its owner.
-0x1ee4: ; request_extent_failure:
+0x1e64: ; request_extent_failure:
         mov r0 r92
         imm r1 0x4
         add r0 r1
         load r2 r0
         imm r3 0x7061242066656428
-        jeq r2 r3 0x1f15 ; -> request_marker_tail:
+        jeq r2 r3 0x1e95 ; -> request_marker_tail:
         jmp 0x1ada ; -> incomplete:
-0x1f15: ; request_marker_tail:
+0x1e95: ; request_marker_tail:
         imm r1 0x8
         add r0 r1
         load r2 r0
         imm r3 0x6f69746163696c70
-        jeq r2 r3 0x1f43 ; -> application_input_failure:
+        jeq r2 r3 0x1ec3 ; -> application_input_failure:
         jmp 0x1ada ; -> incomplete:
-0x1f43: ; application_input_failure:
+0x1ec3: ; application_input_failure:
         imm r0 0xfd
         halt r0
 
-0x1f4f: ; require_transformer_scalar:
+0x1ecf: ; require_transformer_scalar:
         jnz rb2 0x1ace ; -> authored_trap:
         call 0x820 ; -> require_scalar:
         ret
 
-0x1f63: ; validate_application_pair:
+0x1ee3: ; validate_application_pair:
         jz rb2 0x1ace ; -> authored_trap:
         call 0x196c ; -> validate_pair:
         ret
@@ -1546,15 +1533,15 @@
 ; inside the selected function partition. Rows retain authored order.
 ; Search bounds are [r10, r11); r12 is the midpoint, r13 the index base.
 ; All new low registers are caller-clobbered; comparator preserves r10..r14.
-0x1f77: ; indexed_find_function:
+0x1ef7: ; indexed_find_function:
         mov r10 r90
         mov r11 r88
         imm r13 0x9000000
-0x1f87: ; indexed_find_loop:
-        jlt r10 r11 0x1f96 ; -> indexed_find_probe:
+0x1f07: ; indexed_find_loop:
+        jlt r10 r11 0x1f16 ; -> indexed_find_probe:
         mov r0 r90
         ret
-0x1f96: ; indexed_find_probe:
+0x1f16: ; indexed_find_probe:
         mov r12 r10
         add r12 r11
         imm r0 0x2
@@ -1564,57 +1551,57 @@
         mul r3 r0
         add r3 r13
         load r3 r3
-        call 0x1ffc ; -> compare_function_token:
-        jz r0 0x1ff8 ; -> indexed_find_present:
-        jlt r0 r90 0x1fec ; -> indexed_find_lower:
+        call 0x1f7c ; -> compare_function_token:
+        jz r0 0x1f78 ; -> indexed_find_present:
+        jlt r0 r90 0x1f6c ; -> indexed_find_lower:
         mov r10 r12
         add r10 r91
-        jmp 0x1f87 ; -> indexed_find_loop:
-0x1fec: ; indexed_find_lower:
+        jmp 0x1f07 ; -> indexed_find_loop:
+0x1f6c: ; indexed_find_lower:
         mov r11 r12
-        jmp 0x1f87 ; -> indexed_find_loop:
-0x1ff8: ; indexed_find_present:
+        jmp 0x1f07 ; -> indexed_find_loop:
+0x1f78: ; indexed_find_present:
         mov r0 r3
         ret
 
 ; Compare the current token with row r3 by (length, exact bytes).
 ; Return -1, zero, or one. Neither source span nor the row pointer changes.
-0x1ffc: ; compare_function_token:
+0x1f7c: ; compare_function_token:
         mov r4 r3
         imm r5 0x8
         add r4 r5
         load r4 r4
-        jlt r87 r4 0x206a ; -> function_token_less:
-        jlt r4 r87 0x2071 ; -> function_token_greater:
+        jlt r87 r4 0x1fea ; -> function_token_less:
+        jlt r4 r87 0x1ff1 ; -> function_token_greater:
         load r4 r3
         mov r5 r90
-0x202b: ; function_token_loop:
-        jeq r5 r87 0x2075 ; -> function_token_equal:
+0x1fab: ; function_token_loop:
+        jeq r5 r87 0x1ff5 ; -> function_token_equal:
         mov r6 r4
         add r6 r5
         loadb r6 r6
         mov r7 r86
         add r7 r5
         loadb r7 r7
-        jlt r7 r6 0x206a ; -> function_token_less:
-        jlt r6 r7 0x2071 ; -> function_token_greater:
+        jlt r7 r6 0x1fea ; -> function_token_less:
+        jlt r6 r7 0x1ff1 ; -> function_token_greater:
         add r5 r91
-        jmp 0x202b ; -> function_token_loop:
-0x206a: ; function_token_less:
+        jmp 0x1fab ; -> function_token_loop:
+0x1fea: ; function_token_less:
         mov r0 r90
         sub r0 r91
         ret
-0x2071: ; function_token_greater:
+0x1ff1: ; function_token_greater:
         mov r0 r91
         ret
-0x2075: ; function_token_equal:
+0x1ff5: ; function_token_equal:
         mov r0 r90
         ret
 
 ; Census has finished the new row, checked the declaration close, and advanced
 ; r88 after the selected 2097152-row preflight. Only the first r88-1 pointers
 ; exist until this hook commits. r8c still identifies the new physical row.
-0x2079: ; index_completed_function:
+0x1ff9: ; index_completed_function:
         mov r14 r8c
         load r86 r14
         mov r0 r14
@@ -1625,10 +1612,10 @@
         mov r11 r88
         sub r11 r91
         imm r13 0x9000000
-0x20a5: ; function_index_position_loop:
-        jlt r10 r11 0x20b9 ; -> function_index_position_probe:
-        jmp 0x211b ; -> function_index_shift_begin:
-0x20b9: ; function_index_position_probe:
+0x2025: ; function_index_position_loop:
+        jlt r10 r11 0x2039 ; -> function_index_position_probe:
+        jmp 0x209b ; -> function_index_shift_begin:
+0x2039: ; function_index_position_probe:
         mov r12 r10
         add r12 r11
         imm r0 0x2
@@ -1638,22 +1625,22 @@
         mul r3 r0
         add r3 r13
         load r3 r3
-        call 0x1ffc ; -> compare_function_token:
+        call 0x1f7c ; -> compare_function_token:
         jz r0 0x1ae6 ; -> internal:
-        jlt r0 r90 0x210f ; -> function_index_position_lower:
+        jlt r0 r90 0x208f ; -> function_index_position_lower:
         mov r10 r12
         add r10 r91
-        jmp 0x20a5 ; -> function_index_position_loop:
-0x210f: ; function_index_position_lower:
+        jmp 0x2025 ; -> function_index_position_loop:
+0x208f: ; function_index_position_lower:
         mov r11 r12
-        jmp 0x20a5 ; -> function_index_position_loop:
-0x211b: ; function_index_shift_begin:
+        jmp 0x2025 ; -> function_index_position_loop:
+0x209b: ; function_index_shift_begin:
         mov r11 r88
         sub r11 r91
-0x2121: ; function_index_shift_loop:
-        jlt r10 r11 0x2135 ; -> function_index_shift_pointer:
-        jmp 0x2160 ; -> function_index_store_pointer:
-0x2135: ; function_index_shift_pointer:
+0x20a1: ; function_index_shift_loop:
+        jlt r10 r11 0x20b5 ; -> function_index_shift_pointer:
+        jmp 0x20e0 ; -> function_index_store_pointer:
+0x20b5: ; function_index_shift_pointer:
         mov r0 r11
         imm r1 0x8
         mul r0 r1
@@ -1663,8 +1650,8 @@
         load r2 r2
         store r0 r2
         sub r11 r91
-        jmp 0x2121 ; -> function_index_shift_loop:
-0x2160: ; function_index_store_pointer:
+        jmp 0x20a1 ; -> function_index_shift_loop:
+0x20e0: ; function_index_store_pointer:
         mov r0 r10
         imm r1 0x8
         mul r0 r1

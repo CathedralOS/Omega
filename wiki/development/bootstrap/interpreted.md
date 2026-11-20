@@ -83,3 +83,19 @@ sources. That reuse grants this architecture no preferred or selected status.
   -> selected Gamma evaluation produces byte 199
   -> transforms within the staged gate's unchanged 30-second watchdog
 ```
+
+## Intrinsic lookup in the Gamma interpreter
+
+The interpreter tests the head of every list while checking and executing Gamma. The original table stored two words per intrinsic. Each probe unpacked a class and a length, then called the string comparator. The revised table stores one word per spelling and uses its position for the class. This removes 128 bytes from the evaluator tape, taking it from 8,575 to 8,447 bytes. The interpreter packs short tokens once per visit. A head longer than eight bytes goes straight to ordinary function lookup.
+
+The 153,051-byte Delta compiler at `0a0b233a152` checked the three inputs below with the same 4,301-byte support bundle. Both evaluator tapes ran on the Linux x86-64 Alpha seed. Instruction counts cover the contiguous Beta routines from `token_equals` up to `is_open`, including their uses outside list-head dispatch. The counter builds incremented a register before each instruction in that interval and appended its little-endian value at halt. Removing those eight bytes yielded the ordinary output in every case. CPU figures are medians of eight uninstrumented runs each, alternating the order of the two evaluators.
+
+| Delta request | Previous instructions | Revised instructions | Previous / revised CPU seconds | Exact result |
+| --- | ---: | ---: | ---: | --- |
+| Concatenate the input with itself | 13,580,205 | 5,386,853 | 0.545 / 0.478 | 3,082-byte Gamma receipt |
+| Return an unbound name | 8,122,735 | 3,209,424 | 0.393 / 0.361 | Status 1, DCOUT space 1, code 14, byte 33 |
+| Flip the last support byte | 6,335,092 | 2,531,634 | 0.324 / 0.301 | Status 1, DCOUT space 5, code 2, byte 3,055 |
+
+The three sources use `(def main ((source Bytes)) Bytes BODY)` followed by LF. Their bodies are `(bytes_concat source source)`, `missing`, and `source`. For the last request, XOR the final byte of the packed support with 1. Frame each with Delta profile 1 and supply it as sealed input to the Gamma-written Delta compiler, assembled from `delta_compiler.gamma` followed by its manifest members. The copy request visited 80,263 list heads and called the generic string comparator 614,356 times before and 33,014 after. [Request and compiler packing](../../../tests/bootstrap/compiled.py)
+
+The earlier 151,983-byte Delta compiler from the interpreted matrix also ran on the revised evaluator. Given the original 99,270-byte linked Delta program, it returned the same 81,742-byte Gamma receipt, SHA-256 `cbd56e337c1d0c2374ba36fdfff71f1cebe5a2cc1b8d912a5a68d6b0843718bf`. The new run used 87.06 CPU seconds. The original measurement recorded wall time only. [Interpreted matrix](interpreted-gamma-matrix.md)

@@ -13,6 +13,10 @@ GAMMA_CASES = [
     ("binder-let", "(def main () Int (let ((let Int 42)) let))", b"", (0, b"*")),
     ("minimum-word", "(def main () Int (+ 41 (lt -9223372036854775808 0)))", b"", (0, b"*")),
     ("cr-comment", "(def main () Int (f)); comment\r(def f () Int 42)", b"", (0, b"*")),
+    ("intrinsic-prefix-calls",
+     "(def secondX () Int (second (pair 0 40))) (def secondXY () Int (+ 1 (secondX))) "
+     "(def secondXYZ () Int (+ 1 (secondXY))) (def main () Int (secondXYZ))",
+     b"", (0, b"*")),
     ("nested-pair", "(def main () Int (first (second (pair 0 (pair 42 9)))))", b"", (0, b"*")),
     ("order", "(def f ((a Int) (b Int)) Int (+ a b)) (def main () Int (f (write 20) (write 22)))", b"", (0, bytes([20,22,42]))),
     ("sealed", "(def main () Int (+ (input) (read 1)))", b"AB", (0, b"D")),
