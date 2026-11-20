@@ -1,5 +1,7 @@
 # Bootstrap experiments
 
+For measured before-and-after examples of the Gamma scanner, Epsilon keywords and evaluator wire entry, see the [source audit comparison](source-audit.md).
+
 ## Select a route
 
 From the checkout root, choose how Gamma runs the Delta implementation, how
