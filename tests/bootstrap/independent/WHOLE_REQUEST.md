@@ -67,6 +67,7 @@ input and can publish a generated module larger than 4 MiB.
 
 ## Whole compiler result
 
+These measurements use the Omega source and construction entry at `035eddf0c5a`.
 The indexed Epsilon compiler compiled all 852,096 bytes of the bootstrap
 compiler and its construction entry. With Delta's construction profile, the
 Linux executable and the Alpha seed running the 4,324,897-byte compiler tape
@@ -74,8 +75,9 @@ each returned status 0, the `compiled-storage` marker and the same
 18,269,324-byte Delta module. Adding the declared storage runtime and entry
 gave Delta an 18,365,364-byte program. Delta checked that complete source and
 published 26,398,215 bytes of Gamma with process status 0 and empty stderr.
-The same whole Epsilon source reached the 4 MiB output guard with status 254
-on the conformance profile.
+The preceding Epsilon compiler, rebuilt with the same construction adapter,
+also produced the identical 18,269,341-byte output. The conformance profile
+reached its 4 MiB output guard with status 254 on the same whole source.
 [Indexed lowering](../../../wiki/development/bootstrap/native.md)
 
 | Artifact | Bytes | SHA-256 |
@@ -85,10 +87,16 @@ on the conformance profile.
 | Epsilon compiler output, including marker | 18,269,341 | `60d0fce9fa52af3464e95c5d691882369e6d7417cb386258f41cde55b207a0f5` |
 | Delta source with runtime and entry | 18,365,364 | `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab` |
 | Gamma emitted by Delta | 26,398,215 | `2c9641632eb613696428a96903e02d126a6d7fc5fdbd78c9f08f3d3469f29329` |
+| Linux construction executable | 56,933,914 | `47c1b9cddde2190a5d2e600640d07c1a86597123077dc9a6a86abd7834b14c3b` |
 
-The native Gamma compiler rebuilt to the same 226,610-byte executable on two
-successive self-compilations from the cold Linux launcher. Using it to
-reconstruct Delta and the Epsilon compiler reproduced the two whole-program
+The compact native Gamma compiler first reproduced a 226,610-byte executable.
+After adding an exact-name index for calls, the Linux launcher regenerated
+the 226,861-byte compiler byte for byte. It compiled the complete Gamma source
+to a 56,933,914-byte Linux executable. The source-built program returned guest
+exit 3 for an empty construction request and for an invalid package count.
+[Native backend](../../../wiki/development/bootstrap/native.md)
+
+Reconstructing Delta and the Epsilon compiler with the compact backend reproduced the two whole-program
 outputs in the table. The Beta-built Gamma interpreter received the complete
 Gamma source plus the valid 829-byte wire-package input. Its 480-second
 wall limit expired with empty output.
@@ -210,3 +218,16 @@ The parser validates UTF-8 and tokenizes the entire unit before parsing its
 first declaration. The last-byte NUL therefore measures work before syntax
 parsing. Its complete runtime and refusal coordinate remain unmeasured.
 [Parser entry](../../../bootstrap/omega/compiler/parser.epsilon)
+
+## First unsupported construct in the full product under the source model
+
+The independent Epsilon model from `8092cfd9c0a5` ran the unchanged guest
+and stdin extracted from `whole.eereq` (SHA-256 `dbcf638d9ec5e1b6a968129b031aead6aad3cfc9a08291cfb48aaa3c43d48b59`).
+The model receives the guest and stdin separately. The original conformance
+adapter limited its combined packet to 4 MiB. The 304-unit product returned `0002000000c9550100`, Exit 2 at packed
+byte 87,497. This is byte 45,324 of unit 4, line 673 column 37 of
+`expressions.omg`, at the `as` in `Selection::Machine { handle as callee }`.
+Omega permits this spelling to rename a payload binding. The comparison took
+164.7 seconds wall and 146.9 seconds CPU with 1,004,548 KiB peak RSS.
+[Product expression](../../../source/subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/expressions.omg)
+and [payload bindings](../../../wiki/spec/language/patterns.md)
