@@ -6,10 +6,11 @@
     ((EpsilonDeltaStoredMachineCall name receiver)
       (epsilon_emit_call name (epsilon_emit_spaced receiver
         (epsilon_emit_spaced values (epsilon_emit_spaced store output)))))
-    ((EpsilonDeltaStoredStateCall name captures homes arguments)
-      (let retained Bytes (epsilon_emit_call "epsilon_compiled_retain_state"
-        (epsilon_emit_spaced "ep_floor" (epsilon_emit_spaced arguments
-          (epsilon_emit_spaced homes (epsilon_emit_spaced (epsilon_delta_receiver_text context "(SomeEpsilonRuntimePlace ep_receiver)" "NoEpsilonRuntimePlace") store)))))
+    ((EpsilonDeltaStoredStateCall name captures arguments)
+      (let retained Bytes (if (eq (bytes_length arguments) 0)
+        (epsilon_emit_call "epsilon_runtime_release_since" (epsilon_emit_spaced "ep_floor" store))
+        (epsilon_emit_call "epsilon_compiled_retain_state"
+          (epsilon_emit_spaced "ep_floor" (epsilon_emit_spaced arguments store))))
         (epsilon_emit_call name (epsilon_emit_spaced (epsilon_delta_receiver_text context "ep_receiver" "") (epsilon_emit_spaced captures
           (epsilon_emit_spaced values (epsilon_emit_spaced retained output)))))))
     (EpsilonDeltaStoredReadByte (epsilon_emit_call "epsilon_evaluator_read_input" (epsilon_emit_spaced store output)))
@@ -44,7 +45,7 @@
   (match target
     ((EpsilonDeltaStoredMachineCall name receiver)
       (epsilon_delta_stored_value_argument context target parameters expression rest values store output))
-    ((EpsilonDeltaStoredStateCall name captures homes retained)
+    ((EpsilonDeltaStoredStateCall name captures retained)
       (epsilon_delta_stored_value_argument context target parameters expression rest values store output))
     (EpsilonDeltaStoredReadByte (EpsilonDeltaInternal (epsilon_expression_start expression)))
     (EpsilonDeltaStoredWriteByte
@@ -87,16 +88,17 @@
       ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
       ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
 
-(def epsilon_delta_stored_home_list ((source EpsilonSourceView)
-  (parameters EpsilonParameterList)) Bytes
+; A checked parameter with no assignable place is an immutable view. Stored
+; aggregates cannot contain views, including those passed by value.
+(def epsilon_delta_state_takes_view ((parameters EpsilonParameterList)) Int
   (match parameters
-    (NoEpsilonParameters "NoEpsilonCompiledHomes")
+    (NoEpsilonParameters 0)
     ((MoreEpsilonParameters parameter rest)
       (match parameter
         ((EpsilonParameterSyntax start end name typeValue)
-          (epsilon_emit_call "MoreEpsilonCompiledHomes"
-            (epsilon_emit_spaced (epsilon_delta_home_name source name)
-              (epsilon_delta_stored_home_list source rest))))))))
+          (match (epsilon_local_value_place_type typeValue)
+            (NoEpsilonPlaceType 1)
+            ((SomeEpsilonPlaceType storageType) (epsilon_delta_state_takes_view rest))))))))
 
 (def epsilon_delta_stored_argument_list ((arguments EpsilonExpressionList)) Bytes
   (match arguments
@@ -120,8 +122,8 @@
                   (epsilon_delta_stored_parameter_names source machineParameters 1))
                   (epsilon_delta_stored_arguments context
                     (EpsilonDeltaStoredStateCall (epsilon_delta_state_name source state)
-                      captures (epsilon_delta_stored_home_list source machineParameters)
-                      (epsilon_delta_stored_argument_list arguments))
+                      captures (if (epsilon_delta_state_takes_view parameters)
+                        (epsilon_delta_stored_argument_list arguments) ""))
                     parameters arguments "" store output))))))
         ((EpsilonDataDeclaration start end name members) (EpsilonDeltaInternal start))
         ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))))))

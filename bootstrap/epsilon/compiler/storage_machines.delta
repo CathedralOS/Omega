@@ -14,7 +14,7 @@
 
 ; Stored parameters have mutable homes. Lifted states capture the original
 ; machine homes, while their own parameters receive fresh homes on transfer.
-; The invocation floor remains fixed across all of its states.
+; All block-local homes follow the machine parameters in allocation order.
 (def epsilon_delta_stored_parameter_names ((source EpsilonSourceView)
   (parameters EpsilonParameterList) (homes Int)) Bytes
   (match parameters
@@ -115,11 +115,11 @@
                     "(ep_input_store EpsilonRuntimeStore) (ep_output Bytes)"))
                   (let definition Bytes (epsilon_delta_stored_function
                     (epsilon_compiled_function_name source name) signature
-                    (epsilon_emit_call "let" (epsilon_emit_spaced "ep_floor Int"
-                      (epsilon_emit_spaced "(epsilon_runtime_next_identifier ep_input_store)"
-                        (epsilon_delta_stored_bind_parameters source parameters "ep_input_store"
+                    (epsilon_delta_stored_bind_parameters source parameters "ep_input_store"
+                      (epsilon_emit_call "let" (epsilon_emit_spaced "ep_floor Int"
+                        (epsilon_emit_spaced "(epsilon_runtime_next_identifier ep_store)"
                           (epsilon_emit_call "epsilon_compiled_finish_call"
-                            (epsilon_emit_spaced "ep_floor"
+                            (epsilon_emit_spaced "(epsilon_runtime_next_identifier ep_input_store)"
                               (epsilon_delta_stored_block_call context captures statements start "ep_store" "ep_output"))))))))
                     (epsilon_delta_append (EpsilonDeltaCompiled definition)
                       (epsilon_delta_append (EpsilonDeltaCompiled definitions)
