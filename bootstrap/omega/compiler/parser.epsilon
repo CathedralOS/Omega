@@ -46,6 +46,7 @@ machine OmegaParser::ordinary_name_token(&mut self) -> i32 {
 // and its package graph survive a reset between construction units.
 machine OmegaParser::reset_syntax(&mut self) {
     self.root_count = 0;
+    self.domain_count = 0;
     self.boundary_trait_count = 0;
     self.boundary_requirement_count = 0;
     self.in_boundary_trait = 0;
@@ -585,6 +586,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             126 -> boundary_trait_member()
             127 -> boundary_requirement_name()
             128 -> boundary_requirement_parameters()
+            129 -> domain_carrier_token()
+            130 -> domain_name_token()
+            131 -> domain_tail_token()
             _ -> internal_failure()
         }
     }
@@ -1042,6 +1046,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             126 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitMemberOrEnd, source.len, source.len)
             127 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathMember, source.len, source.len)
             128 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedMachineParameterOrEnd, source.len, source.len)
+            129 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainCarrier, source.len, source.len)
+            130 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainName, source.len, source.len)
+            131 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainEnd, source.len, source.len)
             122 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedExpressionPathMember, source.len, source.len)
             _ -> internal_failure()
         }
@@ -1266,6 +1273,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state type_end_at_view_end() {
         transition self.type_consumer {
+            OmegaTypeConsumer::DomainCarrier -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainSeparator,
+                source.len, source.len)
             OmegaTypeConsumer::MachineParameter -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameterEnd,
                 source.len,
@@ -1297,7 +1306,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state root_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Keyword -> root_keyword()
-            OmegaTokenKind::Identifier -> begin_target_machine_root()
+            OmegaTokenKind::Identifier -> private_identifier_root()
             _ -> incomplete_root()
         }
     }
@@ -1353,6 +1362,25 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.machine_target_start = 0;
         self.machine_target_end = 0;
         transition true { true -> begin_machine(is_public) }
+    }
+
+    state private_identifier_root() {
+        self.item_start = self.scan.token_start;
+        transition true { true -> identifier_root(0) }
+    }
+
+    state identifier_root(is_public: i32) {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "domain") {
+            1 -> begin_domain(is_public)
+            _ -> other_identifier_root(is_public)
+        }
+    }
+
+    state other_identifier_root(is_public: i32) {
+        transition is_public {
+            1 -> public_root_identifier()
+            _ -> begin_target_machine_root()
+        }
     }
 
     state begin_target_machine_root() {
@@ -3807,8 +3835,15 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         }
     }
 
+    state finish_domain_predicate() {
+        transition self.requirement_owner {
+            OmegaRequirementOwner::Domain -> finish_framed_expression()
+            _ -> incomplete_root()
+        }
+    }
     state finish_root_semicolon_expression() {
         transition self.expression_consumer {
+            OmegaExpressionConsumer::Requirement -> finish_domain_predicate()
             OmegaExpressionConsumer::AssignmentValue ->
                 finish_framed_expression()
             OmegaExpressionConsumer::LocalDataInitialValue ->
@@ -8247,7 +8282,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state public_root_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Keyword -> public_root_keyword()
-            OmegaTokenKind::Identifier -> public_root_identifier()
+            OmegaTokenKind::Identifier -> identifier_root(1)
             _ -> incomplete_root()
         }
     }
@@ -8354,6 +8389,118 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaKeywordKind::Machine -> begin_unscoped_machine(1)
             _ -> incomplete_root()
         }
+    }
+
+    // A domain occupies one root. Publish its row only after the closing
+    // semicolon. An absent predicate keeps an empty range; an explicit true
+    // predicate has an ordinary expression handle.
+    state begin_domain(is_public: i32) {
+        transition self.root_count < 4096 {
+            true -> begin_domain_bounded(is_public)
+            _ -> resource_failure(OmegaParserResource::Roots, 4096, self.root_count + 1)
+        }
+    }
+    state begin_domain_bounded(is_public: i32) {
+        self.domains[self.domain_count].is_public = is_public;
+        self.domains[self.domain_count].start = self.item_start;
+        self.domains[self.domain_count].keyword_start = self.scan.token_start;
+        self.domains[self.domain_count].first_requirement = self.requirement_count;
+        self.type_consumer = OmegaTypeConsumer::DomainCarrier;
+        transition true { true -> begin_type_for(129) }
+    }
+    state domain_carrier_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> domain_carrier_punctuation()
+            _ -> named_domain_carrier()
+        }
+    }
+    state domain_carrier_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBracket -> begin_type_array()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            _ -> missing_domain_carrier()
+        }
+    }
+    state named_domain_carrier() {
+        transition self.ordinary_name_token() {
+            1 -> retain_type_name()
+            _ -> missing_domain_carrier()
+        }
+    }
+    state missing_domain_carrier() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainCarrier,
+            self.scan.token_start, self.scan.token_end) }
+    }
+    state domain_separator_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> domain_separator_punctuation()
+            _ -> missing_domain_separator()
+        }
+    }
+    state domain_separator_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::ColonColon -> retain_type_nodes(self.type_end, self.scan.next_cursor)
+            OmegaPunctuationKind::Less -> incomplete_root()
+            _ -> missing_domain_separator()
+        }
+    }
+    state missing_domain_separator() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainSeparator,
+            self.scan.token_start, self.scan.token_end) }
+    }
+    state domain_name_token() {
+        transition self.ordinary_name_token() {
+            1 -> retain_domain_name()
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainName, self.scan.token_start, self.scan.token_end)
+        }
+    }
+    state retain_domain_name() {
+        self.domains[self.domain_count].name.start = self.scan.token_start;
+        self.domains[self.domain_count].name.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(131) }
+    }
+    state domain_tail_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> domain_clause()
+            OmegaTokenKind::Punctuation -> domain_tail_punctuation()
+            _ -> missing_domain_end()
+        }
+    }
+    state domain_clause() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "requires") {
+            1 -> begin_domain_requirement()
+            _ -> incomplete_root()
+        }
+    }
+    state begin_domain_requirement() {
+        self.requirement_owner = OmegaRequirementOwner::Domain;
+        transition true { true -> begin_requirement() }
+    }
+    state domain_tail_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> retain_domain()
+            OmegaPunctuationKind::LeftParen -> syntax_failure(OmegaParseDiagnosticCode::RetiredDomainSubject,
+                self.scan.token_start, self.scan.token_end)
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::Equal -> incomplete_root()
+            _ -> missing_domain_end()
+        }
+    }
+    state missing_domain_end() {
+        transition true { true -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainEnd,
+            self.scan.token_start, self.scan.token_end) }
+    }
+    state retain_domain() {
+        self.domains[self.domain_count].requirement_count =
+            self.requirement_count - self.domains[self.domain_count].first_requirement;
+        self.domains[self.domain_count].end = self.scan.token_end;
+        self.roots[self.root_count].kind = OmegaRootKind::Domain;
+        self.roots[self.root_count].item_index = self.domain_count;
+        self.domain_count = self.domain_count + 1;
+        self.root_count = self.root_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(0) }
     }
 
     state begin_data_root() {
@@ -8515,6 +8662,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state requirement_failure(start: i32, end: i32) {
         transition self.requirement_owner {
+            OmegaRequirementOwner::Domain -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDomainRequirement, start, end)
             OmegaRequirementOwner::Data -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataRequirement, start, end)
             OmegaRequirementOwner::Machine -> syntax_failure(
@@ -8560,6 +8709,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.requirement_owner {
             OmegaRequirementOwner::Data -> data_body_token()
             OmegaRequirementOwner::Machine -> current_machine_header_token()
+            OmegaRequirementOwner::Domain -> domain_tail_token()
         }
     }
 
@@ -8600,8 +8750,15 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             _ -> begin_requirement_element()
         }
     }
+    state requirement_after_comma_semicolon() {
+        transition self.requirement_owner {
+            OmegaRequirementOwner::Domain -> retain_domain()
+            _ -> missing_requirement()
+        }
+    }
     state requirement_or_body_punctuation() {
         transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> requirement_after_comma_semicolon()
             OmegaPunctuationKind::LeftBrace -> requirement_header_token()
             _ -> begin_requirement_element()
         }
@@ -9003,6 +9160,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state begin_type() {
+        transition true { true -> begin_type_for(13) }
+    }
+    state begin_type_for(purpose: i32) {
         self.type_constraint_depth = -1;
         self.type_array_frame_count = 0;
         self.type_array_depth = 0;
@@ -9014,7 +9174,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.type_reference_lifetime_start = 0;
         self.type_reference_lifetime_end = 0;
         self.cursor = self.scan.next_cursor;
-        transition true { true -> scan_semantic(13) }
+        transition true { true -> scan_semantic(purpose) }
     }
 
     state type_token() {
@@ -9549,6 +9709,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state type_end_token() {
+        transition self.type_consumer {
+            OmegaTypeConsumer::DomainCarrier -> domain_separator_token()
+            _ -> ordinary_type_end_token()
+        }
+    }
+    state ordinary_type_end_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> type_base_end_punctuation()
             OmegaTokenKind::Identifier -> type_suffix_identifier()
@@ -9837,6 +10003,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaTypeConsumer::MachineReturn -> machine_return_end()
             OmegaTypeConsumer::LocalData -> local_data_type_end()
             OmegaTypeConsumer::Cast -> cast_type_end()
+            OmegaTypeConsumer::DomainCarrier -> domain_separator_punctuation()
         }
     }
 
@@ -10212,6 +10379,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 member_end,
                 next_cursor
             )
+            OmegaTypeConsumer::DomainCarrier -> retain_type_nodes(member_end, next_cursor)
             OmegaTypeConsumer::Cast -> retain_type_nodes(
                 member_end,
                 next_cursor
@@ -10500,7 +10668,14 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             )
             OmegaTypeConsumer::LocalData -> retain_local_data_type(next_cursor)
             OmegaTypeConsumer::Cast -> retain_cast_type(next_cursor)
+            OmegaTypeConsumer::DomainCarrier -> retain_domain_carrier(next_cursor)
         }
+    }
+
+    state retain_domain_carrier(next_cursor: i32) {
+        self.domains[self.domain_count].carrier = self.type_root;
+        self.cursor = next_cursor;
+        transition true { true -> scan_semantic(130) }
     }
 
     state retain_cast_type(next_cursor: i32) {

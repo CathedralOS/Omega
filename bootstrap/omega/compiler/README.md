@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 24,499 lines / 927,004 bytes with SHA-256
-`fb8e664b1b810d86db40e2040b112fe6de949005ebcae0c850d7f71343afb598`.
+manifest materializes 24,707 lines / 935,858 bytes with SHA-256
+`a6b3dea8b4438abd69b01d5a403835bf15c6165fde943a507f629e0085277f79`.
 The manifest itself is 2,037 bytes, SHA-256
-`58f920814301e8cee333ba26fceeb0206a3ae91d639007a280eb51c2183530cf`;
+`17fac9250a57f7782635b9ee3b1baefd7dcf4cfd4fdfbb74d857e99fb296468a`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -493,12 +493,21 @@ assignments.
 The explicit slow [complete-D parser customer](../../../_recycling/tests/bootstrap/omega-parser/README.md)
 checks this manifested implementation through the lower chain. Sum-valued
 parser guards use Epsilon case transitions; scalar equality is not a sum test.
-One root table preserves source order for imports, data, machines and boundary traits. Optionally
+One root table preserves source order for imports, data, machines, domains and boundary traits. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from
 the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases.
+
+A nongeneric domain declaration retains its visibility, name, carrier type,
+and ordered predicate expressions. For example,
+`public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
+in `source/library/std/calling.omg` retains the slice carrier and the call on
+its borrowed subject. A declaration ending directly in `;` has zero predicates.
+The parser rejects the retired subject binder and brace body. The compiler
+reports incomplete at the domain keyword until it checks the carrier and its
+proof obligations.
 
 A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,

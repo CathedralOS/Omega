@@ -295,11 +295,25 @@ data OmegaRootKind {
     case Data;
     case Machine;
     case BoundaryTrait;
+    case Domain;
 }
 
 data OmegaRootSyntax {
     kind: OmegaRootKind;
     item_index: i32;
+}
+
+// The carrier and predicate handles point into the ordinary type and expression
+// arenas. The domain keyword and name keep separate source coordinates.
+data OmegaDomainSyntax {
+    name: OmegaRelativeSpan;
+    carrier: i32;
+    first_requirement: i32;
+    requirement_count: i32;
+    is_public: i32;
+    start: i32;
+    keyword_start: i32;
+    end: i32;
 }
 
 // Each boundary requirement belongs to exactly one trait. Its parameter,
@@ -345,6 +359,7 @@ data OmegaTypeConsumer {
     case MachineReturn;
     case LocalData;
     case Cast;
+    case DomainCarrier;
 }
 
 data OmegaPathDestination {
@@ -447,6 +462,7 @@ data OmegaDataSyntax {
 data OmegaRequirementOwner {
     case Data;
     case Machine;
+    case Domain;
 }
 
 data OmegaRequirementSyntax {
@@ -971,6 +987,12 @@ data OmegaParseDiagnosticCode {
     case ExpectedTraitBody;
     case ExpectedTraitMemberOrEnd;
     case ExpectedTraitRequirementEnd;
+    case ExpectedDomainCarrier;
+    case ExpectedDomainSeparator;
+    case ExpectedDomainName;
+    case ExpectedDomainEnd;
+    case ExpectedDomainRequirement;
+    case RetiredDomainSubject;
 }
 
 data OmegaParserResource {
@@ -1063,6 +1085,8 @@ data OmegaParser {
     // count. Failure/incomplete may leave unowned prefixes; reset invalidates
     // prior rows by zeroing counts rather than clearing arrays.
     roots: [OmegaRootSyntax; 4096];
+    domains: [OmegaDomainSyntax; 4096];
+    domain_count: i32;
     // Each trait is one root. Each requirement name consumes a path member.
     boundary_traits: [OmegaBoundaryTraitSyntax; 4096];
     boundary_requirements: [OmegaBoundaryRequirementSyntax; 16384];

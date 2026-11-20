@@ -2817,6 +2817,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state check_ordinary_roots() {
+        // A parsed domain owns a carrier and proof obligations. Until the
+        // checker resolves them it cannot publish a tape for the package.
+        transition self.parser.domain_count > 0 {
+            true -> incomplete(4, self.parser.domains[0].keyword_start)
+            _ -> check_known_roots()
+        }
+    }
+    state check_known_roots() {
         transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count + self.parser.use_count + self.parser.boundary_trait_count) &&
             (self.parser.machine_count > 0) && (self.entry_unit >= 0) &&
             (self.entry_unit < self.parser.sources.unit_count) {
@@ -2961,6 +2969,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition self.parser.roots[index].kind {
             OmegaRootKind::Machine -> non_machine_root(index + 1)
             OmegaRootKind::Data -> non_machine_root(index + 1)
+            OmegaRootKind::Domain -> incomplete(4, self.parser.domains[self.parser.roots[index].item_index].keyword_start)
             OmegaRootKind::BoundaryTrait -> incomplete(4, self.parser.boundary_traits[self.parser.roots[index].item_index].boundary_keyword.start)
             OmegaRootKind::Use -> incomplete(4, self.parser.uses[
                 self.parser.roots[index].item_index].start)
