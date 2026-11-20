@@ -9,6 +9,7 @@ use representations\lowered_program\scalar_operation;
 use representations\symbol_resolved_trees\NameResolution;
 use representations\syntax_trees\ArmPatternKind;
 use representations\syntax_trees\ArmTargetKind;
+use representations\syntax_trees\CrashCause;
 use representations\syntax_trees\Expression;
 use representations\syntax_trees\ExpressionKind;
 use representations\syntax_trees\MachineItem;
@@ -92,6 +93,7 @@ crashes Trap
             StatementKind::Expression -> discard(lowerer, syntax, resolution, typing, item, offset, statement),
             StatementKind::Discard -> discard(lowerer, syntax, resolution, typing, item, offset, statement),
             StatementKind::Tail -> terminal(lowerer, syntax, resolution, typing, item, offset, statement),
+            StatementKind::Crash -> crash_statement(lowerer, item, offset, statement),
             StatementKind::Transition -> transition_statement(lowerer, syntax, resolution, typing, item, offset, statement),
             _ -> unsupported(lowerer)
         }
@@ -183,6 +185,13 @@ crashes Trap
     machine arms(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement) {
         scalar_transition(lowerer, syntax, resolution, typing, statement);
     }
+    machine crash_statement(lowerer: @mut ScalarLowerer, item: MachineItem, offset: u64 in Trapping, statement: Statement) {
+        transition statement.cause == CrashCause::Trap && offset + 1 == item.statement_count {
+            true -> trap(lowerer),
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine trap(lowerer: @mut ScalarLowerer) { scalar_trap(lowerer); }
     machine unit_end(lowerer: @mut ScalarLowerer, typing: @Typing, item: MachineItem) {
         let result: u64 in Trapping = scalar_result_type(typing, item);
         let row: TypeRow = type_table_row(@typing.types, result);
@@ -355,11 +364,16 @@ crashes Trap
         scalar_optional_branch(lowerer, guard_skip, target);
         transition { _ -> arms(lowerer, syntax, resolution, typing, statement, offset + 1) }
     }
-    machine unmatched(lowerer: @mut ScalarLowerer) {
-        let ignored: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Trap, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
-    }
+    machine unmatched(lowerer: @mut ScalarLowerer) { scalar_trap(lowerer); }
     machine unsupported(lowerer: @mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
     machine done() {}
+}
+
+machine scalar_trap(lowerer: @mut ScalarLowerer)
+crashes Trap
+{
+    let ignored: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Trap,
+        0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
 }
 
 machine scalar_optional_branch(lowerer: @mut ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping)

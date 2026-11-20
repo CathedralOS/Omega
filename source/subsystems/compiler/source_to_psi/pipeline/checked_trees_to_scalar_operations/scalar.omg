@@ -12,6 +12,9 @@ use representations\lowered_program\scalar_operation;
 use representations\symbol_resolved_trees\BuiltinType;
 use representations\symbol_resolved_trees\DomainBinding;
 use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\Clause;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\CrashCause;
 use representations\syntax_trees\DataItem;
 use representations\syntax_trees\DataMultiplicity;
 use representations\syntax_trees\MachineContainer;
@@ -21,6 +24,7 @@ use representations\syntax_trees\RootItemKind;
 use representations\syntax_trees\SyntaxTrees;
 use representations\syntax_trees\machine_item;
 use representations\syntax_trees\root_item;
+use representations\syntax_trees\syntax_trees_clause;
 use representations\syntax_trees\syntax_trees_data_item;
 use representations\typed_trees\TypeKind;
 use representations\typed_trees\TypeRow;
@@ -120,13 +124,12 @@ crashes Trap
     machine invalid() { crash Trap; }
 }
 
-// Only ordinary u8 is admitted. Wrapping, saturating and trapping policies
-// need their own operations and cannot be silently erased by this slice.
-machine scalar_byte_type(typing: @Typing, handle: u64 in Trapping) -> bool
-crashes Trap
+// The Alpha entry exits with its ordinary byte result. A resultless entry
+// uses the same zero return as a resultless internal call.
+machine scalar_entry_result(row: TypeRow) -> bool
 {
-    let row: TypeRow = type_table_row(@typing.types, handle);
     transition row.kind {
+        TypeKind::Unit -> yes(),
         TypeKind::Builtin -> builtin(row),
         _ -> no()
     }
@@ -138,6 +141,24 @@ crashes Trap
     }
     machine policy(row: TypeRow) -> bool {
         transition row.domain { DomainBinding::Unqualified -> yes(), _ -> no() }
+    }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
+}
+
+// Checking already verified the machine's possible crash routes. Alpha has
+// an exact trap instruction, so that ceiling adds no calling convention.
+machine scalar_machine_clauses(syntax: @SyntaxTrees, item: MachineItem) -> bool
+crashes Trap
+{
+    transition item.clause_count {
+        0 -> yes(),
+        1 -> single(syntax_trees_clause(syntax, item.first_clause)),
+        _ -> no()
+    }
+    machine single(clause: Clause) -> bool {
+        clause.kind == ClauseKind::CrashesNone
+            || (clause.kind == ClauseKind::Crashes && clause.cause == CrashCause::Trap)
     }
     machine yes() -> bool { true }
     machine no() -> bool { false }
@@ -168,15 +189,15 @@ crashes Trap
     }
     machine entry_root(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, entry: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, entry);
-        transition item.parent == 0 && item.parameter_count == 0 && item.has_return_type
-            && item.clause_count == 0 && !item.has_owner && item.container == MachineContainer::Root {
+        transition item.parent == 0 && item.parameter_count == 0
+            && !item.has_owner && item.container == MachineContainer::Root {
             true -> entry_result(lowerer, syntax, resolution, typing, item),
             _ -> done()
         }
     }
     machine entry_result(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem) {
-        let handle: u64 in Trapping = reference_type(typing, item.return_type);
-        let supported: bool = scalar_byte_type(typing, handle);
+        let handle: u64 in Trapping = scalar_result_type(typing, item);
+        let supported: bool = scalar_entry_result(type_table_row(@typing.types, handle));
         transition supported {
             true -> begin(lowerer, syntax, resolution, typing),
             _ -> done()
@@ -226,7 +247,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body && item.generic_parameter_count == 0 && !item.is_boundary && !item.has_target
             && !item.has_owner && item.container == MachineContainer::Root
-            && item.contract_count == 0 && item.component_count == 0 && item.clause_count == 0 {
+            && item.contract_count == 0 && item.component_count == 0 && scalar_machine_clauses(syntax, item) {
             true -> result(lowerer, syntax, resolution, typing, index, item),
             _ -> unsupported(lowerer)
         }

@@ -63,11 +63,11 @@ def require_rung_identities(directory, adapter):
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 915335,
-                     "db05f4fa1a335927b3e2d2559dd8776e1b1a512202588f219043d3cd2f4b1e58")
+    require_identity("D", compiler, 926397,
+                     "e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643")
     return compiler, epsilon
 
 
 def require_receipt_identity(receipt):
-    require_identity("Epsilon execution receipt", receipt, 712603,
-                     "0155e1ae30f168f955c1e23e0c69017215cbf53f8eb2ea990bbd454da631fbc2")
+    require_identity("Epsilon execution receipt", receipt, 692938,
+                     "cc781abb4ea5bfd276afd316223215bf4b0054ee4ed7b825a85c6fc213b1fb90")

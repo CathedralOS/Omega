@@ -279,6 +279,13 @@ fn static_callbacks_require_the_selected_signature_and_its_effects() {
         }).expect("a refinement obligation for identity");
         *index = usize::MAX;
     });
+    program.check(PreparationReason::CallbackWithoutBound, "the static callback has no typed bound", |facts| {
+        facts.callable_bounds.retain(|(owner, index, _)| !(owner.path == "apply" && *index == 0));
+    });
+    program.check(PreparationReason::RefinementWithoutCaller, "the static callable refinement has no closed caller application", |facts| {
+        let apply = facts.calls.iter_mut().find(|call| call.machine.path == "apply").unwrap();
+        apply.type_arguments.clear();
+    });
     program.check(PreparationReason::CallbackWithoutSignature, "the static callback has no typed signature", |facts| {
         facts.signatures.retain(|s| s.machine.path != "identity");
     });
@@ -309,6 +316,12 @@ fn an_indirect_call_reports_which_operand_or_selection_it_cannot_admit() {
     program.check(PreparationReason::RuntimeCallableArgument, &format!("preparation cannot materialize a runtime callable argument{chain}"), |facts| {
         let call = &mut facts.indirect_calls[0];
         call.operands[0].callable = Some(call.entry.clone());
+    });
+    program.check(PreparationReason::CallbackWithoutSelection, &format!("the static callback has no closed selection{chain}"), |facts| {
+        let omega_typed::InvocationTarget::StaticParameter { index, .. } = &mut facts.indirect_calls[0].entry else {
+            panic!("expected F to select a static parameter");
+        };
+        *index = 1;
     });
     program.check(PreparationReason::InexactCallbackSelection, &format!("preparation requires an exact static callback selection{chain}"), |facts| {
         let call = &mut facts.indirect_calls[0];
@@ -620,5 +633,19 @@ fn a_generic_constructor_cannot_discharge_another_machines_return_obligation() {
             _ => None,
         }).expect("a return obligation for wrap");
         *obligation = other.clone();
+    });
+}
+
+#[test]
+fn a_projection_rejects_a_field_slot_of_a_different_carrier() {
+    let program = Program {
+        library: "",
+        client: "data Pair [copy]{left:u8; right:u16;} machine first(p:Pair)->u8{p.left} const ANSWER:u8=first(Pair{right:256u16,left:42u8});",
+        occurrence: "p.left",
+    };
+    program.check(PreparationReason::OwnedFieldMismatch, "the selected owned field has a different result type or source tree", |facts| {
+        let (_, fields) = facts.record_fields.iter_mut().find(|(owner, _)| owner.path == "Pair").unwrap();
+        let [left, right] = std::sync::Arc::make_mut(fields).as_mut_slice() else { panic!("expected the two record fields") };
+        std::mem::swap(&mut left.declaration, &mut right.declaration);
     });
 }

@@ -724,8 +724,8 @@ mod tests {
             ),
             (
                 "bootstrap/omega/compiler/omega_compiler.epsilon.sources",
-                915335,
-                "db05f4fa1a335927b3e2d2559dd8776e1b1a512202588f219043d3cd2f4b1e58",
+                926397,
+                "e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643",
                 None,
             ),
             (
@@ -736,14 +736,14 @@ mod tests {
             ),
             (
                 "bootstrap/delta/compiler/implementation/implementation.gamma.sources",
-                152036,
-                "e5193db48e77870186495e7c68b7187f53692a819e65e894b37c3bfeb76f9b08",
+                152411,
+                "cfa4f2a6f75352d819a83486169bd517ab48ecf90246c561e47a809309ccc25f",
                 Some("bootstrap/delta/compiler/delta_compiler.gamma"),
             ),
             (
                 "bootstrap/delta/compiler/implementation/implementation.gamma.sources",
-                151824,
-                "ec4c35eee09396d2c8ae1ace46629a2eb48b3c578586c914740ec42964964d68",
+                152199,
+                "b340b72c01aa9b1b5905911777eecb666107a62683d6903fb086a30b97937b01",
                 Some("tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma"),
             ),
             (

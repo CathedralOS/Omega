@@ -242,7 +242,7 @@ impl BodyTyper<'_, '_> {
             return Err(TypeError::unsupported(source, node_index));
         };
         if let Some(Symbol::DeclarationQuery { package, path }) = self.unit.symbol(callee) {
-            return self.declaration_query(node_index, callee, args, package, path);
+            return self.declaration_query(node_index, callee, args, package, path, expected);
         }
         if let Some(Symbol::Declaration(id)) = self.unit.symbol(callee)
             && id.kind == NodeKind::MathLet

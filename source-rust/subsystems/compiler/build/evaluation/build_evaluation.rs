@@ -47,6 +47,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
     pub root_path: &'request Path,
     pub typed: &'request TypedTrees,
+    pub stage: &'request source_compiler::BuildStage,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub sources: &'request source_compiler::source_inputs::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
@@ -65,6 +66,7 @@ pub struct BuildStageRequest<'request> {
     pub source_acquisition:
         Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub typed: &'request source_compiler::source_state::TypedTrees,
+    pub stage: &'request source_compiler::BuildStage,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
@@ -104,6 +106,7 @@ impl PreparedBuildEvaluation {
         let BuildStageRequest {
             source_acquisition,
             typed,
+            stage,
             build_source,
             package_inputs,
             anonymous_source,
@@ -148,6 +151,7 @@ impl PreparedBuildEvaluation {
                 prepared,
                 providers,
                 selected_machine,
+                stage,
                 build_source,
                 package_inputs,
             )?;
@@ -298,6 +302,7 @@ pub fn prepare_build_evaluation(
         execution_purpose,
         root_path,
         typed,
+        stage,
         build_source,
         sources,
         package_inputs,
@@ -375,6 +380,7 @@ pub fn prepare_build_evaluation(
             prepared,
             providers,
             selected_machine,
+            stage,
             &filesystem_scope,
             evaluation_sponsor.as_ref(),
             execution_profile,

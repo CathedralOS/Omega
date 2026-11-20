@@ -51,7 +51,7 @@ product is an Alpha tape. [Rust pipeline](../../../source-rust/subsystems/compil
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| Epsilon source members | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| Epsilon source members | The members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [the hosted application](../../../source/application/ocreq) does not declare a support
@@ -62,11 +62,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current eleven-member
-manifest materializes 24,267 lines / 915,335 bytes with SHA-256
-`db05f4fa1a335927b3e2d2559dd8776e1b1a512202588f219043d3cd2f4b1e58`.
-The manifest itself is 1,867 bytes, SHA-256
-`8b0c2bac84d3a66783898734cfc1aa9e4b48ef80f4eece3765e9f06b271666e0`;
+The current twelve-member
+manifest materializes 24,509 lines / 926,397 bytes with SHA-256
+`e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643`.
+The manifest itself is 2,037 bytes, SHA-256
+`8f5f765146c1c4bd52fb60cdea1c1cce0c4095cd0db741c6b151628a97124f3e`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -504,9 +504,17 @@ source span and ordered requirements. A requirement's name, parameters, return
 type, predicates and effect clauses retain their original spans and handles.
 Requirement names may repeat across overloads. Reaches, crash and blocking
 clauses use the ordinary machine-header parser. Bare `terminates` on a
-requirement retains the public eventual-termination guarantee. The scalar
-compiler returns `Incomplete` at the first retained boundary until it can
-resolve the requirements and check provider selection and authority.
+requirement retains the public eventual-termination guarantee. The checker resolves a memberless service to its exact declaration, including
+its package and module. An ordinary call contributes its callee's published
+reach. An omitted ceiling infers that reach through every checked call. An
+explicit ceiling publishes its authored set and rejects an excess at the
+contributing call. The construction suite uses the actual core process service
+declarations across a package edge and runs the resulting tape on Alpha.
+[Service checker](resolution/services.epsilon) ·
+[Construction suite](../../../tests/bootstrap/independent/service_reach.py)
+
+An operation-bearing boundary still returns `Incomplete` at its boundary
+keyword until the checker can validate its requirements and provider authority.
 [Core ProcessExit](../../../source/library/core/process_exit.omg) ·
 [Process-exit contract](../../../wiki/spec/language/process_exit.md)
 

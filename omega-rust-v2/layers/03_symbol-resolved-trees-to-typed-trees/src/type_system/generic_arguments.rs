@@ -365,6 +365,17 @@ impl ResolvedSourceFile<'_> {
         actual: &[usize],
         types: &TypeCatalog<'_>,
     ) -> Result<Vec<ValueType>, TypeError> {
+        self.checked_arguments_in_scope(node, schema, actual, types, &[])
+    }
+
+    pub(crate) fn checked_arguments_in_scope(
+        &self,
+        node: usize,
+        schema: &DeclarationId,
+        actual: &[usize],
+        types: &TypeCatalog<'_>,
+        enclosing: &[(DeclarationId, Vec<ValueType>)],
+    ) -> Result<Vec<ValueType>, TypeError> {
         let at = |message| TypeError::at(self.file, node, message);
         let kind = match schema.kind {
             NodeKind::Trait => "trait",
@@ -380,7 +391,7 @@ impl ResolvedSourceFile<'_> {
         if actual.len() != arity {
             return Err(at(format!("{} expects {arity} {kind} arguments, found {}", schema.path, actual.len())));
         }
-        let arguments = self.applied_formals(node, schema, actual, types, Clone::clone)?;
+        let arguments = self.applied_formals(node, schema, actual, types, |value| value.in_enclosing_scopes(enclosing))?;
         for (index, (&arg, value)) in actual.iter().zip(&arguments).enumerate() {
             types
                 .validate_bound(schema, index, value)

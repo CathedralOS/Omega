@@ -571,3 +571,44 @@ fn a_precondition_on_an_array_result_rejects_the_false_call() {
         "the selected precondition is false for the supplied arguments", (start, start + "pair(0u8)".len()),
         "static evaluation cannot admit this invocation: the selected precondition is false for the supplied arguments"));
 }
+
+#[test]
+fn freezing_a_description_identifies_the_selected_query() {
+    let source = r"use omega\language\core\reflect; machine update(){} const META=reflect\callable(update);";
+    let query = r"reflect\callable(update)";
+    let start = source.find(query).unwrap();
+    assert_refusal(source, None, owned(Phase::Preparation, PreparationReason::DescriptorStorageUnavailable,
+        "freezing a reflected declaration requires descriptor storage",
+        (start, start + query.len()),
+        "static evaluation cannot admit this invocation: freezing a reflected declaration requires descriptor storage"));
+}
+
+#[test]
+fn a_boundary_requirement_selected_as_a_static_callback_reports_the_slot() {
+    use omega_typer::{BoundarySlot, RequirementSlot, SlotDirection};
+    let source = "boundary trait Host{machine read(n:u64)->u64 reaches none crashes none terminates;}
+        data Step=machine(n:u64)->u64; machine identity(n:u64)->u64{n}
+        machine apply<const F:Step>(n:u64)->u64{F(n)} const ANSWER:u64=apply::<Host::read>(42u64);";
+    for (callback, succeeds) in [("identity", true), ("Host::read", false)] {
+        let text = source.replace("apply::<Host::read>", &format!("apply::<{callback}>"));
+        let package = source_package(&text, None);
+        let declaration = package.declarations.iter().find(|id| id.path == "Host::read").unwrap().clone();
+        let slot = BoundarySlot {
+            requirement: RequirementSlot { declaration, trait_arguments: vec![] },
+            arguments: vec![],
+            direction: SlotDirection::ProgramToProvider,
+        };
+        let result = prepare_source_package_diagnosed_with_inputs(&package, &[slot], None);
+        if succeeds {
+            let prepared = result.unwrap();
+            assert_eq!(prepared.constant(&prepared.typed().constants[0].declaration), Some(&PreparedValue::Integer(42.into())));
+        } else {
+            let failure = result.expect_err("static preparation cannot execute this boundary callback");
+            spec_corpus::assert_preparation_refusal!(
+                failure, RefusalCause::Preparation(PreparationReason::RuntimeBoundaryCallback), PACKAGE, FILE,
+                last(&text, "apply::<Host::read>(42u64)"),
+                "static evaluation cannot admit this invocation: a runtime boundary selection cannot execute as a static callback"
+            );
+        }
+    }
+}

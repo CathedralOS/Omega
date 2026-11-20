@@ -130,7 +130,7 @@ machine build(builder: @mut Build) suspends {{
 }
 
 #[test]
-fn the_next_program_starts_after_the_last_use_of_the_saved_storage() {
+fn the_next_program_restores_the_home_and_its_loan_before_the_first_authored_use() {
     let text = r#"
 machine build(builder: @mut Build) suspends {
     let amount: i32 = 7;
@@ -142,8 +142,8 @@ machine build(builder: @mut Build) suspends {
     kit\configure(builder);
 }
 "#;
-    assert_eq!(stage(text, 0), Ok((2, 6, 0)));
-    assert_eq!(stage(text, 1), Ok((2, 1, 0)));
+    assert_eq!(stage(text, 0), Ok((3, 5, 0)));
+    assert_eq!(stage(text, 1), Ok((3, 5, 0)));
 }
 
 #[test]

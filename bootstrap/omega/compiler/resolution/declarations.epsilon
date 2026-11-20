@@ -7,6 +7,7 @@ machine OmegaScalarCompiler::declaration_count(&mut self, kind: OmegaDeclaration
     transition kind {
         OmegaDeclarationKind::Data -> return self.parser.data_count
         OmegaDeclarationKind::Machine -> return self.parser.machine_count
+        OmegaDeclarationKind::Service -> return self.parser.boundary_trait_count
     }
 }
 
@@ -15,6 +16,7 @@ machine OmegaScalarCompiler::declaration_name(
 ) -> OmegaRelativeSpan {
     transition kind {
         OmegaDeclarationKind::Data -> return self.parser.data_items[index].name
+        OmegaDeclarationKind::Service -> return self.parser.boundary_traits[index].name
         OmegaDeclarationKind::Machine -> machine_name()
     }
     state machine_name() {
@@ -30,6 +32,7 @@ machine OmegaScalarCompiler::declaration_public(
 ) -> i32 {
     transition kind {
         OmegaDeclarationKind::Data -> return self.parser.data_items[index].is_public
+        OmegaDeclarationKind::Service -> return self.parser.boundary_traits[index].is_public
         OmegaDeclarationKind::Machine -> machine_visibility()
     }
     state machine_visibility() {
@@ -467,13 +470,26 @@ machine OmegaScalarCompiler::validate_imports(&mut self, source: &[u8]) -> i32 {
     state machine_declaration(index: i32, row: OmegaUseSyntax, requester: i32) {
         let target: i32 = self.address_declaration(source, requester, OmegaDeclarationKind::Machine);
         transition target == -1 {
-            true -> module(index, row, requester, 0)
+            true -> service_declaration(index, row, requester)
             _ -> machine_declaration_selected(index, row, target)
         }
     }
     state machine_declaration_selected(index: i32, row: OmegaUseSyntax, target: i32) {
         transition target >= 0 {
             true -> retain(index, row, OmegaImportBindingKind::Machine, target)
+            _ -> fail(row.start)
+        }
+    }
+    state service_declaration(index: i32, row: OmegaUseSyntax, requester: i32) {
+        let target: i32 = self.address_declaration(source, requester, OmegaDeclarationKind::Service);
+        transition target == -1 {
+            true -> module(index, row, requester, 0)
+            _ -> service_declaration_selected(index, row, target)
+        }
+    }
+    state service_declaration_selected(index: i32, row: OmegaUseSyntax, target: i32) {
+        transition target >= 0 {
+            true -> retain(index, row, OmegaImportBindingKind::Service, target)
             _ -> fail(row.start)
         }
     }
@@ -525,6 +541,7 @@ machine OmegaScalarCompiler::same_import(&mut self, source: &[u8], left: i32, ri
         OmegaImportBindingKind::Namespace -> namespace(a, b)
         OmegaImportBindingKind::Data -> data_binding(a, b)
         OmegaImportBindingKind::Machine -> machine_binding(a, b)
+        OmegaImportBindingKind::Service -> service_binding(a, b)
     }
     state namespace(a: OmegaImportBinding, b: OmegaImportBinding) {
         transition b.kind {
@@ -535,6 +552,12 @@ machine OmegaScalarCompiler::same_import(&mut self, source: &[u8], left: i32, ri
     state data_binding(a: OmegaImportBinding, b: OmegaImportBinding) {
         transition b.kind {
             OmegaImportBindingKind::Data -> return a.target == b.target
+            _ -> return 0
+        }
+    }
+    state service_binding(a: OmegaImportBinding, b: OmegaImportBinding) {
+        transition b.kind {
+            OmegaImportBindingKind::Service -> return a.target == b.target
             _ -> return 0
         }
     }

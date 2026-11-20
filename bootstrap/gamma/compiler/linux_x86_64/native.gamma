@@ -22,11 +22,75 @@
 (def e_move_args ((s Int) (words Int)) Int
   (i_call (i_imm s 11 words) 42))
 
+; Gamma pairs are immutable. Allocate into the first 8 MiB of the pair area;
+; when full, promote its reachable pairs into the rest of the area. Previously
+; promoted pairs cannot refer to younger objects. The only initial roots are
+; the tagged value-stack slots, including both operands of the pending pair.
+(def n_young_size () Int 8388608)
+(def n_young_end () Int (+ (e_pair_heap_base) (n_young_size)))
+
+; The old first value becomes a forwarding address, distinguished by -1 in
+; its first tag. Ordinary tags are 0 or 1. A shared child is copied only once.
+(def n_copy_pair_words ((s Int) (words Int) (source Int) (dest Int)) Int
+  (if words
+    (let ((loaded Int (i_load s 188 source)) (stored Int (i_store loaded dest 188)))
+      (n_copy_pair_words (e_add (e_add stored source 8) dest 8) (- words 1) source dest))
+    s))
+
+(def n_promote_cell ((s Int) (top Int) (cell Int) (young_end Int) (forward_tag Int)) Int
+  (let ((object Int 183) (tag_address Int 184) (from Int 185) (dest Int 186) (tag Int 188)
+        (entry Int (s_mark s 44))
+        (tag_slot Int (e_add (i_mov entry from cell) from 8))
+        (pair_only Int (i_jz (i_load tag_slot tag from) tag 45))
+        (loaded Int (i_load pair_only object cell))
+        (young_only Int (i_jlt loaded object young_end 46))
+        (unchanged Int (i_ret (s_mark young_only 45)))
+        (object_tag Int (e_add (i_mov (s_mark unchanged 46) tag_address object) tag_address 8))
+        (forwarded Int (i_jeq (i_load object_tag tag tag_address) tag forward_tag 47))
+        (save_dest Int (i_mov forwarded dest top))
+        (copied Int (n_copy_pair_words (i_mov save_dest from object) 4 from top))
+        (record Int (i_store (i_store copied object dest) tag_address forward_tag))
+        (address Int (i_load (s_mark record 47) dest object)))
+    (i_ret (i_store address cell dest))))
+
+; Scan the active value stack, then the tagged cells copied into the old area.
+; Newly discovered children extend the second scan. Every possible young
+; pointer addresses initialized data because collection runs on a full area.
+; Count full areas to preserve the original cumulative allocation limit.
+(def n_collect_pairs ((s Int) (top Int) (cell Int) (young_end Int) (forward_tag Int)) Int
+  (let ((full_areas Int 181) (limit Int 188) (first_copy Int 189)
+        (budget Int (- (e_pair_heap_end) (e_pair_heap_base)))
+        (areas Int (c_check (eq (% budget (n_young_size)) 0) (/ budget (n_young_size))))
+        (count Int (e_add (s_mark s 48) full_areas 1))
+        (capacity Int (i_jeq (i_imm count limit areas) full_areas limit 3))
+        (initialized Int (i_jnz capacity top 50))
+        (initial_top Int (i_mov initialized top young_end))
+        (save Int (i_mov (s_mark initial_top 50) first_copy top))
+        (marker Int (i_imm save forward_tag -1))
+        (stack Int (i_imm marker cell (e_value_stack_base)))
+        (stack_done Int (i_jeq (s_mark stack 51) cell 246 52))
+        (stack_cell Int (i_call stack_done 44))
+        (advance Int (i_jmp (e_add stack_cell cell 16) 51))
+        (children Int (i_mov (s_mark advance 52) cell first_copy))
+        (children_done Int (i_jeq (s_mark children 53) cell top 54))
+        (child_cell Int (i_call children_done 44))
+        (next Int (i_jmp (e_add child_cell cell 16) 53))
+        (reset Int (i_imm (s_mark next 54) 248 (e_pair_heap_base))))
+    (i_jmp reset 55)))
+
+(def n_pair_helpers ((s Int)) Int
+  (let ((top Int 180) (cell Int 182) (young_end Int 190) (forward_tag Int 191))
+    (n_collect_pairs (n_promote_cell s top cell young_end forward_tag)
+      top cell young_end forward_tag)))
+
 ; Labels 27..39 implement the primitive kinds 7..19. The primitive body
 ; applies the ordinary tag, arithmetic, input and output checks.
 (def n_primitive_helpers ((s Int) (kind Int)) Int
   (if (eq kind 20) s
-    (let body Int (e_primitive_body (s_mark s (+ 20 kind)) kind)
+    (let ((entry Int (s_mark s (+ 20 kind)))
+          (space Int (if (eq kind 14)
+            (s_mark (i_jeq (i_imm entry 190 (n_young_end)) 248 190 48) 55) entry))
+          (body Int (e_primitive_body space kind)))
       (n_primitive_helpers (i_ret body) (+ kind 1)))))
 
 (def n_slot_helper ((s Int) (store Int)) Int
@@ -39,7 +103,7 @@
         (loop Int (s_mark slots 42))
         (copy Int (e_move_arg_word (i_jz loop 11 43)))
         (next Int (e_add copy 11 -1)))
-    (i_ret (s_mark (i_jmp next 42) 43))))
+    (n_pair_helpers (i_ret (s_mark (i_jmp next 42) 43)))))
 
 ; x86 adds the signed displacement to the address after its four-byte field.
 ; The target's suffix and the bytes following the field share the same code end.

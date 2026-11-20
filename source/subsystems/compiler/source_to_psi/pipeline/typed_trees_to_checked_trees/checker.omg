@@ -282,39 +282,46 @@ crashes Trap
 machine declared_routes(syntax: @SyntaxTrees, item: MachineItem) -> CrashRoutes
 crashes Trap
 {
-    let causes: CrashRoutes = declared_causes(syntax, item.first_clause, item.clause_count);
-    CrashRoutes {
-        declares_trap: causes.declares_trap,
-        declares_abort: causes.declares_abort,
-        inferred: !(causes.declares_trap || causes.declares_abort) && !item.is_public && item.has_body,
-        trap: false,
-        abort: false
-    }
+    crash_ceiling(syntax, item.first_clause, item.clause_count, !item.is_public && item.has_body)
 }
 
-// The causes a clause run's `crashes` clauses declare.
 public machine declared_causes(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> CrashRoutes
 crashes Trap
 {
-    transition { _ -> next(syntax, first, first + count, false, false) }
+    crash_ceiling(syntax, first, count, false)
+}
 
-    machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+machine crash_ceiling(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, infer_omitted: bool) -> CrashRoutes
+crashes Trap
+{
+    let routes: CrashRoutes = CrashRoutes {
+        declares_trap: false, declares_abort: false, inferred: infer_omitted, trap: false, abort: false
+    };
+    transition { _ -> next(syntax, first, first + count, routes) }
+
+    machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, routes: CrashRoutes) -> CrashRoutes {
         transition index < end {
-            true -> clause(syntax, index, end, trap, abort),
-            _ -> finished(trap, abort)
+            true -> clause(syntax, index, end, routes),
+            _ -> finished(routes)
         }
     }
 
-    machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+    machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, routes: CrashRoutes) -> CrashRoutes {
         let clause: Clause = syntax_trees_clause(syntax, index);
-        let crashes: bool = clause.kind == ClauseKind::Crashes;
-        let traps: bool = crashes && clause.cause == CrashCause::Trap;
-        let aborts: bool = crashes && clause.cause == CrashCause::Abort;
-        transition { _ -> next(syntax, index + 1, end, trap || traps, abort || aborts) }
+        let updated: CrashRoutes = declared_crash_clause(routes, clause);
+        transition { _ -> next(syntax, index + 1, end, updated) }
     }
 
-    machine finished(trap: bool, abort: bool) -> CrashRoutes {
-        CrashRoutes { declares_trap: trap, declares_abort: abort, inferred: false, trap: false, abort: false }
+    machine finished(routes: CrashRoutes) -> CrashRoutes { routes }
+}
+
+machine declared_crash_clause(routes: CrashRoutes, clause: Clause) -> CrashRoutes {
+    let cause: bool = clause.kind == ClauseKind::Crashes;
+    CrashRoutes {
+        declares_trap: routes.declares_trap || (cause && clause.cause == CrashCause::Trap),
+        declares_abort: routes.declares_abort || (cause && clause.cause == CrashCause::Abort),
+        inferred: routes.inferred && !cause && clause.kind != ClauseKind::CrashesNone,
+        trap: routes.trap, abort: routes.abort
     }
 }
 

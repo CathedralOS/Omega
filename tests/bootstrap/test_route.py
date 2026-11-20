@@ -1,5 +1,6 @@
 """Check mixed route handoffs and the distinction between observations and refusals."""
 import argparse
+import json
 from hashlib import sha256
 from itertools import product
 from pathlib import Path
@@ -13,7 +14,7 @@ from unittest.mock import patch
 from compiled import add_invocation_budget
 from independent.epsilon.composition import linked_program
 from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
-from route import MODES, ROOT, Program, Route, execute_route, observation_kind
+from route import MODES, ROOT, Program, Route, execute_route, observation_kind, prior_invocations
 
 
 class RouteTests(unittest.TestCase):
@@ -56,6 +57,46 @@ class RouteTests(unittest.TestCase):
             (root / "one/result").write_bytes(b"damaged")
             with self.assertRaisesRegex(ValueError, "shared producer output changed"):
                 cell("damaged", b"host")
+
+    def test_interrupted_row_preserves_only_finished_intermediates_for_replay(self):
+        args = argparse.Namespace(gamma="native", delta="native", epsilon="native",
+                                  profile="conformance", seconds=None)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "old-matrix" / "native-native-native"
+            r = Route(args, source)
+            r.host = Program(Path(sys.executable))
+            script = b'print("stage")'
+            r.run("module.out", "build", r.host, lambda: script)
+
+            # A killed process cannot replace its last durable intermediate receipt.
+            def interrupt():
+                checkpoint = json.loads((source / "result.json").read_text())
+                self.assertEqual(checkpoint["result"], "running")
+                self.assertEqual(list(checkpoint["artifacts"]), ["module.out"])
+                raise KeyboardInterrupt
+
+            r.stage("interrupted", interrupt)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_route(r, b"source", b"", None, verbose=False)
+
+            cache = prior_invocations([source.parent])
+            work = root / "other" / "fresh"
+            work.mkdir(parents=True)
+            replay = Route(args, work, cache)
+            replay.run("module.out", "build", r.host, lambda: script)
+            replay.run("guest.eeout", "run guest", r.host, lambda: script, terminal=True)
+            with patch("route.invoke", return_value=b"fresh") as invoke:
+                for _, action in replay.steps:
+                    action()
+                invoke.assert_called_once()
+            self.assertEqual((work / "module.out").read_bytes(), b"stage\n")
+            self.assertEqual((work / "guest.eeout").read_bytes(), b"fresh")
+            self.assertEqual((work.parent / replay.artifacts["module.out"]["reused_from"]).resolve(),
+                             source / "module.out")
+            # Historic receipts can contain terminal executions with exactly the same input.
+            (work / "result.json").write_text(json.dumps({"artifacts": replay.artifacts}))
+            self.assertEqual(prior_invocations([source, work]), cache)
 
     def test_each_plan_executes_the_selected_epsilon_target(self):
         for gamma, delta, epsilon in product(MODES, repeat=3):

@@ -196,7 +196,7 @@ A digest is an identity check on the bytes being evaluated, not a proof that
 the evaluator implements Epsilon.
 
 The public entry appends [interpreter.delta](../interpreter.delta) to the
-packed evaluator. The Delta compiler produces a 720,000-byte Gamma program
+packed evaluator. The Delta compiler produces a 700,335-byte Gamma program
 from that source. The [entry contract](EVALUATOR_ENTRY.md) gives its identity
 and request format. One [executable test](../../../tests/bootstrap/interpreted/omega-executable/README.md)
 appends its own diagnostic driver to exercise a private frame instead.

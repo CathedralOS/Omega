@@ -31,13 +31,17 @@
       (pair (if has_payload (gamma_generated 112 coordinate) 0)
         (pair (if has_payload (gamma_generated 118 coordinate) 0) has_payload)))))
 
-(def lowering_match_wrap ((context Int) (body Int)) Int
+; Exhaustiveness is checked before lowering. A single payload-bearing
+; constructor carries its product directly; bind the subject exactly once.
+(def lowering_match_wrap ((context Int) (arm_count Int) (body Int)) Int
   (let ((bindings Int (second context))
         (payload_and_value Int (second bindings))
         (complete Int (second payload_and_value)))
     (if (second complete)
-      (gamma_let (first complete) (first context)
-        (gamma_let (first bindings) (gamma_first (first complete))
-          (gamma_let (first payload_and_value)
-            (gamma_second (first complete)) body)))
+      (if (eq arm_count 1)
+        (gamma_let (first payload_and_value) (first context) body)
+        (gamma_let (first complete) (first context)
+          (gamma_let (first bindings) (gamma_first (first complete))
+            (gamma_let (first payload_and_value)
+              (gamma_second (first complete)) body))))
       (gamma_let (first bindings) (first context) body))))

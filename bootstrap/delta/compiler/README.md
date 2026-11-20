@@ -42,10 +42,10 @@ against every materialization and by `tests/bootstrap/interpreted/delta-identity
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `delta_compiler.gamma` request entry | 792 | `caaccc0f930aed311572dbcfa8ed66eae46ac279d42c85bbf6d2e249e46abcfd` |
-| `implementation/implementation.gamma.sources` manifest | 11,470 | `ced75b4db1878c9890da64d40a26f3c973ddf3a1569b556150ef1d3fda5ba7eb` |
+| `implementation/implementation.gamma.sources` manifest | 11,470 | `e2adb5613c349aea7d598b92bc38dd1ab423aa0de2828a245ade1b84c6f9841a` |
 | `support/support.gamma.sources` manifest | 651 | `257115ba5c85aad7574417a19a7ac5e439391ebedbaedc4b7a70fdc4ac94b833` |
-| `delta_compiler.composed` record | 298 | `14a46f77e58a417ea2a946240b13eb53a65677cd4df8dc4e2b5f4d1ded19ad29` |
-| Packed canonical closure | 152,036 | `e5193db48e77870186495e7c68b7187f53692a819e65e894b37c3bfeb76f9b08` |
+| `delta_compiler.composed` record | 298 | `1761d1afdf8bf6fc3fbb9009ad927c782f9cff0b202d8a175b0286320ac70eeb` |
+| Packed canonical closure | 152,411 | `cfa4f2a6f75352d819a83486169bd517ab48ecf90246c561e47a809309ccc25f` |
 | Packed support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
 
 A digest is an identity check on the bytes being compiled, not a proof of the
@@ -163,10 +163,12 @@ profile from its first byte, or falls back to that diagnostic entry.
 The current stage accepts the Gamma-shaped scalar core, immutable `Bytes`, and
 finite data whose constructors carry any finite number of `Int`, `Bytes`, or
 known nominal fields, plus exhaustive matches in authored arm order. It assigns
-constructor tags in declaration order. Payload-bearing nominal values become immutable `(pair tag product)`
-nodes whose products are right-nested pairs. Nullary constructors in a payload
-type carry zero padding. Matches project the tag and product once and recover
-binders with ordinary generated Gamma lets.
+constructor tags in declaration order. A type with one constructor and one
+field carries that field directly. With more fields it carries their
+right-nested product. A match on either record binds the subject once,
+including when every field goes unused. A type with multiple constructors
+and at least one payload carries `(pair tag product)`. Its nullary constructors
+carry zero padding. A match on that type projects the tag and product once.
 
 ```text
 (data Choice (Left) (Right))

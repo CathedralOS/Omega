@@ -77,6 +77,14 @@ Every row runs its final invocation, including calls that check the expected
 compiler rejection. Omit the flag to rebuild each row’s intermediate artifacts
 independently.
 
+To continue a long run in a fresh output directory, pass `--reuse-from DIR`
+with a previous row or matrix directory you trust. You can repeat it for
+several runs. Each finished stage updates its row's `result.json` atomically,
+so it survives interruption of a later stage. The runner matches the complete
+producer and request digests and checks the saved output digest. It records
+where each reused artifact came from. Final guest executions and expected
+refusals run again. Without either reuse option each row does its own work.
+
 Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
 supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
 `--gamma native`. The runner checks its compiler source and fixed-point
@@ -336,14 +344,25 @@ capacity limit in the independent Epsilon model.
 | Gamma route | What completed on the real bootstrap compiler | What limits the route |
 | --- | --- | --- |
 | Interpreter | Ran the Alpha-produced 26,354,274-byte constructor. It compiled a 111-byte Omega package into a 22-byte tape that exited 42 on the seed. | Source and nesting fit. The 305-unit application remains open on this interpreter. |
-| Compile to Alpha | Compiled all 899,962 bytes of the Epsilon-written compiler. Both its Delta response and the 26,354,274 bytes of generated Gamma matched Linux byte for byte. | The generated constructor exceeds the seed’s single-tape size limit with the current emitter. |
-| Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | The full-product run at `6e2b05e9599` crossed a 24 GiB memory guard before writing a result. |
+| Compile to Alpha | The packed 11,976,860-byte constructor ran on the unchanged seed. It compiled a 111-byte Omega package to the same 22-byte tape as the interpreter, and the tape exited 42. | Large tapes add a 340-byte Alpha decoder and a dictionary to review. The 305-unit application still needs a successful run. |
+| Compile to Linux | Built the constructor and used it to compile the wire decoder to a 1,607-byte Alpha tape. The tape exited 42 on the seed. | The full-product run at `6e2b05e9599` crossed 24 GiB before writing a result. Reusing temporary pairs has since cut peak memory for building the constructor from 4.44 to 1.61 GiB. The full-product run is still open. |
 
 The first self-build milestone is an Alpha tape for
 `source/application/construction/main.omg::entry_start`. Then run that tape
 on the same package graph, and replay its output to check reproducibility.
 The construction driver accepts a framed producer with `--epsilon-compiler`
 and a raw Omega-built tape with `--compiler-tape`. [Construction driver](../../../source/application/construction/README.md)
+
+For the constructor at `bcf71f0bbfc`, the Alpha compiler emitted 57,004,893
+bytes of ordinary instructions before packing. Independent decoding reproduced
+each instruction and checked relocation of every branch and call. The packed
+tape also returned the expected five-byte refusal on malformed input.
+[Alpha compiler and checks](https://github.com/CathedralOS/Omega/pull/4691)
+
+The Linux constructor built with the revised allocator produced the same wire
+tape and the same refusal when the dependency was missing. It also refused one
+trailing byte and each of the final sixteen possible truncations before
+compilation. [Native memory measurements](native.md#runtime-and-audit-boundary)
 
 <details>
 <summary>Artifact sizes, inputs and refusal controls</summary>

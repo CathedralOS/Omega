@@ -97,11 +97,11 @@ def main():
     require_identity("Epsilon", epsilon, 615652,
                      "691122629a7f47ab7a929289a1ec33aae27577b9a955b874c06a8fe444e86ab2")
     delta_compiler = (directory / "delta_compiler.gamma").read_bytes()
-    require_identity("Delta compiler", delta_compiler, 152036,
-                     "e5193db48e77870186495e7c68b7187f53692a819e65e894b37c3bfeb76f9b08")
+    require_identity("Delta compiler", delta_compiler, 152411,
+                     "cfa4f2a6f75352d819a83486169bd517ab48ecf90246c561e47a809309ccc25f")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 915335,
-                     "db05f4fa1a335927b3e2d2559dd8776e1b1a512202588f219043d3cd2f4b1e58")
+    require_identity("D", compiler, 926397,
+                     "e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))

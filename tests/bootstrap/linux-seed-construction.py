@@ -37,6 +37,63 @@ def check_native(program):
     assert 1 in segments and 2 not in segments and 3 not in segments
 
 
+def check_pair_lifetimes(work, compiler):
+    # Retain both edges of a shared tree across several young-area refills.
+    # The leaf also contains an integer numerically equal to a pair address.
+    source = b"""(def share ((depth Int) (node Int)) Int
+  (if depth (share (- depth 1) (pair node node)) node))
+(def leaf ((depth Int) (node Int)) Int
+  (if depth (leaf (- depth 1) (if (% depth 2) (first node) (second node))) node))
+(def churn ((count Int) (held Int)) Int
+  (if count
+    (let temporary Int (pair count held)
+      (churn (- (first temporary) 1) (second temporary)))
+    held))
+(def main () Int
+  (let ((tree Int (share 32 (pair (read 0) 805306368)))
+        (both Int (pair tree (churn 800000 tree)))
+        (left Int (leaf 32 (first both)))
+        (right Int (leaf 32 (second both))))
+    (if (eq (second left) 805306368) (first right) 0)))
+"""
+    made = invoke([compiler], source)
+    assert (made.returncode, made.stderr) == (0, b""), made
+    program = work / "retained-pairs"
+    program.write_bytes(made.stdout)
+    program.chmod(0o700)
+    result = invoke([program], b"*")
+    assert (result.returncode, result.stdout, result.stderr) == (0, b"*", b""), result
+
+
+def check_pair_capacity(work, compiler, compiler_source):
+    # Four pairs per young area, sixteen allocations in total. Hold the entire
+    # list live so every collection must preserve all of its previous nodes.
+    for original, reduced in (
+        (b"(def n_young_size () Int 8388608)", b"(def n_young_size () Int 128)"),
+        (b"(def e_pair_heap_end () Int 137438953472)", b"(def e_pair_heap_end () Int 805306880)"),
+    ):
+        assert compiler_source.count(original) == 1
+        compiler_source = compiler_source.replace(original, reduced)
+    small = work / "small-heap-compiler"
+    guest = work / "small-heap-program"
+    program = b"""(def $application () Int 1)
+(def fill ((n Int) (tail Int)) Int (if n (fill (- n 1) (pair n tail)) tail))
+(def sum ((n Int) (p Int)) Int (if n (+ (first p) (sum (- n 1) (second p))) 0))
+(def main () Int
+  (let ((n Int (read 0)) (out Int (write (sum n (fill n 0))))) (pair 0 1)))
+"""
+    for producer, source, destination in ((compiler, compiler_source, small), (small, program, guest)):
+        made = invoke([producer], source)
+        assert made.returncode == 0 and not made.stderr, made
+        destination.write_bytes(made.stdout)
+        destination.chmod(0o700)
+    # Publishing the application status requires one additional pair.
+    for n in (0, 4, 5, 14, 15, 16, 17):
+        result = invoke([guest], bytes([n]))
+        expected = (0, bytes([n * (n + 1) // 2]), b"") if n < 16 else (252, b"", b"")
+        assert (result.returncode, result.stdout, result.stderr) == expected, (n, result)
+
+
 def check_source_producer(work, source, compiler=None, *, alpha=False):
     command = [BOOTSTRAP, "--alpha"] if alpha else [BOOTSTRAP]
     producer = work / "producer.gamma"
@@ -243,6 +300,8 @@ def check(work, alpha, delta):
                 0, bytes([byte + increment]), b""), result
     invalid = invoke([compiler], b"(def main () Int undefined)")
     assert (invalid.returncode, invalid.stdout) == (249, b""), invalid
+    check_pair_lifetimes(work, compiler)
+    check_pair_capacity(work, compiler, (out / "compiler.gamma").read_bytes())
     check_source_producer(work, source, compiler)
 
     bad_customer = work / "invalid-customer"

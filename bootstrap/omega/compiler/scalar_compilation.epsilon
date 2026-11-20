@@ -217,6 +217,14 @@ data OmegaScalarCompiler {
     state_invocation_count: i32;
     effect_work: [i32; 4096];
     call_colors: [i32; 4096];
+    // Completed DFS order places every admitted callee before its callers.
+    call_order: [i32; 4096];
+    call_order_count: i32;
+    // An omitted ceiling is -1. Each resolved service member is a trait row.
+    reach_clauses: [i32; 4096];
+    reach_members: [i32; 16384];
+    // Reused for one service identity at a time in call order.
+    published_reach: [i32; 4096];
     call_walk: [i32; 4096];
     call_cursors: [i32; 4096];
     // Expression folding scratch. eval_order collects one terminal
@@ -1942,6 +1950,8 @@ machine OmegaScalarCompiler::check_call_graph(&mut self) -> i32 {
     }
     state finish(root_index: i32, depth: i32) {
         self.call_colors[self.call_walk[depth]] = 2;
+        self.call_order[self.call_order_count] = self.call_walk[depth];
+        self.call_order_count = self.call_order_count + 1;
         transition depth {
             0 -> root(root_index + 1)
             _ -> walk(root_index, depth - 1)
@@ -2771,6 +2781,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     self.outcome_requested = 0;
     self.emission_resource = 12;
     self.call_edge_count = 0;
+    self.call_order_count = 0;
     self.state_invocation_count = 0;
     self.loan_count = 0;
     self.layout_depth = 0;
@@ -2797,16 +2808,16 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
 
-    // A boundary requirement has no executable body or provider of its own.
-    // Keep its source position until resolution and provider checking exist.
+    // A memberless service names an effect. An operation-bearing boundary
+    // also needs checked requirements and selection, outside this profile.
     state check_roots() {
-        transition self.parser.boundary_trait_count > 0 {
-            true -> incomplete(4, self.parser.boundary_traits[0].boundary_keyword.start)
-            _ -> check_ordinary_roots()
+        transition self.check_service_declarations(source) {
+            1 -> check_ordinary_roots()
+            _ -> return
         }
     }
     state check_ordinary_roots() {
-        transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count + self.parser.use_count) &&
+        transition (self.parser.root_count == self.parser.machine_count + self.parser.data_count + self.parser.use_count + self.parser.boundary_trait_count) &&
             (self.parser.machine_count > 0) && (self.entry_unit >= 0) &&
             (self.entry_unit < self.parser.sources.unit_count) {
             true -> imports()
@@ -2913,6 +2924,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         self.call_edge_heads[index] = -1;
         self.call_colors[index] = 0;
         self.block_bounds[index] = -1;
+        self.reach_clauses[index] = -1;
         transition true { true -> reset_call_graph(index + 1) }
     }
 
@@ -3069,11 +3081,18 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state crash_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
         let clause: OmegaMachineClauseSyntax = self.parser.machine_clauses[cursor];
         transition clause.kind {
+            OmegaMachineClauseKind::Reaches -> reach_ceiling(index, cursor, end, empty, trap)
             OmegaMachineClauseKind::Blocks -> block_ceiling(index, cursor, end, empty, trap, 1)
             OmegaMachineClauseKind::BlocksFalse -> block_ceiling(index, cursor, end, empty, trap, 0)
             OmegaMachineClauseKind::CrashesNone -> merge_crash_ceiling(index, cursor, end, 1, trap)
             OmegaMachineClauseKind::CrashesTrap -> merge_crash_ceiling(index, cursor, end, empty, 1)
             _ -> incomplete(4, clause.start)
+        }
+    }
+    state reach_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
+        transition self.check_reach_clause(source, index, cursor) {
+            1 -> machine_clauses(index, cursor + 1, end, empty, trap)
+            _ -> return
         }
     }
     state block_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32, bound: i32) {
@@ -3884,6 +3903,12 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state call_graph() {
         transition self.check_call_graph() {
+            1 -> service_reach()
+            _ -> return
+        }
+    }
+    state service_reach() {
+        transition self.check_service_calls() {
             1 -> seed_effect(1, 0, 0)
             _ -> return
         }

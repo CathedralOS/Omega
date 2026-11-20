@@ -1,5 +1,6 @@
 //! Check which local and nested machine names cross a preparation boundary.
 
+use super::frame::{Binding, Cut};
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
@@ -14,16 +15,20 @@ use syntax_trees::statement::{
     TransitionTargetNode,
 };
 
-/// Keep each local's definition and all its uses in one checked machine. A
-/// preparation inside that lifetime parks the interpreter with its frame intact.
-/// Once the preparation has returned, the next program can start at the first
-/// statement boundary where no such local is still needed.
+#[derive(Default)]
+pub(super) struct LexicalPlan {
+    pub cuts: Vec<Cut>,
+    pub nested_calls: Vec<(usize, Identifier)>,
+}
+
+/// A real preparation can extend the scope if every live binding has a frame
+/// home. Otherwise keep its original program until the live region ends.
 pub(super) fn program_ends(
     syntax: &SyntaxTrees,
     machine: &Machine,
     statements: &[StatementHandle],
     preparations: &[usize],
-) -> Result<Vec<usize>, Vec<Diagnostic>> {
+) -> Result<LexicalPlan, Vec<Diagnostic>> {
     let nested = machine
         .nested_machines
         .handles()
@@ -32,6 +37,7 @@ pub(super) fn program_ends(
         .collect::<Vec<_>>();
     let mut locals = HashMap::new();
     let mut last_use = (0..statements.len()).collect::<Vec<_>>();
+    let mut bindings = vec![None; statements.len()];
     let mut calls_to_nested = Vec::new();
     let mut refusals = Vec::new();
     let mut phase = 0;
@@ -55,6 +61,12 @@ pub(super) fn program_ends(
                 .filter(|name| nested.contains(&name.as_str(syntax)))
                 .map(|name| (position, name)),
         );
+        if let StatementNode::LocalData(local) = node {
+            bindings[position] = Binding::classify(syntax, local, position, |name| {
+                let &(index, _) = locals.get(name)?;
+                bindings[index]
+            });
+        }
         let first_local = uses.bindings.len();
         local_bindings(syntax, node, &mut uses.bindings);
         for binding in &uses.bindings {
@@ -79,10 +91,10 @@ pub(super) fn program_ends(
         }
     }
     let mut live_through = 0;
-    let mut pending_preparation = false;
+    let mut pending_wait = None;
     let mut ends = Vec::new();
     let mut waits = preparations.iter().copied().peekable();
-    for (position, last) in last_use.into_iter().enumerate() {
+    for (position, &last) in last_use.iter().enumerate() {
         // Ending a program after an authored control transfer would turn a
         // normal return from another path into permission to run its suffix.
         // The ordinary checker and interpreter own the rest of that control flow.
@@ -97,27 +109,40 @@ pub(super) fn program_ends(
         }
         live_through = live_through.max(last);
         let preparation = waits.next_if_eq(&position).is_some();
-        pending_preparation |= preparation;
-        if pending_preparation
-            && live_through == position
-            && (preparation || position + 1 < statements.len())
-        {
-            ends.push(position);
-            pending_preparation = false;
+        if preparation {
+            pending_wait = Some(position);
         }
-    }
-    if let Some(&last_end) = ends.last() {
-        for (position, name) in calls_to_nested {
-            if position <= last_end {
-                let text = name.as_str(syntax);
-                refusals.push(Diagnostic::error(format!(
-                    "not supported yet: a Build statement before `Build::prepare_dependency` that names `{text}`, a nested machine checked with the final Build stage"
-                )).with_source_span(name.source_span()));
-            }
+        let Some(wait) = pending_wait else { continue };
+        if live_through == position && (preparation || position + 1 < statements.len()) {
+            ends.push(Cut {
+                end: position,
+                wait,
+                bindings: Vec::new(),
+            });
+            pending_wait = None;
+        } else if preparation && position < live_through {
+            let live = last_use[..=position]
+                .iter()
+                .enumerate()
+                .filter(|(_, last)| **last > position)
+                .map(|(index, _)| bindings[index])
+                .collect::<Option<Vec<_>>>();
+            let Some(bindings) = live else { continue };
+            ends.push(Cut {
+                end: position,
+                wait,
+                bindings,
+            });
         }
     }
     if refusals.is_empty() {
-        Ok(ends)
+        Ok(LexicalPlan {
+            cuts: ends,
+            nested_calls: calls_to_nested
+                .into_iter()
+                .map(|(pos, name)| (pos, name.clone()))
+                .collect(),
+        })
     } else {
         Err(refusals)
     }

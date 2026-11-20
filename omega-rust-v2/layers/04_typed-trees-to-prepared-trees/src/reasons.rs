@@ -58,6 +58,9 @@ preparation_reasons! {
     /// A frozen integer constant does not fit the carrier that reads it.
     FrozenConstantOutsideCarrier => "the frozen constant exceeds its carrier",
 
+    /// L3 selected the declaration, but preparation cannot freeze its description into retained storage.
+    DescriptorStorageUnavailable => "freezing a reflected declaration requires descriptor storage",
+
     // Integer primitives.
     /// A trapping division or remainder has a zero divisor.
     ZeroDivisorTrapPossible => "a zero divisor leaves the selected Trap route possible",

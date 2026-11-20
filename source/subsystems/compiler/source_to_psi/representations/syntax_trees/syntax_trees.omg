@@ -421,6 +421,7 @@ public data ClauseKind [copy] {
     case Suspends;
     case Blocks;
     case Crashes;
+    case CrashesNone;
     case Requires;
     case Ensures;
     case Satisfies;
@@ -816,6 +817,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedAssignmentSemicolon;
     case ExpectedStatementEnd;
     case ExpectedCrashCause;
+    case ConflictingCrashCeiling;
     case ExpectedCrashEnd;
     case StatementCapacityExceeded;
     case ExpectedTransitionSubject;

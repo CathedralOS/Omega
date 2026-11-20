@@ -85,6 +85,10 @@
   (i_add (i_imm s 12 value) reg 12))
 (def e_bound ((s Int) (reg Int) (end Int) (error Int)) Int
   (i_jlt (i_imm s 13 end) 13 reg error))
+(def e_value_stack_base () Int 33554432)
+(def e_pair_heap_base () Int 805306368)
+(def e_pair_heap_end () Int 137438953472)
+
 (def e_push_body ((s Int)) Int
   (let ((a Int (i_mov s 10 246))
         (b Int (e_add a 10 16))
@@ -146,9 +150,9 @@
 ; Runtime entry seals input, executes main, then atomically publishes output.
 (def e_header ((s Int) (mainid Int)) Int
   (let (
-    (s0 Int (i_imm s 246 33554432))
+    (s0 Int (i_imm s 246 (e_value_stack_base)))
     (s1 Int (i_imm s0 247 0))
-    (s2 Int (i_imm s1 248 805306368))
+    (s2 Int (i_imm s1 248 (e_pair_heap_base)))
     (s3 Int (i_imm s2 249 0))
     (s4 Int (i_imm s3 250 0))
     (s5 Int (i_imm s4 243 1))
@@ -388,7 +392,7 @@
     (e_pair_fields (e_add (i_store s 248 reg) 248 8) (+ reg 1)) s))
 (def e_pair ((s Int)) Int
   (let ((a Int (e_add (i_mov s 10 248) 10 32))
-        (b Int (e_bound a 10 137438953472 3))
+        (b Int (e_bound a 10 (e_pair_heap_end) 3))
         (c Int (i_mov b 4 248)) (d Int (e_pair_fields c 0))
         (e Int (i_mov d 0 4)))
     (i_imm e 1 1)))
