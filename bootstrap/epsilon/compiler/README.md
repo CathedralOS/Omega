@@ -80,3 +80,9 @@ profile an empty receiver body compiles as a resultless function. Its entry
 invokes that function and encodes the outcome. Both profiles publish the same
 Epsilon exit and trap observations. [Stored entry generation](entry.delta) ·
 [Pure entry](runtime/pure_entry.delta) · [Delta process entry](runtime/main.delta)
+
+Compiled `Console.write_line` evaluates its argument, then reads the view
+from the resulting store. It uses the interpreter's byte loop for literal
+and borrowed views and appends one LF, including for an empty view.
+[Shared Console output](../interpreter/execution/console/output.delta) ·
+[Literal and borrowed-view test](../../../tests/bootstrap/independent/epsilon/console_lines.epsilon)

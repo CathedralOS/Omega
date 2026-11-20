@@ -163,6 +163,24 @@ def signature_source(base):
     ])
 
 
+def console_lines(boundary, program, observe, reference, compiler):
+    source = boundary + (FIXTURES / 'console_lines.epsilon').read_bytes()
+    executable, report = program(source, 'console-lines')
+    report['cases'] = []
+    prefix = b'\n\x00\xff\n!'
+    for end, expected in [(2, bytes(5) + prefix + b'A\xfe\n'),
+                          (0, bytes(5) + prefix + b'\n'), (3, b'\x01\x06' + prefix)]:
+        payload = bytes([end])
+        observed = observe(executable, payload)
+        assert observed == expected == reference(source, payload, f'console-lines-reference-{end}')
+        report['cases'].append(identity(observed))
+    invalid = source.replace(b'view[..self.end_index()]', b'257')
+    offset = invalid.index(b'self.console.write_line(257)')
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'console-lines-type') == struct.pack('<BBI', 2, 18, offset)
+    return report
+
+
 def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE_BOUNDARY
 
@@ -311,6 +329,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             raise ValueError((mode, native, interpreted, expected))
         operand_report['cases'].append(identity(native))
 
+    line_report = console_lines(boundary, program, observe, reference, compiler)
     digits = digit_scanner(base, boundary, program, observe, reference, compiler)
     # Echo all decoded octets from one source literal, crossing each control,
     # delimiter and non-ASCII byte as data in the generated Delta program.
@@ -333,7 +352,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     signature_report['output'] = identity(actual)
     return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
             'storage': storage_report, 'binary_operands': operand_report,
-            'literal_bytes': literal_report, 'lexer_digits': digits,
+            'literal_bytes': literal_report, 'lexer_digits': digits, 'console_lines': line_report,
             'compiler_signature': signature_report}
 
 
@@ -471,19 +490,14 @@ def run(work, vm, producer, realize, seconds):
         assert refusal == b'rejected 17 ' + str(invalid.index(b'missing')).encode(), refusal
         assert reference(invalid, b'', 'invalid-reference') == (
             b'\2\x11' + struct.pack('<I', invalid.index(b'missing')))
-        # Unsupported Console text output and a payload parameter remain valid
-        # Epsilon source. Neither may publish a previously emitted prefix.
-        for name, suffix in (
-            ('effect', b'machine Main::unused_write(&mut self) { self.console.write_line("text"); }\n'),
-            ('nominal', b'data Color { case Red(value: i32); case Blue; }\nmachine nominal(value: Color) -> i32 { return 0; }\n'),
-        ):
-            request = source + suffix
-            (work / f'unsupported-{name}.epsilon').write_bytes(request)
-            refusal = observe(compiler, request)
-            (work / f'unsupported-{name}.observation').write_bytes(refusal)
-            assert refusal.startswith(b'unsupported ') and b'(def' not in refusal, refusal[:80]
-            assert reference(request, b'', f'unsupported-{name}-reference') == (
-                b'\0' + struct.pack('<i', 0))
+        # An unsupported payload parameter must not publish a partial module.
+        request = source + (b'data Color { case Red(value: i32); case Blue; }\n'
+                            b'machine nominal(value: Color) -> i32 { return 0; }\n')
+        (work / 'unsupported-nominal.epsilon').write_bytes(request)
+        refusal = observe(compiler, request)
+        (work / 'unsupported-nominal.observation').write_bytes(refusal)
+        assert refusal.startswith(b'unsupported ') and b'(def' not in refusal, refusal[:80]
+        assert reference(request, b'', 'unsupported-nominal-reference') == bytes(5)
         report['stage'] = 'complete-lexical-module'
         checkpoint()
         enum_spec = importlib.util.spec_from_file_location('epsilon_enum_controls', FIXTURES / 'enum_test.py')
@@ -518,6 +532,8 @@ def run(work, vm, producer, realize, seconds):
             assert actual == expected, (name, actual.hex())
             return {'alpha_compiler_exit': 0, 'alpha_compiler_output': identity(tape), 'alpha_tape': identity(tape)}
 
+        line_output = (work / 'console-lines-reference-2.observation').read_bytes()
+        report['stored_customers']['console_lines'].update(check_alpha('console-lines', b'\x02', line_output))
         signature_output = (work / 'compiler-signature-reference.observation').read_bytes()
         report['stored_customers']['compiler_signature'].update(check_alpha('compiler-signature', b'', signature_output))
         report['lexer_scan'] = scan_controls.run(
