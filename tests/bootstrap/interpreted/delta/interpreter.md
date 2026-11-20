@@ -140,3 +140,37 @@ zero output bytes. The name trie used 455.38 CPU seconds and 9,455,744 KiB
 peak RSS under a 14 GiB guard. The linked rows used 475.55 CPU seconds and
 4,054,016 KiB under a 6 GiB guard. On the same product the Epsilon evaluator
 returned the five-byte success observation and a 50-byte tape that exited 42.
+
+### Calls and output from the real Epsilon compiler
+
+A direct Delta call binds each argument into the callee’s frame while evaluating
+all arguments in the caller. Constructors keep their ordered fields. A local
+row retains the checked name node and its value. The output walker reads each
+nonempty rope leaf in order. Dropping empty children at concatenation keeps a
+shared subtree from multiplying empty wrappers during publication.
+
+Both versions below used the same seed-built Linux Gamma compiler from #4690,
+SHA-256 `16a7b5be0f53501a694eb397b24741881731462c0490f8c3fd5d0575e54eddae`.
+The checked direct interpreter grew from 100,771 to 102,214 bytes of Gamma.
+The named workload ran the 630,512-byte **Delta source** of the Epsilon
+compiler at `93ad7259148`. It produced the exact 65,013-byte classifier module
+(`bd1d5bd47e66…`) and returned `rejected 18 2032` for the wrong-base argument.
+These are single CPU measurements on a shared host.
+
+| Direct Delta workload | Previous CPU seconds | New CPU seconds | Previous / new peak KiB |
+| --- | ---: | ---: | ---: |
+| Compile the classifier | 26.10 | 23.58 | 31,420 / 29,332 |
+| Refuse the wrong-base twin | 16.08 | 17.30 | 20,016 / 19,936 |
+| Append 512 singletons to `Z`, then publish | 0.081 | 0.037 | 10,368 / 10,368 |
+| Append 2,048 singletons | 0.978 | 0.149 | 10,368 / 10,368 |
+| Append 4,096 singletons | 3.250 | 0.257 | 10,368 / 10,368 |
+| Run the 20,000-call countdown above | 1.124 | 1.733 | 10,368 / 10,368 |
+
+To reproduce the compiler workload, save the named classifier and wrong-base
+rows using `route.py` on the pinned sources. Pass their `epsilon-compiler.delta`
+to the direct interpreter as `--source`, and each row’s `subject.epsilon` as
+`--stdin`. Select `--profile construction`. The complete framed positive input
+has SHA-256 `14bda93ed27f1de45b28bc3079be535fe562ef7af4c9470723467a4cf11a80ff`.
+For the append control, start with the program’s stdin `Z` and repeatedly append
+`bytes_single(n % 256)` as `n` counts down from the indicated length to one.
+The published bytes matched in every comparison.

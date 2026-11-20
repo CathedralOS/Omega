@@ -17,24 +17,21 @@
             (let value Int (di_eval (syntax_child node 1) locals globals)
               (di_match value (- (syntax_count node) 2)
                 (syntax_drop_children (syntax_children node) 2) locals globals))
-            (di_arguments head (- (syntax_count node) 1) (second (syntax_children node))
-              0 0 locals globals)))))))
+            (di_application head (- (syntax_count node) 1) (second (syntax_children node))
+              locals globals)))))))
 
-; A checked call or match has a short-lived lexical environment. Keep one row
-; per binding, sharing the outer scope. Source offsets remain valid throughout
-; this execution. A negative start marks the end of a call's local scope.
+; Keep the checked name node and its value in each local row. The checker has
+; already resolved every local use, so lookup always finds a row before the end.
 (def di_bind ((locals Int) (name Int) (value Int)) Int
-  (pair (syntax_start name) (pair (syntax_after name) (pair value locals))))
+  (pair name (pair value locals)))
 
 (def di_find_local ((locals Int) (start Int) (end Int)) Int
-  (let previous Int (first locals)
-    (if (lt previous 0) (fail)
-      (let ((row Int (second locals)) (binding Int (second row))
-            (width Int (- end start)))
-        (if (if (eq (+ previous width) (first row))
-              (eq width (identity_cursor_common_prefix previous start end width 0)) 0)
-          (first binding)
-          (di_find_local (second binding) start end))))))
+  (let ((name Int (first locals)) (previous Int (syntax_start name))
+        (width Int (- end start)) (binding Int (second locals)))
+    (if (if (eq (+ previous width) (syntax_after name))
+          (eq width (identity_cursor_common_prefix previous start end width 0)) 0)
+      (first binding)
+      (di_find_local (second binding) start end))))
 
 (def di_lookup ((trie Int) (name Int)) Int
   (let found Int (name_trie_find_option trie (syntax_after name) (syntax_start name))
@@ -51,58 +48,67 @@
               (pair (constructor_metadata_tag (di_lookup (global_constructors globals) node)) 0)
               (di_find_local locals start end))))))))
 
-; Evaluate and save each operand once in source order. Binding and application
-; consume the resulting ordered value spine under the authored arity.
-(def di_arguments
-  ((head Int) (remaining Int) (nodes Int) (count Int) (reversed Int)
-   (locals Int) (globals Int)) Int
-  (if (eq remaining 0)
-    (di_apply head (syntax_reverse_nodes count reversed 0) globals)
-    (let value Int (di_eval (first nodes) locals globals)
-      (di_arguments head (- remaining 1) (second nodes) (+ count 1)
-        (pair value reversed) locals globals))))
-
-(def di_apply ((head Int) (args Int) (globals Int)) Int
+; Constructors retain their ordered payload. A function can bind each argument
+; straight into its own frame; every argument still sees only the caller.
+(def di_application ((head Int) (count Int) (nodes Int) (locals Int) (globals Int)) Int
   (let ((start Int (syntax_start head)) (end Int (syntax_after head))
         (byte Int (source_read start)))
     (if (is_upper byte)
-      (pair (constructor_metadata_tag (di_lookup (global_constructors globals) head)) args)
+      (let tag Int (constructor_metadata_tag (di_lookup (global_constructors globals) head))
+        (pair tag (di_payload count nodes 0 0 locals globals)))
       (let kind Int (bytes_builtin_kind start end)
-        (if kind (di_bytes_apply kind args)
-          (if (operator_arity_plus_one start end)
-            (di_arithmetic byte (first args) (first (second args)))
-            (if (token_eq start end) (eq (first args) (first (second args)))
-              (if (token_lt start end) (lt (first args) (first (second args)))
-                (let row Int (di_lookup (global_functions globals) head)
-                  (di_call (second (second row)) args globals))))))))))
+        (if kind (di_bytes_apply kind nodes locals globals)
+          (let operator Int (if (operator_arity_plus_one start end) byte
+                              (if (token_eq start end) 'eq' (if (token_lt start end) 'lt' 0)))
+            (if operator
+              (di_binary operator (di_eval (first nodes) locals globals)
+                (di_eval (first (second nodes)) locals globals))
+              (let row Int (di_lookup (global_functions globals) head)
+                (di_call (second (second row)) nodes locals globals)))))))))
 
-(def di_bytes_apply ((kind Int) (args Int)) Int
+(def di_payload
+  ((remaining Int) (nodes Int) (count Int) (reversed Int) (locals Int) (globals Int)) Int
+  (if (eq remaining 0) (syntax_reverse_nodes count reversed 0)
+    (let value Int (di_eval (first nodes) locals globals)
+      (di_payload (- remaining 1) (second nodes) (+ count 1)
+        (pair value reversed) locals globals))))
+
+(def di_bytes_apply ((kind Int) (nodes Int) (locals Int) (globals Int)) Int
   (if (eq kind 1) ($dbe)
-    (if (eq kind 2) ($dbs (first args))
-      (if (eq kind 3) ($dbl (first args))
-        (if (eq kind 4) (di_get (first args) (first (second args)))
-          (if (eq kind 5) ($dbc (first args) (first (second args))) (fail)))))))
+    (let left Int (di_eval (first nodes) locals globals)
+      (if (eq kind 2) ($dbs left)
+        (if (eq kind 3) ($dbl left)
+          (let right Int (di_eval (first (second nodes)) locals globals)
+            (if (eq kind 4) (di_get left right)
+              (if (eq kind 5) (di_concat left right) (fail)))))))))
 
-(def di_arithmetic ((byte Int) (left Int) (right Int)) Int
-  (if (eq byte '+') (di_add left right)
-    (if (eq byte '-') (di_subtract left right)
-      (if (eq byte '*') (di_multiply left right)
-        (if (eq byte '/') (/ left right)
-          (if (eq byte '%') (% left right) (fail)))))))
+(def di_binary ((operator Int) (left Int) (right Int)) Int
+  (if (eq operator '+') (di_add left right)
+    (if (eq operator '-') (di_subtract left right)
+      (if (eq operator '*') (di_multiply left right)
+        (if (eq operator '/') (/ left right)
+          (if (eq operator '%') (% left right)
+            (if (eq operator 'eq') (eq left right)
+              (if (eq operator 'lt') (lt left right) (fail)))))))))
 
-(def di_call ((declaration Int) (args Int) (globals Int)) Int
+(def di_call ((declaration Int) (nodes Int) (caller Int) (globals Int)) Int
   (let ((params Int (syntax_child declaration 2))
-        (locals Int (di_bind_names (syntax_count params) (syntax_children params)
-                     args (pair -1 0) 1)))
+        (locals Int (di_parameters (syntax_count params) (syntax_children params)
+                     nodes caller 0 globals)))
     (di_eval (syntax_child declaration 4) locals globals)))
 
-; Parameter binders are (name type) nodes; pattern binders are already names.
-(def di_bind_names
-  ((count Int) (names Int) (values Int) (locals Int) (parameters Int)) Int
+(def di_parameters
+  ((count Int) (params Int) (nodes Int) (caller Int) (bound Int) (globals Int)) Int
+  (if (eq count 0) bound
+    (let ((name Int (syntax_child (first params) 0))
+          (value Int (di_eval (first nodes) caller globals)))
+      (di_parameters (- count 1) (second params) (second nodes) caller
+        (di_bind bound name value) globals))))
+
+(def di_bind_pattern ((count Int) (names Int) (values Int) (locals Int)) Int
   (if (eq count 0) locals
-    (let ((node Int (first names)) (name Int (if parameters (syntax_child node 0) node))
-          (bound Int (di_bind locals name (first values))))
-      (di_bind_names (- count 1) (second names) (second values) bound parameters))))
+    (di_bind_pattern (- count 1) (second names) (second values)
+      (di_bind locals (first names) (first values)))))
 
 (def di_match
   ((value Int) (count Int) (arms Int) (locals Int) (globals Int)) Int
@@ -113,7 +119,7 @@
           (constructor Int (di_lookup (global_constructors globals) name)))
       (if (eq (first value) (constructor_metadata_tag constructor))
         (let scoped Int (if atom locals
-              (di_bind_names (- (syntax_count pattern) 1) (second (syntax_children pattern))
-                (second value) locals 0))
+              (di_bind_pattern (- (syntax_count pattern) 1) (second (syntax_children pattern))
+                (second value) locals))
           (di_eval (syntax_child arm 1) scoped globals))
         (di_match value (- count 1) (second arms) locals globals)))))
