@@ -74,6 +74,23 @@ fn assert_buffer_index(
 }
 
 #[test]
+fn nested_helpers_read_the_package_constant_or_the_argument_the_caller_passes() {
+    let source = "const level:u8=1;
+        machine default_level(level:u8)->u8 {
+            read() machine read()->u8 {level}
+        }
+        machine chosen_level(level:u8)->u8 {
+            transition true {true -> read(level), false -> 0u8}
+            machine read(level:u8)->u8 {level}
+        }
+        const DEFAULT:u8=default_level(99u8);
+        const CHOSEN:u8=chosen_level(99u8);";
+    let prepared = prepare(source).unwrap();
+    assert_integer_constant(&prepared, "DEFAULT", 1);
+    assert_integer_constant(&prepared, "CHOSEN", 99);
+}
+
+#[test]
 fn the_same_call_supplies_a_named_constant_and_a_closed_index() {
     let source = format!(
         "data Buffer<const N:u8>{{}}

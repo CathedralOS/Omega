@@ -278,9 +278,13 @@ invokes its entry, not a saved activation or a private point inside its body.
 Nested declarations are not separately package-exportable; package export of an
 enclosing machine does not export its helpers.
 
-Runtime parameters and locals of enclosing invocations are **not captured**.
-Pass them explicitly, including references, capabilities and lifetime-bearing
-values. A named evidence output declared in a machine's `ensures` (such as
+Each nested machine has its own runtime parameters and locals. Runtime bindings
+of an enclosing invocation are out of scope. A visible package declaration
+therefore remains available by its bare name even when an enclosing parameter
+or local has the same name. To use the enclosing runtime value, pass it
+explicitly, including references, capabilities and lifetime-bearing values.
+
+A named evidence output declared in a machine's `ensures` (such as
 `selected` in `ensures Outcome::Success -> { selected: … }`) is assigned only in
 that machine's own body; it is not in scope in nested machines. A nested
 machine that should supply it declares its own guarantee, and a terminal call

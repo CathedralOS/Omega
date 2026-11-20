@@ -84,6 +84,24 @@ fn forward_nested_helpers_bind_siblings_and_cannot_capture_runtime_parameters() 
 }
 
 #[test]
+fn nested_helpers_resolve_package_constants_despite_enclosing_runtime_names() {
+    for machine in [
+        "machine connect(port:u32)->u32 { default_port() machine default_port()->u32 { port } }",
+        "machine connect()->u32 { let port:u32=99; default_port() machine default_port()->u32 { port } }",
+    ] {
+        let source = format!("const port:u32=1; {machine}");
+        let stage = run(&[("app", "main.omg", &source)], &[]).unwrap();
+        let read = source.rfind("port").unwrap();
+        assert!(stage.uses().any(|u| u.span.get_start_offset() == read
+            && matches!(&u.target, Symbol::Declaration(id) if id.package == "app" && id.path == "port" && id.kind == omega_parser::NodeKind::Const)));
+
+        let err = run(&[("app", "main.omg", machine)], &[]).unwrap_err();
+        assert_eq!(err.message, "unresolved name port");
+        assert_eq!(err.span.get_start_offset(), machine.rfind("port").unwrap());
+    }
+}
+
+#[test]
 fn imports_need_public_declarations_and_requester_local_edges() {
     let edge = Dependency {
         requester: "app",

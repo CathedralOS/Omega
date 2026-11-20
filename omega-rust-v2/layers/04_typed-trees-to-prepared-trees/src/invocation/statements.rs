@@ -15,7 +15,8 @@ impl ConstantEvaluation<'_, '_> {
         let &node = statements.get(statement).ok_or(UNSUPPORTED_BODY)?;
         let scope = Scope::Body(bindings.clone());
         match file.nodes[node].kind {
-            NodeKind::Tail if statement + 1 == statements.len() => {
+            // The parser allows only nested declarations after a tail or transition.
+            NodeKind::Tail => {
                 let [expression] = *file.nodes[node].children.as_slice() else {
                     return Err(UNSUPPORTED_BODY.into());
                 };
@@ -23,7 +24,7 @@ impl ConstantEvaluation<'_, '_> {
                     .steps
                     .push(Step::Evaluate(file.node_id(expression), carrier, scope));
             }
-            NodeKind::Transition if statement + 1 == statements.len() => {
+            NodeKind::Transition => {
                 self.schedule_dispatch(&tree, node, &carrier, scope, execution)?;
             }
             NodeKind::Let => {
