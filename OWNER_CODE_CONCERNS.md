@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Native stage 01 constructs provider plans inside an abstract-operations representation
-
-- Category: Knowledge crossing a boundary.
-- Where: [Native stage 01](source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs#L13) and [provider demand preparation](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution.rs#L229).
-- Saw: The normal program and export paths derive an execution scope in stage 01. The representation then walks the program boundaries, combines providers and constructs the selected plan.
-- Cost: The numbered stage hides the decisions that bind a program to providers. Someone following the stage has to look under abstract operations to find them.
-- Reported: 2026-11-19, Codex, while tracing stage transformations into their input records.
-
 ### Several source stages perform generic data preparation in the typed-tree representation
 
 - Category: Knowledge crossing a boundary.

@@ -140,8 +140,7 @@ pub fn plan_root_provisions(
     input: AdmittedRuntimeInput<'_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
-    execution: &verified_optimization_input::PreparedNativeExecution,
-    external_bindings: &[calling_conventions::ExternalBindingRow],
+    execution: &provider_realization::native_execution::PreparedNativeExecution,
     native: NativeBindingRuntimeInputs<'_>,
 ) -> Result<NativeRuntimePlan<NativeForeignAdapterRequest>, String> {
     let admitted = NativeRuntimePlan::admit(
@@ -149,8 +148,8 @@ pub fn plan_root_provisions(
         input,
         installation,
         host,
-        execution,
-        external_bindings,
+        execution.checked_providers(),
+        execution.external_bindings(),
         native,
     )?;
     Ok(admitted.map_adapters(plan_adapter))

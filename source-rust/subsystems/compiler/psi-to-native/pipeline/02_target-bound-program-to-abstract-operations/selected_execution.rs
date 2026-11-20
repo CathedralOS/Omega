@@ -1,6 +1,7 @@
 //! Lower the selected root or callable to abstract operations.
 use diagnostics::Diagnostic;
-use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
+use provider_realization::native_execution::PreparedNativeExecution;
+use verified_optimization_input::TerminalNativeRealizationProposal;
 
 pub fn lower_native_callable(
     callable: provider_realization::native_execution::BoundNativeCallable<'_>,
@@ -12,7 +13,7 @@ pub fn lower_native_callable(
     ),
     Vec<Diagnostic>,
 > {
-    let (proposal, execution, artifact, entry, checked_scope) = callable.into_parts();
+    let (proposal, execution, artifact, entry, checked_scope, coverage) = callable.into_parts();
     let selection = crate::NativeExecutionSelection::checked(
         &checked_scope,
         &proposal.providers().selection,
@@ -25,13 +26,6 @@ pub fn lower_native_callable(
         &selection,
     )
     .map_err(crate::admit_providers::artifact_lowering_error)?;
-    let provenance = proposal.selected_intrinsic_provenance(execution.selection())?;
-    let coverage = proposal.settle_scoped_boundary_applications(
-        artifact,
-        &checked_scope,
-        execution.selection(),
-        &provenance,
-    )?;
     let input = scope
         .lower(
             &[],

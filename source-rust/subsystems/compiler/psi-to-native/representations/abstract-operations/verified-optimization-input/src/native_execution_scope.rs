@@ -330,6 +330,10 @@ impl NativeExecutionScope {
         &self.target_context
     }
 
+    pub(crate) fn checked_entry(&self) -> Option<&terminal_psi::CheckedProgramEntryTerminalReceipt> {
+        self.source_checked_entry.as_ref()
+    }
+
     pub(crate) fn source_native_bindings(&self) -> Option<[u8; 32]> {
         self.source_native_bindings
     }
@@ -440,6 +444,10 @@ impl NativeExecutionScope {
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         self.scalar_demand()
             .scalar_application_demand(module, layouts)
+    }
+
+    pub const fn emitted_reach(&self) -> &std::sync::Arc<EmittedExecutionScope> {
+        &self.emitted
     }
 
     pub fn contains_boundary(&self, boundary: BoundaryMachineId) -> bool {

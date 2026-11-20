@@ -8,6 +8,8 @@ version.workspace = true
 path = "bindings.rs"
 
 [dependencies]
+selected-provider-plans = { path = "../../../../build/providers/selections" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 language-core = { path = "../../../../foundation/language-core" }

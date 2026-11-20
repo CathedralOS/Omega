@@ -1,19 +1,20 @@
-// Finish provider demand after the complete execution scope is known. Keep
-// authored choices separate from the direct requirement rows added here.
+//! Immutable native execution facts and the proposal inputs for a selected scope.
 use crate::native_proposal::TerminalNativeRealizationProposal;
 use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 
-pub struct PreparedNativeExecution {
-    authorization: psi_authorization::AuthorizedTerminalArtifact,
+/// Provider rows selected for an execution scope. Stage 01 owns their issuance.
+pub struct ScopedProviderBindings {
+    pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
+    pub demands: BTreeSet<String>,
+    pub compiler_builtins: Vec<provider_admission::TerminalCompilerBuiltinProposal>,
+    pub boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+}
+
+pub struct NativeExecutionFacts {
+    checked: crate::ScopedProviderSelection,
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
-    scope: crate::NativeExecutionScope,
-    selection: selected_provider_plans::SelectedProviderPlanFacts,
-    external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    demands: BTreeSet<String>,
-    compiler_builtins: Vec<provider_admission::TerminalCompilerBuiltinProposal>,
-    local_adapters: Vec<provider_admission::SelectedProviderAdapter>,
-    boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+    providers: ScopedProviderBindings,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -74,25 +75,34 @@ impl TerminalNativeRealizationProposal {
         &'a self,
         artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
-        previous: Option<&'a PreparedNativeExecution>,
+        previous: Option<&'a crate::ScopedProviderSelection>,
     ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
         let adapters = self.providers().checked_adapters.as_slice();
         let local = if let Some(previous) = previous {
             previous
-                .scope
-                .require_proposal_context(artifact.view(), self)?;
-            if previous.scope.target_context().terminal_psi() != artifact.view().identity()
-                || previous.scope.target_context().target() != self.target_profile().target_name()
+                .authorization()
+                .require_artifact(artifact)
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+            let scope = previous.scope();
+            scope.require_proposal_context(artifact.view(), self)?;
+            if scope.target_context().terminal_psi() != artifact.view().identity()
+                || scope.target_context().target() != self.target_profile().target_name()
             {
                 return Err(vec![Diagnostic::error(
                     "native callable preparation belongs to another artifact or target",
                 )]);
             }
-            previous.local_adapters.as_slice()
+            scope.local_adapters()
         } else {
             adapters
         };
-        self.scope_request(artifact, entry, None, local.to_vec(), previous.map(PreparedNativeExecution::selection))
+        self.scope_request(
+            artifact,
+            entry,
+            None,
+            local.to_vec(),
+            previous.map(crate::ScopedProviderSelection::selection),
+        )
     }
 
     fn scope_request<'a>(
@@ -134,80 +144,12 @@ impl TerminalNativeRealizationProposal {
         })
     }
 
-    pub fn selected_intrinsic_provenance<'a>(
-        &'a self,
-        selection: &'a selected_provider_plans::SelectedProviderPlanFacts,
-    ) -> Result<
-        Vec<provider_admission::CompilerIntrinsicPlanProvenance<'a>>,
-        Vec<Diagnostic>,
-    > {
-        static NON_INTRINSIC_EXECUTION: [Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>; 1] =
-            [None];
-        selection
-            .plans()
-            .iter()
-            .map(|plan| -> Result<_, Vec<Diagnostic>> {
-                if let Some(position) = self
-                    .providers()
-                    .selection
-                    .plans()
-                    .iter()
-                    .position(|original| original == plan)
-                {
-                    let row_executions = self
-                        .providers()
-                        .intrinsic_executions
-                        .get(position)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "native execution lost original intrinsic row custody",
-                            )]
-                        })?;
-                    return Ok(
-                        provider_admission::CompilerIntrinsicPlanProvenance {
-                            plan,
-                            semantic_schema: &plan.schema,
-                            row_executions,
-                        },
-                    );
-                }
-                let leaf = self
-                    .providers()
-                    .direct_boundary_leaves
-                    .iter()
-                    .find(|leaf| leaf.plan == *plan)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "native execution has an unowned direct plan",
-                        )]
-                    })?;
-                let row_executions: &[Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>] =
-                    match &leaf.execution {
-                        direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(identity) => {
-                            std::slice::from_ref(identity)
-                        }
-                        direct_boundary_bindings::DirectBoundaryExecution::Foreign(_) => {
-                            &NON_INTRINSIC_EXECUTION
-                        }
-                    };
-                Ok(
-                    provider_admission::CompilerIntrinsicPlanProvenance {
-                        plan,
-                        semantic_schema: &leaf.satisfied_schema,
-                        row_executions,
-                    },
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()
-    }
     pub fn settle_scoped_boundary_applications(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         scope: &crate::NativeExecutionScope,
         selection: &selected_provider_plans::SelectedProviderPlanFacts,
-        provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<
-            '_,
-        >],
+        provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<'_>],
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
         let coverage = crate::settlement::boundary_application_settlement::settle(
             artifact,
@@ -226,168 +168,31 @@ impl TerminalNativeRealizationProposal {
         )?;
         Ok(coverage)
     }
-    pub fn prepare_native_provider_demand(
-        &self,
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        mut scope: crate::NativeExecutionScope,
-    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
-        let artifact = authorization.artifact();
-        let module = artifact.semantic_module();
-        scope.require_proposal_context(artifact.view(), self)?;
-        let local_adapters = scope.local_adapters().to_vec();
-        let identity = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
-            module
-                .identities
-                .text(boundary.identity)
-                .filter(|text| !text.is_empty())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "native execution boundary has no exact identity",
-                    )]
-                })
-        };
-        let mut demands = BTreeSet::new();
-        let mut direct_demands = BTreeSet::new();
-        for boundary in module
-            .interfaces.boundary_machines
-            .iter()
-            .filter(|boundary| scope.contains_boundary(boundary.id))
-        {
-            let name = identity(boundary)?;
-            demands.insert(name.to_owned());
-            if self
-                .providers()
-                .selection
-                .selected_requirement_row(name)
-                .is_some()
-            {
-                continue;
-            }
-            direct_demands.insert(name.to_owned());
-        }
-        let mut direct = Vec::new();
-        let mut external_bindings = self.providers().external_bindings.clone();
-        for leaf in &self.providers().direct_boundary_leaves {
-            if leaf.plan.rows.iter().any(|row| {
-                direct_demands.contains(leaf.plan.identities.text(row.requirement_identity))
-            }) {
-                leaf.validate_bound_calling_custody(module)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                direct.push(leaf.plan.clone());
-                if let direct_boundary_bindings::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
-                    let binding = binding.clone()?;
-                    let mut prior = external_bindings.iter().filter(|row| {
-                        row.target_name == binding.target_name
-                            && row.requirement_identity == binding.requirement_identity
-                    });
-                    match (prior.next(), prior.next()) {
-                        (Some(previous), None) if previous == &binding => {}
-                        (None, None) => external_bindings.push(binding),
-                        _ => {
-                            return Err(vec![Diagnostic::error(
-                                "direct boundary has competing retained external bindings",
-                            )]);
-                        }
-                    }
-                }
-            }
-        }
-        let selection = self
-            .providers()
-            .selection
-            .clone()
-            .with_direct_boundary_plans(direct)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let intrinsic_provenance = self.selected_intrinsic_provenance(&selection)?;
-        let boundary_application_coverage = self.settle_scoped_boundary_applications(
-            artifact,
-            &scope,
-            &selection,
-            &intrinsic_provenance,
-        )?;
-        let compiler_builtins =
-            provider_admission::derive_selected_intrinsic_settlement_proposals(
-                &selection,
-                intrinsic_provenance.into_iter(),
-                &demands,
-                module,
-                &self.providers().direct_boundary_leaves,
-            )?;
-        let demands = demands
-            .into_iter()
-            .map(|identity| {
-                selection
-                    .selected_requirement_identity(&identity)
-                    .to_owned()
-            })
-            .collect();
-        if std::env::var_os("OMEGA_TRACE_NATIVE_BOUNDARY").is_some() {
-            // A missing settlement can originate before native admission. Show
-            // the retained choices without changing which boundaries are used.
-            let retained_boundary_count = module
-                .interfaces.boundary_machines
-                .iter()
-                .filter(|boundary| scope.contains_boundary(boundary.id))
-                .count();
-            let mut text = format!(
-                "prepared native boundaries: entry={:?} total={} in_scope={} direct_leaves={} builtins={}\n",
-                scope.entry(),
-                module.interfaces.boundary_machines.len(),
-                retained_boundary_count,
-                self.providers().direct_boundary_leaves.len(),
-                compiler_builtins.len(),
-            );
-            for boundary in module.interfaces.boundary_machines.iter().take(16) {
-                let retained = scope.contains_boundary(boundary.id);
-                let name = module.identities.text(boundary.identity);
-                let selected =
-                    name.is_some_and(|name| selection.selected_requirement_row(name).is_some());
-                let leaves = self
-                    .providers()
-                    .direct_boundary_leaves
-                    .iter()
-                    .filter(|leaf| {
-                        leaf.plan.rows.iter().any(|row| {
-                            name == Some(leaf.plan.identities.text(row.requirement_identity))
-                        })
-                    })
-                    .count();
-                let builtin = compiler_builtins
-                    .iter()
-                    .any(|row| row.boundary() == boundary.id);
-                text.push_str(&format!(
-                    "  id={:?} in_scope={retained} direct_leaves={leaves} selected={selected} builtin={builtin}\n",
-                    boundary.id,
-                ));
-            }
-            text.push_str(&format!(
-                "prepared native boundaries omitted={}\n",
-                module.interfaces.boundary_machines.len().saturating_sub(16),
-            ));
-            // Every field is a bounded numeric identity, count or boolean; also
-            // cap the assembled record if an internal Debug spelling changes.
-            let mut end = text.len().min(4096);
-            while !text.is_char_boundary(end) {
-                end -= 1;
-            }
-            eprint!("{}", &text[..end]);
-        }
-        scope.bind_completed_provider_selection(&selection);
-        Ok(PreparedNativeExecution {
-            authorization: authorization.clone(),
-            evidence: None,
-            scope,
-            selection,
-            external_bindings,
-            demands,
-            compiler_builtins,
-            local_adapters,
-            boundary_application_coverage,
-        })
-    }
 }
 
-impl PreparedNativeExecution {
+impl NativeExecutionFacts {
+    pub fn from_scoped_providers(
+        checked: crate::ScopedProviderSelection,
+        providers: ScopedProviderBindings,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if providers.boundary_application_coverage.demands()
+            != checked.scope().boundary_application_demands()
+        {
+            return Err(vec![Diagnostic::error(
+                "native provider coverage belongs to another execution scope",
+            )]);
+        }
+        Ok(Self {
+            checked,
+            evidence: None,
+            providers,
+        })
+    }
+
+    pub const fn checked_providers(&self) -> &crate::ScopedProviderSelection {
+        &self.checked
+    }
+
     /// The scalar applications this execution reads under `profile`'s admitted
     /// layouts. The caller completes exactly these before native lowering
     /// starts; Omega 00 refuses a completion that leaves one without a value.
@@ -397,22 +202,21 @@ impl PreparedNativeExecution {
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, Vec<Diagnostic>> {
         let fail = |reason: String| diagnostics::error_in_context("native scalar demand", reason);
         profile.admit_address_representation().map_err(fail)?;
-        let artifact = self.authorization.artifact();
+        let artifact = self.authorization().artifact();
         let targets =
             psi_target_layouts::terminal_target_context(artifact.view(), profile.target_name());
         let facts = profile
             .layout_target_facts()
             .ok_or_else(|| fail("selected native target has no representation facts".into()))?;
-        let layouts =
-            psi_target_layouts::admit_target_layouts(artifact.view(), &targets, &facts)
-                .map_err(|error| fail(error.to_string()))?;
-        self.scope
+        let layouts = psi_target_layouts::admit_target_layouts(artifact.view(), &targets, &facts)
+            .map_err(|error| fail(error.to_string()))?;
+        self.scope()
             .scalar_application_demand(artifact.semantic_module(), &layouts)
             .map_err(fail)
     }
 
     pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
-        &self.authorization
+        self.checked.authorization()
     }
 
     pub fn with_operation_evidence(
@@ -420,7 +224,7 @@ impl PreparedNativeExecution {
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        self.authorization
+        self.authorization()
             .require_artifact(artifact)
             .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         if let Some(evidence) = &evidence {
@@ -435,32 +239,30 @@ impl PreparedNativeExecution {
     }
 
     pub fn selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
-        &self.selection
+        self.checked.selection()
     }
     pub fn source_selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
-        self.scope.source_provider_selection()
+        self.scope().source_provider_selection()
     }
     pub const fn scope(&self) -> &crate::NativeExecutionScope {
-        &self.scope
+        self.checked.scope()
     }
     pub fn external_bindings(&self) -> &[calling_conventions::ExternalBindingRow] {
-        &self.external_bindings
+        &self.providers.external_bindings
     }
     pub fn demands(&self) -> &BTreeSet<String> {
-        &self.demands
+        &self.providers.demands
     }
-    pub fn compiler_builtins(
-        &self,
-    ) -> &[provider_admission::TerminalCompilerBuiltinProposal] {
-        &self.compiler_builtins
+    pub fn compiler_builtins(&self) -> &[provider_admission::TerminalCompilerBuiltinProposal] {
+        &self.providers.compiler_builtins
     }
     pub fn local_adapters(&self) -> &[provider_admission::SelectedProviderAdapter] {
-        &self.local_adapters
+        self.scope().local_adapters()
     }
-    pub const fn boundary_application_coverage(
+    pub fn boundary_application_coverage(
         &self,
     ) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
-        &self.boundary_application_coverage
+        &self.providers.boundary_application_coverage
     }
 }
 
@@ -473,7 +275,8 @@ pub fn requires_scalar_values(
     !demand.is_empty()
         || !artifact
             .semantic_module()
-            .scalars.scalar_applications
+            .scalars
+            .scalar_applications
             .conditions
             .is_empty()
 }

@@ -1,5 +1,6 @@
 //! Plan every reachable private native body before physical resource planning begins.
-use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
+use provider_realization::native_execution::PreparedNativeExecution;
+use verified_optimization_input::TerminalNativeRealizationProposal;
 use crate::compile_body::NativeBodyPlanningError;
 use artifact_lowering::admit_prepared_native_realization;
 use diagnostics::Diagnostic;

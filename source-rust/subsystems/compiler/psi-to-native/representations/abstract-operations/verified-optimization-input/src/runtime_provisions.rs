@@ -671,7 +671,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
         input: AdmittedRuntimeInput<'_>,
         installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
-        execution: &crate::PreparedNativeExecution,
+        providers: &crate::ScopedProviderSelection,
         external_bindings: &[calling_conventions::ExternalBindingRow],
         native: NativeBindingRuntimeInputs<'_>,
     ) -> Result<Self, String> {
@@ -682,16 +682,12 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
         let native_entry = program_entry
             .physical_adapter()
             .map_or(checked.terminal_entry(), |adapter| adapter.machine());
-        let selected = execution.selection();
-        if execution
-            .authorization()
-            .artifact()
-            .manifest()
-            .identity()
-            .as_bytes()
-            != &input.manifest_identity()
-            || execution.scope().entry() != native_entry
-            || execution.scope().target_context().target() != target_slot.owner.target_name()
+        let scope = input.require_native_providers(providers, native.bindings)?;
+        let selected = providers.selection();
+        if scope.checked_entry() != Some(checked)
+            || scope.entry() != native_entry
+            || scope.target_context().target() != target_slot.owner.target_name()
+            || scope.target_context().terminal_psi() != checked.terminal_psi_identity()
             || input.entry() != native_entry
             || checked.source_signature_identity() != program_entry.source().identity().bytes()
             || program_entry
@@ -721,10 +717,9 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             manifest: input.manifest_identity(),
             entry: checked.terminal_entry(),
             native_entry,
-            selected_providers: execution.scope().selected_provider_closure(),
-            source_providers: *execution.source_selection().identity_digest().as_bytes(),
-            source_native_bindings: execution
-                .scope()
+            selected_providers: scope.selected_provider_closure(),
+            source_providers: *scope.source_provider_selection().identity_digest().as_bytes(),
+            source_native_bindings: scope
                 .source_native_bindings()
                 .ok_or("runtime execution has no admitted native bindings")?,
             source_signature_identity: checked.source_signature_identity(),

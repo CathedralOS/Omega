@@ -4,9 +4,8 @@ use diagnostics::Diagnostic;
 use provider_admission::TerminalAuthorityPermissionPolicy;
 use provider_plans::ProviderPlan;
 use terminal_psi::TerminalIdentityTable;
-use verified_optimization_input::{
-    AdmittedNativeComponentCall, ComponentNativeInputs, PreparedNativeExecution,
-};
+use provider_realization::native_execution::PreparedNativeExecution;
+use verified_optimization_input::{AdmittedNativeComponentCall, ComponentNativeInputs};
 
 pub struct ComponentCompilation<'input> {
     pub input: ComponentNativeInputs<'input>,
