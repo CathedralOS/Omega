@@ -140,6 +140,26 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         let type_index: i32 = self.parser.machine_parameters[index].type_reference;
         transition self.construction_value_type(source, type_index) {
             1 -> parameter(unit, index + 1)
+            _ -> parameter_shape(unit, index, type_index, self.parser.type_references[type_index])
+        }
+    }
+    // A later supplier can declare the referent. Resolve its name when
+    // checking the signature with this unit's imports and visibility.
+    state parameter_shape(unit: i32, index: i32, type_index: i32, row: OmegaTypeReferenceSyntax) {
+        transition row.kind {
+            OmegaTypeReferenceKind::Reference -> referent(unit, index, type_index, row)
+            _ -> units(unit + 1, 0)
+        }
+    }
+    state referent(unit: i32, index: i32, type_index: i32, row: OmegaTypeReferenceSyntax) {
+        transition (row.payload2 == 0) && (row.payload1 < 2) {
+            true -> referent_kind(unit, index, type_index, self.parser.type_references[row.payload0])
+            _ -> units(unit + 1, 0)
+        }
+    }
+    state referent_kind(unit: i32, index: i32, type_index: i32, inner: OmegaTypeReferenceSyntax) {
+        transition inner.kind {
+            OmegaTypeReferenceKind::Named -> parameter(unit, index + 1)
             _ -> reference_parameter(unit, index, self.scalar_type(source, type_index))
         }
     }
