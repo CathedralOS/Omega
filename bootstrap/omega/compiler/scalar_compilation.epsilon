@@ -6989,6 +6989,7 @@ machine OmegaScalarCompiler::prove_bound(
             OmegaCheckedValueKind::RepresentationCast -> return self.prove_bound(source, state_index, before, self.value_payloads[expression], minimum, maximum, guard, truth)
             OmegaCheckedValueKind::Place -> place()
             OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
+            OmegaCheckedValueKind::TrappingArithmetic -> trapping(self.parser.binary_expressions[self.value_payloads[expression]])
             _ -> return 0
         }
     }
@@ -7013,6 +7014,14 @@ machine OmegaScalarCompiler::prove_bound(
     state initializer(index: i32, row: OmegaLocalDataStatementSyntax) {
         transition (row.is_mutable == 0) && (row.has_initial_value == 1) {
             true -> return self.prove_bound(source, state_index, self.local_befores[index], row.initial_value, minimum, maximum, -1, 0)
+            _ -> return 0
+        }
+    }
+    // A successful unsigned Trapping addition has the same mathematical sum
+    // as an exact addition. Keep the runtime trap and its checked effect.
+    state trapping(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Add -> addition(row)
             _ -> return 0
         }
     }
