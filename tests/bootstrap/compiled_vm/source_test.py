@@ -23,8 +23,7 @@ def digest(data):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--accelerated", action="store_true")
-    parser.add_argument("--seconds", type=int,
-                        help="observation seconds (default: 7200 with runtime/storage controls, otherwise 3600)")
+    compiled.add_invocation_budget(parser)
     parser.add_argument("--omega", action="store_true")
     parser.add_argument("--omega-values", action="store_true",
                         help="execute bootstrap parameter/local/call and refusal controls")
@@ -37,10 +36,6 @@ def main():
     parser.add_argument("--compiler-only", action="store_true",
                         help="stop after compiler construction, rebuilds, and differential controls")
     args = parser.parse_args()
-    if args.seconds is None:
-        args.seconds = 7200 if args.omega_control or args.omega_storage or args.omega_utf8 else 3600
-    if args.seconds <= 0:
-        parser.error("--seconds must be positive")
     if args.compiler_only and (args.omega or args.omega_values or args.omega_control or args.omega_storage or args.omega_utf8):
         parser.error("--compiler-only and Omega customers select incompatible scopes")
     mode = "accelerated" if args.accelerated else "reference"
@@ -48,11 +43,10 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     source = compiled.gamma_backend_source("alpha")
     (work / "compiler.gamma").write_bytes(source)
-    compiled.reconstruct(work)
+    compiled.reconstruct(work, seconds=args.seconds)
     request = compiled.gamma_request(source, source)
     (work / "construction.request").write_bytes(request)
-    print(f"{mode} construction: source={len(source)} bytes sha256={digest(source)}; "
-          f"allowance={args.seconds}s", flush=True)
+    print(f"{mode} construction: source={len(source)} bytes sha256={digest(source)}", flush=True)
     started = time.monotonic()
     if args.accelerated:
         import gamma
@@ -85,13 +79,13 @@ def main():
                 raise compiled.Invalid("Gamma source compiler rejected malformed source")
             return result
 
-    compiled.controls(work, work / "reference", compiler=SourceCompiler)
+    compiled.controls(work, work / "reference", compiler=SourceCompiler, seconds=args.seconds)
     compiled.call_depth_controls(work, SourceCompiler, args.seconds)
     if args.compiler_only:
         print(f"{mode} compiler construction and controls passed", flush=True)
         return
-    compiled.customer(work, work / "reference", producer=SourceCompiler)
-    compiled.epsilon_customer(work, producer=SourceCompiler)
+    compiled.customer(work, work / "reference", producer=SourceCompiler, seconds=args.seconds)
+    compiled.epsilon_customer(work, producer=SourceCompiler, seconds=args.seconds)
     if args.omega:
         compiled.omega_customer(work, args.seconds)
     if args.omega_values:

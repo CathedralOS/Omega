@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from compiled import add_invocation_budget
+from compiled import add_invocation_budget, execute, reference
 from independent.epsilon.composition import linked_program
 from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
 from route import MODES, ROOT, Program, Route, execute_route, observation_kind, prior_invocations
@@ -26,6 +26,15 @@ class RouteTests(unittest.TestCase):
         for value in ("0", "-1", "invalid"):
             with self.subTest(value=value), self.assertRaises(argparse.ArgumentError):
                 parser.parse_args(["--seconds", value])
+
+    def test_shared_guest_and_reference_pass_the_selected_budget_to_the_process(self):
+        finished = subprocess.CompletedProcess(["evaluator"], 0, b"*", b"")
+        with patch("compiled.subprocess.run", return_value=finished) as run:
+            for observe in (execute, reference):
+                self.assertEqual(observe("evaluator", b"source"), (0, b"*"))
+                self.assertIsNone(run.call_args.kwargs["timeout"])
+                self.assertEqual(observe("evaluator", b"source", timeout=12), (0, b"*"))
+                self.assertEqual(run.call_args.kwargs["timeout"], 12)
 
     def test_matrix_reuses_only_identical_producer_invocations_and_runs_each_guest(self):
         with tempfile.TemporaryDirectory() as temp, patch("route.invoke", return_value=b"output") as invoke:

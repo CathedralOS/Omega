@@ -61,7 +61,7 @@ def stamp(tape, executable):
           'stamp_seed "$1" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$2"', tape, executable)
 
 
-def execute(executable, payload=b"", timeout=60):
+def execute(executable, payload=b"", timeout=None):
     result = subprocess.run([str(executable)], input=payload, capture_output=True,
                             timeout=timeout)
     if result.stderr:
@@ -74,8 +74,8 @@ def gamma_request(source, guest=b""):
     return struct.pack("<I", len(source)) + source + guest
 
 
-def reference(evaluator, source, payload=b""):
-    return execute(evaluator, gamma_request(source, payload))
+def reference(evaluator, source, payload=b"", timeout=None):
+    return execute(evaluator, gamma_request(source, payload), timeout)
 
 
 def gamma_backend_source(target):
@@ -151,7 +151,7 @@ def call_depth_controls(work, compiler, seconds, realize=stamp):
     assert execute(depth, b"\x01", seconds) == (250, b"")
 
 
-def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
+def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid, *, seconds=None):
     names = """(def main () Int (prefix_z 40))
 (def prefix_zz ((n Int)) Int (prefix_y n))
 (def prefix_y ((n Int)) Int (+ n 2))
@@ -170,8 +170,8 @@ def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
              ("names differing at the last byte of a keyword", lookalikes, b"", (0, b"*"))]
     for label, text, payload, expected in cases:
         source = text.encode("ascii")
-        actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
-        original = reference(evaluator, source, payload)
+        actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload, seconds)
+        original = reference(evaluator, source, payload, seconds)
         assert actual == original == expected, (label, actual, original, expected)
     duplicate = names.encode("ascii") + b" (def prefix_y () Int 0)"
     invalid_sources = [*INVALID_GAMMA, duplicate]
@@ -182,7 +182,7 @@ def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
             pass
         else:
             raise AssertionError(("invalid source compiled", source))
-        assert reference(evaluator, source) == (1, b""), source
+        assert reference(evaluator, source, timeout=seconds) == (1, b""), source
     print(f"controls: {len(cases)} exact differential observations; {len(invalid_sources)} rejected sources", flush=True)
     return len(cases), len(invalid_sources)
 
@@ -207,7 +207,7 @@ def pack_delta_compiler(work):
                 work / "delta.gamma", "bootstrap/delta/compiler/delta_compiler.gamma")
 
 
-def customer(work, evaluator, producer, realize=stamp):
+def customer(work, evaluator, producer, realize=stamp, *, seconds=None):
     source = pack_delta_compiler(work)
     support = pack("bootstrap/delta/compiler/support/support.gamma.sources", work / "support.bin")
     started = time.monotonic()
@@ -218,27 +218,27 @@ def customer(work, evaluator, producer, realize=stamp):
     request = delta_request(delta, support)
     (work / "request.bin").write_bytes(request)
     started = time.monotonic()
-    actual = execute(compiler, request)
+    actual = execute(compiler, request, seconds)
     elapsed = time.monotonic() - started
-    original = reference(evaluator, source, request)
+    original = reference(evaluator, source, request, seconds)
     assert actual == original and actual[0] == 0, (actual[0], original[0], len(actual[1]), len(original[1]))
     receipt = actual[1]
     (work / "receipt.gamma").write_bytes(receipt)
     result = compile_program(work, receipt, "receipt", compiler=producer, realize=realize)
     for payload in (b"", b"ABC", bytes(range(256))):
-        assert execute(result, payload) == reference(evaluator, receipt, payload) == (0, payload * 2)
+        assert execute(result, payload, seconds) == reference(evaluator, receipt, payload, seconds) == (0, payload * 2)
     for request in (b"", b"DCREQ\x01\x00\x00" + struct.pack("<II", 0, 0)):
-        assert execute(compiler, request) == reference(evaluator, source, request)
+        assert execute(compiler, request, seconds) == reference(evaluator, source, request, seconds)
     print(f"Delta customer: exact receipt {len(receipt)} bytes sha256={hashlib.sha256(receipt).hexdigest()}; compiled execution {elapsed:.3f}s (functional run, not a comparative benchmark)", flush=True)
 
 
-def epsilon_customer(work, producer, realize=stamp):
+def epsilon_customer(work, producer, realize=stamp, *, seconds=None):
     closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
     subject = closure + (ROOT / "bootstrap/epsilon/interpreter.delta").read_bytes()
     request = delta_request(subject, (work / "support.bin").read_bytes())
     (work / "epsilon-request.bin").write_bytes(request)
     started = time.monotonic()
-    status, receipt = execute(work / "delta", request)
+    status, receipt = execute(work / "delta", request, seconds)
     assert status == 0, (status, receipt[:40])
     elapsed = time.monotonic() - started
     (work / "epsilon.gamma").write_bytes(receipt)
@@ -247,7 +247,7 @@ def epsilon_customer(work, producer, realize=stamp):
           'require_epsilon_evaluator_entry_receipt_identity "$1"', work / "epsilon.gamma")
     executable = compile_program(work, receipt, "epsilon", compiler=producer, realize=realize)
     for label, request, expected in epsilon_observations(closure):
-        actual = execute(executable, request)
+        actual = execute(executable, request, seconds)
         assert actual == expected, (label, actual, expected)
     artifact = work / ("epsilon.tape" if realize is stamp else "epsilon.elf")
     print(f"Epsilon customer: reconstructed bound {len(receipt)}-byte receipt in {elapsed:.3f}s; {artifact.stat().st_size} artifact bytes; exit, stdin, trap, reject and malformed-envelope observations passed", flush=True)
@@ -261,7 +261,7 @@ def omega_customer(work, timeout, controls=False, *, observe=None):
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, stdin)
     label = "omega-controls" if controls else "omega"
     (work / (label + "-request.bin")).write_bytes(request)
-    print(f"{label} customer: {len(source)} Epsilon source bytes; execution allowance {timeout}s", flush=True)
+    print(f"{label} customer: {len(source)} Epsilon source bytes", flush=True)
     started = time.monotonic()
     if observe is None:
         status, observation = execute(work / "epsilon", request, timeout)
@@ -278,7 +278,7 @@ def omega_customer(work, timeout, controls=False, *, observe=None):
     (work / (label + ".tape")).write_bytes(tape)
     stamp(work / (label + ".tape"), work / (label + "-program"))
     expected = int((gate / "expected.txt").read_text())
-    assert execute(work / (label + "-program")) == (expected, b"")
+    assert execute(work / (label + "-program"), timeout=timeout) == (expected, b"")
     print(f"{label} customer: {len(tape)} Alpha bytes -> exit {expected}; elapsed {time.monotonic()-started:.3f}s", flush=True)
 
 
@@ -290,7 +290,7 @@ def omega_values_customer(work, timeout):
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, b"")
     (work / "values-source.epsilon").write_bytes(source)
     (work / "values-request.bin").write_bytes(request)
-    print(f"Omega values customer: {len(source)} source bytes; allowance {timeout}s", flush=True)
+    print(f"Omega values customer: {len(source)} source bytes", flush=True)
     started = time.monotonic()
     status, observation = execute(work / "epsilon", request, timeout)
     (work / "values-observation.bin").write_bytes(observation)
@@ -308,7 +308,7 @@ def omega_values_customer(work, timeout):
         tape.write_bytes(observation[offset:offset + length])
         offset += length
         stamp(tape, executable)
-        assert execute(executable) == (expected, b""), index
+        assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
     print(f"Omega values customer: twelve emitted executables and 33 source-owned refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
@@ -337,7 +337,7 @@ def omega_control_customer(work, timeout):
     (work / "control-source.epsilon").write_bytes(source)
     (work / "control-program.omg").write_bytes(program)
     (work / "control-request.bin").write_bytes(request)
-    print(f"Omega runtime control: {len(source)} Epsilon bytes; {len(program)} Omega bytes; allowance {timeout}s", flush=True)
+    print(f"Omega runtime control: {len(source)} Epsilon bytes; {len(program)} Omega bytes", flush=True)
     started = time.monotonic()
     status, observation = execute(work / "epsilon", request, timeout)
     (work / "control-observation.bin").write_bytes(observation)
@@ -355,7 +355,7 @@ def omega_control_customer(work, timeout):
         tape.write_bytes(observation[offset:offset + length])
         offset += length
         stamp(tape, executable)
-        assert execute(executable) == (expected, b""), index
+        assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
     print(f"Omega runtime control: 38 emitted executables, actual lexer byte/base matrix, nominal sums, terminal values, lexical machine scopes, source-set lookup/reset, chained casts and 60 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
@@ -381,7 +381,7 @@ def omega_storage_customer(work, timeout):
     (work / "storage-source.epsilon").write_bytes(source)
     (work / "storage-program.omg").write_bytes(program)
     (work / "storage-request.bin").write_bytes(request)
-    print(f"Omega storage: {len(source)} Epsilon bytes; {len(program)} Omega bytes; allowance {timeout}s", flush=True)
+    print(f"Omega storage: {len(source)} Epsilon bytes; {len(program)} Omega bytes", flush=True)
     started = time.monotonic()
     status, observation = execute(work / "epsilon", request, timeout)
     (work / "storage-observation.bin").write_bytes(observation)
@@ -399,7 +399,7 @@ def omega_storage_customer(work, timeout):
         tape.write_bytes(observation[offset:offset + length])
         offset += length
         stamp(tape, executable)
-        assert execute(executable) == (expected, b""), index
+        assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
     print(f"Omega storage: sixteen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and 50 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
@@ -452,7 +452,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         payload = bytes([selected]) + programs.get(selected, b"")
         request = epsilon_request((work / "epsilon.delta").read_bytes(), source, payload)
         (work / f"utf8-{selected}-request.bin").write_bytes(request)
-        print(f"Omega UTF-8 batch {selected}: {len(source)} Epsilon bytes; {len(payload)} input bytes; allowance {timeout}s", flush=True)
+        print(f"Omega UTF-8 batch {selected}: {len(source)} Epsilon bytes; {len(payload)} input bytes", flush=True)
         started = time.monotonic()
         status, observation = execute(work / "epsilon", request, timeout)
         (work / f"utf8-{selected}-observation.bin").write_bytes(observation)
@@ -473,7 +473,7 @@ def omega_utf8_customer(work, timeout, batch=None):
             tape.write_bytes(observation[offset:offset + length])
             offset += length
             stamp(tape, executable)
-            assert execute(executable) == (expected, b""), index
+            assert execute(executable, timeout=timeout) == (expected, b""), index
         assert offset == len(observation), "unexpected publication after the final artifact"
         print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
     if batch is None:
