@@ -261,6 +261,7 @@ crashes Trap
             ClauseKind::Requires -> next(syntax, index + 1, end),
             ClauseKind::Ensures -> next(syntax, index + 1, end),
             ClauseKind::Crashes -> next(syntax, index + 1, end),
+            ClauseKind::CrashesNone -> next(syntax, index + 1, end),
             ClauseKind::Suspends -> next(syntax, index + 1, end),
             ClauseKind::Blocks -> next(syntax, index + 1, end),
             _ -> refused()
