@@ -1,0 +1,60 @@
+// Parse one source unit from stdin, starting with empty syntax tables.
+// Seven little-endian counts precede any diagnostic coordinate.
+data Main {
+    console: Console;
+    parser: OmegaParser;
+    source: [u8; 131072];
+}
+
+machine Main::write_u32(&mut self, value: i32) {
+    self.console.write_byte(value & 255);
+    self.console.write_byte((value / 256) & 255);
+    self.console.write_byte((value / 65536) & 255);
+    self.console.write_byte((value / 16777216) & 255);
+}
+
+machine Main::main(&mut self) {
+    transition true { true -> read(0) }
+
+    state read(length: i32) {
+        let next: i32 = self.console.read_byte();
+        transition next < 0 {
+            true -> parse(length)
+            _ -> append(length, next)
+        }
+    }
+    state append(length: i32, next: i32) {
+        assert length < 131072;
+        self.source[length] = next;
+        transition true { true -> read(length + 1) }
+    }
+    state parse(length: i32) {
+        self.parser.parse_view(self.source.as_slice[0..length]);
+        self.write_u32(self.parser.root_count);
+        self.write_u32(self.parser.machine_state_count);
+        self.write_u32(self.parser.member_count);
+        self.write_u32(self.parser.machine_parameter_count);
+        self.write_u32(self.parser.type_reference_count);
+        self.write_u32(self.parser.statement_count);
+        self.write_u32(self.parser.expression_count);
+        transition self.parser.status {
+            OmegaParserStatus::Complete -> self.console.exit_process(0)
+            OmegaParserStatus::Incomplete -> incomplete()
+            OmegaParserStatus::ResourceFailure -> resource_failure()
+            _ -> invalid()
+        }
+    }
+    state incomplete() {
+        self.write_u32(self.parser.incomplete_start);
+        self.console.exit_process(2);
+    }
+    state resource_failure() {
+        self.write_u32(self.parser.diagnostic_start);
+        self.write_u32(self.parser.resource_limit);
+        self.console.exit_process(3);
+    }
+    state invalid() {
+        self.write_u32(self.parser.diagnostic_start);
+        self.console.exit_process(1);
+    }
+}

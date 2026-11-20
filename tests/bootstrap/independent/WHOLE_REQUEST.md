@@ -113,11 +113,47 @@ entry must still report its specified limits and refusal coordinates.
 [Parser and checker storage](../../../bootstrap/omega/compiler/scalar_compilation.epsilon) ·
 [OCREQ provisions](../../../wiki/spec/build/compiler_request.md)
 
-A per-unit construction would instead retain a global directory of package
-and unit owners, declaration signatures and labels. It could then parse and
-check each body using local syntax indexes. Import resolution, forward calls
-and final label fixups would still see the complete program. The counts above
-measure cumulative demand. They do not establish that each unit fits on its own.
+### Full construction and single-unit controls
+
+With type domains stored directly in their syntax nodes at `7baa8d6a64c`,
+the independent Epsilon source model processed the complete request above
+and returned `000300000084130700`. Exit 3 identifies a resource refusal at
+packed source byte 463,748. The parser requested path member 16,385 of
+16,384 while reading `syntax` in the `ShiftRight` call in unit 17, line
+1340, column 54. It had retained 14,667 expressions and 9,722 type nodes.
+The run used 469.38 CPU seconds and 995,392 KiB peak RSS.
+[Frozen source line](https://github.com/CathedralOS/Omega/blob/e8ef069cde7/source/subsystems/compiler/source_to_psi/pipeline/symbol_resolved_trees_to_typed_trees/expressions.omg#L1340)
+
+The same parser also read two original units separately with empty tables.
+Both reached `Complete`, including the rest of the 101,821-byte unit that
+stopped the whole construction. These controls exercise syntax. Resolving
+the imports and compiling the bodies require the larger program.
+
+| Unit | Bytes | Roots | States | Path members | Params | Type nodes | Statements | Expressions |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 17, `expressions.omg` | 101,821 | 104 | 246 | 3,847 | 936 | 2,053 | 722 | 3,055 |
+| 19, `generics.omg` | 24,839 | 29 | 71 | 905 | 277 | 632 | 183 | 875 |
+
+To replay the full result, pack the library at `7baa8d6a64c` as above and
+append its construction entry. The resulting 897,403 bytes have SHA-256
+`26a25402b0806db438d059f8736f219aca83c9ea54435fb9a9ed0c87b5dddd65`.
+Pass these bytes and the product input to the source model's `observation`
+function. The model used here has SHA-256
+`758286e8bfea3395414a673a0ba5228c761e94f06e88df7e0f5a889fc4a538c9`.
+For either single-unit replay, append the test console and parser control
+to the same packed library, then pass the named unit bytes from the product
+as stdin. After the five-byte successful exit header, read seven unsigned
+little-endian words in table order.
+[Model preparation](https://github.com/CathedralOS/Omega/blob/3cd9e720719/wiki/development/bootstrap/README.md#L398-L410) ·
+[Test console](epsilon/console.epsilon) · [Single-unit parser control](epsilon/omega_parse_unit.epsilon)
+
+A first per-unit construction milestone is a declaration directory built
+from the source units. It needs each declaration's owner, path, visibility,
+signature and source range. A two-unit control can then resolve a forward
+call through an import after discarding the first unit's syntax rows, and
+reject the same import when its dependency edge is removed. The next pass
+could reparse a body with local syntax indexes and emit against global
+declaration labels. The two controls above measure only their own units.
 
 ## Whole compiler result
 
