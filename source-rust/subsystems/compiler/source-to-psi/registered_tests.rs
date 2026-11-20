@@ -99,7 +99,7 @@ impl<'a> RegisteredTests<'a> {
             )]);
         }
         let (source, continuation) = source.resolve()?;
-        let checked = source.judge(continuation.clone(), None, None)?;
+        let checked = source.judge(continuation.clone(), crate::product::ProductEntry::BuildBindings)?;
         let typed = &checked.program;
         let retain = |symbol| {
             source_symbols::retain_declaration(&typed.symbols, symbol)
@@ -178,9 +178,10 @@ impl<'a> RegisteredTests<'a> {
         root: &TestRoot,
         target: &str,
     ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
-        let checked = self
-            .source
-            .judge(self.continuation.clone(), None, Some((root, target)))?;
+        let checked = self.source.judge(
+            self.continuation.clone(),
+            crate::product::ProductEntry::RegisteredTest { root, target },
+        )?;
         let psi = self.source.publish(&checked)?;
         published_target(psi, checked, target, self.source.subject)
     }

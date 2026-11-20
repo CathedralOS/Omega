@@ -75,7 +75,7 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
         machine value() -> u32 crashes none { 17 }
         machine main() -> u32 crashes none { VALUE }",
     );
-    let program = compile(product(files, root, package, &[]).unwrap()).unwrap();
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
     let bytes = program.to_bytes();
     let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     assert_eq!(reopened.to_bytes(), bytes);
@@ -104,7 +104,7 @@ fn omega_compiler_storage_and_outcomes_publish_psi() {
         ("outcomes", OMEGA_OUTCOME),
     ] {
         let (files, root) = captured(package, text);
-        compile(product(files, root, package, &[]).unwrap())
+        compile(product(files, root, package, &[]).unwrap(), None)
             .unwrap_or_else(|errors| panic!("{name} could not publish Psi: {errors:?}"));
     }
 }
@@ -159,7 +159,7 @@ fn complete_omega_request_protocol_publishes_psi() {
             "wire::u32_from_le_bytes",
             1,
         ));
-    let program = compile(stage).unwrap();
+    let program = compile(stage, None).unwrap();
     assert!(!program.to_bytes().is_empty());
 }
 
@@ -199,7 +199,7 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
             .push(SourceScopedTopLevelBinding::logical_module_import(
                 root, scalar, import, 1,
             ));
-        compile(stage)
+        compile(stage, None)
     };
     let artifact =
         check("machine handle(p: ScalarParameter) -> u64 in Trapping { p.type_handle }").unwrap();
@@ -237,7 +237,7 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
             slot: slot.into(),
         }),
     };
-    let diagnostics = compile(product(files, root, package, &[executed]).unwrap()).unwrap_err();
+    let diagnostics = compile(product(files, root, package, &[executed]).unwrap(), None).unwrap_err();
     assert!(
         diagnostics[0]
             .message
@@ -269,7 +269,7 @@ fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
     .unwrap();
     let mut stage = product(files.clone(), root, package, &[]).unwrap();
     stage.product.policy.activation = Some(&declaration);
-    compile(stage).unwrap();
+    compile(stage, None).unwrap();
 
     let mut changed = declaration.source().clone();
     changed.package_identity = Some(PackageKeyIdentity::from_digest([0x62; 32]).unwrap());
@@ -278,7 +278,7 @@ fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
             .unwrap();
     let mut stage = product(files, root, package, &[]).unwrap();
     stage.product.policy.activation = Some(&foreign);
-    let diagnostics = compile(stage).unwrap_err();
+    let diagnostics = compile(stage, None).unwrap_err();
     assert!(
         diagnostics[0]
             .message
@@ -313,7 +313,7 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
             .source_id;
         let mut stage = product(files, root, package, &[])?;
         stage.parsed.roots.push(dependency);
-        compile(stage)
+        compile(stage, None)
     };
 
     assert!(!publish(main, helper).unwrap().to_bytes().is_empty());
@@ -356,7 +356,7 @@ fn parser_output_must_cover_the_exact_captured_files() {
     let mut edited = product(files.clone(), root, package, &[]).unwrap();
     let (replacement, _) = captured(package, "machine main() -> u32 crashes none { 4 }");
     edited.parsed.files = Arc::new(replacement);
-    let errors = compile(edited).unwrap_err();
+    let errors = compile(edited, None).unwrap_err();
     assert!(
         errors.iter().any(|error| error
             .message
@@ -374,7 +374,7 @@ fn parser_output_must_cover_the_exact_captured_files() {
         "data Extra {}",
     );
     missing.parsed.files = Arc::new(expanded);
-    let errors = compile(missing).unwrap_err();
+    let errors = compile(missing, None).unwrap_err();
     assert!(
         errors
             .iter()

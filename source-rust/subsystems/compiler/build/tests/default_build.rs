@@ -46,7 +46,7 @@ fn two_deployments_share_the_named_files_default_build() {
     let planned = product.product_stage(&targets).unwrap();
     for target in targets {
         let source = planned.source();
-        let published = source_compiler::compile_for_target(source, target.target_name()).unwrap();
+        let published = source_compiler::compile_for_target(source, target.target_name(), None).unwrap();
         assert!(!published.into_parts().0.to_bytes().is_empty());
     }
     assert_eq!(counters::source_build_execution_count() - before, 1);

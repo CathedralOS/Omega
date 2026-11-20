@@ -173,7 +173,7 @@ impl crate::StageSource<'_> {
             ))]);
         }
         let (product, resolved) = self.resolve()?;
-        let checked = product.judge(resolved, None, None)?;
+        let checked = product.judge(resolved, crate::product::ProductEntry::BuildBindings)?;
         let publication = checked.terminal_publication();
         let accepted = publication.accepted()?;
         let supply = AcceptedTerminalSource::build_backing_supply(
