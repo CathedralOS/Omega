@@ -132,6 +132,14 @@ impl ClaimsState {
         }
         Ok(moved)
     }
+    pub(super) fn require_empty_return(&self) -> Result<(), Error> {
+        if self.live_count != 0 {
+            return Err(Error::unsupported(
+                "a normal return leaves an untransferred logical claim",
+            ));
+        }
+        Ok(())
+    }
     fn put(&mut self, claim: ClaimLocation) -> Result<(), Error> {
         let slot = self
             .claim_ids
@@ -249,6 +257,19 @@ impl ClaimsPlan {
                             .unwrap_or_default()
                     }
                     _ => {}
+                }
+            }
+            for (edge, actions) in block.terminator.cleanup_rosters_mut() {
+                for (ordinal, action) in actions.iter_mut().enumerate() {
+                    if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                        let site = InvocationSite::Cleanup {
+                            edge,
+                            action_ordinal: u32::try_from(ordinal)
+                                .map_err(|_| Error::malformed("cleanup claim ordinal overflows"))?,
+                        };
+                        cleanup.claim_transfers =
+                            self.call_transfers.get(&site).cloned().unwrap_or_default();
+                    }
                 }
             }
             if let Terminator::InvokeNoNormal {
@@ -1051,28 +1072,17 @@ impl<'types> Flow<'types> {
                 self.plan.returned_claims[position].bindings = Some(returned);
             }
         }
-        if matches!(
-            terminator,
-            Terminator::Return { .. }
-                | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnStructural { .. }
-        ) && state.live_count != 0
-        {
-            return Err(Error::unsupported(
-                "a normal return leaves an untransferred logical claim",
-            ));
-        }
         Ok(())
     }
     pub fn cleanup(
         &mut self,
-        state: &ClaimsState,
+        state: &mut ClaimsState,
         edge: EdgeId,
         actions: &[TerminalAffineCleanupAction],
         settled: bool,
     ) -> Result<(), Error> {
         for (ordinal, action) in actions.iter().enumerate() {
-            let TerminalAffineCleanupAction::InvokeOwned(_) = action else {
+            let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action else {
                 continue;
             };
             let site = InvocationSite::Cleanup {
@@ -1081,10 +1091,23 @@ impl<'types> Flow<'types> {
                     .map_err(|_| Error::malformed("cleanup claim ordinal overflows"))?,
             };
             self.snapshot(site, state, settled);
-            if state.at(action.place()).next().is_some() {
-                return Err(Error::unsupported(
-                    "claim-bearing cleanup needs its exact consuming disposition",
+            let mut transfers = state
+                .take(&cleanup.subject)?
+                .into_iter()
+                .map(|claim| ClaimTransfer {
+                    claim: claim.identity,
+                    argument_index: 0,
+                    path: claim.path,
+                })
+                .collect::<Vec<_>>();
+            transfers.sort_by_key(|row| row.claim);
+            if self.mode == Mode::Verify && transfers != cleanup.claim_transfers {
+                return Err(Error::malformed(
+                    "cleanup transfers differ from exact incoming custody",
                 ));
+            }
+            if settled {
+                self.plan.call_transfers.insert(site, transfers);
             }
         }
         Ok(())

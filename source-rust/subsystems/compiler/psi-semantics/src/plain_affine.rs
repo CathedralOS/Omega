@@ -992,6 +992,15 @@ pub fn verify_in(
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
     let machine = module_machine(module, identity)?;
+    let has_owned_cleanup = machine
+        .blocks
+        .iter()
+        .flat_map(|block| block.terminator.cleanup_rosters())
+        .any(|(_, actions)| {
+            actions
+                .iter()
+                .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
+        });
     verify_schedule(
         machine,
         analyze(
@@ -1000,7 +1009,7 @@ pub fn verify_in(
             true,
             Some(module),
             None,
-            None,
+            has_owned_cleanup.then_some(claims::Mode::Verify),
         )?,
     )
 }
@@ -1099,13 +1108,11 @@ fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error>
                         TerminalAffineCleanupAction::InvokeOwned(actual),
                         TerminalAffineCleanupAction::InvokeOwned(expected),
                     ) => {
-                        // The ordinary call validator must authenticate the complete
-                        // proof count, site and correspondence. These IDs do not
-                        // grant disposition authority to the structural schedule.
+                        // The claim walk checks each transfer against live custody.
+                        // The call checker checks the requirement obligations.
                         actual.subject == expected.subject
                             && actual.structural_type == expected.structural_type
                             && actual.cleanup_machine == expected.cleanup_machine
-                            && actual.claim_transfers == expected.claim_transfers
                     }
                     _ => actual == expected,
                 })
@@ -1261,10 +1268,7 @@ fn prepare_disposition(
     if let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = declaration.shape {
         prepare_disposition(types, module, element, rows, visiting)?;
     }
-    let supported = if declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || declaration.owns_linear_claim
-        || declaration.is_copyable() && declaration.nominal_cleanup.is_some()
-    {
+    let supported = if declaration.is_copyable() && declaration.nominal_cleanup.is_some() {
         false
     } else if let Some(selection) = &declaration.nominal_cleanup {
         let module = module.ok_or(Error::unsupported(
@@ -1283,6 +1287,10 @@ fn prepare_disposition(
         crate::nominal_cleanup::owned_target(types.iter(), module.machines.iter(), &cleanup)
             .map_err(Error::unsupported)?;
         true
+    } else if declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || declaration.owns_linear_claim
+    {
+        false
     } else if declaration.no_code_affine_cleanup && declaration.descriptor_cleanup {
         true
     } else if let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape {
@@ -2744,7 +2752,14 @@ impl<'a> Analysis<'a> {
             retained.reverse();
             outgoing.active = retained;
             if let Some(flow) = &mut self.claim_flow {
-                flow.cleanup(&outgoing.claims, edge, supplied, entering.is_some())?;
+                flow.cleanup(&mut outgoing.claims, edge, supplied, entering.is_some())
+                    .map_err(|error| error.at(Site::Edge(edge)))?;
+                if target.is_none() {
+                    outgoing
+                        .claims
+                        .require_empty_return()
+                        .map_err(|error| error.at(Site::Edge(edge)))?;
+                }
             }
             if let Some(target) = target {
                 self.establish_successor(machine, &mut outgoing, target)
@@ -3525,7 +3540,11 @@ impl<'a> Analysis<'a> {
             .root(place)?
             .cloned()
             .ok_or(Error::malformed("missing affine owner"))?;
-        if info.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        let declaration = &self.types[index(info.structural_type.get())?];
+        if (info.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            || (region.whole
+                && declaration.nominal_cleanup.is_some()
+                && declaration.multiplicity == info.multiplicity))
             && self.can_dispose(info.structural_type)?
         {
             return Ok(false);
@@ -3544,7 +3563,6 @@ impl<'a> Analysis<'a> {
                 &mut Vec::new(),
             );
         }
-        let declaration = &self.types[index(info.structural_type.get())?];
         Ok(declaration.owns_linear_claim || !self.vacant_region(place, region, &[])?)
     }
 

@@ -322,3 +322,84 @@ fn complete_patterns_end_linear_wrappers_without_forgetting_components() {
         );
     }
 }
+
+#[test]
+fn linear_cleanup_transfers_the_receipt_claim_exactly_once() {
+    let source = "data Ticket [linear] dropped by finish { number: u64; }
+        machine finish(ticket: Ticket) { let { number } = move ticket; }
+        machine build_entry() { let ticket: Ticket = Ticket { number: 7u64 }; }";
+    let result = super::build_purpose::judge_build(source)
+        .expect("a linear cleanup should reach the checker");
+    let RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    let module = &accepted.elaboration.module;
+    let (machine, edge, ordinal, transfers) = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine
+                .module_invocations()
+                .find_map(|call| match call.site {
+                    InvocationSite::Cleanup {
+                        edge,
+                        action_ordinal,
+                    } => Some((
+                        machine.id,
+                        edge,
+                        action_ordinal as usize,
+                        call.inputs.claim_transfers,
+                    )),
+                    _ => None,
+                })
+        })
+        .expect("the receipt must reach its selected consumer");
+    assert_eq!(transfers.len(), 1);
+    assert_eq!(transfers[0].argument_index, 0);
+    assert!(transfers[0].path.is_empty());
+    for duplicate in [false, true] {
+        let mut forged = module.clone();
+        let actions = forged
+            .machines
+            .iter_mut()
+            .find(|row| row.id == machine)
+            .unwrap()
+            .blocks
+            .iter_mut()
+            .flat_map(|block| block.terminator.cleanup_rosters_mut())
+            .find(|(id, _)| *id == edge)
+            .unwrap()
+            .1;
+        let TerminalAffineCleanupAction::InvokeOwned(action) = &mut actions[ordinal] else {
+            unreachable!()
+        };
+        if duplicate {
+            action
+                .claim_transfers
+                .push(action.claim_transfers[0].clone());
+        } else {
+            action.claim_transfers.clear();
+        }
+        let error = terminal_semantics::plain_affine::verify_claims_in(&forged, machine)
+            .expect_err("each incoming claim must reach the cleanup exactly once");
+        assert!(
+            format!("{error:?}").contains("cleanup transfers differ"),
+            "{error:?}"
+        );
+    }
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert!(matches!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    ));
+    let no_consumer = source.replace(" dropped by finish", "");
+    assert!(matches!(judged(&no_consumer),
+        Err(crate::checking::CompilationRefusal::Elaboration(ref refusal)) | Ok(RouteVerdict::FallBack(ref refusal))
+            if refusal.detail.contains("without an authorized disposition")));
+}

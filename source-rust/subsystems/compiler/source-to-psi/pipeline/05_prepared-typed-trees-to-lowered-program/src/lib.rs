@@ -2139,50 +2139,11 @@ fn finish_storage(
                     *disposition = plan.stores[position].1;
                 }
             }
-            use terminal_psi::Terminator;
-            let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
+            for (edge, actions) in block.terminator.cleanup_rosters_mut() {
                 actions.retain(|action| !plan.affine_roots.contains(action.place()));
                 if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
                     actions.extend(plan.cleanup[position].1.iter().cloned());
                 }
-            };
-            match &mut block.terminator {
-                Terminator::Jump {
-                    edge,
-                    cleanup_actions,
-                    ..
-                }
-                | Terminator::Return {
-                    edge,
-                    cleanup_actions,
-                    ..
-                }
-                | Terminator::ReturnStructural {
-                    edge,
-                    cleanup_actions,
-                    ..
-                }
-                | Terminator::ReturnUnit {
-                    edge,
-                    cleanup_actions,
-                } => append(*edge, cleanup_actions),
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    append(when_true.edge, &mut when_true.cleanup_actions);
-                    append(when_false.edge, &mut when_false.cleanup_actions);
-                }
-                Terminator::StructuralCase { cases, .. } => {
-                    for case in cases {
-                        append(case.edge, &mut case.cleanup_actions);
-                    }
-                }
-                Terminator::Crash { .. }
-                | Terminator::InvokeNoNormal { .. }
-                | Terminator::EliminateEmpty { .. }
-                | Terminator::ExternalCompletion { .. } => {}
             }
         }
     }

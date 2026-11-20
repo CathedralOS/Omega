@@ -312,14 +312,18 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             .requirements
             .clone_from(&requirements);
         let caller = &mut elaboration.module.machines[machine_index];
-        let actions = actions_mut(&mut caller.blocks[block].terminator, edge).ok_or_else(|| {
-            crate::checking::refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Edge(edge),
-                "cleanup edge disappeared",
-            )
-        })?;
+        let actions = caller.blocks[block]
+            .terminator
+            .cleanup_rosters_mut()
+            .find_map(|(selected, actions)| (selected == edge).then_some(actions))
+            .ok_or_else(|| {
+                crate::checking::refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Edge(edge),
+                    "cleanup edge disappeared",
+                )
+            })?;
         let TerminalAffineCleanupAction::InvokeOwned(actual) =
             &mut actions[action_ordinal as usize]
         else {
@@ -334,52 +338,6 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
     }
     materialize_writes(elaboration)?;
     Ok(())
-}
-
-fn actions_mut(
-    terminator: &mut terminal_psi::Terminator,
-    selected: semantic_vocabulary::EdgeId,
-) -> Option<&mut Vec<TerminalAffineCleanupAction>> {
-    use terminal_psi::Terminator as T;
-    match terminator {
-        T::Jump {
-            edge,
-            cleanup_actions,
-            ..
-        }
-        | T::Return {
-            edge,
-            cleanup_actions,
-            ..
-        }
-        | T::ReturnUnit {
-            edge,
-            cleanup_actions,
-        }
-        | T::ReturnStructural {
-            edge,
-            cleanup_actions,
-            ..
-        } => (*edge == selected).then_some(cleanup_actions),
-        T::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            if when_true.edge == selected {
-                Some(&mut when_true.cleanup_actions)
-            } else if when_false.edge == selected {
-                Some(&mut when_false.cleanup_actions)
-            } else {
-                None
-            }
-        }
-        T::StructuralCase { cases, .. } => cases
-            .iter_mut()
-            .find(|case| case.edge == selected)
-            .map(|case| &mut case.cleanup_actions),
-        _ => None,
-    }
 }
 
 #[derive(Clone)]
