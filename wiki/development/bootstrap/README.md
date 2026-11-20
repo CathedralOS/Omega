@@ -85,8 +85,13 @@ Gamma ran the Delta compiler in 743.55 seconds and the native Gamma backend
 in 555.79 seconds. Both the 726,601-byte evaluator source and the
 1,977,558-byte Linux executable matched the native-hosted build byte for byte.
 The Epsilon program then returned the same six bytes in 0.02 seconds.
+Two further routes interpreted Gamma and Delta directly and ran the compiled
+Epsilon guest on Alpha and Linux. This brings the stdin control to **21/27**
+on this source tree. [Receipts](interpreted-gamma-matrix.md#replay-the-compiled-guest)
 
 ### Omega compiler byte classifier
+
+**18/27 routes** ran the classifier and refused its wrong-type twin.
 
 The positive program runs the production lexer’s byte classifier on all 256
 byte values and checks twelve answers per byte. Its twin passes an integer to
@@ -100,7 +105,7 @@ completed positive receipt for that cell.
 | Interpreter | Interpreter | Open | Open | Open |
 | Interpreter | Alpha | Open | Open | Open |
 | Interpreter | Linux | Both | Open | Open |
-| Alpha | Interpreter | Open | Open | Open |
+| Alpha | Interpreter | Open | Both | Both |
 | Alpha | Alpha | Both | Both | Both |
 | Alpha | Linux | Both | Both | Both |
 | Linux | Interpreter | Both | Both | Both |
@@ -114,6 +119,11 @@ The 3,745-byte twin changed just the forwarding argument. The interpreter
 returned `02 12 f0 07 00 00`. Both compiler targets stopped at their shared
 frontend with the complete response `rejected 18 2032`. Each positive
 compiled target ran the generated guest. [Source and oracle](../../../tests/bootstrap/independent/epsilon/enum_test.py)
+
+With Gamma compiled to Alpha and Delta interpreted directly, both compiled
+Epsilon guests exited 42. The Alpha tape was 880,161 bytes and the Linux
+executable was 468,679 bytes. Both replayed refusals came from the same
+Delta interpreter, SHA-256 `4c76020e9678898c8f74804ed2966087dbb4043aea38c691314c44def9488047`.
 
 The compiled Gamma hosts used the toolchain and classifier from
 `8da0d6a9f82`. The Linux-hosted direct-Delta run used `da31300384f` with
