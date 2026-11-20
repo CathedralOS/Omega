@@ -19,12 +19,7 @@ impl Invocation {
         fs::create_dir_all(directory.join("nested")).unwrap();
         if workspace {
             fs::create_dir_all(directory.join("tools/xtask")).unwrap();
-            fs::create_dir_all(directory.join("omega-rust")).unwrap();
-            for marker in [
-                "Cargo.toml",
-                "tools/xtask/Cargo.toml",
-                "omega-rust/pipeline.md",
-            ] {
+            for marker in ["Cargo.toml", "tools/xtask/Cargo.toml", "build.omg"] {
                 fs::write(directory.join(marker), "").unwrap();
             }
         }
@@ -195,7 +190,7 @@ fn status_commands_accept_a_closed_output_reader() {
 fn worktree_status_shows_a_claim_before_the_first_commit() {
     let invocation = Invocation::new(true);
     invocation.git(&["init", "-b", "main"]);
-    invocation.git(&["add", "Cargo.toml", "tools", "omega-rust"]);
+    invocation.git(&["add", "Cargo.toml", "tools", "build.omg"]);
     invocation.git(&[
         "-c",
         "user.name=Worktree status test",

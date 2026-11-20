@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
+const RUST_PRODUCER_TREES: [&str; 3] = ["source-rust", "omega-rust-v2", "omega-rust"];
+
 fn finding(findings: &mut Vec<Value>, check: &str, member: &str, detail: String) {
     findings.push(json!({"check": check, "member": member, "detail": detail}));
 }
@@ -88,20 +90,25 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
                 );
                 continue;
             }
-            if !base.join(spelling).starts_with(&root) {
+            let resolved = base.join(spelling);
+            let dependency = resolved.strip_prefix(&root).unwrap_or_else(|_| {
                 finding(
                     &mut findings,
                     "checkout-derived-path",
                     spelling,
                     format!("member resolves outside declared root: {spelling}"),
                 );
-            }
-            if spelling.split('/').any(|part| part == "omega-rust") {
+                Path::new(spelling)
+            });
+            if let Some(tree) = RUST_PRODUCER_TREES
+                .into_iter()
+                .find(|tree| dependency.iter().any(|part| part == *tree))
+            {
                 finding(
                     &mut findings,
                     "producer-artifact",
                     spelling,
-                    format!("member is inside omega-rust/: {spelling}"),
+                    format!("member is inside {tree}/: {spelling}"),
                 );
             }
         }
@@ -126,7 +133,7 @@ fn audit(manifests: &[PathBuf], steps: &[PathBuf], root: &Path) -> Result<Value,
                 if matches!(
                     name,
                     "cargo" | "rustc" | "rustup" | "mbx" | "nextest" | "cargo-nextest"
-                ) || token.contains("omega-rust")
+                ) || RUST_PRODUCER_TREES.iter().any(|tree| token.contains(tree))
                 {
                     finding(
                         &mut findings,
@@ -265,6 +272,8 @@ mod tests {
             "ru\\stc input.rs",
             "/bin/mbx build",
             "cat omega-rust/input",
+            r#"cat "omega-rust-v2/library/input""#,
+            r"cat source\-rust/library/input",
             "echo ${CARGO_MANIFEST_DIR}/source/library",
         ] {
             let steps = fixture.write("steps.sh", source);
@@ -306,6 +315,31 @@ mod tests {
         );
         let malformed = fixture.write("members", "EpsilonSourceClosureV1\nmember too few\n");
         assert!(audit(&[malformed], &[], &fixture.0).is_err());
+    }
+
+    #[test]
+    fn producer_members_are_recognized_relative_to_the_manifest() {
+        let fixture = Fixture::new();
+        for tree in ["source-rust", "omega-rust-v2", "omega-rust"] {
+            fs::create_dir(fixture.0.join(tree)).unwrap();
+            for (name, member) in [
+                ("members".to_owned(), format!("nested/{tree}/input")),
+                (format!("{tree}/members"), "input".to_owned()),
+            ] {
+                let manifest = fixture.write(&name, &member);
+                let record = audit(&[manifest], &[], &fixture.0).unwrap();
+                assert_eq!(
+                    record["findings"][0]["check"], "producer-artifact",
+                    "{tree}"
+                );
+                assert_eq!(record["findings"][0]["member"], member);
+            }
+        }
+        let manifest = fixture.write("members", "source-rust-docs/input");
+        assert_eq!(
+            audit(&[manifest], &[], &fixture.0).unwrap()["result"],
+            "omitted"
+        );
     }
 
     #[test]
