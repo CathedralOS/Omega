@@ -60,8 +60,10 @@ multi-target requests fan out into independently checked child compilations.
 
 The v2 construction entry interprets a ground application Build and the
 empty activated core default. It checks the application role, the authored
-`alpha_bootstrap\ProgramEntry` binding, and one optional ProcessExit provider
-selection. The file's own imports resolve each designated Product operand.
+`alpha_bootstrap\ProgramEntry` binding, and ProcessExit selections for the
+six supported targets. Local Build helpers receive the caller's mutable Build
+handle. Every helper body is checked. Only executed calls contribute a
+selection, and each target retains its own provider. The file's own imports resolve each designated Product operand.
 An incomplete activation stops before code publication. A completed pure
 application compiles from its resolved entry declaration. The selected
 terminal provider remains separate from the runtime's process-domain grant.
@@ -80,10 +82,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,883 lines / 1,083,951 bytes with SHA-256
-`cc8798cbf0b70d0f89f52ab31c1eb52fefd492598c24f47bcae1b67588495e66`.
+The manifest materializes 27,995 lines / 1,089,848 bytes with SHA-256
+`c6dcdb1e678bd9bb79f04c2fb4c69f4bfbef3d32aad9f5475af9d29df39377b8`.
 The manifest itself is 2,729 bytes, SHA-256
-`f477fb826b2a119d18a5ab18a3b9b580ee34c0657d0990d7b1f653e57445de72`;
+`7c0f52a19e63aec099a20180746c7de1960db3f7acaf862e020767149bab3484`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
