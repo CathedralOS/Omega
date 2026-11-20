@@ -660,6 +660,40 @@ fn positional_rest_checks_only_written_patterns_and_covers_the_omitted_positions
 }
 
 #[test]
+fn tuple_dispatch_checks_case_coverage_per_reachable_column_branch() {
+    let schema = "data Mode { case On; case Off(payload: bool); }";
+    let cases = "match (n, x) { (0, _) -> false, (_, Mode::On) -> true, (_, Mode::Off { payload as _ }) -> false, }";
+    let mixed = "match (b, x) { (true, _) -> true, (false, Mode::On) -> false, (false, Mode::Off { payload as _ }) -> true, }";
+    let source = |dispatch: &str| format!("{schema}\nmachine pick(n: u8, b: bool, x: Mode) -> bool {{\n    {dispatch}\n}}");
+
+    let nested = "match ((n, x), b) { ((_, Mode::On), _) -> true, ((_, Mode::Off { payload as _ }), _) -> false, }";
+    let whole_tuple = "match ((n, x), b) { (_, true) -> true, ((_, Mode::On), false) -> true, ((_, Mode::Off { payload as _ }), false) -> false, }";
+    for dispatch in [cases, mixed, nested, whole_tuple] {
+        let text = source(dispatch);
+        let stage = check(&[("coverage.omg", &text)]).unwrap();
+        assert!(stage.expressions.iter().any(|e| {
+            e.site.file == "coverage.omg"
+                && e.site.span.slice(text.as_bytes()) == Some(dispatch.as_bytes())
+                && e.ty == ValueType::Bool
+        }), "missing Bool expression at {dispatch}");
+    }
+    for dispatch in [
+        cases.replace(", (_, Mode::Off { payload as _ }) -> false", ""),
+        mixed.replace("payload as _", "payload: true"),
+        nested.replace(", ((_, Mode::Off { payload as _ }), _) -> false", ""),
+        whole_tuple.replace("((_, Mode::Off { payload as _ }), false)", "((_, Mode::Off { payload as _ }), true)"),
+        mixed.replace("(false, Mode::Off", "(true, Mode::Off"),
+    ] {
+        let text = source(&dispatch);
+        let error = check(&[("coverage.omg", &text)]).unwrap_err();
+        assert_eq!(error.file, "coverage.omg");
+        assert_eq!(error.message, "dispatch does not cover its subject");
+        assert_eq!(error.reason(), Some(omega_typer::DispatchError::UncoveredSubject.into()));
+        assert_eq!(error.span.slice(text.as_bytes()), Some(dispatch.as_bytes()));
+    }
+}
+
+#[test]
 fn runtime_construction_publishes_each_applied_payload_without_a_static_request() {
     let code = "data Box<T> { case Full(value:T); } machine build() { let a = Box::<u8>::Full {value:7}; let b = Box::<bool>::Full {value:true}; }";
     let stage = check(&[("box.omg", code)]).unwrap();
