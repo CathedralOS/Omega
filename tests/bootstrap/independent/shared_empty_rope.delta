@@ -1,0 +1,8 @@
+(def wrap ((n Int) (x Bytes)) Bytes
+  (if (eq n 0) x (wrap (- n 1) (bytes_concat (bytes_empty) x))))
+
+(def share ((n Int) (x Bytes)) Bytes
+  (if (eq n 0) x (share (- n 1) (bytes_concat x x))))
+
+(def main ((s Bytes)) Bytes
+  (share (bytes_length s) (wrap 1024 (bytes_single 'Z'))))
