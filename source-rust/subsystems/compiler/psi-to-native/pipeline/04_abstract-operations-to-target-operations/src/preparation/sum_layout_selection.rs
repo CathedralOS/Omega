@@ -3931,9 +3931,9 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     )
     .unwrap_or_else(|error| panic!("{name}: prepare {error:?}"));
     // From here selection sees the prepared plan and nothing behind it.
-    let selected = instruction_selection::select_instructions_for_plan(
+    let selected = instruction_selection::test_support::select_instructions_for_plan(
         &prepared,
-        &instruction_selection::BoundInstallations::empty(interrupts.psi()),
+        &instruction_selection::test_support::BoundInstallations::empty(interrupts.psi()),
     )
     .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
     let mut text = format!("== {name}\n");
