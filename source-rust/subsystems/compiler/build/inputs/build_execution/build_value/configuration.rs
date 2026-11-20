@@ -194,7 +194,7 @@ mod tests {
         let (source, _) = syntax
             .build_stage_source()
             .unwrap()
-            .prepare(0, &Default::default(), profile.target_name(), None)
+            .prepare(0, &[], &Default::default(), profile.target_name(), None)
             .unwrap();
         let typed = source.typed();
         let machine = crate::build_execution::select_build_machine(typed, build_source)

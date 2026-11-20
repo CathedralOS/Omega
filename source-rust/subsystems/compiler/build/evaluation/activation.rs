@@ -228,17 +228,15 @@ impl TerminalBuildHost {
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
         unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
         carried_filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
+        established: &[semantic_vocabulary::Proposition],
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let parameter = machine.receiver_for(artifact.module())?;
         let program = TerminalProgram::borrow(artifact);
         let entry = program.entry().map_err(describe)?;
-        // The evaluator is the build entry's caller, so it owes the entry's
-        // `requires` clauses before it runs anything. It hands the entry a
-        // Build it promises nothing about, so the only clauses it can owe
-        // are ones true of the evaluator itself, such as its address width
-        // (`requires addr::Bound == 18446744073709551616`).
-        match entry.unconditional_precondition()? {
+        // Initial entry owes every requirement from closed facts. A resumed
+        // entry also receives the predecessor's proved facts on the transferred homes.
+        match entry.precondition_with(established)? {
             Some(true) => {}
             Some(false) => {
                 return Err(

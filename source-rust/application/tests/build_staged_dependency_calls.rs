@@ -57,6 +57,10 @@ machine register(builder: @mut Build, request: DependencyDescription) -> Depende
 machine needs_seven(value: i32)
 requires value == 7
 {{ }}
+machine choose_amount(flag: bool) -> i32
+ensures result >= 7 && result <= 9
+{{ match flag {{ true -> 9, _ -> 7 }} }}
+machine needs_range(value: i32) requires value >= 7 && value <= 9 {{ }}
 machine initial_amount(builder: @mut Build) -> i32 {{
     builder.tests.disabled = !builder.tests.disabled;
     3
@@ -200,6 +204,7 @@ fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
     amount = 7;
     let held: @i32 = @amount;"#,
         r#"    let seven: i32 = kit\v();
+    needs_seven($held);
     transition seven == $held && !builder.tests.disabled {
         true -> carried(builder),
         _ -> wrong(builder)
@@ -212,6 +217,48 @@ fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
         ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
         "{report}"
     );
+}
+
+#[test]
+fn a_write_through_the_loan_invalidates_the_value_proved_before_preparation() {
+    let (compiled, report) = check(
+        "overwritten-frame-fact",
+        "    let mut amount: i32 = 7;\n    let held: @mut i32 = @mut amount;",
+        r#"    let seven: i32 = kit\v();
+    $held = 8;
+    needs_seven(amount);
+    carried(builder);"#,
+        7,
+    );
+    assert!(
+        !compiled && report.contains("cannot prove requires contract for call needs_seven"),
+        "{report}"
+    );
+}
+
+#[test]
+fn preparation_preserves_only_the_proved_range_of_a_local() {
+    // At execution the flag selects 7. The checker has only the range from
+    // the call, so only the first of these two contracts may use the value.
+    for (callee, allowed) in [("needs_range", true), ("needs_seven", false)] {
+        let (compiled, report) = check(
+            callee,
+            "    let amount: i32 = choose_amount(builder.freestanding);",
+            &format!(
+                r#"    let seven: i32 = kit\v();
+    {callee}(amount);
+    carried(builder);"#
+            ),
+            7,
+        );
+        assert_eq!(compiled, allowed, "{report}");
+        if !allowed {
+            assert!(
+                report.contains("cannot prove requires contract for call needs_seven"),
+                "{report}"
+            );
+        }
+    }
 }
 
 #[test]

@@ -56,6 +56,7 @@ impl BuildStageSource {
     pub fn prepare(
         self,
         index: usize,
+        facts: &[crate::ReturnedIntegerFact],
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
@@ -65,7 +66,7 @@ impl BuildStageSource {
         let plan = stages::EntryPlan::new(&request.syntax.trees, entry, index)?;
         let prepare =
             |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
-                let stage = plan.project(&mut request.syntax.trees, use_frame)?;
+                let stage = plan.project(&mut request.syntax.trees, use_frame, facts)?;
                 let source = request.prepare(&mut CompileTimings::default())?;
                 Ok((source, stage))
             };

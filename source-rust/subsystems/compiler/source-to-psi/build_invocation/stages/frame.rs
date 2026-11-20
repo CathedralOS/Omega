@@ -2,7 +2,9 @@
 //! number of names borrowing it. A loan records its defining local and home.
 //! Only a direct borrow of a known home can be restored without running code.
 
-use super::BuildStage;
+mod facts;
+
+use super::{BuildStage, EntryPlan};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_core::{LocalBindingRole, ReferenceAccess};
@@ -11,7 +13,7 @@ use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableUnaryExpression, UnaryOperator,
 };
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{StateHandle, StateParameterNode};
+use syntax_trees::item::{Machine, StateParameterNode};
 use syntax_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,12 +134,16 @@ fn read(syntax: &mut SyntaxTrees, name: Identifier, indirect: bool) -> Expressio
 
 pub(super) fn project(
     syntax: &mut SyntaxTrees,
-    state: StateHandle,
-    statements: &[StatementHandle],
-    homes: &[usize],
-    incoming: Option<&Cut>,
-    outgoing: Option<&Cut>,
+    plan: &EntryPlan,
+    stage: &BuildStage,
+    declaration: &mut Machine,
+    established: &[crate::ReturnedIntegerFact],
 ) -> Result<(), Vec<Diagnostic>> {
+    let state = plan.state;
+    let statements = &plan.statements;
+    let homes = &plan.homes;
+    let incoming = plan.incoming.map(|i| &stage.program_ends[i]);
+    let outgoing = stage.program_ends.get(stage.index);
     let entry = syntax.items.state(state);
     let [receiver] = *syntax.items.state_parameters(entry.parameters) else {
         return Err(vec![Diagnostic::error(
@@ -167,6 +173,7 @@ pub(super) fn project(
     syntax.items.state_mut(state).parameters = params;
     let mut projected = HandleSpan::empty();
     if let Some(cut) = incoming {
+        facts::require(syntax, declaration, statements, homes, cut, established)?;
         for &home in homes {
             if !cut.bindings.iter().any(|binding| binding.home == home) {
                 continue;

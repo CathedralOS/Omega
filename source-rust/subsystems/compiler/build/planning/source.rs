@@ -178,7 +178,7 @@ pub fn prepare(
         )?;
         checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
     };
-    let (source, stage) = resolve(&mut assembled, 0, &preparation, profile, inputs)?;
+    let (source, stage) = resolve(&mut assembled, 0, &[], &preparation, profile, inputs)?;
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
@@ -214,6 +214,7 @@ pub fn prepare(
 fn resolve(
     assembled: &mut AssembledSyntax,
     index: usize,
+    facts: &[source_compiler::ReturnedIntegerFact],
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
@@ -222,6 +223,7 @@ fn resolve(
         .build_stage_source()?
         .prepare(
             index,
+            facts,
             preparation,
             profile.target_name(),
             inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
@@ -292,6 +294,7 @@ impl PlanningSource {
             self.stage
                 .next_index()
                 .ok_or_else(|| refusal("the selected Build stage has already finished".into()))?,
+            evaluation.returned_integers(),
             &self.preparation,
             self.profile,
             authority.as_ref(),
