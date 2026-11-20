@@ -1,0 +1,5 @@
+; Source-selected ConstructionBytesV1 extents for direct execution.
+(def compilation_profile () Int 2)
+(def di_source_limit () Int 67108864)
+(def di_input_limit () Int 8388608)
+(def di_output_limit () Int 134217728)

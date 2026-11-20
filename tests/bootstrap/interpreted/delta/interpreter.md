@@ -57,3 +57,34 @@ returning an observation. Both ran as a single low-priority process on a
 shared host. Reproduce with `--epsilon-case exit --seconds 240` and the
 corresponding host command above.
 The compact Alpha tape completed the same request in 64 seconds.
+
+## Execute the Epsilon-built Omega constructor
+
+Build the complete Epsilon compiler and use it to write the compiled Omega
+module to `$work/module.out`. Stop after that module has been published.
+The source-built Linux Gamma compiler is `$work/compiled/gamma-compiler`.
+[Seed construction commands](../../independent/WHOLE_REQUEST.md)
+
+Materialize the emitted module with its own storage runtime and entry. The
+direct interpreter checks that complete Delta source before executing its
+`main`. The following invocation supplies the linked two-package Omega
+program as guest stdin. Use a new directory for the execution artifacts.
+
+```sh
+python3 tests/bootstrap/independent/epsilon/composition.py program \
+  < "$work/module.out" > "$work/omega.delta"
+python3 tests/bootstrap/independent/product_wire.py "$work/wire"
+python3 tests/bootstrap/interpreted/delta/interpreter.py "$work/direct-wire" \
+  --host linux --runner "$work/compiled/gamma-compiler" --profile construction \
+  --source "$work/omega.delta" --stdin "$work/wire/linked.stdin" --seconds 1200
+```
+
+The runner writes `guest.output` to the execution directory. A successful
+Omega construction begins with five zero bytes (Epsilon exit 0), followed by
+the complete Alpha tape. A constructor rejection has an Epsilon exit code
+in the four bytes following the observation tag.
+
+Omit `--source` and `--stdin` to run the direct interpreter's control suite.
+The default conformance profile retains its 4 MiB source limit. The construction
+controls exercise larger guest input, source admission, static rejection and
+oversize output. [Direct interpreter source profiles](../../../../bootstrap/delta/interpreter/README.md)

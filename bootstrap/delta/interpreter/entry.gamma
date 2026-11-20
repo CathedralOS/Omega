@@ -9,15 +9,12 @@
 (def source_read ((index Int)) Int
   (read (+ 4 index)))
 
-; Direct execution shares the ordinary checker and its syntax budget.
-(def compilation_profile () Int 1)
-
 (def main () Int
   (if (lt (input) 4)
     (publish_compiler_failure (compiler_failure 1 4 1 (input) 0 0))
     (let length Int (source_length)
-      (if (lt 4194304 length)
-        (publish_compiler_failure (compiler_failure 2 4 1 0 4194304 length))
+      (if (lt (di_source_limit) length)
+        (publish_compiler_failure (compiler_failure 2 4 1 0 (di_source_limit) length))
         (if (lt (input) (+ 4 length))
           (publish_compiler_failure (compiler_failure 1 4 1 (input) 0 0))
           (let checked Int (di_check_source)
@@ -48,15 +45,15 @@
           (let ((globals Int (second resolution))
                 (bodies Int (check_program_types program globals)))
             (if (first bodies) bodies
-              (let entry Int (validate_application_profile 1 globals)
+              (let entry Int (validate_application_profile (compilation_profile) globals)
                 (if (first entry) entry (compiler_complete raw))))))))))
 
 (def di_run ((globals Int) (start Int)) Int
   (let length Int (- (input) start)
-    (if (lt 4194304 length) (pair 253 0)
+    (if (lt (di_input_limit) length) (pair 253 0)
       (let ((main_row Int (second (find_main_metadata globals)))
             (input_bytes Int (pair length (pair 3 start)))
             (result Int (di_call (second (second main_row)) (pair input_bytes 0) globals))
             (size Int (first result)))
-        (if (lt 4194304 size) (pair 254 0)
+        (if (lt (di_output_limit) size) (pair 254 0)
           (di_publish result 0 size))))))

@@ -14,12 +14,16 @@ from gamma_host_matrix import executable, produce
 
 HERE = Path(__file__).resolve().parent
 DELTA = ROOT / "bootstrap/delta"
+PROFILE_MEMBERS = {"conformance": "interpreter/conformance.gamma", "construction": "interpreter/construction.gamma"}
 DOUBLER = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
 
 
-def materialize(work):
+def materialize(work, profile="conformance"):
     listing = DELTA / "interpreter/sources.list"
-    paths = [DELTA / line for line in listing.read_text().splitlines()]
+    members = listing.read_text().splitlines()
+    selector = members.index(PROFILE_MEMBERS["conformance"])
+    members[selector] = PROFILE_MEMBERS[profile]
+    paths = [DELTA / member for member in members]
     source = b"\n".join(path.read_bytes() for path in paths)
     (work / "interpreter.gamma").write_bytes(source)
     print(f"Interpreter: {len(source)} Gamma bytes, sha256 {hashlib.sha256(source).hexdigest()}", flush=True)
@@ -34,7 +38,7 @@ def failure(status, space, code, offset, limit=0, requested=0):
     return status, b"\xffDCOUT\x01\x00" + struct.pack("<BBHIQQQ", status, space, 0, code, offset, limit, requested)
 
 
-def observations():
+def observations(profile="conformance"):
     for payload in (b"", b"A\x00B", bytes(range(256))):
         yield f"doubler {len(payload)} input bytes", frame(DOUBLER, payload), (0, payload * 2)
     values = (HERE / "interpreter_values.delta").read_bytes()
@@ -53,11 +57,19 @@ def observations():
     extents = b"""(def grow ((n Int) (x Bytes)) Bytes
       (if (eq 0 n) x (grow (- n 1) (bytes_concat x x))))
     (def main ((x Bytes)) Bytes (grow (bytes_get x 0) "a"))"""
-    yield "output extent", frame(extents, bytes([23])), (254, b"")
+    yield "output extent", frame(extents, bytes([23 if profile == "conformance" else 28])), (254, b"")
     yield "logical length overflow", frame(extents, bytes([63])), (249, b"")
     yield "short header", b"\x03", failure(1, 4, 1, 1)
     yield "short source", struct.pack("<I", 9) + b"abc", failure(1, 4, 1, 7)
-    yield "source extent", struct.pack("<I", 4194305), failure(2, 4, 1, 0, 4194304, 4194305)
+    source_limit = (4 if profile == "conformance" else 64) * 1024 * 1024
+    yield "source extent", struct.pack("<I", source_limit + 1), failure(2, 4, 1, 0, source_limit, source_limit + 1)
+    if profile == "construction":
+        # This frame is inside the construction source limit but lacks its body.
+        yield "larger source admitted", struct.pack("<I", 4194305), failure(1, 4, 1, 4)
+        peek = b"(def main ((x Bytes)) Bytes (bytes_single (bytes_get x 4194304)))"
+        yield "larger guest input", frame(peek, bytes(4194304) + b"X"), (0, b"X")
+        yield "guest input extent", frame(peek, bytes(8388609)), (253, b"")
+
     mismatch = b"(def bad () Bytes 42)\n" + DOUBLER
     missing = b"(data Bit (Zero) (One))\n(def main ((x Bytes)) Bytes (match One (One x)))"
     entry = b"(def main ((x Int)) Int x)"
@@ -89,14 +101,21 @@ def main():
     parser.add_argument("--seconds", type=int, default=120, help="wall limit for each operation")
     parser.add_argument("--epsilon", action="store_true", help="run the checked Delta-written Epsilon evaluator")
     parser.add_argument("--epsilon-case", help="run one named portable Epsilon observation")
+    parser.add_argument("--profile", choices=PROFILE_MEMBERS, default="conformance")
+    parser.add_argument("--source", type=Path, help="execute this Delta program and write guest.output")
+    parser.add_argument("--stdin", type=Path, help="guest input file for --source (default empty)")
     args = parser.parse_args()
+    if args.stdin and not args.source:
+        parser.error("--stdin requires --source")
+    if args.source and (args.epsilon or args.epsilon_case):
+        parser.error("choose --source or the Epsilon observations")
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
     if (args.runner is None) != (args.host == "gamma"):
         parser.error("--runner is required only for the Alpha and Linux compiler hosts")
     work = args.directory.resolve()
     work.mkdir(parents=True)
-    source = materialize(work)
+    source = materialize(work, args.profile)
     prefix = b""
     if args.host == "gamma":
         reconstruct(work)
@@ -106,7 +125,14 @@ def main():
         target = work / ("interpreter.tape" if args.host == "alpha" else "interpreter.elf")
         produce(args.runner.resolve(), source, target, args.seconds)
         runner = executable(target, args.host)
-    cases = list(observations())
+    if args.source:
+        payload = args.stdin.read_bytes() if args.stdin else b""
+        request = frame(args.source.read_bytes(), payload)
+        status, output = execute(runner, prefix + request, args.seconds)
+        (work / "guest.output").write_bytes(output)
+        print(f"Wrote {len(output)} guest bytes with interpreter exit {status}", flush=True)
+        raise SystemExit(status)
+    cases = list(observations(args.profile))
     if args.epsilon or args.epsilon_case:
         epsilon = list(epsilon_cases(work))
         if args.epsilon_case:
