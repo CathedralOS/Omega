@@ -447,6 +447,27 @@ fn a_static_index_expression_cannot_read_a_runtime_parameter() {
 }
 
 #[test]
+fn a_closed_primitive_index_preserves_the_literal_error() {
+    let source = "const BASE:u64=1; machine f(x:[u8;BASE + (1.0e0)]){}";
+    check_source_change(source, "1.0e0", "1.0e9223372036854775808",
+        "1.0e9223372036854775808", "decimal exponent exceeds implementation capacity", "Applications");
+}
+
+#[test]
+fn an_open_primitive_index_identifies_the_failing_subexpression() {
+    let source = "data B<const K:u8>{} machine f<const N:u8>(x:B<N + (4 / 2)>){}";
+    check_source_change(source, "4 / 2", "4 / 0",
+        "4 / 0", "anonymous division by zero", "Applications");
+}
+
+#[test]
+fn a_primitive_index_identifies_the_operand_that_cannot_land() {
+    let source = "data B<const K:u8>{} machine f<const N:u8>(x:B<(N + 2) * 1>){}";
+    check_source_change(source, "N + 2", "N + 256",
+        "256", "static operand 256 does not land in u8", "Applications");
+}
+
+#[test]
 fn a_value_statement_requires_an_explicit_discard() {
     let source = "machine identity(x:u64)->u64 {x}";
     check_source_change(source, "{x}", "{x;}",
