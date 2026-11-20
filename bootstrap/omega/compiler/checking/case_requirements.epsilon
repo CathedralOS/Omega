@@ -6,9 +6,18 @@ machine OmegaScalarCompiler::check_case_requirement(&mut self, source: &[u8], de
     let item: OmegaDataSyntax = self.parser.data_items[declaration];
     transition item.requirement_count {
         0 -> return 1
-        1 -> reset(item.first_case, item.first_case + item.case_count,
-            self.parser.requirements[item.first_requirement].expression)
+        1 -> owner()
         _ -> return 0
+    }
+    state owner() {
+        transition self.select_construction_unit(source, self.construction.types[declaration].unit) {
+            1 -> requirement(self.parser.data_items[declaration])
+            _ -> return 0
+        }
+    }
+    state requirement(item: OmegaDataSyntax) {
+        transition true { true -> reset(item.first_case, item.first_case + item.case_count,
+            self.parser.requirements[item.first_requirement].expression) }
     }
     state reset(slot: i32, limit: i32, expression: i32) {
         transition slot < limit {
