@@ -204,12 +204,35 @@ machine Main::main(&mut self) {
     self.check_call_stacks_empty();
     self.parser.parse_view("machine p() { let x: u8 = f(g(1) + h(2), i(3)); }");
     self.check_nested_call_rows();
-    self.parser.parse_view("machine p() { let x: u8 = pick<Type>(1); }");
+    self.parser.parse_view("machine p() { let x: u8 = pick::<Type>(1); }");
     self.check_complete();
     assert self.parser.call_expression_count == 1;
     assert self.parser.call_expressions[0].machine_argument_count == 1;
     assert self.parser.call_expressions[0].argument_count == 1;
     self.check_call_stacks_empty();
+
+    self.parser.parse_view("machine p() { let x: u8 = wrap::<A>(pick::<B, ns\\C>(1)); }");
+    self.check_complete();
+    assert self.parser.call_expression_count == 2;
+    assert self.parser.static_machine_argument_count == 3;
+    assert self.parser.call_expressions[0].first_machine_argument == 1;
+    assert self.parser.call_expressions[0].machine_argument_count == 2;
+    assert self.parser.call_expressions[1].first_machine_argument == 0;
+    assert self.parser.call_expressions[1].machine_argument_count == 1;
+    assert self.parser.static_machine_arguments[2].path_member_count == 2;
+    self.parser.parse_view("machine p(builder: @mut Build) { Build::select_provider::<Exit, std\\NativeExit>(builder, alpha_bootstrap); }");
+    self.check_complete();
+    assert self.parser.call_statements[0].name_member_count == 2;
+    assert self.parser.call_statements[0].machine_argument_count == 2;
+    assert self.parser.call_statements[0].argument_count == 2;
+    self.parser.parse_view("machine p() { let x: bool = left < right; }");
+    self.check_complete();
+    assert self.parser.binary_expression_count == 1;
+    assert self.parser.static_machine_argument_count == 0;
+    self.parser.parse_view("machine p() { let x: u8 = pick<Type>(1); }");
+    assert self.parser.static_machine_argument_count == 0;
+    self.parser.parse_view("machine p() { generic::<A,>(); }");
+    self.check_refused();
 
     // Qualification and value projection must stay distinct at statement
     // entry, where calls are promoted to expressions only after their tail.
