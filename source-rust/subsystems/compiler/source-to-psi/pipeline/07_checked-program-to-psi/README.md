@@ -24,7 +24,7 @@ fallback artifact.
 [src/lib.rs](src/lib.rs) exposes the production and application contracts.
 [custody.rs](src/custody.rs) keeps code, evidence, companions and source
 correspondence for portable reuse and invocation-local production.
-Companion records are in [build_bindings.rs](src/build_bindings.rs).
+Companion records are in [build_bindings.rs](src/build_bindings.rs). For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
 
 The [entry receipt](../../../psi/codec/src/entry_receipt.rs) binds the selected
 Unit declaration to the canonical artifact. Both source publication and native
