@@ -4,7 +4,7 @@ module-library	psi	witness matched
 cross-width	L2	main.omg:20:9	a data carrier cannot own a machine
 rational-landing	L2	main.omg:25:9	a data carrier cannot own a machine
 direct-imports	L2	m/b.omg:1:5	unavailable import m\a
-direct-imports-v2	L5	main.omg:6:5	unsupported typed field access: FieldAccess
+direct-imports-v2	psi	witness matched
 missing-import-v2	L2	main.omg:4:30	unresolved name A
 abstract-premise	L1	main.omg:37:27	expected `;` (bytes 772..776)
 false-abstract-premise	L1	main.omg:37:27	expected `;` (bytes 773..777)

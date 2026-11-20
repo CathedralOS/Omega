@@ -51,13 +51,12 @@ fn fixed_sample_configurations_through_l5() {
                 .map(|&path| (path, blob(case.directory, path)))
                 .collect(),
         };
-        let outcome = match case.check {
-            cases::Check::MissingSetup(reason) => format!("setup\t{reason}"),
-            check => match pipeline::lower(&files) {
-                Ok(product) if check.matches(&product) => "psi\twitness matched".into(),
-                Ok(_) => "psi\tWITNESS MISSING".into(),
-                Err(refusal) => refusal,
-            },
+        let outcome = match case.expectation.observe(&files) {
+            Ok(outcome) => outcome,
+            Err(failure) => {
+                changes.push(format!("{}: {failure}", case.id));
+                continue;
+            }
         };
         let row = format!("{}\t{outcome}", case.id);
         println!("{row}");
@@ -85,10 +84,11 @@ fn directory_import_and_its_missing_import_twin() {
     let main = std::str::from_utf8(main).unwrap().replace("\r\n", "\n");
     let twin = std::str::from_utf8(twin).unwrap().replace("\r\n", "\n");
     assert_eq!(main.replace("use m\\A;\n", ""), twin);
-    match pipeline::lower(&current_import_files(main.as_bytes())) {
-        Ok(product) => assert!(cases::Check::NestedField.matches(&product), "expected both selected fields in Psi"),
-        Err(err) => assert_eq!(err, "L5\tmain.omg:6:5\tunsupported typed field access: FieldAccess"),
-    }
+    let product = pipeline::lower(&current_import_files(main.as_bytes())).expect("the valid import must lower");
+    assert!(
+        cases::Check::NestedField.matches(&product),
+        "expected the return value read from B.value then A.value"
+    );
     let refusal = pipeline::lower(&current_import_files(twin.as_bytes())).unwrap_err();
-    assert_eq!(refusal, "L2\tmain.omg:4:30\tunresolved name A");
+    assert_eq!(refusal, cases::MISSING_IMPORT);
 }

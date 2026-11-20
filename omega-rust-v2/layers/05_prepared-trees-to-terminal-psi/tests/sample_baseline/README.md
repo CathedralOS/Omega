@@ -24,6 +24,10 @@ Each row in `observations.tsv` records the first diagnostic with its source loca
 
 ## Choosing cases from history
 
+Once a configuration produces its required Psi, mark it as required in the case definition. A later refusal then fails even if someone updates the observations file. For a negative case with a known language rule, require the owning layer's diagnostic at its source location. Cases still under investigation record where compilation first stops.
+
+For returned values, follow the return edge to the operation that supplied it. The nested field test checks that the returned scalar came from the constructed B and that the read selects B's field before A's. A field read elsewhere in the machine cannot satisfy that assertion.
+
 Use the retired corpus to investigate a particular rule. For example, the archived shift tests cover both checking a different value and overwriting a value after checking its range. L5 can test which value reaches the shift. L6 can test whether the range proof still applies to that value. Those observations exercise different responsibilities even when the source programs look similar.
 
 Prefer the smallest pair that exposes the distinction through the owning layer's actual input and output. Keep a full historical sample in this comparison when it adds a package interaction or observable behavior the existing cases miss. Adding another placement of the same rule needs a concrete difference in the handoff it tests.

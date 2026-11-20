@@ -801,9 +801,10 @@ impl Expressions<'_> {
             }
             if crate::lowering::types::scalar_carrier(carrier).is_ok()
                 && (node.kind == NodeKind::Dereference
-                    || node.kind == NodeKind::FieldAccess && tree.semantics_at(expression).any(|record| {
-                        matches!(record, NodeSemantics::Obligation(obligation) if matches!(obligation.kind, omega_typed::ObligationKind::CopyRead(_)))
-                    }))
+                    || node.kind == NodeKind::FieldAccess
+                        && tree
+                            .semantics_at(expression)
+                            .any(|record| matches!(record, NodeSemantics::Field(_))))
             {
                 values.push(super::references::read_scalar(self, expression, carrier, block)?);
                 continue;

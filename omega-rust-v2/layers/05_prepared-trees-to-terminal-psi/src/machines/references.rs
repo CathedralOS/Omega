@@ -226,14 +226,26 @@ pub(super) fn read_scalar(
     use super::expressions::{EmitOperation, OperationOutput};
     let tree = expressions.tree;
     let site = site_at(tree, node);
-    let (source, selected) = move_place(expressions, node, body)?;
-    let exact_read = tree.semantics_at(node).filter(|row| {
-        matches!(row, NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == carrier))
-    }).count() == 1;
-    if selected != carrier || !exact_read || !source.path.contains(&PlaceProjection::Referent) {
-        return Err(LoweringError::new(&site, "borrowed scalar requires its exact copy-read obligation"));
+    let borrowed_read = tree
+        .semantics_at(node)
+        .any(|row| matches!(row, NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == carrier)));
+    // Typing publishes CopyRead when the scalar comes through a loan. An owned
+    // field has the same selected path and no loan to justify copying through.
+    let (source, selected) = if borrowed_read {
+        move_place(expressions, node, body)?
+    } else {
+        original_place(expressions, node, body)?
+    };
+    if selected != carrier || borrowed_read != source.path.contains(&PlaceProjection::Referent) {
+        return Err(LoweringError::new(
+            &site,
+            "scalar read disagrees with its type or borrowed copy-read obligation",
+        ));
     }
-    let ty = expressions.types.id_for(carrier).map_err(|error| LoweringError::new(&site, error.to_string()))?;
+    let ty = expressions
+        .types
+        .id_for(carrier)
+        .map_err(|error| LoweringError::new(&site, error.to_string()))?;
     Ok(body.push_operation(OperationOutput::Scalar(ty), crate::OperationKind::ProjectedScalarRead { source }, site))
 }
 
