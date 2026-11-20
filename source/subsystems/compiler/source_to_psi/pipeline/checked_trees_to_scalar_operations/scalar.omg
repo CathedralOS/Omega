@@ -196,6 +196,7 @@ crashes Trap
     machine root(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         let item: RootItem = root_item(syntax, index);
         transition item.kind {
+            RootItemKind::Use -> roots(lowerer, syntax, resolution, typing, index + 1),
             RootItemKind::Machine -> roots(lowerer, syntax, resolution, typing, index + 1),
             RootItemKind::Data -> data_root(lowerer, syntax, resolution, typing, index, item),
             _ -> unsupported(lowerer)
