@@ -851,27 +851,9 @@ machine OmegaScalarCompiler::primitive_type(
         _ -> return 0
     }
     state named(row: OmegaTypeReferenceSyntax) {
-        transition self.span_equals(source, row.payload0, row.payload1, "u8") {
-            1 -> return 8
-            _ -> boolean(row)
-        }
-    }
-    state boolean(row: OmegaTypeReferenceSyntax) {
         transition self.span_equals(source, row.payload0, row.payload1, "bool") {
             1 -> return 1
-            _ -> plain_word(row)
-        }
-    }
-    state plain_word(row: OmegaTypeReferenceSyntax) {
-        transition self.span_equals(source, row.payload0, row.payload1, "u32") {
-            1 -> return 32
-            _ -> wide_word(row)
-        }
-    }
-    state wide_word(row: OmegaTypeReferenceSyntax) {
-        transition self.span_equals(source, row.payload0, row.payload1, "u64") {
-            1 -> return 64
-            _ -> return 0
+            _ -> return self.unsigned_carrier(source, row.payload0, row.payload1)
         }
     }
     state constrained(row: OmegaTypeReferenceSyntax) {
@@ -881,6 +863,37 @@ machine OmegaScalarCompiler::primitive_type(
                 self.word_policy(source, row.payload1, row.payload2))
             _ -> return 0
         }
+    }
+}
+
+// Type names and integer suffixes share these executable carrier identities.
+// A retained suffix outside this subset cannot become an anonymous integer.
+machine OmegaScalarCompiler::unsigned_carrier(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    transition self.span_equals(source, start, end, "u8") {
+        1 -> return 8
+        _ -> word()
+    }
+    state word() {
+        transition self.span_equals(source, start, end, "u32") {
+            1 -> return 32
+            _ -> wide()
+        }
+    }
+    state wide() {
+        transition self.span_equals(source, start, end, "u64") {
+            1 -> return 64
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::literal_carrier(&mut self, source: &[u8], row: OmegaExpressionSyntax) -> i32 {
+    transition row.payload2 == 0 {
+        true -> return 0
+        _ -> landed(self.unsigned_carrier(source, row.payload2, row.payload1))
+    }
+    state landed(carrier: i32) {
+        transition carrier == 0 { true -> return -1 _ -> return carrier }
     }
 }
 
@@ -925,6 +938,26 @@ machine OmegaScalarCompiler::parameter_type(
         true -> return kind
         _ -> return 0
     }
+}
+
+// A suffix fixes the carrier before storage, arguments, returns and bounds.
+// Status 4 reports a different destination at the authored literal.
+machine OmegaScalarCompiler::scan_integer(&mut self, source: &[u8], row: OmegaExpressionSyntax, expected: i32) {
+    transition row.payload2 == 0 {
+        true -> self.scan_scalar_literal(source, row.payload0, row.payload1, expected)
+        _ -> fixed(self.unsigned_carrier(source, row.payload2, row.payload1))
+    }
+    state fixed(carrier: i32) {
+        transition carrier == 0 { true -> unsupported() _ -> destination(carrier) }
+    }
+    state destination(carrier: i32) {
+        transition carrier == expected {
+            true -> self.scan_scalar_literal(source, row.payload0, row.payload2, expected)
+            _ -> mismatched()
+        }
+    }
+    state unsupported() { self.literal_status = 2; }
+    state mismatched() { self.literal_status = 4; }
 }
 
 // Two 16-bit limbs keep decimal scanning inside Epsilon's checked i32
@@ -1071,7 +1104,7 @@ machine OmegaScalarCompiler::expression_type(
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
-        OmegaExpressionKind::Integer -> return 0
+        OmegaExpressionKind::Integer -> return self.literal_carrier(source, row)
         OmegaExpressionKind::Boolean -> return 1
         OmegaExpressionKind::Indexed -> return self.index_result_type(source, state_index, before, expression)
         OmegaExpressionKind::Projection -> member(row, self.expression_type(source, owner, state_index, before, row.payload0))
@@ -1339,10 +1372,11 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state integer_scan(row: OmegaExpressionSyntax) {
-        self.scan_scalar_literal(source, row.payload0, row.payload1, expected);
+        self.scan_integer(source, row, expected);
         transition self.literal_status {
             1 -> retain(OmegaCheckedValueKind::Literal, self.literal_value)
             2 -> unsupported(row.payload0)
+            4 -> rejected(row.payload0)
             _ -> literal_range(row.payload0)
         }
     }
@@ -2013,7 +2047,7 @@ machine OmegaScalarCompiler::is_bounded_constant(&mut self, source: &[u8], expre
         _ -> return 0
     }
     state integer(row: OmegaExpressionSyntax) {
-        transition self.scan_u8(source, row.payload0, row.payload1) < 256 {
+        transition (row.payload2 == 0) && (self.scan_u8(source, row.payload0, row.payload1) < 256) {
             true -> return 1
             _ -> return 0
         }
@@ -2032,7 +2066,7 @@ machine OmegaScalarCompiler::is_bounded_constant(&mut self, source: &[u8], expre
 machine OmegaScalarCompiler::is_constant_expression(&mut self, expression: i32) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
-        OmegaExpressionKind::Integer -> return 1
+        OmegaExpressionKind::Integer -> return row.payload2 == 0
         OmegaExpressionKind::Boolean -> return 1
         OmegaExpressionKind::Unary -> return self.is_constant_expression(self.parser.unary_expressions[row.payload0].operand)
         OmegaExpressionKind::Binary -> binary(self.parser.binary_expressions[row.payload0])
@@ -5056,7 +5090,7 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
         }
     }
     state scan_bound(offset: i32, size: i32, field: i32, right: OmegaExpressionSyntax) {
-        self.scan_scalar_literal(source, right.payload0, right.payload1, self.field_types[field]);
+        self.scan_integer(source, right, self.field_types[field]);
         transition (self.literal_status == 1) && (self.literal_value >= 0) {
             true -> retain_bound(offset, size, field, self.literal_value)
             _ -> unsupported()
@@ -6224,7 +6258,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state scan(row: OmegaBinaryExpressionSyntax, kind: i32, right: OmegaExpressionSyntax) {
-        self.scan_scalar_literal(source, right.payload0, right.payload1, kind);
+        self.scan_integer(source, right, kind);
         transition (self.literal_status == 1) && (self.literal_value >= 0) && (self.bound_total < 16384) {
             true -> relation(row, self.literal_value)
             _ -> unsupported()
