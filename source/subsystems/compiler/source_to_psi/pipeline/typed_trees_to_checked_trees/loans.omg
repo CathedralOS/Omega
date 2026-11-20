@@ -796,8 +796,9 @@ crashes Trap
 public machine holds_references(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    let mut handles: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let mut offsets: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let zero: u64 in Trapping = 0 as +Trapping;
+    let mut handles: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
+    let mut offsets: [u64 in Trapping; 9] = [zero, zero, zero, zero, zero, zero, zero, zero, zero];
     handles[0] = handle;
     transition { _ -> visit(syntax, typing, @mut handles, @mut offsets, 0) }
 

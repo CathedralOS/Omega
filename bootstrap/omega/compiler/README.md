@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,844 lines / 1,033,558 bytes with SHA-256
-`f1d222fb59800e23a24487d3b49b755873627e2f505ab397ecc70e8db5587690`.
+The manifest materializes 27,007 lines / 1,041,314 bytes with SHA-256
+`6c07930f989493ea4d6cf8b963b62f2053e1d323c9acaf31e0cf32d5c32739a7`.
 The manifest itself is 2,381 bytes, SHA-256
-`ec3f7544dbac4cb0b1838d073fef03d4007fd4c6bc6e2a1b446d75aff1068dcb`;
+`05c2c9e45932ac703b32827d3307f850e6805674ea991285e017a540fd4be8af`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -96,6 +96,12 @@ and may contain nested states. A machine without a result completes with Unit.
 The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
 and parameters.
+
+A fixed-array literal uses the declared element type and count. Each initializer
+runs once in increasing index order. Byte elements occupy one byte, while word
+and copy-record elements use their checked stride. A policy-qualified element
+needs a value with that policy. The product loan checker uses one explicitly
+qualified zero to initialize both nine-element traversal arrays.
 
 Each file's imports resolve before signature or body checking. Record and case
 payload fields retain the scalar type or nominal declaration resolved in their

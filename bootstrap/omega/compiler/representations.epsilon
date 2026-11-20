@@ -731,6 +731,7 @@ data OmegaExpressionKind {
     case Membership;
     case Borrow;
     case Projection;
+    case ArrayLiteral;
 }
 
 data OmegaBinaryOperatorKind {
@@ -873,6 +874,8 @@ data OmegaStructLiteralSyntax {
 // Unary payload0 select their dedicated rows. Borrow uses payload0 for its
 // operand, payload1 for access (0 shared, 1 mutable, 2 write-only), and
 // payload2/payload3 for the complete operator span; payload4/payload5 are zero.
+// ArrayLiteral payload0/payload1 select ordered call_arguments; payload2 and
+// payload3 contain the complete bracket span.
 // Projection payload0 names the completed base; payload1/payload2 are the
 // member name span and payload3 bounds the postfix chain depth at 128.
 // Remaining words are reserved for richer nodes.
@@ -1045,13 +1048,14 @@ data OmegaParserResource {
     case Expressions;
 }
 
-// Parsing a call argument may enter another ordinary call. Save the enclosing
-// call's own header and pending-argument list, without retaining a host stack.
+// Calls and array literals both collect ordered expressions. Nested lists
+// preserve the enclosing header and pending elements in a bounded stack.
 data OmegaCallParseContext {
     case Statement;
     case Expression;
     case PromotedExpression;
     case TransitionTarget;
+    case ArrayLiteral;
 }
 
 data OmegaCallParseFrame {
