@@ -221,7 +221,7 @@ machine OmegaScalarCompiler::slice_length_parameter(
 
 // Removing Trapping preserves the u64 value. General arithmetic, casts to
 // another carrier, locals and projected fields do not preserve this identity.
-machine OmegaScalarCompiler::slice_index_parameter(
+machine OmegaScalarCompiler::u64_index_parameter(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
@@ -291,7 +291,7 @@ machine OmegaScalarCompiler::slice_relation(
         }
     }
     state operands(left: i32, right: i32) {
-        transition (self.slice_index_parameter(source, state_index, before, left) == index) &&
+        transition (self.u64_index_parameter(source, state_index, before, left) == index) &&
             (self.slice_length_parameter(source, state_index, before, right) == slice) {
             true -> return 1
             _ -> preserved()
@@ -339,7 +339,7 @@ machine OmegaScalarCompiler::prove_actual_slice_index(
             true -> return self.prove_place_bound(source, state_index, before, slot, 8, -1, 64,
                 literal + 1, -1, guard, truth)
             _ -> return self.slice_relation(source, state_index, before,
-                self.slice_index_parameter(source, state_index, before, index), slot, guard, truth)
+                self.u64_index_parameter(source, state_index, before, index), slot, guard, truth)
         }
     }
 }
@@ -359,7 +359,7 @@ machine OmegaScalarCompiler::check_shared_byte_read(
         transition (index >= 0) && (index < 2147483647) {
             true -> proved(self.prove_place_bound(source, state_index, before, slot, 8, -1, 64, index + 1, -1, -1, 0))
             _ -> proved(self.slice_relation(source, state_index, before,
-                self.slice_index_parameter(source, state_index, before, row.index), slot, -1, 0))
+                self.u64_index_parameter(source, state_index, before, row.index), slot, -1, 0))
         }
     }
     state proved(proof: i32) {

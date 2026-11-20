@@ -71,12 +71,33 @@ machine Main::namespace_fits(&mut self, source: &[u8], path: OmegaRelativeSpan) 
 }
 
 machine Main::main(&mut self) {
+    self.construct_standalone("");
+}
+
+// An empty deployment is the default embedded environment. To delegate its
+// one Alpha process, a standalone host supplies the independently authorized
+// immutable request as this argument, separate from the guest input stream.
+// Compare the entire frame before reading its header. This rejoins every
+// owner, source, path, Build selection and root and preserves their custody.
+machine Main::construct_standalone(&mut self, deployment: &[u8]) {
     self.has_builds = 0;
     self.build_count = 0;
-    let first: i32 = self.word();
-    transition first {
-        0 -> version(self.word())
-        _ -> header(first, false)
+    transition deployment.len == 0 {
+        true -> frame()
+        _ -> custody(self.console.remaining_input)
+    }
+    state custody(request: &[u8]) {
+        transition self.compiler.span_equals(request, 0, request.len, deployment) {
+            1 -> frame()
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state frame() {
+        let first: i32 = self.word();
+        transition first {
+            0 -> version(self.word())
+            _ -> header(first, false)
+        }
     }
     state version(number: i32) {
         transition number {
@@ -227,7 +248,13 @@ machine Main::main(&mut self) {
     state scoped(source: &[u8]) {
         transition self.has_builds {
             1 -> check_builds(source)
-            _ -> compile(source)
+            _ -> legacy(source)
+        }
+    }
+    state legacy(source: &[u8]) {
+        transition deployment.len == 0 {
+            true -> compile(source)
+            _ -> self.console.exit_process(3)
         }
     }
     state check_builds(source: &[u8]) {
@@ -245,7 +272,14 @@ machine Main::main(&mut self) {
     state resolved(source: &[u8], entry: OmegaRelativeSpan) {
         self.entry_unit = self.compiler.parser.sources.unit_at(entry.start);
         self.entry_name = entry;
-        transition true { true -> compile(source) }
+        transition deployment.len == 0 {
+            true -> compile(source)
+            _ -> process(source)
+        }
+    }
+    state process(source: &[u8]) {
+        self.compiler.compile_process_entry(source, self.entry_unit);
+        transition true { true -> result() }
     }
     state pending(requester: i32) {
         // A valid Build inventory still needs admitted execution. Anchor the
@@ -261,6 +295,9 @@ machine Main::main(&mut self) {
     state compile(source: &[u8]) {
         self.compiler.compile_set(source, self.entry_unit,
             source[self.entry_name.start..self.entry_name.end]);
+        transition true { true -> result() }
+    }
+    state result() {
         transition self.compiler.status {
             OmegaScalarCompilationStatus::Complete -> publish(0)
             OmegaScalarCompilationStatus::Reject -> refusal(1, self.compiler.outcome_coordinate, 0)

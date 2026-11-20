@@ -66,14 +66,24 @@ An incomplete activation stops before code publication. A completed pure
 application compiles from its resolved entry declaration. The selected
 terminal provider remains separate from the runtime's process-domain grant.
 
+The default construction entry has no process domain. A standalone Alpha
+embedding can pass its independently approved, immutable deployment to
+`Main::construct_standalone`. The entire guest frame must match. The
+constructor then executes the scoped Build, resolves its entry and selected
+provider, checks each call's reach and emits Alpha HALT with the evaluated
+signed i32 status. A different deployment refuses before publication.
+The independent process-domain test builds an embedding with a fixed
+deployment and checks the full status alongside the Linux seed observation.
+[Standalone test](../../../tests/bootstrap/independent/process_domain.py)
+
 The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,804 lines / 1,077,346 bytes with SHA-256
-`f7b507f2222d37b7daf5177a31ab559d342d96b0bdb4fa6f7cf62938296d3f29`.
-The manifest itself is 2,729 bytes, SHA-256
-`02b00a63fda3508cffb15d765363009d08f4483b03d846be915d580c5ef7ba99`;
+The manifest materializes 27,653 lines / 1,072,074 bytes with SHA-256
+`2a8941410b29b2e0b275630063f9af57f1898529c4abe39a368998996341520e`.
+The manifest itself is 2,551 bytes, SHA-256
+`14482ee441777ae4aec54586681d53cc0559011d228b56594827d562460aa89d`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.

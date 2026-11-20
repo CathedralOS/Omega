@@ -370,7 +370,8 @@ def omega_storage_program():
                 b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
                 b"public data ModulePath\n", b"public machine module_path_append(",
                 b"public data SourceRange ", b"public data PackageRow ", b"public data DependencyScope ",
-                b"public data DependencyRow ", b"public data SourceSet\n", b"public machine path_length(")),
+                b"public data DependencyRow ", b"public data SourceSet\n", b"public machine path_length(",
+                b"public machine source_set_byte_or_nul(")),
         (construction, (b"data ConstructionInput {",)),
     ):
         for marker in markers:
@@ -439,10 +440,14 @@ def omega_utf8_customer(work, timeout, batch=None):
     digits = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/digits.omg").read_bytes()
     start = digits.index(b"machine hex_digit_value(")
     end = digits.index(b"\n}", start) + 2
+    loans = (ROOT / "source/subsystems/compiler/source_to_psi/pipeline/typed_trees_to_checked_trees/loans.omg").read_bytes()
+    entry = loans.index(b"public machine holds_references(")
+    end_entry = loans.index(b"\n}", entry) + 2
     programs = {
         0: program,
         13: digits[start:end] + b"\n" + (gate / "hex_digit_controls.omg").read_bytes(),
         15: (gate / "fixed_array_loans.omg").read_bytes(),
+        16: loans[entry:end_entry] + b"\n" + (gate / "loan_traversal_setup.omg").read_bytes(),
     }
     # Each refusal batch runs positives before and after the refusals on the same compiler.
     expected_batches = (
@@ -462,6 +467,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, -4, 42),
         (42, 42, 42, 42, 42, 42),
         (42, 42, 42, 42, 42),
+        (42,),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:

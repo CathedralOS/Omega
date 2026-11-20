@@ -1,11 +1,12 @@
-//! Exact refusals for malformed compiled-interface input. Each case starts from the interface
-//! that a valid library compiles to and changes one property. Package, file, span and reason
-//! are compared independently. A compiled refusal has no source bytes, so its span is 0..0 and
-//! its file names the declaration path (`module\Owner::member`) or, for a module row, the
-//! module path, both spelled with `\`.
+//! Compiled-interface admission and lookup, starting with interfaces from real libraries.
+//! A refusal at compiled input has span 0..0 and names the declaration or module path with
+//! `\`. A refusal at a consumer occurrence instead names its authored file and byte span.
 use omega_lexer::{SourceSpan, lex};
 use omega_parser::{NodeKind, parse_file};
-use omega_resolver::{CompiledInterface, DeclarationId, DeclarationName, InterfaceExport, NameError, NameErrorKind, ParsedSource, StageSource, resolve_stage, resolve_stage_with_exports};
+use omega_resolver::{
+    CompiledInterface, DeclarationId, DeclarationName, Dependency, InterfaceExport, NameError, NameErrorKind, NameRole, ParsedSource, StageSource, Symbol,
+    resolve_stage, resolve_stage_with_exports,
+};
 use std::sync::Arc;
 
 /// Two modules: `net` and `proto`. `proto` holds every exported kind the cases mutate.
@@ -152,6 +153,71 @@ fn the_unmodified_library_interface_is_admitted() {
     resolve_stage_with_exports(&[], &[], &Default::default(), &interface).unwrap();
     parsed(&[("app", "main.omg", "machine main() {}")], |sources| {
         resolve_stage_with_exports(sources, &[], &Default::default(), &interface).unwrap();
+    });
+}
+
+fn inherited_requirement_interface() -> CompiledInterface {
+    parsed(
+        &[("wire", "schema.omg", "public trait Parent {machine run();} public trait Middle:Parent {}")],
+        |sources| resolve_stage(sources, &[]).unwrap().compiled_interface(),
+    )
+}
+
+const WIRE: Dependency<'static> = Dependency {
+    requester: "app",
+    alias: "dep",
+    package: "wire",
+};
+const CLIENT: &str = "use dep\\Middle; machine f(){Middle::run();}";
+
+#[test]
+fn repeated_compiled_imports_keep_the_written_inherited_call_qualifier() {
+    let mut interface = inherited_requirement_interface();
+    let middle = Symbol::Declaration(id(&mut interface, "Middle", NodeKind::Trait));
+    let requirement = Symbol::Declaration(id(&mut interface, "Parent::run", NodeKind::Machine));
+    for text in [
+        CLIENT,
+        "use dep\\Middle; use dep\\Middle; machine f(){Middle::run();}",
+    ] {
+        parsed(&[("app", "main.omg", text)], |sources| {
+            let stage = resolve_stage_with_exports(sources, &[WIRE], &Default::default(), &interface).unwrap();
+            let tree = stage.trees().next().unwrap();
+            let call = tree
+                .occurrences()
+                .find(|site| site.role == NameRole::Reference && site.span.slice(text.as_bytes()) == Some(b"Middle::run"))
+                .unwrap();
+            assert_eq!(call.target, requirement);
+            assert_eq!(tree.qualifier(call.node.node), Some(&middle), "{text}");
+            let qualifiers: Vec<_> = tree
+                .names(call.node.node)
+                .filter(|site| site.role == NameRole::Qualifier)
+                .collect();
+            let start = text.find("Middle::run").unwrap();
+            assert_eq!(qualifiers.len(), 1);
+            assert_eq!(qualifiers[0].span, SourceSpan::new(start, start + "Middle".len()));
+        });
+    }
+}
+
+#[test]
+fn a_missing_compiled_requirement_is_refused_at_the_authored_call() {
+    let mut interface = inherited_requirement_interface();
+    assert_eq!(interface.declarations.len(), 3);
+    interface
+        .declarations
+        .retain(|export| export.id.path != "Parent::run");
+    assert_eq!(interface.declarations.len(), 2);
+    parsed(&[("app", "main.omg", CLIENT)], |sources| {
+        let error = resolve_stage_with_exports(sources, &[WIRE], &Default::default(), &interface).unwrap_err();
+        let start = CLIENT.find("Middle::run").unwrap();
+        spec_corpus::assert_resolver_refusal!(
+            &error,
+            NameErrorKind::UnresolvedName,
+            "app",
+            "main.omg",
+            SourceSpan::new(start, start + "Middle::run".len()),
+            "unresolved name Middle::run"
+        );
     });
 }
 

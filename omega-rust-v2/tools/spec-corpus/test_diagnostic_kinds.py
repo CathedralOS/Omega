@@ -24,6 +24,8 @@ class DiagnosticKindTests(unittest.TestCase):
             self.assertTrue(states["ResumedTyping"]["verified"])
             self.assertFalse(states["NewPhase"]["verified"])
             self.assertIn("preparation failure NewPhase: no producer and CLI comparison registered", report["measurement_errors"])
+            report["reviewed_comparisons"][comparison] = None
+            self.assertFalse(frontend_diagnostics.preparation_phases(report)["ResumedTyping"]["verified"])
             report["reviewed_comparisons"].clear()
             self.assertFalse(frontend_diagnostics.preparation_phases(report)["ResumedTyping"]["verified"])
             report["reviewed_comparisons"][comparison] = "asserted"

@@ -4,6 +4,8 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+import frontend_products
+
 
 class Comparison(NamedTuple):
     owner: str
@@ -34,7 +36,9 @@ def registrations():
 
 @cache
 def sources():
-    result = {}
+    # A product comparison has an owner even when it is not evidence for a handoff rule.
+    result = {frontend_products.comparison(stage): (stage, f"tests/{target}.rs", test)
+              for stage, (target, test, _) in frontend_products.PRODUCTS.items()}
     for row in registrations():
         if row.comparison.startswith("fixture/"):
             continue
@@ -49,6 +53,8 @@ def record(report, suite, target, current_test, line):
     source = (suite, target.replace("\\", "/"), current_test[1] if current_test else None)
     if len(parts) != 3 or not parts[2].strip() or sources().get(parts[1]) != source:
         report["measurement_errors"].append(f"unrecognized or misplaced reviewed comparison: {line}")
+        if len(parts) >= 2 and parts[1] in sources():
+            report.setdefault("reviewed_comparisons", {})[parts[1]] = None
         return
     failed = parts[0] == "OMEGA_FAILED_COMPARISON"
     receipts = report.setdefault("failed_comparisons" if failed else "reviewed_comparisons", {})

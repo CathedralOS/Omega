@@ -174,11 +174,31 @@ fn line_comment_at_end_of_file_needs_no_line_feed() {
 
 #[test]
 fn line_comment_with_crlf_keeps_the_carriage_return() {
-    // The comment runs to the line feed, so a CRLF file's carriage return is part of the comment.
-    let source_bytes = b"// note\r\nx";
-    let tokens = lex(source_bytes).expect("Expected the source to lex.");
+    // UTF-8 text before the line break makes byte positions differ from character counts.
+    let crlf = "// \u{1F600}\r\nx".as_bytes();
+    let lf = "// \u{1F600}\nx".as_bytes();
+    let extents = |source_bytes: &[u8]| {
+        lex(source_bytes)
+            .expect("Expected the source to lex.")
+            .into_iter()
+            .map(|token| (token.get_kind(), token.get_span()))
+            .collect::<Vec<_>>()
+    };
+    let observed = (extents(crlf), extents(lf));
+    let expected = (
+        vec![
+            (TokenKind::LineComment, SourceSpan::new(0, 8)),
+            (TokenKind::Whitespace, SourceSpan::new(8, 9)),
+            (TokenKind::Word, SourceSpan::new(9, 10)),
+        ],
+        vec![
+            (TokenKind::LineComment, SourceSpan::new(0, 7)),
+            (TokenKind::Whitespace, SourceSpan::new(7, 8)),
+            (TokenKind::Word, SourceSpan::new(8, 9)),
+        ],
+    );
 
-    assert_eq!(tokens[0].get_span(), SourceSpan::new(0, 8));
+    spec_corpus::observe_handoff!("line-comments/crlf-product", assert_eq!(observed, expected));
 }
 
 // R12 and R13

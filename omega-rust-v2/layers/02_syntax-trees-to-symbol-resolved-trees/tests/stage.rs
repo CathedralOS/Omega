@@ -136,21 +136,32 @@ fn a_predicate_pattern_cannot_rebind_self() {
 
 #[test]
 fn ranking_order_resolves_to_its_declaration_and_bound_to_its_parameter() {
-    for order in ["Down", "Down(limit)"] {
-        let text = format!("data Down {{}} machine f(x:u8, limit:u8) terminates by x -> {order} in limit {{}}");
-        let stage = run(&[("app", "rank.omg", &text)], &[]).unwrap();
-        let order_offset = text.rfind("Down").unwrap();
-        let bound_offset = text.rfind("limit").unwrap();
-        let target_at = |offset| {
-            &stage
-                .uses()
-                .find(|u| u.span.get_start_offset() == offset)
-                .unwrap()
-                .target
-        };
-        assert!(matches!(target_at(order_offset), Symbol::Declaration(id) if id.path == "Down"));
-        assert!(matches!(target_at(bound_offset), Symbol::Binding { span, .. } if span.get_start_offset() == text.find("limit:u8").unwrap()));
-    }
+    use omega_syntax::NodeKind::{Data, Param};
+
+    spec_corpus::observe_handoff!("product/l2", {
+        for order in ["Down", "Down(limit)"] {
+            let text = format!("data Down {{}} machine f(x:u8, limit:u8) terminates by x -> {order} in limit {{}}");
+            let stage = run(&[("app", "rank.omg", &text)], &[]).unwrap();
+            let order_offset = text.rfind("Down").unwrap();
+            let bound_offset = text.rfind("limit").unwrap();
+            let limit_parameter = span_in(&text, "limit:u8", "limit");
+            let target_at = |offset| {
+                &stage
+                    .uses()
+                    .find(|u| u.span.get_start_offset() == offset)
+                    .unwrap()
+                    .target
+            };
+            assert!(matches!(
+                target_at(order_offset),
+                Symbol::Declaration(id) if id.package == "app" && id.path == "Down" && id.kind == Data
+            ), "{order}");
+            assert!(matches!(
+                target_at(bound_offset),
+                Symbol::Binding { kind: Param, span, .. } if *span == limit_parameter
+            ), "{order}");
+        }
+    });
 }
 
 #[test]

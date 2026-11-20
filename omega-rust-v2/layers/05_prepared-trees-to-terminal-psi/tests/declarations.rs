@@ -241,31 +241,43 @@ fn transparent_aliases_share_the_underlying_schema_and_field_carrier() {
                       through_alias:Second;
                       data Second = First;
                   }";
-    let package = lower(&[("alias.omg", source)]).unwrap();
-    let [container, original] = package.data.as_slice() else {
-        panic!("expected only the two nominal declarations");
-    };
-    assert_eq!(container.declaration.path, "Container");
-    assert_eq!(original.declaration.path, "Original");
-    let [direct, through_alias] = container.fields.as_slice() else {
-        panic!("expected distinct field declarations");
-    };
-    assert_eq!(direct.declaration.path, "Container::original");
-    assert_eq!(through_alias.declaration.path, "Container::through_alias");
-    let [second, first] = package.aliases.as_slice() else {
-        panic!("expected both alias declarations in sorted order");
-    };
-    assert_eq!(second.declaration.path, "Container::Second");
-    assert_eq!(first.declaration.path, "First");
-    assert!(!second.public);
-    assert!(!first.public);
-    assert_eq!(second.target, AliasTarget::Declaration(first.declaration.clone()));
-    assert_eq!(first.target, AliasTarget::Declaration(original.declaration.clone()));
-    assert_eq!(first.site.span.slice(source.as_bytes()), Some(b"data First = Original;".as_slice()));
-    assert_eq!(second.site.span.slice(source.as_bytes()), Some(b"data Second = First;".as_slice()));
-    assert_eq!(direct.carrier, original.carrier);
-    assert_eq!(through_alias.carrier, original.carrier);
-    assert_eq!(package.types.get(original.carrier), Some(&TypeShape::Nominal(original.id)));
+    let file = "alias.omg";
+    let package = lower(&[(file, source)]).unwrap();
+    spec_corpus::observe_handoff!("product/l5", {
+        let [container, original] = package.data.as_slice() else {
+            panic!("expected only the two nominal declarations");
+        };
+        assert_eq!(container.declaration.path, "Container");
+        assert_eq!(original.declaration.path, "Original");
+        assert_ne!(container.id, original.id);
+        let [direct, through_alias] = container.fields.as_slice() else {
+            panic!("expected distinct field declarations");
+        };
+        assert_eq!(direct.declaration.path, "Container::original");
+        assert_eq!(through_alias.declaration.path, "Container::through_alias");
+        let [second, first] = package.aliases.as_slice() else {
+            panic!("expected both alias declarations in sorted order");
+        };
+        assert_eq!(second.declaration.path, "Container::Second");
+        assert_eq!(first.declaration.path, "First");
+        assert!(!second.public);
+        assert!(!first.public);
+        assert_eq!(second.target, AliasTarget::Declaration(first.declaration.clone()));
+        assert_eq!(first.target, AliasTarget::Declaration(original.declaration.clone()));
+        let authored_site = |declaration: &str| {
+            let start = source.find(declaration).unwrap();
+            omega_lowering::Site {
+                package: "app".into(),
+                file: file.into(),
+                span: omega_lowering::SourceSpan::new(start, start + declaration.len()),
+            }
+        };
+        assert_eq!(first.site, authored_site("data First = Original;"));
+        assert_eq!(second.site, authored_site("data Second = First;"));
+        assert_eq!(direct.carrier, original.carrier);
+        assert_eq!(through_alias.carrier, original.carrier);
+        assert_eq!(package.types.get(original.carrier), Some(&TypeShape::Nominal(original.id)));
+    });
 }
 
 #[test]

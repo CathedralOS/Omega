@@ -124,6 +124,39 @@ class LayerReportTests(unittest.TestCase):
         self.report["last_layer"] = "L4"
         self.assertNotIn(name, frontend_diagnostics.active_cases(self.report))
 
+    def test_frontend_product_credit_follows_the_assertion_in_its_passing_owner(self):
+        # Parse the captured layer stdout first, just as the measurement runner does.
+        # Even a failed comparison after a first success must revoke the product credit.
+        for stage, (target, name, _) in frontend_diagnostics.PRODUCTS.items():
+            label = "line-comments/crlf-product" if stage == "L0" else f"product/{stage.lower()}"
+            success = f"OMEGA_REVIEWED_COMPARISON\t{label}\tassert_eq!(actual, expected)"
+            failure = success.replace("OMEGA_REVIEWED", "OMEGA_FAILED")
+            binary = f"tests\\{target}.rs"
+            for fault, status, owned, other in [
+                (None, "ok", [success], []),
+                ("missing", "ok", [], []),
+                ("swapped owner", "ok", [], [success]),
+                ("duplicate", "ok", [success, success], []),
+                ("failed test", "FAILED", [success], []),
+                ("failed comparison", "ok", [success, failure], []),
+            ]:
+                with self.subTest(stage=stage, fault=fault):
+                    report = {"last_layer": "L5", "measurement_errors": [], "cases": {}, "suites": {}}
+                    output = libtest(binary, (name, status, owned), ("other", "ok", other))
+                    tests, _ = collect(output, stage, report)
+                    report["suites"][stage] = {"tests": tests}
+                    frontend_diagnostics.collect(report, "")
+                    witness = report["frontend_diagnostics"]["products"][stage]
+                    self.assertEqual(witness["comparison"], label)
+                    self.assertEqual(witness["verified"], fault is None)
+                    self.assertEqual(any(f"{stage} product witness" in e for e in report["measurement_errors"]), fault is not None)
+
+    def test_before_lowering_does_not_require_the_l5_product_comparison(self):
+        self.report["last_layer"] = "L4"
+        frontend_diagnostics.collect(self.report, "")
+        self.assertEqual(set(self.report["frontend_diagnostics"]["products"]), {"L0", "L1", "L2", "L3", "L4"})
+        self.assertFalse(any("L5 product witness" in e for e in self.report["measurement_errors"]))
+
     def test_complete_fragment_count_cannot_certify_a_failed_comparison(self):
         for stage in frontend_diagnostics.PRODUCTS:
             self.report["suites"][stage] = {"tests": []}
