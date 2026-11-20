@@ -397,7 +397,7 @@ def omega_storage_customer(work, timeout):
     (work / "storage-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 0, 51, 53, 42, 42, 42, 59)):
+    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 0, 51, 53, 42, 42, 42, 42, 59)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -411,7 +411,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: sixteen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and 68 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: seventeen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and 68 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_utf8_customer(work, timeout, batch=None):

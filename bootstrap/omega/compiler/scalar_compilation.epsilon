@@ -1223,6 +1223,7 @@ machine OmegaScalarCompiler::expression_type(
     state unary(row: OmegaUnaryExpressionSyntax) {
         transition row.operator {
             OmegaUnaryOperatorKind::LogicalNot -> return 1
+            OmegaUnaryOperatorKind::Dereference -> place()
             OmegaUnaryOperatorKind::Negate -> magnitude_type(self.parser.expressions[row.operand])
             _ -> return 0
         }
@@ -1868,6 +1869,7 @@ machine OmegaScalarCompiler::check_value(
     state unary(row: OmegaUnaryExpressionSyntax) {
         transition row.operator {
             OmegaUnaryOperatorKind::LogicalNot -> logical_not(row)
+            OmegaUnaryOperatorKind::Dereference -> return self.check_place_value(source, state_index, before, expression, expected)
             OmegaUnaryOperatorKind::Negate -> negate(row)
             _ -> constant()
         }
@@ -5449,9 +5451,36 @@ machine OmegaScalarCompiler::check_place(
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
     transition row.kind {
+        OmegaExpressionKind::Unary -> unary(self.parser.unary_expressions[row.payload0])
         OmegaExpressionKind::Path -> path(row)
         OmegaExpressionKind::Indexed -> return self.check_index(source, state_index, before, expression, 1)
         _ -> unsupported()
+    }
+    state unary(row: OmegaUnaryExpressionSyntax) {
+        transition row.operator {
+            OmegaUnaryOperatorKind::Dereference -> dereference(self.parser.expressions[row.operand])
+            _ -> unsupported()
+        }
+    }
+    // Only a named reference cell is available in this subset. Following it
+    // selects the whole record and uses the same access as field selection.
+    state dereference(operand: OmegaExpressionSyntax) {
+        transition operand.kind {
+            OmegaExpressionKind::Path -> reference_name(operand)
+            _ -> unsupported()
+        }
+    }
+    state reference_name(operand: OmegaExpressionSyntax) {
+        transition (operand.payload1 == 1) && (operand.payload2 == 0) && (operand.payload3 == 1) {
+            true -> reference_binding(operand, self.parser.members[operand.payload0])
+            _ -> unsupported()
+        }
+    }
+    state reference_binding(operand: OmegaExpressionSyntax, name: OmegaRelativeSpan) {
+        transition self.pattern_binding(source, name) >= 0 {
+            true -> unsupported()
+            _ -> ordinary(operand, name)
+        }
     }
     state path(row: OmegaExpressionSyntax) {
         transition (row.payload1 > 0) && (row.payload2 == 0) && (row.payload3 <= 1) {
@@ -5529,10 +5558,28 @@ machine OmegaScalarCompiler::check_place(
     state record_reference(row: OmegaExpressionSyntax, kind: i32) {
         transition (kind >= 500000) && (kind < 504096) {
             true -> referent(row, kind - 500000, 1)
+            _ -> owned(row, kind)
+        }
+    }
+    state owned(row: OmegaExpressionSyntax, kind: i32) {
+        transition self.parser.expressions[expression].kind {
+            OmegaExpressionKind::Unary -> invalid_reference(kind, self.parser.members[row.payload0].start)
             _ -> members(row, 1, kind)
         }
     }
+    state invalid_reference(kind: i32, coordinate: i32) {
+        transition (kind > 0) && (kind < 400000) {
+            true -> missing(coordinate)
+            _ -> unsupported()
+        }
+    }
     state referent(row: OmegaExpressionSyntax, declaration: i32, writable: i32) {
+        transition self.parser.expressions[expression].kind {
+            OmegaExpressionKind::Unary -> referenced_fields(row, declaration, writable)
+            _ -> implicit_reference(row, declaration, writable)
+        }
+    }
+    state implicit_reference(row: OmegaExpressionSyntax, declaration: i32, writable: i32) {
         transition row.payload1 > 1 {
             true -> referenced_fields(row, declaration, writable)
             _ -> unsupported()
