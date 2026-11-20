@@ -117,6 +117,76 @@ def terminal_cases():
                 b'machine main()->u8 {fake()}', (1, 0, b'fake()'))
 
 
+def provider_cases():
+    encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
+    core = ROOT / 'source/library/core'
+    service = (core / 'process_exit.omg').read_bytes()
+    bottom = (core / 'never.omg').read_bytes()
+    primitive = (core / 'process_exit_native.omg').read_bytes()
+    provider = (ROOT / 'source/library/std/process_exit.omg').read_bytes()
+    packages = [('app', 0), ('omega_language_core', 1), ('omega_language_std', 2)]
+    paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg', 'process_exit.omg']
+    marker = b'use omega\\language\\core\\ProcessExit; machine main()->u8 reaches ProcessExit {42}'
+
+    def trial(name, app=marker, outcome=None, *, boundary=primitive, wrapper=provider, result=bottom):
+        units = [(0, app), (1, service), (1, result), (1, boundary), (2, wrapper)]
+        packet, _, _, rows = encode(packages, [(0, 2, 'stdlib')], units, 0, b'main', paths=paths)
+        if outcome:
+            code, unit, spelling = outcome
+            coordinate = rows[unit][1] + units[unit][1].rindex(spelling)
+            outcome = b'\0' + struct.pack('<II', code, coordinate)
+        return name, packet, outcome
+
+    yield trial('unselected-provider')
+    yield trial('forwarded-name', wrapper=provider.replace(b'return_code', b'status'))
+    body = b'{ProcessExit::exit_process(253);}'
+    yield trial('provider-does-not-install', marker.replace(b'{42}', body), (2, 1, b'boundary trait ProcessExit'))
+    direct = b'use omega\\language\\core\\ProcessExitPrimitive; machine main()->u8 {ProcessExitPrimitive(253);}'
+    yield trial('primitive-does-not-install', direct, (2, 3, b'public boundary machine'))
+    selected = b'use stdlib\\NativeProcessExit; machine main()->u8 {NativeProcessExit::exit_process(253);}'
+    yield trial('implementation-does-not-install', selected, (2, 4, b'NativeProcessExit satisfies'))
+    yield trial('member-is-owned', b'machine main()->u8 {exit_process(253);}', (1, 0, b'exit_process'))
+    yield trial('wrong-forwarded-value', outcome=(2, 4, b'exit_process(return_code'),
+                wrapper=provider.replace(b'ProcessExitPrimitive(return_code)', b'ProcessExitPrimitive(7)'))
+    yield trial('shadowed-forwarding-call', outcome=(2, 4, b'exit_process(return_code'),
+                wrapper=provider.replace(b'public NativeProcessExit satisfies', b'machine ProcessExitPrimitive(x:i32)->i32{x}\npublic NativeProcessExit satisfies'))
+    yield trial('wrong-forwarded-place', outcome=(2, 4, b'exit_process(return_code'),
+                wrapper=provider.replace(b'ProcessExitPrimitive(return_code)', b'ProcessExitPrimitive(other)'))
+    yield trial('wrong-primitive-requirement', outcome=(1, 3, b'ProcessExitPrimitive('),
+                boundary=primitive.replace(b'satisfies ProcessExit::exit_process', b'satisfies ProcessExit::other'))
+    yield trial('wrong-provider-result', outcome=(1, 4, b'exit_process(return_code'),
+                wrapper=provider.replace(b') -> Never', b') -> u8'))
+    yield trial('wrong-provider-owner', outcome=(2, 4, b'NativeProcessExit satisfies'),
+                wrapper=provider.replace(b'public NativeProcessExit satisfies ProcessExit',
+                                         b'boundary trait Other {} public NativeProcessExit satisfies Other'))
+    # An ordinary local machine with the primitive's spelling has no physical identity.
+    yield trial('ordinary-primitive-spelling',
+                b'machine ProcessExitPrimitive(x:u8)->u8{x} machine main()->u8{ProcessExitPrimitive(42)}')
+
+
+    relay = b'machine status(code:i32)->i32 {code}\n'
+    compare = (relay + b'machine main()->u8 {let lo:i32=status(-2147483648i32); '
+               b'let hi:i32=status(2147483647i32); let neg:i32=status(-1); '
+               b'let zero:u32=0; transition lo < neg && neg < zero && zero < hi && '
+               b'status(-0) == 0 && hi < 4294967295u32 && -1i32 != 255u8 '
+               b'{true -> good(), _ -> bad()} machine good()->u8{42} machine bad()->u8{9}}')
+    yield trial('signed-exit-status', compare)
+    for name, value, spelling in [
+        ('positive-status-overflow', b'2147483648i32', b'2147483648i32'),
+        ('negative-status-overflow', b'-2147483649i32', b'-2147483649i32'),
+        ('unsigned-status-suffix', b'-1u32', b'1u32'),
+    ]:
+        yield trial(name, relay + b'machine main()->u8{let bad:i32=status(' + value + b');42}',
+                    (1, 0, spelling))
+
+    # The construction writer passes its output byte to Console::write_byte as i32.
+    yield trial('widen-output-byte', b'machine status(byte:u8)->i32 {byte as i32} '
+                b'machine id(code:i32)->i32{code as i32} machine main()->u8 {'
+                b'transition id(status(255)) == 255i32 && id(-1) < status(0) '
+                b'{true -> yes(), _ -> no()} machine yes()->u8{42} machine no()->u8{9}}')
+    yield trial('unsigned-to-signed-unproved', b'machine status(x:u32)->i32{x as i32} machine main()->u8{42}',
+                (2, 0, b'x as i32'))
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path, help='new directory for input, results and Alpha tapes')
@@ -132,7 +202,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")

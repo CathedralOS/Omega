@@ -62,11 +62,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current twelve-member
-manifest materializes 25,160 lines / 956,031 bytes with SHA-256
-`f1936fcc521f8bc78a567c08136743d23edbf6eef6e24e32ff44e698c8cb6d3b`.
-The manifest itself is 2,039 bytes, SHA-256
-`07c7612b5c9fc27775436f22f2345fe4e4e3e1e728fbe70fc3dc0cb5c8150137`;
+The current thirteen-member
+manifest materializes 25,809 lines / 985,918 bytes with SHA-256
+`e743f7ef6b09c922ff7801a7dd455eb64f27fdd08b05f5ed396b383dbd765500`.
+The manifest itself is 2,211 bytes, SHA-256
+`b2d2cd5323e93f31318d4a8ea58160295bec9ce8105680b5a6dcef339c248081`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -137,7 +137,7 @@ nonzero. The implementation remains under construction; Epsilon source
 acceptance alone does not establish compilation of the Omega compiler closure.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`,
+machines may use plain `u8`, `u32`, `i32`, `u64`, `bool`, `u32 in Trapping`,
 `u64 in Trapping`, `u64 in Wrapping`, copy records, copy sums with supported payloads,
 and Unit results. Omitted results independently mean Unit; a nested declaration
 never inherits its enclosing machine's result. Initialized and zero-established
@@ -216,13 +216,17 @@ DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
 all admitted state transfers stay within the owner, so mixed transfer/call
 cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
 No admitted source operation converts these private addresses to numeric values.
-Numeric comparisons bias both unsigned words by the high bit before Alpha's
-signed comparison, preserving unsigned order. A decimal expression with an
-explicit `u8`, `u32`, or `u64` suffix retains that carrier through storage,
+An `i32` value retains its sign through local storage, parameters, and returns.
+Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
+Comparisons between unsigned words bias both operands by the high bit first.
+The construction writer can widen any output byte with `as i32`. A narrowing
+from an unrestricted `u32` has no such proof. A decimal expression with an
+explicit `u8`, `u32`, `i32`, or `u64` suffix
+retains that carrier through storage,
 calls, domain casts, and returns. A mismatched destination rejects at the
 literal. Other valid integer carriers retain their spelling in the parser and
-remain outside executable coverage. Decimal values currently cover
-`0..4294967295`; larger `u64` values remain outside this range. For plain `u32` addition, the compiler tracks which bits may be set
+remain outside executable coverage. Signed decimal literals cover
+`-2147483648..2147483647`. Unsigned decimal values cover `0..4294967295`; larger `u64` values remain outside this range. For plain `u32` addition, the compiler tracks which bits may be set
 in each operand and admits disjoint masks. It admits multiplication by a value
 whose only possible values are zero and one power of two if shifting the other
 mask cannot discard a bit. These proofs apply to byte widening and immutable
@@ -544,8 +548,18 @@ returning a fieldless record whose sole default predicate is the literal
 `false`. The checker resolves its result under the boundary's source unit.
 Its requirement publishes the owner's service reach, `crashes none` and
 `terminates`. Calling the uninstalled requirement returns `Incomplete` at
-its boundary keyword. The construction packet supplies no provider or
-process-domain authority.
+its boundary keyword.
+
+A construction package can also include the authored core
+`ProcessExitPrimitive` and std `NativeProcessExit`. The checker resolves the
+primitive to the exact public declaration in the toolchain core root and checks
+its `satisfies` member, reach, result and termination. The named implementation
+owns its member. The supported body makes one call to the resolved primitive,
+passing its own signed parameter. Changing that value or shadowing the primitive
+leaves this forwarding subset. The v1 package installs neither a provider nor
+a process domain. Calling the requirement, primitive or wrapper still refuses.
+[Provider checker](resolution/providers.epsilon) ·
+[Standard provider](../../../source/library/std/process_exit.omg)
 
 The same proof of an empty default domain applies to ordinary checked
 machines. A machine returning such a type can end in a checked Trap or

@@ -272,6 +272,8 @@ data OmegaDeclarationKind {
     case Data;
     case Machine;
     case Service;
+    case BoundaryMachine;
+    case Implementation;
 }
 
 data OmegaImportBindingKind {
@@ -279,6 +281,8 @@ data OmegaImportBindingKind {
     case Data;
     case Machine;
     case Service;
+    case BoundaryMachine;
+    case Implementation;
 }
 
 data OmegaImportBinding {
@@ -297,6 +301,8 @@ data OmegaRootKind {
     case Machine;
     case BoundaryTrait;
     case Domain;
+    case Implementation;
+    case BoundaryMachine;
 }
 
 data OmegaRootSyntax {
@@ -324,6 +330,18 @@ data OmegaBoundaryTraitSyntax {
     boundary_keyword: OmegaRelativeSpan;
     first_requirement: i32;
     requirement_count: i32;
+    is_public: i32;
+    start: i32;
+    end: i32;
+}
+
+// Inline provider members use ordinary machine syntax under the exact
+// declaring implementation. They never enter the free machine namespace.
+data OmegaImplementationSyntax {
+    name: OmegaRelativeSpan;
+    trait_name: OmegaRelativeSpan;
+    first_member: i32;
+    member_count: i32;
     is_public: i32;
     start: i32;
     end: i32;
@@ -881,6 +899,7 @@ data OmegaMachineSyntax {
     clause_count: i32;
     is_public: i32;
     is_bodyless: i32;
+    is_boundary: i32;
     has_target: i32;
     target: OmegaRelativeSpan;
     start: i32;
@@ -1094,6 +1113,16 @@ data OmegaParser {
     boundary_trait_count: i32;
     boundary_requirement_count: i32;
     in_boundary_trait: i32;
+    implementations: [OmegaImplementationSyntax; 4096];
+    // Every owned machine consumes a state row. Inline implementation
+    // members form a contiguous range. A boundary root names one ordinal.
+    owned_machines: [OmegaMachineSyntax; 4096];
+    owned_machine_count: i32;
+    boundary_machines: [i32; 4096];
+    boundary_machine_count: i32;
+    implementation_count: i32;
+    in_implementation: i32;
+    pending_implementation_name: OmegaRelativeSpan;
     pending_boundary_keyword: OmegaRelativeSpan;
     members: [OmegaRelativeSpan; 16384];
     uses: [OmegaUseSyntax; 4096];
@@ -1250,6 +1279,7 @@ data OmegaParser {
     machine_clause_subject_member_count: i32;
     machine_clause_start: i32;
     machine_is_bodyless: i32;
+    machine_is_boundary: i32;
     machine_parameter_is_const: i32;
     machine_parameter_is_leading_mutable: i32;
     machine_parameter_is_mutable: i32;
