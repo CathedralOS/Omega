@@ -233,6 +233,9 @@ impl ResolveAndTypeRequest {
                 .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
                 .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
         }
+        // An activated frontend can supply declarations from another stage.
+        // This projection alone determines whether the Build entry has a suffix.
+        typing.typed_mut().roots.partial_build_entry = self.syntax.partial_build_entry;
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         if let Some(retained_requests) = retained_requests {
             PreCheckEvaluation::require_recorded_requests(typing.typed())?;

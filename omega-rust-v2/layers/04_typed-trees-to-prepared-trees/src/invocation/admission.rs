@@ -470,14 +470,7 @@ impl ConstantEvaluation<'_, '_> {
             } else {
                 match &operand.subject {
                     ValueType::StaticInteger { value, carrier: selected } if selected.as_ref() == carrier => Step::Push(PreparedValue::Integer(value.clone())),
-                    _ => {
-                        let mut argument_scope = scope.clone();
-                        let Scope::Initializer { in_argument, .. } = &mut argument_scope else {
-                            unreachable!()
-                        };
-                        *in_argument = true;
-                        Step::Evaluate(operand.node, carrier.clone(), argument_scope)
-                    }
+                    _ => Step::Evaluate(operand.node, carrier.clone(), scope.clone()),
                 }
             }
         };

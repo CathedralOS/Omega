@@ -47,6 +47,10 @@ machine OmegaParser::ordinary_name_token(&mut self) -> i32 {
 machine OmegaParser::reset_syntax(&mut self) {
     self.root_count = 0;
     self.domain_count = 0;
+    self.implementation_count = 0;
+    self.boundary_machine_count = 0;
+    self.owned_machine_count = 0;
+    self.in_implementation = 0;
     self.boundary_trait_count = 0;
     self.boundary_requirement_count = 0;
     self.in_boundary_trait = 0;
@@ -586,6 +590,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             126 -> boundary_trait_member()
             127 -> boundary_requirement_name()
             128 -> boundary_requirement_parameters()
+            140 -> public_implementation_satisfies()
+            141 -> implementation_trait_name()
+            142 -> implementation_body()
+            143 -> implementation_member()
             129 -> domain_carrier_token()
             130 -> domain_name_token()
             131 -> domain_tail_token()
@@ -1046,6 +1054,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             126 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitMemberOrEnd, source.len, source.len)
             127 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedPathMember, source.len, source.len)
             128 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedMachineParameterOrEnd, source.len, source.len)
+            140 -> unsupported_implementation_name()
+            141 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitName, source.len, source.len)
+            142 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitBody, source.len, source.len)
+            143 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitMemberOrEnd, source.len, source.len)
             129 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainCarrier, source.len, source.len)
             130 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainName, source.len, source.len)
             131 -> syntax_failure(OmegaParseDiagnosticCode::ExpectedDomainEnd, source.len, source.len)
@@ -1358,6 +1370,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state begin_unscoped_machine(is_public: i32) {
+        self.machine_is_boundary = 0;
         self.machine_has_target = 0;
         self.machine_target_start = 0;
         self.machine_target_end = 0;
@@ -1384,6 +1397,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state begin_target_machine_root() {
+        self.machine_is_boundary = 0;
         self.item_start = self.scan.token_start;
         self.machine_has_target = 1;
         self.machine_target_start = self.scan.token_start;
@@ -1403,7 +1417,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state target_identifier() {
         transition self.scan.span_equals(source, self.machine_target_start, self.machine_target_end, "boundary") {
             1 -> start_private_boundary_trait()
-            _ -> target_or_retired_module()
+            _ -> private_implementation_or_target()
         }
     }
     state start_private_boundary_trait() {
@@ -1411,6 +1425,17 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             1 -> begin_boundary_trait(0, self.machine_target_start, self.machine_target_end)
             _ -> incomplete_root()
         }
+    }
+    state private_implementation_or_target() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "satisfies") {
+            1 -> private_implementation()
+            _ -> target_or_retired_module()
+        }
+    }
+    state private_implementation() {
+        self.pending_implementation_name.start = self.machine_target_start;
+        self.pending_implementation_name.end = self.machine_target_end;
+        transition true { true -> begin_implementation(0) }
     }
     state target_or_retired_module() {
         transition self.scan.span_equals(source, self.machine_target_start,
@@ -1423,9 +1448,22 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state target_machine_keyword() {
         transition self.scan.keyword {
-            OmegaKeywordKind::Machine -> begin_machine(0)
+            OmegaKeywordKind::Machine -> target_machine_kind()
             _ -> incomplete_root()
         }
+    }
+    state target_machine_kind() {
+        transition self.scan.span_equals(source, self.machine_target_start, self.machine_target_end, "boundary") {
+            1 -> begin_boundary_machine(0)
+            _ -> begin_machine(0)
+        }
+    }
+    state begin_boundary_machine(is_public: i32) {
+        self.machine_has_target = 0;
+        self.machine_target_start = 0;
+        self.machine_target_end = 0;
+        self.machine_is_boundary = 1;
+        transition true { true -> begin_machine(is_public) }
     }
 
     state begin_machine(is_public: i32) {
@@ -2105,8 +2143,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state requirement_crash_end(kind: OmegaMachineClauseKind) {
-        transition self.in_boundary_trait {
-            1 -> retain_effect_clause(kind)
+        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) {
+            true -> retain_effect_clause(kind)
             _ -> incomplete_root()
         }
     }
@@ -2292,7 +2330,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state machine_clause_continuation_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::LeftBrace -> enter_current_state_body()
+            OmegaPunctuationKind::LeftBrace -> machine_body_or_requirement()
+            OmegaPunctuationKind::Semicolon -> requirement_end_or_incomplete()
             OmegaPunctuationKind::Comma -> begin_additional_satisfies_clause()
             _ -> incomplete_root()
         }
@@ -2516,8 +2555,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state begin_termination_clause() {
-        transition self.in_boundary_trait {
-            1 -> requirement_termination_clause()
+        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) || (self.in_implementation == 1) {
+            true -> requirement_termination_clause()
             _ -> begin_private_termination_clause()
         }
     }
@@ -2863,14 +2902,20 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state machine_body_or_requirement() {
-        transition self.in_boundary_trait {
-            1 -> incomplete_root()
+        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) {
+            true -> incomplete_root()
             _ -> enter_current_state_body()
         }
     }
     state requirement_end_or_incomplete() {
         transition self.in_boundary_trait {
             1 -> retain_boundary_requirement()
+            _ -> boundary_machine_end()
+        }
+    }
+    state boundary_machine_end() {
+        transition self.machine_is_boundary {
+            1 -> retain_bodyless_external_machine()
             _ -> incomplete_root()
         }
     }
@@ -8260,12 +8305,43 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.machine_items[self.machine_count].is_public = self.machine_is_public;
         self.machine_items[self.machine_count].is_bodyless =
             self.machine_is_bodyless;
+        self.machine_items[self.machine_count].is_boundary = self.machine_is_boundary;
         self.machine_items[self.machine_count].has_target = self.machine_has_target;
         self.machine_items[self.machine_count].target.start =
             self.machine_target_start;
         self.machine_items[self.machine_count].target.end = self.machine_target_end;
         self.machine_items[self.machine_count].start = self.item_start;
         self.machine_items[self.machine_count].end = self.scan.token_end;
+        transition self.in_implementation {
+            1 -> retain_implementation_member()
+            _ -> root_machine_kind()
+        }
+    }
+    state retain_implementation_member() {
+        // Every inline member consumes at least one of the 4096 state rows.
+        self.owned_machines[self.owned_machine_count] = self.machine_items[self.machine_count];
+        self.owned_machine_count = self.owned_machine_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(143) }
+    }
+    state root_machine_kind() {
+        transition self.machine_is_boundary {
+            1 -> retain_boundary_machine()
+            _ -> retain_free_machine()
+        }
+    }
+    state retain_boundary_machine() {
+        self.owned_machines[self.owned_machine_count] = self.machine_items[self.machine_count];
+        self.boundary_machines[self.boundary_machine_count] = self.owned_machine_count;
+        self.owned_machine_count = self.owned_machine_count + 1;
+        self.roots[self.root_count].kind = OmegaRootKind::BoundaryMachine;
+        self.roots[self.root_count].item_index = self.boundary_machine_count;
+        self.boundary_machine_count = self.boundary_machine_count + 1;
+        self.root_count = self.root_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(0) }
+    }
+    state retain_free_machine() {
         self.roots[self.root_count].kind = OmegaRootKind::Machine;
         self.roots[self.root_count].item_index = self.machine_count;
         self.machine_count = self.machine_count + 1;
@@ -8291,8 +8367,99 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state public_root_identifier() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "boundary") {
             1 -> after_public_boundary()
+            _ -> possible_public_implementation()
+        }
+    }
+    state possible_public_implementation() {
+        self.pending_implementation_name.start = self.scan.token_start;
+        self.pending_implementation_name.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(140) }
+    }
+    state public_implementation_satisfies() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "satisfies") {
+            1 -> begin_implementation(1)
+            _ -> unsupported_implementation_name()
+        }
+    }
+    state unsupported_implementation_name() {
+        self.status = OmegaParserStatus::Incomplete;
+        self.incomplete_start = self.pending_implementation_name.start;
+        self.incomplete_end = self.pending_implementation_name.end;
+    }
+    state begin_implementation(is_public: i32) {
+        transition self.root_count < 4096 {
+            true -> open_implementation(is_public)
+            _ -> resource_failure(OmegaParserResource::Roots, 4096, self.root_count + 1)
+        }
+    }
+    state open_implementation(is_public: i32) {
+        self.implementations[self.implementation_count].name = self.pending_implementation_name;
+        self.implementations[self.implementation_count].start = self.item_start;
+        self.implementations[self.implementation_count].is_public = is_public;
+        self.implementations[self.implementation_count].first_member = self.owned_machine_count;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(141) }
+    }
+    state implementation_trait_name() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_implementation_trait()
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedTraitName, self.scan.token_start, self.scan.token_end)
+        }
+    }
+    state retain_implementation_trait() {
+        self.implementations[self.implementation_count].trait_name.start = self.scan.token_start;
+        self.implementations[self.implementation_count].trait_name.end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(142) }
+    }
+    state implementation_body() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> implementation_open()
             _ -> incomplete_root()
         }
+    }
+    state implementation_open() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> inside_implementation()
+            _ -> incomplete_root()
+        }
+    }
+    state inside_implementation() {
+        self.in_implementation = 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(143) }
+    }
+    state implementation_member() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> implementation_keyword()
+            OmegaTokenKind::Punctuation -> implementation_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+    state implementation_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Machine -> begin_machine_root()
+            _ -> incomplete_root()
+        }
+    }
+    state implementation_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> retain_implementation()
+            _ -> incomplete_root()
+        }
+    }
+    state retain_implementation() {
+        self.implementations[self.implementation_count].member_count = self.owned_machine_count -
+            self.implementations[self.implementation_count].first_member;
+        self.implementations[self.implementation_count].end = self.scan.token_end;
+        self.roots[self.root_count].kind = OmegaRootKind::Implementation;
+        self.roots[self.root_count].item_index = self.implementation_count;
+        self.root_count = self.root_count + 1;
+        self.implementation_count = self.implementation_count + 1;
+        self.in_implementation = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(0) }
     }
     state after_public_boundary() {
         self.pending_boundary_keyword.start = self.scan.token_start;
@@ -8301,6 +8468,18 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition true { true -> scan_semantic(123) }
     }
     state boundary_trait_keyword() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> public_boundary_item_keyword()
+            _ -> public_boundary_trait()
+        }
+    }
+    state public_boundary_item_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Machine -> begin_boundary_machine(1)
+            _ -> incomplete_root()
+        }
+    }
+    state public_boundary_trait() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "trait") {
             1 -> begin_boundary_trait(1, self.pending_boundary_keyword.start, self.pending_boundary_keyword.end)
             _ -> incomplete_root()
@@ -10252,8 +10431,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state requirement_return_end() {
-        transition self.in_boundary_trait {
-            1 -> retain_type_for_consumer(self.type_end, self.scan.token_start)
+        transition (self.in_boundary_trait == 1) || (self.machine_is_boundary == 1) {
+            true -> retain_type_for_consumer(self.type_end, self.scan.token_start)
             _ -> incomplete_root()
         }
     }

@@ -4,7 +4,10 @@ use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{MachineEffects, PauseEffects, ServiceApplication, TypeError, TypedStage};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+mod inferred_crashes;
+
 pub(crate) fn check_machine_effects(
+    units: &[crate::declarations::resolved_source_file::ResolvedSourceFile<'_>],
     catalog: &DeclarationCatalog<'_>,
     graph: &super::effect_propagation::ExecutionCalls,
     dependencies: &PreparationDependencies<'_>,
@@ -145,6 +148,7 @@ pub(crate) fn check_machine_effects(
         }
     }
     let mut invokes = super::callback_invocations::compose_callback_invocations(catalog, graph, boundary_slots, out)?;
+    let empty_crashes = inferred_crashes::empty_rows(units, catalog, graph, dependencies, out);
     for &id in &catalog.local_machines {
         if !dependencies.declaration_is_ready(id) {
             continue;
@@ -160,7 +164,7 @@ pub(crate) fn check_machine_effects(
             fixed_pause: formulas[id].fixed,
             callback_pause: formulas[id].binders.clone(),
             reach: row,
-            crash_ceiling: catalog.signatures[id].crash_ceiling.clone(),
+            crash_ceiling: catalog.signatures[id].crash_ceiling.clone().or_else(|| empty_crashes.contains(id).then(Vec::new)),
             terminates: catalog.signatures[id].terminates,
         }));
     }

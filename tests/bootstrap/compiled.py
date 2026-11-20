@@ -411,7 +411,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable, timeout=timeout) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: sixteen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and 54 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: sixteen executables, SourceUnit append/read, ModulePath boundaries, indexed SourceRange fields, u64 arrays and 68 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_utf8_customer(work, timeout, batch=None):
@@ -453,7 +453,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, 42, 43, 44, 45),
         (42, -4, 42, 42),
         (42, 42, 42, 42, 42, 42, -4, 42),
-        (42, 42, 42, 42),
+        (42, 42, 42, 42, 42),
         (42, -4, 42),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)

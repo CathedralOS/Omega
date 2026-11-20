@@ -62,11 +62,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current twelve-member
-manifest materializes 25,194 lines / 958,282 bytes with SHA-256
-`187187766652adafce3677731883f9aa3cbad48469b028863434039c575553ec`.
-The manifest itself is 2,039 bytes, SHA-256
-`2b831a9944c40888f34536e353e844aa06356a34d6e3fd369a0b1e1ba13f16fe`;
+The current thirteen-member
+manifest materializes 26,295 lines / 1,008,184 bytes with SHA-256
+`48614901b52ff90314fb7cf2ed5066f223d7e459e54a398dc4de027ab8cf9aa5`.
+The manifest itself is 2,380 bytes, SHA-256
+`f073b9f190fe2c28851d49fb4497c4fef61443a04c7745f0b684e5d2c0aa89fe`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -139,7 +139,7 @@ nonzero. The implementation remains under construction; Epsilon source
 acceptance alone does not establish compilation of the Omega compiler closure.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`,
+machines may use plain `u8`, `u32`, `i32`, `u64`, `bool`, `u32 in Trapping`,
 `u64 in Trapping`, `u64 in Wrapping`, copy records, copy sums with supported payloads,
 and Unit results. Omitted results independently mean Unit; a nested declaration
 never inherits its enclosing machine's result. Initialized and zero-established
@@ -218,13 +218,20 @@ DAG, collecting calls from every state, rejects reentrant ordinary-call cycles;
 all admitted state transfers stay within the owner, so mixed transfer/call
 cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
 No admitted source operation converts these private addresses to numeric values.
-Numeric comparisons bias both unsigned words by the high bit before Alpha's
-signed comparison, preserving unsigned order. A decimal expression with an
-explicit `u8`, `u32`, or `u64` suffix retains that carrier through storage,
+An `i32` value retains its sign through local storage, parameters, and returns.
+Comparisons between `i32` and `i32`, `u8`, or `u32` use signed Alpha word order.
+Comparisons between unsigned words bias both operands by the high bit first.
+The construction writer can widen any output byte with `as i32`. A narrowing
+from an unrestricted `u32` has no such proof. A decimal expression with an
+explicit `u8`, `u32`, `i32`, or `u64` suffix
+retains that carrier through storage,
 calls, domain casts, and returns. A mismatched destination rejects at the
 literal. Other valid integer carriers retain their spelling in the parser and
-remain outside executable coverage. Decimal values currently cover
-`0..4294967295`; larger `u64` values remain outside this range. For plain `u32` addition, the compiler tracks which bits may be set
+remain outside executable coverage. Signed decimal literals cover
+`-2147483648..2147483647`. The compiler accepts unsigned decimal literals through
+18446744073709551615 for `u64` and emits both words in one Alpha immediate.
+Narrow integer predicates and index bounds require the complete magnitude to
+fit their proof representation. For plain `u32` addition, the compiler tracks which bits may be set
 in each operand and admits disjoint masks. It admits multiplication by a value
 whose only possible values are zero and one power of two if shifting the other
 mask cannot discard a bit. These proofs apply to byte widening and immutable
@@ -348,17 +355,29 @@ shell's `Trapping` domain preserves element types
 and closes its empty restoration debt. Reads use shared views and writes use
 mutable views; other reference attenuation remains unsupported. A bare `u64`
 array local without an initializer uses zero-initialized storage and the same
-checked selectors and element stride as a record field. Other domains,
-range views and structural
-equivalence of separately spelled array value types remain unsupported.
+checked selectors and element stride as a record field.
+
+A machine taking `@[u8]` can read the live length of a shared byte slice.
+A literal index needs a proved lower bound on that length. Callers can borrow
+a whole packed byte array or a half-open subrange with literal endpoints,
+including an empty range. The descriptor carries the original address and
+the live length in two words. The caller retains the shared loan through
+argument evaluation. The storage test forwards the final two bytes of the
+construction input and reads the last byte through a nested call.
+[Shared byte slices](shared_byte_slices.epsilon)
+
+Mutable slices, dynamic range endpoints, other domains and structural
+equivalence of separately spelled array value types remain outside this profile.
 
 The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements in a reduced `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
-It returns `Incomplete` at file byte 6,843, where a nested parameter shares
-the name of a sibling helper. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+It reads `path` as a parameter in the nested helper even though a sibling
+machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
+Its entry checker next encounters the parameter-to-parameter requirement
+`index < spelling.len` in the nested reader. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -544,9 +563,26 @@ A boundary may declare one terminal operation taking an ordinary `i32` and
 returning a fieldless record whose sole default predicate is the literal
 `false`. The checker resolves its result under the boundary's source unit.
 Its requirement publishes the owner's service reach, `crashes none` and
-`terminates`. Calling the uninstalled requirement returns `Incomplete` at
-its boundary keyword. The construction packet supplies no provider or
-process-domain authority.
+`terminates`. Both statement and expression calls check the single signed status argument.
+Wrong arity or a mismatched value rejects at the call or argument. Calling
+the uninstalled requirement with a well-typed status returns `Incomplete` at
+its boundary keyword.
+
+Like the product scalar lowerer, the isolated Alpha adapter accepts a
+parameterless entry returning either an ordinary byte or Unit. A normally
+returning Unit entry yields process status zero. Entry selection grants no
+stream or exit service. [Product entry result](../../../source/subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/scalar.omg)
+
+A construction package can also include the authored core
+`ProcessExitPrimitive` and std `NativeProcessExit`. The checker resolves the
+primitive to the exact public declaration in the toolchain core root and checks
+its `satisfies` member, reach, result and termination. The named implementation
+owns its member. The supported body makes one call to the resolved primitive,
+passing its own signed parameter. Changing that value or shadowing the primitive
+leaves this forwarding subset. The v1 package installs neither a provider nor
+a process domain. Calling the requirement, primitive or wrapper still refuses.
+[Provider checker](resolution/providers.epsilon) ·
+[Standard provider](../../../source/library/std/process_exit.omg)
 
 The same proof of an empty default domain applies to ordinary checked
 machines. A machine returning such a type can end in a checked Trap or

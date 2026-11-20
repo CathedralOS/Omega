@@ -274,6 +274,12 @@ machine Main::main(&mut self) {
         self.refusal("machine main()->u8 {let x:u64 in Trapping=0u32 as +Trapping;42}",1,248);
         self.refusal("machine main()->u8 {256u8}",1,249);
         self.refusal("machine main()->u8 {17u13}",2,250);
+        // Generate the large values independently with wrapping arithmetic. A low word alone cannot prove an index bound.
+        self.positive("machine wrap(n:u64)->u64 in Wrapping {n as +Wrapping} machine main()->u8 {let base:u64 in Wrapping=wrap(4294967295)+1;let top:u64 in Wrapping=base*2147483648;let max:u64 in Wrapping=wrap(0)-1;let b:u64=base as -Wrapping;let t:u64=top as -Wrapping;let m:u64=max as -Wrapping;transition 4294967296u64==b && 9223372036854775808u64==t && 18446744073709551615u64==m && m>t {true->yes(),_->no()} machine yes()->u8 {42} machine no()->u8 {7}}",42,251);
+        self.refusal("machine main()->u8 {let n:u64=18446744073709551616u64;42}",1,252);
+        self.refusal("machine main()->u8 {let n:u32=4294967296u32;42}",1,253);
+        self.refusal("data Buffer { bytes:[u8;2]; } machine main()->u8 {let buffer:Buffer; buffer.bytes[4294967296u64]}",2,254);
+        self.refusal("data Buffer { bytes:[u8;2]; } machine read(n:u64)->u8 requires n<4294967297u64 {let b:Buffer; b.bytes[n]} machine main()->u8{read(0)}",2,255);
     }
     state batch_13() {
         // Real hex_digit_value checks both ends of each ASCII range and the sentinel.

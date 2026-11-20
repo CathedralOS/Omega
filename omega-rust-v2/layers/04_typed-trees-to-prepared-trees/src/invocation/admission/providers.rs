@@ -74,7 +74,9 @@ impl ConstantEvaluation<'_, '_> {
                 Ok(realized) => match selected {
                     None => selected = Some((proof, realized)),
                     Some((chosen, chosen_application)) => {
-                        if chosen.binding != proof.binding || chosen.realization != proof.realization || chosen_application != realized {
+                        // Both realizations already matched the target's unique plan for
+                        // this slot. The proof-local binding and application must agree too.
+                        if chosen.binding != proof.binding || chosen_application != realized {
                             return Err(PreparationReason::CompetingProviderRealizations.into());
                         }
                     }

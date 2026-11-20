@@ -1,4 +1,4 @@
-//! Check which local and nested machine names cross a preparation boundary.
+//! Check which local bindings cross a preparation boundary.
 
 use super::frame::{Binding, Cut};
 use diagnostics::Diagnostic;
@@ -9,36 +9,21 @@ use syntax_trees::expression::{
     TableMatchField,
 };
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::Machine;
 use syntax_trees::statement::{
     StatementHandle, StatementNode, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
 
-#[derive(Default)]
-pub(super) struct LexicalPlan {
-    pub cuts: Vec<Cut>,
-    pub nested_calls: Vec<(usize, Identifier)>,
-}
-
 /// A real preparation can extend the scope if every live binding has a frame
 /// home. Otherwise keep its original program until the live region ends.
 pub(super) fn program_ends(
     syntax: &SyntaxTrees,
-    machine: &Machine,
     statements: &[StatementHandle],
     preparations: &[usize],
-) -> Result<LexicalPlan, Vec<Diagnostic>> {
-    let nested = machine
-        .nested_machines
-        .handles()
-        .filter_map(|handle| syntax.items.item(handle).as_machine())
-        .map(|machine| machine.name.as_str(syntax))
-        .collect::<Vec<_>>();
+) -> Result<Vec<Cut>, Vec<Diagnostic>> {
     let mut locals = HashMap::new();
     let mut last_use = (0..statements.len()).collect::<Vec<_>>();
     let mut bindings = vec![None; statements.len()];
-    let mut calls_to_nested = Vec::new();
     let mut refusals = Vec::new();
     let mut phase = 0;
     for (position, statement) in statements.iter().enumerate() {
@@ -46,7 +31,6 @@ pub(super) fn program_ends(
         let mut uses = Uses {
             syntax,
             names: Vec::new(),
-            machines: Vec::new(),
             bindings: Vec::new(),
         };
         uses.statement(node);
@@ -55,12 +39,6 @@ pub(super) fn program_ends(
                 last_use[definition] = position;
             }
         }
-        calls_to_nested.extend(
-            uses.machines
-                .into_iter()
-                .filter(|name| nested.contains(&name.as_str(syntax)))
-                .map(|name| (position, name)),
-        );
         if let StatementNode::LocalData(local) = node {
             bindings[position] = Binding::classify(syntax, local, position, |name| {
                 let &(index, _) = locals.get(name)?;
@@ -136,13 +114,7 @@ pub(super) fn program_ends(
         }
     }
     if refusals.is_empty() {
-        Ok(LexicalPlan {
-            cuts: ends,
-            nested_calls: calls_to_nested
-                .into_iter()
-                .map(|(pos, name)| (pos, name.clone()))
-                .collect(),
-        })
+        Ok(ends)
     } else {
         Err(refusals)
     }
@@ -172,12 +144,11 @@ fn local_bindings<'syntax>(
     }
 }
 
-/// The value names and callee names one statement reads. A name is recorded
+/// The value names one statement reads. A name is recorded
 /// by its first path member: `registered`, or `request` of `request.alias`.
 struct Uses<'syntax> {
     syntax: &'syntax SyntaxTrees,
     names: Vec<&'syntax Identifier>,
-    machines: Vec<&'syntax Identifier>,
     bindings: Vec<&'syntax Identifier>,
 }
 
@@ -222,8 +193,6 @@ impl<'syntax> Uses<'syntax> {
                     .first()
                 {
                     self.names.push(receiver);
-                } else {
-                    self.machines.push(&call.target);
                 }
                 self.names.extend(call.evidence_arguments.iter());
                 self.all(syntax.statements.expression_handles(call.arguments));
@@ -273,12 +242,7 @@ impl<'syntax> Uses<'syntax> {
         }
         let syntax = self.syntax;
         match syntax.statements.transition_target(target) {
-            TransitionTargetNode::Named {
-                path, arguments, ..
-            } => {
-                if let [machine] = syntax.statements.identifier_path_members(*path) {
-                    self.machines.push(machine);
-                }
+            TransitionTargetNode::Named { arguments, .. } => {
                 self.all(syntax.statements.expression_handles(*arguments));
             }
             TransitionTargetNode::Value(value) => self.expression(*value),
@@ -378,8 +342,6 @@ impl<'syntax> Uses<'syntax> {
                 self.names.extend(call.evidence_arguments.iter());
                 if call.receiver.is_valid() {
                     self.expression(call.receiver);
-                } else {
-                    self.machines.push(&call.target);
                 }
                 self.all(syntax.expressions.expression_handles(call.arguments));
             }

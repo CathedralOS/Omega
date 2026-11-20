@@ -46,6 +46,25 @@ fn result_domains_and_contracts() {
 }
 
 #[test]
+fn private_route_free_bodies_publish_an_effect_row_not_an_authored_clause() {
+    let source = "machine one()->u8{1u8} machine via()->u8{one()}
+        machine arithmetic(n:u8)->u8{n +! 1u8} machine may_trap()->u8{arithmetic(255u8)}
+        machine opaque()->u8 crashes Trap {1u8} machine via_opaque()->u8{opaque()}
+        data Safe=machine()->u8 crashes none; data Open=machine()->u8;
+        machine safe<const F:Safe>()->u8{F()} machine open<const F:Open>()->u8{F()}";
+    let stage = check(&[("crashes.omg", source)]).unwrap();
+    let effects = |name| &stage.machine_effects.iter().find(|row| row.machine.path == name).unwrap().crash_ceiling;
+    for name in ["one", "via", "safe"] {
+        assert_eq!(effects(name).as_deref(), Some(&[][..]), "{name}");
+        assert!(stage.signatures.iter().find(|sig| sig.machine.path == name).unwrap().crash_ceiling.is_none());
+    }
+    for name in ["arithmetic", "may_trap", "via_opaque", "open"] {
+        assert!(effects(name).is_none(), "unknown must not publish an empty crash bound: {name}");
+    }
+    assert_eq!(effects("opaque").as_deref(), Some(&[omega_typer::CrashCause::Trap][..]));
+}
+
+#[test]
 fn pause_defaults_belong_to_the_declaration_being_checked() {
     let source = "machine private_fn() {}
         public machine exported() { public machine nested() {} }
@@ -244,6 +263,38 @@ fn crash_causes_and_checked_arithmetic_keep_their_proof_sites() {
             .message
             .contains("conflicts")
     );
+}
+
+#[test]
+fn inferred_crash_row_includes_the_producer_of_an_indirect_callee() {
+    let source = "data F=machine()->u8 reaches none crashes none;
+        machine pick(f:F,n:u8)->F {f}
+        machine run(f:F,n:u8)->u8 {pick(f,n)()}";
+    use omega_typer::{CrashCause::Trap, ObligationKind};
+    for (producer, pick, run) in [
+        ("{f}", Some(&[][..]), Some(&[][..])),
+        ("{_ = 1u8 /! n; f}", None, None),
+        ("crashes Trap {_ = 1u8 /! n; f}", Some(&[Trap][..]), None),
+    ] {
+        let source = source.replace("{f}", producer);
+        let stage = check(&[("effects.omg", &source)]).unwrap();
+        let [indirect] = stage.indirect_calls.as_slice() else { panic!("expected the computed call") };
+        let [direct] = stage.calls.as_slice() else { panic!("expected the callable producer") };
+        assert_eq!(direct.machine.path, "pick");
+        assert_eq!(direct.site, indirect.callee);
+        assert!(indirect.operands.is_empty());
+        assert_eq!(indirect.contract.crash_ceiling.as_deref(), Some(&[][..]));
+        if run.is_none() {
+            assert!(stage.obligations.iter().any(|o| {
+                matches!(&o.kind, ObligationKind::CrashCoverage { machine, cause: Trap } if machine == &direct.machine)
+                    && o.site.span.slice(source.as_bytes()) == Some(b"1u8 /! n")
+            }));
+        }
+        for (name, expected) in [("pick", pick), ("run", run)] {
+            let row = stage.machine_effects.iter().find(|row| row.machine.path == name).unwrap();
+            assert_eq!(row.crash_ceiling.as_deref(), expected, "{name}: {producer}");
+        }
+    }
 }
 
 #[test]

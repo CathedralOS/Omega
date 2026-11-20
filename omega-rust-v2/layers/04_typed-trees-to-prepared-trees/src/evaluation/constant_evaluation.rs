@@ -1,5 +1,5 @@
 use std::cell::{OnceCell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 use std::sync::Arc;
 
 use omega_resolved::DeclarationId;
@@ -39,6 +39,7 @@ impl From<PreparationRefusal> for StaticDemandError {
 pub(crate) struct ConstantEvaluation<'trees, 'text> {
     pub(crate) trees: &'trees TypedTrees<'text>,
     pub(crate) definitions: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
+    repeated: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
     pub(crate) values: HashMap<DeclarationId, PreparedValue>,
     pub(crate) open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
     pub(crate) boundary_slots: &'trees [omega_typed::BoundarySlot],
@@ -60,14 +61,21 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         trees: &'trees TypedTrees<'text>,
         boundary_slots: &'trees [omega_typed::BoundarySlot],
     ) -> Self {
+        // A pass may only consume some keys. Retain the first record and its
+        // first conflict; neither traversal nor hash order selects a winner.
+        let mut definitions = HashMap::with_capacity(trees.constants.len());
+        let mut repeated = HashMap::new();
+        for constant in &trees.constants {
+            match definitions.entry(&constant.declaration) {
+                Entry::Vacant(entry) => { entry.insert(constant); }
+                Entry::Occupied(_) => { repeated.entry(&constant.declaration).or_insert(constant); }
+            }
+        }
         Self {
             trees,
             boundary_slots,
-            definitions: trees
-                .constants
-                .iter()
-                .map(|constant| (&constant.declaration, constant))
-                .collect(),
+            definitions,
+            repeated,
             values: HashMap::new(),
             open_target_constants: HashMap::new(),
             target: None,
@@ -213,6 +221,36 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
             .ok_or_else(|| refusal(&self.visited_site(reference), PreparationReason::ConstantWithoutInitializer))
     }
 
+    /// Admit a key before it enters the evaluation stack. Consequently neither
+    /// a frozen value nor an open recipe can exist for a conflicted key.
+    fn admit_initializer(&self, first: &TypedConstant) -> Result<(), PreparationRefusal> {
+        let repeated = self.repeated.get(&first.declaration);
+        let check = |constant: &TypedConstant| {
+            let request = &constant.initializer;
+            let at_rhs = |reason| refusal(&request.expression, reason);
+            let tree = self.trees.resolved().trees().nth(request.node.file)
+                .ok_or_else(|| at_rhs(PreparationReason::RequestWithoutTypedFile))?;
+            let rhs = request.node.node;
+            let node = tree.file.nodes.get(rhs).ok_or_else(|| at_rhs(PreparationReason::RequestWithoutTypedNode))?;
+            let owner = node.parent.filter(|&p| tree.file.constant_initializer(p) == Some(rhs)).and_then(|p| tree.declaration_at(p));
+            // Ordinary requests check their site in evaluate_value_request.
+            // Identity refusals must also check it before citing the request.
+            if (owner != Some(&constant.declaration) || repeated.is_some()) && omega_typed::site_at(tree.file, rhs) != request.expression {
+                return Err(at_rhs(PreparationReason::RequestSiteMismatch));
+            }
+            if owner != Some(&constant.declaration) {
+                return Err(at_rhs(PreparationReason::ConstantInitializerDeclarationMismatch));
+            }
+            Ok(())
+        };
+        check(first)?;
+        if let Some(second) = repeated {
+            check(second)?;
+            return Err(refusal(&second.initializer.expression, PreparationReason::DuplicateConstantInitializer));
+        }
+        Ok(())
+    }
+
     fn materialize(
         &mut self,
         root: &'trees TypedConstant,
@@ -223,6 +261,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         }
         // Follow the dependencies the evaluator actually reads. Keep the path
         // on the heap so a long chain of forward declarations can be prepared.
+        self.admit_initializer(root)?;
         let mut stack = vec![root];
         let mut active = HashSet::from([&root.declaration]);
         let reason = loop {
@@ -247,6 +286,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                     if !active.insert(&dependency.declaration) {
                         return Err(refusal(&self.visited_site(reference), PreparationReason::CyclicConstantInitializer).into());
                     }
+                    self.admit_initializer(dependency)?;
                     stack.push(dependency);
                 }
             }

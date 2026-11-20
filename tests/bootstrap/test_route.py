@@ -14,7 +14,7 @@ from unittest.mock import patch
 from compiled import add_invocation_budget, execute, reference
 from independent.epsilon.composition import linked_program
 from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
-from route import MODES, ROOT, Program, Route, execute_route, observation_kind, prior_invocations
+from route import MODES, ROOT, Program, Route, check_observation, execute_route, observation_kind, prior_invocations
 
 
 class RouteTests(unittest.TestCase):
@@ -148,6 +148,41 @@ class RouteTests(unittest.TestCase):
                 self.assertEqual("assemble the direct Delta interpreter" in stages, delta == "interpret")
                 self.assertEqual("rebuild Beta and the Gamma interpreter on Alpha" in stages,
                                  gamma == "interpret")
+
+    def test_epsilon_compiler_can_feed_a_delta_interpreter_on_each_gamma_host(self):
+        for gamma, delta, interpreter in product(MODES, MODES, ("direct", "gamma")):
+            with self.subTest(gamma=gamma, delta=delta, interpreter=interpreter):
+                args = argparse.Namespace(gamma=gamma, delta=delta, epsilon="interpret", gamma_build=None,
+                                          profile="construction", delta_interpreter=interpreter,
+                                          epsilon_interpreter="delta")
+                route = Route(args, Path("/unused"))
+                route.select()
+                stages = [name for name, _ in route.steps]
+                self.assertTrue(any(stage.endswith(" -> module.out") for stage in stages))
+                self.assertTrue(any(stage.endswith(" -> subject.delta") for stage in stages))
+                if interpreter == "direct":
+                    self.assertEqual(stages.count("assemble the direct Delta interpreter"), 1)
+                    self.assertIn(" -> subject.delta] -> guest.eeout", stages[-1])
+                else:
+                    self.assertIn("[reference -> subject.gamma] -> guest.eeout", stages[-1])
+
+                refusal = Route(args, Path("/unused"), expect_rejection=True)
+                refusal.select()
+                self.assertTrue(refusal.steps[-1][0].endswith(" -> compiler.response"))
+
+    def test_interpreting_generated_delta_stops_at_an_epsilon_compiler_refusal(self):
+        args = argparse.Namespace(epsilon="interpret", epsilon_interpreter="delta")
+        with tempfile.TemporaryDirectory() as temp:
+            route = Route(args, Path(temp), expect_rejection=True)
+            response = route.work / "compiler.response"
+            response.write_bytes(b"rejected 18 2032")
+            report = {}
+            check_observation(route, struct.pack("<BBI", 2, 18, 2032), report)
+            self.assertEqual(report["result"], "expected-rejection")
+            self.assertFalse(report["guest_executed"])
+            response.write_bytes(b"rejected 18 2033")
+            with self.assertRaises(ValueError):
+                check_observation(route, struct.pack("<BBI", 2, 18, 2032), {})
 
     def test_wrong_base_changes_one_argument_and_stops_at_the_frontend(self):
         original, payload, _ = byte_class_case(ROOT)

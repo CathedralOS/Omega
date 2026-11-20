@@ -78,6 +78,9 @@ impl TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct TypedTreeRoots {
+    /// A prefix of this Build entry contains all nested declarations for name
+    /// resolution. The entry's call closure determines which it executes.
+    pub partial_build_entry: Option<source_text::SourceSpan>,
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::source_state::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
@@ -103,6 +106,7 @@ impl TypedTreeRoots {
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
+            partial_build_entry: None,
             retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,

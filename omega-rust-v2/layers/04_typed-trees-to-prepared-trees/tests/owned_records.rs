@@ -2,10 +2,13 @@ use omega_preparation::{PreparedTrees, PreparedValue, prepare_source_package};
 use omega_resolver::{DeclarationId, ParsedSource, StageSource};
 use omega_typer::{TypeError, resolve_source_package};
 
-fn prepare(source: &str) -> Result<PreparedTrees<'_>, TypeError> {
+#[path = "owned_records/static_values.rs"]
+mod static_values;
+
+fn package(source: &str) -> omega_typer::SourcePackage<'_> {
     let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
     let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
-    let package = resolve_source_package(&[StageSource {
+    resolve_source_package(&[StageSource {
         package: "app",
         source: ParsedSource {
             logical_path: "main.omg",
@@ -14,8 +17,11 @@ fn prepare(source: &str) -> Result<PreparedTrees<'_>, TypeError> {
             tree: &tree,
         },
     }])
-    .unwrap();
-    prepare_source_package(&package)
+    .unwrap()
+}
+
+fn prepare(source: &str) -> Result<PreparedTrees<'_>, TypeError> {
+    prepare_source_package(&package(source))
 }
 
 fn declaration<'a>(

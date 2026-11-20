@@ -15,7 +15,7 @@ python3 tests/bootstrap/interpreted/epsilon/portable.py /tmp/epsilon-cold
 python3 tests/bootstrap/interpreted/epsilon/portable.py /tmp/epsilon-invalid \
   --receipt /tmp/epsilon-cold/evaluator.gamma --profile syntax-controls
 python3 tests/bootstrap/interpreted/epsilon/portable.py /tmp/omega-interpreted \
-  --receipt /tmp/epsilon-cold/evaluator.gamma --seconds 300 --omega
+  --receipt /tmp/epsilon-cold/evaluator.gamma --omega
 ```
 
 The default `language` profile checks the language's accepted Console spelling,
@@ -30,9 +30,10 @@ that the grammar refuses. [Portable cases](../../conformance/README.md)
 `--receipt` skips Delta compilation and prints the reused file. For comparisons,
 record which route constructed that file. Reuse still checks its bound
 identity, rebuilds the lower stages and executes the same Gamma interpreter.
-`--seconds` sets a wall-time limit for Delta compilation and each subsequent
-request. The optional `--omega` step uses the same bootstrap compiler, sealed
-OCREQ bytes, tape publication check and Alpha program exit check as the
+By default each invocation runs to completion. Supply `--seconds N` to cap
+seed reconstruction, Delta compilation and each subsequent request at N seconds.
+The optional `--omega` step uses the same bootstrap compiler, sealed OCREQ
+bytes, tape publication check and Alpha program exit check as the
 compiled-host Epsilon evaluator. It checks the bootstrap compiler and entry
 identities before invoking the Gamma interpreter.
 

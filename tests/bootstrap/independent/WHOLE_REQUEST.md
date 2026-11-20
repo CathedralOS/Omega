@@ -182,7 +182,15 @@ python3 tests/bootstrap/route.py /tmp/whole-compiler \
 Select another host on any rung, or use `all` on an axis for a matrix. This
 case selects the construction profile by default so the Delta source of the
 compiled constructor fits. Pass `--profile conformance` to measure that
-profile's byte limits. [Route runner](../route.py)
+profile's byte limits. The following selection uses a Linux Epsilon compiler
+to produce the module and a direct Delta interpreter on Linux to run the
+compiled constructor. [Route runner](../route.py)
+
+```sh
+python3 tests/bootstrap/route.py /tmp/whole-compiler-direct-delta \
+  --gamma native --delta native --epsilon interpret \
+  --epsilon-interpreter delta --case omega-constructor
+```
 
 ## Running the compiled Omega constructor as Gamma on the seed
 

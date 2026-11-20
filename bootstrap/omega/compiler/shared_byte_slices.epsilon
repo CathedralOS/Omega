@@ -1,0 +1,217 @@
+// Shared byte slices borrow packed array storage. A checked half-open range
+// carries its backing address and live length through calls and transfers.
+// Literal reads require a lower bound on that live length at every arrival.
+
+// A shared range of a packed byte array carries its original address and
+// live length. The backing remains owned by the caller.
+data OmegaByteRange {
+    collection: i32;
+    start: i32;
+    length: i32;
+}
+
+// Shared record references occupy [400000, 404096). A shared byte slice
+// carries two words and has no nominal declaration row.
+machine omega_shared_byte_slice() -> i32 { return 404096; }
+
+// Only bounds fixed at this call site can be discharged here. Array padding
+// never contributes to the logical length. Both omitted bounds use the edges
+// of the array and an empty half-open range is a valid shared view.
+machine OmegaScalarCompiler::byte_range_bound(
+    &mut self, source: &[u8], present: i32, expression: i32, fallback: i32
+) -> i32 {
+    transition present {
+        0 -> return fallback
+        _ -> bound(self.parser.expressions[expression])
+    }
+    state bound(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Integer -> carrier(row, self.literal_carrier(source, row))
+            _ -> return -1
+        }
+    }
+    state carrier(row: OmegaExpressionSyntax, kind: i32) {
+        transition (kind == 0) || (kind == 64) {
+            true -> number(row)
+            _ -> return -1
+        }
+    }
+    state number(row: OmegaExpressionSyntax) {
+        self.scan_integer(source, row, 64);
+        transition (self.literal_status == 1) && (self.literal_value >= 0) {
+            true -> return self.literal_value
+            _ -> return -1
+        }
+    }
+}
+
+machine OmegaScalarCompiler::check_byte_range(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32, indexed: i32
+) -> i32 {
+    let value: OmegaExpressionSyntax = self.parser.expressions[indexed];
+    transition value.kind {
+        OmegaExpressionKind::Indexed -> selector(self.parser.indexed_expressions[value.payload0])
+        OmegaExpressionKind::Path -> fixed_reference()
+        _ -> unsupported()
+    }
+    // Borrowing the whole array by reference keeps its fixed-array type.
+    state fixed_reference() {
+        transition self.check_place(source, state_index, before, indexed) {
+            1 -> fixed_type(self.fixed_array_row(self.place_types[indexed]))
+            _ -> return 0
+        }
+    }
+    state fixed_type(row: i32) {
+        transition row >= 0 { true -> rejected(self.diagnostic_offset) _ -> unsupported() }
+    }
+    state selector(row: OmegaIndexedExpressionSyntax) {
+        let index: OmegaExpressionSyntax = self.parser.expressions[row.index];
+        transition index.kind {
+            OmegaExpressionKind::Range -> base(row.base, self.parser.range_expressions[index.payload0])
+            _ -> unsupported()
+        }
+    }
+    state base(collection: i32, range: OmegaRangeExpressionSyntax) {
+        transition self.check_place(source, state_index, before, collection) {
+            1 -> array(collection, range, self.indexable_array_row(self.place_types[collection], 0))
+            _ -> return 0
+        }
+    }
+    state array(collection: i32, range: OmegaRangeExpressionSyntax, array: i32) {
+        transition array >= 0 {
+            true -> element(collection, range, self.parser.type_references[array])
+            _ -> unsupported()
+        }
+    }
+    state element(collection: i32, range: OmegaRangeExpressionSyntax, array: OmegaTypeReferenceSyntax) {
+        transition (self.primitive_type(source, array.payload0) == 8) && (range.end_inclusive == 0) {
+            true -> count(collection, range, array)
+            _ -> unsupported()
+        }
+    }
+    state count(collection: i32, range: OmegaRangeExpressionSyntax, array: OmegaTypeReferenceSyntax) {
+        self.scan_scalar_literal(source, array.payload1, array.payload2, 32);
+        transition (self.literal_status == 1) && (self.literal_value > 0) {
+            true -> bounds(collection, range, self.literal_value)
+            _ -> unsupported()
+        }
+    }
+    state bounds(collection: i32, range: OmegaRangeExpressionSyntax, count: i32) {
+        let lo: i32 = self.byte_range_bound(source, range.has_start, range.start, 0);
+        let hi: i32 = self.byte_range_bound(source, range.has_end, range.end, count);
+        transition (lo >= 0) && (hi >= 0) {
+            true -> ordered(collection, range, count, lo, hi)
+            _ -> unsupported()
+        }
+    }
+    state ordered(collection: i32, range: OmegaRangeExpressionSyntax, count: i32, lo: i32, hi: i32) {
+        transition (lo <= hi) && (hi <= count) {
+            true -> available(collection, lo, hi)
+            _ -> rejected(range.operator_start)
+        }
+    }
+    state available(collection: i32, lo: i32, hi: i32) {
+        transition self.place_available(source, collection, 0) {
+            1 -> capacity(collection, lo, hi)
+            _ -> return 0
+        }
+    }
+    state capacity(collection: i32, lo: i32, hi: i32) {
+        transition self.loan_count < 16384 {
+            true -> retain(collection, lo, hi)
+            _ -> unsupported()
+        }
+    }
+    state retain(collection: i32, lo: i32, hi: i32) {
+        // Keep the parent array shared while the remaining arguments evaluate.
+        self.loan_context[self.loan_count] = 1;
+        self.loan_access[self.loan_count] = 0;
+        self.loan_roots[self.loan_count] = self.place_roots[collection];
+        self.loan_offsets[self.loan_count] = self.place_offsets[collection];
+        self.loan_sizes[self.loan_count] = self.place_extent[collection];
+        self.loan_count = self.loan_count + 1;
+        self.byte_ranges[expression].collection = collection;
+        self.byte_ranges[expression].start = lo;
+        self.byte_ranges[expression].length = hi - lo;
+        self.value_kinds[expression] = OmegaCheckedValueKind::SharedByteRange;
+        return 1;
+    }
+    state rejected(at: i32) { self.record_reject(-1, 4, at); return 0; }
+    state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
+}
+
+// The two-word descriptor is staged and copied across every call like other
+// compound arguments. Its address is private to this expression. The first
+// word points into the original array and the second holds the live length.
+machine OmegaScalarCompiler::emit_byte_range(&mut self, expression: i32) -> i32 {
+    let range: OmegaByteRange = self.byte_ranges[expression];
+    let cell: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    return (self.emit_place_address(range.collection) == 1) &&
+        (self.tape.emit_imm(1, range.start, 0) == 1) && (self.tape.emit_rr(3, 0, 1) == 1) &&
+        (self.tape.emit_imm(1, cell, 0) == 1) && (self.tape.emit_rr(11, 1, 0) == 1) &&
+        (self.tape.emit_imm(0, range.length, 0) == 1) &&
+        (self.tape.emit_imm(1, cell + 8, 0) == 1) && (self.tape.emit_rr(11, 1, 0) == 1) &&
+        (self.tape.emit_imm(0, cell, 0) == 1);
+}
+
+machine OmegaScalarCompiler::byte_slice_parameter(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32
+) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    transition row.kind {
+        OmegaExpressionKind::Path -> path(row)
+        _ -> return -1
+    }
+    state path(row: OmegaExpressionSyntax) {
+        transition (row.payload1 == 1) && (row.payload2 == 0) && (row.payload3 == 1) {
+            true -> name(self.parser.members[row.payload0])
+            _ -> return -1
+        }
+    }
+    state name(name: OmegaRelativeSpan) {
+        transition self.pattern_binding(source, name) < 0 {
+            true -> slot(self.value_cell(source, state_index, before, name.start, name.end))
+            _ -> return -1
+        }
+    }
+    state slot(cell: i32) {
+        transition (cell >= 0) && (cell < 16384) && (self.parameter_types[cell] == omega_shared_byte_slice()) {
+            true -> return cell
+            _ -> return -1
+        }
+    }
+}
+
+// The declared lower bound on this parameter's live length must exceed the
+// index. Every caller must establish that same bound on its actual slice.
+machine OmegaScalarCompiler::check_shared_byte_read(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32,
+    row: OmegaIndexedExpressionSyntax, slot: i32
+) -> i32 {
+    let index: i32 = self.byte_range_bound(source, 1, row.index, 0);
+    transition (index >= 0) && (index < 2147483647) {
+        true -> prove(index)
+        _ -> unsupported()
+    }
+    state prove(index: i32) {
+        transition self.prove_place_bound(source, state_index, before, slot, 8, -1, 64, index + 1, -1, -1, 0) {
+            1 -> retain(index)
+            _ -> unsupported()
+        }
+    }
+    state retain(index: i32) {
+        self.value_kinds[expression] = OmegaCheckedValueKind::SharedByteRead;
+        self.value_payloads[expression] = slot;
+        self.value_payloads[row.index] = index;
+        return 1;
+    }
+    state unsupported() { self.record_incomplete(4, row.start); return 0; }
+}
+
+machine OmegaScalarCompiler::emit_shared_byte_read(&mut self, expression: i32) -> i32 {
+    let slot: i32 = self.value_payloads[expression];
+    let row: OmegaIndexedExpressionSyntax = self.parser.indexed_expressions[self.parser.expressions[expression].payload0];
+    return (self.emit_value_load(slot) == 1) && (self.tape.emit_rr(10, 0, 0) == 1) &&
+        (self.tape.emit_imm(1, self.value_payloads[row.index], 0) == 1) &&
+        (self.tape.emit_rr(3, 0, 1) == 1) && (self.tape.emit_rr(8, 0, 0) == 1);
+}

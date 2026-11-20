@@ -2,6 +2,8 @@
 pub(crate) mod entry_points;
 pub(crate) mod sponsorship;
 pub(crate) mod typing_pass;
+#[cfg(test)]
+mod tests;
 
 use crate::evaluation::refusal;
 use crate::reasons::{PreparationReason, PreparationRefusal, RefusalCause};
