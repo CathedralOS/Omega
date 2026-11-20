@@ -205,3 +205,38 @@ machine build(builder: @mut Build) suspends {
         "the call after the wait is fine"
     );
 }
+
+#[test]
+fn each_wait_saves_only_the_homes_needed_by_its_successor() {
+    let source = r#"
+machine build(builder: @mut Build) suspends {
+    let first: i32 = 3;
+    let held: @i32 = @first;
+    let one: DependencyRegistration = Build::build_dependency(builder, request());
+    suspend Build::prepare_dependency(builder, one);
+    builder.tests.disabled = $held == 3;
+    let second: i32 = 7;
+    let two: DependencyRegistration = Build::build_dependency(builder, request());
+    suspend Build::prepare_dependency(builder, two);
+    builder.tests.disabled = second == 7;
+}
+"#;
+    let name = source.find("build(").unwrap();
+    let entry = SourceSpan::new(SOURCE, Span::new(name, name + "build".len()));
+    let select = |index| select_build_stage(&mut parse(source), entry, index).unwrap();
+    let first_wait = select(0);
+    let second_wait = select(first_wait.next_index().unwrap());
+    let finished = select(second_wait.next_index().unwrap());
+    let [first, second] = *first_wait.frame_homes() else {
+        panic!("the two locals own the shared entry parameters");
+    };
+    assert_eq!(&source[first.start..first.end], "first");
+    assert_eq!(&source[second.start..second.end], "second");
+    assert_eq!(first_wait.frame_homes(), second_wait.frame_homes());
+    assert!(first_wait.saves_frame_home(first));
+    assert!(!first_wait.saves_frame_home(second));
+    assert!(!second_wait.saves_frame_home(first));
+    assert!(second_wait.saves_frame_home(second));
+    assert!(!finished.saves_frame_home(first));
+    assert!(!finished.saves_frame_home(second));
+}

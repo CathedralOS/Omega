@@ -3388,7 +3388,7 @@ pub struct TerminalEstablishedErasedField {
     pub carrier_type_identity: String,
 }
 
-/// Host-issued value provenance for an empty packed record at a borrowed inline field path.
+/// Host-issued value for an empty packed record at a borrowed root or inline field.
 /// The issued value is separate from its replaceable guest storage home.
 /// The host must own that value; binding checks local shape and identity
 /// separation, and does not establish the host's external ownership.

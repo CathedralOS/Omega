@@ -51,6 +51,43 @@ pub(super) fn transfer(
         .collect()
 }
 
+/// Read every live copy against the old issuer table before translating any
+/// marker to the new program's already matched declaration.
+pub(super) fn registration_bindings(
+    instance: &TerminalInstance<'_, '_>,
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    positions: impl Iterator<Item = u32>,
+    requests: &mut crate::host::requests::CarriedRequests,
+) -> Result<Vec<terminal_interpreter::TerminalProjectedHostAtom>, String> {
+    let mut bindings = Vec::new();
+    for position in positions {
+        let Some(mut value) = instance
+            .borrowed_entry_host_atom(position, &[])
+            .map_err(super::describe)?
+        else {
+            continue;
+        };
+        let index = requests.registration_position(&value)?;
+        let parameter = parameters
+            .get(position as usize)
+            .filter(|parameter| parameter.position == position)
+            .ok_or("Build continuation lost a registration home")?;
+        value.structural_type = parameter.structural_type;
+        let binding = terminal_interpreter::TerminalProjectedHostAtom {
+            argument_index: position,
+            path: Vec::new(),
+            value,
+        };
+        bindings.push((index, binding));
+    }
+    requests.retain_markers(
+        bindings
+            .iter()
+            .map(|(index, binding)| (*index, &binding.value)),
+    );
+    Ok(bindings.into_iter().map(|(_, binding)| binding).collect())
+}
+
 struct Transfer<'a, 'host, 'program> {
     instance: &'a TerminalInstance<'host, 'program>,
     argument_index: u32,

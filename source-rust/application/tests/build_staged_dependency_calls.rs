@@ -21,17 +21,8 @@ fn check_with_dependency_build(
 ) -> (bool, String) {
     let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
     let target = target.target_name();
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-staged-dependency-calls-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use kit;
+    let build = format!(
+        "use kit;
 
 machine build(builder: @mut Build)
 suspends
@@ -66,9 +57,25 @@ machine initial_amount(builder: @mut Build) -> i32 {{
     3
 }}
 "
-        ),
-    )
-    .expect("staged Build");
+    );
+    check_project(name, &build, value, dependency_body, arguments)
+}
+
+fn check_project(
+    name: &str,
+    build: &str,
+    value: i32,
+    dependency_body: &str,
+    arguments: &[&str],
+) -> (bool, String) {
+    let root = std::env::temp_dir().join(format!(
+        "omega-build-staged-dependency-calls-{}-{name}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
+    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
+    std::fs::write(root.join("build.omg"), build).expect("staged Build");
     std::fs::write(
         root.join("dep/build.omg"),
         format!(
@@ -334,19 +341,107 @@ fn registration_and_a_mutable_local_survive_the_same_preparation() {
 }
 
 #[test]
-fn resumption_cannot_turn_a_guest_value_into_an_issued_registration() {
-    let (compiled, stderr) = check(
-        "forged-registration",
-        "    let fake: DependencyRegistration = DependencyRegistration {};
-    let held: @DependencyRegistration = @fake;",
-        "    suspend Build::prepare_dependency(builder, $held);",
+fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
+    let (ran, report) = check_with_dependency_build(
+        "call-with-live-borrow",
+        "    let mut amount: i32 = 3;\n    let held: @mut i32 = @mut amount;",
+        "    let seven: i32 = kit\\v();\n    $held = seven;\n    suspend Build::prepare_dependency(builder, kit_registered);\n    transition amount == 7 {\n        true -> carried(builder),\n        _ -> wrong(builder)\n    }",
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+}
+
+#[test]
+fn copies_of_an_issued_registration_still_name_the_same_request_after_a_mount() {
+    let (ran, report) = check(
+        "copied-registration-after-mount",
+        "    let copy: DependencyRegistration = kit_registered;\n    let held: @DependencyRegistration = @copy;",
+        &format!(
+            "    builder.tests.disabled = kit\\v() == 7;\n    suspend Build::prepare_dependency(builder, $held);\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
+            after("kit\\v"),
+        ),
         7,
     );
-    assert!(!compiled);
-    assert!(
-        stderr.contains("requires a registration this activation issued"),
-        "{stderr}"
+    assert!(ran, "{report}");
+}
+
+#[test]
+fn the_mounted_call_does_not_end_a_live_shared_borrow() {
+    let (ran, report) = check(
+        "conflict-after-mounted-call",
+        "    let mut amount: i32 = 3;\n    let held: @i32 = @amount;",
+        "    let seven: i32 = kit\\v();\n    amount = seven;\n    builder.tests.disabled = $held == 7;",
+        7,
     );
+    assert!(
+        !ran && report.contains("storage is changed while a conflicting reference remains live")
+            && report.contains("while resuming the Build after dependency preparation")
+            && report.contains("build.omg:14:"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_user_record_named_dependency_registration_keeps_its_own_fields() {
+    let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
+    let target = target.target_name();
+    let build = format!(
+        r#"use kit;
+data DependencyRegistration [copy] {{ mark: u32; }}
+machine build(builder: @mut Build) suspends {{
+    Build::application(builder, "staged");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
+    dependency\with_alias(@mut request, "kit");
+    let shadow: DependencyRegistration = DependencyRegistration {{ mark: 7u32 }};
+    let real = Build::build_dependency(builder, request);
+    suspend Build::prepare_dependency(builder, real);
+    builder.tests.disabled = shadow.mark == 7u32;
+    let seven: i32 = kit\v();
+    transition seven == 7 && builder.tests.disabled {{
+        true -> carried(builder), _ -> wrong(builder)
+    }}
+    machine carried(builder: @mut Build) {{ Build::bind(builder, {target}\ProgramEntry, main); }}
+    machine wrong(builder: @mut Build) {{ Build::application(builder, "second"); }}
+}}
+"#
+    );
+    let (ran, report) = check_project(
+        "same-spelled-user-record",
+        &build,
+        7,
+        "",
+        &["--check", "main.omg"],
+    );
+    assert!(ran, "{report}");
+}
+
+#[test]
+fn resumption_cannot_turn_a_guest_value_into_an_issued_registration() {
+    let fake = "    let fake: DependencyRegistration = DependencyRegistration {};\n    let held: @DependencyRegistration = @fake;";
+    let replaced = "    let mut slot: DependencyRegistration = kit_registered;\n    slot = DependencyRegistration {};\n    let held: @DependencyRegistration = @slot;";
+    let mounted = "    builder.tests.disabled = kit\\v() == 7;\n";
+    for (name, before, use_dependency) in [
+        ("forged-registration", fake, ""),
+        ("forged-after-mount", fake, mounted),
+        ("overwritten-before-mount", replaced, mounted),
+    ] {
+        let (compiled, stderr) = check(
+            name,
+            before,
+            &format!("{use_dependency}    suspend Build::prepare_dependency(builder, $held);"),
+            7,
+        );
+        assert!(!compiled);
+        assert!(
+            stderr.contains("requires a registration this activation issued"),
+            "{stderr}"
+        );
+    }
 }
 
 #[test]

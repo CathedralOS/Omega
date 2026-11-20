@@ -813,9 +813,9 @@ pub(crate) mod instance {
         }
 
         impl TerminalInstance<'_, '_> {
-            /// Return only an issued opaque value retained at this exact empty
-            /// borrowed projection. A replaced, well-typed value is unissued;
-            /// an invalid request or unfinished execution is an error.
+            /// After normal return, read the host-issued value at a borrowed empty
+            /// record or one of a borrowed record's empty inline fields. A record
+            /// constructed by the guest has no issued value.
             pub fn borrowed_entry_host_atom(
                 &self,
                 argument_index: u32,
@@ -1404,16 +1404,31 @@ pub(crate) mod instance {
                 program: &TerminalProgram<'static>,
                 atoms: &[crate::TerminalProjectedHostAtom],
             ) -> Result<TerminalInstance<'static, 'static>, TerminalInterpretError> {
+                let entry = program
+                    .program
+                    .machine(program.program.resolve_entry(None)?)?;
+                let arguments: Vec<_> = entry
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| {
+                        TerminalStructuralValue::minted(
+                            42 + u64::from(parameter.position),
+                            parameter.structural_type,
+                            Vec::new(),
+                        )
+                    })
+                    .collect();
+                let initialized: Vec<_> = entry
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.position)
+                    .collect();
                 let execution = TerminalExecution::start_with_program(
                     program.program.clone(),
                     &[],
                     crate::TerminalStructuralInputs {
-                        arguments: &[TerminalStructuralValue::minted(
-                            42,
-                            StructuralTypeId::new(1).unwrap(),
-                            Vec::new(),
-                        )],
-                        zero_initialized_arguments: &[0],
+                        arguments: &arguments,
+                        zero_initialized_arguments: &initialized,
                         projected_host_atoms: atoms,
                         ..Default::default()
                     },
@@ -1425,6 +1440,107 @@ pub(crate) mod instance {
                     execution,
                     Vec::new(),
                 ))
+            }
+
+            #[test]
+            fn whole_borrowed_marker_copies_keep_the_issued_value_and_distinct_homes() {
+                let (mut program, mut marker) = projected_fixture(true);
+                marker.path.clear();
+                let mut other = marker.clone();
+                other.argument_index = 1;
+                let module = std::sync::Arc::get_mut(&mut program.program)
+                    .unwrap()
+                    .fixture_module_mut();
+                let machine = &mut module.machines[0];
+                let first = &mut machine.structural_parameters[0];
+                first.structural_type = marker.value.structural_type;
+                let source = first.place;
+                let destination = PlaceId::new(2).unwrap();
+                let second = StructuralParameterDeclaration {
+                    place: destination,
+                    position: 1,
+                    ..first.clone()
+                };
+                machine.structural_parameters.push(second);
+                machine
+                    .structural_places
+                    .push(terminal_psi::StructuralPlaceDeclaration {
+                        id: destination,
+                        kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 1 },
+                    });
+                machine
+                    .parameter_order
+                    .push(BoundaryParameterKind::Structural);
+                assert!(matches!(
+                    projected_instance(&program, &[marker.clone(), other.clone()]),
+                    Err(TerminalInterpretError::StructuralArgumentAliasing(100))
+                ));
+
+                let module = std::sync::Arc::get_mut(&mut program.program)
+                    .unwrap()
+                    .fixture_module_mut();
+                module.types.structural_types[1].multiplicity =
+                    StructuralMultiplicity::Unrestricted;
+                let machine = &mut module.machines[0];
+                for parameter in &mut machine.structural_parameters {
+                    parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+                }
+                machine.blocks[0]
+                    .operations
+                    .push(terminal_psi::Operation::unsuspended(
+                        semantic_vocabulary::OperationId::new(1).unwrap(),
+                        terminal_psi::OperationResult::Unit,
+                        terminal_psi::OperationKind::StoreStructuralField {
+                            disposition:
+                                terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+                            destination,
+                            path: Vec::new(),
+                            field: None,
+                            value: terminal_psi::StructuralArgument::whole(
+                                source,
+                                StructuralAccess::Owned,
+                            ),
+                        },
+                    ));
+
+                let mut conflict = other.clone();
+                conflict
+                    .value
+                    .qualifications
+                    .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap());
+                assert!(matches!(
+                    projected_instance(&program, &[marker.clone(), conflict]),
+                    Err(TerminalInterpretError::StructuralArgumentAliasing(100))
+                ));
+                assert!(projected_instance(&program, &[marker.clone(), marker.clone()]).is_err());
+                let mut different = other.clone();
+                different.value.opaque_identity = 101;
+                for (atoms, expected) in [
+                    (vec![marker.clone(), other], Some(&marker.value)),
+                    (vec![marker.clone(), different.clone()], Some(&marker.value)),
+                    (vec![different], None),
+                ] {
+                    let mut instance = projected_instance(&program, &atoms).unwrap();
+                    instance
+                        .invoke(&mut terminal_work::WorkMeter::with_budget(100))
+                        .unwrap();
+                    for index in [0, 1] {
+                        assert_eq!(
+                            instance
+                                .borrowed_entry_host_atom(index, &[])
+                                .unwrap()
+                                .as_ref(),
+                            expected
+                        );
+                        assert_eq!(
+                            instance.execution.as_ref().unwrap().borrowed_entry_storage
+                                [index as usize]
+                                .2
+                                .opaque_identity,
+                            42 + u64::from(index)
+                        );
+                    }
+                }
             }
 
             #[test]

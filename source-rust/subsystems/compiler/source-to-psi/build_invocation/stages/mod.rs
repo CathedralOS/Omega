@@ -23,6 +23,8 @@ pub struct BuildStage {
     preparations: Vec<Span>,
     program_ends: Vec<frame::Cut>,
     homes: Vec<Span>,
+    saved_homes: Vec<Span>,
+    pub(super) excluded_homes: Vec<usize>,
 }
 
 impl BuildStage {
@@ -33,6 +35,14 @@ impl BuildStage {
     /// Source declarations of the compiler-supplied storage arguments, in entry order.
     pub fn frame_homes(&self) -> &[Span] {
         &self.homes
+    }
+
+    /// The shared parameter list includes locals whose last use has passed.
+    /// Only this wait's saved homes can supply values to the successor.
+    pub fn saves_frame_home(&self, local: Span) -> bool {
+        self.saved_homes
+            .binary_search_by_key(&(local.start, local.end), |span| (span.start, span.end))
+            .is_ok()
     }
 
     pub fn frame_parameter_name(home: Span) -> String {
@@ -47,6 +57,7 @@ impl BuildStage {
         self.preparations == other.preparations
             && self.program_ends == other.program_ends
             && self.homes == other.homes
+            && self.excluded_homes == other.excluded_homes
     }
 }
 
@@ -76,6 +87,7 @@ impl EntryPlan {
         syntax: &SyntaxTrees,
         selected_entry: SourceSpan,
         start: usize,
+        excluded_homes: &[usize],
     ) -> Result<Self, Vec<Diagnostic>> {
         let (item, machine, state) = entry(syntax, selected_entry).ok_or_else(|| {
             vec![Diagnostic::error(
@@ -98,6 +110,14 @@ impl EntryPlan {
         } else {
             lexical_uses::program_ends(syntax, &machine, &statements, &positions)?
         };
+        let mut cuts = cuts;
+        if !excluded_homes.is_empty() {
+            cuts.retain(|cut| {
+                cut.bindings
+                    .iter()
+                    .all(|binding| excluded_homes.binary_search(&binding.home).is_err())
+            });
+        }
         if start > cuts.len() {
             return Err(vec![Diagnostic::error(
                 "Build entry has no stage after its last dependency preparation",
@@ -130,6 +150,8 @@ impl EntryPlan {
                         .span
                 })
                 .collect(),
+            saved_homes: Vec::new(),
+            excluded_homes: excluded_homes.to_vec(),
             program_ends: cuts,
         };
         Ok(Self {
@@ -145,6 +167,37 @@ impl EntryPlan {
             earliest,
             preferred,
         })
+    }
+
+    /// The parser can only nominate a registration home. Its state parameter
+    /// gives ordinary typing the same type occurrence and declaration scope as the local.
+    pub(super) fn registration_candidates(&self, syntax: &SyntaxTrees) -> Vec<(usize, usize)> {
+        self.homes
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, &home)| {
+                let local = frame::local(syntax, self.statements[home]);
+                syntax
+                    .type_references
+                    .type_reference(local.type_reference)
+                    .as_named()
+                    .is_some_and(|name| name.as_str(syntax) == "DependencyRegistration")
+                    .then_some((slot + 1, home))
+            })
+            .collect()
+    }
+
+    /// Resolve just the candidate homes when errors in the speculative body
+    /// prevented typing from returning its parameter declarations.
+    pub(super) fn project_frame_parameters(
+        &self,
+        syntax: &mut SyntaxTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        syntax.items.state_mut(self.state).statements = arena::HandleSpan::empty();
+        let mut machine = self.machine.clone();
+        machine.nested_machines = arena::HandleSpan::empty();
+        syntax.items.replace_item(self.item, Item::Machine(machine));
+        frame::project_parameters(syntax, self)
     }
 
     pub(super) fn optional_wait(&self, syntax: &SyntaxTrees) -> Option<Span> {
@@ -170,10 +223,24 @@ impl EntryPlan {
         if stage.program_ends.is_empty() {
             return Ok(stage);
         }
-        let end = stage
-            .program_ends
-            .get(stage.index)
-            .map_or(self.statements.len(), |cut| cut.end + 1);
+        let outgoing = stage.program_ends.get(stage.index);
+        if let Some(cut) = outgoing {
+            stage.saved_homes = cut
+                .bindings
+                .iter()
+                .map(|binding| {
+                    frame::local(syntax, self.statements[binding.home])
+                        .name
+                        .source_span()
+                        .span
+                })
+                .collect();
+            stage
+                .saved_homes
+                .sort_unstable_by_key(|span| (span.start, span.end));
+            stage.saved_homes.dedup();
+        }
+        let end = outgoing.map_or(self.statements.len(), |cut| cut.end + 1);
         if stage.next_index().is_some() {
             let diagnostics: Vec<_> = self.nested_calls.iter()
                 .filter(|(pos, _)| (self.first_statement..end).contains(pos))
@@ -210,7 +277,7 @@ fn select_build_stage(
     selected_entry: SourceSpan,
     stage: usize,
 ) -> Result<BuildStage, Vec<Diagnostic>> {
-    EntryPlan::new(syntax, selected_entry, stage)?.project(syntax, true, &[])
+    EntryPlan::new(syntax, selected_entry, stage, &[])?.project(syntax, true, &[])
 }
 
 /// The selected Build declaration with the state that holds its
