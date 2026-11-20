@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Run the product's Request and clear through a constructed Epsilon evaluator.
+"""Exercise product request storage with a source-built bootstrap compiler.
 
-Pass a Linux evaluator executable, optionally with a second evaluator to compare.
-Both receive the same request. The shared helpers pack checked-in sources and
-run the emitted Alpha tape.
+An Epsilon evaluator runs the clear canary. A compiled construction executable
+can instead check staging and reads using the complete product source unit.
 """
 import argparse
 from hashlib import sha256
 from pathlib import Path
+import runpy
+import signal
+import struct
 from subprocess import TimeoutExpired
 import sys
 from tempfile import TemporaryDirectory
@@ -35,17 +37,55 @@ machine remember(request: @mut Request, canary: u8) -> bool {
 }
 """
 
+STAGE_CALLER = b"""machine main() -> u8 crashes Trap {
+    let mut request: Request;
+    clear(@mut request);
+    request_stage(@mut request, 42);
+    request_byte(@request, 0 as +Trapping)
+}
+"""
 
-def compile_request(evaluator: Path, request: bytes, timeout: int) -> bytes:
-    executable = evaluator.resolve(strict=True)
-    print(f"{executable} sha256={sha256(executable.read_bytes()).hexdigest()}", flush=True)
+FULL_BUFFER_CALLER = b"""machine main() -> u8 crashes Trap {
+    let mut request: Request;
+    request.length = 65536;
+    request.observed = 65536 as +Trapping;
+    request.bytes[65535] = 42;
+    request_stage(@mut request, 7);
+    let last: u8 = request.bytes[65535];
+    transition request.length == 65536 && request.observed == 65537 && last == 42 {
+        true -> pass(),
+        _ -> fail()
+    }
+    machine pass() -> u8 { 42 }
+    machine fail() -> u8 { 7 }
+}
+"""
+
+
+def staging_cases(product):
+    encode = runpy.run_path(str(ROOT / "source/application/construction/construct.py"))["encode"]
+    callers = (
+        ("stage-first", STAGE_CALLER, 42),
+        ("read-past-end", STAGE_CALLER.replace(b"0 as +Trapping", b"1 as +Trapping"), -signal.SIGILL),
+        ("wrong-byte", STAGE_CALLER.replace(b"request, 42", b"request, true"), None),
+        ("full-buffer", FULL_BUFFER_CALLER, 42),
+    )
+    for name, caller, expected in callers:
+        packet, _, _, units = encode([("compiler_request", 0)], [], [(0, caller), (0, product)],
+                                      0, b"main", paths=["main.omg", "request.omg"])
+        if expected is None:
+            expected = struct.pack("<BII", 0, 1, units[0][1] + caller.index(b"true"))
+        yield name, packet, expected
+
+
+def compile_request(executable: Path, request: bytes, timeout: int) -> bytes:
     started = monotonic()
     try:
         status, output = execute(executable, request, timeout=timeout)
     except TimeoutExpired as error:
         raise SystemExit(f"{executable} timed out after {timeout}s with "
                          f"{len(error.stdout or b'')} stdout bytes") from error
-    if status != 0 or len(output) <= 5 or output[:5] != bytes(5):
+    if status != 0:
         raise SystemExit(f"{executable} exited {status} with {len(output)} stdout bytes, "
                          f"prefix {output[:40].hex()}")
     print(f"{len(output)} observation bytes sha256={sha256(output).hexdigest()} "
@@ -53,43 +93,66 @@ def compile_request(evaluator: Path, request: bytes, timeout: int) -> bytes:
     return output
 
 
+def check_output(name, output, expected, work, timeout):
+    if isinstance(expected, bytes):
+        if output != expected:
+            raise SystemExit(f"{name}: expected {expected.hex()}, got {output[:40].hex()}")
+        print(f"{name}: rejection at source byte {int.from_bytes(expected[5:], 'little')}")
+        return
+    if len(output) <= 5 or output[:5] != bytes(5):
+        raise SystemExit(f"{name}: expected a successful compilation, got {output[:40].hex()}")
+    tape = work / f"{name}.tape"
+    tape.write_bytes(output[5:])
+    program = work / name
+    stamp(tape, program)
+    actual = execute(program, timeout=timeout)
+    if actual != (expected, b""):
+        raise SystemExit(f"{name}: expected exit {expected} and empty stdout, got {actual!r}")
+    outcome = signal.Signals(-expected).name if expected < 0 else f"exit {expected}"
+    print(f"{name}: {tape.stat().st_size} Alpha bytes, {outcome}", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("evaluator", type=Path)
-    parser.add_argument("--compare-with", type=Path, metavar="EVALUATOR",
-                        help="require a byte-identical observation from a second evaluator")
+    runner = parser.add_mutually_exclusive_group(required=True)
+    runner.add_argument("evaluator", nargs="?", type=Path, help="Epsilon evaluator for the clear canary")
+    runner.add_argument("--staging-constructor", type=Path, metavar="CONSTRUCTOR",
+                        help="run the complete request unit through a compiled construction executable")
+    parser.add_argument("--compare-with", type=Path, metavar="EXECUTABLE",
+                        help="require a byte-identical observation from a second executable of the same kind")
     parser.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
-                        help="seconds per evaluator invocation (default 600)")
+                        help="seconds per invocation (default 600)")
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     product = (ROOT / "source/subsystems/compiler/request/request.omg").read_bytes()
-    # Stop after the complete clear declaration. Staging and decoding have
-    # their own product gate and require a larger bootstrap language subset.
-    clear_start = product.index(b"public machine clear(")
-    clear_end = product.index(b"\n}", clear_start) + 2
-    program = product[:clear_end] + b"\n" + CALLER
-
     with TemporaryDirectory() as directory:
         work = Path(directory)
-        guest = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
-        guest += (ROOT / "tests/bootstrap/conformance/omega/main.epsilon").read_bytes()
-        evaluator_source = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
-        request = epsilon_request(evaluator_source, guest, program)
-        print(f"{len(request)} request bytes sha256={sha256(request).hexdigest()}", flush=True)
-        output = compile_request(args.evaluator, request, args.timeout)
-        if args.compare_with:
-            peer_output = compile_request(args.compare_with, request, args.timeout)
-            if peer_output != output:
-                raise SystemExit("the evaluators produced different observations")
-        tape = work / "request.tape"
-        tape.write_bytes(output[5:])
-        executable = work / "request"
-        stamp(tape, executable)
-        result = execute(executable)
-        if result != (42, b""):
-            raise SystemExit(f"expected exit 42 and empty stdout, got {result!r}")
-        print(f"Request.clear: {tape.stat().st_size} Alpha bytes, exit 42")
+        if args.staging_constructor:
+            executable = args.staging_constructor
+            cases = staging_cases(product)
+        else:
+            executable = args.evaluator
+            clear_start = product.index(b"public machine clear(")
+            clear_end = product.index(b"\n}", clear_start) + 2
+            program = product[:clear_end] + b"\n" + CALLER
+            guest = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
+            guest += (ROOT / "tests/bootstrap/conformance/omega/main.epsilon").read_bytes()
+            evaluator_source = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "epsilon.delta")
+            request = epsilon_request(evaluator_source, guest, program)
+            cases = [("Request.clear", request, 42)]
+
+        executable = executable.resolve(strict=True)
+        peer = args.compare_with.resolve(strict=True) if args.compare_with else None
+        for binary in (executable, peer):
+            if binary:
+                print(f"{binary} sha256={sha256(binary.read_bytes()).hexdigest()}", flush=True)
+        for name, request, expected in cases:
+            print(f"{name}: {len(request)} request bytes sha256={sha256(request).hexdigest()}", flush=True)
+            output = compile_request(executable, request, args.timeout)
+            if peer and compile_request(peer, request, args.timeout) != output:
+                raise SystemExit(f"{name}: the executables produced different observations")
+            check_output(name, output, expected, work, args.timeout)
 
 
 if __name__ == "__main__":

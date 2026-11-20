@@ -234,6 +234,23 @@ and observation identities, compares every output byte, then runs the common
 Alpha tape and requires exit 42 with empty output. The timeout applies to
 each evaluator separately.
 
+For the complete request storage unit, pass a compiled construction executable.
+The test frames `main.omg` and the unchanged `request.omg` as two source files
+in one package.
+
+```sh
+python3 tests/bootstrap/independent/request_clear.py --staging-constructor /path/to/constructor --timeout 1800
+```
+
+The caller stages 42 and reads byte zero. Changing only the read offset to one
+produces an Alpha Trap (Linux SIGILL). Changing only the staged byte to `true`
+produces a compile-time rejection at that token. On the 2,082-byte product
+unit, the two executable cases each produced 2,071 bytes of Alpha tape and the
+rejection pointed at arena byte 143. The test recomputes the token coordinate
+from the current caller and construction frame. A fourth caller starts at full
+capacity. Staging one more byte must advance `observed` to 65,537, keep
+`length` at 65,536 and preserve the last stored byte.
+
 At `e488ba404bf` on Linux x86-64, the checked-in Linux construction driver
 built the Alpha-hosted evaluator from the seed and admitted Beta tape in
 192.870 seconds. All three Gamma compiler tapes matched. The constructed
