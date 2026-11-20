@@ -61,7 +61,8 @@ beginning with a nonzero package count uses the original three-word unit rows
 and places each unit in the package root. [Directory namespaces](../../../wiki/spec/language/modules.md#directory-namespaces)
 
 The current limits are 64 packages, 256 direct dependencies, 512
-units, 4 MiB of source and 128 KiB per unit, and 256 bytes per name or alias.
+units, a 4 MiB shared buffer for sources, paths and names, 128 KiB per unit,
+and 256 bytes per directory namespace, package name or alias.
 These are resource limits, not language rules.
 
 Alpha tape is written only when checking, lowering and emission all

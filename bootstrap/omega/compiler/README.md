@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,263 lines / 868,532 bytes with SHA-256
-`ab724ba5aac153ed442dd4d3346f78ddadfffeebd78c39151d73c573fa00eb21`.
+manifest materializes 23,370 lines / 872,797 bytes with SHA-256
+`b8cd9f29b297976038d8382ceae74a2c96b54204a49235de13fa68b27dde4beb`.
 The manifest itself is 1,698 bytes, SHA-256
-`764c31939113766834c8364508d38a29f6c4ddc72f53c2f41770d1f84f9e13be`;
+`1d1e3ff3949b9241894b38a8b0a6d980c815c5d89519c00dcfce033abd8ce2b2`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -101,10 +101,13 @@ current subset handles directory namespaces, free machines and named
 records; it does not add attached declarations, reexports, overload selection,
 or full build/request admission. The single-view API is the one-unit case.
 Every supplied declaration is checked, including unused units and bodies.
+Run `python3 tests/bootstrap/independent/directory_names.py CONSTRUCTOR` to
+check directory imports, sibling lookup, path validation and legacy packets
+against a constructed executable. Successful cases execute the emitted Alpha tape.
 
 The construction application is [construct_omega.epsilon](../construct_omega.epsilon).
-It reads exact package, direct-alias and unit rows followed by up to 4 MiB of
-source bytes. Package roles distinguish ordinary packages from the explicitly
+It reads package, direct-alias and unit rows followed by a shared 4 MiB arena
+for source bytes, logical paths and names. Package roles distinguish ordinary packages from the explicitly
 trusted core and standard library; spelling alone grants no such role. The
 selected entry is a source-unit ordinal and name span. This internal input
 context is separate from OCREQ package acquisition and admission. A successful
