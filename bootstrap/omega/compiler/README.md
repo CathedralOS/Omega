@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,559 lines / 1,020,906 bytes with SHA-256
-`02950f04a04cf17b69d2931530e1f2e28f3b04822827aa1ddc486b177abb1a6f`.
+The manifest materializes 26,620 lines / 1,023,549 bytes with SHA-256
+`ee9beeaad92dc5ee7dda1ee4eebf0d418a30de88827fbfc31ba8a07e04120f3e`.
 The manifest itself is 2,381 bytes, SHA-256
-`c1df84bfac8dcdc9d61bdcb94ea76657893fbed1caea28e67495a9b5e5a5a3ef`;
+`a4d1cf6728fbe01a71ff3794214993bc4412cd4dd803e1e6158036b058755891`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -575,7 +575,9 @@ its boundary keyword.
 
 Like the product scalar lowerer, the isolated Alpha adapter accepts a
 parameterless entry returning either an ordinary byte or Unit. A normally
-returning Unit entry yields process status zero. Entry selection grants no
+returning Unit entry yields process status zero. An explicit `_ -> {}` (or
+a guarded `true -> {}`) completes a Unit state and returns to its caller.
+A state that owes a value rejects an empty-brace target. Entry selection grants no
 stream or exit service. [Product entry result](../../../source/subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/scalar.omg)
 
 A construction package can also include the authored core

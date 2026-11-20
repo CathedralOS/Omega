@@ -92,6 +92,25 @@ def terminal_cases():
     import_exit = b'use omega\\language\\core\\ProcessExit;\n'
     import_never = b'use omega\\language\\core\\Never;\n'
     marker = b'machine main()->u8 reaches ProcessExit {42}'
+    # Empty-brace arms complete a Unit result. Calling both choices makes
+    # an accidental write on the early-return path observable.
+    empty_arm = (b'data Cell [copy] {n:u8;} '
+                 b'machine choose(c:@mut Cell,skip:bool){transition skip {true->{},_->put(c)} '
+                 b'machine put(c:@mut Cell){c.n=42;}} '
+                 b'machine main()->u8 {let mut early:Cell;early.n=7;let mut late:Cell;'
+                 b'choose(@mut early,true);choose(@mut late,false);'
+                 b'transition early.n==7 {true->late.n,_->1}}')
+    yield trial('empty-arm-choice', empty_arm, 42, standalone=True)
+    yield trial('empty-arm-entry', b'machine main(){transition {_-> { /* explicit Unit */ }}}',
+                0, standalone=True)
+    yield trial('empty-arm-value', b'machine f(flag:bool)->u8 {transition flag {true->42,_-> {}}} '
+                b'machine main()->u8{42}', (1, 0, b'{}'), standalone=True)
+    yield trial('nonempty-terminal-braces', b'machine main(){transition {_-> {42}}}',
+                (1, 0, b'42'), standalone=True)
+    yield trial('incomplete-terminal-braces', b'machine main(){transition {_-> {',
+                (1, 0, b''), standalone=True)
+    yield trial('missing-arm-target', b'machine main(){transition {_-> }}',
+                (1, 0, b'}}'), standalone=True)
     yield trial('terminal-declaration', import_exit + marker, None)
     yield trial('inhabited-lookalike-result', import_exit + marker,
                 (2, 1, b'boundary trait ProcessExit'), result=b'public data Never {}')
