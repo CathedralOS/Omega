@@ -255,6 +255,8 @@ fn a_universal_marker_leaves_only_the_sparse_element_predicate() {
     marker.predicate = None;
     let mut predicated = domain(types[0].id);
     predicated.id = StructuralDomainId::new(2).unwrap();
+    predicated.semantic_domain = DomainSemanticId::new(2).unwrap();
+    predicated.identity = TerminalIdentityIndex(2);
     let mut machine = machine();
     let index = u64::MAX - 1;
     machine.structural_parameters[0].projected_qualifications = vec![
