@@ -12,11 +12,11 @@ fn omega(project: &Path) -> Command {
     command
 }
 
-fn inspect(project: &Path, name: &str, artifact: &Path) -> Output {
+fn inspect(project: &Path, root: &str, name: &str, artifact: &Path) -> Output {
     omega(project)
         .args(["psi", "inspect", "--machine", name, "--output"])
         .arg(artifact)
-        .arg("main.omg")
+        .arg(root)
         .output()
         .expect("run source inspection")
 }
@@ -27,7 +27,7 @@ fn named_inspection_publishes_the_requested_reference_machine() {
         .join("../../tests/fixtures/ownership/run/incoming_record_reference_return");
     let scratch = TemporaryDirectory::create("named-psi-inspection", false).unwrap();
     let artifact = scratch.path().join("retained.psi");
-    let output = inspect(&project, "retained", &artifact);
+    let output = inspect(&project, "main.omg", "retained", &artifact);
     assert!(output.status.success(), "{:?}", output);
     let bytes = std::fs::read(&artifact).expect("inspection publishes an artifact");
     let decoded = CanonicalTerminalArtifact::from_bytes(&bytes).expect("canonical Psi artifact");
@@ -62,7 +62,7 @@ fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
     for name in ["owned_record_sequence", "runtime_record_sequence"] {
         let project = fixtures.join(name);
         let artifact = scratch.path().join(format!("{name}.psi"));
-        let source = inspect(&project, "main", &artifact);
+        let source = inspect(&project, "main.omg", "main", &artifact);
         assert!(source.status.success(), "{name}: {source:?}");
         let loaded = omega(&project)
             .args(["psi", "inspect", "--artifact"])
@@ -82,7 +82,7 @@ fn saved_console_provider_keeps_the_direct_mutable_byte_window() {
         .join("../../tests/fixtures/providers/run/default_console_provider_reached");
     let scratch = TemporaryDirectory::create("console-provider-inspection", false).unwrap();
     let artifact = scratch.path().join("console.psi");
-    let published = inspect(&project, "entry_start", &artifact);
+    let published = inspect(&project, "build.omg", "entry_start", &artifact);
     assert!(published.status.success(), "{published:?}");
 
     let reopened = omega(&project)
@@ -126,7 +126,7 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
         ("retained", "the source name is ambiguous"),
     ] {
         let artifact = project.join("inspection.psi");
-        let output = inspect(project, name, &artifact);
+        let output = inspect(project, "main.omg", name, &artifact);
         let stderr = String::from_utf8(output.stderr).unwrap();
         assert_eq!(output.status.code(), Some(1), "{stderr}");
         assert!(
