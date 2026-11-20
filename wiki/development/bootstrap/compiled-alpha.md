@@ -104,7 +104,12 @@ tape. The Alpha seed then ran the resulting constructor and both product
 tapes below. The uncompressed instructions occupy 57,004,893 bytes. The stamped program
 starts with a 340-byte Alpha decoder and a 3,840-byte dictionary. The seed
 runs the decoder itself. Programs that fit the seed directly keep their
-plain Alpha instructions. The Alpha backend grew from 3,681 to 11,814 bytes. Using the original Gamma interpreter to
+plain Alpha instructions. The Alpha backend grew from 3,681 to 11,814 bytes.
+Across the entire Gamma-to-Alpha compiler, authored source grew from 35,082
+to 43,315 bytes. Its own Alpha tape grew from 176,772 to 207,681 bytes.
+Both the old and new compilers emitted the same tape for the old compiler
+source at `980fa9c6a6c` (SHA-256
+`940396e8eb92b1599996a5b1d9ad1df3bf04b5d6e9ceae10a984de0472d4f4c8`). Using the original Gamma interpreter to
 run the final constructor avoids this packing algorithm.
 
 The seed ran the packed constructor on a 111-byte Omega package. It
