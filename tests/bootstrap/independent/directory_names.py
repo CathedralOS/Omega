@@ -292,6 +292,34 @@ def nominal_array_cases(encode):
         expected = 42 if end == b"9" else struct.pack("<BII", 0, 1, rows[0][1] + main.index(b".."))
         yield name, data, expected
 
+    # Two directories expose the same spelling and layout. The field's owner
+    # file chooses the element identity and declares the indexable extent.
+    caller = b"""use types\\Shelf;use left\\Part;machine main()->u8{
+    let mut s:Shelf;
+    let p:Part=Part{byte:42};
+    s.parts[2]=p;
+    let saved:Part=s.parts[2];
+    saved.byte
+}"""
+    paths = ["main.omg", "types/shelf.omg", "left/part.omg", "right/part.omg"]
+    part = b"public data Part [copy]{byte:u8;}"
+    for name, module, length in [
+        ("array-field-declaring-scope", b"left", b"3"),
+        ("different-nominal-array-owner", b"right", b"3"),
+        ("wrong-array-extent", b"left", b"2"),
+    ]:
+        shelf = b"use " + module + b"\\Part;public data Shelf{parts:[Part;" + length + b"];}"
+        data, _, _, rows = packet([(0, caller), (0, shelf), (0, part), (0, part)], paths)
+        if name == "array-field-declaring-scope":
+            yield name, data, 42
+        else:
+            yield name, data, struct.pack("<BII", 0, 1, rows[0][1] + caller.index(b"machine main"))
+
+    caller = b"use types\\Shelf;machine main()->u8{42}"
+    shelf = b"use left\\Part;public data Shelf{parts:[Part;3];}"
+    data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
+    yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
