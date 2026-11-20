@@ -162,29 +162,40 @@ fn prepare_stage(
     let after_wait = |span: source_text::SourceSpan| {
         span.source_id == entry.source_id && span.span.start > wait.end
     };
+    let in_build_package = |span: source_text::SourceSpan| {
+        request.sources.source_is_selected(span.source_id)
+            && request.sources.same_checked_instance(entry, span)
+    };
     let needs_scope = match &whole {
         Ok((source, _)) => {
             use crate::source_state::deferred_refusals::DeferredRequest;
             let typed = source.typed();
             typed.deferred_refusals.iter().any(|row| {
-                (typed.symbols.symbol_source_span(row.declaration) == Some(entry)
-                    && after_wait(row.source_span)
-                    || crate::source_state::source_subjects::nested_in(
-                        typed,
-                        row.declaration,
-                        entry,
-                    ))
-                    && matches!(
-                        row.request,
-                        DeferredRequest::UndeclaredCallName
-                            | DeferredRequest::UndeclaredValueName
-                            | DeferredRequest::UnresolvedCallTarget
-                    )
-            })
+                if !matches!(
+                    row.request,
+                    DeferredRequest::UndeclaredCallName
+                        | DeferredRequest::UndeclaredValueName
+                        | DeferredRequest::UnresolvedCallTarget
+                ) {
+                    return false;
+                }
+                // A helper's position in a file says nothing about when it runs.
+                // Trying the prefix checks any helper that an early call reaches.
+                if !typed.symbols.symbols().nodes().is_valid(row.declaration) {
+                    return false;
+                }
+                match typed.symbols.symbol_source_span(row.declaration) {
+                    Some(owner) if owner == entry => after_wait(row.source_span),
+                    Some(owner) => in_build_package(owner),
+                    None => false,
+                }
+            }) || source.unresolved_type_names().any(in_build_package)
         }
+        // Typing can fail before it records the declaration that owns a diagnostic.
+        // Retry the prefix for errors in local Build sources, wherever the helper is written.
         Err(rows) => rows
             .iter()
-            .all(|row| row.source_span.is_some_and(after_wait)),
+            .all(|row| row.source_span.is_some_and(in_build_package)),
     };
     if needs_scope {
         return prepare(request, true);
@@ -245,6 +256,23 @@ impl CheckedBuildInvocation {
         subjects: &[Option<PackageKeyIdentity>],
         invocation_sources: Option<Arc<dyn InvocationSourceConsent>>,
     ) -> Result<BuildInvocationJudgment, SourcePreparationFailure> {
+        // Only the final Build stage owes the requested whole-package check.
+        // Every stage still checks the selected entry and everything it calls.
+        let subjects = if let Some(prefix) = typed.roots.partial_build_entry {
+            if !typed.symbols.symbols().nodes().is_valid(entry)
+                || typed.symbols.symbol_source_span(entry) != Some(prefix)
+            {
+                return Err(SourcePreparationFailure {
+                    diagnostics: vec![Diagnostic::error(
+                        "Build prefix belongs to a different entry",
+                    )],
+                    accounting: Default::default(),
+                });
+            }
+            &[]
+        } else {
+            subjects
+        };
         let judged = SourcePreparationRequest {
             program: typed.clone(),
             accounting: Default::default(),
