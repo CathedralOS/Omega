@@ -176,11 +176,24 @@ the same row encoder as the full compiler product.
 [Wire decoder](../../../source/foundation/wire/codec.omg) and [caller checks](../conformance/omega/wire_word.omg)
 
 ```sh
-python3 tests/bootstrap/independent/product_wire.py /tmp/omega-product-wire --evaluator "$native/successor"
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-product-wire --evaluator "$work/evaluator"
 ```
 
-Omitting `--evaluator` writes `linked.stdin`, `missing-edge.stdin` and
-`trailing-byte.stdin` for direct replay by a compiled constructor.
+Pass the compiled construction executable to replay the same three raw packets.
+Both routes save the framed results and the linked application's Alpha tape.
+
+```sh
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-native-wire --constructor "$work/omega"
+cmp /tmp/omega-product-wire/wire.tape /tmp/omega-native-wire/wire.tape
+```
+
+Omitting both executable options writes `linked.stdin`, `missing-edge.stdin`
+and `trailing-byte.stdin`.
+
+The 56,933,914-byte native bootstrap compiler produced the same 1,607-byte
+tape and both exact refusal records as the interpreted route. The linked
+tape exited 42 on the audited Alpha seed. The native executable's SHA-256 is
+`47c1b9cddde2190a5d2e600640d07c1a86597123077dc9a6a86abd7834b14c3b`.
 
 At `e45acdff0a9` the stock Linux-native Epsilon evaluator produced 1,607 bytes
 of Alpha tape. The Alpha seed ran it to exit 42 with empty output. The tape's

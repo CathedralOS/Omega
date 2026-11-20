@@ -16,7 +16,9 @@ from conformance.vectors import epsilon_request
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="new directory for the construction inputs")
-    parser.add_argument("--evaluator", type=Path, help="also run and check a source-built Epsilon evaluator")
+    route = parser.add_mutually_exclusive_group()
+    route.add_argument("--evaluator", type=Path, help="also run and check a source-built Epsilon evaluator")
+    route.add_argument("--constructor", type=Path, help="run and check a compiled construction executable")
     parser.add_argument("--seconds", type=int, default=600, help="timeout per execution")
     args = parser.parse_args()
     work = args.output.resolve()
@@ -34,22 +36,27 @@ def main():
     inputs = {"linked": linked, "missing-edge": unlinked, "trailing-byte": linked + b"\0"}
     for name, stdin in inputs.items():
         (work / f"{name}.stdin").write_bytes(stdin)
-    if args.evaluator is None:
+    if args.evaluator:
+        runner = args.evaluator.resolve(strict=True)
+        closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "evaluator.delta")
+        compiler = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
+        guest = compiler + (ROOT / "bootstrap/omega/construct_omega.epsilon").read_bytes()
+        requests = {name: epsilon_request(closure, guest, stdin) for name, stdin in inputs.items()}
+        for name, request in requests.items():
+            (work / f"{name}.eereq").write_bytes(request)
+    elif args.constructor:
+        runner = args.constructor.resolve(strict=True)
+        requests = inputs
+    else:
         return
 
-    evaluator = args.evaluator.resolve(strict=True)
-    closure = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources", work / "evaluator.delta")
-    compiler = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
-    guest = compiler + (ROOT / "bootstrap/omega/construct_omega.epsilon").read_bytes()
-
     def evaluate(name):
-        request = epsilon_request(closure, guest, inputs[name])
-        (work / f"{name}.eereq").write_bytes(request)
-        print(f"Evaluating {name} ({len(request)} request bytes)", flush=True)
-        status, output = execute(evaluator, request, args.seconds)
+        request = requests[name]
+        print(f"Running {name} ({len(request)} request bytes)", flush=True)
+        status, output = execute(runner, request, args.seconds)
         (work / f"{name}.eeout").write_bytes(output)
         if status:
-            raise SystemExit(f"{name}: evaluator exited {status}")
+            raise SystemExit(f"{name}: {runner.name} exited {status}")
         return output
 
     linked_output = evaluate("linked")
