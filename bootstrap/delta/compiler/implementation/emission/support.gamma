@@ -1,30 +1,29 @@
 ; Bound support-member custody. Every sealed compiler input ends with the
-; exact packed bytes of bootstrap/3_delta/support/support.gamma.sources:
-; the byte-rope runtime, the ConformanceBytesV1 runtime, and the generated
-; main adapter, concatenated in manifest order. The table below binds each
+; exact packed bytes of support/support.gamma.sources: shared rope and
+; sealed-input support followed by both application adapters in manifest order. The table below binds each
 ; member's extent, frame offset, and byte sum so that only the audited
 ; closure selects program meaning; no host path or filename is consulted.
 ; Admission proves the section is present; compile_admitted_source checks
 ; each member's contents before any Delta source observation.
 
 ; Support-member indexes match the manifest's packed order.
-(def support_member_count () Int 3)
+(def support_member_count () Int 4)
 
-(def support_packed_extent () Int 2998)
+(def support_packed_extent () Int 4301)
 
 (def support_member_extent ((member Int)) Int
   (if (eq member 0)
     1464
     (if (eq member 1)
       1071
-      463)))
+      (if (eq member 2) 463 1303))))
 
 (def support_member_offset ((member Int)) Int
   (if (eq member 0)
     0
     (if (eq member 1)
       1464
-      2535)))
+      (if (eq member 2) 2535 2998))))
 
 ; Byte sums accumulate (h * 257 + byte) with wrapping 64-bit words, seeded
 ; at zero over each member's exact extent.
@@ -33,12 +32,14 @@
     2838127974949508143
     (if (eq member 1)
       12190257483807601720
-      17850154272413477696)))
+      (if (eq member 2) 17850154272413477696 6939146728885801666))))
 
-; The support section occupies the sealed input's final packed extent.
-; Coordinates in space 5 are absolute sealed-input offsets like space 4.
+; DCREQ's checked source length locates both the original three-member
+; trailer and the full trailer. The scalar diagnostic uses raw source.
 (def support_frame_start () Int
-  (- (input) (support_packed_extent)))
+  (if (eq (compilation_profile) 0)
+    (- (input) (support_packed_extent))
+    (+ 16 (source_length))))
 
 ; DCOUT space 5 (support section): code 1 reports an input that ends
 ; before the bound frame is complete; code 2 reports a member whose byte
@@ -62,21 +63,23 @@
       (pair 0 0)
       (support_member_failure start))))
 
-(def support_check_members ((member Int)) Int
-  (if (eq member (support_member_count))
+(def support_check_members ((member Int) (count Int)) Int
+  (if (eq member count)
     (pair 0 0)
     (let result Int (support_check_member member)
       (if (eq (first result) 0)
-        (support_check_members (+ member 1))
+        (support_check_members (+ member 1) count)
         result))))
 
 ; Returns (pair 0 0) when the sealed input ends with every bound member,
 ; or the owned compiler failure. Emission entries call this before any
 ; Delta-source phase; diagnostic entries that never publish may omit it.
 (def validate_support_members () Int
-  (if (lt (input) (support_packed_extent))
-    (support_section_incomplete)
-    (support_check_members 0)))
+  (let start Int (support_frame_start)
+    (if (lt start 0)
+      (support_section_incomplete)
+      (support_check_members 0
+        (if (eq (- (input) start) (support_member_offset 3)) 3 (support_member_count))))))
 
 ; Publication copies member bytes verbatim from the sealed input; counting
 ; advances by the same bound extent without evaluating the copy. The two

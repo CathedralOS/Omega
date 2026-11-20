@@ -106,7 +106,7 @@
   (state EpsilonState) (arguments EpsilonExpressionList)
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog references declaration)
       (match declaration
         ((EpsilonMachineDeclaration start end name inputs returnType body)
           (let machineParameters EpsilonParameterList (epsilon_machine_input_parameters inputs)
@@ -175,8 +175,8 @@
   (expression EpsilonExpression) (base EpsilonExpression) (arguments EpsilonExpressionList)
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_callable_reference_normalized expression callables)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_callable_reference_normalized expression references)
         (NoEpsilonResolvedCallableReference (EpsilonDeltaInternal (epsilon_expression_start expression)))
         ((OneEpsilonResolvedCallableReference callable)
           (match callable
@@ -199,8 +199,8 @@
   (expression EpsilonExpression) (base EpsilonExpression) (arguments EpsilonExpressionList)
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_control_find_state_application expression control)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_state_application expression references)
         (NoEpsilonStateApplicationReference
           (epsilon_delta_stored_resolved_call context expression base arguments store output))
         ((OneEpsilonStateApplicationReference target state progress)

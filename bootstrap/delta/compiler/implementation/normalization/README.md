@@ -413,13 +413,14 @@ this is not another evaluator, runtime representation, or application profile.
 
 Generated helpers are ordinary declarations, so the emitted program's
 admission bounds are the same bounds the rest of the receipt already carries:
-the 16,777,212-byte payload extent places the whole source under the
+the profile-1 16,777,212-byte payload extent places its source under the
 evaluator's request extent and, at least eight bytes per completed
 declaration, under its 2,097,152-row function table; this transform enforces
 the 255-list body bound; and the
 [static environment audit](#static-validation-environment-bound) holds every
 generated body under the 68,608-binding allowance, below the evaluator's
-131,072-row validation environment. Calls
+131,072-row validation environment. Profile 2 can admit larger Gamma receipts,
+so its function count must fit the evaluator census separately. Calls
 outside tail position can add live contexts to the separate 256-context limit,
 and plan construction, captures, and execution consume finite immutable
 storage; those are resources of the generated program's own run, not compiler

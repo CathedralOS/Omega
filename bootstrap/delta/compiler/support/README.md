@@ -8,10 +8,11 @@ compiler copies into generated programs:
 | `bytes.gamma` | Byte-rope runtime (`$dbe`, `$dbs`, `$dbl`, `$dbc`, `$dbg`, `$dbgi`): empty, singleton, length, checked concatenation, and bounds-checked indexing over `(pair length (pair tag payload))` ropes. |
 | `conformance.gamma` | `ConformanceBytesV1` runtime (`$pbg`, `$pbgi`, `$pbi`, `$pbw`): the same rope contract plus tag-3 sealed-input views and the output writer. |
 | `adapter.gamma` | The generated `main` adapter for `ConformanceBytesV1`: input/output extent guards and the `__d_main` call. |
+| `construction.gamma` | The `ConstructionBytesV1` adapter, which checks the 8 MiB input and 128 MiB output extents, then publishes the result in rope order. |
 
-`support.gamma.sources` is the ordered member manifest. Its packed bytes are
-the bound support section: every sealed compiler input ends with exactly
-those bytes, and `implementation/emission/support.gamma` binds each member's
+`support.gamma.sources` is the ordered member manifest. Its four packed members form the current support
+section. The original three members are a complete alternative for DCREQ ID 1.
+In both forms `implementation/emission/support.gamma` binds each member's
 extent, frame offset, and byte sum. The canonical `DCREQ` entry admits only
 inputs whose support section is present and complete; compilation then
 checks the rolling sums and copies those members during publication. The
@@ -40,7 +41,7 @@ The board item asked to compare the two custody shapes before selecting:
   against an embedded table before compiling and copies bytes verbatim during
   publication.
 
-Cost accounting for the selected shape:
+Cost accounting for the original three-member closure:
 
 - *Evaluator*: unchanged. The support section is sealed input read with the
   ordinary `read`/`input` primitives; no evaluator facility or profile entry

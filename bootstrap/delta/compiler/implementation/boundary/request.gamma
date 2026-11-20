@@ -19,11 +19,11 @@
 (def request_unknown_profile () Int
   (compiler_failure 1 4 2 8 0 0))
 
-(def request_source_incomplete ((requested Int)) Int
-  (compiler_failure 2 4 1 12 4194304 requested))
+(def request_source_incomplete ((limit Int) (requested Int)) Int
+  (compiler_failure 2 4 1 12 limit requested))
 
 ; The sealed input is the DCREQ request followed by the bound support
-; section (bootstrap/3_delta/support/support.gamma.sources packed bytes).
+; section. Profile 1 also admits the original three bound support members.
 ; A body shorter than its declared extent is malformed inside the request;
 ; a missing or short support section is space 5; bytes after the complete
 ; frame are malformed at the first trailing offset.
@@ -35,17 +35,20 @@
       (if (lt expected (input))
         (request_malformed expected)
         (if (lt (input) expected)
-          (support_section_incomplete)
+          (if (if (eq profile 1) (eq (input) (+ body_end (support_member_offset 3))) 0)
+            (pair 0 profile)
+            (support_section_incomplete))
           (pair 0 profile))))))
 
 (def request_admit_profile () Int
   (let profile Int (request_u32 8)
-    (if (eq profile 1)
-      (let length Int (request_u32 12)
-        (if (lt 4194304 length)
-          (request_source_incomplete length)
-          (request_admit_body length profile)))
-      (request_unknown_profile))))
+    (let limit Int (if (eq profile 1) 4194304 (if (eq profile 2) 67108864 0))
+      (if (eq limit 0)
+        (request_unknown_profile)
+        (let length Int (request_u32 12)
+          (if (lt limit length)
+            (request_source_incomplete limit length)
+            (request_admit_body length profile)))))))
 
 (def validate_compilation_request () Int
   (if (lt (input) 16)

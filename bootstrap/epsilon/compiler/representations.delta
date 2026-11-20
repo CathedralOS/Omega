@@ -8,9 +8,7 @@
 ; Keep source custody and resolved operations in named semantic records rather
 ; than another numeric opcode protocol. The checker remains their only owner.
 (data EpsilonDeltaContext
-  (EpsilonDeltaContextAt EpsilonSourceView EpsilonResolutionCatalog EpsilonResolvedLocalReferenceList
-    EpsilonResolvedFieldReferenceList EpsilonResolvedCallableReferenceList
-    EpsilonControlReferenceLedger EpsilonDeclaration))
+  (EpsilonDeltaContextAt EpsilonSourceView EpsilonResolutionCatalog EpsilonRuntimeReferences EpsilonDeclaration))
 
 (data EpsilonDeltaCallTarget
   (EpsilonDeltaMachineTarget Bytes)

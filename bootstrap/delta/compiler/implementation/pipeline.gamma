@@ -50,26 +50,25 @@
 (def publish_checked_program ((profile Int) (program Int)) Int
   ; Both entries own the final LF: canonical main writes Complete's byte;
   ; the development transformer returns it through Gamma's scalar convention.
-  (let requested Int (emit_advance (emit_checked_program profile program 0) 1)
+  (let ((requested Int (emit_advance (emit_checked_program profile program 0) 1))
+        (limit Int (if (eq profile 2) 134217728 16777212)))
     (if (lt requested 0)
       (compiler_emission_metadata_contradiction)
-      (if (lt 16777212 requested)
-        (compiler_failure 2 2 12 16777212 16777212 requested)
+      (if (lt limit requested)
+        (compiler_failure 2 2 12 limit limit requested)
         (let published Int (+ (emit_checked_program profile program 1) 1)
           (if (eq published requested)
             (compiler_complete 10)
             (fail)))))))
 
 (def emit_checked_program ((profile Int) (program Int) (publish Int)) Int
-  ; Members 0 (byte runtime), 1 (conformance runtime), and 2 (adapter) are
-  ; the bound support closure members in manifest order. The byte runtime
-  ; is admitted for every profile-one program and for scalar programs whose
-  ; source uses a Bytes builtin.
+  ; Both byte application profiles use the same rope and sealed input.
+  ; Their final adapters select the publication strategy and byte extents.
   (let ((marker Int (if (eq profile 0) 0 (emit_application_marker publish 0)))
-        (runtime Int (if (if (eq profile 1) 1 (source_uses_bytes_builtin 0))
+        (runtime Int (if (if profile 1 (source_uses_bytes_builtin 0))
             (emit_support_member 0 publish marker)
             marker))
-        (profile_runtime Int (if (eq profile 1)
+        (profile_runtime Int (if profile
             (emit_support_member 1 publish runtime)
             runtime)))
     (emit_program program publish profile_runtime)))

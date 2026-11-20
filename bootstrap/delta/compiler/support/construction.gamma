@@ -1,0 +1,34 @@
+; ConstructionBytesV1. The adapter checks the input before the call and the
+; complete output length before writing. Traverse concatenations left to right
+; with an explicit stack of pending right children; visit each output leaf once.
+(def $byte_finish ((count Int) (pending Int)) Int
+  (if (eq count 0)
+    (pair 0 1)
+    ($byte_walk (first pending) (- count 1) (second pending))))
+
+(def $byte_input ((index Int) (length Int)) Int
+  (if (eq index length)
+    0
+    (let emitted Int (write (read index))
+      ($byte_input (+ index 1) length))))
+
+(def $byte_walk ((value Int) (count Int) (pending Int)) Int
+  (let length Int (first value)
+    (if (eq length 0)
+      ($byte_finish count pending)
+      (let ((node Int (second value)) (tag Int (first node)) (data Int (second node)))
+        (if (eq tag 1)
+          (let emitted Int (write data) ($byte_finish count pending))
+          (if (eq tag 2)
+            ($byte_walk (first data) (+ count 1) (pair (second data) pending))
+            (if (eq tag 3)
+              (let emitted Int ($byte_input 0 length) ($byte_finish count pending))
+              (/ 1 0))))))))
+
+(def main () Int
+  (if (lt 8388608 (input))
+    (pair 253 0)
+    (let v Int (__d_main ($pbi))
+      (if (lt 134217728 (first v))
+        (pair 254 0)
+        ($byte_walk v 0 0)))))

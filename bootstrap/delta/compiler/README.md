@@ -24,7 +24,7 @@ general-purpose runtime facilities.
 | `delta_compiler.gamma` | Canonical request entry for the selected Gamma-authored compiler. | Replace only with a more complete immediately prior-rung implementation and synchronized composed identity. |
 | `delta_compiler.composed` | Binds the complete source closure, packed support section, and selected evaluator tape. | Replace atomically with the source, support, and evaluator identities. |
 | `implementation/` | Shared pipeline, checking, representation, lowering, normalization, and emission members, selected by their source manifest. | Replace only with a more complete immediately prior-rung implementation. |
-| `support/` | Readable byte-runtime and `ConformanceBytesV1` adapter members and their ordered manifest; the packed bytes end every sealed compiler input. | Replace only with independently readable members bound the same way. |
+| `support/` | Readable byte-runtime and both byte-application adapter members and their ordered manifest; ID 1 also admits the exact original three-member prefix. | Replace only with independently readable members bound the same way. |
 
 ## Selected staged Delta compiler
 
@@ -33,7 +33,7 @@ Gamma-authored Delta stage. It admits DCREQ, runs the shared compiler pipeline,
 and publishes either the successful Gamma receipt or an owned failure
 frame through the selected Beta-authored Gamma evaluator.
 `delta_compiler.composed` binds the complete entry-plus-implementation bytes,
-the packed `support/` member bytes that end every sealed compiler input, and
+the packed `support/` member bytes (including the original profile-1 prefix), and
 evaluator-tape identity under `GammaComposedV2`, not the entry file alone.
 
 Bound edge identities, checked by `tools/bootstrap/delta/compiler_env.sh`
@@ -41,15 +41,29 @@ against every materialization and by `tests/bootstrap/interpreted/delta-identity
 
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `delta_compiler.gamma` request entry | 813 | `f12836610a7d8cb7da7f1288c20d870423cde4497aa8d1a2cf2962e8b24a20f9` |
-| `implementation/implementation.gamma.sources` manifest | 11,469 | `3a769f8bbf492b5a166bf13d6c07c0033db09d03d3a68e129f0071cb7bedd486` |
-| `support/support.gamma.sources` manifest | 490 | `cf20f4a6331c3af516dbed8bc206298d1d1205b4fb4801d025ad4256a5a6d9f3` |
-| `delta_compiler.composed` record | 298 | `10d6d6b49c5070989a2e917595f22ebcb8b06a7a7e5d7718adcd090ab7d1ddd5` |
-| Packed canonical closure | 151,525 | `de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6` |
-| Packed support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
+| `delta_compiler.gamma` request entry | 792 | `caaccc0f930aed311572dbcfa8ed66eae46ac279d42c85bbf6d2e249e46abcfd` |
+| `implementation/implementation.gamma.sources` manifest | 11,470 | `71e7522f3f953fad3e9c5af166c7b251e023b0c8dbf738fa115727408cc5a4c8` |
+| `support/support.gamma.sources` manifest | 651 | `257115ba5c85aad7574417a19a7ac5e439391ebedbaedc4b7a70fdc4ac94b833` |
+| `delta_compiler.composed` record | 298 | `25fb0c75a29049f61f38b46919849d31f75f29f08a72cb04189726026a9a6aa8` |
+| Packed canonical closure | 151,983 | `27d81dff55aba5302ab3170715dfc1b082ab414519788695fffc657031d3da1e` |
+| Packed support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
 
 A digest is an identity check on the bytes being compiled, not a proof of the
 compiler; historical stress evidence pins the closure identity of its own run.
+
+## Run the application profile checks
+
+Build the native Delta and Gamma tools on Linux x86-64, then run both
+public profiles through them. The checks compare the two receipts, validate
+rejection coordinates and support custody, and execute generated programs at the input limits and just beyond both output
+limits. Add `--full-output` to publish and compare the complete 128 MiB
+construction result at its exact limit.
+
+```sh
+work=$(mktemp -d)
+tests/bootstrap/linux_x86_64/bootstrap --delta . "$work/host"
+python3 tests/bootstrap/independent/delta_profiles.py "$work/host/program" "$work/host/gamma-compiler"
+```
 
 ## Source organization
 
@@ -118,8 +132,9 @@ over-height fragments while retaining evaluation order and binding identity.
 the resulting Gamma plan; it does not select Delta lowering rules. A count-only
 pass through the serializer measures all payload bytes before publication,
 including the bound support members and the entry-owned final newline. Above
-16,777,212 bytes, the compiler returns DCOUT resource 12 in emitted-payload
-space at byte 16,777,212 with the exact complete requested count. Final-child
+the selected limit (16,777,212 bytes for profile 1, 128 MiB for profile 2),
+the compiler returns DCOUT resource 12 in emitted-payload space at that limit
+with the exact complete requested count. Final-child
 closes are scalar traversal state, so unary projection chains allocate no
 per-projection continuation during publication. Gamma nodes also retain exact
 serialization extents built from shared formatting helpers and child summaries;

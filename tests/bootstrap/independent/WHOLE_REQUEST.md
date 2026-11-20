@@ -6,41 +6,75 @@ exact bytes to the complete Epsilon bootstrap compiler and construction entry.
 The evaluator receives both the Epsilon source and the guest stdin in one sealed
 EEREQ packet. [Construction input format](../../../source/application/construction/README.md)
 
-## Reproduce the inputs
+## Build from the seed
 
-Build the native Epsilon evaluator using the Linux test launcher and canonical
-Delta request. The resulting directory contains the native Gamma compiler,
-the Delta compiler and its emitted Epsilon evaluator Gamma source in
-`producer.output`, and the native evaluator in `successor`.
-[Linux construction](../linux_x86_64/README.md#compile-gamma-source-emitted-by-the-supplied-program)
-
-From the repository root, set `native` to that directory and choose a new
-output directory. The constructor writes `product.bin` and its source manifest.
-The framing script packs the ordered compiler closure, appends its construction
-entry, and seals the source and stdin with the evaluator closure identity.
+The same complete Epsilon source can run in the evaluator or go through the
+Epsilon-to-Delta compiler. From the repository root, prepare both requests in
+a fresh directory. The script packs the source manifests with the repository's
+built `xtask`. The Linux launcher constructs the executables from Alpha and Beta.
 
 ```sh
-native=/tmp/omega-epsilon
 work=/tmp/omega-whole-request
-python3 tests/bootstrap/independent/whole_request.py "$work" --receipt "$native/producer.output" --entry-control
-timeout 480s "$native/successor" < "$work/whole.eereq" > "$work/stock.eeout"
+python3 tests/bootstrap/independent/whole_request.py "$work" --entry-control
+tests/bootstrap/linux_x86_64/bootstrap --delta . "$work/compiled" "$work/compiler.dcreq"
 ```
 
-The optional `--receipt` checks the canonical Gamma receipt identity, finds
-the exact published Delta adapter member and writes a private Gamma source.
-Compile it with the same seed-built native compiler and replay the same packet.
+The compiled route first turns the Epsilon-written bootstrap compiler and its
+construction entry into a Delta module. Frame a successful result with the
+runtime selected by the Epsilon compiler, then pass that program to Delta.
+These steps keep the intermediate sources available for inspection. The last
+command runs only after both compilers have produced their executables.
 
 ```sh
-"$native/gamma-compiler" < "$work/epsilon-8m.gamma" > "$work/epsilon-8m"
-chmod +x "$work/epsilon-8m"
-timeout 480s "$work/epsilon-8m" < "$work/whole.eereq" > "$work/wide.eeout"
+set -e
+"$work/compiled/successor" < "$work/whole.epsilon" > "$work/module.out"
+python3 tests/bootstrap/independent/whole_request.py "$work" --frame-result "$work/module.out"
+"$work/compiled/program" < "$work/omega.dcreq" > "$work/omega.gamma"
+"$work/compiled/gamma-compiler" < "$work/omega.gamma" > "$work/omega"
+chmod +x "$work/omega"
+"$work/omega" < "$work/product.bin" > "$work/compiled.eeout"
 ```
 
-The optional `--entry-control` separately encodes the same package and dependency
-rows with only the original entry source unit. Replay `entry-unit.eereq` in
-place of `whole.eereq` for that control.
+The interpreted route passes the Epsilon source and the product input together
+as one sealed request. Reuse the seed-built Delta and Gamma compilers from
+above to build the interpreter.
 
-## Measured sources and limits
+```sh
+set -e
+"$work/compiled/program" < "$work/evaluator.dcreq" > "$work/evaluator.gamma"
+"$work/compiled/gamma-compiler" < "$work/evaluator.gamma" > "$work/evaluator"
+chmod +x "$work/evaluator"
+"$work/evaluator" < "$work/whole.eereq" > "$work/product.eeout"
+```
+
+Both executables emit the Epsilon guest's outcome before its payload. A successful
+constructor returns five zero bytes followed by the Alpha tape.
+The optional `--entry-control` also frames the original package and dependency
+rows with just the original entry unit in `entry-unit.eereq`. Both construction
+requests select Delta profile 2, which admits the combined source and product
+input and can publish a generated module larger than 4 MiB.
+
+## Whole compiler result
+
+The indexed Epsilon compiler compiled all 852,096 bytes of the bootstrap
+compiler and its construction entry. With Delta's construction profile, the
+Linux executable returned status 0, the `compiled-storage` marker and an
+18,269,324-byte Delta module. Adding the declared storage runtime and entry
+gave Delta an 18,365,364-byte program. The same whole Epsilon source reached
+the 4 MiB output guard with status 254 on the conformance profile.
+[Indexed lowering](../../../wiki/development/bootstrap/native.md)
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Epsilon source with construction entry | 852,096 | `01565beaf9f51478a156fa9b9ca997f5808b06ef39db66a41e4baf644ff59225` |
+| Epsilon compiler output, including marker | 18,269,341 | `60d0fce9fa52af3464e95c5d691882369e6d7417cb386258f41cde55b207a0f5` |
+| Delta source with runtime and entry | 18,365,364 | `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab` |
+
+The construction-profile evaluator also accepted the 4,807,765-byte packet
+with the package count changed to 65. The guest returned exit 3 for malformed
+framing (`00 03 00 00 00`) with outer process status 0.
+
+## Earlier conformance and private-adapter measurements
 
 At `9d6b86e82d0` the packet contained 852,096 bytes of Epsilon source and
 3,955,617 bytes of product input covering seven packages and 304 source units.
@@ -55,6 +89,10 @@ The 4 MiB output check and the enclosing Gamma runtime’s 131 MiB sealed-input
 limit both retain their original values.
 [Generated entry](../../../bootstrap/delta/compiler/support/adapter.gamma)
 and [Gamma runtime](../../../bootstrap/gamma/compiler/compiler.gamma)
+
+To reproduce the private adapter used for these measurements, add
+`--receipt /path/to/profile-1/evaluator.gamma` when preparing a new directory.
+The script verifies that receipt and writes `epsilon-8m.gamma`.
 
 The measured private build also regenerated the receipt through Delta. It used
 the widened adapter and replaced its rolling checksum in the Delta producer's

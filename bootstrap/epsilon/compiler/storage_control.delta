@@ -79,8 +79,8 @@
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
   (let coordinate Int (epsilon_expression_start subject)
     (match context
-      ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-        (match (epsilon_control_find_transition_subject terminal control)
+      ((EpsilonDeltaContextAt source catalog references declaration)
+        (match (epsilon_runtime_find_transition_subject terminal references)
           (NoEpsilonTransitionSubjectReference (EpsilonDeltaInternal coordinate))
           ((OneEpsilonTransitionSubjectReference kind)
             (match (epsilon_delta_stored_expression context subject store output)

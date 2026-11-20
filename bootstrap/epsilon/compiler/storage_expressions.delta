@@ -204,8 +204,8 @@
       (let effects Bytes (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate)
         (epsilon_emit_generated "output" coordinate))
         (match context
-          ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-            (match (epsilon_find_resolved_field_reference expression fields)
+          ((EpsilonDeltaContextAt source catalog references declaration)
+            (match (epsilon_runtime_find_field_reference expression references)
               (NoEpsilonResolvedFieldReference
                 (if (epsilon_name_is_len source member)
                   (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_array_length"

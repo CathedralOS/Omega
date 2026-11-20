@@ -39,7 +39,7 @@ different representation.
 [text.gamma](text.gamma) owns textual primitives. [support.gamma](support.gamma)
 binds the ordered support members of
 [`bootstrap/delta/compiler/support/`](../../support/README.md): the byte-rope runtime,
-the `ConformanceBytesV1` runtime, and the generated `main` adapter are authored
+the shared sealed-input runtime, and both generated `main` adapters are authored
 once as ordinary readable Gamma files and copied verbatim from the sealed
 input's bound support section. The pipeline's runtime selection - which member
 a profile emits and where - remains separate from generic expression
@@ -71,8 +71,8 @@ instead of unfolding shared children. Every rebuilt node recomputes its summary;
 reused immutable nodes keep theirs. Count mode adds span and packed-text lengths
 without reading or writing their bytes; it does not build a byte rope.
 The coordinator includes the entry-owned final LF in both totals. If the full
-count exceeds 16,777,212, it returns DCOUT `Incomplete` resource 12 in payload
-coordinate space 2, at byte 16,777,212, with the limit and exact complete count.
+count exceeds the selected payload limit, it returns DCOUT `Incomplete`
+resource 12 in payload space 2 at the limit, with the exact complete count.
 No application marker or partial program precedes that refusal. Admitted
 publication checks its returned count against the preflight count; disagreement
 remains an internal invariant failure, not a resource refusal.
@@ -99,8 +99,8 @@ Full Epsilon recompilation remains a storage regression check.
 ## Reachable byte-count bound
 
 This is a source-level audit of the selected producer, not a checked refinement
-certificate or a promise of sufficient compiler memory/time. Let `N` be admitted
-source bytes (`3 <= N <= 4,194,304`); any well-formed complete Delta program is
+certificate or a promise of sufficient compiler memory/time. Its numerical
+conclusion covers profile 1. Let `N` be admitted profile-1 source bytes (`3 <= N <= 4,194,304`); any well-formed complete Delta program is
 longer than three bytes. Counts below refer to expanded expression occurrences,
 not unique immutable pairs. Thus sharing cannot conceal a larger printed tree.
 
@@ -190,9 +190,13 @@ incidences above. The envelope therefore covers intermediate cached extents as
 well as final payloads, not the cumulative sizes of all discarded immutable
 copies. Counts are nonnegative sums of those extents and syntax
 bytes, so partial sums also fit signed 64-bit arithmetic. The actual publication
-path runs only after exact preflight admits at most 16,777,212 bytes; its byte
+profile-1 path runs only after exact preflight admits at most 16,777,212 bytes; its byte
 increments and pending closes follow the same immutable formatting structure.
 No saturation, fabricated requested count, or new source refusal is necessary.
+For profile 2, the same loose quadratic formula at 64 MiB exceeds the signed
+64-bit count range, so the profile-1 inequality does not prove overflow
+unreachable for all construction sources. The implementation still checks each
+extent addition and refuses a payload over the configured limit before writing.
 These counts do not establish canonical outcomes for underlying evaluator
 exhaustion; serialization's own traversal pairs are bounded
 [below](#publication-traversal-pairs).
@@ -235,8 +239,8 @@ decimal, marker, definition, and adapter writers likewise use only `write`
 effects, lexical rows, and scalar arithmetic, not pairs. The two summary
 pairs per Gamma node belong to plan construction, not to this traversal.
 
-Publication runs only after exact preflight admits at most `P = 16,777,212`
-bytes including the final LF. Charge each frame to distinct emitted bytes: a
+Publication runs only after exact preflight admits at most `P` bytes including
+the final LF. Profile 1 selects 16,777,212; profile 2 selects 134,217,728. Charge each frame to distinct emitted bytes: a
 nonfinal argument owns its separator byte and that argument's first emitted
 byte, and a `let` owns at least twelve bytes after its opening parenthesis
 (`let `, a binder, ` `, `Int`, ` `, the initializer-body separator, and `)`).
@@ -248,11 +252,12 @@ Therefore
 
 ```text
 traversal pairs <= 4 * floor(P / 2) + 3 * floor(P / 12)
-                <= 33,554,424 + 4,194,303 = 37,748,727 < 3,422,453,760
+profile 1: at most 37,748,727 pairs
+profile 2: at most 301,989,886 pairs
 ```
 
 Serialization alone therefore cannot exhaust the selected pair arena: it adds
-at most 37,748,727 cumulative pairs to a compilation whose earlier phases are
+at most the selected number of cumulative pairs to a compilation whose earlier phases are
 separately owned. This bounds emission's own traversal, not generated-program
 execution; it manufactures no DCOUT outcome and changes no provision.
 

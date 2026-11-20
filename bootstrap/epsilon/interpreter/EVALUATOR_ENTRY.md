@@ -25,7 +25,7 @@ no observation can produce.
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
 | packed Epsilon evaluator closure | 616,939 | `a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c` |
 | canonical entry `interpreter.delta` | 10,563 | `ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79` |
-| Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
+| Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
 | canonical evaluator receipt | 726,601 | `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af` |
 
 The entry embeds the digest of the evaluator's ordered library sources. To build

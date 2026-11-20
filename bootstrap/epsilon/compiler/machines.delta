@@ -79,7 +79,7 @@
           (match (epsilon_delta_block context statements terminal)
             ((EpsilonDeltaCompiled text)
               (match context
-                ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+                ((EpsilonDeltaContextAt source catalog references declaration)
                   (epsilon_delta_append
                     (EpsilonDeltaCompiled (epsilon_emit_compiled_function source name signature text))
                     (epsilon_delta_states context signature states)))))

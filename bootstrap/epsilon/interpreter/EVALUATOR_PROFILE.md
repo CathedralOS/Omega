@@ -25,7 +25,7 @@ bound, or restores an Epsilon Alpha backend.
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
 | packed Epsilon evaluator closure | 616,939 | `a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c` |
 | execution driver `execution_driver.delta` | 2,150 | `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa` |
-| Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
+| Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
 | reconstructed evaluator receipt | 719,006 | `f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340` |
 
 Compilation of the packed evaluator plus driver plus the bound support

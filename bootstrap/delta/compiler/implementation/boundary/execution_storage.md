@@ -5,14 +5,16 @@ the Gamma programs it emits. It narrows the remaining
 [resource obligation](README.md#resource-ownership-in-the-selected-producer);
 it is not a checked refinement certificate or a cumulative pair-allocation bound.
 
-The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
+This audit measured the pre-construction-profile compiler at `e45acdff`
+(PR #4529). Its subject was the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 151,525 bytes, SHA-256
+closure, 151,525 bytes, SHA-256
 `de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../../gamma/interpreter/EVALUATOR_PROFILE.md).
-Changes to either executable subject require rechecking the corresponding
-argument; a new source manifest digest alone does not preserve this evidence.
+The numeric measurements below belong to that source and its profile-1
+limits. The construction profile changes the source, syntax and publication
+provisions. Its whole-producer containment remains unproven.
 
 Runtime emission is support-member custody, not fixed text encoded in the
 emitter. [`support.gamma`](../emission/support.gamma) validates the sealed

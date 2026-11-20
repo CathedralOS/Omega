@@ -2,7 +2,10 @@
 ; The selected Gamma profile uses 40 bytes per immutable pair. Parser nodes,
 ; spines, frames, program roots, and grammar work share this byte provision.
 ; Phase outcome/custody carriers and later compiler phases are not syntax.
-(def syntax_storage_limit () Int 114294752)
+; Large construction requests need room for the emitted compiler declarations.
+; Admission selects the profile before any parser or grammar allocation.
+(def syntax_storage_limit () Int
+  (if (eq (compilation_profile) 2) 1073741824 114294752))
 
 ; Used is admitted; pairs comes from a fixed shape or a source-bounded count.
 ; A complete allocation group is provisioned before any of its pairs exist.

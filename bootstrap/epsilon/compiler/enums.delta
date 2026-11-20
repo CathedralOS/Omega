@@ -64,7 +64,7 @@
 (def epsilon_delta_named_type ((context EpsilonDeltaContext)
   (name EpsilonName)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog references declaration)
       (match catalog
         ((EpsilonResolutionCatalogSyntax rows)
           (match (epsilon_catalog_find_owner source name rows)

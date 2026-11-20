@@ -5,6 +5,12 @@ module. The compiler reports either `compiled` for its pure calling convention
 or `compiled-storage` for programs that need storage and effects. A refusal
 reports its class and source offset. [Compiler entry](entry.delta)
 
+After checking, the compiler builds the same source-coordinate index that
+the interpreter uses for resolved references. Lowering retrieves local, field,
+callable and control facts from the bucket for each source start. The lookup
+still checks the expression kind and both span endpoints. A field and its
+receiver can start at the same byte. [Reference lookup](../interpreter/execution/references/lookup.delta)
+
 ## Assemble and run a program
 
 `compiler.parts` lists the complete compiler source in order. Paths are relative

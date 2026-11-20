@@ -22,6 +22,33 @@ The compiler validates all functions and branches before buffered publication.
 The public [Gamma semantics](../../../bootstrap/gamma/LANGUAGE.md) and existing
 compiler's explicit accepted subset govern both realizations.
 
+## Delta syntax for the emitted Omega compiler
+
+The Epsilon compiler emitted a complete 18,365,364-byte Delta program with
+its storage runtime and entry (SHA-256
+`f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab`).
+It contains 7,774 top-level forms, 468,044 lists and 1,172,126 atoms.
+Applying the parser's production allocation ledger gives 384,199,320 bytes
+for balanced parsing. Grammar then allocates from the same budget.
+[Syntax representation and charges](../../../bootstrap/delta/compiler/implementation/checking/syntax/README.md)
+
+The ConstructionBytesV1 Delta compiler now provisions 1 GiB for syntax. On
+this program it completed grammar, resolution, type checking and lowering.
+With the earlier 16,777,212-byte Gamma output limit, its emission preflight
+returned code 12 in emitted-payload space and requested 26,398,215 bytes.
+[Emission preflight](../../../bootstrap/delta/compiler/implementation/pipeline.gamma)
+
+The frozen 4,107,257-byte Omega signature-checking program
+(`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`) takes
+90,118,000 parser bytes. Its original 114,294,752-byte syntax provision ran out
+during grammar at byte 3,132,226. With the construction provision the compiler
+published 5,819,889 bytes of Gamma (SHA-256
+`5bfd4417a851ca411730364a88935511494847cd8a80392e110ec895273a1e11`).
+[Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)
+
+To exercise the last complete parser frame and the next frame in each profile,
+run `python3 tests/bootstrap/independent/delta_syntax.py DELTA_EXECUTABLE PACKED_SUPPORT`.
+
 ## Construction and acceptance
 
 On Linux x86-64, build the native Gamma compiler in a new output directory:
@@ -662,3 +689,31 @@ wall-clock budget. Neither had published a Delta module or diagnostic when
 stopped. The unequal budgets leave their relative speed unmeasured. This step
 compiles the Epsilon implementation of the bootstrap compiler. Supplying Omega
 product source to the resulting compiler would be a subsequent step.
+
+### Finding checked references while compiling the whole application
+
+The compiled Epsilon frontend reached the stock Delta byte publisher on
+the complete 852,096-byte Omega compiler and construction entry described
+above. Ordinary publication returned status 254, with empty stdout and
+stderr, after 56.45 CPU seconds, 64.86 wall seconds and 3,035,040 KiB peak RSS.
+This status identifies a result over the 4 MiB publication limit. It gives
+no exact module length.
+
+On the preceding compiler from `e45acdff0a9`, half-second instruction-pointer
+samples on that input located the cost in lowering. The 741 native function
+prologues were matched to the 741 function declarations in order in the
+source-built Gamma receipt. Between elapsed seconds 50.72 and 150.73,
+191 of 200 samples were in reference-list searches or the expression and
+pattern identity functions those searches call. The profiler stopped the
+original process at 157.84 wall seconds with no output.
+
+The compiler now builds the interpreter's source-coordinate index once after
+checking and queries it for local, field, callable and control references.
+The index limits each search to the applicable start coordinate and retains
+the original exact identity and lookup order within the bucket. The native
+compiler built by the stock predecessors was 28,537,595 bytes, SHA-256
+`414290b92745283ba88be370a5e4342a9aae1e1766734e058da220ef249d72ab`.
+The public lexer emitted the same 1,104,979-byte compiled observation as
+before. The grouped receiver control checks a call and its projections with
+a shared start and an enclosing expression with a different start.
+[Stored receiver test](../../../tests/bootstrap/independent/epsilon/storage_main.epsilon)
