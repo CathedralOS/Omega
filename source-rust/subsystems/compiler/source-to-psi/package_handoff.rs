@@ -14,16 +14,13 @@ pub fn package_handoff_declarations(
     source: StageSource<'_>,
     formations: &[NativeBindingFormation],
 ) -> Result<PackageHandoffDeclarations, Vec<Diagnostic>> {
-    let package = source.selections.subject.ok_or_else(|| {
+    let package = source.product.subject.ok_or_else(|| {
         vec![Diagnostic::error(
             "a dependency Build handoff requires a named package",
         )]
     })?;
-    let mut declarations = source.resolve()?;
-    let (_, admitted) = source
-        .selections
-        .policy
-        .admit(&mut declarations, Some(package))?;
+    let (product, mut declarations) = source.resolve()?;
+    let (_, admitted) = product.policy.admit(&mut declarations, Some(package))?;
     let providers = admitted
         .providers
         .iter()
@@ -35,7 +32,7 @@ pub fn package_handoff_declarations(
     let (native, intents) = declarations.capture_package_native_bindings(
         package,
         formations,
-        source.selections.policy.native_bindings,
+        product.policy.native_bindings,
     )?;
     Ok(PackageHandoffDeclarations {
         providers,

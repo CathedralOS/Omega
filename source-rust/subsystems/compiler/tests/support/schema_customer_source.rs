@@ -56,7 +56,7 @@ fn resolved_library_source(
         .first()
         .ok_or("real core source selection is empty")?
         .0;
-    for name in ["main.omg", "bump.omg", "vec.omg"] {
+    for name in ["main.omg", "bump/bump.omg", "vec/vec.omg"] {
         let path = alloc_root.join(name);
         let text = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let file = sources.add_with_metadata(

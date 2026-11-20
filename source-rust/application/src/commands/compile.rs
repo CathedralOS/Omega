@@ -367,7 +367,7 @@ fn compile_target(
         )?;
     } else if arguments.check_only || arguments.emit_psi.is_some() {
         let names = if arguments.emit_psi.is_some() {
-            stage.source().selections.calling_targets.to_vec()
+            stage.deployment_targets().to_vec()
         } else {
             vec![profile.target_name()]
         };
@@ -476,7 +476,7 @@ fn compile_target(
         diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
         eprintln!("{text}");
     }
-    let sources = &planned.source().sources;
+    let sources = &planned.source().parsed.files;
     let file_count = sources
         .files()
         .filter(|file| sources.source_is_selected(file.source_id))

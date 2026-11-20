@@ -191,20 +191,11 @@ mod tests {
             .expect("assemble the real Build vocabulary");
         let build_source = syntax.build_source.expect("production Build selection");
         let profile = target::TargetProfile::host_if_supported().expect("supported Build host");
-        let (source, _) = source_compiler::ResolveAndTypeRequest {
-            syntax: syntax.syntax_trees,
-            source_items: syntax.source_items,
-            root_sources: syntax.root_sources,
-            frontends: Default::default(),
-            build_helper_identity: profile.target_name(),
-            build_sources: syntax.build_scope_sources,
-            build_stage: None,
-            sources: syntax.sources,
-            top_level_bindings: syntax.source_scoped_top_level_bindings,
-            selection_authority: None,
-        }
-        .prepare(&mut source_compiler::UnmeasuredProduction)
-        .expect("type the production Build declaration");
+        let (source, _) = syntax
+            .build_stage_source()
+            .unwrap()
+            .prepare(0, &Default::default(), profile.target_name(), None)
+            .unwrap();
         let typed = source.typed();
         let machine = crate::build_execution::select_build_machine(typed, build_source)
             .expect("the authored Build entry");

@@ -251,7 +251,7 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
     };
 
     const SOURCE: &str = include_str!("selected_access_plan_family.omg");
-    let empty = SOURCE.replace("routes: [reflect::callable(stamp)]", "routes: []");
+    let empty = SOURCE.replace("routes: [reflect\\callable(stamp)]", "routes: []");
     let facts = facts();
     for (source, route_count) in [(empty.as_str(), 0), (SOURCE, 1)] {
         let typed = typed_source(source);
@@ -555,17 +555,17 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
 #[test]
 fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
     let original = include_str!("selected_access_plan_family.omg");
-    let plan = r#"let mut plan: AccessPlan = access::new_plan(@schema,
-            Issuance::Only { routes: [reflect::callable(stamp)] });
-        access::allow_readers(@mut plan,
-            omega::language::core::AccessRegion::Subject { schema: schema },
-            [reflect::callable(number)]);
-        access::allow_writers(@mut plan,
-            omega::language::core::AccessRegion::Subject { schema: schema },
-            [reflect::callable(change)]);
+    let plan = r#"let mut plan: AccessPlan = access\new_plan(@schema,
+            Issuance::Only { routes: [reflect\callable(stamp)] });
+        access\allow_readers(@mut plan,
+            omega\language\core\AccessRegion::Subject { schema: schema },
+            [reflect\callable(number)]);
+        access\allow_writers(@mut plan,
+            omega\language\core\AccessRegion::Subject { schema: schema },
+            [reflect\callable(change)]);
         plan"#;
     let source = original.replacen(
-        "access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })",
+        "access\\new_plan(@schema, Issuance::Only { routes: [reflect\\callable(stamp)] })",
         plan,
         1,
     ).replace(
@@ -579,11 +579,11 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
     for (source, denied) in [
         (source.clone(), None),
         (
-            source.replace("[reflect::callable(number)]", "[]"),
+            source.replace("[reflect\\callable(number)]", "[]"),
             Some("read"),
         ),
         (
-            source.replace("[reflect::callable(change)]", "[]"),
+            source.replace("[reflect\\callable(change)]", "[]"),
             Some("write"),
         ),
         // Returning from the permitted invocation ends its delegation. A

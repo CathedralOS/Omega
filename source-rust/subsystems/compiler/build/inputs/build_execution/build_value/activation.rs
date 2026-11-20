@@ -174,7 +174,12 @@ public data Build<'storage> {
             let file = sources.add_checked_instance(
                 path.into(),
                 text,
-                "package".into(),
+                if origin == source_admission::SourceOrigin::Toolchain {
+                    path
+                } else {
+                    "package"
+                }
+                .into(),
                 None,
                 origin,
                 source_admission::SourceResolutionStratum::Base,

@@ -5,8 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 fn core_sources() -> Vec<(PathBuf, Arc<str>)> {
-    let core =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
+    let core = crate::stages::fixture_repository::root().join("source/library/core");
     let mut paths = std::fs::read_dir(&core)
         .expect("bundled core is readable")
         .map(|entry| entry.expect("core entry").path())

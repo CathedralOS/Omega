@@ -3,7 +3,8 @@
 #![forbid(unsafe_code)]
 
 use diagnostics::Diagnostic;
-use source_files::{LoadedSource, LoadedSources};
+mod stage_sources;
+pub use stage_sources::ParsedStageSources;
 
 mod build_invocation;
 pub mod compile_time;
@@ -20,10 +21,7 @@ pub use stages::*;
 
 pub mod registered_tests;
 
-use crate::source_inputs::SourceMap;
-use crate::source_symbols::SourceScopedTopLevelBinding;
 use product::{ProductSourceInputs, prepare_lower_and_check};
-use source_text::SourceId;
 use std::sync::Arc;
 
 pub type PublishedPsi = Arc<terminal_codec::CanonicalTerminalArtifact>;
@@ -31,20 +29,19 @@ pub type PublishedPsi = Arc<terminal_codec::CanonicalTerminalArtifact>;
 /// Captured files include generated source from earlier stages.
 /// Bindings belong to this compilation's selected packages and source identities.
 pub struct StageSource<'a> {
-    pub files: Arc<SourceMap>,
-    pub roots: Vec<SourceId>,
-    pub imports: Vec<SourceScopedTopLevelBinding>,
-    pub selections: ProductSourceInputs<'a>,
-    /// Costs of the Build that opened this Product, when it belongs to a project.
-    pub build_accounting: Option<&'a compile_time::SourceCompletionAccounting>,
-    pub declaration_authority: Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
-    pub build_host: semantic_vocabulary::source_selections::ProductTarget,
+    pub parsed: ParsedStageSources,
+    pub product: ProductSourceInputs<'a>,
 }
 
 /// Return the source judgment's advisories as soon as the Product is checked.
 pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
-    let checked = source.judge(source.resolve()?, None, None)?;
-    Ok(checked.terminal_publication.accepted()?.advisories().to_vec())
+    let (product, resolved) = source.resolve()?;
+    let checked = product.judge(resolved, None, None)?;
+    Ok(checked
+        .terminal_publication
+        .accepted()?
+        .advisories()
+        .to_vec())
 }
 
 pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {
@@ -152,12 +149,12 @@ pub fn compile_for_target_reporting(
     target: &str,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
-    if !source.selections.calling_targets.contains(&target) {
+    if !source.product.calling_targets.contains(&target) {
         return Err(vec![Diagnostic::error(format!(
             "source program did not select deployment target `{target}`"
         ))]);
     }
-    let subject = source.selections.subject;
+    let subject = source.product.subject;
     let (artifact, checked) = publish_stage(source, None, advisories)?;
     published_target(artifact, checked, target, subject)
 }
@@ -193,24 +190,35 @@ fn publish_stage(
     inspection: Option<&str>,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<(PublishedPsi, product::CompletedProductSource), Vec<Diagnostic>> {
-    let continuation = source.resolve()?;
-    let checked = source.judge(continuation, inspection, None)?;
-    let psi = source.publish(&checked)?;
+    let (product, continuation) = source.resolve()?;
+    let checked = product.judge(continuation, inspection, None)?;
+    let psi = product.publish(&checked)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
     }
     Ok((psi, checked))
 }
 
-impl StageSource<'_> {
-    fn resolve(&self) -> Result<SourceContinuation, Vec<Diagnostic>> {
-        let mut observer = UnmeasuredProduction;
-        let parsed = lex_and_parse(self, &mut observer)?;
-        parsed
-            .prepare(&mut observer)
-            .map(|(continuation, _)| continuation)
+impl<'a> StageSource<'a> {
+    fn resolve(self) -> Result<(ProductSourceInputs<'a>, SourceContinuation), Vec<Diagnostic>> {
+        let primary = self
+            .parsed
+            .roots
+            .first()
+            .copied()
+            .ok_or_else(|| vec![Diagnostic::error("Product stage has no root source")])?;
+        let mut request = self
+            .parsed
+            .into_request(self.product.build_host.canonical_name(), primary)?;
+        request.selection_authority = self.product.layout_selection_authority.clone();
+        let (continuation, _) = request
+            .with_build_entry(self.product.policy.activation)
+            .prepare(&mut UnmeasuredProduction)?;
+        Ok((self.product, continuation))
     }
+}
 
+impl ProductSourceInputs<'_> {
     fn judge(
         &self,
         continuation: SourceContinuation,
@@ -219,8 +227,7 @@ impl StageSource<'_> {
     ) -> Result<product::CompletedProductSource, Vec<Diagnostic>> {
         prepare_lower_and_check(
             continuation,
-            self.selections.clone(),
-            self.build_accounting.unwrap_or(&Default::default()),
+            self.clone(),
             inspection,
             test,
             None,
@@ -233,61 +240,10 @@ impl StageSource<'_> {
         checked: &product::CompletedProductSource,
     ) -> Result<PublishedPsi, Vec<Diagnostic>> {
         let psi = checked.terminal_publication.publish(
-            &self.selections.optimizations,
+            &self.optimizations,
             self.declaration_authority,
             &mut UnmeasuredProduction,
         )?;
         Ok(Arc::clone(psi.artifact()))
     }
-}
-
-fn lex_and_parse(
-    source: &StageSource<'_>,
-    observer: &mut impl PsiCompilationObserver,
-) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
-    let Some(&primary) = source.roots.first() else {
-        return Err(vec![Diagnostic::error("stage has no root source")]);
-    };
-    if source
-        .roots
-        .iter()
-        .any(|id| !source.files.source_is_selected(*id))
-    {
-        return Err(vec![Diagnostic::error(
-            "stage root is outside its selected sources",
-        )]);
-    }
-    let files: LoadedSources = source
-        .files
-        .files()
-        .filter(|file| source.files.source_is_selected(file.source_id))
-        .map(|file| LoadedSource {
-            source_id: file.source_id,
-            path: file.path.clone(),
-            source: Arc::clone(&file.source),
-            origin: Some(file.origin),
-            scope: file.dependency_scope,
-        })
-        .collect();
-    let mut syntax = SourceSyntax::new(primary);
-    let parsed = SourceInput(files).append(&mut syntax, observer)?;
-    let source_items = parsed
-        .sources
-        .span_or_empty(parsed.batch)
-        .iter()
-        .map(|unit| (unit.source_id, unit.root_items.clone()))
-        .collect();
-    Ok(ResolveAndTypeRequest {
-        syntax,
-        source_items,
-        root_sources: source.roots.clone(),
-        sources: Arc::clone(&source.files),
-        top_level_bindings: source.imports.clone(),
-        selection_authority: source.selections.layout_selection_authority.clone(),
-        build_helper_identity: source.build_host.canonical_name(),
-        build_sources: Default::default(),
-        build_stage: None,
-        frontends: Default::default(),
-    }
-    .with_build_entry(source.selections.policy.activation))
 }

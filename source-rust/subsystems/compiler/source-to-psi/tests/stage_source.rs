@@ -45,12 +45,13 @@ fn product<'a>(
     root: SourceId,
     package: PackageKeyIdentity,
     selections: &'a [ProductEntryBinding],
-) -> StageSource<'a> {
-    StageSource {
-        files: Arc::new(files),
-        roots: vec![root],
-        imports: Vec::new(),
-        selections: ProductSourceInputs {
+) -> Result<StageSource<'a>, Vec<diagnostics::Diagnostic>> {
+    Ok(StageSource {
+        parsed: source_compiler::ParsedStageSources::parse(Arc::new(files), vec![root], vec![])?,
+        product: ProductSourceInputs {
+            build_accounting: None,
+            declaration_authority: None,
+            build_host: ProductTarget::LinuxX86_64,
             generated: None,
             targets: &[],
             calling_targets: &[],
@@ -62,10 +63,7 @@ fn product<'a>(
             layout_selection_authority: None,
             optimizations: Default::default(),
         },
-        build_accounting: None,
-        declaration_authority: None,
-        build_host: ProductTarget::LinuxX86_64,
-    }
+    })
 }
 
 #[test]
@@ -77,7 +75,7 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
         machine value() -> u32 crashes none { 17 }
         machine main() -> u32 crashes none { VALUE }",
     );
-    let program = compile(product(files, root, package, &[])).unwrap();
+    let program = compile(product(files, root, package, &[]).unwrap()).unwrap();
     let bytes = program.to_bytes();
     let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     assert_eq!(reopened.to_bytes(), bytes);
@@ -106,7 +104,7 @@ fn omega_compiler_storage_and_outcomes_publish_psi() {
         ("outcomes", OMEGA_OUTCOME),
     ] {
         let (files, root) = captured(package, text);
-        compile(product(files, root, package, &[]))
+        compile(product(files, root, package, &[]).unwrap())
             .unwrap_or_else(|errors| panic!("{name} could not publish Psi: {errors:?}"));
     }
 }
@@ -145,14 +143,15 @@ fn complete_omega_request_protocol_publishes_psi() {
         "codec.omg",
         include_str!("../../../../../source/foundation/wire/codec.omg"),
     );
-    let mut stage = product(files, request, package, &[]);
+    let mut stage = product(files, request, package, &[]).unwrap();
     let scope = ProductDeclarationScope::from_direct_dependencies(
         &[package, wire_package],
         [(package, wire_package)],
     );
-    stage.declaration_authority = Some(&scope);
-    stage.roots.extend([outcome, protocol, wire]);
+    stage.product.declaration_authority = Some(&scope);
+    stage.parsed.roots.extend([outcome, protocol, wire]);
     stage
+        .parsed
         .imports
         .push(SourceScopedTopLevelBinding::logical_module_import(
             protocol,
@@ -189,12 +188,13 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
                 "../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/layouts.omg"
             ),
         );
-        let mut stage = product(files, root, customer, &[]);
+        let mut stage = product(files, root, customer, &[]).unwrap();
         let scope =
             ProductDeclarationScope::from_direct_dependencies(&[customer, psi], [(customer, psi)]);
-        stage.declaration_authority = Some(&scope);
-        stage.roots.extend([scalar, layouts]);
+        stage.product.declaration_authority = Some(&scope);
+        stage.parsed.roots.extend([scalar, layouts]);
         stage
+            .parsed
             .imports
             .push(SourceScopedTopLevelBinding::logical_module_import(
                 root, scalar, import, 1,
@@ -237,7 +237,7 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
             slot: slot.into(),
         }),
     };
-    let diagnostics = compile(product(files, root, package, &[executed])).unwrap_err();
+    let diagnostics = compile(product(files, root, package, &[executed]).unwrap()).unwrap_err();
     assert!(
         diagnostics[0]
             .message
@@ -250,27 +250,41 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
 fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let (mut files, root) = captured(package, "machine main() {}");
-    let build = files.add_checked_instance(
-        "product/build.omg".into(), "machine build() {}", "product".into(), Some(package),
-        SourceOrigin::User, SourceResolutionStratum::Base, DependencyScope::Build,
-    ).source_id;
+    let build = files
+        .add_checked_instance(
+            "product/build.omg".into(),
+            "machine build() {}",
+            "product".into(),
+            Some(package),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
     let declaration = RetainedDeclaration::from_retained_parts(
-        files.get(build).unwrap().clone(), Span::new(8, 13), symbols::SymbolKind::Machine,
-    ).unwrap();
-    let mut stage = product(files.clone(), root, package, &[]);
-    stage.selections.policy.activation = Some(&declaration);
+        files.get(build).unwrap().clone(),
+        Span::new(8, 13),
+        symbols::SymbolKind::Machine,
+    )
+    .unwrap();
+    let mut stage = product(files.clone(), root, package, &[]).unwrap();
+    stage.product.policy.activation = Some(&declaration);
     compile(stage).unwrap();
 
     let mut changed = declaration.source().clone();
     changed.package_identity = Some(PackageKeyIdentity::from_digest([0x62; 32]).unwrap());
-    let foreign = RetainedDeclaration::from_retained_parts(
-        changed, declaration.span(), declaration.kind(),
-    ).unwrap();
-    let mut stage = product(files, root, package, &[]);
-    stage.selections.policy.activation = Some(&foreign);
+    let foreign =
+        RetainedDeclaration::from_retained_parts(changed, declaration.span(), declaration.kind())
+            .unwrap();
+    let mut stage = product(files, root, package, &[]).unwrap();
+    stage.product.policy.activation = Some(&foreign);
     let diagnostics = compile(stage).unwrap_err();
-    assert!(diagnostics[0].message.contains("retained declaration is absent or changed"),
-        "{diagnostics:?}");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("retained declaration is absent or changed"),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
@@ -297,8 +311,8 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
                 DependencyScope::Product,
             )
             .source_id;
-        let mut stage = product(files, root, package, &[]);
-        stage.roots.push(dependency);
+        let mut stage = product(files, root, package, &[])?;
+        stage.parsed.roots.push(dependency);
         compile(stage)
     };
 
@@ -331,4 +345,40 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
             "{diagnostics:?}"
         );
     }
+}
+
+#[test]
+fn parser_output_must_cover_the_exact_captured_files() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let original = "machine main() -> u32 crashes none { 3 }";
+    let (files, root) = captured(package, original);
+
+    let mut edited = product(files.clone(), root, package, &[]).unwrap();
+    let (replacement, _) = captured(package, "machine main() -> u32 crashes none { 4 }");
+    edited.parsed.files = Arc::new(replacement);
+    let errors = compile(edited).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("does not match its selected source occurrence")),
+        "{errors:?}"
+    );
+
+    let mut missing = product(files.clone(), root, package, &[]).unwrap();
+    let mut expanded = files;
+    capture_file(
+        &mut expanded,
+        "product",
+        package,
+        "extra.omg",
+        "data Extra {}",
+    );
+    missing.parsed.files = Arc::new(expanded);
+    let errors = compile(missing).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("missing from the parsed stage")),
+        "{errors:?}"
+    );
 }

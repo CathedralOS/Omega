@@ -3,14 +3,12 @@
 use crate::compile_time::{
     BuildTimeSelectionAuthority, InvocationSourceConsent, SourceCompletionAccounting,
 };
-use crate::source_inputs::SourceMap;
 use crate::source_state::TypedTrees;
-use crate::source_symbols::SourceScopedTopLevelBinding;
 use crate::{
     AcceptedTerminalSource, ConstantRead, ProducedTerminalProgram, ResolveAndTypeRequest,
-    SourceAdmission, SourceContinuation, SourceItems, SourcePreparation, SourcePreparationFailure,
-    SourcePreparationRequest, SourceSyntax, TerminalProductionCustody, TerminalSourceCompilation,
-    UnmeasuredProduction,
+    SourceAdmission, SourceContinuation, SourcePreparation, SourcePreparationFailure,
+    SourcePreparationRequest, ParsedStageSources, TerminalProductionCustody,
+    TerminalSourceCompilation, UnmeasuredProduction,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -22,12 +20,8 @@ use symbols::SymbolHandle;
 
 /// The parsed files selected by the package capture, including an explicit Build entry.
 pub struct BuildStageSource {
-    pub syntax: SourceSyntax,
-    pub source_items: Vec<(SourceId, SourceItems)>,
-    pub roots: Vec<SourceId>,
+    pub parsed: ParsedStageSources,
     pub build_sources: HashSet<SourceId>,
-    pub sources: Arc<SourceMap>,
-    pub imports: Vec<SourceScopedTopLevelBinding>,
     pub entry: source_text::SourceSpan,
 }
 
@@ -40,7 +34,7 @@ impl BuildStageSource {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
         let entry = self.entry.source_id;
-        self.request(preparation, host, authority, Some((entry, index)))
+        self.request(preparation, host, authority, Some((entry, index)))?
             .prepare(&mut UnmeasuredProduction)
     }
 
@@ -51,7 +45,7 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
-        self.request(preparation, host, authority, None)
+        self.request(preparation, host, authority, None)?
             .prepare(&mut UnmeasuredProduction)
             .map(|(declarations, _)| declarations)
     }
@@ -62,27 +56,20 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
         build_stage: Option<(SourceId, usize)>,
-    ) -> ResolveAndTypeRequest {
-        let entry = self.sources.get(self.entry.source_id).map(|file| {
+    ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
+        let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(
                 file.clone(),
                 self.entry.span,
                 symbols::SymbolKind::Machine,
             )
         });
-        ResolveAndTypeRequest {
-            syntax: self.syntax,
-            source_items: self.source_items,
-            root_sources: self.roots,
-            frontends: preparation.frontends.clone(),
-            build_helper_identity: host,
-            build_sources: self.build_sources,
-            build_stage,
-            sources: self.sources,
-            top_level_bindings: self.imports,
-            selection_authority: authority,
-        }
-        .with_build_entry(entry.as_ref())
+        let mut request = self.parsed.into_request(host, self.entry.source_id)?;
+        request.frontends = preparation.frontends.clone();
+        request.build_sources = self.build_sources;
+        request.build_stage = build_stage;
+        request.selection_authority = authority;
+        Ok(request.with_build_entry(entry.as_ref()))
     }
 }
 
@@ -156,21 +143,22 @@ impl CheckedBuildInvocation {
 impl crate::StageSource<'_> {
     /// Check the selected package and the declared implementation before installing its code in Build.
     pub fn produce_build_provider(
-        &self,
+        self,
         deployment: &str,
         declaration_path: &str,
     ) -> Result<crate::ProducedBuildProvider, Vec<Diagnostic>> {
-        let package = self.selections.subject.ok_or_else(|| {
+        let package = self.product.subject.ok_or_else(|| {
             vec![Diagnostic::error(
                 "Build provider production requires an acquired package",
             )]
         })?;
-        if !self.selections.calling_targets.contains(&deployment) {
+        if !self.product.calling_targets.contains(&deployment) {
             return Err(vec![Diagnostic::error(format!(
                 "Build provider source did not select deployment target `{deployment}`"
             ))]);
         }
-        let checked = self.judge(self.resolve()?, None, None)?;
+        let (product, resolved) = self.resolve()?;
+        let checked = product.judge(resolved, None, None)?;
         let publication = checked.terminal_publication();
         let accepted = publication.accepted()?;
         let supply = AcceptedTerminalSource::build_backing_supply(

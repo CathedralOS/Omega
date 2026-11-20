@@ -57,6 +57,10 @@ impl ProductPolicyInputs<'_> {
 
 #[derive(Clone)]
 pub struct ProductSourceInputs<'a> {
+    /// Costs of the Build that opened this Product, when it belongs to a project.
+    pub build_accounting: Option<&'a crate::compile_time::SourceCompletionAccounting>,
+    pub declaration_authority: Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
+    pub build_host: semantic_vocabulary::source_selections::ProductTarget,
     /// The generated source admitted after this Build's authored source was captured.
     pub generated: Option<crate::SourceExtensionRequest>,
     pub targets: &'a [crate::product::source_targets::SourceTarget],
@@ -114,7 +118,6 @@ impl CompletedProductSource {
 pub(crate) fn prepare_lower_and_check(
     mut continuation: crate::SourceContinuation,
     mut inputs: ProductSourceInputs<'_>,
-    build_accounting: &crate::compile_time::SourceCompletionAccounting,
     inspection: Option<&str>,
     test_root: Option<(&crate::registered_tests::TestRoot, &str)>,
     frontier: Option<&mut Option<crate::TypedFrontier>>,
@@ -156,7 +159,6 @@ pub(crate) fn prepare_lower_and_check(
         default_provider_selections,
         inspection,
         frontier,
-        build_accounting,
         initial_accounting: accounting.clone(),
         accounting: &mut accounting,
         observer,
@@ -199,7 +201,6 @@ struct ProductSourcePass<'a, 'f, O> {
     default_provider_selections: Vec<crate::provider_choice_inputs::ProviderSelection>,
     inspection: Option<&'f str>,
     frontier: Option<&'f mut Option<crate::TypedFrontier>>,
-    build_accounting: &'f crate::compile_time::SourceCompletionAccounting,
     initial_accounting: crate::compile_time::SourceCompletionAccounting,
     accounting: &'f mut crate::compile_time::SourceCompletionAccounting,
     observer: &'f mut O,
@@ -515,7 +516,8 @@ fn prepare_and_judge(
     // Build invocations belong to another checked context. Join their
     // costs only after Product's own materialization receipts have been
     // authenticated against this source; they prove no Product value.
-    let mut source_completion_accounting = pass.build_accounting.clone();
+    let mut source_completion_accounting =
+        pass.inputs.build_accounting.cloned().unwrap_or_default();
     source_completion_accounting.append(pass.accounting.clone());
     if let Some(frontier) = pass.frontier.as_deref_mut() {
         *frontier = Some(crate::TypedFrontier {

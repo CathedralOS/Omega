@@ -128,17 +128,19 @@ impl ProductStage<'_> {
         self.source().produce_build_provider(profile.target_name(), declaration_path)
     }
 
+    pub fn deployment_targets(&self) -> &[&'static str] {
+        &self.deployments
+    }
+
     pub fn source(&self) -> StageSource<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;
         StageSource {
-            files: Arc::clone(&source.sources),
-            roots: source.root_sources.clone(),
-            imports: source.source_scoped_top_level_bindings.clone(),
-            declaration_authority: self.scope.as_deref().map(|scope| scope as &_),
-            build_host: self.build_host,
-            build_accounting: Some(&self.product.evaluated().source_completion_accounting),
-            selections: ProductSourceInputs {
+            parsed: source.parsed.clone(),
+            product: ProductSourceInputs {
+                declaration_authority: self.scope.as_deref().map(|scope| scope as &_),
+                build_host: self.build_host,
+                build_accounting: Some(&self.product.evaluated().source_completion_accounting),
                 generated: self.product.generated.clone(),
                 targets: &self.targets,
                 calling_targets: &self.deployments,

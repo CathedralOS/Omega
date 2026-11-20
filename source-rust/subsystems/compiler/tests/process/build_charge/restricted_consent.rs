@@ -76,22 +76,13 @@ machine build(builder: @mut Build) crashes Trap {
                 .unwrap()
         };
         let build_source = syntax.build_source;
-        let sources = syntax.sources.clone();
-        let generated = syntax.generated_source_custody;
-        let (continuation, _) = source_compiler::ResolveAndTypeRequest {
-            syntax: syntax.syntax_trees,
-            source_items: syntax.source_items,
-            root_sources: syntax.root_sources,
-            frontends: preparation.frontends,
-            build_helper_identity: host.target_name(),
-            build_sources: syntax.build_scope_sources,
-            build_stage: None,
-            sources: syntax.sources,
-            top_level_bindings: syntax.source_scoped_top_level_bindings,
-            selection_authority: None,
-        }
-        .prepare(&mut source_compiler::UnmeasuredProduction)
-        .unwrap();
+        let sources = syntax.parsed.files.clone();
+        let generated = &syntax.generated_source_custody;
+        let (continuation, _) = syntax
+            .build_stage_source()
+            .unwrap()
+            .prepare(0, &preparation, host.target_name(), None)
+            .unwrap();
         let before = counters::build_execution_count();
         // This direct evaluator owns an explicitly live standalone scope. The
         // ordinary package compiler continues to supply captured source custody.
@@ -105,7 +96,7 @@ machine build(builder: @mut Build) crashes Trap {
                 sources: &sources,
                 package_inputs: None,
                 anonymous_source: None,
-                generated_source_custody: &generated,
+                generated_source_custody: generated,
                 execution: package_compilation::BuildExecutionInputs {
                     profile: Some(host),
                     directory: Some(output.clone()),

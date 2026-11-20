@@ -17,7 +17,7 @@ use package_compilation::source_assembly::{
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
 use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
-use source_compiler::{BuildStageSource, SourceContinuation, SourcePreparation};
+use source_compiler::{SourceContinuation, SourcePreparation};
 use source_declarations::build_stage::BuildStage;
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
@@ -92,7 +92,7 @@ impl PlannedProduct {
             .ok_or_else(|| refusal("dependency has no acquired package graph".into()))?;
         let source = self.source();
         let subject = package_compilation::derive_package_compilation_subject(
-            source.sources.selected_files(),
+            source.parsed.files.selected_files(),
             inputs,
             &source.generated_source_custody,
         )?;
@@ -140,7 +140,7 @@ impl PlannedProduct {
         let sources = self
             .generated
             .as_ref()
-            .map_or(&self.source.sources, |extension| &extension.sources);
+            .map_or(&self.source.parsed.files, |extension| &extension.sources);
         package_compilation::attribute_diagnostics(rows, sources, self.package_inputs());
     }
 
@@ -185,7 +185,7 @@ pub fn prepare(
             root_path: request.root,
             typed: source.typed(),
             build_source: assembled.build_source,
-            sources: &assembled.sources,
+            sources: &assembled.parsed.files,
             package_inputs: inputs,
             anonymous_source: assembled.anonymous_owner.as_ref(),
             generated_source_custody: &assembled.generated_source_custody,
@@ -217,7 +217,8 @@ fn resolve(
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
 ) -> Result<(SourceContinuation, BuildStage), CompileFailure> {
-    stage_source(assembled)?
+    assembled
+        .build_stage_source()?
         .prepare(
             index,
             preparation,
@@ -237,26 +238,11 @@ fn locate_failure(
         | CompileFailure::SourceCompletion {
             diagnostics: rows, ..
         } => {
-            package_compilation::attribute_diagnostics(rows, &source.sources, inputs);
+            package_compilation::attribute_diagnostics(rows, &source.parsed.files, inputs);
         }
         CompileFailure::BuildConsentRequired { .. } => {}
     }
     failure
-}
-
-fn stage_source(assembled: &mut AssembledSyntax) -> Result<BuildStageSource, CompileFailure> {
-    let entry = assembled
-        .build_source
-        .ok_or_else(|| vec![Diagnostic::error("project Build has no source-owned entry")])?;
-    Ok(BuildStageSource {
-        syntax: std::mem::take(&mut assembled.syntax_trees),
-        source_items: std::mem::take(&mut assembled.source_items),
-        roots: std::mem::take(&mut assembled.root_sources),
-        build_sources: std::mem::take(&mut assembled.build_scope_sources),
-        entry: entry.entry(),
-        sources: Arc::clone(&assembled.sources),
-        imports: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
-    })
 }
 
 fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, CompileFailure> {
@@ -389,11 +375,9 @@ impl PlanningSource {
                 )
             })?
             .1;
-        if !evaluated.constants.read.is_empty()
-            || evaluated.constants.folded_under_providers
-        {
+        if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
             let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
-            let frontier = stage_source(&mut source.clone())?.prepare_product_query(
+            let frontier = source.build_stage_source()?.prepare_product_query(
                 &self.preparation,
                 self.profile.target_name(),
                 authority,
@@ -433,7 +417,7 @@ impl PlanningSource {
                 refusal("generated-source handoff has no acquired package root".to_owned())
             })?;
             let extension = package_compilation::source_imports::admit_generated_extension(
-                &source.sources,
+                &source.parsed.files,
                 root,
                 Some(inputs.root()),
                 &evaluated.configuration.generated_sources,
@@ -446,7 +430,7 @@ impl PlanningSource {
                 .ok_or_else(|| {
                     refusal("generated-source handoff has no selected source".to_owned())
                 })?;
-            let (sources, units) = extension.source_input(&source.sources)?;
+            let (sources, units) = extension.source_input(&source.parsed.files)?;
             Some(source_compiler::SourceExtensionRequest {
                 sources,
                 units,
