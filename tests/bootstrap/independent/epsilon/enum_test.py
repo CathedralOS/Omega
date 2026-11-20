@@ -9,20 +9,51 @@ import time
 import traceback
 
 
+def byte_class_source(root):
+    fixtures = root / 'tests/bootstrap/independent/epsilon'
+    declarations = (root / 'bootstrap/omega/compiler/representations.epsilon').read_bytes()
+    start = declarations.index(b'data OmegaNumericBase {')
+    end = declarations.index(b'data OmegaKeywordKind {', start)
+    nominal = declarations[start:end]
+    lexical = (root / 'bootstrap/omega/compiler/source-to-tokens/byte_classes.epsilon').read_bytes()
+    forwarding = (fixtures / 'enum_forward.epsilon').read_bytes()
+    console = b'''boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+data Main { console: Console; }
+'''
+    # The named enum follows its callers to exercise forward type resolution.
+    return lexical, nominal, lexical + forwarding + nominal + console
+
+
+def byte_class_output(payload):
+    expected = bytearray()
+    for value in payload:
+        char = bytes([value])
+        digit = b'0123456789abcdef'.find(char.lower())
+        start = char.isalpha() or char == b'_'
+        bases = (char in b'01', char in b'01234567', char.isdigit(), digit >= 0)
+        expected.extend((char in b' \t\r\n', start, start or char.isdigit(), digit + 1,
+                         *bases, *bases))
+    return bytes(expected)
+
+
+def byte_class_case(root):
+    _, _, common = byte_class_source(root)
+    main = (root / 'tests/bootstrap/independent/epsilon/enum_main.epsilon').read_bytes()
+    payload = bytes(range(256))
+    return common + main, payload, b'\0' + struct.pack('<i', 42) + byte_class_output(payload)
+
+
 def _run(work, vm, producer, realize, seconds, composition, compiler):
     root = composition.ROOT
     fixtures = root / 'tests/bootstrap/independent/epsilon'
     work = Path(work)
     support = (work.parent / 'support.bin').read_bytes()
     closure = vm.pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'enum-evaluator.delta')
-    console = b'''boundary trait Console {
- machine exit_process(return_code: i32) -> never;
- machine write_byte(value: i32);
- machine read_byte() -> i32;
- machine write_line(text: &[u8]);
-}
-data Main { console: Console; }
-'''
     empty_main = b'machine Main::main(&mut self) {}\n'
 
     def identity(data):
@@ -40,17 +71,8 @@ data Main { console: Console; }
         (work / f'{label}.observation').write_bytes(result)
         return result
 
-    # These are exact complete production owners. No compiler implementation
-    # recognizes either filename, selected byte string or digest.
-    declarations = (root / 'bootstrap/omega/compiler/representations.epsilon').read_bytes()
-    start = declarations.index(b'data OmegaNumericBase {')
-    end = declarations.index(b'data OmegaKeywordKind {', start)
-    nominal = declarations[start:end]
-    lexical = (root / 'bootstrap/omega/compiler/source-to-tokens/byte_classes.epsilon').read_bytes()
-    forwarding = (fixtures / 'enum_forward.epsilon').read_bytes()
-    # Forward type declarations in Epsilon must still precede all functions in
-    # emitted Delta. Deliberately place the authored enum after its customers.
-    source = lexical + forwarding + nominal + console + empty_main
+    lexical, nominal, common = byte_class_source(root)
+    source = common + empty_main
     (work / 'enum.epsilon').write_bytes(source)
     started = time.monotonic()
     observation = observe(compiler, source)
@@ -67,17 +89,9 @@ data Main { console: Console; }
     payload = bytes(range(256))
     result = observe(executable, payload)
     (work / 'enum.output').write_bytes(result)
-    expected = bytearray()
-    for c in range(256):
-        is_start = c == 95 or 65 <= c <= 90 or 97 <= c <= 122
-        digits = [int(48 <= c <= 49), int(48 <= c <= 55), int(48 <= c <= 57),
-                  int(48 <= c <= 57 or 65 <= c <= 70 or 97 <= c <= 102)]
-        expected.extend([int(c in (9, 10, 13, 32)), int(is_start),
-                         int(is_start or 48 <= c <= 57),
-                         (c - 48 if 48 <= c <= 57 else c - 87 if 97 <= c <= 102 else c - 55 if 65 <= c <= 70 else -1) + 1,
-                         *digits, *digits])
+    expected = byte_class_output(payload)
     assert result == expected, (len(result), len(expected))
-    reference_source = lexical + forwarding + nominal + console + (fixtures / 'enum_main.epsilon').read_bytes()
+    reference_source = common + (fixtures / 'enum_main.epsilon').read_bytes()
     assert reference(reference_source, payload, 'enum-reference') == b'\0' + struct.pack('<i', 42) + result
     for label, edge in [('empty', b''), ('byte-255', b'\xff')]:
         actual = observe(executable, edge)

@@ -17,6 +17,7 @@ from compiled import (ROOT, delta_request, executable, gamma_backend_source, gam
                       invoke, pack, pack_delta_compiler, reconstruct)
 from conformance.vectors import epsilon_program_cases, epsilon_request
 from independent.epsilon.composition import CompileRefusal, compiler_source, linked_program
+from independent.epsilon.enum_test import byte_class_case
 from interpreted.delta.interpreter import materialize
 
 MODES = ("interpret", "alpha", "native")
@@ -236,7 +237,11 @@ def execute_route(route, guest, stdin, expected, verbose):
             report["guest_exit"] = int.from_bytes(output[1:5], "little", signed=True)
         report["observation_sha256"] = sha256(output).hexdigest()
         if expected is not None and expected != output:
-            raise ValueError(f"expected {expected!r}, observed {output[:80]!r}")
+            offset = next((i for i, (a, b) in enumerate(zip(expected, output)) if a != b),
+                          min(len(expected), len(output)))
+            raise ValueError(f"wrong observation at byte {offset}: "
+                             f"expected {expected[offset:offset+1]!r} ({len(expected)} bytes), "
+                             f"observed {output[offset:offset+1]!r} ({len(output)} bytes)")
         report["result"] = "matched" if expected is not None else "observed"
     except CompileRefusal as error:
         status = 1
@@ -260,7 +265,8 @@ def main():
         parser.add_argument("--" + rung, choices=(*MODES, "all"), required=True)
     program = parser.add_mutually_exclusive_group()
     program.add_argument("--source", type=Path, help="complete Epsilon program with its entry")
-    program.add_argument("--case", choices=("stdin", "exit", "trap"), help="portable control (default: stdin)")
+    program.add_argument("--case", choices=("stdin", "exit", "trap", "omega-byte-classes"),
+                         help="program with a known observation (default: stdin)")
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
     parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
                         help="interpret checked Delta directly or translate it to Gamma and interpret that source")
@@ -294,6 +300,8 @@ def main():
                 guest = args.source.read_bytes()
                 stdin = args.stdin.read_bytes() if args.stdin else b""
                 expected = None
+            elif args.case == "omega-byte-classes":
+                guest, stdin, expected = byte_class_case(ROOT)
             else:
                 cases = {name: (source, stdin, result) for name, source, stdin, result in epsilon_program_cases()}
                 guest, stdin, expected = cases[args.case or "stdin"]
