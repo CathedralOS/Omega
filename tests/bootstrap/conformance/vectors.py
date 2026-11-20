@@ -124,6 +124,21 @@ def epsilon_syntax_controls(closure):
         rejection = struct.pack("<BBI", 2, reason, source.index(anchor))
         yield label, epsilon_request(closure, source, b""), (0, rejection)
 
+    body = b"""self.console.write_byte(18 / 3 / 2);
+self.console.write_byte(1 | 2 ^ 3 & 4);
+self.console.write_byte(1 << 1 + 2 * 2);
+self.console.write_byte(0 == 1 < 2);
+self.console.write_byte(1 || 0 && 0);
+self.console.write_byte(11 % 6 - 2);
+self.console.exit_process(42); }"""
+    source = console + body
+    yield "infix precedence and left associativity", epsilon_request(closure, source, b""), (
+        0, b"\x00" + struct.pack("<i", 42) + bytes((3, 3, 32, 0, 1, 3)))
+    malformed = source.replace(b"1 + 2 * 2", b"1 + ")
+    close = malformed.index(b")", malformed.index(b"1 + )"))
+    yield "missing right operand before close paren", epsilon_request(closure, malformed, b""), (
+        0, struct.pack("<BBI", 2, 7, close))
+
 
 def epsilon_envelope_observations(closure):
     """Exact EEREQ v1 identity bytes and first-error coordinates."""

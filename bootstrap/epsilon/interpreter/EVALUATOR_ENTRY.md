@@ -23,10 +23,10 @@ no observation can produce.
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,447 | `b2d35f99f8886985306dba1c5bc5309fb2c389b1c80b1fe79b79ed69f7042a0a` |
-| packed Epsilon evaluator closure | 613,769 | `c5392b0a71cbe58de5090fb888b379fa5cb3b4b598ba38d6f1a568e326ffa0ff` |
-| canonical entry `interpreter.delta` | 6,359 | `ff448bbfb09ff96bbd015c122792faf77370f66b89c0485118e7346def82e02c` |
+| packed Epsilon evaluator closure | 613,964 | `5f4566300416b8007de49d3606256bea7ccaef8947707898ae8b6250b23f8b75` |
+| canonical entry `interpreter.delta` | 6,359 | `48ad03a03d50d69bbfb2e05e64b02c4742ef8110bc4dca8bf441dcfd1718c780` |
 | Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
-| canonical evaluator receipt | 717,930 | `fcbeef7424dcdee87986bd81a0cb1254031dabcc39f17d22a873e5d36746f048` |
+| canonical evaluator receipt | 718,091 | `259eb5d94c575c8750d62cf44dd95f2008824353501c63771fc6db87527231d3` |
 
 The entry embeds the digest of the evaluator's ordered library sources. To build
 the executable Delta subject, concatenate the packed library and
@@ -47,7 +47,7 @@ The edge consumes one Gamma evaluator request whose sealed input is the
 complete EREQ envelope:
 
 ```text
-0..4    little-endian u32 receipt length = 717,930
+0..4    little-endian u32 receipt length = 718,091
 4..     exact canonical receipt bytes
 ...     sealed input = the EREQ v1 envelope:
 
