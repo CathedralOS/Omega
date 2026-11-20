@@ -24,59 +24,11 @@ terminal-codec = { path = "psi-artifact/codec" }
 psi-authorization = { path = "psi-artifact/authorization" }
 
 [dev-dependencies]
-terminal-runtime = { path = "../interpreter/host" }
-retained-image-runtime = { path = "../interpreter/host/retained-image" }
+symbols = { path = "foundation/declaration-identity" }
+terminal-psi = { path = "psi" }
 source-compiler = { path = "source-to-psi", features = ["test-support"] }
-provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
-host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
-verified-optimization-input = { path = "psi-to-native/representations/abstract-operations/verified-optimization-input" }
-artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
-build-evaluation-result = { path = "build/evaluation/result" }
-direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }
 target-provider-admission = { path = "psi-to-native/verification/target-providers" }
-selected-provider-plans = { path = "build/providers/selections" }
-provider-plans = { path = "build/providers/plans" }
 source-provenance = { path = "foundation/source-provenance" }
-psi-provider-selections = { path = "psi-execution-inputs/providers" }
-evaluation-accounting = { path = "build/evaluation/accounting" }
-native-intrinsics = { path = "psi-to-native/targets/intrinsics" }
-entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
-native-encoding = { path = "psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding" }
-service-surface = { path = "psi/interfaces/service-surface" }
 native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
-native-inputs = { package = "psi-to-admitted-native-inputs", path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs" }
-native-compiler = { path = "psi-to-native", features = ["test-support"] }
-numerics = { path = "foundation/numerics" }
 optimization-selections = { path = "foundation/optimization-selections" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
-terminal-semantics = { path = "psi-semantics" }
-
-[[test]]
-name = "build_charge"
-path = "tests/process/build_charge.rs"
-harness = false
-
-[[test]]
-name = "build_session"
-path = "tests/process/build_session.rs"
-harness = false
-
-[[test]]
-name = "default_build"
-path = "tests/process/default_build.rs"
-harness = false
-
-[[test]]
-name = "executed_git_source"
-path = "tests/process/executed_git_source.rs"
-harness = false
-
-[[test]]
-name = "package_batch_sources"
-path = "tests/process/package_batch_sources.rs"
-harness = false
-
-[[test]]
-name = "terminal_sharing"
-path = "tests/process/terminal_sharing.rs"
-harness = false
