@@ -90,6 +90,10 @@ L3	direct_call_pause::suspension_ceiling	Evidence and effects	direct-call-pause:
 L3	direct_call_pause::blocking_ceiling	Evidence and effects	direct-call-pause:ExceedsBlockingCeiling
 L3	crashes_none_conflicts_with_a_declared_route	Evidence and effects	crash-declaration:NoneWithDeclaredCause
 L3	a_fixed_array_extent_must_fit_u64	Applications
+L3	callback_effects::open_reach_under_a_finite_ceiling	Evidence and effects	callback-effect:OpenReachUnderCeiling
+L3	callback_effects::bounded_reach_exceeds_the_caller	Evidence and effects	callback-effect:ExceedsServiceReach
+L3	callback_effects::block_does_not_acknowledge_suspension	Evidence and effects	callback-effect:MissingPauseAcknowledgement
+L3	callback_effects::acknowledgement_preserves_the_caller_ceiling	Evidence and effects	callback-effect:ExceedsPauseCeiling
 L3	a_callback_call_must_match_its_declared_arity	Calls
 L3	a_crash_clause_requires_a_builtin_cause	Evidence and effects	crash-declaration:UnknownCause
 L3	cleanup_cannot_publish_a_crash_route	Cleanup
