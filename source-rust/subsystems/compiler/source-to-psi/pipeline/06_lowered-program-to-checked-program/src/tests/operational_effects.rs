@@ -774,3 +774,146 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
         );
     }
 }
+
+#[test]
+fn equally_typed_live_borrows_retain_their_own_referents() {
+    use terminal_psi::{
+        TerminalModule, TerminalSuspensionLoanBacking, TerminalSuspensionPlace,
+        TerminalSuspensionStorage, TerminalSuspensionValueLoans,
+    };
+
+    // A consumer can trace both live permissions using only the published module.
+    fn backing_links(
+        module: &TerminalModule,
+    ) -> (
+        usize,
+        [arena::Handle<terminal_psi::TerminalSuspensionLoan>; 2],
+    ) {
+        let (index, plan) = module
+            .execution
+            .suspension_call_plans
+            .iter()
+            .enumerate()
+            .find(|(_, plan)| {
+                plan.live_values
+                    .iter()
+                    .filter(|row| {
+                        row.storage == TerminalSuspensionStorage::Parameter
+                            && matches!(row.place, TerminalSuspensionPlace::Structural(_))
+                    })
+                    .count()
+                    == 2
+            })
+            .expect("both entry borrows live across the wait");
+        let machine = module
+            .machines
+            .iter()
+            .find(|body| body.operation(plan.operation).is_some())
+            .unwrap();
+        let [first, second] = machine.structural_parameters.as_slice() else {
+            panic!("two record parameters")
+        };
+        assert_eq!(first.structural_type, second.structural_type);
+        assert_ne!(first.place, second.place);
+        let links = [first, second].map(|parameter| {
+            let row = plan.live_values.iter().find(|row| matches!(&row.place, TerminalSuspensionPlace::Structural(arg) if arg.place == parameter.place)).unwrap();
+            let TerminalSuspensionValueLoans::Retained { links } = row.loans else { panic!("missing loan: {row:?}") };
+            let [link] = plan.loans.value_links.span_or_empty(links) else { panic!("expected a single ingress loan") };
+            let TerminalSuspensionLoanBacking::IncomingReferent { argument } = &plan.loans.occurrences.get(*link).backing else { panic!("lost incoming referent") };
+            assert_eq!(argument.place, parameter.place);
+            assert_eq!(argument.access, parameter.access);
+            assert!(argument.path.is_empty());
+            *link
+        });
+        (index, links)
+    }
+
+    let source = r#"
+data Cell { mark: u32; }
+public machine may_wait() -> u32 suspends { 7u32 }
+machine main(left: @Cell, right: @Cell) -> bool suspends {
+    let answer: u32 = suspend may_wait();
+    left.mark == right.mark && answer == 7u32
+}
+"#;
+    let mut lowered = invocation(source).unwrap();
+    let (index, [first, second]) = backing_links(&lowered.module);
+    crate::checking::operational::judge(&lowered).expect("exact incoming referents");
+    let plan = &mut lowered.module.execution.suspension_call_plans[index];
+    let first_backing = plan.loans.occurrences.get(first).backing.clone();
+    plan.loans.occurrences.get_mut(first).backing =
+        plan.loans.occurrences.get(second).backing.clone();
+    plan.loans.occurrences.get_mut(second).backing = first_backing;
+    let site = lowered
+        .module
+        .execution
+        .suspension_call_sites
+        .iter_mut()
+        .find(|site| site.crossing == plan.crossing)
+        .unwrap();
+    site.frontier_commitment =
+        terminal_psi::suspension_frontier_commitment(&lowered.module.identities, plan);
+    let refused = crate::checking::operational::judge(&lowered).unwrap_err();
+    assert_eq!(
+        refused.detail,
+        "a suspension plan is not the live frontier of its call"
+    );
+}
+
+#[test]
+fn a_local_borrow_keeps_its_backing_storage_in_the_public_plan() {
+    let source = r#"
+data Cell { mark: u32; }
+public machine may_wait() -> u32 suspends { 7u32 }
+machine main() -> bool suspends {
+    let mut cell: Cell = Cell { mark: 3u32 };
+    let held: @mut Cell = @mut cell;
+    let seven: u32 = suspend may_wait();
+    held.mark = seven;
+    cell.mark == 7u32
+}
+"#;
+    let lowered = invocation(source).unwrap();
+    crate::checking::operational::judge(&lowered).unwrap();
+    let module = &lowered.module;
+    let [plan] = module.execution.suspension_call_plans.as_slice() else {
+        panic!("one wait")
+    };
+    let captured = plan
+        .loans
+        .occurrences
+        .iter()
+        .find_map(|(_, loan)| {
+            let terminal_psi::TerminalSuspensionLoanCapture::Reference {
+                formation,
+                carrier,
+                source,
+                ..
+            } = loan.capture
+            else {
+                return None;
+            };
+            let terminal_psi::TerminalSuspensionLoanBacking::RetainedOwner { live_value } =
+                loan.backing
+            else {
+                return None;
+            };
+            Some((formation, carrier, source, live_value, loan.access))
+        })
+        .expect("the local reference formation names its retained backing");
+    let (formation, carrier, source, index, access) = captured;
+    assert_eq!(access, terminal_psi::StructuralAccess::MutableBorrow);
+    assert_ne!(source, carrier);
+    assert!(
+        matches!(&plan.live_values[index as usize].place, terminal_psi::TerminalSuspensionPlace::Structural(arg) if arg.place == source)
+    );
+    let operation = module
+        .machines
+        .iter()
+        .find_map(|machine| machine.operation(formation))
+        .unwrap();
+    assert_eq!(operation.result.as_structural().unwrap().place, carrier);
+    assert!(
+        matches!(&operation.kind, terminal_psi::OperationKind::EstablishReference { source: arg, .. } if arg.place == source)
+    );
+}

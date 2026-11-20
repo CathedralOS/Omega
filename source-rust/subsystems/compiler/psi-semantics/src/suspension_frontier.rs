@@ -24,7 +24,9 @@ byte literal's home, for one) counts as present from entry, which can only
 add a row.
 
 What the plan does not resolve yet: the loan lineage of a live value that
-holds a reference or a view, and of a borrowed parameter. Those rows say
+holds a reference or a view after descriptor transport. A direct formation
+and a shared entry borrow of view-free storage retain their known origin.
+Rows awaiting descriptor-flow evidence say
 `Unresolved`. The checker judges loans across the call by its own loan
 analysis, which a suspension does not interrupt (ownership.md: "Suspension
 does not end a loan, restore its parent's access or transfer ownership of its
@@ -42,8 +44,10 @@ use semantic_vocabulary::{
 use terminal_psi::{
     Block, Operation, OperationResult, StructuralAccess, StructuralArgument, StructuralPathSegment,
     TerminalMachine, TerminalModule, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
-    TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionPlace,
-    TerminalSuspensionStorage, TerminalSuspensionValueLoans, TerminalSuspensionValueType,
+    TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionLoan,
+    TerminalSuspensionLoanBacking, TerminalSuspensionLoanCapture, TerminalSuspensionLoanResource,
+    TerminalSuspensionLoans, TerminalSuspensionPlace, TerminalSuspensionStorage,
+    TerminalSuspensionValueLoans, TerminalSuspensionValueType,
 };
 
 /// Whether the call `operation` makes may suspend, by the contract its
@@ -88,9 +92,24 @@ fn operation_uses(operation: &Operation) -> BTreeSet<Name> {
         uses.insert(Name::Value(value));
         value
     });
-    for projection in operation.kind.structural_projections() {
-        uses.insert(Name::Root(projection.root));
-        path_values(projection.path, &mut uses);
+    for (storage, _) in operation.kind.storage_uses() {
+        use terminal_psi::StructuralStorageUse;
+        let root = match storage {
+            StructuralStorageUse::Place(root)
+            | StructuralStorageUse::Canonical { root, .. }
+            | StructuralStorageUse::ObservedField { root, .. } => root,
+            StructuralStorageUse::Projection(projection) => {
+                path_values(projection.path, &mut uses);
+                projection.root
+            }
+            StructuralStorageUse::Element { descriptor, path } => {
+                path_values(descriptor.path, &mut uses);
+                path_values(path, &mut uses);
+                descriptor.root
+            }
+            StructuralStorageUse::Type(_) => continue,
+        };
+        uses.insert(Name::Root(root));
     }
     for argument in operation.kind.structural_arguments() {
         uses.insert(Name::Root(argument.place));
@@ -190,178 +209,457 @@ fn live_in(machine: &TerminalMachine) -> Vec<BTreeSet<Name>> {
     }
 }
 
+fn contains_borrows(module: &TerminalModule, ty: StructuralTypeId) -> bool {
+    terminal_psi::structural_type_has_borrowed_storage_by(|id| module.structural_type(id), ty)
+}
+
 fn loans_of(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
     access: StructuralAccess,
 ) -> TerminalSuspensionValueLoans {
-    if access == StructuralAccess::Owned
-        && !terminal_psi::structural_type_contains_reference(
-            &module.types.structural_types,
-            structural_type,
-        )
-    {
+    if access == StructuralAccess::Owned && !contains_borrows(module, structural_type) {
         TerminalSuspensionValueLoans::ViewFree
     } else {
         TerminalSuspensionValueLoans::Unresolved
     }
 }
 
-/// The plan of the possibly suspending call `operation` of `machine`: its
-/// target and its live frontier, in the canonical row order.
-pub fn call_plan(
+struct LoanFormation<'a> {
+    operation: OperationId,
+    carrier: PlaceId,
+    source: &'a StructuralArgument,
+    lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    direct: bool,
+}
+
+fn direct_storage(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    operation: OperationId,
-    crossing: SuspensionCrossingId,
-) -> Result<TerminalSuspensionCallPlan, &'static str> {
-    let (block_position, position) = machine
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_position, block)| {
-            block
-                .operations
-                .iter()
-                .position(|candidate| candidate.id == operation)
-                .map(|position| (block_position, position))
+    source: &StructuralArgument,
+) -> bool {
+    machine
+        .structural_parameter(source.place)
+        .is_none_or(|param| param.access == StructuralAccess::Owned)
+        && machine
+            .structural_place_type(source.place)
+            .is_some_and(|root| !contains_borrows(module, root))
+        && source.path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::Case(_)
+                    | StructuralPathSegment::FixedIndex(_)
+            )
         })
-        .ok_or("a suspension crossing names no operation of its machine")?;
-    let block = &machine.blocks[block_position];
-    let call = &block.operations[position];
-    let inputs = call
-        .declared_invocation()
-        .ok_or("a suspension crossing is on an operation that is no declared call")?;
-    let target = match inputs.callee {
-        TargetMachineCallable::Machine(callee) => TerminalSuspensionCallTarget::Machine(callee),
-        TargetMachineCallable::Boundary(boundary) => {
-            TerminalSuspensionCallTarget::Boundary(boundary)
+}
+
+/// Moves and scalar accesses preserve a direct permission. A call, a
+/// reborrow or a borrowed edge can delegate it to a child. Those cases need
+/// evidence of the child's lifetime before a plan can promise active access.
+fn retains_permission(
+    machine: &TerminalMachine,
+    lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
+) -> bool {
+    use terminal_psi::OperationKind;
+    for block in &machine.blocks {
+        for (index, op) in block.operations.iter().enumerate() {
+            let Some(locations) = lifetime.surviving.get(&(block.id, index as u32)) else {
+                continue;
+            };
+            match op.kind {
+                OperationKind::MoveStructuralValue { .. }
+                | OperationKind::StoreStructuralField { .. }
+                | OperationKind::PrimitiveScalarRead { .. }
+                | OperationKind::ScalarStructuralField { .. }
+                | OperationKind::BooleanStructuralField { .. }
+                | OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::ReleaseReference { .. } => continue,
+                _ => {}
+            }
+            let uses = operation_uses(op);
+            if locations
+                .iter()
+                .any(|location| uses.contains(&Name::Root(location.root)))
+            {
+                return false;
+            }
         }
-    };
-    let entering = live_in(machine);
-    let mut live_out = BTreeSet::new();
-    for successor in block.terminator.successor_targets() {
-        let successor = machine
-            .blocks
-            .iter()
-            .position(|candidate| candidate.id == successor)
-            .ok_or("a suspension crossing's block leaves for an absent block")?;
-        live_out.extend(entering[successor].iter().copied());
+        if let Some(locations) = lifetime
+            .surviving
+            .get(&(block.id, block.operations.len() as u32))
+        {
+            let lends = block
+                .terminator
+                .successor_block_arguments()
+                .into_iter()
+                .flatten()
+                .any(|arg| {
+                    arg.access != StructuralAccess::Owned
+                        && locations.iter().any(|location| location.root == arg.place)
+                });
+            if lends {
+                return false;
+            }
+        }
     }
-    let mut live = live_after(block, position, &live_out);
-    // The parked call has not completed, so its result is not established.
-    if let Some(defined) = operation_definition(call) {
-        live.remove(&defined);
+    true
+}
+
+/// Crossings in one caller share its block liveness and the transport of its
+/// reference descriptors. A machine without a live reference needs no descriptor graph.
+pub struct MachineFrontiers<'a> {
+    module: &'a TerminalModule,
+    machine: &'a TerminalMachine,
+    entering: Vec<BTreeSet<Name>>,
+    formations: std::cell::OnceCell<Vec<LoanFormation<'a>>>,
+}
+
+impl<'a> MachineFrontiers<'a> {
+    pub fn new(module: &'a TerminalModule, machine: &'a TerminalMachine) -> Self {
+        Self {
+            module,
+            machine,
+            entering: live_in(machine),
+            formations: Default::default(),
+        }
     }
 
-    let scalar_type = |value: ValueId| {
-        machine
-            .parameters
-            .iter()
-            .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
-            .find(|declared| declared.id == value)
-            .map(|declared| (declared.scalar_type, TerminalSuspensionStorage::Parameter))
-            .or_else(|| {
-                machine.operations().find_map(|candidate| {
-                    candidate
-                        .result
-                        .scalar_ref()
-                        .filter(|result| result.id == value)
-                        .map(|result| (result.scalar_type, TerminalSuspensionStorage::Local))
-                })
-            })
-    };
-    let mut rows = Vec::new();
-    for name in &live {
-        match *name {
-            Name::Value(value) => {
-                let (scalar, storage) =
-                    scalar_type(value).ok_or("a live scalar has no declaration in its machine")?;
-                rows.push(TerminalSuspensionLiveValue {
-                    place: TerminalSuspensionPlace::Scalar(value),
-                    value_type: TerminalSuspensionValueType::Scalar(scalar),
-                    storage,
-                    claim_count: 0,
-                    claims: Vec::new(),
-                    effective: CarryPolicy::PERMISSIVE,
-                    loans: TerminalSuspensionValueLoans::ViewFree,
-                });
-            }
-            Name::Root(root) => {
-                let structural_type = machine
-                    .structural_place_type(root)
-                    .ok_or("a live structural root has no declared type")?;
-                let parameter = machine
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters),
-                    )
-                    .find(|parameter| parameter.place == root);
-                let (access, storage) = match parameter {
-                    Some(parameter) => (parameter.access, TerminalSuspensionStorage::Parameter),
-                    None => (StructuralAccess::Owned, TerminalSuspensionStorage::Local),
+    fn formations(&self) -> Vec<LoanFormation<'a>> {
+        use crate::descriptor_lifetimes::{DescriptorLocation, descriptor_location_lifetime};
+        use terminal_psi::OperationKind;
+        let Some(graph) = crate::descriptor_results::terminal_reference_graph_from(
+            self.module,
+            [self.machine.id],
+        )
+        .ok()
+        .and_then(|graphs| graphs.into_iter().find(|graph| graph.id == self.machine.id)) else {
+            return Vec::new();
+        };
+        let mut formations = Vec::new();
+        for block in &self.machine.blocks {
+            for (index, operation) in block.operations.iter().enumerate() {
+                let OperationKind::EstablishReference {
+                    source,
+                    storage: None,
+                } = &operation.kind
+                else {
+                    continue;
                 };
-                rows.push(TerminalSuspensionLiveValue {
-                    place: TerminalSuspensionPlace::Structural(StructuralArgument {
-                        place: root,
-                        path: Vec::new(),
-                        access,
-                    }),
-                    value_type: TerminalSuspensionValueType::Structural(structural_type),
-                    storage,
-                    claim_count: 0,
-                    claims: Vec::new(),
-                    effective: CarryPolicy::PERMISSIVE,
-                    loans: loans_of(module, structural_type, access),
+                let Some(result) = operation.result.as_structural() else {
+                    continue;
+                };
+                let at = (block.id, index as u32);
+                let lifetime = descriptor_location_lifetime(
+                    &graph.flow,
+                    at,
+                    &DescriptorLocation::whole(result.place),
+                );
+                let direct = direct_storage(self.module, self.machine, source)
+                    && retains_permission(self.machine, &lifetime);
+                formations.push(LoanFormation {
+                    operation: operation.id,
+                    carrier: result.place,
+                    source,
+                    lifetime,
+                    direct,
                 });
             }
         }
+        formations
     }
-    // What the call was lent or given stays with the incomplete callee.
-    for argument in inputs.structural_arguments {
-        let root = machine
-            .structural_place_type(argument.place)
-            .ok_or("a call argument names a root with no declared type")?;
-        let structural_type = crate::runtime_structural_path_tip(
-            module.types.structural_types.iter(),
-            root,
-            &argument.path,
-        )
-        .ok_or("a call argument's path selects no declared type")?
-        .id;
-        rows.push(TerminalSuspensionLiveValue {
-            place: TerminalSuspensionPlace::Structural(argument.clone()),
-            value_type: TerminalSuspensionValueType::Structural(structural_type),
-            storage: TerminalSuspensionStorage::CallArgument,
-            claim_count: 0,
-            claims: Vec::new(),
-            effective: CarryPolicy::PERMISSIVE,
-            loans: loans_of(module, structural_type, argument.access),
+
+    fn direct_loans(
+        &self,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        call: &Operation,
+        live: &BTreeSet<Name>,
+    ) -> Vec<(&LoanFormation<'a>, PlaceId)> {
+        use crate::descriptor_lifetimes::DescriptorLocation;
+        let mut loans = Vec::new();
+        for name in live {
+            let Name::Root(carrier) = *name else { continue };
+            let Some(ty) = self
+                .machine
+                .structural_place_type(carrier)
+                .and_then(|id| self.module.structural_type(id))
+            else {
+                continue;
+            };
+            if !matches!(
+                ty.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            ) || call
+                .kind
+                .structural_arguments()
+                .iter()
+                .any(|arg| arg.place == carrier)
+            {
+                continue;
+            }
+            let location = DescriptorLocation::whole(carrier);
+            let formations = self.formations.get_or_init(|| self.formations());
+            let mut possible = formations.iter().filter(|formation| {
+                formation
+                    .lifetime
+                    .surviving
+                    .get(&at)
+                    .is_some_and(|locations| locations.contains(&location))
+            });
+            let Some(formation) = possible.next() else {
+                continue;
+            };
+            if possible.next().is_some()
+                || !formation
+                    .lifetime
+                    .authorized
+                    .get(&at)
+                    .is_some_and(|locations| locations.contains(&location))
+            {
+                continue;
+            }
+            if !formation.direct {
+                continue;
+            }
+            loans.push((formation, carrier));
+        }
+        loans
+    }
+    pub fn call_plan(
+        &self,
+        operation: OperationId,
+        crossing: SuspensionCrossingId,
+    ) -> Result<TerminalSuspensionCallPlan, &'static str> {
+        let module = self.module;
+        let machine = self.machine;
+        let (block_position, position) = machine
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_position, block)| {
+                block
+                    .operations
+                    .iter()
+                    .position(|candidate| candidate.id == operation)
+                    .map(|position| (block_position, position))
+            })
+            .ok_or("a suspension crossing names no operation of its machine")?;
+        let block = &machine.blocks[block_position];
+        let call = &block.operations[position];
+        let inputs = call
+            .declared_invocation()
+            .ok_or("a suspension crossing is on an operation that is no declared call")?;
+        let target = match inputs.callee {
+            TargetMachineCallable::Machine(callee) => TerminalSuspensionCallTarget::Machine(callee),
+            TargetMachineCallable::Boundary(boundary) => {
+                TerminalSuspensionCallTarget::Boundary(boundary)
+            }
+        };
+        let entering = &self.entering;
+        let mut live_out = BTreeSet::new();
+        for successor in block.terminator.successor_targets() {
+            let successor = machine
+                .blocks
+                .iter()
+                .position(|candidate| candidate.id == successor)
+                .ok_or("a suspension crossing's block leaves for an absent block")?;
+            live_out.extend(entering[successor].iter().copied());
+        }
+        let mut live = live_after(block, position, &live_out);
+        // The parked call has not completed, so its result is not established.
+        if let Some(defined) = operation_definition(call) {
+            live.remove(&defined);
+        }
+
+        let direct_loans = self.direct_loans((block.id, position as u32), call, &live);
+        for (formation, _) in &direct_loans {
+            live.insert(Name::Root(formation.source.place));
+        }
+
+        let scalar_type = |value: ValueId| {
+            machine
+                .parameters
+                .iter()
+                .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+                .find(|declared| declared.id == value)
+                .map(|declared| (declared.scalar_type, TerminalSuspensionStorage::Parameter))
+                .or_else(|| {
+                    machine.operations().find_map(|candidate| {
+                        candidate
+                            .result
+                            .scalar_ref()
+                            .filter(|result| result.id == value)
+                            .map(|result| (result.scalar_type, TerminalSuspensionStorage::Local))
+                    })
+                })
+        };
+        let mut rows = Vec::new();
+        for name in &live {
+            match *name {
+                Name::Value(value) => {
+                    let (scalar, storage) = scalar_type(value)
+                        .ok_or("a live scalar has no declaration in its machine")?;
+                    rows.push(TerminalSuspensionLiveValue {
+                        place: TerminalSuspensionPlace::Scalar(value),
+                        value_type: TerminalSuspensionValueType::Scalar(scalar),
+                        storage,
+                        claim_count: 0,
+                        claims: Vec::new(),
+                        effective: CarryPolicy::PERMISSIVE,
+                        loans: TerminalSuspensionValueLoans::ViewFree,
+                    });
+                }
+                Name::Root(root) => {
+                    let structural_type = machine
+                        .structural_place_type(root)
+                        .ok_or("a live structural root has no declared type")?;
+                    let parameter = machine.structural_parameter(root);
+                    let (access, storage) = match parameter {
+                        Some(parameter) => (parameter.access, TerminalSuspensionStorage::Parameter),
+                        None => (StructuralAccess::Owned, TerminalSuspensionStorage::Local),
+                    };
+                    rows.push(TerminalSuspensionLiveValue {
+                        place: TerminalSuspensionPlace::Structural(StructuralArgument {
+                            place: root,
+                            path: Vec::new(),
+                            access,
+                        }),
+                        value_type: TerminalSuspensionValueType::Structural(structural_type),
+                        storage,
+                        claim_count: 0,
+                        claims: Vec::new(),
+                        effective: CarryPolicy::PERMISSIVE,
+                        loans: loans_of(module, structural_type, access),
+                    });
+                }
+            }
+        }
+        // What the call was lent or given stays with the incomplete callee.
+        for argument in inputs.structural_arguments {
+            let root = machine
+                .structural_place_type(argument.place)
+                .ok_or("a call argument names a root with no declared type")?;
+            let structural_type = crate::runtime_structural_path_tip(
+                module.types.structural_types.iter(),
+                root,
+                &argument.path,
+            )
+            .ok_or("a call argument's path selects no declared type")?
+            .id;
+            rows.push(TerminalSuspensionLiveValue {
+                place: TerminalSuspensionPlace::Structural(argument.clone()),
+                value_type: TerminalSuspensionValueType::Structural(structural_type),
+                storage: TerminalSuspensionStorage::CallArgument,
+                claim_count: 0,
+                claims: Vec::new(),
+                effective: CarryPolicy::PERMISSIVE,
+                loans: loans_of(module, structural_type, argument.access),
+            });
+        }
+        rows.sort_by(|left, right| {
+            (&left.place, left.storage, left.value_type, left.effective).cmp(&(
+                &right.place,
+                right.storage,
+                right.value_type,
+                right.effective,
+            ))
         });
+        rows.dedup();
+        let live_value_count = u32::try_from(rows.len())
+            .map_err(|_| "a suspension frontier holds more rows than a plan can count")?;
+        let mut loans = TerminalSuspensionLoans::default();
+        for (i, row) in rows.iter_mut().enumerate() {
+            let (
+                TerminalSuspensionPlace::Structural(argument),
+                TerminalSuspensionValueType::Structural(ty),
+            ) = (&row.place, row.value_type)
+            else {
+                continue;
+            };
+            if row.storage != TerminalSuspensionStorage::Parameter
+                || argument.access != StructuralAccess::SharedBorrow
+                || machine
+                    .signature_structural_parameter(argument.place)
+                    .is_none()
+                || contains_borrows(module, ty)
+            {
+                continue;
+            }
+            let occurrence = loans.occurrences.insert(TerminalSuspensionLoan {
+                capture: TerminalSuspensionLoanCapture::RetainedValue {
+                    live_value: i as u32,
+                    path: Default::default(),
+                },
+                backing: TerminalSuspensionLoanBacking::IncomingReferent {
+                    argument: argument.clone(),
+                },
+                resource: TerminalSuspensionLoanResource::IncomingReference,
+                access: argument.access,
+                active_at_call: true,
+                ..Default::default()
+            });
+            row.loans = TerminalSuspensionValueLoans::Retained {
+                links: loans.value_links.insert_many([occurrence]),
+            };
+        }
+        // Rows are ordered by place, then storage role. Publishing the backing needs
+        // the owned row even when the call also has an argument at the same root.
+        let locate = |rows: &[TerminalSuspensionLiveValue], root| {
+            let start = rows.partition_point(|row| match &row.place {
+                TerminalSuspensionPlace::Scalar(_) => true,
+                TerminalSuspensionPlace::Structural(arg) => arg.place < root,
+            });
+            rows[start..].iter().take_while(|row| {
+                matches!(&row.place, TerminalSuspensionPlace::Structural(arg) if arg.place == root && arg.path.is_empty())
+            }).position(|row| row.storage != TerminalSuspensionStorage::CallArgument).map(|offset| start + offset)
+        };
+        let mut direct_loans = direct_loans;
+        direct_loans.sort_by_key(|(formation, carrier)| (formation.operation, *carrier));
+        let mut last_loan = None;
+        for (formation, carrier) in direct_loans {
+            let source = formation.source;
+            let backing = locate(&rows, source.place)
+                .ok_or("a suspended reference lost its backing storage")?;
+            let descriptor =
+                locate(&rows, carrier).ok_or("a suspended reference lost its descriptor")?;
+            let occurrence = match last_loan {
+                Some((id, occurrence)) if id == formation.operation => occurrence,
+                _ => {
+                    let source_path = loans.paths.insert_many(source.path.iter().cloned());
+                    let occurrence = loans.occurrences.insert(TerminalSuspensionLoan {
+                        capture: TerminalSuspensionLoanCapture::Reference {
+                            formation: formation.operation,
+                            carrier: formation.carrier,
+                            source: source.place,
+                            source_access: StructuralAccess::Owned,
+                            source_path,
+                        },
+                        backing: TerminalSuspensionLoanBacking::RetainedOwner {
+                            live_value: backing as u32,
+                        },
+                        resource: TerminalSuspensionLoanResource::DirectRoot,
+                        access: source.access,
+                        active_at_call: true,
+                        ..Default::default()
+                    });
+                    last_loan = Some((formation.operation, occurrence));
+                    occurrence
+                }
+            };
+            rows[descriptor].loans = TerminalSuspensionValueLoans::Retained {
+                links: loans.value_links.insert_many([occurrence]),
+            };
+        }
+        Ok(TerminalSuspensionCallPlan {
+            operation,
+            crossing,
+            target,
+            effective: CarryPolicy::PERMISSIVE,
+            live_value_count,
+            live_values: rows,
+            loans,
+        })
     }
-    rows.sort_by(|left, right| {
-        (&left.place, left.storage, left.value_type, left.effective).cmp(&(
-            &right.place,
-            right.storage,
-            right.value_type,
-            right.effective,
-        ))
-    });
-    rows.dedup();
-    Ok(TerminalSuspensionCallPlan {
-        operation,
-        crossing,
-        target,
-        effective: CarryPolicy::PERMISSIVE,
-        live_value_count: u32::try_from(rows.len())
-            .map_err(|_| "a suspension frontier holds more rows than a plan can count")?,
-        live_values: rows,
-        loans: Default::default(),
-    })
 }
 
 /// The site of `plan`: the same call and crossing, with the commitment to

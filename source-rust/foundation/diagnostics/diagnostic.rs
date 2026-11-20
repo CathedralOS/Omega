@@ -17,9 +17,60 @@ pub use text::{WriteDiagnosticList, write_bounded_diagnostics, write_diagnostics
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub message: String,
+    pub stage: Option<DiagnosticStage>,
+    pub build_context: Option<BuildDiagnosticContext>,
     pub exceeded_provision: Option<ExceededProvision>, // Present when refusal stopped at a named private provision (`Incomplete` outcome).
     pub source_span: Option<SourceSpan>, // Optional authored source location attached when declaration spans survive.
     pub resolved_location: Option<ResolvedSourceLocation>, // Span resolved against the compilation's retained source map while alive.
+}
+
+/// The source operation that first returned this diagnostic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+pub enum DiagnosticStage {
+    Lexing,
+    Parsing,
+    Resolution,
+    Typing,
+    Preparation,
+    Lowering,
+    Checking,
+}
+
+impl DiagnosticStage {
+    pub fn attribute(self, mut diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+        for diagnostic in &mut diagnostics {
+            diagnostic.stage.get_or_insert(self);
+        }
+        diagnostics
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Lexing => "lexing",
+            Self::Parsing => "parsing",
+            Self::Resolution => "name resolution",
+            Self::Typing => "typing",
+            Self::Preparation => "source preparation",
+            Self::Lowering => "lowering",
+            Self::Checking => "lowered-form checking",
+        }
+    }
+}
+
+/// The innermost Build operation whose failure is being reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+pub enum BuildDiagnosticContext {
+    PreparingDependency,
+    ResumingBuild,
+}
+
+impl BuildDiagnosticContext {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::PreparingDependency => "preparing the dependency",
+            Self::ResumingBuild => "resuming the Build after dependency preparation",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -42,6 +93,8 @@ impl Diagnostic {
         Self {
             severity: DiagnosticSeverity::Error,
             message: message.into(),
+            stage: None,
+            build_context: None,
             exceeded_provision: None,
             source_span: None,
             resolved_location: None,

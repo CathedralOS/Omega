@@ -16,7 +16,7 @@ use build_execution::{
     PreparedBuildEvaluation, ProducedBuildProvider, ReturnedBuild, SourceBuildDeclaration,
     TerminalBuildActivation, TerminalBuildStep,
 };
-use diagnostics::Diagnostic;
+use diagnostics::{BuildDiagnosticContext, Diagnostic};
 use package_compilation::PackageCompilationInputs;
 use package_compilation::source_imports::ProductQueryDependency;
 
@@ -193,6 +193,7 @@ pub fn interpret(
         mut evaluation,
         mut source,
     } = stage;
+    let mut context = None;
     let result = (|| {
         let execution = evaluation.execution().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -208,6 +209,7 @@ pub fn interpret(
                 &mut source,
                 services,
                 &mut build_dependencies,
+                &mut context,
             );
             let spent = activation.helper_evaluation_accounting().clone();
             ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
@@ -217,12 +219,17 @@ pub fn interpret(
                     .map_err(refusal)
                     .map_err(|failure| failure.with_source_completion_accounting(spent));
             }
+            context = Some(BuildDiagnosticContext::ResumingBuild);
             activation = source
                 .resume(&mut evaluation, activation, &build_dependencies, services)
                 .map_err(|failure| failure.with_source_completion_accounting(spent))?;
         }
     })();
     let returned = result.map_err(|failure| {
+        let failure = match context {
+            Some(context) => failure.in_build_context(context),
+            None => failure,
+        };
         failure.with_source_completion_accounting(evaluation.source_completion_accounting().clone())
     })?;
     evaluation.record_return(&returned)?;
@@ -238,6 +245,7 @@ fn run(
     source: &mut source::PlanningSource,
     services: &mut impl PlanningServices,
     build_dependencies: &mut Vec<ProductQueryDependency>,
+    context: &mut Option<BuildDiagnosticContext>,
 ) -> Result<(), CompileFailure> {
     loop {
         match activation.advance(1024).map_err(refusal)? {
@@ -257,6 +265,7 @@ fn run(
                     .map_err(refusal)?;
             }
             TerminalBuildStep::Prepare(request) => {
+                *context = Some(BuildDiagnosticContext::PreparingDependency);
                 let dependency = services.prepare_dependency(activation, &request)?;
                 let registered_alias = activation
                     .requests()
@@ -291,6 +300,7 @@ fn run(
                     mount_build_dependency(build_dependencies, dependency)?;
                 }
                 activation.dependency_prepared(selected).map_err(refusal)?;
+                *context = Some(BuildDiagnosticContext::ResumingBuild);
             }
         }
     }

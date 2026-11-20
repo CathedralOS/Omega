@@ -1251,3 +1251,35 @@ fn domain_family_discovery_preserves_visibility_without_importing_its_module() {
         }
     }
 }
+
+#[test]
+fn the_typed_generic_bound_decides_if_a_local_name_conflicts() {
+    for body in [
+        "machine pick<const current: u32>(sample: u32) -> u32 { match sample { current -> current, _ -> 0u32 } }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { let current: u32 = sample; current }",
+        "machine pick<const current: u32>(current: u32) -> u32 { current }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { transition (sample, sample) { (current, _) -> current, _ -> 0u32 } }",
+        "data Reading { value: u32; } machine pick<const current: u32>(reading: Reading) -> u32 { match reading { Reading { value as current } -> current } }",
+    ] {
+        let negative = format!(
+            "data Bound = u32; {}",
+            body.replace("const current: u32", "const current: Bound")
+        );
+        let error = checked(&[("main.omg", &negative)]).unwrap_err();
+        assert!(
+            error.contains("binding `current` conflicts with an existing name: a static value"),
+            "{error}"
+        );
+    }
+    checked(&[(
+        "main.omg",
+        "machine pick<current>(sample: u32) -> u32 { let current: u32 = sample; current }",
+    )])
+    .unwrap();
+    for bound in ["core\\Type<0>", "Sort"] {
+        let positive = format!(
+            "data Sort = core\\Type<0>; machine pick<const current: {bound}>(sample: u32) -> u32 {{ let current: u32 = sample; current }}"
+        );
+        checked(&[("main.omg", &positive)]).unwrap();
+    }
+}

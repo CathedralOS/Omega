@@ -69,8 +69,17 @@ pub struct SymbolResolvedTrees {
     pub semantic_domains: crate::source_tables::SemanticDomainTable,
     pub external_bindings: crate::source_tables::ExternalBindingTable,
     pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
+    pub generic_binding_overlaps: Vec<GenericBindingOverlap>,
     pub pending_token_shape_comparisons: Vec<PendingTokenShapeComparison>,
     pub resolution_indexes: lookup_indexes::ResolvedIndexes,
+}
+
+/// Typing decides whether this visible generic's bound denotes a value or a type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+pub struct GenericBindingOverlap {
+    pub machine: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub binding: source_text::SourceSpan,
 }
 
 /// Dependent operand shapes must be compared after their types are lowered.
@@ -104,6 +113,7 @@ impl SymbolResolvedTrees {
             semantic_domains: crate::source_tables::SemanticDomainTable::default(),
             external_bindings: crate::source_tables::ExternalBindingTable::default(),
             evidence_forwardings: Vec::new(),
+            generic_binding_overlaps: Vec::new(),
             pending_token_shape_comparisons: Vec::new(),
             resolution_indexes: lookup_indexes::ResolvedIndexes::default(),
         }

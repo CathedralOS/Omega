@@ -10,7 +10,7 @@
 
 use crate::compile_time::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use artifacts::compile_timings::{CompileTimings, source as stages};
-use diagnostics::Diagnostic;
+use diagnostics::{Diagnostic, DiagnosticStage};
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::product_declarations;
 
@@ -187,7 +187,8 @@ impl ResolveAndTypeRequest {
                             top_level_bindings: self.top_level_bindings,
                             retained_base: None,
                         })
-                    })?
+                    })
+                    .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
                 };
                 loop {
                     let selected = frontier.pending_machines_in(
@@ -199,16 +200,19 @@ impl ResolveAndTypeRequest {
                     frontier = timings
                         .record_result(stages::RESOLVE, || {
                             frontier.complete_machine_bodies(&selected)
-                        })?
+                        })
+                        .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
                         .into_resolved_frontier();
                 }
                 let typing = {
-                    timings.record_result(stages::TYPE, || {
-                        crate::typing::lower_symbol_resolved_trees_to_seeded_base(
-                            frontier.shared_trees(),
-                        )
-                        .map_err(|diagnostic| vec![diagnostic])
-                    })?
+                    timings
+                        .record_result(stages::TYPE, || {
+                            crate::typing::lower_symbol_resolved_trees_to_seeded_base(
+                                frontier.shared_trees(),
+                            )
+                            .map_err(|diagnostic| vec![diagnostic])
+                        })
+                        .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?
                 };
                 (typing, frontier)
             };
@@ -220,13 +224,14 @@ impl ResolveAndTypeRequest {
             }
             pending_bodies =
                 pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
-            let completed = timings.record_result(stages::RESOLVE, || {
-                pending_bodies.complete_machine_bodies(&build_bodies)
-            })?;
+            let completed = timings
+                .record_result(stages::RESOLVE, || {
+                    pending_bodies.complete_machine_bodies(&build_bodies)
+                })
+                .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
             (typing, pending_bodies) = timings
-                .record_result(stages::TYPE, || {
-                    type_completed_bodies(typing, completed)
-                })?;
+                .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
+                .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
         }
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         if let Some(retained_requests) = retained_requests {
@@ -473,15 +478,25 @@ fn extend_declarations(
     typing: crate::typing::SeededTypingBase,
     request: crate::resolution::ExtensionRequest,
     timings: &mut CompileTimings,
-) -> Result<(crate::typing::SeededTypingBase, crate::resolution::DeferredResolvedFrontier), Vec<Diagnostic>> {
-    let extension = timings.record_result(stages::RESOLVE, || {
-        crate::resolution::resolve_deferred_extension(request)
-    })?;
-    timings.record_result(stages::TYPE, || {
-        let (source, frontier) = extension
-            .rebase_for_typed_continuation(typing.typed().authored_declaration_selections())?;
-        Ok((typing.append_resolved(source)?, frontier))
-    })
+) -> Result<
+    (
+        crate::typing::SeededTypingBase,
+        crate::resolution::DeferredResolvedFrontier,
+    ),
+    Vec<Diagnostic>,
+> {
+    let extension = timings
+        .record_result(stages::RESOLVE, || {
+            crate::resolution::resolve_deferred_extension(request)
+        })
+        .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
+    timings
+        .record_result(stages::TYPE, || {
+            let (source, frontier) = extension
+                .rebase_for_typed_continuation(typing.typed().authored_declaration_selections())?;
+            Ok((typing.append_resolved(source)?, frontier))
+        })
+        .map_err(|rows| DiagnosticStage::Typing.attribute(rows))
 }
 
 fn complete_pending_bodies(
@@ -503,14 +518,16 @@ fn complete_pending_bodies(
             break;
         }
         let resolved = {
-            timings.record_result(stages::RESOLVE, || {
-                pending_bodies.complete_machine_bodies(&selected)
-            })?
+            timings
+                .record_result(stages::RESOLVE, || {
+                    pending_bodies.complete_machine_bodies(&selected)
+                })
+                .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
         };
         (typing, pending_bodies) = {
-            timings.record_result(stages::TYPE, || {
-                type_completed_bodies(typing, resolved)
-            })?
+            timings
+                .record_result(stages::TYPE, || type_completed_bodies(typing, resolved))
+                .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?
         };
     }
     Ok((typing, pending_bodies))

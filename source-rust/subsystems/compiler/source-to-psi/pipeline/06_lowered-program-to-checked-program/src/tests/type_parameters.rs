@@ -2480,3 +2480,96 @@ machine main() crashes Trap {
                 && failure.statement.contains("cannot prove requires contract for call live from inspect"))
     )), "removing only the length guard must refuse the helper contract: {rejected:?}");
 }
+
+#[test]
+fn a_prepared_record_pattern_and_its_scalar_read_select_the_same_specialized_field() {
+    // The pattern spells the fields in the opposite order to their declaration.
+    // Both carry u32, so type equality cannot establish which field is returned.
+    let source = r#"
+data Pair<T> [linear] { first: T; second: T; }
+machine entry(pair: Pair<u32>) -> u32 {
+    let { second as chosen, first as _ } = move pair;
+    chosen
+}
+"#;
+    let prepared =
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[]).unwrap();
+    fn read_prepared(prepared: &crate::preparation::PreparedTypedTrees) {
+        let entry = prepared
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap();
+        let state = &prepared.machine_states(entry)[0];
+        let reference = prepared.state_parameters(state)[0].type_reference;
+        let record = prepared
+            .closed_data_definition(reference)
+            .expect("Pair<u32>");
+        assert!(record.generic_instance.is_some());
+        let fields: Vec<_> = prepared
+            .data_member_fields(prepared.data_members(record))
+            .collect();
+        let marker = state
+            .statement_nodes
+            .handles()
+            .filter_map(|handle| prepared.statement_table.statement(handle).as_local_data())
+            .find(|local| local.role == language_core::LocalBindingRole::RecordPattern)
+            .unwrap();
+        assert_eq!(marker.pattern_subject, record.symbol);
+        let selected = prepared
+            .expression_table
+            .match_fields(marker.pattern_fields);
+        assert_eq!(
+            [selected[0].field_symbol, selected[1].field_symbol],
+            [fields[1].symbol, fields[0].symbol]
+        );
+        assert_ne!(fields[0].symbol, fields[1].symbol);
+    }
+    read_prepared(&prepared);
+    let entry = super::boundary_calls::entry(&prepared);
+    let lowered = crate::lowering::elaborate_for(
+        &prepared,
+        crate::lowering::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    fn read_psi(module: &terminal_psi::TerminalModule) {
+        let machine = &module.machines[0];
+        let parameter = &machine.structural_parameters[0];
+        let record = module.structural_type(parameter.structural_type).unwrap();
+        let field = record.shape.fields().nth(1).unwrap();
+        let returned = machine
+            .blocks
+            .iter()
+            .find_map(|block| match block.terminator {
+                terminal_psi::Terminator::Return { value, .. } => Some(value),
+                _ => None,
+            })
+            .unwrap();
+        let producer = machine
+            .operations()
+            .find(|op| {
+                op.result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == returned)
+            })
+            .unwrap();
+        assert!(
+            matches!(&producer.kind, terminal_psi::OperationKind::PrimitiveScalarRead { source, path }
+            if *source == parameter.place && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(field.identity)]),
+            "{:?}",
+            producer.kind
+        );
+    }
+    read_psi(&lowered.module);
+}
