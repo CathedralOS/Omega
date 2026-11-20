@@ -46,13 +46,35 @@ def compile_program(work, source, name="subject", *, compiler, realize=stamp):
     return executable
 
 
+def call_depth_controls(work, compiler, seconds, realize=stamp):
+    # Main and the initial dive occupy two of the 131,072 Gamma frames.
+    # At the last admitted frame a primitive calls the shared stack helpers.
+    depth_source = b"""
+(def $application () Int 1)
+(def dive ((n Int)) Int (if n (+ 0 (dive (- n 1))) (* 6 7)))
+(def main () Int
+  (let ((prefix Int (write 88)) (result Int (dive (+ 131070 (read 0))))
+        (sent Int (write result))) (pair 0 1)))
+"""
+    depth = compile_program(work, depth_source, "call-depth", compiler=compiler, realize=realize)
+    assert execute(depth, b"\x00", seconds) == (0, b"X*")
+    assert execute(depth, b"\x01", seconds) == (250, b"")
+
+
 def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
-    for label, text, payload, expected in GAMMA_CASES:
+    names = """(def main () Int (prefix_z 40))
+(def prefix_zz ((n Int)) Int (prefix_y n))
+(def prefix_y ((n Int)) Int (+ n 2))
+(def prefix_z ((n Int)) Int (prefix_zz n))"""
+    cases = [*GAMMA_CASES, ("forward calls with common prefixes", names, b"", (0, b"*"))]
+    for label, text, payload, expected in cases:
         source = text.encode("ascii")
         actual = execute(compile_program(work, source, compiler=compiler, realize=realize), payload)
         original = reference(evaluator, source, payload)
         assert actual == original == expected, (label, actual, original, expected)
-    for source in INVALID_GAMMA:
+    duplicate = names.encode("ascii") + b" (def prefix_y () Int 0)"
+    invalid_sources = [*INVALID_GAMMA, duplicate]
+    for source in invalid_sources:
         try:
             compiler(source).compile()
         except invalid:
@@ -60,7 +82,8 @@ def controls(work, evaluator, compiler, realize=stamp, invalid=Invalid):
         else:
             raise AssertionError(("invalid source compiled", source))
         assert reference(evaluator, source) == (1, b""), source
-    print(f"controls: {len(GAMMA_CASES)} exact differential observations; {len(INVALID_GAMMA)} rejected sources", flush=True)
+    print(f"controls: {len(cases)} exact differential observations; {len(invalid_sources)} rejected sources", flush=True)
+    return len(cases), len(invalid_sources)
 
 
 def pack(manifest, output, prefix=None):

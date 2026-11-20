@@ -21,21 +21,6 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def call_depth_controls(work, compiler, seconds):
-    # Main and the initial dive occupy two of the 131,072 Gamma frames.
-    # The deepest expression still pushes and pops its result through Alpha.
-    depth_source = b"""
-(def $application () Int 1)
-(def dive ((n Int)) Int (if n (+ 0 (dive (- n 1))) 42))
-(def main () Int
-  (let ((prefix Int (write 88)) (result Int (dive (+ 131070 (read 0))))
-        (sent Int (write result))) (pair 0 1)))
-"""
-    depth = compiled.compile_program(work, depth_source, "call-depth", compiler=compiler)
-    assert compiled.execute(depth, b"\x00", seconds) == (0, b"X*")
-    assert compiled.execute(depth, b"\x01", seconds) == (250, b"")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--accelerated", action="store_true")
@@ -103,7 +88,7 @@ def main():
             return result
 
     compiled.controls(work, work / "reference", compiler=SourceCompiler)
-    call_depth_controls(work, SourceCompiler, args.seconds)
+    compiled.call_depth_controls(work, SourceCompiler, args.seconds)
     if args.compiler_only:
         print(f"{mode} compiler construction and controls passed", flush=True)
         return

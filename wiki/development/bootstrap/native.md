@@ -29,7 +29,9 @@ its storage runtime and entry (SHA-256
 `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab`).
 It contains 7,774 top-level forms, 468,044 lists and 1,172,126 atoms.
 Applying the parser's production allocation ledger gives 384,199,320 bytes
-for balanced parsing. Grammar then allocates from the same budget.
+for balanced parsing. A diagnostic build that reported the ledger after
+grammar measured 529,276,120 bytes in total, including 145,076,800 for
+grammar.
 [Syntax representation and charges](../../../bootstrap/delta/compiler/implementation/checking/syntax/README.md)
 
 The ConstructionBytesV1 Delta compiler now provisions 1 GiB for syntax. On
@@ -40,10 +42,13 @@ returned code 12 in emitted-payload space and requested 26,398,215 bytes.
 
 The frozen 4,107,257-byte Omega signature-checking program
 (`3a726430d1e02a312dba9a8d68ec54331a474f1dab671c5e6ad3bc394ebebbc6`) takes
-90,118,000 parser bytes. Its original 114,294,752-byte syntax provision ran out
+90,118,000 bytes to parse and 31,712,800 for grammar. Its original 114,294,752-byte syntax provision ran out
 during grammar at byte 3,132,226. With the construction provision the compiler
 published 5,819,889 bytes of Gamma (SHA-256
 `5bfd4417a851ca411730364a88935511494847cd8a80392e110ec895273a1e11`).
+The reconstructed Gamma interpreter ran that receipt. Its eight-byte
+observation, `002a000000010200`, matched both direct Delta execution and
+the Epsilon evaluator, including guest exit 42.
 [Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)
 
 To exercise the last complete parser frame and the next frame in each profile,
@@ -117,9 +122,30 @@ terminate execution separately: a pipe with no reader has the ordinary default
 `SIGPIPE` behavior, rather than guaranteeing status 3. Physical memory and sufficient
 process stack remain host dependencies; `MAP_NORESERVE` does not promise physical
 memory availability. With the shared 131,072 call-depth limit, native return
-addresses use at most 1,048,584 bytes plus the 2,048-byte register file and one
+addresses use at most 1,048,592 bytes plus the 2,048-byte register file and one
 8-byte I/O scratch slot. Existing source bounds protect Gamma data accesses;
 this experiment does not claim a machine-checked implementation proof.
+
+A generated call site uses a five-byte native call for a Gamma primitive,
+a push or a pop. Frame-slot access passes the byte offset in register 11
+to a shared load or store routine. A tail call passes its argument word count
+to a loop that copies them in their original order. The compiler generates the
+same tag checks and allocation bounds in these shared routines. A primitive
+can call a stack routine or the buffered writer, so at most two helper return
+addresses are live beneath a Gamma call. The call-depth test executes the
+last admitted frame and checks the adjacent refusal on both compiled targets.
+[Shared operations](../../../bootstrap/gamma/compiler/compiler.gamma) ·
+[Native helpers](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma)
+
+The shared Gamma compiler indexes declarations with the same balanced tree it
+uses for assembler labels. Function keys compare identifier length, then their
+exact source bytes. Duplicate names reject on insertion. The compiler still
+checks and emits each body in source order, including unused bodies and forward
+calls. The 26,398,215-byte constructor source has 7,597 functions and 103,173
+calls. Scanning the old declaration list required 733,309,253 name comparisons
+at those calls. Each unsuccessful comparison allocated a new list tail, consuming
+more than 23 GB on the native host. The indexed lookup traverses the tree
+without allocating list tails. [Gamma source](../../../bootstrap/gamma/compiler/compiler.gamma)
 
 The native assembler uses x86-64 direct branches and calls. For `i_jz`,
 `test rax,rax` sets the flags and `0f 84` jumps on zero. The next four

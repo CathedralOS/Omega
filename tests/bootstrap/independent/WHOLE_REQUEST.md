@@ -35,6 +35,16 @@ chmod +x "$work/omega"
 "$work/omega" < "$work/product.bin" > "$work/compiled.eeout"
 ```
 
+To run the same checked program directly in the Delta interpreter, give it the
+`omega.delta` produced by `--frame-result` and the desired product input.
+The runner saves the guest's result in `guest.output`.
+
+```sh
+python3 tests/bootstrap/interpreted/delta/interpreter.py "$work/direct" \
+    --host linux --profile construction --runner "$work/compiled/gamma-compiler" \
+    --source "$work/omega.delta" --stdin "$work/product.bin" --seconds 1200
+```
+
 The interpreted route passes the Epsilon source and the product input together
 as one sealed request. Reuse the seed-built Delta and Gamma compilers from
 above to build the interpreter.
@@ -50,25 +60,53 @@ chmod +x "$work/evaluator"
 Both executables emit the Epsilon guest's outcome before its payload. A successful
 constructor returns five zero bytes followed by the Alpha tape.
 The optional `--entry-control` also frames the original package and dependency
-rows with just the original entry unit in `entry-unit.eereq`. Both construction
+rows with just the original entry unit in `entry-unit.bin` and seals the same
+bytes for the evaluator in `entry-unit.eereq`. Both construction
 requests select Delta profile 2, which admits the combined source and product
 input and can publish a generated module larger than 4 MiB.
 
 ## Whole compiler result
 
+These measurements use the Omega source and construction entry at `035eddf0c5a`.
 The indexed Epsilon compiler compiled all 852,096 bytes of the bootstrap
 compiler and its construction entry. With Delta's construction profile, the
-Linux executable returned status 0, the `compiled-storage` marker and an
+Linux executable and the Alpha seed running the 4,324,897-byte compiler tape
+each returned status 0, the `compiled-storage` marker and the same
 18,269,324-byte Delta module. Adding the declared storage runtime and entry
-gave Delta an 18,365,364-byte program. The same whole Epsilon source reached
-the 4 MiB output guard with status 254 on the conformance profile.
+gave Delta an 18,365,364-byte program. Delta checked that complete source and
+published 26,398,215 bytes of Gamma with process status 0 and empty stderr.
+The preceding Epsilon compiler, rebuilt with the same construction adapter,
+also produced the identical 18,269,341-byte output. The conformance profile
+reached its 4 MiB output guard with status 254 on the same whole source.
 [Indexed lowering](../../../wiki/development/bootstrap/native.md)
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Epsilon source with construction entry | 852,096 | `01565beaf9f51478a156fa9b9ca997f5808b06ef39db66a41e4baf644ff59225` |
+| Epsilon compiler Alpha tape | 4,324,897 | `7154f042d57d71bdc293bac57871d4c3bebbac7825abdea8d43e42d7a04aded1` |
 | Epsilon compiler output, including marker | 18,269,341 | `60d0fce9fa52af3464e95c5d691882369e6d7417cb386258f41cde55b207a0f5` |
 | Delta source with runtime and entry | 18,365,364 | `f662e1a8007b819bd02fc1571d6314e49c1fac9785247ed58e278a16ca46dcab` |
+| Gamma emitted by Delta | 26,398,215 | `2c9641632eb613696428a96903e02d126a6d7fc5fdbd78c9f08f3d3469f29329` |
+| Linux construction executable | 56,933,914 | `47c1b9cddde2190a5d2e600640d07c1a86597123077dc9a6a86abd7834b14c3b` |
+
+The compact native Gamma compiler first reproduced a 226,610-byte executable.
+After adding an exact-name index for calls, the Linux launcher regenerated
+the 226,861-byte compiler byte for byte. It compiled the complete Gamma source
+to a 56,933,914-byte Linux executable. The source-built program returned guest
+exit 3 for an empty construction request and for an invalid package count.
+[Native backend](../../../wiki/development/bootstrap/native.md)
+
+Reconstructing Delta and the Epsilon compiler with the compact backend reproduced the two whole-program
+outputs in the table. The Beta-built Gamma interpreter received the complete
+Gamma source plus the valid 829-byte wire-package input. Its 480-second
+wall limit expired with empty output.
+
+The Linux executable compiled the portable Omega fixture into a 50-byte Alpha
+tape and the two-package wire decoder into a 1,607-byte tape. Each matched the
+Epsilon evaluator and exited 42 on the seed. On the full 3,955,617-byte
+product, a 10 GiB resident-memory guard stopped the native executable after
+194.5 seconds with empty output. This run produced neither a product tape nor
+a compiler diagnostic. [Wire program and refusal controls](#product-wire-package-through-the-construction-entry)
 
 The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
@@ -135,3 +173,81 @@ header and returned exit 3 for malformed framing.
 | Native Gamma compiler | `32c681f83f4ceafb775de7ce5e24a4fa00df8417daaf0f50ca5905ae9f760394` |
 | Published native Epsilon evaluator | `80226b25de03c6608638a1c6a35f4d0fcbc23a3dd1445aa474fb9a34194907f8` |
 | Private native Epsilon evaluator | `36c91efef706b00107a5f2127d5c6a698ffd850f9826f0b0dd18e7d11e0ed7b8` |
+
+## Product wire package through the construction entry
+
+The ordinary constructor compiled the 323-byte product wire decoder as a separate
+package. Its caller imports `wire::u32_from_le_bytes` and checks zero, mixed
+bytes and all bits set. The two source units and the dependency edge go through
+the same row encoder as the full compiler product.
+[Wire decoder](../../../source/foundation/wire/codec.omg) and [caller checks](../conformance/omega/wire_word.omg)
+
+```sh
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-product-wire --evaluator "$work/evaluator"
+```
+
+Pass the compiled construction executable to replay the same three raw packets.
+Both routes save the framed results and the linked application's Alpha tape.
+
+```sh
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-native-wire --constructor "$work/omega"
+cmp /tmp/omega-product-wire/wire.tape /tmp/omega-native-wire/wire.tape
+```
+
+Omitting both executable options writes `linked.stdin`, `missing-edge.stdin`
+and `trailing-byte.stdin`.
+
+The 56,933,914-byte native bootstrap compiler produced the same 1,607-byte
+tape and both exact refusal records as the interpreted route. The linked
+tape exited 42 on the audited Alpha seed. The native executable's SHA-256 is
+`47c1b9cddde2190a5d2e600640d07c1a86597123077dc9a6a86abd7834b14c3b`.
+
+At `e45acdff0a9` the stock Linux-native Epsilon evaluator produced 1,607 bytes
+of Alpha tape. The Alpha seed ran it to exit 42 with empty output. The tape's
+SHA-256 was `f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+Removing the dependency from the same two source units returned Exit 1 and
+coordinate 11, the start of the caller's import. An extra byte after the
+linked input returned Exit 3 with empty guest output.
+
+## Source staging for the entry-unit control
+
+Delete the final byte of `entry-unit.eereq` and subtract one from the
+four-byte little-endian stdin length at packet offset 16. This preserves
+all seven packages, seven dependencies, the unit row and the declared
+14,678-byte arena. The stock evaluator reached the missing byte after
+staging 14,677 bytes and returned the constructor's framing failure
+(`0003000000`) in 95.4 seconds, with 552,376 KiB peak RSS. The exact packet
+SHA-256 was `581349db3ec656406f4e85fab26a2fc21e38091aa0a36c9df5ea33e6c7b70436`.
+
+The independent Epsilon model from `8092cfd9c0a5` ran the complete, unchanged
+entry-unit packet and returned `0001000000a9000000`. This is Exit 1 at packed
+byte 169, the first `use` in the unit. Only the construction package supplies
+a source unit in this control. The earlier 8 MiB evaluator run on that packet
+stopped at its 480-second deadline.
+
+Two further controls preserved every package, source range and packet length.
+They changed a single byte of the entry source in guest stdin and ran the
+stock Linux-native Epsilon evaluator with the same compiler and constructor.
+
+| Entry-source change | Stock evaluator observation |
+| --- | --- |
+| First byte replaced with `0xff` | Exit 1 at packed byte 169 in 121.7 s wall, 63.9 s CPU, 565,244 KiB peak RSS. |
+| Final newline replaced with NUL | Empty output after 257.3 s wall and 190.6 s CPU. The supervisor stopped the process at 2,081,020 KiB peak RSS to retain 2 GiB of shared memory headroom. |
+
+The parser validates UTF-8 and tokenizes the entire unit before parsing its
+first declaration. The last-byte NUL therefore measures work before syntax
+parsing. Its complete runtime and refusal coordinate remain unmeasured.
+[Parser entry](../../../bootstrap/omega/compiler/parser.epsilon)
+
+## First unsupported construct in the full product under the source model
+
+The independent Epsilon model from `8092cfd9c0a5` ran the unchanged guest
+and stdin extracted from `whole.eereq` (SHA-256 `dbcf638d9ec5e1b6a968129b031aead6aad3cfc9a08291cfb48aaa3c43d48b59`).
+The model receives the guest and stdin separately. The original conformance
+adapter limited its combined packet to 4 MiB. The 304-unit product returned `0002000000c9550100`, Exit 2 at packed
+byte 87,497. This is byte 45,324 of unit 4, line 673 column 37 of
+`expressions.omg`, at the `as` in `Selection::Machine { handle as callee }`.
+Omega permits this spelling to rename a payload binding. The comparison took
+164.7 seconds wall and 146.9 seconds CPU with 1,004,548 KiB peak RSS.
+[Product expression](../../../source/subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/expressions.omg)
+and [payload bindings](../../../wiki/spec/language/patterns.md)

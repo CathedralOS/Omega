@@ -1,4 +1,5 @@
 interpreter/entry.gamma
+interpreter/conformance.gamma
 interpreter/evaluation.gamma
 interpreter/bytes.gamma
 interpreter/arithmetic.gamma

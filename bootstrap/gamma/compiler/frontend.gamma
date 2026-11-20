@@ -32,15 +32,13 @@
 
 (def p_span_eq ((a Int) (b Int)) Int
   (if (eq (- (second a) (first a)) (- (second b) (first b)))
-    (p_span_bytes (first a) (first b) (second a))
+    (eq (p_span_order (first a) (first b) (second a)) 0)
     0))
 
-(def p_span_bytes ((a Int) (b Int) (end Int)) Int
-  (if (eq a end)
-    1
-    (if (eq (read a) (read b))
-      (p_span_bytes (+ a 1) (+ b 1) end)
-      0)))
+(def p_span_order ((a Int) (b Int) (end Int)) Int
+  (if (eq a end) 0
+    (let diff Int (- (read a) (read b))
+      (if diff diff (p_span_order (+ a 1) (+ b 1) end)))))
 
 (def p_name_eq ((a Int) (b Int)) Int
   (if (eq (first a) 2)

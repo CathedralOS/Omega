@@ -48,10 +48,13 @@ The [interpreted route](interpreted.md), [compiled Alpha route](compiled-alpha.m
 
 ## Whole Omega compiler
 
-The 852,096-byte Epsilon bootstrap compiler and its construction entry compile
-to an 18,365,364-byte Delta program including the storage runtime. Delta checked
-the entire program and counted 26,398,215 bytes of Gamma. The construction
-profile admits that output. [Compiled route and byte identities](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#whole-compiler-result)
+On Alpha and Linux the Epsilon compiler produced the same Delta module from
+the complete 852,096-byte Omega bootstrap compiler and construction entry.
+With its storage runtime, the Delta program occupies 18,365,364 bytes. Delta checked
+the entire program and published 26,398,215 bytes of Gamma. The compact
+Linux backend built the 56,933,914-byte executable. It compiled the portable
+Omega program and the two-package wire decoder into 50-byte and 1,607-byte
+Alpha tapes. Both tapes matched the Epsilon evaluator and exited 42 on the seed. [Compiled route and byte identities](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#whole-compiler-result)
 
 The product input contains 304 Omega source units in seven packages. Its
 3,955,617 bytes become a 4,807,765-byte request when sent with the Epsilon

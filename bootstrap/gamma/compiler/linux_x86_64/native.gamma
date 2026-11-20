@@ -12,10 +12,34 @@
 (def n_load_b ((s Int) (reg Int)) Int (n_register s 10390345 reg)) ; 49 8b 9e
 (def n_store ((s Int) (reg Int)) Int (n_register s 8816969 reg)) ; 49 89 86
 
-; Native register operations inline the evaluation stack transfers.
-(def e_push ((s Int)) Int (e_push_body s))
-(def e_pop ((s Int) (value Int)) Int (e_pop_body s value))
-(def i_stack_runtime ((s Int)) Int s)
+; A native call takes five bytes. Share the checked bodies of frequent
+; operations across call sites. These helpers use native return addresses
+; without entering a Gamma frame. Register 11 carries a byte offset for a
+; frame access or the word count for a tail-call argument move.
+(def e_primitive ((s Int) (kind Int)) Int (i_call s (+ 20 kind)))
+(def e_slot ((s Int) (offset Int) (store Int)) Int
+  (i_call (i_imm s 11 (* offset 16)) (+ 40 store)))
+(def e_move_args ((s Int) (words Int)) Int
+  (i_call (i_imm s 11 words) 42))
+
+; Labels 27..39 implement the primitive kinds 7..19. The primitive body
+; applies the ordinary tag, arithmetic, input and output checks.
+(def n_primitive_helpers ((s Int) (kind Int)) Int
+  (if (eq kind 20) s
+    (let body Int (e_primitive_body (s_mark s (+ 20 kind)) kind)
+      (n_primitive_helpers (i_ret body) (+ kind 1)))))
+
+(def n_slot_helper ((s Int) (store Int)) Int
+  (let address Int (i_add (i_mov (s_mark s (+ 40 store)) 10 247) 10 11)
+    (i_ret (e_slot_at address store))))
+
+(def i_stack_runtime ((s Int)) Int
+  (let ((primitives Int (n_primitive_helpers (e_stack_helpers s) 7))
+        (slots Int (n_slot_helper (n_slot_helper primitives 0) 1))
+        (loop Int (s_mark slots 42))
+        (copy Int (e_move_arg_word (i_jz loop 11 43)))
+        (next Int (e_add copy 11 -1)))
+    (i_ret (s_mark (i_jmp next 42) 43))))
 
 ; x86 adds the signed displacement to the address after its four-byte field.
 ; The target's suffix and the bytes following the field share the same code end.

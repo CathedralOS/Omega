@@ -1,0 +1,5 @@
+; Source-selected ConformanceBytesV1 extents for direct execution.
+(def compilation_profile () Int 1)
+(def di_source_limit () Int 4194304)
+(def di_input_limit () Int 4194304)
+(def di_output_limit () Int 4194304)

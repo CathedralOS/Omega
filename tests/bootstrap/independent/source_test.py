@@ -130,6 +130,7 @@ def main():
             return result
 
     vm.controls(work, work / "reference", compiler=NativeCompiler, realize=realize)
+    vm.call_depth_controls(work, NativeCompiler, args.seconds, realize=realize)
     boundaries(work, native_source, NativeCompiler, args.seconds)
     # The existing Alpha compiler is a real source-transforming successor. It
     # is compiled as written, not replaced by a source hash or precomputed tape.
@@ -153,14 +154,14 @@ def main():
                 raise vm.Invalid("Gamma source compiler rejected malformed source")
             return result
 
-    vm.controls(work, work / "reference", compiler=AlphaCompiler)
+    accepted, rejected = vm.controls(work, work / "reference", compiler=AlphaCompiler)
     report = {"mode": mode, "compiler_source": identity(native_source),
               "compiler_elf": identity(native), "construction_seconds": elapsed,
               "alpha_customer_source": identity(alpha_source),
               "alpha_customer_elf": identity(customer.read_bytes()),
               "alpha_customer_tape": identity(alpha_tape),
-              "native_rebuilds": 2, "semantic_controls_each_target": 32,
-              "refusal_controls_each_target": 15, "native_boundary_controls": 5,
+              "native_rebuilds": 2, "semantic_controls_each_target": accepted,
+              "refusal_controls_each_target": rejected, "native_boundary_controls": 5,
               "children_maxrss_kib": resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss}
     (work / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, sort_keys=True), flush=True)

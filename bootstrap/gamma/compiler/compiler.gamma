@@ -14,8 +14,8 @@
 (def c_max ((a Int) (b Int)) Int (if (lt a b) b a))
 (def c_check ((ok Int) (value Int)) Int (if ok value (p_fail)))
 
-; An AVL tree maps label identifiers to byte counts measured from the code
-; end. Empty trees have height zero.
+; AVL trees index function declarations by exact source name and code labels
+; by numeric identifier. Empty trees have height zero.
 (def m_empty () Int (pair 0 0))
 (def m_height ((t Int)) Int (first t))
 (def m_key ((t Int)) Int (c_a (second t)))
@@ -43,20 +43,27 @@
         (m_rotate_left
           (if (lt (m_height (m_right r)) (m_height (m_left r)))
             (m_node (m_key t) (m_value t) l (m_rotate_right r)) t)) t))))
-(def m_put ((t Int) (key Int) (value Int)) Int
+(def m_order ((key Int) (other Int) (names Int)) Int
+  (if names
+    (let diff Int (- (- (second key) (first key)) (- (second other) (first other)))
+      (if diff diff (p_span_order (first key) (first other) (second key))))
+    (if (eq key other) 0 (if (lt key other) -1 1))))
+(def m_put ((t Int) (key Int) (value Int) (names Int)) Int
   (if (m_height t)
-    (if (eq key (m_key t)) (p_fail)
-      (if (lt key (m_key t))
-        (m_balance (m_node (m_key t) (m_value t)
-          (m_put (m_left t) key value) (m_right t)))
-        (m_balance (m_node (m_key t) (m_value t)
-          (m_left t) (m_put (m_right t) key value)))))
+    (let order Int (m_order key (m_key t) names)
+      (if (eq order 0) (p_fail)
+        (if (lt order 0)
+          (m_balance (m_node (m_key t) (m_value t)
+            (m_put (m_left t) key value names) (m_right t)))
+          (m_balance (m_node (m_key t) (m_value t)
+            (m_left t) (m_put (m_right t) key value names))))))
     (m_node key value (m_empty) (m_empty))))
-(def m_get ((t Int) (key Int)) Int
+(def m_get ((t Int) (key Int) (names Int)) Int
   (if (m_height t)
-    (if (eq key (m_key t)) (m_value t)
-      (if (lt key (m_key t)) (m_get (m_left t) key)
-        (m_get (m_right t) key))) (p_fail)))
+    (let order Int (m_order key (m_key t) names)
+      (if (eq order 0) (m_value t)
+        (m_get (if (lt order 0) (m_left t) (m_right t)) key names)))
+    (p_fail)))
 
 ; State pairs the next label and local slot with the reversed fields.
 (def s_next_label ((s Int)) Int (first (first s)))
@@ -91,9 +98,18 @@
         (b Int (i_load a (+ value 1) 246))
         (c Int (e_add b 246 -8)))
     (i_load c value 246)))
-(def e_slot ((s Int) (offset Int) (store Int)) Int
-  (let ((a Int (e_add (i_mov s 10 247) 10 (* offset 16)))
-        (b Int (if store (i_store a 10 0) (i_load a 0 10)))
+; Both targets share the two result registers and the two operand registers.
+; Labels 14..16 are the push and two pop bodies; function labels begin at 100.
+(def e_push ((s Int)) Int (i_call s 14))
+(def e_pop ((s Int) (value Int)) Int (i_call s (if value 16 15)))
+(def e_stack_helpers ((s Int)) Int
+  (let ((push Int (i_ret (e_push_body (s_mark s 14))))
+        (left Int (i_ret (e_pop_body (s_mark push 15) 0))))
+    (i_ret (e_pop_body (s_mark left 16) 2))))
+
+; Register 10 holds the address of the value and tag in one frame slot.
+(def e_slot_at ((s Int) (store Int)) Int
+  (let ((b Int (if store (i_store s 10 0) (i_load s 0 10)))
         (c Int (e_add b 10 8)))
     (if store (i_store c 10 1) (i_load c 1 10))))
 
@@ -105,7 +121,7 @@
       (let ((body Int (second fields)) (value Int (first body))
             (rest Int (second body)))
         (if (eq width -2)
-          (i_layout rest size ordered (m_put labels value size))
+          (i_layout rest size ordered (m_put labels value size 0))
           (i_layout rest (+ size (i_width width)) (pair fields ordered) labels)))
       (i_publish ordered size labels))))
 
@@ -117,7 +133,7 @@
           (value Int (first (second field))) (bytes Int (i_width width))
           (following Int (- remaining bytes))
           (word Int (if (eq width -1)
-            (i_target_value size following (m_get labels value)) value))
+            (i_target_value size following (m_get labels value 0)) value))
           (emitted Int (i_word word bytes)))
       (i_output (second fields) following labels size))
     (pair 0 1)))
@@ -385,16 +401,16 @@
 (def c_nth ((xs Int) (n Int)) Int
   (if n (c_nth (p_tail xs) (- n 1)) (p_head xs)))
 (def c_name ((node Int)) Int (c_check (eq (first node) 2) node))
-(def c_env_find ((env Int) (name Int)) Int
-  (if (p_length env)
-    (let entry Int (p_head env)
+(def c_env_find ((count Int) (spine Int) (name Int)) Int
+  (if count
+    (let entry Int (first spine)
       (if (p_name_eq (first entry) name) (pair 1 (second entry))
-        (c_env_find (p_tail env) name))) (pair 0 0)))
+        (c_env_find (- count 1) (second spine) name))) (pair 0 0)))
 (def c_env_get ((env Int) (name Int)) Int
-  (let found Int (c_env_find env name)
+  (let found Int (c_env_find (p_length env) (second env) name)
     (if (first found) (second found) (p_fail))))
 (def c_env_add ((env Int) (name Int) (slot Int)) Int
-  (if (first (c_env_find env (c_name name))) (p_fail)
+  (if (first (c_env_find (p_length env) (second env) (c_name name))) (p_fail)
     (p_cons (pair name slot) env)))
 (def c_params ((params Int) (slot Int) (env Int)) Int
   (if (p_length params)
@@ -403,11 +419,6 @@
           (name Int (c_name (p_head checked)))
           (type Int (c_check (eq (c_kind (c_nth checked 1)) 2) 0)))
       (c_params (p_tail params) (+ slot 1) (c_env_add env name slot))) env))
-(def c_find ((functions Int) (name Int)) Int
-  (if (p_length functions)
-    (let entry Int (p_head functions)
-      (if (p_name_eq (c_a entry) name) (pair 1 entry)
-        (c_find (p_tail functions) name))) (pair 0 0)))
 (def c_main_find ((functions Int)) Int
   (if (p_length functions)
     (let f Int (p_head functions)
@@ -416,7 +427,7 @@
         (c_main_find (p_tail functions)))) (p_fail)))
 (def c_application ((functions Int)) Int
   (if (p_length functions) (eq (c_kind (c_a (p_head functions))) 4) 0))
-(def c_declarations ((roots Int) (id Int) (functions Int)) Int
+(def c_declarations ((roots Int) (id Int) (functions Int) (by_name Int)) Int
   (if (p_length roots)
     (let ((root Int (c_list (p_head roots)))
           (checked Int (c_check (eq (p_length root) 5) root))
@@ -426,13 +437,14 @@
           (typecheck Int (c_check (eq (c_kind (c_nth checked 3)) 2) 0))
           (body Int (c_nth checked 4))
           (paramcheck Int (c_params params 0 (p_empty)))
-          (unique Int (c_check (eq (first (c_find functions name)) 0) 0))
+          (entry Int (c_record name params body id))
+          (index Int (m_put by_name (second name) entry 1))
           (marker Int (if (eq (c_kind name) 4)
             (c_check (* (eq id 100) (* (eq (p_length params) 0)
               (* (eq (first body) 1) (eq (second body) 1)))) 0) 0)))
       (c_declarations (p_tail roots) (+ id 1)
-        (p_cons (c_record name params body id) functions)))
-    (p_reverse functions)))
+        (p_cons entry functions) index))
+    (pair (p_reverse functions) by_name)))
 
 ; Count lexical homes before the fixed-size prologue is emitted. Traversal is
 ; explicit, and later compilation validates every visited form before output.
@@ -471,11 +483,9 @@
 (def c_is_primitive ((kind Int)) Int (* (lt 6 kind) (lt kind 20)))
 
 ; Argument values are on the evaluation stack before any caller binding moves.
-(def e_move_args ((s Int) (words Int)) Int
-  (if words
-    (let ((a Int (i_load s 0 8)) (b Int (i_store a 9 0))
-          (c Int (e_add b 8 8)) (d Int (e_add c 9 8)))
-      (e_move_args d (- words 1))) s))
+(def e_move_arg_word ((s Int)) Int
+  (let ((a Int (i_load s 0 8)) (b Int (i_store a 9 0)))
+    (e_add (e_add b 8 8) 9 8)))
 (def e_call ((s Int) (id Int) (argc Int) (tail Int) (parameters Int)) Int
   (if tail
     (let ((a Int (e_slot s parameters 0))
@@ -531,7 +541,7 @@
         (if (eq kind 15) (e_read s)
           (if (eq kind 16) (i_call s 6)
             (if (eq kind 19) (i_mov s 0 249) (p_fail))))))))
-(def e_primitive ((s Int) (kind Int)) Int
+(def e_primitive_body ((s Int) (kind Int)) Int
   (let ((arity Int (c_arity kind))
         (a Int (if (eq arity 2) (e_pop s 2) s))
         (b Int (if arity (e_pop a 0) a)))
@@ -581,8 +591,7 @@
                 (let ((checked Int (c_check (eq (p_length args) (c_arity kind)) 0))
                       (finish Int (p_cons (a_simple 1 kind 0 0 0) work)))
                   (c_loop s (a_args (p_reverse args) env finish) functions parameters))
-                (let ((found Int (c_find functions op))
-                      (function Int (c_check (first found) (second found)))
+                (let ((function Int (m_get functions (second op) 1))
                       (checked Int (c_check
                         (* (eq (p_length args) (p_length (c_b function)))
                           (eq (eq kind 4) 0)) 0))
@@ -598,7 +607,7 @@
             (shapecheck Int (c_check (eq (p_length binding) 3) 0))
             (name Int (c_name (p_head binding)))
             (typecheck Int (c_check (eq (c_kind (c_nth binding 1)) 2) 0))
-            (unique Int (c_check (eq (first (c_env_find env name)) 0) 0))
+            (unique Int (c_check (eq (first (c_env_find (p_length env) (second env) name)) 0) 0))
             (finish Int (a_simple 7 name (p_tail bindings) body (pair env tail))))
         (c_loop s (p_cons (a_expr (c_nth binding 2) env 0)
           (p_cons finish work)) functions parameters))
@@ -658,9 +667,10 @@
       (c_functions (e_return checked parameters) (p_tail remaining) functions)) s))
 (def main () Int
   (let ((roots Int (p_parse))
-        (functions Int (c_declarations roots 100 (p_empty)))
+        (declared Int (c_declarations roots 100 (p_empty) (m_empty)))
+        (functions Int (first declared))
         (entry Int (c_main_find functions))
         (start Int (pair (pair (+ 100 (p_length functions)) 0) (pair 0 0)))
         (runtime Int (e_runtime start (c_application functions) entry))
-        (compiled Int (c_functions runtime functions functions)))
+        (compiled Int (c_functions runtime functions (second declared))))
     (i_layout (second compiled) 0 0 (m_empty))))
