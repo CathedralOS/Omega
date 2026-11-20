@@ -110,3 +110,12 @@ The storage runtime now takes one checked type for a value field read and uses i
 The helper adds 486 bytes to the shared storage runtime. A storage-only echo with no field reads emitted the same 2,346 bytes and grew by 819 bytes when linked to a Linux executable. The pure program emitted the same 90 bytes. The public lexer module shrank from 1,106,536 to 1,088,131 bytes. Both lexer executables returned the same 465 bytes for all 23 cases.
 
 Under `ConstructionBytesV1`, the same whole input now emits 17,751,990 bytes including the marker, a reduction of 1,064,207 bytes (5.66%). Its SHA-256 is `d903f8d86cd12fd5cf11c57dda49fe4c5463805cdfbd62946a42e41cde01b11b`. Rewriting only the corresponding arms of the reference output reproduced every byte. This covers 9,820 ordinary field reads, 348 array lengths and three slice projections. In one Linux run per compiler, CPU time went from 135.36 to 134.64 seconds and peak RSS went from 3,708,708 to 3,585,784 KiB.
+
+The same source-built Delta and Gamma compilers took the module through native construction.
+
+| Artifact | Previous bytes | Revised bytes |
+| --- | ---: | ---: |
+| Gamma program | 27,177,694 | 25,928,081 |
+| Linux x86-64 executable | 58,603,133 | 55,718,620 |
+
+The revised executable compiled the two-package wire customer to the same 1,607-byte Alpha tape, SHA-256 `f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`. The stamped tape exited 42 with empty output. The wire gate also checks a missing package edge and a trailing byte. [Wire gate](../product_wire.py)
