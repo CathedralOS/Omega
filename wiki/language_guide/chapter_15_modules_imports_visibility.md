@@ -49,6 +49,19 @@ name are an error; import order never picks a winner. A package you import
 from must be a dependency you declared directly. See
 [directory namespaces and imports](../spec/language/modules.md#directory-namespaces).
 
+If your parameter and a module are both named `audio`, `audio::play()` is
+ambiguous. You can call either one without renaming it.
+
+```omega
+use audio::play;
+trait Player { machine play(); }
+
+machine preview<const audio: Player>() {
+    play();        // Imported from the audio module.
+    audio.play();  // Callable field on the supplied Player.
+}
+```
+
 ## Public and private
 
 A declaration is private unless marked `public`:
