@@ -96,7 +96,7 @@ on one host is not evidence of execution on a different host.
 
 ## Future proof research
 
-The retained [Gamma checker](proofs/checker/README.md) checks finite ground
+The retained [Gamma checker](../tests/bootstrap/proofs/checker/README.md) checks finite ground
 relations. Its Beta encoding theorem would establish exact encoding of one source
 subject to one tape, not that the evaluator implements Gamma. Executing a checker
 through an evaluator does not independently prove that evaluator correct.

@@ -3,13 +3,36 @@
 # checker implementation and the Beta encoding theory.
 # Source tools/bootstrap/paths.sh first.
 
-[ -n "${OMEGA_PATH_DERIVATION_CHECKER_SOURCES:-}" ] && \
-  [ -n "${OMEGA_PATH_BETA_ENCODING_SOURCES:-}" ] && \
-  [ -n "${OMEGA_PATH_BETA_ENCODING_PACKAGE:-}" ] && \
-  [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
+[ -n "${OMEGA_PATH_ALPHA:-}" ] || {
   echo "Proof sources: source tools/bootstrap/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
 }
+
+OMEGA_PATH_PROOFS=$OMEGA_REPO_ROOT/tests/bootstrap/proofs
+OMEGA_PATH_DERIVATION_CHECKER_SOURCES=$OMEGA_PATH_PROOFS/checker/implementation/implementation.gamma.sources
+OMEGA_PATH_BETA_ENCODING_SOURCES=$OMEGA_PATH_PROOFS/beta_encoding/theory/theory.gamma.sources
+OMEGA_PATH_BETA_ENCODING_PACKAGE=$OMEGA_PATH_PROOFS/beta_encoding/definition_package.bin
+
+# Gate-local prefix entries packed on top of the bound proof-closure member
+# bytes. The beta-encoding producer entry is shared by the theory and
+# certificate-check gates; each derivation gate supplies its own diagnostic
+# entry; the substitution and comparison paths name the gate directory
+# holding a shared diagnostic prefix and per-vector entry members.
+OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY=$OMEGA_PATH_PROOFS/beta-encoding-theory/main.gamma
+OMEGA_PATH_DERIVATION_ADMISSION_ENTRY=$OMEGA_PATH_PROOFS/derivation-admission/main.gamma
+OMEGA_PATH_DERIVATION_CHECKING_ENTRY=$OMEGA_PATH_PROOFS/derivation-checking/main.gamma
+OMEGA_PATH_DERIVATION_FORMATION_ENTRY=$OMEGA_PATH_PROOFS/derivation-formation/main.gamma
+OMEGA_PATH_DERIVATION_GROUND_ENTRY=$OMEGA_PATH_PROOFS/derivation-ground/main.gamma
+OMEGA_PATH_DERIVATION_LAYOUT_ENTRY=$OMEGA_PATH_PROOFS/derivation-layout/main.gamma
+OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES=$OMEGA_PATH_PROOFS/derivation-substitution
+OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES=$OMEGA_PATH_PROOFS/derivation-comparison
+
+export OMEGA_PATH_PROOFS OMEGA_PATH_DERIVATION_CHECKER_SOURCES OMEGA_PATH_BETA_ENCODING_SOURCES
+export OMEGA_PATH_BETA_ENCODING_PACKAGE OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY
+export OMEGA_PATH_DERIVATION_ADMISSION_ENTRY OMEGA_PATH_DERIVATION_CHECKING_ENTRY
+export OMEGA_PATH_DERIVATION_FORMATION_ENTRY
+export OMEGA_PATH_DERIVATION_GROUND_ENTRY OMEGA_PATH_DERIVATION_LAYOUT_ENTRY
+export OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES
 
 . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 
@@ -121,7 +144,7 @@ require_derivation_checker_identity() {
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$DERIVATION_CHECKER_MANIFEST_SIZE" "$DERIVATION_CHECKER_MANIFEST_SHA256" \
     "$DERIVATION_CHECKER_PACKED_SIZE" "$DERIVATION_CHECKER_PACKED_SHA256" \
-    "bootstrap/proofs/checker/README.md"
+    "tests/bootstrap/proofs/checker/README.md"
 }
 
 require_beta_encoding_theory_identity() {
@@ -129,12 +152,12 @@ require_beta_encoding_theory_identity() {
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$BETA_ENCODING_MANIFEST_SIZE" "$BETA_ENCODING_MANIFEST_SHA256" \
     "$BETA_ENCODING_PACKED_SIZE" "$BETA_ENCODING_PACKED_SHA256" \
-    "bootstrap/proofs/beta_encoding/README.md"
+    "tests/bootstrap/proofs/beta_encoding/README.md"
 }
 
 # The emitted definition package is the bound file itself, not a manifest:
 # the artifact owner fixes these bytes independently of the certificate
-# producer (bootstrap/proofs/beta_encoding/ACCEPTANCE.md), and the checker
+# producer (tests/bootstrap/proofs/beta_encoding/ACCEPTANCE.md), and the checker
 # request envelope's theory section is exactly this file. theory.gamma emits
 # it under the selected evaluator; the host-side mirror reproduces identical
 # bytes. Every consumer that trusts the package verifies this identity first.
@@ -143,7 +166,7 @@ require_beta_encoding_definition_package_identity() {
     "$OMEGA_PATH_BETA_ENCODING_PACKAGE" \
     "$BETA_ENCODING_DEFINITION_PACKAGE_SIZE" \
     "$BETA_ENCODING_DEFINITION_PACKAGE_SHA256" \
-    "bootstrap/proofs/beta_encoding/README.md"
+    "tests/bootstrap/proofs/beta_encoding/README.md"
 }
 
 # materialize_derivation_checker DEST / materialize_beta_encoding_theory DEST :

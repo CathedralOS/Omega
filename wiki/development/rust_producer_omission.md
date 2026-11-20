@@ -59,7 +59,7 @@ mbx xtask rust-producer-omission `
 
 ## Gate
 
-The gate audits the declared manifests for the bootstrap languages and proofs,
+The gate audits the declared manifests for the bootstrap languages,
 and the invocation scripts under `tools/bootstrap/`. Chain hygiene also checks
 the bound member and entry identities. [Omission gate](../../tools/rust_producer_omission.sh) · [Chain hygiene](../../tools/bootstrap/check-chain-hygiene.sh)
 

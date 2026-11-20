@@ -77,11 +77,11 @@ Both investigations ran on macOS arm64; no Windows result is claimed.
 ## P1 complete-route feasibility
 
 The next unit and scope pause belong to the
-[complete encoder candidate](../../../bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
+[complete encoder candidate](../../../tests/bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
 Its recorded customer was the exact evaluator source/tape in
 [the Gamma profile](../../../bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md), not another
 literal instruction proof. The
-[complete encoding subject](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+[complete encoding subject](../../../tests/bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 requires complete error-valued Beta definitions, independently constructed
 source/tape/limits/theory ownership, and a source-owned untrusted producer.
 An encoding certificate would still leave evaluator correctness separately
@@ -273,8 +273,8 @@ Do not select a larger profile from these costs.
 ## Coherent provisions
 
 Compare the integrated recipe against the
-[checker checking/allocation ledger](../../../bootstrap/proofs/checker/CHECKING.md),
-[comparison argument](../../../bootstrap/proofs/checker/COMPARISON.md#amortized-allocation-argument),
+[checker checking/allocation ledger](../../../tests/bootstrap/proofs/checker/CHECKING.md),
+[comparison argument](../../../tests/bootstrap/proofs/checker/COMPARISON.md#amortized-allocation-argument),
 and Gamma's enclosing frame and arena, not a work-limit constant alone.
 The current request/work provisions are 8 MiB and 655,360 work; larger private
 provisions are candidates, not demonstrated fits or changes to language laws.

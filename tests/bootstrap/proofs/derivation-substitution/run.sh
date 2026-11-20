@@ -3,8 +3,9 @@ set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 GATE_LABEL="Derivation substitution"
-GATE_ENVS="alpha/seed_env.sh gamma/evaluator_env.sh proofs/sources_env.sh"
+GATE_ENVS="alpha/seed_env.sh gamma/evaluator_env.sh"
 . "$GATE_DIR/../../support/gate_env.sh"
+. "$GATE_DIR/../sources_env.sh"
 . "$GATE_DIR/../../support/gate_host.sh"
 
 

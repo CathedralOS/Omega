@@ -22,7 +22,7 @@ the same 7,844,855-byte tape. Both Linux-target runs built the same
 checks and two invalid-syntax controls. Replaying the five previously
 published `@` inputs on those same executables gives 2/5. Epsilon specifies
 `&[u8]` and `&mut self`. The original requests and expected results remain
-available under `--profile historical-at`. [Portable checks](../../tests/bootstrap/conformance/README.md)
+available under `--profile historical-at`. [Portable checks](../../../tests/bootstrap/conformance/README.md)
 
 Times are single wall-clock observations on a shared machine. The two cold
 Gamma constructions took another 70 s for Alpha and 165 s for Linux.
@@ -34,22 +34,22 @@ The interpreted route omits both emitters. The Alpha-targeted tape is a useful
 comparison artifact because a reviewer can reproduce it with either host and execute
 it in the audited VM. Both hosts still share the frontend and backend source,
 so cross-host equality cannot detect a mistake common to those sources.
-[Alpha backend](../gamma/compiler/alpha/alpha_backend.gamma) · [Linux backend](../gamma/compiler/linux_x86_64/native.gamma)
+[Alpha backend](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma) · [Linux backend](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma)
 
 From the repository root, use fresh output directories. The Python comparison
 harness runs outside the construction chain. Its `xtask source-closure`
 helper materializes the ordered support bytes used in the test request.
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
-bootstrap/hosts/linux_x86_64/bootstrap . /tmp/omega-gamma-linux
+tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
+tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma-linux
 python3 tests/bootstrap/gamma_host_matrix.py --epsilon \
   /tmp/omega-gamma-alpha /tmp/omega-gamma-linux /tmp/omega-host-comparison
 ```
 
 Use `--wire` in place of `--epsilon` to take the same four constructions one
 step further. The test gives both target evaluators the complete Omega
-[wire decoder](../../source/foundation/wire/codec.omg) and a caller that checks
+[wire decoder](../../../source/foundation/wire/codec.omg) and a caller that checks
 zero, `0x12345678` and `0xffffffff`. It compares the emitted Alpha programs
 byte for byte and executes the common tape on the seed VM. Both evaluators
 returned the same 1,612-byte observation for the 848,481-byte request. Its

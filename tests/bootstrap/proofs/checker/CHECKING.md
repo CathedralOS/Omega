@@ -119,7 +119,7 @@ five-rule connected derivation, `relations` mutates both endpoint fields,
 32,768-deep symmetry proof dag — real test weight, not dead rows.
 
 The encoding members of the same audit are decided in
-`bootstrap/proofs/beta_encoding`: the TokenClass chooser, the only theory
+`tests/bootstrap/proofs/beta_encoding`: the TokenClass chooser, the only theory
 member no clause body could ever call, is removed and the remaining
 unexercised members (S_EMPTY, A_EXHAUSTED, the 900 never-premised clauses)
 are retained for contract-visible reasons — the Source base case, the
@@ -134,7 +134,7 @@ evaluator frame for the pinned checker source and four-byte source length. The
 canonical closure and diagnostic compositions are measured by their
 manifests/pins; the whole artifact owner must retain its exact entry
 composition and verify this framing requirement.
-The [checking diagnostic](../../../_recycling/tests/gamma/derivation-checking/source.tsv)
+The [checking diagnostic](../../../../_recycling/tests/gamma/derivation-checking/source.tsv)
 is 1,391 lines and 63,512 bytes; an exact-limit checker input yields
 `4 + 63,512 + 136,314,880 = 136,382,496` framed bytes.
 

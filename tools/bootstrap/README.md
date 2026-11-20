@@ -56,12 +56,6 @@ README records its own. The same file pins D's OCREQ request entry,
 SHA-256 `9cc2d065cf33e3a9de241d061f407665892f7171a431936a0e5ad9e5d3eeea85`.
 It is a separate input fed to the pinned customer entry as sealed bytes,
 not a manifest member.
-`tools/bootstrap/proofs/sources_env.sh` pins the
-`implementation.gamma.sources` and `theory.gamma.sources` manifests and their
-repacked member closures against `bootstrap/proofs/checker/README.md` and
-`bootstrap/proofs/beta_encoding/README.md`, plus the derivation gates'
-diagnostic prefix entries packed on top of the pinned member bytes; each
-gate's README records its own.
 
 The archived [identity gates](../../_recycling/tests/bootstrap/) checked the exact bytes written
 and that corrupted or truncated bytes are refused, against the pins. They
@@ -74,8 +68,8 @@ artifact and its obligations.
 declared compiler source closures. It checks that their manifest members and
 bootstrap steps omit the Rust producer. Alpha and Beta have flat seed
 directories. Gamma, Delta, Epsilon and Omega keep implementations under their
-language. Host launchers, route records and proof research each have their
-own directory in `bootstrap/`.
+language. The Linux launcher and proof experiments live under
+[bootstrap tests](../../tests/bootstrap/). The [route reports](../../wiki/development/bootstrap/) record measured results.
 
 The gate inspects tracked and untracked non-ignored files in a checkout,
 or the files present in a source archive. Empty owner directories left by a
@@ -84,8 +78,8 @@ both forms and checks that a new implementation can coexist with the tested
 routes.
 
 `mbx xtask source-closure MANIFEST OUTPUT` checks source members, in the order
-the manifest gives, and concatenates them. `GammaSourceClosureV1` selects `.gamma` members for the proof
-closures; `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
+the manifest gives, and concatenates them. `GammaSourceClosureV1` selects
+`.gamma` members for the Delta compiler and its runtime support; `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
 evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All use
 the same rows: identity, length, digest and canonical relative path. The
 manifest's directory must list every source file in it: a missing, extra,
@@ -97,9 +91,8 @@ membership, never choosing or ordering inputs.
 
 `paths.sh` exports the canonical path of each chosen directory. It may name
 future compiler artifacts before they exist; the layout check does not treat
-them as present. Proof gates take
-`OMEGA_PATH_DERIVATION_CHECKER_SOURCES` and
-`OMEGA_PATH_BETA_ENCODING_SOURCES` from it.
+them as present. The [proof test helper](../../tests/bootstrap/proofs/sources_env.sh)
+owns the paths and identity checks for the optional proof experiments.
 Shell scripts only invoke things and can be replaced. Source-closure packing,
 the Alpha Windows listing forge and Gamma evaluator runs are xtask commands.
 None of them may parse an accepted language, lower code, invent proof
@@ -121,8 +114,7 @@ artifacts stay in their language's directory.
 | `delta/compiler_env.sh` | Bound identity and canonical closure materialization for the Gamma-authored Delta compiler, plus the bound staged-compiler development driver entry. | Delete only when every caller has an equally direct canonical invocation. |
 | `epsilon/evaluator_env.sh` | Bound identity and canonical closure materialization for the Delta-authored Epsilon evaluator. | Delete only when every caller has an equally direct canonical invocation. |
 | `omega/compiler_env.sh` | Bound identity and canonical closure materialization for the Epsilon-written Omega compiler D. | Delete only when every caller has an equally direct canonical invocation. |
-| `proofs/sources_env.sh` | Bound identity and canonical member-closure materialization for the derivation checker and Beta encoding theory. | Delete only when every caller has an equally direct canonical invocation. |
-| `mbx xtask source-closure` | Byte-exact assembly of the Gamma proof, Delta-written Epsilon evaluator, and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
+| `mbx xtask source-closure` | Byte-exact assembly of the Gamma-written Delta compiler, Delta-written Epsilon evaluator, and Epsilon-written Omega compiler source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, old bootstrap-role
 wrapper, future-artifact locators, root compiler cache and receipt profiles

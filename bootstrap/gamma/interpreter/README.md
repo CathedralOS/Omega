@@ -23,9 +23,8 @@ Other small bootstrap tools require explicit justification under
 The selected evaluator is complete for the current Gamma contract. Proper-tail
 execution, whole-program static validation, provenance-tagged immutable pairs,
 profile-owned arithmetic traps, bounded output, and exact resource outcomes are
-implemented. Beta-root audit and the
-[Gamma-written derivation checker](../../proofs/README.md) are separate chain
-obligations.
+implemented. The [Beta root audit](../../beta/AUDIT.md) checks the admitted compiler tape.
+The [Gamma-written derivation checker](../../../tests/bootstrap/proofs/README.md) is an optional experiment.
 
 ## Retention inventory
 

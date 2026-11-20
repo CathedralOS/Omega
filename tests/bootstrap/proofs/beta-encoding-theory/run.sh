@@ -2,8 +2,9 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-GATE_ENVS="gamma/evaluator_env.sh proofs/sources_env.sh"
+GATE_ENVS="gamma/evaluator_env.sh"
 . "$GATE_DIR/../../support/gate_env.sh"
+. "$GATE_DIR/../sources_env.sh"
 ENCODING_OUT=
 case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;

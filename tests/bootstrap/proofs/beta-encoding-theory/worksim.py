@@ -1,6 +1,6 @@
 """Scratch validator: replay the derivation checker's work counter host-side.
 
-Mirrors bootstrap/proofs/checker/implementation charging exactly:
+Mirrors tests/bootstrap/proofs/checker/implementation charging exactly:
 
 - derivation_provision reserves count+1.
 - each derivation_row reserves 1, then rule work:

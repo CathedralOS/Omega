@@ -391,25 +391,19 @@ reporting the host.
 
 ## Bootstrap gates
 
-Bootstrap gates are `sh` scripts, not Cargo tests, and skip on a host that
-cannot run them. Source-closure packing, the Alpha Windows listing forge, and
-Gamma evaluator invocation are `mbx xtask` commands and need the built `xtask`
-binary (`mbx build -p xtask`). The topology gate fails when that binary is
-absent. Admission does not run the gate: a pull request checks rules and
-formatting, and the workflow builds xtask only when pushing the xtask sources
-to `main`.
+Run the topology check and the Alpha-to-Beta reconstruction from the repository root.
+The topology check uses the developer verifier built by `mbx build -p xtask`.
 
-```bash
+```sh
 sh tools/bootstrap/check-chain-hygiene.sh
-```
-
-```bash
 sh tests/bootstrap/interpreted/alpha-beta-edge.sh --edge
 ```
 
-The first is the single repository-topology gate. The second is the currently
-closed bootstrap floor. There is deliberately no wrapper that pretends to run
-the whole chain.
+The [Linux cold-build harness](../../tests/bootstrap/linux_x86_64/README.md)
+invokes the seed and compilers. Its sources and executable live with the tests.
+The [route reports](bootstrap/README.md) record experiments across languages.
+The [proof tests](../../tests/bootstrap/proofs/README.md) have their own inputs
+and checks.
 
 ## Checking every program
 

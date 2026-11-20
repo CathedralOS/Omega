@@ -2,12 +2,12 @@
 
 Builds the complete owner-fixed derivation exactly as --full-subject does,
 then emits mutated checker requests covering the acceptance axes in
-bootstrap/proofs/beta_encoding/ACCEPTANCE.md: source, tape, assertions,
+tests/bootstrap/proofs/beta_encoding/ACCEPTANCE.md: source, tape, assertions,
 theory identity, rules, clauses, substitution, premises, sorts, arities,
 partition joints, endpoints, final-root selection, and rejection after a
 valid prefix.  Every mutation carries the exact checker diagnostic the
 formed request must publish, derived from the coordinate and code
-conventions documented in bootstrap/proofs/checker/CHECKING.md and
+conventions documented in tests/bootstrap/proofs/checker/CHECKING.md and
 FORMAT.md:
 
 - code 6  physical decode failure (unknown tag, mismatched counts,

@@ -15,7 +15,10 @@ and execute. Humans and LLMs must be able to trace semantics, control flow,
 storage, dependencies and trust assumptions. Source size and stage count are
 measurements, not objectives. Complexity near the seed affects every successor.
 
-Keep host scripts outside `bootstrap/`. Construction uses the documented seed, driver and stage sources. Put Python reference implementations, test runners and their fixtures under `tests/bootstrap/` and run them as separate checks.
+Keep `bootstrap/` for the seeds, language implementations, construction inputs
+and their contracts. Host launchers, reference implementations, test fixtures
+and optional proof experiments belong under [tests/bootstrap](../tests/bootstrap/).
+Keep route measurements in the [development wiki](../wiki/development/bootstrap/README.md).
 
 ## Architectural authority
 
@@ -32,7 +35,7 @@ common implementation or premature convergence. A merged variant change is not
 selection of that architecture. Group implementations by the language they
 run. Each language after Beta can be interpreted, compiled to Alpha or compiled
 to native code. Record a tested sequence across those choices with its actual
-inputs, hosts and results in the [construction matrix](README.md).
+inputs, hosts and results in the [tested routes](../wiki/development/bootstrap/README.md).
 
 Use **bootstrap compiler** for the compiler that first builds the Omega compiler,
 and **Omega compiler** for the product. Historical C/D labels and artifact paths

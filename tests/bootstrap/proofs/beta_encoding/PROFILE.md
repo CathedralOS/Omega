@@ -1,6 +1,6 @@
 # Beta theory component profile
 
-[Theory and ownership](README.md) | [Executable gate](../../../tests/bootstrap/proofs/beta-encoding-theory/README.md)
+[Theory and ownership](README.md) | [Executable gate](../beta-encoding-theory/README.md)
 
 This profile covers the current source-owned theory emitter and finite
 diagnostic equations. It is not a profile for the certificate producer or
@@ -74,14 +74,14 @@ ones not used by the final root.
 | Tiny end-to-end encode, rejected | 6,145 | 100,183 |
 
 The encoder batches are produced by
-[stepper.py](../../../tests/bootstrap/proofs/beta-encoding-theory/stepper.py), the generic
+[stepper.py](../beta-encoding-theory/stepper.py), the generic
 formed-theory stepper that replays ground applications through their stated
 clauses and emits the ordinary certificate rows. Their equations are declared
-in [encoder.py](../../../tests/bootstrap/proofs/beta-encoding-theory/encoder.py); every
+in [encoder.py](../beta-encoding-theory/encoder.py); every
 batch is checked by the unchanged generic checker. The largest encoder request
 is 418,156 bytes (the valid end-to-end encode).
 
-The [gate's work derivations](../../../tests/bootstrap/proofs/beta-encoding-theory/README.md)
+The [gate's work derivations](../beta-encoding-theory/README.md)
 count clause selection, indexing, every visit/resumption, ground comparisons,
 explicit rules, and final-root checks independently of observed output. A Word
 unfolding includes seventeen template visits, seventeen resumptions, and sixteen
@@ -191,7 +191,7 @@ provisions remains unexecuted: the projected work uses the measured
 macOS arm64 evaluator run reached the 43,200-second host timeout without
 `Checked`.
 This is one straightforward producer shape, not a lower bound;
-the [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md) records the
+the [cost review](../../../../wiki/drafts/reference/bootstrap_cost_review.md) records the
 named reduction levers and confirms the remaining shortfall is structural.
 
 Windows runtime validation is unavailable in this session. The gate documents

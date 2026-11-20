@@ -38,8 +38,8 @@ The packed member closure materializes 3,408 lines / 130,363 bytes, SHA-256
 `632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25be08840b41ddf`.
 The manifest itself is 5,536 bytes, SHA-256
 `f93d98315b2197d81babcc8b3345a1df0e4eb219bf7e5c3288132ec2d3fe2e5d`;
-`tools/bootstrap/proofs/sources_env.sh` checks both identities against every
-materialization and `tests/bootstrap/interpreted/proofs-identity.sh` covers the refusals.
+`tests/bootstrap/proofs/sources_env.sh` checks both identities against every
+materialization. The [archived identity tests](../../../../_recycling/tests/bootstrap/proofs-identity.sh) record the refusal cases.
 A digest is an identity check on the member bytes, not artifact authority for
 the theory.
 
@@ -196,7 +196,7 @@ zero to its caller. It has no parameters and reads no input. There is no
 production artifact-admitting `main`; the test entry rejects nonempty input
 before emission and returns Gamma's marked application result to publish bytes
 without an extra scalar terminator. The exact closure and that entry are pinned
-by the [theory gate](../../../tests/bootstrap/proofs/beta-encoding-theory/README.md).
+by the [theory gate](../beta-encoding-theory/README.md).
 
 The section has eighteen sorts, 361 constructors, and 107 functions. The
 vocabulary and outer fields occupy 4,508 bytes; lexical functions occupy
@@ -224,18 +224,18 @@ checker request envelope's theory section is exactly these bytes
 definition package the [acceptance contract](ACCEPTANCE.md) fixes
 independently of the certificate producer. It is not host-authored: the
 host-side mirror reproduces the evaluator emission byte-for-byte, and
-`tools/bootstrap/proofs/sources_env.sh` binds the file to the same identity
+`tests/bootstrap/proofs/sources_env.sh` binds the file to the same identity
 (`require_beta_encoding_definition_package_identity`). A digest is an identity
 check on the package bytes, not a proof of the encoded source.
 
 ## Certificate request
 
 The produced certificate request — the check request the
-[certificate-check gate](../../../_recycling/tests/gamma/beta-encoding-check/README.md)
+[certificate-check gate](../../../../_recycling/tests/gamma/beta-encoding-check/README.md)
 consumes — binds at 135,485,028 bytes, SHA-256
 `7c0e3bf230a2675a170ea77dc6962ef6aa7c03ce15248b27475c7c6a3e592908`
 (`require_beta_encoding_certificate_request_identity` in
-`tools/bootstrap/proofs/sources_env.sh`). The bytes are produced, not
+`tests/bootstrap/proofs/sources_env.sh`). The bytes are produced, not
 committed: the stepper edge reproduces them from the bound theory and checker
 closures, and the producing gate's full-subject record carries the same
 identity. A digest is an identity check on the produced bytes, not a proof of
@@ -264,7 +264,7 @@ A complete theory is not a complete certificate: the artifact owner must still
 fix the raw Beta source and persisted Alpha tape subjects, reconstruct the
 owner-fixed proposition, and produce an explicit proof within the selected
 resource profile. The measured feasibility blocker for the integrated route is
-recorded in [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
+recorded in [TASKS_BOOTSTRAP.md](../../../../TASKS_BOOTSTRAP.md).
 
 Generic formation checks every declaration and every clause, including unused
 rows; explicit derivations check classifications, nibble operations and their

@@ -5,13 +5,13 @@ macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the select
 seed are required; macOS additionally needs `codesign`. Windows runtime validation
 is not implied by this portable entrypoint.
 
-The contract is [SUBSTITUTION.md](../../../../bootstrap/proofs/checker/SUBSTITUTION.md),
-following [COMPARISON.md](../../../../bootstrap/proofs/checker/COMPARISON.md).
+The contract is [SUBSTITUTION.md](../checker/SUBSTITUTION.md),
+following [COMPARISON.md](../checker/COMPARISON.md).
 The gate materializes the complete production closure once. Each diagnostic is
 the exact concatenation of `diagnostic.gamma`, a whole `entries/<name>.gamma`,
 and that closure. `source.tsv` pins each composition in `fixtures.py` order.
 The gate-local prefix files are bound in
-`tools/bootstrap/proofs/sources_env.sh` and checked by
+`tests/bootstrap/proofs/sources_env.sh` and checked by
 `require_derivation_substitution_prefixes_identity` before packing:
 
 | file | bytes | SHA-256 |

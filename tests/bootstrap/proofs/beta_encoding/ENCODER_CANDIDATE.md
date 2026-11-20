@@ -94,7 +94,7 @@ The pause does not abandon P1, authorize a new language/checker rule or host
 producer, or block independent bootstrap work. Ordinary engineering choices
 remain engineering choices, not unresolved language decisions.
 
-The [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md) now carries a
+The [cost review](../../../../wiki/drafts/reference/bootstrap_cost_review.md) now carries a
 derived integrated ledger for this candidate against the historical 47,756-byte
 subject at `d19361fe4deae73e1b488a940a872fec1ed885cb`. Measured there: the
 state census (17,130 distinct leaf states with

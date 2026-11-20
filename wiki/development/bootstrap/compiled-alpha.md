@@ -1,17 +1,17 @@
 # Compiled VM experiment
 
 This peer removes the Gamma interpretation layer after constructing a Gamma
-compiler from source. [`../gamma/compiler/compiler.gamma`](../gamma/compiler/compiler.gamma) and
-[`../gamma/compiler/frontend.gamma`](../gamma/compiler/frontend.gamma), with the
-[`Alpha backend`](../gamma/compiler/alpha/alpha_backend.gamma), compile Gamma to independent Alpha tapes.
+compiler from source. [`../../../bootstrap/gamma/compiler/compiler.gamma`](../../../bootstrap/gamma/compiler/compiler.gamma) and
+[`../../../bootstrap/gamma/compiler/frontend.gamma`](../../../bootstrap/gamma/compiler/frontend.gamma), with the
+[`Alpha backend`](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma), compile Gamma to independent Alpha tapes.
 Their first customer is the existing Gamma-written Delta compiler, which
 constructs the Delta-written Epsilon evaluator. Its Gamma receipt is compiled
 to another independent tape and runs the Epsilon-written bootstrap compiler.
 No variant is selected by this experiment.
 
 The source construction starts from the checked-in native
-[Alpha seed](../alpha/README.md), the separately admitted
-[Beta compiler tape](../beta/AUDIT.md), and the host OS. It stamps that tape
+[Alpha seed](../../../bootstrap/alpha/README.md), the separately admitted
+[Beta compiler tape](../../../bootstrap/beta/AUDIT.md), and the host OS. It stamps that tape
 into Alpha, reconstructs Beta from its source, and uses the reconstructed Beta
 compiler to construct the Gamma evaluator from Beta source. Both tapes must
 match their bound artifacts exactly. The constructed Gamma evaluator then runs
@@ -25,23 +25,23 @@ seed; it does not derive the initial Beta tape from nothing.
 From the repository root on Linux x86-64, construct the Alpha-tape Gamma compiler in a new output directory:
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
+tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
 /tmp/omega-gamma-alpha/gamma-compiler < source.gamma > program.tape
 ```
 
-The native driver feeds the seed and each reconstructed compiler directly. [Linux construction and inputs](../hosts/linux_x86_64/README.md)
+The native driver feeds the seed and each reconstructed compiler directly. [Linux construction and inputs](../../../tests/bootstrap/linux_x86_64/README.md)
 
 ### Compare a production request operation across evaluator hosts
 
-The [Request.clear test](../../tests/bootstrap/independent/request_clear.py)
+The [Request.clear test](../../../tests/bootstrap/independent/request_clear.py)
 takes the production `Request` declaration and `clear` machine byte for byte
-from [the request package](../../source/subsystems/compiler/request/request.omg).
+from [the request package](../../../source/subsystems/compiler/request/request.omg).
 Its caller sets both metadata words and the last byte of the 64 KiB request
 buffer. After calling `clear`, it checks both words are zero and uses the
 preserved byte as the exit code.
 
 Build the Linux and Alpha Epsilon evaluators from the same Delta request,
-then pass both executables to the test. [Linux construction](../hosts/linux_x86_64/README.md#run-the-compiled-alpha-tape-route)
+then pass both executables to the test. [Linux construction](../../../tests/bootstrap/linux_x86_64/README.md#run-the-compiled-alpha-tape-route)
 
 ```sh
 python3 tests/bootstrap/independent/request_clear.py /tmp/omega-epsilon/successor \
@@ -81,12 +81,12 @@ bytes (SHA-256 `8f344dc65c26b3bbc388acb53ed32085ec942160f8fc3809f0ec03f16bcfc928
 Both evaluators again published exactly the 1,355-byte observation above.
 The resulting 1,350-byte program exited 42 on Alpha.
 
-The [whole construction input](../../tests/bootstrap/independent/WHOLE_REQUEST.md)
+The [whole construction input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 exercises all product sources and the evaluator’s sealed-input provision.
 
 ## Host checks
 
-On an executable Alpha seed host, Python and shell drive the differential tests. The [Python Gamma compiler](../../tests/bootstrap/compiled_vm/gamma.py) supplies an independent implementation for comparison and for the explicit `--accelerated` test mode.
+On an executable Alpha seed host, Python and shell drive the differential tests. The [Python Gamma compiler](../../../tests/bootstrap/compiled_vm/gamma.py) supplies an independent implementation for comparison and for the explicit `--accelerated` test mode.
 
 ```sh
 # Seed construction, compiler fixed point, Delta/Epsilon, and an Omega program.
@@ -130,14 +130,14 @@ adjustable because checking the complete compiler is a materially larger
 workload.
 
 The constructed Gamma compiler writes raw Alpha code. Stamp the tape using
-[`seed_env.sh`](../../tools/bootstrap/alpha/seed_env.sh). The executable accepts
+[`seed_env.sh`](../../../tools/bootstrap/alpha/seed_env.sh). The executable accepts
 only the source program's sealed input, without the reference Gamma evaluator's
 four-byte source-length envelope. Invalid source leaves an existing output
 artifact untouched. Successful compilation replaces it atomically.
 
 ## Meaning and storage
 
-[`../2_gamma/LANGUAGE.md`](../gamma/LANGUAGE.md) governs the source language.
+[`../../../bootstrap/2_gamma/LANGUAGE.md`](../../../bootstrap/gamma/LANGUAGE.md) governs the source language.
 The compiler validates every function and both branches before publishing code.
 It supports wrapping words, checked scalar boundaries, immutable pairs,
 sequential grouped bindings, mutually visible functions, proper tail calls,
@@ -438,7 +438,7 @@ not reported as reruns on these final bytes.
 result. The bootstrap compiler now has checked record storage, copy-value
 transport, field writes, scoped shared/mutable reference parameters, independent
 Unit completion and a bounded default-domain solver. Its detailed supported
-semantics and refusals remain in [the compiler contract](../omega/compiler/README.md).
+semantics and refusals remain in [the compiler contract](../../../bootstrap/omega/compiler/README.md).
 That observation closed one actual successor helper; the complete Omega
 compiler remained unfinished. The later append/read customer below extends it.
 The integrated compiler source grows
@@ -528,9 +528,9 @@ admission/lowering correspondence, not native/Psi runtime evidence or a semantic
 stage in the bootstrap chain.
 
 
-The compiler source is composed in order from `../gamma/compiler/compiler.gamma`,
-`../gamma/compiler/frontend.gamma`, and `../gamma/compiler/alpha/alpha_backend.gamma`. Shared frontend and lowering remain
-one semantic owner; `../gamma/compiler/linux_x86_64/native.gamma` is an alternative realization,
+The compiler source is composed in order from `../../../bootstrap/gamma/compiler/compiler.gamma`,
+`../../../bootstrap/gamma/compiler/frontend.gamma`, and `../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma`. Shared frontend and lowering remain
+one semantic owner; `../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma` is an alternative realization,
 not an additional stage in this peer. Source composition changes function IDs
 and therefore compiler bytes; earlier source/tape identities above remain
 historical evidence for their exact recorded inputs. The Alpha backend retains
@@ -671,7 +671,7 @@ The extracted Omega source is 12,406 bytes,
 its 31,279-byte decoder tape is
 `ea7052722e423ccd4f6133432482879dd725b6f878d896a649181028dcd92af8`.
 The validation driver retains the selector and request framing in
-[test.py](../../tests/bootstrap/compiled_vm/test.py); all batches use that same compiler and Epsilon customer.
+[test.py](../../../tests/bootstrap/compiled_vm/test.py); all batches use that same compiler and Epsilon customer.
 The existing native successor invocation now exposes this customer with
 `python3 tests/bootstrap/independent/successor_test.py --omega-utf8 --seconds 14400`.
 Its default route reconstructs predecessors first; the measurements above reused
@@ -719,7 +719,7 @@ gives `0x40027a`. Both destinations start the call after the input loop.
 The loop's backward jump encodes `e9 c4 fe ff ff` at `0x400275`.
 Its displacement of −316 returns to the read at `0x40013e`, corresponding
 to Alpha tape offset `0x3c`.
-See the [Alpha assembler](../gamma/compiler/alpha/alpha_backend.gamma) and [native assembler](../gamma/compiler/linux_x86_64/native.gamma).
+See the [Alpha assembler](../../../bootstrap/gamma/compiler/alpha/alpha_backend.gamma) and [native assembler](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma).
 
 At `a59d45e8bd77`, field layout still emitted absolute native jumps. Its
 source-built native compiler was 1,543,898 bytes,
@@ -807,5 +807,5 @@ its original bytes and cannot establish that corrected layout boundary.
 The subsequent bounded native invocation completed on the actual classifier,
 corrected payload/default reset and two-package source-set construction. Its
 current source identities, execution results and measured whole-compiler refusal
-are recorded in [the bootstrap compiler](../omega/compiler/README.md#executed-nominal-values-and-source-set-construction).
+are recorded in [the bootstrap compiler](../../../bootstrap/omega/compiler/README.md#executed-nominal-values-and-source-set-construction).
 The interrupted observation above remains tied to its original bytes.

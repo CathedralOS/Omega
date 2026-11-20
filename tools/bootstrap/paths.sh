@@ -72,25 +72,6 @@ OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES=$OMEGA_REPO_ROOT/tests/bootstrap/conformance
 # compile. The executable gate feeds it to the bound customer as sealed input.
 OMEGA_PATH_OMEGA_OCREQ_ENTRY=$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/program.omg
 
-OMEGA_PATH_PROOFS=$OMEGA_PATH_BOOTSTRAP/proofs
-OMEGA_PATH_DERIVATION_CHECKER_SOURCES=$OMEGA_PATH_PROOFS/checker/implementation/implementation.gamma.sources
-OMEGA_PATH_BETA_ENCODING_SOURCES=$OMEGA_PATH_PROOFS/beta_encoding/theory/theory.gamma.sources
-OMEGA_PATH_BETA_ENCODING_PACKAGE=$OMEGA_PATH_PROOFS/beta_encoding/definition_package.bin
-
-# Gate-local prefix entries packed on top of the bound proof-closure member
-# bytes. The beta-encoding producer entry is shared by the theory and
-# certificate-check gates; each derivation gate supplies its own diagnostic
-# entry; the substitution and comparison paths name the gate directory
-# holding a shared diagnostic prefix and per-vector entry members.
-OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/beta-encoding-theory/main.gamma
-OMEGA_PATH_DERIVATION_ADMISSION_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-admission/main.gamma
-OMEGA_PATH_DERIVATION_CHECKING_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-checking/main.gamma
-OMEGA_PATH_DERIVATION_FORMATION_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-formation/main.gamma
-OMEGA_PATH_DERIVATION_GROUND_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-ground/main.gamma
-OMEGA_PATH_DERIVATION_LAYOUT_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-layout/main.gamma
-OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-substitution
-OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-comparison
-
 export OMEGA_REPO_ROOT OMEGA_PATH_BOOTSTRAP OMEGA_PATH_ALPHA
 export OMEGA_PATH_BETA OMEGA_PATH_BETA_COMPILER
 export OMEGA_PATH_BETA_COMPILER_SOURCE OMEGA_PATH_BETA_COMPILER_TAPE
@@ -118,13 +99,6 @@ export OMEGA_PATH_OMEGA_COMPILER_SOURCES OMEGA_PATH_OMEGA_PARSER_ENTRY
 export OMEGA_PATH_OMEGA_OUTCOME_ENTRY OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES
 export OMEGA_PATH_OMEGA_REQUEST_ENTRY OMEGA_PATH_OMEGA_REQUEST_FIXTURE
 export OMEGA_PATH_OMEGA_OCREQ_ENTRY
-export OMEGA_PATH_PROOFS OMEGA_PATH_DERIVATION_CHECKER_SOURCES OMEGA_PATH_BETA_ENCODING_SOURCES
-export OMEGA_PATH_BETA_ENCODING_PACKAGE OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY
-export OMEGA_PATH_DERIVATION_ADMISSION_ENTRY OMEGA_PATH_DERIVATION_CHECKING_ENTRY
-export OMEGA_PATH_DERIVATION_FORMATION_ENTRY
-export OMEGA_PATH_DERIVATION_GROUND_ENTRY OMEGA_PATH_DERIVATION_LAYOUT_ENTRY
-export OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES
-
 # Run one xtask subcommand. The same command is the repository task runner's
 # source-closure, alpha-forge, and gamma-invoke entry. These step files are
 # omission-audited, so they call the built binary (OMEGA_XTASK_BIN, or

@@ -12,7 +12,7 @@ encode_Beta(S, source_limit, output_limit) = Success(T)
 
 `S` is the entire selected Gamma evaluator's raw Beta source, including comments
 and whitespace; `T` is its entire persisted Alpha tape. The
-[evaluator profile](../../gamma/interpreter/EVALUATOR_PROFILE.md) owns current identities.
+[evaluator profile](../../../../bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md) owns current identities.
 The artifact owner fixes both subjects, the complete transparent Beta definition
 package, encoding profile, and root independently of the certificate producer.
 Neither a formed theory nor a producer-supplied theory identity authenticates
@@ -22,7 +22,7 @@ the definitions as Beta.
 
 The encoder is an ordinary total error-valued definition, not a primitive
 invoking Beta. `Success(T)` holds exactly for valid bounded source encoding
-those bytes under [Beta's complete language](../../beta/LANGUAGE.md).
+those bytes under [Beta's complete language](../../../../bootstrap/beta/LANGUAGE.md).
 There is no unchecked well-formedness premise. Invalid source and exhausted
 encoding capacity are distinct results; neither is generic checker Incomplete.
 
@@ -81,6 +81,6 @@ profile must fit all conjunctive requirements, not just the output tape.
 
 If proofs are too large, compare sharing and checked closed-lemma composition
 before adding rules. A weaker root, unchecked recursion, trusted assembly rule,
-or host stage requires [owner escalation](../../MINIMIZATION.md#owner-escalation).
+or host stage requires [owner escalation](../../../../bootstrap/MINIMIZATION.md#owner-escalation).
 The [encoder candidate](ENCODER_CANDIDATE.md) records the paused integration
 approach; it is neither an accepted theory nor demonstrated resource fit.

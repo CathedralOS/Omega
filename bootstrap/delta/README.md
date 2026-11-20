@@ -8,4 +8,4 @@ The [Delta compiler](to-gamma/README.md) is written in Gamma. It translates a De
 | Compile to Alpha | The [Gamma-to-Alpha backend](../gamma/compiler/alpha/alpha_backend.gamma) produces a tape for the Alpha VM. |
 | Compile to native | The [Gamma-to-Linux backend](../gamma/compiler/linux_x86_64/native.gamma) produces a Linux x86-64 executable. |
 
-For example, the byte-string doubling program emits one 3,082-byte Gamma program. The comparison exercises its three outcomes on empty input, embedded NUL and every byte value. The larger [Epsilon evaluator](../epsilon/interpreter/README.md) is another Delta program. [Language](LANGUAGE.md) · [Comparison and commands](../README.md#gamma-host-and-target-comparison)
+For example, the byte-string doubling program emits one 3,082-byte Gamma program. The comparison exercises its three outcomes on empty input, embedded NUL and every byte value. The larger [Epsilon evaluator](../epsilon/interpreter/README.md) is another Delta program. [Language](LANGUAGE.md) · [Comparison and commands](../../wiki/development/bootstrap/gamma-hosts.md)

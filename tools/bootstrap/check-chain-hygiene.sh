@@ -63,7 +63,6 @@ for required in \
   "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
-  "$OMEGA_PATH_PROOFS" \
   "$OMEGA_REPO_ROOT/source/library" \
   "$OMEGA_REPO_ROOT/source/subsystems/compiler/source_to_psi"
 do
@@ -104,10 +103,6 @@ printf '%s\n' "$xtask_usage" | grep -q 'gamma-invoke' ||
   fail "Delta-written Epsilon evaluator source manifest is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" ] ||
   fail "Epsilon-written Omega D source manifest is absent"
-[ -f "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" ] ||
-  fail "Gamma derivation checker source manifest is absent"
-[ -f "$OMEGA_PATH_BETA_ENCODING_SOURCES" ] ||
-  fail "Beta encoding theory source manifest is absent"
 
 for flat_rung in "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA"
 do
@@ -158,18 +153,14 @@ subsystems'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
   fail "unexpected product source owners: $tracked_source_roots"
 
-# Each language owns its implementations. Host launchers, proofs and the
-# recorded routes span languages and have separate owners.
+# Each bootstrap source directory belongs to a language.
 bootstrap_owners=$(owner_roots bootstrap)
 expected_bootstrap_owners='alpha
 beta
 delta
 epsilon
 gamma
-hosts
-omega
-proofs
-routes'
+omega'
 [ "$bootstrap_owners" = "$expected_bootstrap_owners" ] ||
   fail "unexpected bootstrap owners: $bootstrap_owners"
 

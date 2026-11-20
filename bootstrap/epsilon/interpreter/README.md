@@ -34,7 +34,7 @@ Remaining: bootstrap compiler + Omega compiler source + alpha_bootstrap
 The existing composition runs Epsilon and compiles exercised scalar Omega
 programs to Alpha tapes. It has not constructed the Omega compiler from its
 source. The [bootstrap compiler](../../omega/compiler/README.md) records implemented
-coverage and explicit refusals; the [compiled VM peer](../../routes/compiled-alpha.md)
+coverage and explicit refusals; the [compiled VM peer](../../../wiki/development/bootstrap/compiled-alpha.md)
 records its source construction and trust inputs. The first Omega compiler
 must then rebuild the same Omega compiler source reproducibly.
 

@@ -16,66 +16,8 @@ separate choice. For example, a Gamma compiler running on Linux can emit Alpha
 tape. A language's directory holds its implementations once, including those
 shared by multiple outcomes.
 
-## Tested threads through the matrix
+The next rung is [Omega](omega/README.md). The bootstrap compiler must build
+the Omega compiler from source and use it to reproduce itself. Full
+self-construction remains open. [Construction contract](CONTRACT.md) · [Bootstrap mandate](MINIMIZATION.md)
 
-Read each row from left to right after the common Alpha and Beta steps.
-
-| Gamma runs the Delta compiler on | Delta runs the Epsilon tool on | Epsilon program runs as | Result |
-| --- | --- | --- | --- |
-| Interpreter | Interpreted Gamma | Interpreted Epsilon | Four lexer predicates matched on six inputs. Portable Omega compilation reached 300 s. [Run](../tests/bootstrap/interpreted/epsilon/README.md) |
-| Alpha | Alpha | Interpreted Epsilon | The wire decoder and `Request.clear` compiled and ran. [Run](routes/compiled-alpha.md#compare-a-production-request-operation-across-evaluator-hosts) |
-| Linux | Linux | Interpreted Epsilon | Both Omega programs matched the Alpha-hosted builds byte for byte. [Run](routes/gamma-hosts.md) |
-| Linux | Alpha and Linux, compared | Alpha tape | Both Epsilon compilers emitted identical Delta for the string scanner. The tape passed 17 cases. [Run](routes/native.md#public-omega-lexer-observations) |
-| Linux | Linux | Linux executable | The string scanner passed 17 cases and the full public lexer passed 23. [Run](routes/native.md#public-omega-lexer-observations) |
-
-The scanner runs reused source-built Linux tools to turn emitted Delta into
-Gamma. The Gamma backends then built the actual scanner programs. The full
-public scanner exceeded the Alpha tape limit.
-
-The next rung is [Omega](omega/README.md). A winning thread must construct
-the Omega compiler from the declared seed and use it to reproduce itself.
-That remains open. [Bootstrap mandate](MINIMIZATION.md)
-
-## Gamma host and target comparison
-
-Both Gamma compiler hosts independently produced the same Delta compiler and
-Epsilon evaluator for each target. The shared Delta program also ran under the
-Gamma interpreter. [Four-cell experiment, commands, sizes and timings](routes/gamma-hosts.md)
-
-## Building the compiler
-
-From the repository root on Linux x86-64, run
-`bootstrap/hosts/linux_x86_64/bootstrap . /tmp/omega-gamma` with a new output
-directory to build the native Gamma compiler offline. Put `--alpha` before
-`.` to build the Alpha-tape compiler. Both commands rebuild the Gamma compiler
-twice with an empty `PATH`, using the embedded seeds and the supplied source files.
-The same entry accepts the Delta compiler source and an Epsilon evaluator
-compilation request. [Offline commands and inputs](hosts/linux_x86_64/README.md)
-
-The bootstrap compiler's job is to build the **Omega compiler** (C in older
-records), the product written in Omega.
-Construction of the full product and its reproducible self-build remain open.
-The product uses a deliberate subset of Omega while preserving the language's
-semantics and explicit refusals. [Omega compiler and libraries](../source)
-
-The complete construction input used here contains 304 Omega source units
-in seven packages. Its 3,955,617 bytes fit the constructor's source-input
-provision. Packaging it with the Epsilon-written bootstrap compiler for the
-evaluator takes 4,807,765 bytes. Both stock targets returned outer status
-253 with empty output at the Delta adapter's 4 MiB input check. A native
-evaluator rebuilt with an 8 MiB input limit reached the constructor on a
-same-size control. The real request ran for 480 s on that evaluator and
-published neither an artifact nor a compiler diagnostic before the watchdog.
-[Product input](../source/application/construction/construct.py) · [Evaluator experiment](../tests/bootstrap/independent/WHOLE_REQUEST.md)
-
-A host Rust toolchain builds the Rust comparator, which can compile Omega
-sources during development. Record that dependency when reporting a
-Rust-assisted build. [Rust comparator](../source-rust)
-
-Host-side tests, reference interpreters and development accelerators live under [tests/bootstrap](../tests/bootstrap/). When promoting a chain, take its candidate tests and the [portable conformance checks](../tests/bootstrap/conformance/README.md). The compiled routes share their comparison helpers in [compiled.py](../tests/bootstrap/compiled.py).
-
-Record seed and trust assumptions, actual cold runs, development acceleration
-and failed experiments.
-The [edge contracts](CONTRACT.md) describe the retained language edges.
-Scripts locate their sources through [`tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh).
-[Proof research](proofs/README.md) is optional for construction.
+The [Linux cold-build harness](../tests/bootstrap/linux_x86_64/README.md) drives the seed and compilers on Linux x86-64. The [tested routes](../wiki/development/bootstrap/README.md) record which combinations have run.
