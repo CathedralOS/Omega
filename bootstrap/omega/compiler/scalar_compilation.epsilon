@@ -126,7 +126,7 @@ data OmegaScalarCompiler {
     // call as the last statement. state_targets
     // holds the row/expression/first-statement index; state_values is the
     // exclusive statement end for kind 5.
-    state_labels: [i32; 4096];
+    state_labels: [i32; 16384];
     state_terminal_kind: [i32; 4096];
     state_values: [i32; 4096];
     state_targets: [i32; 4096];
@@ -144,13 +144,13 @@ data OmegaScalarCompiler {
     // 32 plain u32, 33 plain i32, 64 plain u64, 288 Trapping u32, 320 Trapping u64,
     // 576 Wrapping u64. Compound codes below
     // retain their declaration/type-row identity. Zero is never admitted.
-    state_types: [i32; 4096];
-    state_owners: [i32; 4096];
+    state_types: [i32; 16384];
+    state_owners: [i32; 16384];
     // Authored entry predicates retain exact formal/projected subjects. Bodies
     // may use these bounds only while the corresponding storage is unchanged;
     // every call discharges them against its captured actual arguments.
-    bound_first: [i32; 4096];
-    bound_count: [i32; 4096];
+    bound_first: [i32; 16384];
+    bound_count: [i32; 16384];
     bound_total: i32;
     entry_bounds: [OmegaEntryBound; 16384];
     value_states: [i32; 16384];
@@ -243,12 +243,12 @@ data OmegaScalarCompiler {
     // bound infers. The published envelope is distinct from its call marker.
     block_bounds: [i32; 4096];
     // The published and inferred state effects use bit 1 for blocking, bit 2 for Trap.
-    state_effects: [i32; 4096];
-    state_incoming: [i32; 4096];
+    state_effects: [i32; 16384];
+    state_incoming: [i32; 16384];
     // 32,768 ordinary calls plus 16,384 transition arms.
     state_invocations: [OmegaStateInvocation; 49152];
     state_invocation_count: i32;
-    effect_work: [i32; 4096];
+    effect_work: [i32; 16384];
     call_colors: [i32; 4096];
     // Completed DFS order places every admitted callee before its callers.
     call_order: [i32; 4096];
@@ -399,17 +399,17 @@ machine OmegaScalarCompiler::resolve_state(
     transition true { true -> scan(caller, caller + 1) }
 
     state scan(scope: i32, candidate: i32) {
-        transition candidate < self.parser.machine_states[scope].subtree_end {
+        transition candidate < self.parser.machine_states[self.local_state_row(scope)].subtree_end {
             true -> compare(scope, candidate)
-            _ -> ascend(self.parser.machine_states[scope].lexical_parent)
+            _ -> ascend(self.parser.machine_states[self.local_state_row(scope)].lexical_parent)
         }
     }
 
     state compare(scope: i32, candidate: i32) {
-        let name: OmegaRelativeSpan = self.parser.machine_states[candidate].name;
+        let name: OmegaRelativeSpan = self.parser.machine_states[self.local_state_row(candidate)].name;
         transition self.span_equals(source, name.start, name.end, source[start..end]) {
             1 -> return candidate
-            _ -> scan(scope, self.parser.machine_states[candidate].subtree_end)
+            _ -> scan(scope, self.parser.machine_states[self.local_state_row(candidate)].subtree_end)
         }
     }
 
@@ -1137,14 +1137,14 @@ machine OmegaScalarCompiler::value_cell(
 ) -> i32 {
     transition true { true -> parameter(0) }
     state parameter(offset: i32) {
-        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         transition offset < body.parameter_count {
             true -> parameter_name(offset)
             _ -> local(0)
         }
     }
     state parameter_name(offset: i32) {
-        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         let slot: i32 = body.first_parameter + offset;
         let name: OmegaRelativeSpan = self.parser.machine_parameters[slot].name;
         transition self.span_equals(source, start, end, source[name.start..name.end]) {
@@ -1159,7 +1159,7 @@ machine OmegaScalarCompiler::value_cell(
         }
     }
     state local_kind(offset: i32) {
-        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         let row: OmegaStatementSyntax = self.parser.statements[body.first_statement + offset];
         transition row.kind {
             OmegaStatementKind::LocalData -> local_name(offset, row.item_index)
@@ -1599,8 +1599,8 @@ machine OmegaScalarCompiler::check_value(
             call.start, call.target);
     }
     state arity(call: OmegaCallExpressionSyntax, callee: i32) {
-        transition call.argument_count == self.parser.machine_states[
-            self.parser.machine_items[callee].first_state].parameter_count {
+        transition call.argument_count == self.state_parameter_count(
+            self.parser.machine_items[callee].first_state) {
             true -> result_type(call, callee)
             _ -> rejected(call.start)
         }
@@ -1614,8 +1614,8 @@ machine OmegaScalarCompiler::check_value(
     }
     state arguments(call: OmegaCallExpressionSyntax, callee: i32) {
         transition self.check_value_arguments(source, owner, state_index, before,
-            call.first_argument, call.argument_count, self.parser.machine_states[
-            self.parser.machine_items[callee].first_state].first_parameter, 0) {
+            call.first_argument, call.argument_count, self.state_first_parameter(
+            self.parser.machine_items[callee].first_state), 0) {
             1 -> contract(call, callee)
             _ -> return 0
         }
@@ -1630,7 +1630,7 @@ machine OmegaScalarCompiler::check_value(
     state edge(call: OmegaCallExpressionSyntax, callee: i32) {
         transition (self.retain_edge(owner, state_index, callee, call.start, call.acknowledgements) == 1) &&
             (self.retain_call_effects(state_index, before, call.first_argument, call.argument_count,
-                self.parser.machine_states[self.parser.machine_items[callee].first_state].first_parameter) == 1) {
+                self.state_first_parameter(self.parser.machine_items[callee].first_state)) == 1) {
             true -> retain(OmegaCheckedValueKind::Call, callee)
             _ -> return 0
         }
@@ -2486,7 +2486,7 @@ machine OmegaScalarCompiler::check_transition_target(
         }
     }
     state signature(row: OmegaTransitionStatementSyntax, target: i32) {
-        transition (row.argument_count == self.parser.machine_states[target].parameter_count) &&
+        transition (row.argument_count == self.state_parameter_count(target)) &&
             (self.state_types[state_index] == self.state_types[target]) {
             true -> arguments(row, target)
             _ -> reject(row.start)
@@ -2494,7 +2494,7 @@ machine OmegaScalarCompiler::check_transition_target(
     }
     state arguments(row: OmegaTransitionStatementSyntax, target: i32) {
         transition self.check_value_arguments(source, owner, state_index, before,
-            row.first_argument, row.argument_count, self.parser.machine_states[target].first_parameter, 1) {
+            row.first_argument, row.argument_count, self.state_first_parameter(target), 1) {
             1 -> contract(row, target)
             _ -> return 0
         }
@@ -2764,9 +2764,9 @@ machine OmegaScalarCompiler::emit_value_call(
         // A no-return transfer stages the same checked arguments but has no
         // return address or result. Calls to returning machines retain both.
         1 -> return self.emit_arguments(first_argument, count,
-            self.parser.machine_states[entry].first_parameter, self.machine_labels[callee], 12)
+            self.state_first_parameter(entry), self.machine_labels[callee], 12)
         _ -> return self.emit_arguments(first_argument, count,
-            self.parser.machine_states[entry].first_parameter, self.machine_labels[callee], 19)
+            self.state_first_parameter(entry), self.machine_labels[callee], 19)
     }
 }
 
@@ -2828,7 +2828,7 @@ machine OmegaScalarCompiler::emit_transition_target(&mut self, row_index: i32) -
     }
     state target(row: OmegaTransitionStatementSyntax, target: i32) {
         return self.emit_arguments(row.first_argument, row.argument_count,
-            self.parser.machine_states[target].first_parameter, self.state_labels[target], 12);
+            self.state_first_parameter(target), self.state_labels[target], 12);
     }
 }
 
@@ -2902,7 +2902,7 @@ machine OmegaScalarCompiler::check_case_transition(
     first: i32, last: i32, declaration: i32
 ) -> i32 {
     let subject: i32 = self.parser.transition_statements[self.parser.statements[
-        self.parser.machine_states[state_index].first_statement + first].item_index].subject;
+        self.parser.machine_states[self.local_state_row(state_index)].first_statement + first].item_index].subject;
     transition self.check_value(source, owner, state_index, first, subject, 100000 + declaration) {
         1 -> clear(0)
         _ -> return 0
@@ -2920,7 +2920,7 @@ machine OmegaScalarCompiler::check_case_transition(
     state arm(cursor: i32, wildcard: i32) {
         transition cursor < last {
             true -> row(cursor, wildcard, self.parser.statements[
-                self.parser.machine_states[state_index].first_statement + cursor].item_index)
+                self.parser.machine_states[self.local_state_row(state_index)].first_statement + cursor].item_index)
             _ -> coverage(wildcard)
         }
     }
@@ -3017,7 +3017,7 @@ machine OmegaScalarCompiler::emit_dynamic_transition(
     &mut self, state_index: i32, first: i32, last: i32
 ) -> i32 {
     let subject: i32 = self.parser.transition_statements[self.parser.statements[
-        self.parser.machine_states[state_index].first_statement + first].item_index].subject;
+        self.parser.machine_states[self.local_state_row(state_index)].first_statement + first].item_index].subject;
     transition (self.emit_value(subject) == 1) && (self.emit_value_store(49152 + subject) == 1) {
         true -> arm(first, subject)
         _ -> return 0
@@ -3025,7 +3025,7 @@ machine OmegaScalarCompiler::emit_dynamic_transition(
     state arm(cursor: i32, subject: i32) {
         transition cursor < last {
             true -> row(cursor, subject, self.parser.statements[
-                self.parser.machine_states[state_index].first_statement + cursor].item_index)
+                self.parser.machine_states[self.local_state_row(state_index)].first_statement + cursor].item_index)
             _ -> return 1
         }
     }
@@ -3100,8 +3100,8 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     }
     state result(index: i32) {
         self.state_owners[index] = owner;
-        transition self.parser.machine_states[index].has_return_type {
-            1 -> explicit_result(index, self.scalar_type(source, self.parser.machine_states[index].return_type))
+        transition self.parser.machine_states[self.local_state_row(index)].has_return_type {
+            1 -> explicit_result(index, self.scalar_type(source, self.parser.machine_states[self.local_state_row(index)].return_type))
             _ -> retain_result(index, 2)
         }
     }
@@ -3117,9 +3117,9 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
         transition true { true -> parameter(index, 0) }
     }
     state parameter(index: i32, offset: i32) {
-        transition offset < self.parser.machine_states[index].parameter_count {
-            true -> parameter_type(index, offset, self.parser.machine_states[index].first_parameter + offset)
-            _ -> sibling_names(index, self.parser.machine_states[index].lexical_parent)
+        transition offset < self.state_parameter_count(index) {
+            true -> parameter_type(index, offset, self.state_first_parameter(index) + offset)
+            _ -> sibling_names(index, self.parser.machine_states[self.local_state_row(index)].lexical_parent)
         }
     }
     state parameter_type(index: i32, offset: i32, slot: i32) {
@@ -3157,7 +3157,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     state parameter_names(index: i32, offset: i32, name: OmegaRelativeSpan, previous: i32) {
         transition previous < offset {
             true -> parameter_compare(index, offset, name, previous,
-                self.parser.machine_parameters[self.parser.machine_states[index].first_parameter + previous].name)
+                self.parser.machine_parameters[self.state_first_parameter(index) + previous].name)
             _ -> parameter(index, offset + 1)
         }
     }
@@ -3176,32 +3176,32 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     }
     state names(index: i32, previous: i32) {
         transition previous < index {
-            true -> compare_name(index, previous, self.parser.machine_states[index].name,
-                self.parser.machine_states[previous].name)
+            true -> compare_name(index, previous, self.parser.machine_states[self.local_state_row(index)].name,
+                self.parser.machine_states[self.local_state_row(previous)].name)
             _ -> next(index + 1)
         }
     }
     state compare_name(index: i32, previous: i32, name: OmegaRelativeSpan, other: OmegaRelativeSpan) {
         transition self.span_equals(source, name.start, name.end, source[other.start..other.end]) {
             1 -> same_name(index, previous, name.start)
-            _ -> names(index, self.parser.machine_states[previous].subtree_end)
+            _ -> names(index, self.parser.machine_states[self.local_state_row(previous)].subtree_end)
         }
     }
     state same_name(index: i32, previous: i32, coordinate: i32) {
-        transition self.parser.machine_states[index].parameter_count == self.parser.machine_states[previous].parameter_count {
+        transition self.state_parameter_count(index) == self.state_parameter_count(previous) {
             true -> same_parameters(index, previous, coordinate, 0)
             _ -> unsupported(coordinate)
         }
     }
     state same_parameters(index: i32, previous: i32, coordinate: i32, offset: i32) {
-        transition offset < self.parser.machine_states[index].parameter_count {
+        transition offset < self.state_parameter_count(index) {
             true -> same_parameter(index, previous, coordinate, offset)
             _ -> duplicate(coordinate)
         }
     }
     state same_parameter(index: i32, previous: i32, coordinate: i32, offset: i32) {
-        transition self.parameter_types[self.parser.machine_states[index].first_parameter + offset] ==
-            self.parameter_types[self.parser.machine_states[previous].first_parameter + offset] {
+        transition self.parameter_types[self.state_first_parameter(index) + offset] ==
+            self.parameter_types[self.state_first_parameter(previous) + offset] {
             true -> same_parameters(index, previous, coordinate, offset + 1)
             _ -> unsupported(coordinate)
         }
@@ -3444,8 +3444,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state reset_state_node(index: i32) {
         self.state_incoming[index] = -1;
-        self.state_effects[index] = self.parser.machine_states[index].crash_bound & 2;
-        transition self.parser.machine_states[index].block_bound {
+        self.state_effects[index] = self.state_crash_bound(index) & 2;
+        transition self.state_block_bound(index) {
             1 -> seed_nested_block(index)
             _ -> reset_state_graph(index + 1)
         }
@@ -3538,6 +3538,12 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition true { true -> labels(0) }
     }
     state decode_entry_bounds(state_index: i32) {
+        transition self.select_construction_unit(source, self.construction.machines[self.state_owners[state_index]].unit) {
+            1 -> loaded_entry_bounds(state_index)
+            _ -> return
+        }
+    }
+    state loaded_entry_bounds(state_index: i32) {
         transition self.decode_entry_bounds(source, state_index) {
             1 -> check_entry_bounds(state_index + 1)
             _ -> return
@@ -3629,8 +3635,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     // An empty unannotated outer body may have no generated entry row.
     // Its first nested declaration must never become the outer callable.
     state machine_signatures(index: i32) {
-        transition self.parser.machine_states[
-            self.parser.machine_items[index].first_state].name_kind {
+        transition self.parser.machine_states[self.local_state_row(
+            self.parser.machine_items[index].first_state)].name_kind {
             OmegaMachineStateNameKind::GeneratedEntry -> machine_types(index)
             _ -> incomplete(4, self.diagnostic_offset)
         }
@@ -3664,18 +3670,18 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     // Structural identity ignores parameter spelling. Differing arity or an
     // unimplemented operand type denotes an unsupported overload family.
     state duplicate_arity(index: i32, previous: i32, coordinate: i32) {
-        transition self.parser.machine_states[
-            self.parser.machine_items[index].first_state].parameter_count ==
-            self.parser.machine_states[
-            self.parser.machine_items[previous].first_state].parameter_count {
+        transition self.state_parameter_count(
+            self.parser.machine_items[index].first_state) ==
+            self.state_parameter_count(
+            self.parser.machine_items[previous].first_state) {
             true -> duplicate_parameter(index, previous, 0, coordinate)
             _ -> incomplete(4, coordinate)
         }
     }
 
     state duplicate_parameter(index: i32, previous: i32, offset: i32, coordinate: i32) {
-        transition offset < self.parser.machine_states[
-            self.parser.machine_items[index].first_state].parameter_count {
+        transition offset < self.state_parameter_count(
+            self.parser.machine_items[index].first_state) {
             true -> duplicate_parameter_type(index, previous, offset, coordinate)
             _ -> reject(10, 4, coordinate)
         }
@@ -3683,10 +3689,10 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state duplicate_parameter_type(index: i32, previous: i32,
         offset: i32, coordinate: i32) {
-        transition self.parameter_types[self.parser.machine_states[
-            self.parser.machine_items[index].first_state].first_parameter + offset] ==
-            self.parameter_types[self.parser.machine_states[
-            self.parser.machine_items[previous].first_state].first_parameter + offset] {
+        transition self.parameter_types[self.state_first_parameter(
+            self.parser.machine_items[index].first_state) + offset] ==
+            self.parameter_types[self.state_first_parameter(
+            self.parser.machine_items[previous].first_state) + offset] {
             true -> duplicate_parameter(index, previous, offset + 1, coordinate)
             _ -> incomplete(4, coordinate)
         }
@@ -3709,7 +3715,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state state_body(index: i32, state_index: i32) {
-        transition self.parser.machine_states[state_index].statement_count {
+        transition self.parser.machine_states[self.local_state_row(state_index)].statement_count {
             0 -> missing_terminal(index, state_index)
             _ -> check_statement(index, state_index, 0)
         }
@@ -3724,7 +3730,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state unit_terminal(index: i32, state_index: i32) {
-        self.state_terminal_kind[state_index] = 6;
+        self.state_terminal_kind[self.local_state_row(state_index)] = 6;
         transition true { true -> check_states(index, state_index + 1) }
     }
     state missing_scalar_terminal(index: i32, state_index: i32) {
@@ -3732,13 +3738,13 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
             self.parser.machine_items[index].first_state {
             true -> reject(-1, 4, self.diagnostic_offset)
             _ -> reject(-1, 4,
-                self.parser.machine_states[state_index].name.start)
+                self.state_name_start(state_index))
         }
     }
 
     state check_statement(index: i32, state_index: i32, statement_offset: i32) {
         let statement: i32 =
-            self.parser.machine_states[state_index].first_statement +
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement +
             statement_offset;
         transition self.parser.statements[statement].kind {
             OmegaStatementKind::Call -> check_call(index, state_index, statement)
@@ -3759,7 +3765,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state check_crash(index: i32, state_index: i32, offset: i32, coordinate: i32) {
-        transition offset + 1 == self.parser.machine_states[state_index].statement_count {
+        transition offset + 1 == self.parser.machine_states[self.local_state_row(state_index)].statement_count {
             true -> check_crash_route(index, state_index, offset, coordinate)
             _ -> incomplete(4, coordinate)
         }
@@ -3767,17 +3773,17 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state check_crash_route(index: i32, state_index: i32, offset: i32, coordinate: i32) {
         // An unconditional first operation in an unconstrained initial state
         // needs no path analysis. Other possible routes use the call summary.
-        transition ((self.parser.machine_states[state_index].crash_bound == 1) ||
+        transition ((self.state_crash_bound(state_index) == 1) ||
             ((state_index == self.parser.machine_items[index].first_state) &&
              (self.machine_allows_trap[index] == 0))) && (offset == 0) &&
-            (self.parser.machine_states[state_index].requirement_count == 0) {
+            (self.parser.machine_states[self.local_state_row(state_index)].requirement_count == 0) {
             true -> reject(-1, 4, coordinate)
             _ -> retain_trap_terminal(index, state_index)
         }
     }
     state retain_trap_terminal(index: i32, state_index: i32) {
         self.state_effects[state_index] = self.state_effects[state_index] | 2;
-        self.state_terminal_kind[state_index] = 7;
+        self.state_terminal_kind[self.local_state_row(state_index)] = 7;
         transition true { true -> check_states(index, state_index + 1) }
     }
 
@@ -3813,7 +3819,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state local_value(index: i32, state_index: i32, statement_offset: i32,
         local: OmegaLocalDataStatementSyntax) {
         let local_index: i32 = self.parser.statements[
-            self.parser.machine_states[state_index].first_statement + statement_offset].item_index;
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement + statement_offset].item_index;
         self.local_befores[local_index] = statement_offset;
         let kind: i32 = self.scalar_type(source, local.type_reference);
         transition (local.has_initial_value == 0) && (self.uninhabited_type(kind) == 1) {
@@ -3916,7 +3922,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state next_statement(index: i32, state_index: i32, statement_offset: i32) {
         transition statement_offset <
-            self.parser.machine_states[state_index].statement_count {
+            self.parser.machine_states[self.local_state_row(state_index)].statement_count {
             true -> check_statement(index, state_index, statement_offset)
             _ -> missing_terminal(index, state_index)
         }
@@ -3946,7 +3952,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state nested_call(state_index: i32, statement: i32, name: OmegaRelativeSpan) {
-        let before: i32 = statement - self.parser.machine_states[state_index].first_statement;
+        let before: i32 = statement - self.parser.machine_states[self.local_state_row(state_index)].first_statement;
         transition self.check_helper_name(source, state_index, before, name) {
             1 -> incomplete(4, name.start)
             _ -> return
@@ -3964,7 +3970,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state unresolved_call(index: i32, state_index: i32, statement: i32, call: OmegaCallStatementSyntax,
         name: OmegaRelativeSpan) {
-        self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[state_index].first_statement,
+        self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[self.local_state_row(state_index)].first_statement,
             call.first_argument, call.argument_count, self.terminal_declaration_coordinate(source, call.first_receiver_member,
                 call.receiver_member_count, name), call.start, name);
         return;
@@ -3974,8 +3980,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     // list; a mismatched arity is a checking refusal.
     state call_arity(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax, callee: i32) {
-        transition call.argument_count == self.parser.machine_states[
-            self.parser.machine_items[callee].first_state].parameter_count {
+        transition call.argument_count == self.state_parameter_count(
+            self.parser.machine_items[callee].first_state) {
             true -> call_values(index, state_index, statement, call, callee)
             _ -> reject(-1, 4, call.start)
         }
@@ -3984,9 +3990,9 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state call_values(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax, callee: i32) {
         transition self.check_value_arguments(source, index, state_index,
-            statement - self.parser.machine_states[state_index].first_statement,
+            statement - self.parser.machine_states[self.local_state_row(state_index)].first_statement,
             call.first_argument, call.argument_count,
-            self.parser.machine_states[self.parser.machine_items[callee].first_state].first_parameter, 0) {
+            self.state_first_parameter(self.parser.machine_items[callee].first_state), 0) {
             1 -> call_contract(index, state_index, statement, call, callee)
             _ -> return
         }
@@ -3995,7 +4001,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state call_contract(index: i32, state_index: i32, statement: i32,
         call: OmegaCallStatementSyntax, callee: i32) {
         transition self.check_call_bounds(source, state_index,
-            statement - self.parser.machine_states[state_index].first_statement,
+            statement - self.parser.machine_states[self.local_state_row(state_index)].first_statement,
             call.first_argument, call.argument_count, self.parser.machine_items[callee].first_state, -1, 0) {
             1 -> call_edge(index, state_index, statement, call, callee)
             _ -> return
@@ -4005,9 +4011,9 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         call: OmegaCallStatementSyntax, callee: i32) {
         transition (self.retain_edge(index, state_index, callee, call.start, call.acknowledgements) == 1) &&
             (self.retain_call_effects(state_index,
-                statement - self.parser.machine_states[state_index].first_statement,
+                statement - self.parser.machine_states[self.local_state_row(state_index)].first_statement,
                 call.first_argument, call.argument_count,
-                self.parser.machine_states[self.parser.machine_items[callee].first_state].first_parameter) == 1) {
+                self.state_first_parameter(self.parser.machine_items[callee].first_state)) == 1) {
             true -> retain_call(index, state_index, statement, callee)
             _ -> return
         }
@@ -4016,20 +4022,20 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state retain_call(index: i32, state_index: i32, statement: i32, callee: i32) {
         self.call_targets[statement] = callee;
         let next: i32 = statement + 1 -
-            self.parser.machine_states[state_index].first_statement;
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement;
         transition self.uninhabited_type(self.state_types[self.parser.machine_items[callee].first_state]) {
             1 -> no_return_tail(index, state_index, statement, next)
             _ -> next_statement(index, state_index, next)
         }
     }
     state no_return_tail(index: i32, state_index: i32, statement: i32, next: i32) {
-        transition next == self.parser.machine_states[state_index].statement_count {
+        transition next == self.parser.machine_states[self.local_state_row(state_index)].statement_count {
             true -> no_return_checked(index, state_index)
             _ -> incomplete(4, self.parser.call_statements[self.parser.statements[statement].item_index].start)
         }
     }
     state no_return_checked(index: i32, state_index: i32) {
-        self.state_terminal_kind[state_index] = 8;
+        self.state_terminal_kind[self.local_state_row(state_index)] = 8;
         transition true { true -> check_states(index, state_index + 1) }
     }
 
@@ -4037,7 +4043,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state check_terminal(index: i32, state_index: i32, statement_offset: i32,
         statement: i32) {
         transition statement_offset ==
-            self.parser.machine_states[state_index].statement_count - 1 {
+            self.parser.machine_states[self.local_state_row(state_index)].statement_count - 1 {
             true -> terminal_kind(index, state_index,
                 self.parser.statements[statement].item_index)
             _ -> internal()
@@ -4046,7 +4052,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state terminal_kind(index: i32, state_index: i32, expression: i32) {
         transition self.check_value(source, index, state_index,
-            self.parser.machine_states[state_index].statement_count - 1, expression,
+            self.parser.machine_states[self.local_state_row(state_index)].statement_count - 1, expression,
             self.state_types[state_index]) {
             1 -> retain_value_terminal(index, state_index, expression)
             _ -> return
@@ -4054,8 +4060,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state retain_value_terminal(index: i32, state_index: i32, expression: i32) {
-        self.state_terminal_kind[state_index] = 4;
-        self.state_targets[state_index] = expression;
+        self.state_terminal_kind[self.local_state_row(state_index)] = 4;
+        self.state_targets[self.local_state_row(state_index)] = expression;
         transition true { true -> check_states(index, state_index + 1) }
     }
 
@@ -4068,7 +4074,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         let row: OmegaTransitionStatementSyntax =
             self.parser.transition_statements[
                 self.parser.statements[
-                    self.parser.machine_states[state_index].first_statement +
+                    self.parser.machine_states[self.local_state_row(state_index)].first_statement +
                     statement_offset].item_index];
         self.transition_anchor = row.start;
         transition true {
@@ -4080,7 +4086,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state transition_run_end(index: i32, state_index: i32, statement_offset: i32,
         cursor: i32, has_subject: i32, subject: i32) {
         transition cursor <
-            self.parser.machine_states[state_index].statement_count {
+            self.parser.machine_states[self.local_state_row(state_index)].statement_count {
             true -> transition_run_row(index, state_index, statement_offset,
                 cursor, has_subject, subject)
             _ -> transition_subject(index, state_index, statement_offset,
@@ -4091,7 +4097,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state transition_run_row(index: i32, state_index: i32, statement_offset: i32,
         cursor: i32, has_subject: i32, subject: i32) {
         transition self.parser.statements[
-            self.parser.machine_states[state_index].first_statement +
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement +
             cursor].kind {
             OmegaStatementKind::Transition ->
                 transition_run_signature(index, state_index, statement_offset,
@@ -4105,7 +4111,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         let row: OmegaTransitionStatementSyntax =
             self.parser.transition_statements[
                 self.parser.statements[
-                    self.parser.machine_states[state_index].first_statement +
+                    self.parser.machine_states[self.local_state_row(state_index)].first_statement +
                     cursor].item_index];
         transition (row.has_subject == has_subject) && (row.subject == subject) {
             true -> transition_run_end(index, state_index, statement_offset,
@@ -4138,7 +4144,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         let row: OmegaTransitionStatementSyntax =
             self.parser.transition_statements[
                 self.parser.statements[
-                    self.parser.machine_states[state_index].first_statement +
+                    self.parser.machine_states[self.local_state_row(state_index)].first_statement +
                     statement_offset].item_index];
         transition row.guard_kind {
             OmegaTransitionGuardKind::Always ->
@@ -4150,7 +4156,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state subjectless_target(index: i32, state_index: i32,
         statement_offset: i32) {
         let row_index: i32 = self.parser.statements[
-            self.parser.machine_states[state_index].first_statement + statement_offset].item_index;
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement + statement_offset].item_index;
         transition self.check_transition_target(source, index, state_index, statement_offset, row_index) {
             1 -> retain_transition(index, state_index, row_index)
             _ -> return
@@ -4210,7 +4216,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         transition arm < last {
             true -> dynamic_guard(index, state_index, first, last, arm, covered,
                 self.parser.transition_statements[self.parser.statements[
-                    self.parser.machine_states[state_index].first_statement + arm].item_index])
+                    self.parser.machine_states[self.local_state_row(state_index)].first_statement + arm].item_index])
             _ -> dynamic_covered(index, state_index, first, last, covered)
         }
     }
@@ -4231,7 +4237,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state dynamic_target(index: i32, state_index: i32, first: i32, last: i32, arm: i32, covered: i32) {
         transition self.check_transition_target(source, index, state_index, first,
-            self.parser.statements[self.parser.machine_states[state_index].first_statement + arm].item_index) {
+            self.parser.statements[self.parser.machine_states[self.local_state_row(state_index)].first_statement + arm].item_index) {
             1 -> dynamic_arm(index, state_index, first, last, arm + 1, covered)
             _ -> return
         }
@@ -4243,9 +4249,9 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state retain_dynamic(index: i32, state_index: i32, first: i32, last: i32) {
-        self.state_terminal_kind[state_index] = 5;
-        self.state_targets[state_index] = first;
-        self.state_values[state_index] = last;
+        self.state_terminal_kind[self.local_state_row(state_index)] = 5;
+        self.state_targets[self.local_state_row(state_index)] = first;
+        self.state_values[self.local_state_row(state_index)] = last;
         transition true { true -> check_states(index, state_index + 1) }
     }
 
@@ -4290,7 +4296,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         let row: OmegaTransitionStatementSyntax =
             self.parser.transition_statements[
                 self.parser.statements[
-                    self.parser.machine_states[state_index].first_statement +
+                    self.parser.machine_states[self.local_state_row(state_index)].first_statement +
                     arm].item_index];
         transition row.guard_kind {
             OmegaTransitionGuardKind::Always ->
@@ -4310,7 +4316,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         let row: OmegaTransitionStatementSyntax =
             self.parser.transition_statements[
                 self.parser.statements[
-                    self.parser.machine_states[state_index].first_statement +
+                    self.parser.machine_states[self.local_state_row(state_index)].first_statement +
                     arm].item_index];
         transition self.subject_class {
             0 -> arm_integer_literal(index, state_index, run_end, arm,
@@ -4366,7 +4372,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state arm_target(index: i32, state_index: i32, run_end: i32, arm: i32,
         selected: i32, matched: i32) {
         let row_index: i32 = self.parser.statements[
-            self.parser.machine_states[state_index].first_statement + arm].item_index;
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement + arm].item_index;
         transition self.check_transition_target(source, index, state_index,
             arm, row_index) {
             1 -> arm_advance(index, state_index, run_end, arm, selected, matched, row_index)
@@ -4391,8 +4397,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state retain_transition(index: i32, state_index: i32, target: i32) {
-        self.state_terminal_kind[state_index] = 3;
-        self.state_targets[state_index] = target;
+        self.state_terminal_kind[self.local_state_row(state_index)] = 3;
+        self.state_targets[self.local_state_row(state_index)] = target;
         transition true { true -> check_states(index, state_index + 1) }
     }
 
@@ -4418,8 +4424,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state entry_arity() {
-        transition self.parser.machine_states[
-            self.parser.machine_items[self.selected_machine].first_state].parameter_count {
+        transition self.state_parameter_count(
+            self.parser.machine_items[self.selected_machine].first_state) {
             0 -> entry_result()
             _ -> incomplete(4, self.parser.machine_items[self.selected_machine].start)
         }
@@ -4502,14 +4508,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state check_state_bound(index: i32) {
-        transition ((self.state_effects[index] & 1) != 0) && (self.parser.machine_states[index].block_bound == 0) {
-            true -> reject(-1, 4, self.parser.machine_states[index].name.start)
+        transition ((self.state_effects[index] & 1) != 0) && (self.state_block_bound(index) == 0) {
+            true -> reject(-1, 4, self.state_name_start(index))
             _ -> check_nested_crash_bound(index)
         }
     }
     state check_nested_crash_bound(index: i32) {
-        transition ((self.state_effects[index] & 2) != 0) && (self.parser.machine_states[index].crash_bound == 1) {
-            true -> incomplete(4, self.parser.machine_states[index].name.start)
+        transition ((self.state_effects[index] & 2) != 0) && (self.state_crash_bound(index) == 1) {
+            true -> incomplete(4, self.state_name_start(index))
             _ -> check_acknowledgements(index, self.state_incoming[index])
         }
     }
@@ -4687,9 +4693,9 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state emit_statements(index: i32, state_index: i32,
         statement_offset: i32) {
-        transition (statement_offset < self.parser.machine_states[state_index].statement_count) &&
-            ((self.state_terminal_kind[state_index] == 6) || (self.state_terminal_kind[state_index] == 8) ||
-            (statement_offset < self.parser.machine_states[state_index].statement_count - 1)) {
+        transition (statement_offset < self.parser.machine_states[self.local_state_row(state_index)].statement_count) &&
+            ((self.state_terminal_kind[self.local_state_row(state_index)] == 6) || (self.state_terminal_kind[self.local_state_row(state_index)] == 8) ||
+            (statement_offset < self.parser.machine_states[self.local_state_row(state_index)].statement_count - 1)) {
             true -> emit_nonterminal(index, state_index, statement_offset)
             _ -> emit_terminal(index, state_index)
         }
@@ -4700,7 +4706,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state emit_nonterminal(index: i32, state_index: i32,
         statement_offset: i32) {
         transition self.parser.statements[
-            self.parser.machine_states[state_index].first_statement +
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement +
             statement_offset].kind {
             OmegaStatementKind::Call ->
                 emit_call_statement(index, state_index, statement_offset)
@@ -4716,7 +4722,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state emit_local(index: i32, state_index: i32, statement_offset: i32) {
         let local_index: i32 = self.parser.statements[
-            self.parser.machine_states[state_index].first_statement + statement_offset].item_index;
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement + statement_offset].item_index;
         self.local_befores[local_index] = statement_offset;
         transition self.parser.local_data_statements[local_index].has_initial_value {
             0 -> emit_local_zero(index, state_index, statement_offset, local_index)
@@ -4738,7 +4744,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state emit_assignment_statement(index: i32, state_index: i32, statement_offset: i32) {
         let row: OmegaAssignmentStatementSyntax = self.parser.assignment_statements[
-            self.parser.statements[self.parser.machine_states[state_index].first_statement + statement_offset].item_index];
+            self.parser.statements[self.parser.machine_states[self.local_state_row(state_index)].first_statement + statement_offset].item_index];
         transition (self.emit_place_address(row.target) == 1) &&
             (self.emit_save_address(49152 + row.target) == 1) &&
             (self.emit_value(row.value) == 1) &&
@@ -4755,10 +4761,10 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     state emit_call_statement(index: i32, state_index: i32,
         statement_offset: i32) {
         let callee: i32 = self.call_targets[
-            self.parser.machine_states[state_index].first_statement +
+            self.parser.machine_states[self.local_state_row(state_index)].first_statement +
             statement_offset];
         let call: OmegaCallStatementSyntax = self.parser.call_statements[
-            self.parser.statements[self.parser.machine_states[state_index].first_statement +
+            self.parser.statements[self.parser.machine_states[self.local_state_row(state_index)].first_statement +
                 statement_offset].item_index];
         transition self.emit_value_call(callee, call.first_argument, call.argument_count) {
             1 -> emit_statements(index, state_index, statement_offset + 1)
@@ -4767,7 +4773,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state emit_terminal(index: i32, state_index: i32) {
-        transition self.state_terminal_kind[state_index] {
+        transition self.state_terminal_kind[self.local_state_row(state_index)] {
             3 -> emit_jump_terminal(index, state_index)
             4 -> emit_value_terminal(index, state_index)
             5 -> emit_dynamic_terminal(index, state_index)
@@ -4792,7 +4798,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state emit_value_terminal(index: i32, state_index: i32) {
-        transition (self.emit_value(self.state_targets[state_index]) == 1) &&
+        transition (self.emit_value(self.state_targets[self.local_state_row(state_index)]) == 1) &&
             (self.tape.emit_ret() == 1) {
             true -> emit_state(index, state_index + 1)
             _ -> emission_failure()
@@ -4802,14 +4808,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     // A transition is a direct jump: no call frame, no return edge, and the
     // departed state never resumes.
     state emit_jump_terminal(index: i32, state_index: i32) {
-        transition self.emit_transition_target(self.state_targets[state_index]) {
+        transition self.emit_transition_target(self.state_targets[self.local_state_row(state_index)]) {
             1 -> emit_state(index, state_index + 1)
             _ -> emission_failure()
         }
     }
     state emit_dynamic_terminal(index: i32, state_index: i32) {
         transition self.emit_dynamic_transition(state_index,
-            self.state_targets[state_index], self.state_values[state_index]) {
+            self.state_targets[self.local_state_row(state_index)], self.state_values[self.local_state_row(state_index)]) {
             1 -> emit_state(index, state_index + 1)
             _ -> emission_failure()
         }
@@ -6639,8 +6645,8 @@ machine OmegaScalarCompiler::reference_signature(&mut self, owner: i32, state_in
         _ -> original(self.parser.machine_items[owner].first_state, 0)
     }
     state original(entry: i32, offset: i32) {
-        transition offset < self.parser.machine_states[entry].parameter_count {
-            true -> parameter(entry, offset, self.parameter_types[self.parser.machine_states[entry].first_parameter + offset])
+        transition offset < self.state_parameter_count(entry) {
+            true -> parameter(entry, offset, self.parameter_types[self.state_first_parameter(entry) + offset])
             _ -> return 0
         }
     }
@@ -6681,7 +6687,7 @@ machine OmegaScalarCompiler::check_forward_reference(
     }
     state parameter(name: OmegaRelativeSpan) {
         let slot: i32 = self.value_cell(source, state_index, before, name.start, name.end);
-        let entry: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let entry: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         transition (slot >= entry.first_parameter) && (slot < entry.first_parameter + entry.parameter_count) {
             true -> type(slot)
             _ -> unsupported()
@@ -6749,9 +6755,9 @@ machine OmegaScalarCompiler::decode_entry_bounds(&mut self, source: &[u8], state
     self.bound_count[state_index] = 0;
     transition true { true -> next(0) }
     state next(offset: i32) {
-        transition offset < self.parser.machine_states[state_index].requirement_count {
+        transition offset < self.parser.machine_states[self.local_state_row(state_index)].requirement_count {
             true -> predicate(offset, self.parser.requirements[
-                self.parser.machine_states[state_index].first_requirement + offset].expression)
+                self.parser.machine_states[self.local_state_row(state_index)].first_requirement + offset].expression)
             _ -> complete()
         }
     }
@@ -6807,7 +6813,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state formal(row: OmegaBinaryExpressionSyntax, root: i32) {
-        let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        let body: OmegaMachineStateSyntax = self.parser.machine_states[self.local_state_row(state_index)];
         transition (root >= body.first_parameter) && (root < body.first_parameter + body.parameter_count) &&
             ((self.parameter_types[root] < 100000) || (self.parameter_types[root] >= 400000)) {
             true -> carrier(row, self.place_types[row.left])
@@ -7050,7 +7056,7 @@ machine OmegaScalarCompiler::preserve_entry_place(&mut self, state_index: i32, b
     }
     state next(cursor: i32) {
         transition cursor < before {
-            true -> statement(cursor, self.parser.statements[self.parser.machine_states[state_index].first_statement + cursor])
+            true -> statement(cursor, self.parser.statements[self.parser.machine_states[self.local_state_row(state_index)].first_statement + cursor])
             _ -> return 1
         }
     }
@@ -7228,7 +7234,7 @@ machine OmegaScalarCompiler::check_call_bounds(
         }
     }
     state actual(index: i32, bound: OmegaEntryBound) {
-        let offset: i32 = bound.root - self.parser.machine_states[target].first_parameter;
+        let offset: i32 = bound.root - self.state_first_parameter(target);
         transition (offset >= 0) && (offset < count) {
             true -> argument(index, bound, self.parser.call_arguments[first_argument + offset])
             _ -> unsupported()
@@ -7237,7 +7243,7 @@ machine OmegaScalarCompiler::check_call_bounds(
     state argument(index: i32, bound: OmegaEntryBound, argument: i32) {
         transition bound.slice >= 0 {
             true -> slice_argument(index, bound, argument,
-                bound.slice - self.parser.machine_states[target].first_parameter)
+                bound.slice - self.state_first_parameter(target))
             _ -> scalar_or_reference(index, bound, argument)
         }
     }

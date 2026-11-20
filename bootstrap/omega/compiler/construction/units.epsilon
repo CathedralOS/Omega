@@ -23,7 +23,19 @@ data OmegaConstructionArray {
     count: i32;
 }
 
+// Program-wide state identity is needed for forward jumps, caller checks and
+// effect propagation. The state name and body syntax remain local to a file.
+data OmegaConstructionState {
+    first_parameter: i32;
+    parameter_count: i32;
+    block_bound: i32;
+    crash_bound: i32;
+    name_start: i32;
+}
+
 data OmegaConstructionDirectory {
+    states: [OmegaConstructionState; 16384];
+    state_first: i32;
     arrays: [OmegaConstructionArray; 32768];
     machines: [OmegaConstructionDeclaration; 4096];
     types: [OmegaConstructionDeclaration; 4096];
@@ -77,7 +89,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
             (self.parser.data_member_count <= 16384 - self.construction.total.field_count - self.construction.total.case_count) &&
             (self.parser.data_payload_field_count <= 16384 - self.construction.total.payload_count) &&
             (self.parser.machine_count <= 4096 - self.construction.total.machine_count) &&
-            (self.parser.machine_state_count <= 4096 - self.construction.total.state_count) &&
+            (self.parser.machine_state_count <= 16384 - self.construction.total.state_count) &&
             (self.parser.machine_parameter_count <= 16384 - self.construction.total.parameter_count) {
             true -> data_item(unit, 0)
             _ -> units(unit + 1, 0)
@@ -150,9 +162,17 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     state signature(unit: i32, index: i32, row: OmegaMachineStateSyntax) {
         transition (row.requirement_count == 0) && ((row.has_return_type == 0) ||
             (self.construction_value_type(source, row.return_type) == 1)) {
-            true -> state_item(unit, index + 1)
+            true -> retain_state(unit, index, self.construction.total.state_count + index, row)
             _ -> units(unit + 1, 0)
         }
+    }
+    state retain_state(unit: i32, index: i32, global: i32, row: OmegaMachineStateSyntax) {
+        self.construction.states[global].first_parameter = self.construction.total.parameter_count + row.first_parameter;
+        self.construction.states[global].parameter_count = row.parameter_count;
+        self.construction.states[global].block_bound = row.block_bound;
+        self.construction.states[global].crash_bound = row.crash_bound;
+        self.construction.states[global].name_start = row.name.start;
+        transition true { true -> state_item(unit, index + 1) }
     }
     state machine_item(unit: i32, local: i32) {
         transition local < self.parser.machine_count {
@@ -225,7 +245,7 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     self.construction.unit_first = first.machine_count;
     self.construction.unit_end = end.machine_count;
     self.parser.machine_count = first.machine_count;
-    self.parser.machine_state_count = first.state_count;
+    self.construction.state_first = first.state_count;
     self.parser.machine_parameter_count = first.parameter_count;
     self.parser.data_count = first.data_count;
     self.parser.data_field_count = first.field_count;
@@ -234,12 +254,41 @@ machine OmegaScalarCompiler::load_construction_unit(&mut self, source: &[u8], un
     self.parser.data_payload_field_count = first.payload_count;
     self.parser.unit_index = unit;
     self.parser.append_unit(source[0..self.parser.sources.units[unit].end], self.parser.sources.units[unit].start);
-    transition (self.parser.machine_count == end.machine_count) && (self.parser.machine_state_count == end.state_count) &&
+    transition (self.parser.machine_count == end.machine_count) && (self.parser.machine_state_count == end.state_count - first.state_count) &&
         (self.parser.machine_parameter_count == end.parameter_count) && (self.parser.data_count == end.data_count) &&
         (self.parser.data_field_count == end.field_count) && (self.parser.data_case_count == end.case_count) &&
         (self.parser.data_payload_field_count == end.payload_count) {
-        true -> expose_signatures()
+        true -> machine_states(first.machine_count)
         _ -> internal()
+    }
+    // The parser wrote only this file's state rows. Rebase links, including
+    // nested lexical scopes, onto the program's source-ordered label IDs.
+    state machine_states(index: i32) {
+        transition index < self.construction.unit_end {
+            true -> machine_range(index)
+            _ -> state_links(0)
+        }
+    }
+    state machine_range(index: i32) {
+        self.parser.machine_items[index].first_state = self.construction.state_first + self.parser.machine_items[index].first_state;
+        transition true { true -> machine_states(index + 1) }
+    }
+    state state_links(row: i32) {
+        transition row < self.parser.machine_state_count {
+            true -> state_end(row)
+            _ -> expose_signatures()
+        }
+    }
+    state state_end(row: i32) {
+        self.parser.machine_states[row].subtree_end = self.construction.state_first + self.parser.machine_states[row].subtree_end;
+        transition self.parser.machine_states[row].lexical_parent >= 0 {
+            true -> parent(row)
+            _ -> state_links(row + 1)
+        }
+    }
+    state parent(row: i32) {
+        self.parser.machine_states[row].lexical_parent = self.construction.state_first + self.parser.machine_states[row].lexical_parent;
+        transition true { true -> state_links(row + 1) }
     }
     state expose_signatures() {
         self.parser.machine_count = self.construction.total.machine_count;
@@ -351,4 +400,48 @@ machine OmegaScalarCompiler::select_construction_unit(&mut self, source: &[u8], 
         }
     }
     state internal() { self.record_internal(); return 0; }
+}
+
+// Global signatures and effect proofs use retained state facts. Body, source
+// type and statement rows are read only while that state's unit is loaded.
+machine OmegaScalarCompiler::local_state_row(&mut self, index: i32) -> i32 {
+    transition self.construction.active {
+        1 -> return index - self.construction.state_first
+        _ -> return index
+    }
+}
+
+machine OmegaScalarCompiler::state_first_parameter(&mut self, index: i32) -> i32 {
+    transition self.construction.active {
+        1 -> return self.construction.states[index].first_parameter
+        _ -> return self.parser.machine_states[index].first_parameter
+    }
+}
+
+machine OmegaScalarCompiler::state_parameter_count(&mut self, index: i32) -> i32 {
+    transition self.construction.active {
+        1 -> return self.construction.states[index].parameter_count
+        _ -> return self.parser.machine_states[index].parameter_count
+    }
+}
+
+machine OmegaScalarCompiler::state_block_bound(&mut self, index: i32) -> i32 {
+    transition self.construction.active {
+        1 -> return self.construction.states[index].block_bound
+        _ -> return self.parser.machine_states[index].block_bound
+    }
+}
+
+machine OmegaScalarCompiler::state_crash_bound(&mut self, index: i32) -> i32 {
+    transition self.construction.active {
+        1 -> return self.construction.states[index].crash_bound
+        _ -> return self.parser.machine_states[index].crash_bound
+    }
+}
+
+machine OmegaScalarCompiler::state_name_start(&mut self, index: i32) -> i32 {
+    transition self.construction.active {
+        1 -> return self.construction.states[index].name_start
+        _ -> return self.parser.machine_states[index].name.start
+    }
 }

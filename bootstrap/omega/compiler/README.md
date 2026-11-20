@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,795 lines / 1,031,761 bytes with SHA-256
-`8bc16c29cf64e78128722a935607123698bb49e509284719a6ac76c346585bc8`.
+The manifest materializes 26,894 lines / 1,037,108 bytes with SHA-256
+`b5ee5a02f1ba6882384cd4695a3c062f5c8bd2c34459e5619ad2e7cb5909c7ac`.
 The manifest itself is 2,381 bytes, SHA-256
-`ab7d537dd33bfed54702f367b371e365eb527f0829546d5b6b951ea034dee280`;
+`c886ce7b2c9989d8271c1d4aafc340a572fb8fe2170afd66b8cadad52a861a30`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -95,7 +95,12 @@ syntax arena. Free machines may take or return by-value scalars, records or sums
 and may contain nested states. A machine without a result completes with Unit.
 The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
-and parameters.
+and parameters. Up to 16,384 state labels can span a construction request.
+Each file still parses at most 4,096 states. Parameter ranges, source
+coordinates and declared effect bounds survive the release of that file.
+A state body, its lexical scope, and its checked terminal instructions belong
+to the current file. Calls across files resolve a machine root; nested states
+remain visible through their lexical owner.
 
 Each file's imports resolve before signature or body checking. Record and case
 payload fields retain the scalar type or nominal declaration resolved in their
