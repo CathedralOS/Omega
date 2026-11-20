@@ -52,6 +52,7 @@ data OmegaEntryBound {
     root: i32;
     offset: i32;
     field: i32;
+    // -1 leaves a signed lower endpoint open.
     minimum: i32;
     // -1 leaves the upper end open.
     maximum: i32;
@@ -2920,7 +2921,7 @@ machine OmegaScalarCompiler::check_case_transition(
 ) -> i32 {
     let subject: i32 = self.parser.transition_statements[self.parser.statements[
         self.parser.machine_states[state_index].first_statement + first].item_index].subject;
-    transition self.check_value(source, owner, state_index, first, subject, 100000 + declaration) {
+    transition self.check_case_subject(source, owner, state_index, first, subject, 100000 + declaration) {
         1 -> clear(0)
         _ -> return 0
     }
@@ -3124,7 +3125,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     }
     state explicit_result(index: i32, kind: i32) {
         transition (kind > 0) && (kind < 200000) &&
-            ((self.type_copy(source, kind) == 1) || (self.uninhabited_type(kind) == 1)) {
+            ((self.type_copy(source, kind) == 1) || (self.uninhabited_type(kind) == 1) || (self.inhabited_sum(kind) == 1)) {
             true -> retain_result(index, kind)
             _ -> unsupported(self.parser.machine_items[owner].start)
         }
@@ -5468,25 +5469,13 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state sum_shape() {
         // Ratified Omega data is a record or a sum; mixed bodies are invalid.
         transition self.parser.data_items[index].field_count == 0 {
-            true -> sum_requirements()
+            true -> sum_begin()
             _ -> invalid_sum()
         }
     }
     state invalid_sum() {
         self.record_reject(-1, 4, self.parser.data_items[index].start);
         return 0;
-    }
-    state sum_requirements() {
-        transition self.parser.data_items[index].requirement_count == 0 {
-            true -> sum_copy()
-            _ -> unsupported()
-        }
-    }
-    state sum_copy() {
-        transition self.parser.data_items[index].multiplicity {
-            OmegaDataMultiplicity::Unrestricted -> sum_begin()
-            _ -> unsupported()
-        }
     }
     state sum_begin() {
         self.data_colors[index] = 1;
@@ -5533,7 +5522,20 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state sum_finish() {
         // Zero names the first declared case. Nominal identity remains the
         // declaration ID; this private word never becomes a source integer.
-        self.data_copy[index] = 1;
+        transition self.check_case_requirement(source, index) {
+            1 -> sum_multiplicity()
+            _ -> unsupported()
+        }
+    }
+    state sum_multiplicity() {
+        transition self.parser.data_items[index].multiplicity {
+            OmegaDataMultiplicity::Unrestricted -> complete_sum(1)
+            OmegaDataMultiplicity::Affine -> complete_sum(0)
+            _ -> unsupported()
+        }
+    }
+    state complete_sum(copyable: i32) {
+        self.data_copy[index] = copyable;
         self.data_colors[index] = 2;
         return 1;
     }
@@ -6058,12 +6060,37 @@ machine OmegaScalarCompiler::check_borrow(
 machine OmegaScalarCompiler::check_field_bound(
     &mut self, source: &[u8], field: i32, expression: i32
 ) -> i32 {
-    transition (self.field_upper_bounds[field] < 0) ||
-        (self.prove_ceiling(source, self.value_states[expression], self.value_befores[expression],
-            expression, self.field_upper_bounds[field]) == 1) {
+    transition self.field_upper_bounds[field] < 0 {
         true -> return 1
-        _ -> unsupported()
+        _ -> prove()
     }
+    state prove() {
+        transition self.prove_ceiling(source, self.value_states[expression], self.value_befores[expression],
+            expression, self.field_upper_bounds[field]) {
+            1 -> return 1
+            _ -> failed(self.parser.expressions[expression])
+        }
+    }
+    state failed(row: OmegaExpressionSyntax) {
+        transition (field >= 16384) && (self.field_types[field] == 33) {
+            true -> signed_literal(row)
+            _ -> unsupported()
+        }
+    }
+    state signed_literal(row: OmegaExpressionSyntax) {
+        transition self.value_kinds[expression] {
+            OmegaCheckedValueKind::NegativeI32Literal -> rejected(self.parser.unary_expressions[row.payload0].operator_start)
+            OmegaCheckedValueKind::Literal -> positive_literal(row)
+            _ -> unsupported()
+        }
+    }
+    state positive_literal(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Integer -> rejected(row.payload0)
+            _ -> unsupported()
+        }
+    }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
 }
 
@@ -6137,7 +6164,7 @@ machine OmegaScalarCompiler::check_record_literal(
 ) -> i32 {
     let row: OmegaStructLiteralSyntax = self.parser.struct_literals[self.parser.expressions[expression].payload0];
     transition (expected >= 100000) && (expected < 104096) && (row.type_member_count > 0) &&
-        (self.type_copy(source, expected) == 1) {
+        ((self.type_copy(source, expected) == 1) || (self.inhabited_sum(expected) == 1)) {
         true -> record_shape(row)
         _ -> unsupported()
     }
@@ -7014,7 +7041,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state carrier(row: OmegaBinaryExpressionSyntax, kind: i32) {
-        transition (kind == 8) || (kind == 32) || (kind == 64) || (self.is_policy_word(kind) == 1) {
+        transition (kind == 8) || (kind == 32) || (kind == 33) || (kind == 64) || (self.is_policy_word(kind) == 1) {
             true -> literal(row, kind % 256, self.parser.expressions[row.right])
             _ -> unsupported()
         }
@@ -7056,7 +7083,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     state relation(row: OmegaBinaryExpressionSyntax, value: i32) {
         transition row.operator {
             OmegaBinaryOperatorKind::Less -> strict_ceiling(row, value)
-            OmegaBinaryOperatorKind::LessEqual -> retain(row, 0, value)
+            OmegaBinaryOperatorKind::LessEqual -> ceiling(row, value)
             OmegaBinaryOperatorKind::Greater -> strict_floor(row, value)
             OmegaBinaryOperatorKind::GreaterEqual -> retain(row, value, -1)
             _ -> unsupported()
@@ -7070,8 +7097,14 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     }
     state strict_ceiling(row: OmegaBinaryExpressionSyntax, value: i32) {
         transition value > 0 {
-            true -> retain(row, 0, value - 1)
+            true -> ceiling(row, value - 1)
             _ -> unsupported()
+        }
+    }
+    state ceiling(row: OmegaBinaryExpressionSyntax, maximum: i32) {
+        transition self.place_types[row.left] == 33 {
+            true -> retain(row, -1, maximum)
+            _ -> retain(row, 0, maximum)
         }
     }
     state retain(row: OmegaBinaryExpressionSyntax, minimum: i32, maximum: i32) {
@@ -7112,13 +7145,15 @@ machine OmegaScalarCompiler::prove_bound(
     &mut self, source: &[u8], state_index: i32, before: i32,
     expression: i32, minimum: i32, maximum: i32, guard: i32, truth: i32
 ) -> i32 {
-    transition (minimum >= 0) && ((maximum == -1) || (minimum <= maximum)) {
+    transition (minimum >= -1) && ((minimum >= 0) || (maximum >= 0)) &&
+        ((maximum == -1) || (minimum <= maximum)) {
         true -> value()
         _ -> return 0
     }
     state value() {
         transition self.value_kinds[expression] {
             OmegaCheckedValueKind::Literal -> literal(self.value_payloads[expression])
+            OmegaCheckedValueKind::NegativeI32Literal -> negative(self.value_payloads[expression])
             OmegaCheckedValueKind::RepresentationCast -> return self.prove_bound(source, state_index, before, self.value_payloads[expression], minimum, maximum, guard, truth)
             OmegaCheckedValueKind::Place -> place()
             OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
@@ -7127,8 +7162,9 @@ machine OmegaScalarCompiler::prove_bound(
         }
     }
     state literal(value: i32) {
-        transition (value >= minimum) && ((maximum < 0) || (value <= maximum)) { true -> return 1 _ -> return 0 }
+        return (value >= 0) && (value >= minimum) && ((maximum < 0) || (value <= maximum));
     }
+    state negative(value: i32) { return (minimum < 0) && (maximum >= 0) && (value <= maximum); }
     state place() {
         transition self.prove_place_bound(source, state_index, before,
             self.place_roots[expression], self.place_offsets[expression],
@@ -7177,12 +7213,34 @@ machine OmegaScalarCompiler::prove_place_bound(
     root: i32, offset: i32, field: i32, kind: i32,
     minimum: i32, maximum: i32, guard: i32, truth: i32
 ) -> i32 {
-    transition (minimum == 0) && ((maximum < 0) || ((kind == 8) && (maximum >= 255))) {
-        true -> return 1
-        _ -> declared()
+    transition (kind == 33) && (minimum >= 0) && (maximum >= 0) {
+        true -> signed_interval()
+        _ -> carrier()
+    }
+    state signed_interval() {
+        return (self.prove_place_bound(source, state_index, before, root, offset, field, kind,
+            minimum, -1, guard, truth) == 1) &&
+            (self.prove_place_bound(source, state_index, before, root, offset, field, kind,
+                -1, maximum, guard, truth) == 1);
+    }
+    state carrier() {
+        transition (kind != 33) && (minimum == 0) && ((maximum < 0) || ((kind == 8) && (maximum >= 255))) {
+            true -> return 1
+            _ -> declared()
+        }
     }
     state declared() {
-        transition (minimum == 0) && (field >= 0) {
+        // Only the current case's checked payload field confers this floor.
+        transition (kind == 33) && (field >= 16384) && (minimum == 0) && (maximum < 0) {
+            true -> signed_payload()
+            _ -> upper_bound()
+        }
+    }
+    state signed_payload() {
+        transition self.field_upper_bounds[field] >= 0 { true -> return 1 _ -> guarded() }
+    }
+    state upper_bound() {
+        transition (minimum <= 0) && (maximum >= 0) && (field >= 0) {
             true -> field_bound(self.field_upper_bounds[field])
             _ -> guarded()
         }
@@ -7303,6 +7361,7 @@ machine OmegaScalarCompiler::guard_bound(&mut self, root: i32, offset: i32, mini
     state value() {
         transition self.value_kinds[expression] {
             OmegaCheckedValueKind::LogicalNot -> return self.guard_bound(root, offset, minimum, maximum, self.value_payloads[expression], 1 - truth)
+            OmegaCheckedValueKind::SignedComparison -> binary(self.parser.binary_expressions[self.value_payloads[expression]])
             OmegaCheckedValueKind::BooleanBinary -> binary(self.parser.binary_expressions[self.value_payloads[expression]])
             _ -> return 0
         }
@@ -7376,7 +7435,7 @@ machine OmegaScalarCompiler::guard_bound_pair(&mut self, root: i32, offset: i32,
         }
     }
     state ceiling_literal(value: i32) {
-        transition (minimum == 0) && (maximum >= 0) && (value >= strict) &&
+        transition (minimum <= 0) && (maximum >= 0) && (value >= strict) &&
             (value - strict <= maximum) { true -> return 1 _ -> return 0 }
     }
     state right_place() {

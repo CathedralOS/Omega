@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tests/bootstrap'))
 from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
+from independent.byte_input_cases import byte_input_cases
 
 
 def cases():
@@ -375,7 +376,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *build_scope_cases(), *rooted_application_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *byte_input_cases(ROOT), *build_scope_cases(), *rooted_application_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")
