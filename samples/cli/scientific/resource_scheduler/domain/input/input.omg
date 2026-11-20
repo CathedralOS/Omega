@@ -1,6 +1,6 @@
-use domain::model;
-use domain::model::Problem;
-use domain::model::predecessor;
+use domain\model;
+use domain\model\Problem;
+use domain\model\predecessor;
 
 public data Input { bytes: [u8; 256]; }
 

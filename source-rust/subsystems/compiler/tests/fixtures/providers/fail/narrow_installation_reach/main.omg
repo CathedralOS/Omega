@@ -1,8 +1,8 @@
 // Expected rejection: the selected child exceeds its caller's installation bound.
 boundary trait X { machine touch(value: @mut u32) reaches X crashes none; }
 boundary trait Y { machine touch(value: @mut u32) reaches Y crashes none; }
-XProvider satisfies X { machine touch(value: @mut u32) { value = 11; } }
-YProvider satisfies Y { machine touch(value: @mut u32) { value = 22; } }
+XProvider satisfies X { machine touch(value: @mut u32) { $value = 11; } }
+YProvider satisfies Y { machine touch(value: @mut u32) { $value = 22; } }
 
 boundary trait A { machine visit(first: @mut u32, second: @mut u32) reaches <= X crashes none; }
 boundary trait B { machine visit(value: @mut u32) reaches <= X + Y crashes none; }

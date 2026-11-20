@@ -2,12 +2,12 @@
 // library.
 //
 // The `ProcessExit` boundary trait itself is owned by core
-// (`omega::language::core::process_exit`); this module contributes the named
+// (`omega\language\core\process_exit`); this module contributes the named
 // implementation each target selects by default. Its checked body delegates
 // to the exact compiler-owned core primitive; std claims no compiler backing.
-use omega::language::core::Never;
-use omega::language::core::ProcessExit;
-use omega::language::core::ProcessExitPrimitive;
+use omega\language\core\Never;
+use omega\language\core\ProcessExit;
+use omega\language\core\ProcessExitPrimitive;
 
 // The selected implementation owns the complete ProcessExit map. Its one
 // member calls the core primitive directly. Its distinct declaration keeps

@@ -1,8 +1,8 @@
-use domain::shockley;
-use domain::shockley::Circuit;
-use domain::shockley::diode_current;
-use domain::shockley::circuit_residual;
-use domain::shockley::magnitude;
+use domain\shockley;
+use domain\shockley\Circuit;
+use domain\shockley\diode_current;
+use domain\shockley\circuit_residual;
+use domain\shockley\magnitude;
 
 // status: 1 converged, 2 iteration limit, 3 no sign bracket in the requested
 // interval. Monotonicity follows from R, Is and thermal being positive.

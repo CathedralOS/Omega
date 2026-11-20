@@ -1,12 +1,12 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Print the squares 1..9 as DECIMAL TEXT, one per line -- the first sample to output
 // computed NUMBERS (not just text or an exit code). Each square k*k is rendered to a
 // 3-digit [u8;3] carrier by repeated divide/modulo (the itoa pattern) and printed.
 // Proves numeric output, a basic serious-app need. Pure compute + stdout.
 // Expected exit: 0.
 // Expected output contains: 081
-use omega_language_std::Console;
-use omega::language::core::narrow_u32_to_u8_wrapping;
+use omega_language_std\Console;
+use omega\language\core\narrow_u32_to_u8_wrapping;
 
 domain [u8]::Utf8
 requires

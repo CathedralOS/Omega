@@ -1124,6 +1124,7 @@ pub mod product_operand {
                     expr::ExpressionNode::Unary(unary) => ProductExpressionKind::Unary {
                         operator: match unary.operator {
                             expr::UnaryOperator::BitwiseNot => ProductUnaryOperator::BitwiseNot,
+                            expr::UnaryOperator::Dereference => ProductUnaryOperator::Dereference,
                             expr::UnaryOperator::LogicalNot => ProductUnaryOperator::LogicalNot,
                         },
                         operand: self.expression(unary.operand)?,
@@ -2019,11 +2020,9 @@ pub mod product_operand {
                 "competing exact declarations stay ambiguous"
             );
             let limits = record_storage::RecordLimits::default();
-            let restored: TypedTrees = record_storage::decode(
-                &record_storage::encode(&program, limits).unwrap(),
-                limits,
-            )
-            .unwrap();
+            let restored: TypedTrees =
+                record_storage::decode(&record_storage::encode(&program, limits).unwrap(), limits)
+                    .unwrap();
             assert_eq!(lookup(&restored, "Renamed"), None);
             assert_eq!(
                 resolve_product_path(
@@ -3388,9 +3387,7 @@ pub mod trait_definition {
                 region_scopes: Vec<AppliedDeclarationRegionScope>,
             }
 
-            #[derive(
-                Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record,
-            )]
+            #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
             pub struct RetainedTraitScope {
                 declaration: SymbolHandle,
                 argument_owner: SymbolHandle,

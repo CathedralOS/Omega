@@ -593,6 +593,7 @@ pub enum BinaryOperator {
 pub enum UnaryOperator {
     BitwiseNot,
     LogicalNot,
+    Dereference,
 }
 
 #[derive(

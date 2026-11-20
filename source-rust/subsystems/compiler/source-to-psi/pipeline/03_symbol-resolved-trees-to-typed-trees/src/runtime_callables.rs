@@ -1421,7 +1421,7 @@ TrimOne satisfies Shrink<Scale> {
     machine shrink(scale: @Scale, value: u64) -> u64 { value }
 }
 machine entry(scale: @Scale) -> u64 {
-    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none = kit::TrimOne::shrink;
+    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none = kit\TrimOne::shrink;
     one(scale, 7)
 }
 "#;

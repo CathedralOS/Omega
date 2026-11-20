@@ -1,5 +1,5 @@
-use targets::linux_x86_64::LinuxClockWait;
-use omega::language::core::narrow_u32_to_i32_wrapping;
+use targets\linux_x86_64\LinuxClockWait;
+use omega\language\core\narrow_u32_to_i32_wrapping;
 
 // Negative poll timeouts wait indefinitely. Divide large u32 durations into
 // three signed-range parts and the remainder, preserving the full duration

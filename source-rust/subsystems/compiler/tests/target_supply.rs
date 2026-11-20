@@ -1787,7 +1787,7 @@ fn a_completed_plain_binding_keeps_its_receipt_and_calling_identity() {
     std::fs::write(
         &main,
         r#"
-use omega_language_std::Console;
+use omega_language_std\Console;
 machine main() reaches Console crashes none { Console::write_byte(65); }
 "#,
     )
@@ -1804,11 +1804,11 @@ machine main() reaches Console crashes none { Console::write_byte(65); }
 machine build(builder: @mut Build) {{
     Build::application(builder, "plain_boundary_native_receipts");
     let standard: DependencyRegistration = Build::dependency(builder,
-        dependency::from_source(Source::Path {{ location: "{standard}" }}));
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+        dependency\from_source(Source::Path {{ location: "{standard}" }}));
+    Build::bind(builder, windows_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
 }}
 "#
         ),

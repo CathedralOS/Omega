@@ -1,22 +1,22 @@
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 // POSIX implementation state is local to an entered portable operation. Raw
 // calls are static provider dependencies; no raw binding enters app data.
 // Free helpers receive operation scratch explicitly; PosixFilesystem is data only.
 // Portable operations and directory traversal are shared. Target files own
 // stat layouts, directory-record geometry, flags, errno translation and libc
 // imports; only a target with that complete implementation installs defaults.
-use omega::language::core::widen_i32_to_i64;
-use omega::language::core::widen_u8_to_u64;
-use omega::language::core::narrow_i64_to_i32_wrapping;
-use omega::language::core::narrow_i32_to_u64_wrapping;
-use omega::language::core::narrow_i64_to_u8_wrapping;
-use omega::language::core::narrow_i64_to_u64_exact;
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\widen_i32_to_i64;
+use omega\language\core\widen_u8_to_u64;
+use omega\language\core\narrow_i64_to_i32_wrapping;
+use omega\language\core\narrow_i32_to_u64_wrapping;
+use omega\language\core\narrow_i64_to_u8_wrapping;
+use omega\language\core\narrow_i64_to_u64_exact;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 
 // Native mode bits are decoded only inside the POSIX family. The portable
 // metadata kind is not an alias for a POSIX permission or file-type bitfield.
@@ -1794,7 +1794,7 @@ machine posix_errno() -> i32 {
     posix_errno_value(PosixErrno::slot())
 }
 
-machine posix_errno_value(slot: @i32) -> i32 { slot }
+machine posix_errno_value(slot: @i32) -> i32 { $slot }
 // `PosixCanonicalLibc` requirements are bound by Build rows in the std package
 // (`std/build.omg`); no provider machine forwards them.
 machine posix_canonicalize(path: @[u8] in Path, output: @mut [u8]) -> i64

@@ -1,14 +1,14 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Runtime input: g003g005g0011 LF (three 3-digit readings, units, model).
 // Empty stdin is a malformed record; nominal.txt has authored exit 0.
 // Expected exit: 2.
 // Expected output contains: INVALID: record
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use omega::language::core::I32::from_f64;
-use domain::mixture;
-use domain::mixture::Mixture;
-use domain::mixture::correct;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use omega\language\core\I32::from_f64;
+use domain\mixture;
+use domain\mixture\Mixture;
+use domain\mixture\correct;
 
 data Main {
     input: [u8; 15];

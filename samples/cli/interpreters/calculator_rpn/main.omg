@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Integer RPN (reverse-Polish notation) calculator over a fixed-capacity stack.
 //
 // Stack: [i32 in Saturating; 4], growing from index 0. `sp` is the next free index (0=empty).
@@ -23,7 +23,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Stack [copy] {
     slots: [i32 in Saturating; 4];

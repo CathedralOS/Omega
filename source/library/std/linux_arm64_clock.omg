@@ -1,5 +1,5 @@
-use targets::linux_arm64::LinuxArmClockWait;
-use omega::language::core::widen_u32_to_i64;
+use targets\linux_arm64\LinuxArmClockWait;
+use omega\language\core\widen_u32_to_i64;
 
 public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 // Splitting before widening preserves every u32 duration and keeps the

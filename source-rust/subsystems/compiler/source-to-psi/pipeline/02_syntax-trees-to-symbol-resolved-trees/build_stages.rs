@@ -514,7 +514,7 @@ machine build(builder: @mut Build) suspends {
     suspend Build::prepare_dependency(builder, first);
     let second: DependencyRegistration = Build::build_dependency(builder, two());
     suspend Build::prepare_dependency(builder, second);
-    let seven: i32 = kit::v();
+    let seven: i32 = kit\\v();
     transition seven == 7 {
         true -> done(builder),
         _ -> wrong()

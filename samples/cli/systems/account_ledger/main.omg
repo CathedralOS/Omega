@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // account_ledger: event-sourced account simulation.
 //
 // Exercises: multi-field case payload dispatch (3 payload variants + 3 no-payload
@@ -76,7 +76,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Transaction {
     case Deposit(amount: i32 in Wrapping);

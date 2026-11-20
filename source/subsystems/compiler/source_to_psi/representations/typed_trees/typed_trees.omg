@@ -1,14 +1,14 @@
-use foundation::ExactInteger;
-use foundation::Rational;
-use foundation::is_carrier;
-use representations::source_files::SourceSpan;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::DomainBinding;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_expression;
+use foundation\ExactInteger;
+use foundation\Rational;
+use foundation\is_carrier;
+use representations\source_files\SourceSpan;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\DomainBinding;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ExpressionKind;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_expression;
 
 // The types of one compilation and what typing records about its syntax.
 // Types are interned: one row per distinct type, so two types are equal

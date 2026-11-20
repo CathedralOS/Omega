@@ -270,7 +270,7 @@ fn parses_a_domain_access_policy_after_its_predicates() {
 #[test]
 fn parses_an_access_policy_applied_at_static_arguments() {
     let parsed = crate::tests::parse_source(
-        "domain Folder::Writable access IssuedBy<reflect::callable(choose_folder)>;",
+        "domain Folder::Writable access IssuedBy<reflect\\callable(choose_folder)>;",
         "parse should succeed",
     );
     let domain = crate::tests::root_domain(&parsed, "domain");
@@ -475,7 +475,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
 fn parses_explicit_write_only_borrow_with_exact_access_mode() {
     let source = r#"
         machine fill(destination: @write bool, value: bool) {
-            destination = value;
+            $destination = value;
         }
 
         machine caller(destination: @mut bool) {
@@ -518,8 +518,8 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
 fn uninvoked_declaration_paths_retain_both_static_telescopes_when_copied() {
     let source = r#"
         machine inspect() {
-            reflect::callable(Operations::<'scope, u32>::update::<'item, u64>);
-            reflect::field(Buffer::<u32>::used);
+            reflect\callable(Operations::<'scope, u32>::update::<'item, u64>);
+            reflect\field(Buffer::<u32>::used);
         }
         "#;
     let parsed = crate::tests::parse_source(source, "applied declaration operands should parse");
@@ -946,7 +946,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
 fn parses_nominal_machine_parameter_requirement() {
     let source = r#"
         machine register<machine Selected>()
-        requires machine Selected satisfies platform::WindowProcedure::call;
+        requires machine Selected satisfies platform\WindowProcedure::call;
         {
             Selected()
         }

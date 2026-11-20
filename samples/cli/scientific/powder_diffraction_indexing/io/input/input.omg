@@ -1,7 +1,7 @@
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use omega::language::core::F64::from_i32;
-use domain::indexing;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use omega\language\core\F64::from_i32;
+use domain\indexing;
 public data Raw { values: [f64; 9]; count: u64; }
 // Finite decimal syntax; no NaN/infinity spellings or exponents. The byte and
 // digit caps bound execution even on an unterminated hostile stream.

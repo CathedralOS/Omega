@@ -33,11 +33,11 @@ pub fn default_build_source() -> &'static str {
 
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
-use omega::language::core::AccessPolicy;
-use omega::language::core::AccessPlan;
-use omega::language::core::reflect::TypeSchema;
-use omega::language::core::Issuance;
-use omega::language::core::access;
+use omega\language\core\AccessPolicy;
+use omega\language\core\AccessPlan;
+use omega\language\core\reflect\TypeSchema;
+use omega\language\core\Issuance;
+use omega\language\core\access;
 public data Subsystem {
     case Console;
     case Gui;
@@ -129,8 +129,8 @@ public boundary trait BuildProductOperations {
 // Selection first calls the checked mutable-receiver helper below. The host
 // only observes identity; it cannot replace Build's reference-bearing fields.
 public boundary trait BuildBindingOperations {
-    machine describe_parameter() -> omega::language::core::reflect::ParameterInfo reaches none crashes none;
-    machine describe_field() -> omega::language::core::reflect::FieldInfo reaches none crashes none;
+    machine describe_parameter() -> omega\language\core\reflect\ParameterInfo reaches none crashes none;
+    machine describe_field() -> omega\language\core\reflect\FieldInfo reaches none crashes none;
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine prepare_tests(tests: @BuildTests) -> u64 reaches none crashes none;
     machine await_provider(activation: u64) reaches none crashes none suspends;
@@ -244,7 +244,7 @@ public data BuildSeal {
 }
 BuildSealAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(@schema, Issuance::Only { routes: [] })
+        access\new_plan(@schema, Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued

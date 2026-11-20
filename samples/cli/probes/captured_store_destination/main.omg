@@ -9,7 +9,7 @@ data ByteBacking { bytes: [u8; 4]; }
 
 machine replace_byte_carrier<'storage>(home: @write ByteBundle<'storage>, replacement: @'storage mut [u8]) -> u8
 ensures result == 65 {
-    home = ByteBundle { raw: replacement };
+    $home = ByteBundle { raw: replacement };
     65
 }
 
@@ -50,19 +50,19 @@ machine require_written(value: u64) requires value == 65 {}
 
 machine replace_carrier<'storage>(home: @write Bundle<'storage>, replacement: @'storage mut [u64; 2]) -> u64
 ensures result == 65 {
-    home = Bundle { raw: replacement };
+    $home = Bundle { raw: replacement };
     65
 }
 
 machine replace_cell_carrier<'storage>(home: @write CellBundle<'storage>, replacement: @'storage mut Cell) -> u64
 ensures result == 65 {
-    home = CellBundle { raw: replacement };
+    $home = CellBundle { raw: replacement };
     65
 }
 
 machine replace_across_states<'storage>(home: @write Bundle<'storage>, replacement: @'storage mut [u64; 2], choose: bool) -> u64
 ensures result == 65 {
-    home = Bundle { raw: replacement };
+    $home = Bundle { raw: replacement };
     transition choose {
         true -> left(),
         false -> right()
@@ -73,7 +73,7 @@ ensures result == 65 {
 
 machine replace_view_carrier<'storage>(home: @write ViewBundle<'storage>, replacement: @'storage mut [u64]) -> u64
 ensures result == 65 {
-    home = ViewBundle { raw: replacement };
+    $home = ViewBundle { raw: replacement };
     65
 }
 

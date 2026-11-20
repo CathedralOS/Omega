@@ -1,16 +1,16 @@
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::JoinedValues;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::joined_value;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::type_row_of;
-use representations::typed_trees::type_table_intern;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
-use representations::typed_trees::typing_reject;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\JoinedValues;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\joined_value;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\type_row_of;
+use representations\typed_trees\type_table_intern;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
+use representations\typed_trees\typing_reject;
 
 // The values one expression joins into one type: a value-position match's
 // arm values and a fixed-array literal's elements (wiki/spec/language/

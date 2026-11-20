@@ -1,10 +1,10 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete reproduction: conversions are owned by an ordinary domain module.
-use omega_language_std::Console;
+use omega_language_std\Console;
 use calculation;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
-    let converted: i32 = calculation::sample();
+    let converted: i32 = calculation\sample();
     ProcessExit::exit_process(converted);
 }
 

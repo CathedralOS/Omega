@@ -1,8 +1,8 @@
 // Expected exit: 0
 data Holder requires which <= 1 { which: u64; route: [u64; 4]; }
 data Report<'input> { changed: u64; events: @'input [u64]; }
-machine change(value: @mut u64) -> u64 ensures value == 1 && result == 2 {
-    value = 1;
+machine change(value: @mut u64) -> u64 ensures $value == 1 && result == 2 {
+    $value = 1;
     2
 }
 // The window captures the old value before the following field changes it.

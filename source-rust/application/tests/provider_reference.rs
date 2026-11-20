@@ -89,7 +89,7 @@ machine main() reaches Source invokes Source crashes Trap {
         } else {
             r#"
 boundary trait Source { machine cell() -> @i32 reaches none crashes none; }
-machine read(cell: @i32) -> i32 { cell }
+machine read(cell: @i32) -> i32 { $cell }
 machine main() reaches Source invokes Source crashes Trap {
     let observed: i32 = read(Source::cell());
     transition observed == 37i32 { true -> done(), _ -> bad() }
@@ -117,14 +117,14 @@ machine main() reaches Source invokes Source crashes Trap {
         root.join("build.omg"),
         format!(
             r#"
-use omega::language::core::DllImport;
-use omega::language::core::ForeignBinding;
+use omega\language\core\DllImport;
+use omega\language\core\ForeignBinding;
 machine build(builder: @mut Build) {{
     Build::application(builder, "provider_reference");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64\ProgramEntry, main);
     Build::bind::<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});

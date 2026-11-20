@@ -1,13 +1,13 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Animated Mandelbrot zoom -- a real-time software-rendered fractal that zooms into
 // a seahorse-valley boundary point, redrawn in place via an ANSI cursor-home escape
 // and paced by Clock.sleep. Combines the per-pixel f64 renderer, the carrier
 // framebuffer, in-place console redraw, and timed animation -- the full stack.
 // Expected exit: 0.
 // Expected output contains: #
-use omega::language::core::F64::from_i32;
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega\language\core\F64::from_i32;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 
 data Main

@@ -15,9 +15,9 @@ use source_compiler::checking::RouteVerdict;
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 const DOMAINS: &str = "\
-use omega::language::core::AccessPolicy;
-use omega::language::core::AccessPlan;
-use omega::language::core::reflect::TypeSchema;
+use omega\\language\\core\\AccessPolicy;
+use omega\\language\\core\\AccessPlan;
+use omega\\language\\core\\reflect\\TypeSchema;
 
 domain i32::Km;
 machine carry(distance: i32 in Km) -> i32 in Km {

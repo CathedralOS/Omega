@@ -480,6 +480,13 @@ fn declared_projection_type(
                 }
                 for expression in spine.into_iter().rev() {
                     reference = match table.expression(expression) {
+                        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
+                            let base = program.type_reference_table.unconstrained_type_reference(reference);
+                            let TypeReferenceNode::Reference { referee, .. } = program.type_reference_table.type_reference(base) else {
+                                return Err(crate::typing::unavailable_judgment("dereference of non-reference storage"));
+                            };
+                            *referee
+                        }
                         ExpressionNode::Member(member) => declared_field_type(
                             program,
                             reference,
@@ -511,6 +518,10 @@ fn declared_projection_type(
             ExpressionNode::Member(member) => {
                 spine.push(cursor);
                 cursor = member.receiver;
+            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
+                spine.push(cursor);
+                cursor = unary.operand;
             }
             ExpressionNode::Indexed(index) => {
                 spine.push(cursor);
@@ -1579,6 +1590,16 @@ impl DeclaredExpressionTypes {
             {
                 Some(cast.target_type)
             }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
+                let operand = self.get(program, owner, unary.operand)?;
+                let bare = program
+                    .type_reference_table
+                    .unconstrained_type_reference(operand);
+                match program.type_reference_table.type_reference(bare) {
+                    TypeReferenceNode::Reference { referee, .. } => Some(*referee),
+                    _ => None,
+                }
+            }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
                 let operand = self.get(program, owner, unary.operand)?;
                 crate::source_state::operator::core_integer_operand(program, operand)
@@ -2314,7 +2335,7 @@ mod tests {
         }
 
         let program = typed(
-            "use omega::language::core::byte_observation;\npublic domain [u8]::Path requires byte_observation::no_nul(@self[..]);\ndomain [u8]::Ascii requires byte_observation::ascii_only(@self[..]);",
+            "use omega\\language\\core\\byte_observation;\npublic domain [u8]::Path requires byte_observation\\no_nul(@self[..]);\ndomain [u8]::Ascii requires byte_observation\\ascii_only(@self[..]);",
             true,
         );
         let domain = &program.domain_definitions()[0];

@@ -20,7 +20,7 @@ machine relay<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pic
 }
 
 machine overwrite(slot: @mut u64) -> u64 in Wrapping {
-    slot = 9;
+    $slot = 9;
     (1 as u64 in Wrapping)
 }
 
@@ -35,11 +35,11 @@ boundary trait SelectedProbe {
 
 NestedStateProbe satisfies SelectedProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-    reaches requires chosen < 4 && other < 4
+    reaches requires $chosen < 4 && $other < 4
     {
         let zero: u64 in Wrapping = 0;
         let marker: u64 in Wrapping = add(overwrite(relay(chosen, other, false)), zero);
-        let index: u64 = other;
+        let index: u64 = $other;
         let indexed: u8 = items[index];
         transition (marker as u64) == 1 && indexed == 7 {
             true -> indexed,

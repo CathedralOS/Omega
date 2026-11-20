@@ -1,13 +1,13 @@
 // Fact: A byte roundtrip through an explicit fixed layout lends a decoded view only after its payload bound is established, preserving every field and neighboring storage.
 // Expected exit: 0
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::FixedLayout;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::Schema;
-use omega::language::core::Optional;
+use omega\language\core\FieldEntry;
+use omega\language\core\FieldPlan;
+use omega\language\core\FixedLayout;
+use omega\language\core\LayoutPlan;
+use omega\language\core\LayoutStorage;
+use omega\language\core\LayoutTarget;
+use omega\language\core\Schema;
+use omega\language\core\Optional;
 
 data Payload [copy] requires self.second >= 42u64 {
     first: u8;
@@ -33,7 +33,7 @@ machine initialize(backing: @mut [u64; 7], payload: u64) {
     view.last = 9u16;
 }
 machine copy_bytes(source: @[u8; 40], destination: @mut [u8; 40]) {
-    destination = source;
+    destination = $source;
 }
 machine decode<'backing>(backing: @'backing mut [u64; 7]) -> Optional<Decoded<'backing>> {
     let view: @'backing mut LayoutStorage<Payload, Spread> = @mut backing[1..6] as @mut LayoutStorage<Payload, Spread>;

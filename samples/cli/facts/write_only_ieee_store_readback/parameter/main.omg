@@ -2,7 +2,7 @@
 // Place: parameter. The read-back value is passed to a machine parameter before the comparison.
 // Expected exit: 0
 
-machine store(r: @write f64) { r = 6.0 / 8.0; }
+machine store(r: @write f64) { $r = 6.0 / 8.0; }
 machine compare(v: f64) -> bool { v == 0.75 }
 
 machine main() crashes Trap {

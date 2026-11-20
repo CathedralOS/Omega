@@ -65,7 +65,7 @@ machine refuted_inequality(value: f64) -> f64 {
         requires !(value != 0.5)
     { value }
 }
-machine record_observation(observed: @mut bool) -> bool { observed = true; true }
+machine record_observation(observed: @mut bool) -> bool { $observed = true; true }
 machine through_field(reading: @mut Reading) -> f64 {
     transition {
         reading.value >= 0.0 && reading.value <= 1.0

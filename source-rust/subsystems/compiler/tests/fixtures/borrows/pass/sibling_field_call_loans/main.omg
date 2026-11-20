@@ -11,7 +11,7 @@ machine fill(fd: u64, status: @mut Status) -> u64 {
     fd
 }
 
-machine pick(table: @Table, item: @u64) -> u64 { item }
+machine pick(table: @Table, item: @u64) -> u64 { $item }
 
 machine inspect(handle: @mut Handle) -> bool {
     let fd: u64 = fill(handle.fd, @mut handle.status);

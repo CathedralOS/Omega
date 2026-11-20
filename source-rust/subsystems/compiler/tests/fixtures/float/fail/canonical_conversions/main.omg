@@ -1,12 +1,12 @@
 // Expected refusal: an i64 input cannot enter the named i32 conversion.
-use omega::language::core::F32;
-use omega::language::core::F64;
-use omega::language::core::F32::from_i64;
-use omega::language::core::F32::from_f64;
-use omega::language::core::F64::from_i32;
-use omega::language::core::F64::from_u32;
-use omega::language::core::F64::from_u64;
-use omega::language::core::F64::from_f32;
+use omega\language\core\F32;
+use omega\language\core\F64;
+use omega\language\core\F32::from_i64;
+use omega\language\core\F32::from_f64;
+use omega\language\core\F64::from_i32;
+use omega\language\core\F64::from_u32;
+use omega\language\core\F64::from_u64;
+use omega\language\core\F64::from_f32;
 
 machine signed(value: i64) -> f64 { F64::from_i32(value) }
 machine unsigned(value: u32) -> f64 { F64::from_u32(value) }

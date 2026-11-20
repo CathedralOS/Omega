@@ -1,16 +1,16 @@
-use actors::state::Actor;
-use actors::state::Position;
-use actors::state::Countdown;
-use actors::state::damage;
-use actors::state::elapse;
-use control::state::Command;
-use configuration::ATTACK_FRAMES;
-use configuration::INVULNERABILITY_FRAMES;
-use configuration::MELEE_REACH;
-use configuration::CONTACT_DISTANCE;
-use configuration::KNOCKBACK_DISTANCE;
-use configuration::ROOM_WIDTH;
-use configuration::ROOM_HEIGHT;
+use actors\state\Actor;
+use actors\state\Position;
+use actors\state\Countdown;
+use actors\state\damage;
+use actors\state\elapse;
+use control\state\Command;
+use configuration\ATTACK_FRAMES;
+use configuration\INVULNERABILITY_FRAMES;
+use configuration\MELEE_REACH;
+use configuration\CONTACT_DISTANCE;
+use configuration\KNOCKBACK_DISTANCE;
+use configuration\ROOM_WIDTH;
+use configuration\ROOM_HEIGHT;
 
 public machine cooldowns<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>
 terminates

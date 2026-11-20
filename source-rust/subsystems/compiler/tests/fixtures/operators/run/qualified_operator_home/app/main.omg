@@ -1,4 +1,4 @@
-use measure::units;
+use measure\units;
 
 machine main() crashes Trap {
     let distance_left: u32 in Distance = 2u32 as +Distance;

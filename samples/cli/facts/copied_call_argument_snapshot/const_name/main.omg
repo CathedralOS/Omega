@@ -3,9 +3,9 @@
 // Expected exit: 0
 const START: u64 = 7;
 machine overwrite(slot: @mut u64) -> u64
-ensures slot == 9
+ensures $slot == 9
 {
-    slot = 9;
+    $slot = 9;
     0
 }
 machine seven(value: u64) -> u64

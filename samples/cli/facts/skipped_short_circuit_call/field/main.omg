@@ -2,9 +2,9 @@
 // Place: field. The left operand is a Boolean field between two canary fields.
 // Expected exit: 0
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

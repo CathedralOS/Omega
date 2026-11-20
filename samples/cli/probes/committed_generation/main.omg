@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // One step of a 4-cell line, installed back onto the live board, then
 // stepped again.
 //
@@ -14,7 +14,7 @@ use omega::language::core::ProcessExit;
 // the next-board sum is 0.
 //
 // Expected exit: 50
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 machine cells_valid(cells: @[i32; 4]) -> bool {
     transition cells[0] == 0 || cells[0] == 1 {

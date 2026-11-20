@@ -1,9 +1,9 @@
-// Proof-Nat import surface: `use omega::language::core::nat`
+// Proof-Nat import surface: `use omega\language\core\nat`
 // brings Nat into a depend-free package and Nat values flow through
 // ordinary machines.
 //
 // GAP filed (probe-found): EVERY Nat operator is private to
-// core::nat's own package — `total - used` selects private
+// core\nat's own package — `total - used` selects private
 // `Nat::subtract`, `used <= total` selects private
 // `Nat::less_or_equal`, and `Nat::saturating_sub` does not resolve
 // as a callable entry. The corpus fixture
@@ -14,7 +14,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::Nat;
+use omega\language\core\Nat;
 
 machine relay(total: Nat, used: Nat) -> Nat {
     transition { _ -> (total) }

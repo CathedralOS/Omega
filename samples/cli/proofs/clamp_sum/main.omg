@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Clamp a series of raw sensor readings into a valid band and sum the results.
 // Each reading is clamped to [0, 60] via the standard idiom `max(lo, min(v, hi))`,
 // This composes the ordinary integer min/max helper contracts. For readings [80, -5, 50, 200, 30] the clamped values
@@ -9,9 +9,9 @@ use omega::language::core::ProcessExit;
 // the running sum is provable (each clamped step is bounded, the count is not).
 // Expected exit: 200.
 
-use omega_language_std::Console;
-use omega::language::core::max_i32;
-use omega::language::core::min_i32;
+use omega_language_std\Console;
+use omega\language\core\max_i32;
+use omega\language\core\min_i32;
 
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
 machine clamp_sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {

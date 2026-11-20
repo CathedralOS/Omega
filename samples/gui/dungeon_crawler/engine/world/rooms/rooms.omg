@@ -1,9 +1,9 @@
-use configuration::ROOM_LAST_COLUMN;
-use configuration::ROOM_LAST_ROW;
-use configuration::DOOR_COLUMN_START;
-use configuration::DOOR_COLUMN_END;
-use configuration::DOOR_ROW_START;
-use configuration::DOOR_ROW_END;
+use configuration\ROOM_LAST_COLUMN;
+use configuration\ROOM_LAST_ROW;
+use configuration\DOOR_COLUMN_START;
+use configuration\DOOR_COLUMN_END;
+use configuration\DOOR_ROW_START;
+use configuration\DOOR_ROW_END;
 
 public data Layout [copy] {
     case Pillars;

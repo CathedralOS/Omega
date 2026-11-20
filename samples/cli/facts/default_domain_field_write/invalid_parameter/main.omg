@@ -16,8 +16,8 @@ machine consume(span: Interval) -> u64 {
 machine revise(span: @mut Interval) -> u64 {
     let mut held: Interval = Interval::Range { lo: 1, hi: 2 };
     held.hi = 9;
-    span = held;
-    transition consume(span) == 1 {
+    $span = held;
+    transition consume($span) == 1 {
         true -> 0,
         _ -> 1
     }

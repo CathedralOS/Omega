@@ -7,7 +7,7 @@ machine take(item: @mut Item) -> u64 {
         Item::Empty -> 0
     }
     machine clear(item: @mut Item, saved: @Item) -> u64 {
-        item = Item::Empty;
+        $item = Item::Empty;
         transition saved { Item::Ready { count } -> (count), Item::Empty -> 0 }
     }
 }

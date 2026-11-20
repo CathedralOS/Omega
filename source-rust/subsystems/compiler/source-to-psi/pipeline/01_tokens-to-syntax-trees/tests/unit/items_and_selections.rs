@@ -706,7 +706,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
 fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let source = r#"
         machine build(builder: @mut Build) {
-            Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+            Build::bind(builder, linux_x86_64\ProgramEntry, Main::main);
         }
     "#;
     let parsed =
@@ -794,7 +794,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
 fn opaque_representation_selection_retains_data_and_conformance_paths() {
     let source = r#"
         machine build(builder: @mut Build) {
-            Build::select_representation::<interrupt::Ack, platform::AckRepresentation>(builder);
+            Build::select_representation::<interrupt::Ack, platform\AckRepresentation>(builder);
         }
     "#;
     let parsed = crate::tests::parse_source_verbose(

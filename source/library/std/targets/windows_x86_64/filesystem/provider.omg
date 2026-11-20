@@ -16,12 +16,12 @@ use omega_language_std;
 // owners below perform real OS work; this map preserves each public capability
 // row and calls only the Windows raw family. Unsupported portable contracts
 // are explicit here, never filled by sentinel rows in that raw family.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 FilesystemWindowsProvider satisfies FilesystemService {
     machine create(path: @[u8] in Path) -> OpenResult

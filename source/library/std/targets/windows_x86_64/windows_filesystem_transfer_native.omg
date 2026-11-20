@@ -6,8 +6,8 @@ use WindowsFilesystemTransferCalling;
 // mode query. It never escapes the private transfer/close flow. This records
 // the native completion premise; it is not numeric ownership or a promise
 // that an arbitrary copied HANDLE remains valid after release.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
 
 // Zero is the failed acquisition. Only nonzero classified values may enter I/O.
 domain i64::WindowsSynchronousFileOrAbsent

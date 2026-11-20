@@ -208,9 +208,9 @@ mod tests {
 
     const ROOT: &str = r#"machine build(builder: @mut Build) {
     Build::application(builder, "probe");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../library/std" }));
-    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "kit" });
-    dependency::with_alias(@mut kit_dependency, "kit");
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../library/std" }));
+    let mut kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "kit" });
+    dependency\with_alias(@mut kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
 }
 "#;

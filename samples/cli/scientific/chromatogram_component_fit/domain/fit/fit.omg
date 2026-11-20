@@ -1,6 +1,6 @@
-use domain::model;
-use domain::model::Chromatogram;
-use domain::model::Fit;
+use domain\model;
+use domain\model\Chromatogram;
+use domain\model\Fit;
 
 // Private normal equations. Exact KKT signs select the admissible active set;
 // its error is scored against actual reconstructed samples.

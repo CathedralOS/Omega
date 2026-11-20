@@ -85,7 +85,7 @@ machine source_unit_byte_or_nul(source_unit: @SourceUnit, index: u64 in Trapping
     }
 }
 
-// A logical name path as the compilation names it, `a::b::c`: the path of a
+// A logical name path as the compilation names it, `a\b\c`: the path of a
 // module within its package, by which a source unit belongs to its module
 // and `use` selects modules, or a one-segment package name or dependency
 // alias.
@@ -129,7 +129,7 @@ public data SourceRange [copy] {
 // A package of one compilation (wiki/spec/build/compiler_request.md): its
 // declared name, a range of the path arena, or the toolchain's core package,
 // which carries no name and which every package selects through the
-// language's mount `omega::language::core` rather than by a dependency
+// language's mount `omega\language\core` rather than by a dependency
 // alias (wiki/spec/packages/toolchain.md).
 public data PackageRow [copy] {
     name: SourceRange;

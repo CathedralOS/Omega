@@ -4,7 +4,7 @@
 // shape is an implicit strengthening. `held.e as Extent`
 // erases both qualifications on exit.
 //
-//   * `use omega::language::core::extent` — depend-free
+//   * `use omega\language\core\extent` — depend-free
 //     import of the linear `Extent` + `Granted`/`Vacant`
 //     domains.
 //   * `keep(whole: Extent in Granted & Vacant) -> Extent`.
@@ -12,7 +12,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::Extent;
+use omega\language\core\Extent;
 
 data Held {
     e: Extent in Granted & Vacant;

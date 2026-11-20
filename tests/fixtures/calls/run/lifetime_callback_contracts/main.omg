@@ -20,7 +20,7 @@ requires steps > 0u64
     {
         let remaining: u64 = context.storage.len - context.count;
         let prior_step: u64 = steps - 1u64;
-        next = remaining;
+        $next = remaining;
         transition prior_step == 0u64 { true -> remaining, _ -> 0u64 }
     }
 }

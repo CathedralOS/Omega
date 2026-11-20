@@ -731,10 +731,10 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
 #[test]
 fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     let source = r#"
-        use omega::language::core::reflect;
+        use omega\language\core\reflect;
         data Cell { value: u32; }
-        machine describe() -> reflect::TypeSchema { reflect::schema::<Cell>() }
-        machine carry<'text>(schema: reflect::TypeSchema<'text>) -> reflect::TypeSchema<'text> { schema }
+        machine describe() -> reflect\TypeSchema { reflect\schema::<Cell>() }
+        machine carry<'text>(schema: reflect\TypeSchema<'text>) -> reflect\TypeSchema<'text> { schema }
         machine local_escape<'text>() -> @'text [u8] {
             let bytes: [u8; 1] = [7u8];
             let view: @[u8] = @bytes[..];

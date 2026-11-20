@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Stack calculator: evaluate (3 + 4) * 5 with an explicit operand stack -- the core
 // of a bytecode VM / RPN evaluator. Demonstrates a bounded mutable stack pointer
 // driving runtime-indexed reads and writes:
@@ -17,7 +17,7 @@ use omega::language::core::ProcessExit;
 //   (3 + 4) * 5 = 35. The program exits with the value it computed.
 // Expected exit: 35.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main
 requires self.sp >= 0 && self.sp <= 8

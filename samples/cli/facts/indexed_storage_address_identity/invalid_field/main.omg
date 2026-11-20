@@ -6,7 +6,7 @@ machine observe(selection: Selection) -> bool {
     let index: u64 = selection.index;
     let held: @mut u64 = @mut items[index];
     let selected: addr = address_of(@items[index]);
-    held = 13;
+    $held = 13;
     let again: addr = address_of(@items[index]);
     let first: addr = address_of(@items[0]);
     let second: addr = address_of(@items[1]);

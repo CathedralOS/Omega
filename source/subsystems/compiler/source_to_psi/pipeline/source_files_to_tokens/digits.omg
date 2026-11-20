@@ -1,4 +1,4 @@
-use representations::tokens::NumericBase;
+use representations\tokens\NumericBase;
 
 // The value of a hexadecimal digit; 4294967295 when `byte` is not one.
 machine hex_digit_value(byte: u32 in Trapping) -> u32 in Trapping crashes none {

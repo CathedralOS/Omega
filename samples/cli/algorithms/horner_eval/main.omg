@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Evaluate a polynomial with Horner's method: p(x) = a_n x^n + ... + a_1 x + a_0, computed as
 // (((a_n) x + a_{n-1}) x + ... ) x + a_0 -- the standard, numerically-stable evaluation that
 // needs only n multiply-adds and no powers. A single indexed-array loop carries the running
@@ -13,7 +13,7 @@ use omega::language::core::ProcessExit;
 // which is 16 + 16 + 12 + 8 + 5 = 57. The result is checked against 57; exit 70 on success.
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
 }

@@ -45,7 +45,7 @@ public machine read_bits(value: i32) -> f32
 reaches SelectedForward invokes SelectedForward
 {
     let view: @f32 = @value as @f32;
-    let observed: f32 = view;
+    let observed: f32 = $view;
     SelectedForward::forward(observed)
 }
 machine main() crashes Trap {

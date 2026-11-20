@@ -1,5 +1,5 @@
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
 
 // The parser bounds bytes, tokens and magnitudes before arithmetic/storage.
 public data Input {

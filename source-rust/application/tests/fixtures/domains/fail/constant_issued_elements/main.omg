@@ -4,16 +4,16 @@
 // without `stamp`. The constant is refused at evaluation. The twin
 // `run/domains/constant_qualified_elements` restricts no issuer.
 
-use omega::language::core::AccessPolicy;
-use omega::language::core::AccessPlan;
-use omega::language::core::reflect;
-use omega::language::core::reflect::TypeSchema;
-use omega::language::core::Issuance;
-use omega::language::core::access;
+use omega\language\core\AccessPolicy;
+use omega\language\core\AccessPlan;
+use omega\language\core\reflect;
+use omega\language\core\reflect\TypeSchema;
+use omega\language\core\Issuance;
+use omega\language\core\access;
 
 StampAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })
+        access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(stamp)] })
     }
 }
 

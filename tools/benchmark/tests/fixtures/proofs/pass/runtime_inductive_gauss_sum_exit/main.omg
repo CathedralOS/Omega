@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // RUN CANARY (exit 70): the native twin of proofs/proof_inductive_gauss_sum.
 // The same inductive `ensures` (2 * gauss_sum(n, acc) == 2*acc + n*(n+1),
 // judged per transition arm with the recursive arm assuming the machine's
@@ -10,7 +10,7 @@ use omega::language::core::ProcessExit;
 // runs on a value the program holds at runtime rather than on a literal
 // argument. gauss_sum(4, 0) visits (4, 0), (3, 4), (2, 7), (1, 9), (0, 10)
 // and returns 10; the program exits 70 on that value and 71 otherwise.
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     count: u64 in Wrapping;

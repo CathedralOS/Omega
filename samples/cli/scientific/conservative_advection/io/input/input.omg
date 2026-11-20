@@ -1,10 +1,10 @@
 // Retain exact bounded decimal coefficients. Floating conversion happens once,
 // after the coefficient and decimal exponent are complete; boundary decisions
 // never depend on repeated floating-point digit addition or exponent scaling.
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use omega::language::core::F64::from_u64;
-use model::scale;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use omega\language\core\F64::from_u64;
+use model\scale;
 public data Input {
  values:[f64;69]; mantissas:[f64;69]; powers:[i32 in Wrapping;69];
  coefficients:[u64 in Wrapping;69]; negative:[bool;69]; count:u32 in Saturating;
@@ -111,7 +111,7 @@ public machine parse(input:@mut Input) -> bool reaches Console invokes Console b
   input.negative[input.count]=input.negative_token;
   input.mantissas[input.count]=signed;
   input.powers[input.count]=power;
-  input.values[input.count]=model::scale::apply(signed,power);
+  input.values[input.count]=model\scale\apply(signed,power);
   input.count=input.count+1;
   reset(input);
   transition ending { true -> good(), false -> read(input,bytes+1) }

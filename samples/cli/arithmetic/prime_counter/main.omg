@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Count the primes up to 20 by trial division -- a real nested-loop computation:
 // the OUTER loop walks n = 2..20; for each n the INNER loop tries divisors
 // d = 2..n-1 and clears an `is_prime` flag on the first divisor found; primes are
@@ -11,7 +11,7 @@ use omega::language::core::ProcessExit;
 // The program exits with the count it computed.
 // Expected exit: 8.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main
 requires

@@ -3,11 +3,11 @@ use omega_language_std;
 // point, queries that private object, then closes it on every returning path.
 // Keep the normalized DOS spelling (including \\?\) without lossy conversion.
 // Neither a missing path nor an undersized caller buffer becomes success.
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_u64_to_i32_exact;
-use omega::language::core::narrow_i32_to_u64_exact;
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\widen_u32_to_u64;
+use omega\language\core\narrow_u64_to_i32_exact;
+use omega\language\core\narrow_i32_to_u64_exact;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 
 machine windows_filesystem_native_canonicalize(path: @[u8] in Path, output: @mut [u8]) -> i32
 reaches FilesystemMetadataQuery {

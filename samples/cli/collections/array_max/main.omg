@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Find the maximum element of an array -- a small but real data-processing loop
 // over an invocation-local array. States carry the index and running maximum;
 // the current element exists only in the state that compares it.
@@ -6,7 +6,7 @@ use omega::language::core::ProcessExit;
 // Over [4, 15, 8, 42, 16, 23] the maximum (at index 3, not the last) is 42.
 // Expected exit: 42.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
 }

@@ -1,13 +1,13 @@
-use representations::source_files::SourceSet;
-use representations::source_files::spans_equal;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::PatternField;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::TransitionArm;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::syntax_trees::syntax_trees_pattern_field;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::typing_reject;
+use representations\source_files\SourceSet;
+use representations\source_files\spans_equal;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\PatternField;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TransitionArm;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\syntax_trees\syntax_trees_pattern_field;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\typing_reject;
 
 // Braces name a structural field roster, unlike a bare case-tag test.
 // Every field resolves before this check. Distinct field names must cover

@@ -1,13 +1,13 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::ClauseOwner;
-use representations::syntax_trees::DomainItem;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::syntax_trees::TypeReference;
-use representations::syntax_trees::TypeReferenceKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\ClauseOwner;
+use representations\syntax_trees\DomainItem;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\syntax_trees\TypeReference;
+use representations\syntax_trees\TypeReferenceKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\TokenStream;
 
 // `[public] domain [<generic parameters>] Carrier::Name [<index arguments>]
 // tail`, entered at the `domain` word. Predicates name `self`; an authored

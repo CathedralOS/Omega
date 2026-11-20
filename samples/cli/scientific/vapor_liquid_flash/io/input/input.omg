@@ -1,6 +1,6 @@
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use omega::language::core::I32::from_f64;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use omega\language\core\I32::from_f64;
 
 public data Raw { values: [f64; 17]; count: u32; }
 public data Feed { count: u32; fractions: [f64; 8]; ratios: [f64; 8]; }

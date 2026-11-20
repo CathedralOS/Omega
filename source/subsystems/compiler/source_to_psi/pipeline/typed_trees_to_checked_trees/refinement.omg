@@ -1,17 +1,17 @@
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::ClauseKind;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::Parameter;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_parameter;
-use representations::typed_trees::Selection;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::reference_type;
-use representations::typed_trees::type_table_row;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\Parameter;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_parameter;
+use representations\typed_trees\Selection;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\reference_type;
+use representations\typed_trees\type_table_row;
 
 // Universal public-contract implication is a post-settlement operation:
 // check_supply runs after every ordinary body, before project_slots

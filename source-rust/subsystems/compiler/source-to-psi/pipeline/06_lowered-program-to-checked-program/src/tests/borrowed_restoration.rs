@@ -225,7 +225,7 @@ fn a_whole_local_repair_must_fill_the_captured_home() {
          let mut owner: Inner = value;\n\
          let mut unrelated: Inner = other;\n\
          let local: @mut Inner = @mut owner;\n\
-         let taken: Inner = move local;\n\
+         let taken: Inner = move $local;\n\
          unrelated = next;\n\
          taken\n}\n",
         NOT_RESTORED,
@@ -267,7 +267,7 @@ fn a_whole_qualified_owned_origin_remains_explicitly_unsupported() {
          let mut owner: Inner in Stamped = value;\n\
          let local: @mut Inner in Stamped = @mut owner;\n\
          let taken: Inner in Stamped = move local;\n\
-         local = next;\n\
+         $local = next;\n\
          taken\n}\n";
     let refusal = verdict(source).unwrap_err();
     assert!(
@@ -576,9 +576,9 @@ fn a_moved_whole_referent_must_be_repaired_before_normal_handback() {
 fn a_whole_borrowed_hole_cannot_be_moved_a_second_time() {
     rejected(
         "machine swap(holder: @mut Inner, next: Inner) -> Inner {\n    \
-         let taken: Inner = move holder;\n    \
-         let again: Inner = move holder;\n    \
-         holder = next;\n    taken\n}\n",
+         let taken: Inner = move $holder;\n    \
+         let again: Inner = move $holder;\n    \
+         $holder = next;\n    taken\n}\n",
         USED_VACANT,
     );
 }
@@ -587,8 +587,8 @@ fn a_whole_borrowed_hole_cannot_be_moved_a_second_time() {
 fn replacing_another_root_does_not_repair_the_borrowed_referent() {
     rejected(
         "machine swap(holder: @mut Inner, other: @mut Inner, next: Inner) -> Inner {\n    \
-         let taken: Inner = move holder;\n    \
-         other = next;\n    taken\n}\n",
+         let taken: Inner = move $holder;\n    \
+         $other = next;\n    taken\n}\n",
         NOT_RESTORED,
     );
 }
@@ -613,7 +613,7 @@ fn an_owned_whole_referent_cannot_be_taken_through_a_shared_loan() {
     assert_ne!(
         verdict(
             "machine take(holder: @Inner) -> Inner {\n    \
-             let taken: Inner = move holder;\n    taken\n}\n"
+             let taken: Inner = move $holder;\n    taken\n}\n"
         ),
         Err("accepted".into())
     );
@@ -691,7 +691,7 @@ fn a_borrowed_field_window_publishes_and_executes_the_original_storage() {
 fn an_untracked_copyable_carrier_does_not_erase_an_explicit_window() {
     let verdict = super::entryless::judged(
         "data CopyValue [copy] { value: u32; }\n\
-         machine take(value: @mut CopyValue) -> CopyValue { value }\n",
+         machine take(value: @mut CopyValue) -> CopyValue { $value }\n",
         false,
     );
     let RouteVerdict::Accepted(accepted) = verdict else {
@@ -756,7 +756,7 @@ fn a_local_reference_to_another_parameter_does_not_repair_a_window() {
         "machine swap(holder: @mut Inner, other: @mut Inner, next: Inner) -> Inner {\n    \
          let local: @mut Inner = @mut holder;\n    \
          let another: @mut Inner = @mut other;\n    \
-         let taken: Inner = move local;\n    another = next;\n    taken\n}\n",
+         let taken: Inner = move $local;\n    $another = next;\n    taken\n}\n",
         NOT_RESTORED,
     );
 }
@@ -766,8 +766,8 @@ fn a_local_reference_cannot_extract_the_same_borrowed_value_twice() {
     rejected(
         "machine swap(holder: @mut Inner, next: Inner) -> Inner {\n    \
          let local: @mut Inner = @mut holder;\n    \
-         let taken: Inner = move local;\n    let twice: Inner = move local;\n    \
-         local = next;\n    taken\n}\n",
+         let taken: Inner = move $local;\n    let twice: Inner = move $local;\n    \
+         $local = next;\n    taken\n}\n",
         USED_VACANT,
     );
 }
@@ -777,7 +777,7 @@ fn a_shared_local_reference_does_not_acquire_an_owned_window() {
     assert_ne!(
         verdict(
             "machine take(holder: @Inner) -> Inner {\n    \
-             let local: @Inner = @holder;\n    let taken: Inner = move local;\n    taken\n}\n"
+             let local: @Inner = @holder;\n    let taken: Inner = move $local;\n    taken\n}\n"
         ),
         Err("accepted".into())
     );
@@ -942,7 +942,7 @@ machine take(choice: Choice) -> u64 {
 machine repair(choice: @mut Choice) {
     let old: Choice = move choice;
     let value: u64 = take(old);
-    choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };
+    $choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };
 }
 machine build_entry() crashes Trap {
     let mut boxed: Boxed = Boxed { marker: 19u64, choice: Choice::Left { token: Token { value: 41u64 } } };

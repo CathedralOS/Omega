@@ -5,9 +5,9 @@ data Cell [copy] { before: i64; value: i64; after: i64; }
 data Outcome [copy] { chosen: i64; other: i64; }
 
 machine choose(counter: @mut u64, flag: bool) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     flag
 }
 
@@ -22,8 +22,8 @@ machine store(flag: bool) -> Outcome crashes Trap {
             true -> @write chosen.value,
             false -> @write other.value
         };
-        let previous: i64 = selected;
-        selected = 41;
+        let previous: i64 = $selected;
+        $selected = 41;
         transition visits == 1 && chosen.before == 3 && chosen.after == 5 && other.before == 7 && other.after == 9 {
             true -> report(Outcome { chosen: chosen.value, other: other.value }),
             false -> wrong()

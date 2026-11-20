@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Unit converter. Exercises f64 scalar conversions:
 // temperature (Celsius ↔ Fahrenheit ↔ Kelvin), distance (km ↔ miles),
 // and mass (kg ↔ lbs). Stresses f64 parameter passing, arithmetic
@@ -15,7 +15,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
 }

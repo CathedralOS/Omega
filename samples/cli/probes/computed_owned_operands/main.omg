@@ -29,14 +29,14 @@ data Wrap { inner: Ticket; }
 data Note<'view> dropped by drop_note { log: @'view mut i32; value: i32 in Wrapping; }
 machine drop_note(note: @mut Note) { advance(note.log); }
 
-machine enter(log: @mut i32) { log = 1; }
+machine enter(log: @mut i32) { $log = 1; }
 machine advance(log: @mut i32) {
-    transition log == 1 {
+    transition $log == 1 {
         true -> second(log),
         false -> wrong(log)
     }
-    machine second(log: @mut i32) { log = 2; }
-    machine wrong(log: @mut i32) { log = 9; }
+    machine second(log: @mut i32) { $log = 2; }
+    machine wrong(log: @mut i32) { $log = 9; }
 }
 
 data Receipt [linear] dropped by drop_receipt { code: i32 in Wrapping; }

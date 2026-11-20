@@ -2,7 +2,7 @@
 // Expected exit: 0
 
 machine store(r: @write f64) {
-    r = 6.0 / 8.0;
+    $r = 6.0 / 8.0;
 }
 
 machine main() crashes Trap {

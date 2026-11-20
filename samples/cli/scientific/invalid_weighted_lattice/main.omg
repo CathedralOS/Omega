@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete intended-invalid control: the bin at index 9 is outside the fixed extent.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let bins: [u64; 9];

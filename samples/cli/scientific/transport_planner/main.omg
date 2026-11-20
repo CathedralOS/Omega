@@ -1,16 +1,16 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Closed stdin is invalid runtime input for the ordinary sample harness.
 // Expected exit: 2.
 // Expected output contains: INVALID: expected 15 integers
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use planner::input::TransportInput;
-use planner::input::parse_transport;
-use planner::input::valid_margins;
-use planner::solver::TransportPlan;
-use planner::solver::solve_transport;
-use planner::output::emit_plan;
-use planner::output::emit_integer;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use planner\input\TransportInput;
+use planner\input\parse_transport;
+use planner\input\valid_margins;
+use planner\solver\TransportPlan;
+use planner\solver\solve_transport;
+use planner\output\emit_plan;
+use planner\output\emit_integer;
 
 // One complete line is the transaction. Full input is rejected rather than
 // solving a silently truncated prefix. No external solver or runtime fixture.

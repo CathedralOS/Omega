@@ -237,8 +237,8 @@ fn parse_refinement_clause<'tokens, 'source>(
         let (member, rest) = input.take_identifier()?;
         segments.push(member);
         input = rest;
-        while input.at_punctuation(PunctuationKind::ColonColon) {
-            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        while input.at_path_member() {
+            input = input.take_path_separator()?;
             let (member, rest) = input.take_identifier()?;
             segments.push(member);
             input = rest;

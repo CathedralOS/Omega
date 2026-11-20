@@ -2,7 +2,7 @@
 // Invalid: the store observes the write-only referent. Place: match join.
 // Expected diagnostic: reads write-only parameter
 
-machine store(r: @write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
+machine store(r: @write f64) { $r = 6.0 / 8.0; let _x: f64 = $r; }
 machine choose(flag: bool, first: f64, second: f64) -> f64 {
     transition flag { true -> first, false -> second }
 }

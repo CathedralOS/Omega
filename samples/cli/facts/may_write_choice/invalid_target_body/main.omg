@@ -10,7 +10,7 @@ machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pi
 }
 
 machine overwrite(slot: @mut u64) -> u64 in Wrapping {
-    slot = 9;
+    $slot = 9;
     (1 as u64 in Wrapping)
 }
 
@@ -45,12 +45,12 @@ boundary trait SelectedProbe {
 
 X86Probe satisfies SelectedProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen < 4 && other < 4
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires $chosen < 4 && $other < 4
     {
         SelectedBodyCheck::require_tag(17u64);
         let zero: u64 in Wrapping = 0;
         let marker: u64 in Wrapping = add(overwrite(choose(chosen, other, false)), zero);
-        let index: u64 = other;
+        let index: u64 = $other;
         transition (marker as u64) == 1 && items[index] == 7 {
             true -> (items[index]),
             _ -> 0
@@ -60,12 +60,12 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen < 4 && other < 4
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires $chosen < 4 && $other < 4
     {
         SelectedBodyCheck::require_tag(29u64);
         let zero: u64 in Wrapping = 0;
         let marker: u64 in Wrapping = add(overwrite(choose(chosen, other, false)), zero);
-        let index: u64 = other;
+        let index: u64 = $other;
         transition (marker as u64) == 1 && items[index] == 7 {
             true -> (items[index]),
             _ -> 0

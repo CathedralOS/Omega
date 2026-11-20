@@ -392,7 +392,7 @@ fn a_runtime_data_declaration_is_not_a_static_provider_record() {
 #[test]
 fn a_product_dependency_does_not_expose_its_private_provider() {
     let fixture = Fixture::new(
-        "machine build(builder: @mut Build) { Build::select_provider::<dep::ForeignService, dep::Hidden>(builder, linux_x86_64); }",
+        "machine build(builder: @mut Build) { Build::select_provider::<dep\\ForeignService, dep\\Hidden>(builder, linux_x86_64); }",
         PRODUCT,
         Some(
             "public boundary trait ForeignService { machine tick() reaches none crashes none; }\nHidden satisfies ForeignService { machine tick() reaches none crashes none {} }",

@@ -1,11 +1,11 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::PropositionBody;
-use representations::syntax_trees::PropositionItem;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\PropositionBody;
+use representations\syntax_trees\PropositionItem;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\TokenStream;
 
 // `[public] proposition Name [<generic parameters>] [(parameters)] body`,
 // entered at the `proposition` word. The body is `;` for a primitive

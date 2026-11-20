@@ -9,12 +9,12 @@
 //   * `Task<T> [linear]` / `TaskOutcome<T>` public data.
 //
 // Compile-checked only: the public task declarations come from
-// `omega::language::core::task`. Executable activation still requires a
+// `omega\language\core\task`. Executable activation still requires a
 // selected runtime with real custody and backing; this probe supplies none.
 
-use omega::language::core::Task;
-use omega::language::core::TaskLifecycle;
-use omega::language::core::TaskOutcome;
+use omega\language\core\Task;
+use omega\language\core\TaskLifecycle;
+use omega\language\core\TaskOutcome;
 
 public boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;

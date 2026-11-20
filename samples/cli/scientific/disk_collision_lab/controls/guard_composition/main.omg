@@ -1,4 +1,4 @@
-use omega::language::core::abs_f64;
+use omega\language\core\abs_f64;
 
 // Complete reduced source for a checked call composed with IEEE comparisons.
 data Probe { reading:f64; selected:i32; observed:i32; }

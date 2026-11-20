@@ -1,6 +1,6 @@
 // Expected exit: 0
 // A linear closed Inert opaque moves exactly once through independent consuming calls, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining each disjoint sibling until its own consumption.
-use producer::main;
+use producer\main;
 public data AddressBox { value: InternetAddress; }
 public data AddressPair { first: InternetAddress; second: InternetAddress; }
 

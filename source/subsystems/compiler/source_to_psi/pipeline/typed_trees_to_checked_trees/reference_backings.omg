@@ -1,16 +1,16 @@
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::source_files::SourceSpan;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::SyntaxTrees;
-use representations::typed_trees::Adaptation;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_adaptation;
-use representations::typed_trees::typing_expression_type;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\source_files\SourceSpan;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\SyntaxTrees;
+use representations\typed_trees\Adaptation;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_adaptation;
+use representations\typed_trees\typing_expression_type;
 
 // A result's possible backing is separate from its logical proof subject.
 // Groups and their edge spans are immutable after publication. Transporting

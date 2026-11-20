@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Width mixer: mixed integer widths (i16, u8, i32) in arithmetic chains.
 //
 // Exercises: i16 and u8 fields in the same data struct as i32 fields,
@@ -25,9 +25,9 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
-use omega::language::core::widen_i16_to_i32;
-use omega::language::core::widen_u8_to_i32;
+use omega_language_std\Console;
+use omega\language\core\widen_i16_to_i32;
+use omega\language\core\widen_u8_to_i32;
 
 data Readings [copy] {
     flags: u8;

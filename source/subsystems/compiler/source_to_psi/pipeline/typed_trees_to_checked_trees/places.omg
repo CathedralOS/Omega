@@ -1,25 +1,25 @@
-use foundation::ExactInteger;
-use foundation::exact_integer_negate;
-use foundation::is_carrier;
-use foundation::maximum;
-use foundation::minimum;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::ValueBinding;
-use representations::symbol_resolved_trees::value_binding;
-use representations::syntax_trees::ConstantItem;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::constant_item;
-use representations::typed_trees::Adaptation;
-use representations::typed_trees::Selection;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_adaptation;
-use representations::typed_trees::typing_selection;
-use representations::typed_trees::typing_value;
+use foundation\ExactInteger;
+use foundation\exact_integer_negate;
+use foundation\is_carrier;
+use foundation\maximum;
+use foundation\minimum;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\ValueBinding;
+use representations\symbol_resolved_trees\value_binding;
+use representations\syntax_trees\ConstantItem;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\constant_item;
+use representations\typed_trees\Adaptation;
+use representations\typed_trees\Selection;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_adaptation;
+use representations\typed_trees\typing_selection;
+use representations\typed_trees\typing_value;
 
 // The places a body names and the integer and Boolean subjects among them. A place is a
 // parameter, a local, a case-pattern binder, a call's result, a

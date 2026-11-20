@@ -8,7 +8,7 @@ machine take(item: @mut Item) -> u64 {
         Item::Empty -> 0
     }
     machine clear(item: @mut Item, count: u64) -> u64 {
-        item = Item::Empty;
+        $item = Item::Empty;
         count
     }
 }

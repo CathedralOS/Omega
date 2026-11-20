@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Extract and checksum the payload of a framed message. The frame is
 // [header, b0, b1, b2, trailer]; the payload is the middle three bytes, obtained
 // with the TWO-BOUND subslice `full[1..4]` (the `Slice::range` operator, distinct
@@ -8,7 +8,7 @@ use omega::language::core::ProcessExit;
 // walks the payload with the shrinking-window recursion.
 // Expected exit: 60.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 // Wrapping DECLARED: the checksum sums slice elements, which carry no range
 // facts yet (the elements share the domain so the accumulation is single-domain).

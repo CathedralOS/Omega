@@ -381,7 +381,7 @@ fn a_whole_borrowed_replacement_cannot_discard_a_linear_resident() {
     let source = r#"
 data Item [linear] { value: u32; }
 machine build_entry(owner: @mut Item, replacement: Item) {
-    owner = replacement;
+    $owner = replacement;
 }
 "#;
     let verdict = super::build_purpose::judge_build(source).unwrap();
@@ -443,7 +443,7 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
 fn a_slice_formal_does_not_gain_whole_view_replacement() {
     let source = r#"
 machine build_entry<'storage>(view: @'storage mut [u8]) {
-    view = view;
+    $view = view;
 }
 "#;
     let verdict = super::build_purpose::judge_build(source);

@@ -1,21 +1,21 @@
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::ValueBinding;
-use representations::symbol_resolved_trees::value_binding;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::OperatorKind;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::Statement;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\ValueBinding;
+use representations\symbol_resolved_trees\value_binding;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ExpressionKind;
+use representations\syntax_trees\OperatorKind;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\Statement;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
 
 // Proof provenance of borrowed storage, separate from ownership's access
 // authorization (state_contracts.md#mutation-and-subject-identity). A local

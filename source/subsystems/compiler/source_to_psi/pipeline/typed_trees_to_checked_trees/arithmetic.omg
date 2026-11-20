@@ -1,18 +1,18 @@
-use foundation::ExactInteger;
-use foundation::exact_integer_negate;
-use foundation::saturate;
-use foundation::wrap;
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::DomainBinding;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::OperatorKind;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
+use foundation\ExactInteger;
+use foundation\exact_integer_negate;
+use foundation\saturate;
+use foundation\wrap;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\DomainBinding;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\OperatorKind;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
 
 // Fixed-integer operators and conversions
 // (wiki/spec/language/numeric_values.md). An operation's policy is its

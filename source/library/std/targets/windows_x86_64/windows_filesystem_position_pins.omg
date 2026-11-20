@@ -1,8 +1,8 @@
 // Shared acquisition/cleanup for positioned transfers. The pin keeps the
 // numeric original from being recycled between its access query and reopen.
 // Zero-initialized outcomes fail closed; no error record denotes byte count 0.
-use omega::language::core::widen_u32_to_i64;
-use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega\language\core\widen_u32_to_i64;
+use omega\language\core\narrow_u64_to_i64_wrapping;
 
 data WindowsPinnedAccessResult {
     case Error(code: u32);

@@ -36,8 +36,8 @@ requires right >= 0
 }
 
 machine prepare(value: @mut i32 in Counted) -> i32 in Counted
-ensures value >= 0 {
-    value = 1;
+ensures $value >= 0 {
+    $value = 1;
     1
 }
 

@@ -14,9 +14,9 @@
 // Dot may share its inputs but its output must be disjoint; ordinary axpy
 // needs disjoint x and an exclusive y loan, and x == y uses try_axpy_self_f64
 // with one exclusive loan.
-use omega::language::core::F64::negate;
-use omega::language::core::F64::square_root;
-use omega::language::core::F64::maximum;
+use omega\language\core\F64::negate;
+use omega\language\core\F64::square_root;
+use omega\language\core\F64::maximum;
 
 machine is_finite_f64(value: f64) -> bool {
     let difference: f64 = value - value;
@@ -48,7 +48,7 @@ public machine try_dot_f64(left: @[f64], right: @[f64], output: @mut f64) -> boo
         }
     }
     machine finish(output: @mut f64, total: f64) -> bool {
-        output = total;
+        $output = total;
         true
     }
 }
@@ -104,7 +104,7 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mut f64) -> bool {
         }
     }
     machine publish(output: @mut f64, result: f64) -> bool {
-        output = result;
+        $output = result;
         true
     }
 }

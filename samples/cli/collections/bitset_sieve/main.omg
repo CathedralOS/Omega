@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Sieve of Eratosthenes over a bitset: bit k of a u32 means "k is composite". Starting empty (all
 // bits 0 = all candidates prime), walk k = 2..30; if k is unmarked it is prime, so mark every
@@ -7,7 +7,7 @@ use omega::language::core::ProcessExit;
 // count is 10. A real algorithm over the bitset, using OR / shift / AND with runtime shift amounts
 // across nested loops, with no array indexing.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     bits: u32 in Wrapping;

@@ -7,7 +7,7 @@ machine main() crashes Trap {
     let original: @mut i64 = @mut backing;
     let mut holder: Holder = Holder { slot: original };
     holder.slot = 41;
-    let observed: i64 = holder.slot;
+    let observed: i64 = $holder.slot;
     transition observed == 41 {
         true -> done(),
         false -> wrong()

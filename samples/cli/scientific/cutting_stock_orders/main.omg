@@ -1,7 +1,7 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // NEW071: exhaustive bounded manufacturing cut planner. All data is synthetic.
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
 use model;
 use input;
 use planner;
@@ -29,17 +29,17 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine parse_orders(main: @mut Main, bytes: @[u8; 32]) {
-        let mut orders: model::Orders;
-        let valid: bool = input::parse(bytes, @mut orders);
+        let mut orders: model\Orders;
+        let valid: bool = input\parse(bytes, @mut orders);
         transition valid {
             true -> plan(main, @orders),
             _ -> invalid(main)
         }
     }
-    machine plan(main: @mut Main, orders: @model::Orders) {
-        let mut best: model::Plan;
-        planner::solve(orders, @mut best);
-        let conserved: bool = report::emit(orders, @best);
+    machine plan(main: @mut Main, orders: @model\Orders) {
+        let mut best: model\Plan;
+        planner\solve(orders, @mut best);
+        let conserved: bool = report\emit(orders, @best);
         transition conserved {
             true -> done(main),
             _ -> internal(main)

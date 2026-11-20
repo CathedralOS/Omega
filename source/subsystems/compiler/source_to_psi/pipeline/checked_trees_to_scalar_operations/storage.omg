@@ -1,16 +1,16 @@
-use representations::lowered_program::ScalarLayout;
-use representations::lowered_program::ScalarLayoutKind;
-use representations::lowered_program::ScalarOperationKind;
-use representations::lowered_program::ScalarStatus;
-use representations::lowered_program::scalar_layout_at;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::DataMultiplicity;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
+use representations\lowered_program\ScalarLayout;
+use representations\lowered_program\ScalarLayoutKind;
+use representations\lowered_program\ScalarOperationKind;
+use representations\lowered_program\ScalarStatus;
+use representations\lowered_program\scalar_layout_at;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\DataMultiplicity;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
 
 // Value slots hold scalars or internal Alpha addresses. Owned storage lives
 // separately in the activation; a mutable binding never aliases an old value

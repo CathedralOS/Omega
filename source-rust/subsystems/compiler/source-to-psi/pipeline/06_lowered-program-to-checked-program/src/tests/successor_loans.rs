@@ -148,8 +148,8 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
 fn loop_element_reborrows_keep_distinct_incoming_backing() {
     let program = r#"
         machine update(left: @mut u32, right: @mut u32) {
-            left = 1u32;
-            right = 2u32;
+            $left = 1u32;
+            $right = 2u32;
         }
         machine walk(items: @mut [u32], other: @mut [u32], index: u64) {
             transition index < 4u64 && index < items.len && index < other.len {

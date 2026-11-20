@@ -1,21 +1,21 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 64.
 // Expected output contains: INVALID:
 // The sample harness supplies EOF; positive design cases use data/*.stdin.
 // One finite request: treatments,subjects,carryover-cap,forbidden-edge + LF.
 // Every result is an actual allocation or exhaustive bounded infeasibility.
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use omega::language::core::widen_u8_to_i32;
-use design::model;
-use design::model::Request;
-use design::model::Allocation;
-use design::search;
-use design::search::solve;
-use design::certificate;
-use design::certificate::certify;
-use design::output;
-use design::output::emit;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use omega\language\core\widen_u8_to_i32;
+use design\model;
+use design\model\Request;
+use design\model\Allocation;
+use design\search;
+use design\search\solve;
+use design\certificate;
+use design\certificate\certify;
+use design\output;
+use design\output\emit;
 
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

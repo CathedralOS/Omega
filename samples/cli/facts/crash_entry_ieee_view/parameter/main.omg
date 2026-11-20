@@ -10,7 +10,7 @@ public machine read_bits(value: i32) -> f32
 requires value == 1065353216
 {
     let view: @f32 = @value as @f32;
-    maybe_zero(view)
+    maybe_zero($view)
 }
 machine main() crashes Trap {
     let observed: f32 = read_bits(1065353216);

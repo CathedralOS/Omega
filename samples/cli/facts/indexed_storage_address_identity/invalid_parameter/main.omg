@@ -3,7 +3,7 @@
 machine observe(items: @mut [u64; 2], index: u64) -> bool requires index < 2 {
     let held: @mut u64 = @mut items[index];
     let selected: addr = address_of(@items[index]);
-    held = 13;
+    $held = 13;
     let again: addr = address_of(@items[index]);
     let first: addr = address_of(@items[0]);
     let second: addr = address_of(@items[1]);

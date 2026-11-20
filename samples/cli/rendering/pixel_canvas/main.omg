@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Pixel canvas: fixed array of structs with per-element field mutations.
 //
 // Exercises: a fixed-size array of structs ([Pixel; 4]) where each element
@@ -29,7 +29,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Pixel [copy] {
     r: i32 in Saturating;

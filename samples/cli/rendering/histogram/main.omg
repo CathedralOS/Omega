@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 4.
 // Histogram: tally how many samples fall in each of four categories, then report
 // the count for category 2. A real counting computation -- the kind that was
@@ -16,7 +16,7 @@ use omega::language::core::ProcessExit;
 //   samples = [2, 0, 2, 1, 2, 3, 0, 2]  ->  category 2 occurs 4 times.
 // The program exits with that count. Expected exit: 4.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     pause: [u8; 256];

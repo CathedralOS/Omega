@@ -12,11 +12,11 @@ use omega_language_std;
 // object is closed on every returning path and an earlier failure wins.
 // Restore the source's portable read-only bit on the exact destination handle,
 // not a second path lookup which could race namespace replacement.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\FilesystemNamespaceMutation;
 
 machine windows_filesystem_copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery

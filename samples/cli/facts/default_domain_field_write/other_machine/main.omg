@@ -16,7 +16,7 @@ machine consume(span: Interval) -> u64 {
 machine revise(span: @mut Interval) {
     let mut held: Interval = Interval::Range { lo: 1, hi: 2 };
     held.hi = 3;
-    span = held;
+    $span = held;
 }
 machine main() crashes Trap {
     let mut span: Interval = Interval::Range { lo: 1, hi: 2 };

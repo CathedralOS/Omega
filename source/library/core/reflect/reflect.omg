@@ -1,4 +1,4 @@
-use omega::language::core::AccessRegion;
+use omega\language\core\AccessRegion;
 
 // An explicitly retained, immutable graph in this program's own constant data.
 // Its bytes contain descriptive identities, never compiler pointers or access

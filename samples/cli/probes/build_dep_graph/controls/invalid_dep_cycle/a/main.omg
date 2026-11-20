@@ -1,4 +1,4 @@
-use b::main;
+use b\main;
 
 public machine va() -> i32 {
     vb()

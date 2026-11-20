@@ -1,20 +1,20 @@
-use representations::lowered_program::ScalarLayout;
-use representations::lowered_program::ScalarLayoutKind;
-use representations::lowered_program::ScalarStatus;
-use representations::lowered_program::scalar_layout_at;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::DomainBinding;
-use representations::syntax_trees::DataField;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::DataMultiplicity;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::syntax_trees::syntax_trees_field;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::reference_type;
-use representations::typed_trees::type_table_row;
+use representations\lowered_program\ScalarLayout;
+use representations\lowered_program\ScalarLayoutKind;
+use representations\lowered_program\ScalarStatus;
+use representations\lowered_program\scalar_layout_at;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\DomainBinding;
+use representations\syntax_trees\DataField;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\DataMultiplicity;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\syntax_trees\syntax_trees_field;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\reference_type;
+use representations\typed_trees\type_table_row;
 
 public data ScalarLayoutState [copy] {
     case Unseen;

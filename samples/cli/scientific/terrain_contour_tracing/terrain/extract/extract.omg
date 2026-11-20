@@ -1,6 +1,6 @@
-use terrain::model;
-use terrain::model::Terrain;
-use terrain::model::Contours;
+use terrain\model;
+use terrain\model\Terrain;
+use terrain\model\Contours;
 machine append_segment(graph: @mut Contours, cell: u64, first: u64, second: u64) {
     transition graph.count < 8 && first < 12 && second < 12 {
         true -> store(graph, cell, first, second),

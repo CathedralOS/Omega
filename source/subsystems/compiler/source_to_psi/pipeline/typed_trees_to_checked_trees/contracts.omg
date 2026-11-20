@@ -1,25 +1,25 @@
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::source_files::SourceSpan;
-use representations::symbol_resolved_trees::BinderContract;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::binder_contract;
-use representations::syntax_trees::Clause;
-use representations::syntax_trees::ClauseKind;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_clause;
-use representations::syntax_trees::syntax_trees_contract;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::typed_trees::Selection;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::typing_expression_type;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\source_files\SourceSpan;
+use representations\symbol_resolved_trees\BinderContract;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\binder_contract;
+use representations\syntax_trees\Clause;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_clause;
+use representations\syntax_trees\syntax_trees_contract;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\typed_trees\Selection;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\typing_expression_type;
 
 // Contract facts (wiki/spec/language/state_contracts.md). A body assumes
 // its `requires` facts: its callers and predecessors established them. A

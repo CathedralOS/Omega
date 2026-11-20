@@ -2,9 +2,9 @@
 // Place: match_join. The left operand is the join of a match whose arms both produce the Boolean.
 // Expected exit: 0
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

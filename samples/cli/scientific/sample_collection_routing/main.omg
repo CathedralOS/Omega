@@ -1,18 +1,18 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // With closed stdin the application rejects the missing record.
 // Expected exit: 64.
 // Expected output contains: INVALID: expected
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use routing::model;
-use routing::model::Plan;
-use routing::model::Certificate;
-use routing::search;
-use routing::search::solve;
-use input::parse;
-use input::parse::parse;
-use reporting::certificate;
-use reporting::certificate::report;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use routing\model;
+use routing\model\Plan;
+use routing\model\Certificate;
+use routing\search;
+use routing\search\solve;
+use input\parse;
+use input\parse\parse;
+use reporting\certificate;
+use reporting\certificate\report;
 
 data Collection {
     input: [u8; 12];

@@ -83,7 +83,7 @@ fn build(name: &str, expected_sum: &str, registration: &str) -> (bool, String) {
         format!(
             "machine build(builder: @mut Build) {{
     Build::application(builder, \"{name}\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 {registration}
 }}
 "

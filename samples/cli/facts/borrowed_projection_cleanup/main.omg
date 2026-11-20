@@ -37,8 +37,8 @@ machine issue() -> Pair {
     Pair { first: Receipt { code: 17 }, second: Receipt { code: 23 } }
 }
 machine issue_next(counter: @mut u64) -> Receipt {
-    counter = ((counter as u64 in Wrapping) + 1) as u64;
-    Receipt { code: counter }
+    $counter = (($counter as u64 in Wrapping) + 1) as u64;
+    Receipt { code: $counter }
 }
 machine inspect(receipt: @Receipt) -> u64 { receipt.code }
 machine observe(receipt: @Receipt, expected: u64) crashes Trap {

@@ -1,7 +1,7 @@
-use domain::model;
-use domain::model::Analysis;
-use domain::model::absolute;
-use domain::model::maximum;
+use domain\model;
+use domain\model\Analysis;
+use domain\model\absolute;
+use domain\model\maximum;
 public machine qualify(a: @mut Analysis) {
  a.residual = 0.0; a.orthogonality = 0.0; a.error = 0.0;
  transition { _ -> matrix(a, 0, 0, 0.0, 0.0) }

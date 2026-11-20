@@ -1,5 +1,5 @@
 // Core relation traits parameterized by PROPOSITIONS:
-// `use omega::language::core::relation` (depend-free) imports
+// `use omega\language\core\relation` (depend-free) imports
 // Reflexive/Symmetric/Transitive/Antisymmetric — each
 // `trait X<C, proposition Relation>` carries one law; a user
 // `proposition` binds the parameter through `satisfies`.
@@ -10,10 +10,10 @@
 // Compile-checked only: declaration surface (proposition
 // contracts aren't callable), no standard-library dependency.
 
-use omega::language::core::Antisymmetric;
-use omega::language::core::Reflexive;
-use omega::language::core::Symmetric;
-use omega::language::core::Transitive;
+use omega\language\core\Antisymmetric;
+use omega\language\core\Reflexive;
+use omega\language\core\Symmetric;
+use omega\language\core\Transitive;
 
 data Carrier {
     code: u32;

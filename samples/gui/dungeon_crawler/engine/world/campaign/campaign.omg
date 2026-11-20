@@ -1,8 +1,8 @@
-use world::rooms::Dungeon;
-use world::rooms::Room;
-use world::rooms::Exit;
-use world::rooms::Layout;
-use world::rooms::Reward;
+use world\rooms\Dungeon;
+use world\rooms\Room;
+use world\rooms\Exit;
+use world\rooms\Layout;
+use world\rooms\Reward;
 
 public machine hollow_dungeon() -> Dungeon<6>
 terminates

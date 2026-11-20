@@ -3,7 +3,7 @@
 // Geometry is numeric evidence, not a storage claim.
 // Constants require a copy-eligible carrier; this changes no geometry fact.
 data Region [copy] { base: addr; length: u64; }
-let no_wrap(base: addr, length: u64): core::Strict<0> =
+let no_wrap(base: addr, length: u64): core\Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
 domain Region::Bounded
 requires no_wrap(self.base, self.length);

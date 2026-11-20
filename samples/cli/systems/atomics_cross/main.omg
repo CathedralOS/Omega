@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Cross-platform atomics smoke test: exercises atomic read-modify-write plus
 // every legal load/store ordering family so each target's real instructions
@@ -16,7 +16,7 @@ use omega::language::core::ProcessExit;
 // The named-entry form runs natively and in the checked interpreter on
 // macOS ARM64. Other declared targets retain their matching-host obligations.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     counter: AtomicU32;

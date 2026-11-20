@@ -34,8 +34,8 @@ X86Replace satisfies SelectedReplace {
         SelectedBodyCheck::require_tag(17u64);
         let first: @mut Cell = @mut values[first_index];
         let second: @mut Cell = @mut values[second_index];
-        first = Cell { value: 17 };
-        second = Cell { value: 53 };
+        $first = Cell { value: 17 };
+        $second = Cell { value: 53 };
     }
 }
 
@@ -46,8 +46,8 @@ ArmReplace satisfies SelectedReplace {
         SelectedBodyCheck::require_tag(29u64);
         let first: @mut Cell = @mut values[first_index];
         let second: @mut Cell = @mut values[second_index];
-        first = Cell { value: 17 };
-        second = Cell { value: 53 };
+        $first = Cell { value: 17 };
+        $second = Cell { value: 53 };
     }
 }
 

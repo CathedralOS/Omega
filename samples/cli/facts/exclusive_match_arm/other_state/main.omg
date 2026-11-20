@@ -2,9 +2,9 @@
 // Place: other_state.
 // Expected exit: 0
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
@@ -15,8 +15,8 @@ machine apply(chosen: @mut i64, other: @mut i64, visits: @mut u64) -> i64 {
             true -> chosen,
             false -> other
         };
-        selected = 41;
-        selected
+        $selected = 41;
+        $selected
     }
 }
 

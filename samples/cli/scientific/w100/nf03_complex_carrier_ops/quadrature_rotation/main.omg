@@ -1,14 +1,14 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 0
-use omega::language::core::float;
-use omega_language_std::Console;
-use omega::language::core::F32::is_finite;
-use omega::language::core::complex::Complex;
-use omega::language::core::complex::ComplexF32;
-use omega::language::core::complex::ComplexMagnitude;
-use omega::language::core::float_accuracy::AccuracyComparison;
-use omega::language::core::float_accuracy::ReferenceAdditiveTolerance32;
-use omega::language::core::float_accuracy::compare_reference_additive_f32;
+use omega\language\core\float;
+use omega_language_std\Console;
+use omega\language\core\F32::is_finite;
+use omega\language\core\complex\Complex;
+use omega\language\core\complex\ComplexF32;
+use omega\language\core\complex\ComplexMagnitude;
+use omega\language\core\float_accuracy\AccuracyComparison;
+use omega\language\core\float_accuracy\ReferenceAdditiveTolerance32;
+use omega\language\core\float_accuracy\compare_reference_additive_f32;
 // Four quarter-turns and their zero sum. Every destination is a separate carrier.
 data Main {
     point: Complex<f32>;
@@ -95,7 +95,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition outcome { ComplexMagnitude::NonFiniteInput -> overflow(main), _ -> bad(main) }
     }
     machine overflow(main: @mut Main) {
-        main.exceptional = Complex { real: float::max::<f32>(), imaginary: float::max::<f32>() };
+        main.exceptional = Complex { real: float\max::<f32>(), imaginary: float\max::<f32>() };
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(@main.exceptional);
         transition outcome { ComplexMagnitude::Overflow -> good(main), _ -> bad(main) }
     }

@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Recursive sum over a fixed-size integer array via a value-returning machine.
 //
@@ -29,7 +29,7 @@ use omega::language::core::ProcessExit;
 // descriptor slot, forcing staging. Guarded by the RUN canary
 // slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     arr: [i32 in Wrapping; 4];

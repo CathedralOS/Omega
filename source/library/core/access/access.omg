@@ -4,27 +4,27 @@
 // constructors are qualified by a data type; their explicit parameters carry
 // every input.
 
-use omega::language::core::Extent;
-use omega::language::core::Extent::Granted;
-use omega::language::core::Extent::Vacant;
-use omega::language::core::AccessPlan;
-use omega::language::core::AccessFieldEntry;
-use omega::language::core::AccessCallerRule;
-use omega::language::core::AccessRegion;
-use omega::language::core::BoundaryReach;
-use omega::language::core::FieldAccess;
-use omega::language::core::Issuance;
-use omega::language::core::ResourceProfile;
-use omega::language::core::ResourceProfileSupply;
-use omega::language::core::AccessOutcome;
-use omega::language::core::AccessReturn;
-use omega::language::core::AccessBorrowReturn;
-use omega::language::core::AccessInitializationFailure;
-use omega::language::core::AccessExtraction;
-use omega::language::core::AccessLifecycle;
-use omega::language::core::reflect::TypeSchema;
-use omega::language::core::reflect::CallableInfo;
-use omega::language::core::reflect::FieldInfo;
+use omega\language\core\Extent;
+use omega\language\core\Extent::Granted;
+use omega\language\core\Extent::Vacant;
+use omega\language\core\AccessPlan;
+use omega\language\core\AccessFieldEntry;
+use omega\language\core\AccessCallerRule;
+use omega\language\core\AccessRegion;
+use omega\language\core\BoundaryReach;
+use omega\language\core\FieldAccess;
+use omega\language\core\Issuance;
+use omega\language\core\ResourceProfile;
+use omega\language\core\ResourceProfileSupply;
+use omega\language\core\AccessOutcome;
+use omega\language\core\AccessReturn;
+use omega\language\core\AccessBorrowReturn;
+use omega\language\core\AccessInitializationFailure;
+use omega\language\core\AccessExtraction;
+use omega\language\core\AccessLifecycle;
+use omega\language\core\reflect\TypeSchema;
+use omega\language\core\reflect\CallableInfo;
+use omega\language\core\reflect\FieldInfo;
 
 // A new plan adds no reader/writer restriction, observation demand or reach.
 // Its explicit issuance choice is independent of those empty axes.

@@ -980,7 +980,7 @@ mod tests {
         let geo = format!(
             "public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: @Point, right: @Point) -> bool {{ left.x == right.x }} }}"
         );
-        let app = "use dep::geo; machine same(left: geo::Point, right: geo::Point) -> bool { left == right }";
+        let app = "use dep\\geo; machine same(left: geo::Point, right: geo::Point) -> bool { left == right }";
         let mut units = vec![(31, "geo/point.omg", geo.as_str()), (32, "app.omg", app)];
         let mut dependencies = vec![(32, "dep", 31)];
         let mut imports = vec![(1, 0, "dep::geo", 1)];
@@ -1031,7 +1031,7 @@ mod tests {
 
     #[test]
     fn an_unimported_packages_comparison_is_no_rival() {
-        let rival = "use dep::geo; public RivalEq satisfies Equatable<geo::Point> { machine equals(left: @geo::Point, right: @geo::Point) -> bool { false } }";
+        let rival = "use dep\\geo; public RivalEq satisfies Equatable<geo::Point> { machine equals(left: @geo::Point, right: @geo::Point) -> bool { false } }";
         let program = compare_points_across_packages("public PointEq", Some(rival)).unwrap();
         assert_eq!(selected_comparison(&program), Some("PointEq"));
     }

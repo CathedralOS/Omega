@@ -15,11 +15,11 @@ machine verify(storage: @Storage) crashes Trap {
         _ -> failure()
     }
 }
-machine exercise(cells: @write [Cell; 2], position: @mut u64) requires position == 1 {
+machine exercise(cells: @write [Cell; 2], position: @mut u64) requires $position == 1 {
     let child: @write [Cell; 2] = @write cells;
     replace(@write child[position], 7);
     replace(@write child[position], 9);
-    position = 0;
+    $position = 0;
     replace(@write child[position], -43);
 }
 machine main() crashes Trap {

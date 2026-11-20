@@ -1,16 +1,16 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::ConformanceItem;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_reject;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\ConformanceItem;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_reject;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenStream;
 
 // `[public] Name [<generic parameters>] satisfies Trait<arguments> { member* }`,
 // entered at the implementation's name. The name identifies a closed map of

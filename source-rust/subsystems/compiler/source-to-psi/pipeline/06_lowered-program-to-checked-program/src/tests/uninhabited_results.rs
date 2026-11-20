@@ -193,8 +193,8 @@ fn reachable_value_body_falloff_is_a_language_violation() {
 #[test]
 fn canonical_process_exit_publishes_never_without_a_receiving_value() {
     let typed = super::build_purpose::frontier_with_core(
-        "use omega::language::core::Never; \
-         use omega::language::core::ProcessExit; \
+        "use omega\\language\\core\\Never; \
+         use omega\\language\\core\\ProcessExit; \
          public machine finish(status: i32) -> Never \
          reaches ProcessExit crashes none terminates { \
              ProcessExit::exit_process(status); \

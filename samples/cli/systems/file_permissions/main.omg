@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Unix-style permission bits built and manipulated with the bitwise operators
 // `&`, `|`, `^`. A small but complete demonstration of flag arithmetic:
 //
@@ -15,7 +15,7 @@ use omega::language::core::ProcessExit;
 // overflow, so `mode` needs no arithmetic domain.
 // Expected exit: 12.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     mode: i32;

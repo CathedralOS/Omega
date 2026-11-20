@@ -378,7 +378,7 @@ pub(crate) mod exhaustiveness {
 
         #[test]
         fn coverage_uses_copied_values_and_versions_memory_reads_across_calls() {
-            let prefix = "machine flip(value: @mut bool) -> bool { value = false; false } ";
+            let prefix = "machine flip(value: @mut bool) -> bool { $value = false; false } ";
             let program = resolve(&format!(
                 "{prefix} machine uncovered(value: @mut bool) {{ transition {{ value == true -> {{}}, flip(value) == true -> {{}}, value == false -> {{}} }} }}"
             ));
@@ -386,8 +386,8 @@ pub(crate) mod exhaustiveness {
                 .expect_err("the call can change the pointee between alternatives");
             for body in [
                 "machine covered(value: @mut bool, captured: bool) { transition { captured == true -> {}, flip(value) == true -> {}, captured == false -> {} } }",
-                "machine covered(value: @mut bool) { transition { value == true -> {}, value == false -> {}, flip(value) == true -> {} } }",
-                "machine covered(value: @mut bool) { transition { flip(value) == true -> {}, value == true -> {}, value == false -> {} } }",
+                "machine covered(value: @mut bool) { transition { $value == true -> {}, $value == false -> {}, flip(value) == true -> {} } }",
+                "machine covered(value: @mut bool) { transition { flip(value) == true -> {}, $value == true -> {}, $value == false -> {} } }",
             ] {
                 let program = resolve(&format!("{prefix}{body}"));
                 crate::typing::lower_symbol_resolved_trees(&program).expect(
@@ -416,7 +416,7 @@ pub(crate) mod exhaustiveness {
                 "data Flags { flag: bool; } data Outer { inner: Flags; } machine covered(flags: @Outer) { transition { flags.inner.flag == true -> {}, noise() == true -> {}, flags.inner.flag == false -> {} } }",
                 "data Flags { flag: bool; } data Outer { inner: @Flags; } machine covered(flags: @Outer) { transition { flags.inner.flag == true -> {}, noise() == true -> {}, flags.inner.flag == false -> {} } }",
                 "data Flags { flag: bool; } data Outer { good: bool; other: @mut Flags; } machine covered(flags: @Outer) { transition { flags.good == true -> {}, noise() == true -> {}, flags.good == false -> {} } }",
-                "machine covered(flag: @bool) { transition { flag == true -> {}, noise() == true -> {}, flag == false -> {} } }",
+                "machine covered(flag: @bool) { transition { $flag == true -> {}, noise() == true -> {}, $flag == false -> {} } }",
                 "machine covered(flags: @[bool; 2]) { transition { flags[0u64] == true -> {}, noise() == true -> {}, flags[0u64] == false -> {} } }",
                 "machine covered(flags: @[bool]) requires 0u64 < flags.len { transition { flags[0u64] == true -> {}, noise() == true -> {}, flags[0u64] == false -> {} } }",
                 "data Flags { flag: bool; } domain Flags::Seen; machine covered(flags: @Flags in Seen) { transition { flags.flag == true -> {}, noise() == true -> {}, flags.flag == false -> {} } }",
@@ -434,7 +434,7 @@ pub(crate) mod exhaustiveness {
                 "data Flags { flag: bool; } machine flip(flags: @mut Flags) -> bool { flags.flag = true; false } machine uncovered(flags: @mut Flags) { transition { flags.flag == true -> {}, flip(flags) == true -> {}, flags.flag == false -> {} } }",
                 "data Flags { flag: bool; } data Outer { inner: @mut Flags; } machine flip(flags: @Outer) -> bool { flags.inner.flag = true; false } machine uncovered(flags: @Outer) { transition { flags.inner.flag == true -> {}, flip(flags) == true -> {}, flags.inner.flag == false -> {} } }",
                 "data Flags { flag: bool; } data Outer { inner: @Flags; } machine replace(flags: @mut Outer, other: @Flags) -> bool { flags.inner = other; false } machine uncovered(flags: @mut Outer, other: @Flags) { transition { flags.inner.flag == true -> {}, replace(flags, other) == true -> {}, flags.inner.flag == false -> {} } }",
-                "machine change(index: @mut u64) -> bool { index = 1u64; false } machine uncovered(flags: @[bool; 2]) { let mut index: u64 = 0u64; transition { flags[index] == true -> {}, change(@mut index) == true -> {}, flags[index] == false -> {} } }",
+                "machine change(index: @mut u64) -> bool { $index = 1u64; false } machine uncovered(flags: @[bool; 2]) { let mut index: u64 = 0u64; transition { flags[index] == true -> {}, change(@mut index) == true -> {}, flags[index] == false -> {} } }",
                 "data Flags { flag: bool; } data Holder<T> { inner: T; } machine noise() -> bool { false } machine uncovered(flags: @Holder<@mut Flags>) { transition { flags.inner.flag == true -> {}, noise() == true -> {}, flags.inner.flag == false -> {} } }",
             ] {
                 let program = resolve(source);
@@ -477,7 +477,7 @@ pub(crate) mod exhaustiveness {
         #[test]
         fn borrowed_case_captures_keep_their_storage_version() {
             let mut program = resolve(
-                "data Mode { case First; case Second; } machine change(value: @mut Mode) -> bool { value = Mode::First; false } machine uncovered(value: @mut Mode) { transition { value in Mode::First -> {}, change(value) == true -> {}, value in Mode::Second -> {} } }",
+                "data Mode { case First; case Second; } machine change(value: @mut Mode) -> bool { $value = Mode::First; false } machine uncovered(value: @mut Mode) { transition { value in Mode::First -> {}, change(value) == true -> {}, value in Mode::Second -> {} } }",
             );
             validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
                 .expect_err("the call changes the case between borrowed reads");

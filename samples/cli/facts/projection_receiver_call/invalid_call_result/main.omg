@@ -6,7 +6,7 @@
 use marks;
 
 domain bool::Held
-requires marks::project(self).kept;
+requires marks\project(self).kept;
 
 machine hold(direct: bool) -> bool
 requires direct == true

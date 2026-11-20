@@ -1,6 +1,6 @@
 // Expected native admission rejection: a checked component cannot launder a raw leaf qualification.
 // Routed opaque input membership survives transport and an independent installed call, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
-use producer::main;
+use producer\main;
 public data AddressBox { value: InternetAddress in Classified; }
 public data AddressPair { first: InternetAddress in Classified; second: InternetAddress; }
 

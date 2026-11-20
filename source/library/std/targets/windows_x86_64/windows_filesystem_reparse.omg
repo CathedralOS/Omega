@@ -4,12 +4,12 @@ use omega_language_std;
 // Decode/encode entirely in owned scratch before writing the requested caller
 // byte prefix. read_link returns bytes, excludes NUL, and can fill count exactly
 // like the portable POSIX operation; it does not claim a full-path result.
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::narrow_i64_to_i32_exact;
-use omega::language::core::widen_i32_to_i64;
-use omega::language::core::narrow_u64_to_i64_exact;
-use omega::language::core::narrow_i32_to_u64_exact;
-use omega::language::core::narrow_i64_to_u64_wrapping;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\narrow_i64_to_i32_exact;
+use omega\language\core\widen_i32_to_i64;
+use omega\language\core\narrow_u64_to_i64_exact;
+use omega\language\core\narrow_i32_to_u64_exact;
+use omega\language\core\narrow_i64_to_u64_wrapping;
 
 machine windows_open_reparse(path: @[u16; 4096] in WindowsNativePath) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemMetadataQuery {

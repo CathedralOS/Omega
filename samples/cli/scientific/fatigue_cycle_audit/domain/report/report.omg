@@ -1,6 +1,6 @@
-use omega_language_std::Console;
-use domain::cycles;
-use domain::cycles::Audit;
+use omega_language_std\Console;
+use domain\cycles;
+use domain\cycles\Audit;
 
 public data Report {}
 

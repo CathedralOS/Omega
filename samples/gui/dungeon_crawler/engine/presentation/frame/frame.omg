@@ -1,6 +1,6 @@
-use world::rooms::Room;
-use actors::state::Actor;
-use simulation::clock::FrameClock;
+use world\rooms\Room;
+use actors\state\Actor;
+use simulation\clock\FrameClock;
 
 public data Camera<const Actors: u64, const Rooms: u64>
 requires Actors >= 1, Rooms >= 1, actor < Actors, room < Rooms {

@@ -604,8 +604,8 @@ data Choice [copy] { case First; case Second(value: u32); }
 domain [u8]::Tagged requires valid_utf8(self);
 data Text<'text> { bytes: @'text [u8] in Tagged; }
 machine replace(item: @mut Item, choice: @mut Choice) {
-    item = Item { value: 7 };
-    choice = Choice::Second { value: 11 };
+    $item = Item { value: 7 };
+    $choice = Choice::Second { value: 11 };
 }
 machine replace_text<'text>(text: @mut Text<'text>) {
     text.bytes = "later" as +Tagged;

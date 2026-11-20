@@ -273,6 +273,7 @@ pub(crate) fn take_unary_prefix<'tokens, 'source>(
     for (punctuation, operator, label) in [
         (PunctuationKind::Exclamation, UnaryOperator::LogicalNot, "!"),
         (PunctuationKind::Tilde, UnaryOperator::BitwiseNot, "~"),
+        (PunctuationKind::Dollar, UnaryOperator::Dereference, "$"),
     ] {
         if input.at_punctuation(punctuation) {
             return Ok(Some((
@@ -287,7 +288,12 @@ pub(crate) fn take_unary_prefix<'tokens, 'source>(
             input.take_punctuation(PunctuationKind::Minus, "-")?,
         )));
     }
-    if input.at_contextual_then_name("move") {
+    if input.at_contextual_then_name("move")
+        || (input.at_contextual("move")
+            && input
+                .take_contextual("move")?
+                .at_punctuation(PunctuationKind::Dollar))
+    {
         return Ok(Some((UnaryPrefix::Move, input.take_contextual("move")?)));
     }
     Ok(None)

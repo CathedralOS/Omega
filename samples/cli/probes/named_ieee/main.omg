@@ -5,17 +5,17 @@
 // `sqrt` rounds to nearest, ties to even.
 //
 //   * `F64::negate`, `F32::minimum`, `F64::maximum`, `F64::sqrt`,
-//     `F32::sqrt` via core::float_operations (depend-free import).
+//     `F32::sqrt` via core\float_operations (depend-free import).
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use omega::language::core::F32::square_root;
-use omega::language::core::F64::maximum;
-use omega::language::core::F64::minimum;
-use omega::language::core::F64::negate;
-use omega::language::core::F64::square_root;
+use omega\language\core\F32::square_root;
+use omega\language\core\F64::maximum;
+use omega\language\core\F64::minimum;
+use omega\language\core\F64::negate;
+use omega\language\core\F64::square_root;
 
 data Main {
     zero: f64;

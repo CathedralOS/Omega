@@ -1,7 +1,7 @@
-use representations::source_files::SourceId;
-use representations::source_files::SourceSpan;
-use representations::source_files::Span;
-use representations::tokens::IntegerSuffix;
+use representations\source_files\SourceId;
+use representations\source_files\SourceSpan;
+use representations\source_files\Span;
+use representations\tokens\IntegerSuffix;
 
 // Bounded source-shaped storage for the live product parser slices. Handles
 // are dense indices into owner-local tables; no symbol or package meaning is
@@ -283,6 +283,7 @@ public data OperatorKind [copy] {
     case Block;
     case SuspendBlock;
     case BorrowWrite;
+    case Dereference;
 }
 
 public data Expression [copy] {
@@ -575,7 +576,7 @@ public data Contract [copy] {
     source_span: SourceSpan;
 }
 
-// A `::`-separated name path, `a::b::c`, as a contiguous range of
+// A name path, such as `a\b\c` or `a\Type::member`, as a contiguous range of
 // `SyntaxTrees::members`: a domain's establishment routes and alias
 // constituents, and a membership test's domain.
 public data NamePath [copy] {

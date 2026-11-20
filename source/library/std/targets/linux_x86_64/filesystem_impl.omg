@@ -12,14 +12,14 @@ use error_kind_reconstruct;
 use posix_flag_bit;
 use posix_metadata_kind;
 // Linux x86-64 ABI facts; the POSIX algorithms live in the shared adapter.
-use omega::language::core::Schema;
-use omega::language::core::FieldPlan;
-use omega::language::core::FieldEntry;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutTarget;
-use omega::language::core::LayoutStorage;
-use omega::language::core::FixedLayout;
-use omega::language::core::narrow_i64_to_u64_exact;
+use omega\language\core\Schema;
+use omega\language\core\FieldPlan;
+use omega\language\core\FieldEntry;
+use omega\language\core\LayoutPlan;
+use omega\language\core\LayoutTarget;
+use omega\language\core\LayoutStorage;
+use omega\language\core\FixedLayout;
+use omega\language\core\narrow_i64_to_u64_exact;
 
 StatLayout satisfies FixedLayout<StatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan

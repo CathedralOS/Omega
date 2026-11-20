@@ -1,5 +1,5 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Clock;
+use omega\language\core\ProcessExit;
+use omega_language_std\Clock;
 
 // `Clock::sleep` holds the caller's worker for the whole wait, so std declares
 // it `blocks` and the call writes `block`. Its twin under

@@ -57,7 +57,7 @@ fn psi_admission_retains_the_native_borrowed_storage_layouts() {
     let build = r#"machine build(builder: @mut Build) {
     Build::application(builder, "checked_read_geometry");
     Build::select_provider::<ReadCell, Reader>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
 }
 "#;
     let project = stage_project(

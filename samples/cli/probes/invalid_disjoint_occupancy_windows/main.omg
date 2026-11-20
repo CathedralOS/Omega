@@ -1,7 +1,7 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Overlapping mutable windows of one row. The checker must reject this
 // before any native run.
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main { }
 

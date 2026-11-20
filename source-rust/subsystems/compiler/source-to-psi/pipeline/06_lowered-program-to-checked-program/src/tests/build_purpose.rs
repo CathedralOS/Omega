@@ -130,7 +130,7 @@ fn bundled_core_imports_keep_the_callers_checked_purpose() {
             "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
         )),
     )];
-    let imports = "use omega::language::core::byte_observation; machine importer() {}";
+    let imports = "use omega\\language\\core\\byte_observation; machine importer() {}";
     let empty = "machine other() {}";
     for scope in [DependencyScope::Product, DependencyScope::Build] {
         let (product, build) = match scope {

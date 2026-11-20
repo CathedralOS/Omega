@@ -1,5 +1,5 @@
 // Repository-wide census over bundled-library imports in `.omg` sources. The
-// standalone `omega::language::std` and `omega::language::alloc` mount paths are
+// standalone `omega\language\std` and `omega\language\alloc` mount paths are
 // retired outside the libraries themselves: package-aware consumers must reach
 // bundled libraries through declared `build.omg` dependency edges and their
 // requester-local aliases (`omega_language_std`, `alloc`). Fail-tier fixtures
@@ -85,7 +85,7 @@ fn imports_of(text: &str) -> Vec<(String, bool)> {
         let Some(rest) = line.strip_prefix("use ") else {
             continue;
         };
-        if let Some(path) = rest.strip_prefix("omega::language::") {
+        if let Some(path) = rest.strip_prefix(r"omega\language\") {
             let head: String = path
                 .chars()
                 .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
@@ -185,7 +185,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
                 let self_dir = repo.join("source/library").join(&head);
                 if !fail_tier && !is_under(source, &self_dir) {
                     mount_path_offenders.push(format!(
-                        "{} imports `omega::language::{head}`",
+                        r"{} imports `omega\language\{head}`",
                         source.display()
                     ));
                 }
@@ -197,7 +197,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
             if is_mount {
                 if !fail_tier {
                     mount_path_offenders.push(format!(
-                        "{} imports `omega::language::{head}`",
+                        r"{} imports `omega\language\{head}`",
                         source.display()
                     ));
                 }

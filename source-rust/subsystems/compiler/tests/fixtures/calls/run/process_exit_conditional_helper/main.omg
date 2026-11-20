@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 
 // Expected exit: 0. The program ends through the canonical process-exit
 // requirement, which has no normal return. `require_success` exits on one

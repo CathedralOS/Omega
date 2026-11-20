@@ -139,7 +139,7 @@ fn domain_exposure_operator_home_rejoins_retained_base_domains() {
                 ),
                 (
                     "app/main.omg",
-                    "use units; machine probe(value: units::Item in units::Item::Mark) -> u64 { 0 }"
+                    "use units; machine probe(value: units\\Item in units\\Item::Mark) -> u64 { 0 }"
                 ),
             ],
             None,
@@ -180,7 +180,7 @@ fn domain_exposure_operator_home_does_not_borrow_sibling_imports() {
                 ("app/sibling.omg", "use units;"),
                 (
                     "app/main.omg",
-                    "use units::helper; machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
+                    "use units\\helper; machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
                 ),
             ],
             None
@@ -263,7 +263,7 @@ fn domain_exposure_operator_home_keeps_carrier_identity() {
                 ),
                 (
                     "app/main.omg",
-                    "use one; data Item {} machine probe(value: Item in one::Item::Mark) -> u64 { 0 }"
+                    "use one; data Item {} machine probe(value: Item in one\\Item::Mark) -> u64 { 0 }"
                 ),
             ],
             None

@@ -22,7 +22,7 @@ data Owned {
 }
 
 machine make(counter: @mut i32 in Wrapping, seed: i32 in Wrapping) -> Pair {
-    counter = counter + 1;
+    $counter = $counter + 1;
     Pair { a: seed, b: seed + 50 }
 }
 

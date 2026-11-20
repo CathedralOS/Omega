@@ -9,8 +9,8 @@ requires values.len == 2, first_index < values.len, second_index < values.len,
     let selected: u64 = first_index;
     let first: @mut Cell = @mut values[selected];
     let second: @mut Cell = @mut values[second_index];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+    $first = Cell { value: 17 };
+    $second = Cell { value: 53 };
 }
 machine main() crashes Trap {
     let mut values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];

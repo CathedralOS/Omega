@@ -1,22 +1,22 @@
-use representations::source_files::SourceSet;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::Clause;
-use representations::syntax_trees::ClauseKind;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::DomainItem;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_clause;
-use representations::syntax_trees::syntax_trees_contract;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::syntax_trees::syntax_trees_domain_item;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::typing_expression_type;
-use representations::typed_trees::typing_reject;
+use representations\source_files\SourceSet;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\Clause;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\DomainItem;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_clause;
+use representations\syntax_trees\syntax_trees_contract;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\syntax_trees\syntax_trees_domain_item;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\typing_expression_type;
+use representations\typed_trees\typing_reject;
 
 // Facts type like any expression, and each one is a Boolean: a machine's
 // `requires` and `ensures` facts and each state's `requires` facts over

@@ -1,13 +1,13 @@
 // Expected exit: 0.
 // Runtime implementation selection must preserve the borrowed result's backing.
-use omega::language::core::Optional;
+use omega\language\core\Optional;
 
 trait Scan<T> {
     machine first(values: @[T], threshold: T) -> Optional<@T>;
 }
 
-machine at_least(value: @i32, threshold: i32) -> bool { value >= threshold }
-machine below(value: @i32, threshold: i32) -> bool { value < threshold }
+machine at_least(value: @i32, threshold: i32) -> bool { $value >= threshold }
+machine below(value: @i32, threshold: i32) -> bool { $value < threshold }
 
 machine search<'input, machine Compare>(values: @'input [i32], threshold: i32)
     -> Optional<@'input i32>

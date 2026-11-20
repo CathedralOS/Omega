@@ -307,10 +307,10 @@ fn parse_nominal_requirement_path<'tokens, 'source>(
                 ));
             }
         }
-        if !rest.at_punctuation(PunctuationKind::ColonColon) {
+        if !rest.at_path_member() {
             break;
         }
-        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        rest = rest.take_path_separator()?;
         let (member, next) = rest.take_identifier()?;
         members.push(member);
         rest = next;

@@ -1,9 +1,9 @@
-use representations::checks::Checks;
-use representations::checks::SlotOriginKind;
-use representations::checks::SlotParameterQualification;
-use representations::checks::SlotReturnedBorrowOrigin;
-use representations::checks::slot_origin;
-use representations::checks::slot_qualification;
+use representations\checks\Checks;
+use representations\checks\SlotOriginKind;
+use representations\checks\SlotParameterQualification;
+use representations\checks\SlotReturnedBorrowOrigin;
+use representations\checks\slot_origin;
+use representations\checks\slot_qualification;
 
 // Admission of the public slot records a trait requirement publishes.
 // An empty roster formed no selector slot. A qualification that shares the

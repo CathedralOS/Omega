@@ -553,10 +553,10 @@ fn closed_domain_applications_keep_carriers_and_indices_through_checking() {
 fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
     for carrier in ["i32", "u32"] {
         let source = format!(
-            "use omega::language::core::integer;\n\
+            "use omega\\language\\core\\integer;\n\
              public domain<T> T::Distance;\n\
              public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance\n\
-             requires integer::is_signed_integer::<T>() && integer::is_fixed_width_integer::<T>()\n\
+             requires integer\\is_signed_integer::<T>() && integer\\is_fixed_width_integer::<T>()\n\
              ensures (result as -Distance) == ((left as -Distance) +% right)\n\
              {{ ((left as -Distance) +% right) as +Distance }}\n\
              machine main() crashes Trap {{\n\
@@ -2393,9 +2393,9 @@ fn violations(name: &str, source: &str) -> Vec<Option<String>> {
 /// `T` is an integer, so `relay` may call `needs_integer` at it.
 #[test]
 fn an_integer_family_requirement_admits_its_carriers() {
-    let program = "use omega::language::core::integer;
-         machine needs_integer<T>(value: T) -> T requires integer::is_integer::<T>() { value }
-         machine relay<T>(value: T) -> T requires integer::is_signed_integer::<T>() {
+    let program = "use omega\\language\\core\\integer;
+         machine needs_integer<T>(value: T) -> T requires integer\\is_integer::<T>() { value }
+         machine relay<T>(value: T) -> T requires integer\\is_signed_integer::<T>() {
              needs_integer::<T>(value)
          }
          machine main() {
@@ -2418,9 +2418,9 @@ fn an_integer_family_requirement_admits_its_carriers() {
 fn an_application_outside_an_integer_family_is_rejected() {
     let program = |carrier: &str, argument: &str| {
         format!(
-            "use omega::language::core::integer;
+            "use omega\\language\\core\\integer;
              data Meters [copy] {{ value: u32; }}
-             machine count<T>(value: T) -> T requires integer::is_unsigned_integer::<T>() {{ value }}
+             machine count<T>(value: T) -> T requires integer\\is_unsigned_integer::<T>() {{ value }}
              machine main() {{ let kept: {carrier} = count::<{carrier}>({argument}); }}
 "
         )
@@ -2461,9 +2461,9 @@ fn an_application_outside_an_integer_family_is_rejected() {
 fn a_generic_body_relies_only_on_the_families_it_requires() {
     let program = |premise: &str| {
         format!(
-            "use omega::language::core::integer;
+            "use omega\\language\\core\\integer;
              machine is_integer<T>() -> bool ensures result == true crashes none terminates {{ true }}
-             machine fixed<T>(value: T) -> T requires integer::is_fixed_width_integer::<T>() {{
+             machine fixed<T>(value: T) -> T requires integer\\is_fixed_width_integer::<T>() {{
                  value
              }}
              machine any<T>(value: T) -> T requires {premise} {{ fixed::<T>(value) }}

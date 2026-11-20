@@ -1,10 +1,10 @@
-use representations::syntax_trees::DataMultiplicity;
-use representations::syntax_trees::GenericParameter;
-use representations::syntax_trees::GenericParameterKind;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::TokenStream;
+use representations\syntax_trees\DataMultiplicity;
+use representations\syntax_trees\GenericParameter;
+use representations\syntax_trees\GenericParameterKind;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\TokenStream;
 
 // `<parameter {, parameter}>` on a declaration head, entered at `<`:
 //

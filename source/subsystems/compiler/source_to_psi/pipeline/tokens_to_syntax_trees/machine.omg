@@ -1,20 +1,20 @@
-use representations::syntax_trees::ClauseOwner;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::ErasedBindingKind;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::OperatorToken;
-use representations::syntax_trees::Parameter;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_reject;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenKind;
-use representations::tokens::TokenStream;
+use representations\syntax_trees\ClauseOwner;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\ErasedBindingKind;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\OperatorToken;
+use representations\syntax_trees\Parameter;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_reject;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenKind;
+use representations\tokens\TokenStream;
 
 // What precedes a machine declaration's `machine` keyword: where the
 // declaration starts, `public`, a target name (`linux_arm64 machine ...`),

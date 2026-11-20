@@ -13,8 +13,8 @@ requires self.start >= 0 && self.start <= self.end,
 data Replacement [copy] { before: u32; value: u32; after: u32; }
 machine retain_view<'storage>(view: @'storage mut u32) -> @'storage mut u32 { view }
 machine restore(view: @mut u32, replacement: u32)
-ensures view == replacement,
-{ view = 0xFFFFFFFFu32; view = replacement; }
+ensures $view == replacement,
+{ $view = 0xFFFFFFFFu32; $view = replacement; }
 public machine inspect(pair: @mut Pair)
 {
     let carried: Replacement = Replacement { before: 0x10203040, value: 0xFFFFFFFFu32, after: 0x50607080 };

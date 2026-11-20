@@ -625,7 +625,7 @@ fn a_scalar_payload_loan_preserves_the_enclosing_case() {
     execute_owned_store(
         r#"
         data Slot { case Full(n:u32); case Empty; }
-        machine bump(value:@mut u32)->u32 { value=9; 0 }
+        machine bump(value:@mut u32)->u32 { $value=9; 0 }
         machine last(first:u32, result:u32)->u32 { result }
         machine read(held:@mut Slot)->u32 { match held {
             Slot::Full {n}->last(bump(@mut held.n), n),

@@ -10,8 +10,8 @@ requires values.len == 2, first_index < values.len, second_index < values.len,
     let completed: u64 = same_index(first_index);
     let first: @mut Cell = @mut values[completed];
     let second: @mut Cell = @mut values[second_index];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+    $first = Cell { value: 17 };
+    $second = Cell { value: 53 };
 }
 machine selected() -> u64 ensures result == 0 { 0 }
 machine main() crashes Trap {

@@ -75,6 +75,7 @@ machine OmegaScalarCompiler::read_query(&mut self, source: &[u8], start: i32, en
     }
     state separator(need_member: i32) {
         transition self.parser.scan.punctuation {
+            OmegaPunctuationKind::Backslash -> separator_position(need_member)
             OmegaPunctuationKind::ColonColon -> separator_position(need_member)
             _ -> return 0
         }

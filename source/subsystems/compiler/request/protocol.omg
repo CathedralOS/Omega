@@ -1,4 +1,4 @@
-use wire::u32_from_le_bytes;
+use wire\u32_from_le_bytes;
 
 // The little-endian `u32` at `offset`; callers have bounded `offset + 4`.
 machine u32_at(request: @Request, offset: u64 in Trapping) -> u64 in Trapping

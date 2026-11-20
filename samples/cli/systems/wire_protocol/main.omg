@@ -1,26 +1,26 @@
-use omega::language::core::ProcessExit;
-use omega::language::core::CompactBinary;
-use omega::language::core::CompactBinary::blob_field;
-use omega::language::core::CompactBinary::decode_record;
-use omega::language::core::CompactBinary::encode;
-use omega::language::core::CompactBinary::fixed_vec_field;
-use omega::language::core::CompactBinary::plan_payload;
-use omega::language::core::CompactBinary::plan_scalar;
-use omega::language::core::CompactBinary::read_packed;
-use omega::language::core::CompactBinary::read_payload_fields;
-use omega::language::core::CompactBinary::scalar_field;
-use omega::language::core::CompactBinary::signed_from_word;
-use omega::language::core::DecodeResult;
-use omega::language::core::EncodeContext;
-use omega::language::core::EncodeResult;
-use omega::language::core::EncodedField;
-use omega::language::core::FrameRead;
-use omega::language::core::PackedRead;
-use omega::language::core::ScalarPlanContext;
-use omega::language::core::ScalarSlot;
-use omega::language::core::reflect;
-use omega::language::core::narrow_i64_to_u64_wrapping;
-use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega\language\core\ProcessExit;
+use omega\language\core\CompactBinary;
+use omega\language\core\CompactBinary\blob_field;
+use omega\language\core\CompactBinary\decode_record;
+use omega\language\core\CompactBinary\encode;
+use omega\language\core\CompactBinary\fixed_vec_field;
+use omega\language\core\CompactBinary\plan_payload;
+use omega\language\core\CompactBinary\plan_scalar;
+use omega\language\core\CompactBinary\read_packed;
+use omega\language\core\CompactBinary\read_payload_fields;
+use omega\language\core\CompactBinary\scalar_field;
+use omega\language\core\CompactBinary\signed_from_word;
+use omega\language\core\DecodeResult;
+use omega\language\core\EncodeContext;
+use omega\language\core\EncodeResult;
+use omega\language\core\EncodedField;
+use omega\language\core\FrameRead;
+use omega\language\core\PackedRead;
+use omega\language\core\ScalarPlanContext;
+use omega\language\core\ScalarSlot;
+use omega\language\core\reflect;
+use omega\language\core\narrow_i64_to_u64_wrapping;
+use omega\language\core\narrow_u64_to_i64_wrapping;
 // Wire protocol sample: encode a sensor packet containing a nested header,
 // a repeated (packed) sample array, and a scalar depth field; then decode
 // it back and verify all fields round-trip correctly. The wire format is
@@ -41,8 +41,8 @@ use omega::language::core::narrow_u64_to_i64_wrapping;
 //
 // Expected exit: 70.
 
-use omega::language::core::FixedVec;
-use omega_language_std::Console;
+use omega\language\core\FixedVec;
+use omega_language_std\Console;
 
 data RoomHeader {
     #0 room_id: u32;
@@ -237,60 +237,60 @@ machine entry_start() reaches ProcessExit + Console {
 // The semantic owner delegates ordinary source operations for every member.
 machine packet_fields(value: @SensorPacketValue, context: @mut EncodeContext) {
     policy_gate(POLICY_ACCEPTED);
-    reflect::visit_runtime_fields::<SensorPacketValue, packet_member>(value, context);
+    reflect\visit_runtime_fields::<SensorPacketValue, packet_member>(value, context);
 }
-machine packet_member<Kind>(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @Kind)
+machine packet_member<Kind>(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @Kind)
 requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomHeaderValue
 {
     transition {
         Kind == RoomHeaderValue -> packet_header(context, info, value),
-        Kind == FixedVec<i32, 4> -> CompactBinary::fixed_vec_field::<Kind, i32, 4>(context, info, value),
-        _ -> CompactBinary::scalar_field::<Kind>(context, info, value)
+        Kind == FixedVec<i32, 4> -> CompactBinary\fixed_vec_field::<Kind, i32, 4>(context, info, value),
+        _ -> CompactBinary\scalar_field::<Kind>(context, info, value)
     }
 }
 machine packet_encode<const N: u64>(value: @SensorPacketValue, out: @mut [u8; N], written: @mut u64) {
     let mut scratch: [u8; N];
     let mut fields: [EncodedField; 3];
-    transition CompactBinary::encode::<SensorPacketValue, packet_fields>(value, @mut out[..], @mut scratch[..], @mut fields[..], 10000u64) {
+    transition CompactBinary\encode::<SensorPacketValue, packet_fields>(value, @mut out[..], @mut scratch[..], @mut fields[..], 10000u64) {
         EncodeResult::Encoded { next } -> finish(written, next),
         _ -> finish(written, 0u64)
     }
-    machine finish(written: @mut u64, next: u64) { written = next; }
+    machine finish(written: @mut u64, next: u64) { $written = next; }
 }
 
 machine packet_header_fields(value: @RoomHeaderValue, context: @mut EncodeContext) {
-    reflect::visit_runtime_fields::<RoomHeaderValue, CompactBinary::scalar_field>(value, context);
+    reflect\visit_runtime_fields::<RoomHeaderValue, CompactBinary\scalar_field>(value, context);
 }
-machine packet_header(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @RoomHeaderValue) {
+machine packet_header(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @RoomHeaderValue) {
     let mut bytes: [u8; 16];
     let mut scratch: [u8; 16];
     let mut fields: [EncodedField; 1];
-    transition CompactBinary::encode::<RoomHeaderValue, packet_header_fields>(value, @mut bytes[..], @mut scratch[..], @mut fields[..], 100u64) {
+    transition CompactBinary\encode::<RoomHeaderValue, packet_header_fields>(value, @mut bytes[..], @mut scratch[..], @mut fields[..], 100u64) {
         EncodeResult::Encoded { next } -> bounded(context, info, @bytes[..], next),
         _ -> invalid(context)
     }
-    machine bounded(context: @mut EncodeContext, info: @reflect::FieldInfo, bytes: @[u8], next: u64) {
+    machine bounded(context: @mut EncodeContext, info: @reflect\FieldInfo, bytes: @[u8], next: u64) {
         transition next >= 1u64 && next <= bytes.len {
             true -> payload(context, info, bytes, next),
             false -> invalid(context)
         }
     }
-    machine payload(context: @mut EncodeContext, info: @reflect::FieldInfo, bytes: @[u8], next: u64)
+    machine payload(context: @mut EncodeContext, info: @reflect\FieldInfo, bytes: @[u8], next: u64)
     requires next >= 1u64 && next <= bytes.len
-    { CompactBinary::blob_field(context, info, @bytes[1u64..next]); }
+    { CompactBinary\blob_field(context, info, @bytes[1u64..next]); }
     machine invalid(context: @mut EncodeContext) { context.valid = false; }
 }
 
 machine packet_plan(context: @mut ScalarPlanContext) {
     policy_gate(POLICY_ACCEPTED);
-    reflect::inspect_record_fields::<SensorPacket, packet_plan_member>(context);
+    reflect\inspect_record_fields::<SensorPacket, packet_plan_member>(context);
 }
-machine packet_plan_member<Kind>(context: @mut ScalarPlanContext, info: @reflect::FieldInfo)
+machine packet_plan_member<Kind>(context: @mut ScalarPlanContext, info: @reflect\FieldInfo)
 requires Kind == u32 || Kind == i32 || Kind == FixedVec<i32, 4> || Kind == RoomHeader
 {
     transition {
-        Kind == u32 || Kind == i32 -> CompactBinary::plan_scalar::<Kind>(context, info),
-        _ -> CompactBinary::plan_payload::<Kind>(context, info)
+        Kind == u32 || Kind == i32 -> CompactBinary\plan_scalar::<Kind>(context, info),
+        _ -> CompactBinary\plan_payload::<Kind>(context, info)
     }
 }
 machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<SensorPacketValue> {
@@ -309,7 +309,7 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
     requires fields.len == 3u64 && start <= end && end <= bytes.len
     {
         let mut words: [u64; 4];
-        transition CompactBinary::read_packed(@bytes[start..end], @mut words[..], 100u64) {
+        transition CompactBinary\read_packed(@bytes[start..end], @mut words[..], 100u64) {
             PackedRead::Read { count } -> root(bytes, fields, @words[..], count),
             _ -> DecodeResult::Invalid
         }
@@ -330,7 +330,7 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
         let header_bytes: @[u8] = @bytes[start..end];
         let mut header_fields: [ScalarSlot; 1];
         let mut plan: ScalarPlanContext = ScalarPlanContext { slots: @mut header_fields[..], count: 0u64, valid: true };
-        reflect::inspect_record_fields::<RoomHeader, CompactBinary::plan_scalar>(@mut plan);
+        reflect\inspect_record_fields::<RoomHeader, CompactBinary\plan_scalar>(@mut plan);
         transition plan.valid && plan.count == 1u64 && plan.slots.len == 1u64 {
             true -> read_header(header_bytes, depth, words, count, @mut plan.slots[..]),
             false -> DecodeResult::Invalid
@@ -339,7 +339,7 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
     machine read_header(bytes: @[u8], depth: i64, words: @[u64], count: u64, header: @mut [ScalarSlot]) -> DecodeResult<SensorPacketValue>
     requires words.len == 4u64 && header.len == 1u64
     {
-        transition CompactBinary::read_payload_fields(bytes, header, 1u64, 0u64, 100u64) {
+        transition CompactBinary\read_payload_fields(bytes, header, 1u64, 0u64, 100u64) {
             FrameRead::Read { next } -> closed_header(bytes, next, depth, words, count, header[0u64].unsigned),
             _ -> DecodeResult::Invalid
         }
@@ -348,7 +348,7 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
     requires words.len == 4u64
     {
         transition next == bytes.len {
-            true -> values(room, depth, count, CompactBinary::signed_from_word(words[0u64]), CompactBinary::signed_from_word(words[1u64]), CompactBinary::signed_from_word(words[2u64]), CompactBinary::signed_from_word(words[3u64])),
+            true -> values(room, depth, count, CompactBinary\signed_from_word(words[0u64]), CompactBinary\signed_from_word(words[1u64]), CompactBinary\signed_from_word(words[2u64]), CompactBinary\signed_from_word(words[3u64])),
             false -> DecodeResult::Invalid
         }
     }
@@ -380,15 +380,15 @@ machine packet_construct(bytes: @[u8], fields: @[ScalarSlot]) -> DecodeResult<Se
 }
 machine packet_decode<const N: u64>(value: @mut SensorPacketValue, bytes: @[u8; N], read: @mut u64, verdict: @mut PacketVerdict) {
     let mut fields: [ScalarSlot; 3];
-    transition CompactBinary::decode_record::<SensorPacketValue, packet_plan, packet_construct>(@bytes[..], @mut fields[..], read, 10000u64) {
+    transition CompactBinary\decode_record::<SensorPacketValue, packet_plan, packet_construct>(@bytes[..], @mut fields[..], read, 10000u64) {
         DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict),
         _ -> invalid(verdict)
     }
     machine commit(value: @mut SensorPacketValue, decoded: SensorPacketValue, verdict: @mut PacketVerdict) {
-        value = decoded;
-        verdict = PacketVerdict::Sound;
+        $value = decoded;
+        $verdict = PacketVerdict::Sound;
     }
-    machine invalid(verdict: @mut PacketVerdict) { verdict = PacketVerdict::Invalid; }
+    machine invalid(verdict: @mut PacketVerdict) { $verdict = PacketVerdict::Invalid; }
 }
 
 
@@ -398,13 +398,13 @@ data PolicyKind [copy] { supported: bool; kind: FieldKind; }
 data PolicyCapture { schema: WireSchema; valid: bool; }
 const POLICY_ACCEPTED: bool = selected_policy_is_valid();
 machine policy_gate(valid: bool) requires valid {}
-machine describe_policy_member<Kind>(capture: @mut PolicyCapture, info: @reflect::FieldInfo) {
+machine describe_policy_member<Kind>(capture: @mut PolicyCapture, info: @reflect\FieldInfo) {
     let kind: PolicyKind = policy_kind::<Kind>();
     transition info.has_stable_number && !info.is_erased && kind.supported && info.declaration_position < 32u64 {
         true -> put(capture, info, kind.kind),
         false -> invalid(capture)
     }
-    machine put(capture: @mut PolicyCapture, info: @reflect::FieldInfo, kind: FieldKind)
+    machine put(capture: @mut PolicyCapture, info: @reflect\FieldInfo, kind: FieldKind)
     requires info.declaration_position < 32u64
     {
         capture.schema.fields[info.declaration_position] = WireSchemaField { number: narrow_u64_to_i64_wrapping(info.stable_number), kind: kind };
@@ -415,7 +415,7 @@ machine describe_policy_member<Kind>(capture: @mut PolicyCapture, info: @reflect
 machine selected_policy_is_valid() -> bool {
     let mut capture: PolicyCapture;
     capture.valid = true;
-    reflect::inspect_record_fields::<SensorPacket, describe_policy_member>(@mut capture);
+    reflect\inspect_record_fields::<SensorPacket, describe_policy_member>(@mut capture);
     let mut policy: AuthoredCompactBinary;
     let selected: Plan = authored_compact_binary_plan(@mut policy, capture.schema);
     capture.valid && selected.entry_count == capture.schema.field_count && policy_matches(@capture.schema, @selected, 0u64, 100u64)

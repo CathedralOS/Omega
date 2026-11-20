@@ -3,7 +3,7 @@
 // FieldAccess::Stable { read, write, exposure })` functionally replaces
 // only the permissions meant to be exposed.
 //
-//   * `use omega::language::core::layout` imports depend-free.
+//   * `use omega\language\core\layout` imports depend-free.
 //   * `satisfies AccessPolicy::plan` binds a plan machine by name.
 //   * the policy composes an ordinary layout helper by calling it.
 //   * `hits` records the reached arm.
@@ -11,18 +11,18 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::AccessPlan;
-use omega::language::core::AccessPlan::inaccessible;
-use omega::language::core::AccessPlan::with;
-use omega::language::core::AccessPolicy;
-use omega::language::core::Exposure;
-use omega::language::core::FieldAccess;
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::LayoutPlan;
-use omega::language::core::Schema;
-use omega::language::core::read;
-use omega::language::core::write;
+use omega\language\core\AccessPlan;
+use omega\language\core\AccessPlan::inaccessible;
+use omega\language\core\AccessPlan::with;
+use omega\language\core\AccessPolicy;
+use omega\language\core\Exposure;
+use omega\language\core\FieldAccess;
+use omega\language\core\FieldEntry;
+use omega\language\core\FieldPlan;
+use omega\language\core\LayoutPlan;
+use omega\language\core\Schema;
+use omega\language\core\read;
+use omega\language\core\write;
 
 data Pair {
     readable: u32;

@@ -9,9 +9,9 @@ ensures result == true
 }
 
 machine read_through(place: @i64) -> i64
-requires place == 17
+requires $place == 17
 {
-    place
+    $place
 }
 
 machine measure_chosen() -> i64

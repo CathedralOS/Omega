@@ -123,8 +123,8 @@ fn a_public_carrier_does_not_expose_its_private_constant() {
     let main = root.join("main.omg");
     std::fs::write(
         &main,
-        "use dependency::attached_values;\n\
-         machine main() -> u64 { dependency::attached_values::Index::SELECTED.value }",
+        "use dependency\\attached_values;\n\
+         machine main() -> u64 { dependency\\attached_values\\Index::SELECTED.value }",
     )
     .unwrap();
     let result = unbuilt_frontier::frontier(

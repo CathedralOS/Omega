@@ -10,7 +10,7 @@ machine identity(value: bool) -> bool ensures result == value { value }
 public machine read_flag(byte: @Byte) -> bool
 {
     let view: @bool = @byte.value as @bool;
-    let viewed: bool = view;
+    let viewed: bool = $view;
     let observed: bool = identity(viewed);
     maybe_clear(observed)
 }

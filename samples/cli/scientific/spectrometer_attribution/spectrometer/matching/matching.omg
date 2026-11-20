@@ -1,6 +1,6 @@
-use omega::language::core::abs_f64;
-use spectrometer::model::Spectrum;
-use spectrometer::model::Regions;
+use omega\language\core\abs_f64;
+use spectrometer\model\Spectrum;
+use spectrometer\model\Regions;
 
 // All lines within the inclusive tolerance remain candidates. Nearest is only
 // a deterministic preference: equal distances keep the earlier catalog ID.

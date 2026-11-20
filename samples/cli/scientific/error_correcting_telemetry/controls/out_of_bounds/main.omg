@@ -1,5 +1,5 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
 data Main { symbols: [i32; 4]; }
 // Complete program deliberately attempts a fifth symbol in a four-symbol frame.
 // The documented bounds rule must reject this access, before any execution.

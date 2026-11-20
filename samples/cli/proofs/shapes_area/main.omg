@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Shape area computation. Combines case-payload dispatch, value-position
 // machine calls, scalar arithmetic, and multi-arm comparison.
 //
@@ -15,7 +15,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     total: i32 in Saturating;

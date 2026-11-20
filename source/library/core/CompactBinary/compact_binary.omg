@@ -1,19 +1,19 @@
-use omega::language::core::reflect;
-use omega::language::core::DecodeResult;
-use omega::language::core::EncodeResult;
-use omega::language::core::UnsignedRead;
-use omega::language::core::EncodedField;
-use omega::language::core::EncodeContext;
-use omega::language::core::SignedRead;
-use omega::language::core::BlobRead;
-use omega::language::core::ScalarSlot;
-use omega::language::core::ScalarPlanContext;
-use omega::language::core::FrameRead;
-use omega::language::core::ScalarBound;
-use omega::language::core::PackedRead;
-use omega::language::core::FixedVec;
-use omega::language::core::narrow_i64_to_u64_wrapping;
-use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega\language\core\reflect;
+use omega\language\core\DecodeResult;
+use omega\language\core\EncodeResult;
+use omega\language\core\UnsignedRead;
+use omega\language\core\EncodedField;
+use omega\language\core\EncodeContext;
+use omega\language\core\SignedRead;
+use omega\language\core\BlobRead;
+use omega\language\core\ScalarSlot;
+use omega\language\core\ScalarPlanContext;
+use omega\language\core\FrameRead;
+use omega\language\core\ScalarBound;
+use omega\language\core\PackedRead;
+use omega\language\core\FixedVec;
+use omega\language\core\narrow_i64_to_u64_wrapping;
+use omega\language\core\narrow_u64_to_i64_wrapping;
 
 // The compact binary grammar is implemented by ordinary checked library
 // machines. Reflection supplies typed member calls; these machines own byte
@@ -104,7 +104,7 @@ requires machine Visit(value: @T, context: @mut EncodeContext);
     };
     Visit(value, @mut context);
     transition context.valid && context.count <= context.fields.len && context.used <= context.storage.len && context.remaining_steps > 0u64 {
-        true -> CompactBinary::frame_fields(@context, out, context.remaining_steps),
+        true -> CompactBinary\frame_fields(@context, out, context.remaining_steps),
         false -> EncodeResult::Exhausted
     }
  }
@@ -113,8 +113,8 @@ requires machine Visit(value: @T, context: @mut EncodeContext);
 machine frame_fields(context: @EncodeContext, out: @mut [u8], remaining_steps: u64) -> EncodeResult
     requires context.count <= context.fields.len && context.used <= context.storage.len && remaining_steps > 0u64
     {
-        transition CompactBinary::write_unsigned(out, 0u64, 0u64) {
-            EncodeResult::Encoded { next } -> CompactBinary::flush_fields(@context.storage[..], @context.fields[..], context.count, out, next, remaining_steps),
+        transition CompactBinary\write_unsigned(out, 0u64, 0u64) {
+            EncodeResult::Encoded { next } -> CompactBinary\flush_fields(@context.storage[..], @context.fields[..], context.count, out, next, remaining_steps),
             _ -> EncodeResult::Exhausted
         }
     }
@@ -129,19 +129,19 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     transition {
         Kind == bool -> boolean(value),
         Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64 -> signed(value),
-        _ -> (value as u64)
+        _ -> ($value as u64)
     }
     machine boolean(value: @bool) -> u64 {
-        transition value { true -> 1u64, false -> 0u64 }
+        transition $value { true -> 1u64, false -> 0u64 }
     }
     machine signed(value: @Kind) -> u64
     requires Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
     {
-        compact_signed_word(value as i64)
+        compact_signed_word($value as i64)
     }
 }
 
-public machine scalar_field<Kind>(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @Kind)
+public machine scalar_field<Kind>(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @Kind)
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
 {
@@ -149,26 +149,26 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         true -> tag(context, info, value),
         false -> invalid(context)
     }
-    machine tag(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @Kind)
+    machine tag(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @Kind)
     requires context.count < context.fields.len && (Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64)
     {
         let start: u64 = context.used;
         let word: u64 = compact_scalar_word::<Kind>(value);
-        transition CompactBinary::write_unsigned(@mut context.storage[..], start, info.stable_number) {
+        transition CompactBinary\write_unsigned(@mut context.storage[..], start, info.stable_number) {
             EncodeResult::Encoded { next } -> content(context, info, start, word, next),
             _ -> invalid(context)
         }
     }
-    machine content(context: @mut EncodeContext, info: @reflect::FieldInfo, start: u64, word: u64, next: u64)
+    machine content(context: @mut EncodeContext, info: @reflect\FieldInfo, start: u64, word: u64, next: u64)
     requires context.count < context.fields.len
     {
-        transition CompactBinary::write_unsigned(@mut context.storage[..], next, word) {
+        transition CompactBinary\write_unsigned(@mut context.storage[..], next, word) {
             EncodeResult::Encoded { next as end } -> remember(context, info, start, end),
             _ -> invalid(context)
         }
     }
-    machine remember(context: @mut EncodeContext, info: @reflect::FieldInfo, start: u64, end: u64)
+    machine remember(context: @mut EncodeContext, info: @reflect\FieldInfo, start: u64, end: u64)
     requires context.count < context.fields.len
     {
         context.fields[context.count] = EncodedField { number: info.stable_number, start: start, end: end };
@@ -271,23 +271,23 @@ machine compact_signed_word(value: i64) -> u64 {
 }
 
 public machine write_signed(out: @mut [u8], start: u64, value: i64) -> EncodeResult {
-    CompactBinary::write_unsigned(out, start, compact_signed_word(value))
+    CompactBinary\write_unsigned(out, start, compact_signed_word(value))
 }
 
 public machine read_signed(bytes: @[u8], start: u64) -> SignedRead {
-    transition CompactBinary::read_unsigned(bytes, start) {
+    transition CompactBinary\read_unsigned(bytes, start) {
         UnsignedRead::Read { value, next } -> restore(value, next),
         _ -> SignedRead::Invalid
     }
     machine restore(word: u64, next: u64) -> SignedRead {
-        SignedRead::Read { value: CompactBinary::signed_from_word(word), next: next }
+        SignedRead::Read { value: CompactBinary\signed_from_word(word), next: next }
     }
 }
 
 public machine write_blob(out: @mut [u8], start: u64, bytes: @[u8], remaining_steps: u64) -> EncodeResult
 requires remaining_steps > 0u64
 {
-    transition CompactBinary::write_unsigned(out, start, bytes.len) {
+    transition CompactBinary\write_unsigned(out, start, bytes.len) {
         EncodeResult::Encoded { next } -> copy(out, next, bytes, remaining_steps),
         _ -> EncodeResult::Exhausted
     }
@@ -302,7 +302,7 @@ requires remaining_steps > 0u64
 }
 
 public machine read_blob<'input>(bytes: @'input [u8], start: u64) -> BlobRead<'input> {
-    transition CompactBinary::read_unsigned(bytes, start) {
+    transition CompactBinary\read_unsigned(bytes, start) {
         UnsignedRead::Read { value as length, next } -> slice(bytes, length, next),
         _ -> BlobRead::Invalid
     }
@@ -317,39 +317,39 @@ public machine read_blob<'input>(bytes: @'input [u8], start: u64) -> BlobRead<'i
 // A caller selects the schema's exact identity. Reading a tag only checks
 // grammar correspondence; it cannot establish a destination field's domain.
 public machine read_scalar_field(bytes: @[u8], start: u64, number: u64) -> UnsignedRead {
-    transition CompactBinary::read_unsigned(bytes, start) {
+    transition CompactBinary\read_unsigned(bytes, start) {
         UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
         _ -> UnsignedRead::Invalid
     }
     machine tag(bytes: @[u8], expected: u64, observed: u64, next: u64) -> UnsignedRead {
         transition observed == expected {
-            true -> CompactBinary::read_unsigned(bytes, next),
+            true -> CompactBinary\read_unsigned(bytes, next),
             false -> UnsignedRead::Invalid
         }
     }
 }
 
 public machine read_signed_field(bytes: @[u8], start: u64, number: u64) -> SignedRead {
-    transition CompactBinary::read_unsigned(bytes, start) {
+    transition CompactBinary\read_unsigned(bytes, start) {
         UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
         _ -> SignedRead::Invalid
     }
     machine tag(bytes: @[u8], expected: u64, observed: u64, next: u64) -> SignedRead {
         transition observed == expected {
-            true -> CompactBinary::read_signed(bytes, next),
+            true -> CompactBinary\read_signed(bytes, next),
             false -> SignedRead::Invalid
         }
     }
 }
 
 public machine read_blob_field<'input>(bytes: @'input [u8], start: u64, number: u64) -> BlobRead<'input> {
-    transition CompactBinary::read_unsigned(bytes, start) {
+    transition CompactBinary\read_unsigned(bytes, start) {
         UnsignedRead::Read { value, next } -> tag(bytes, number, value, next),
         _ -> BlobRead::Invalid
     }
     machine tag(bytes: @'input [u8], expected: u64, observed: u64, next: u64) -> BlobRead<'input> {
         transition observed == expected {
-            true -> CompactBinary::read_blob(bytes, next),
+            true -> CompactBinary\read_blob(bytes, next),
             false -> BlobRead::Invalid
         }
     }
@@ -455,7 +455,7 @@ machine compact_unsigned_maximum<Kind>() -> u64 {
 
 // Only the owner invokes this callback through its authorized declaration
 // query. No future value, field reference or constructor authority is supplied.
-public machine plan_scalar<Kind>(context: @mut ScalarPlanContext, field: @reflect::FieldInfo)
+public machine plan_scalar<Kind>(context: @mut ScalarPlanContext, field: @reflect\FieldInfo)
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
 {
@@ -489,7 +489,7 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
 public machine read_scalar_fields(bytes: @[u8], fields: @mut [ScalarSlot], count: u64, start: u64, remaining_steps: u64) -> FrameRead
 requires count <= fields.len && remaining_steps > 0u64
 {
-    transition CompactBinary::read_unsigned(bytes, start) {
+    transition CompactBinary\read_unsigned(bytes, start) {
         UnsignedRead::Read { value, next } -> era(bytes, fields, count, value, next, remaining_steps),
         _ -> FrameRead::Invalid
     }
@@ -497,7 +497,7 @@ requires count <= fields.len && remaining_steps > 0u64
     requires count <= fields.len && remaining_steps > 0u64
     {
         transition value == 0u64 {
-            true -> CompactBinary::read_payload_fields(bytes, fields, count, cursor, remaining_steps),
+            true -> CompactBinary\read_payload_fields(bytes, fields, count, cursor, remaining_steps),
             false -> FrameRead::Invalid
         }
     }
@@ -548,7 +548,7 @@ requires count <= fields.len && remaining_steps > 0u64
     machine read_payload(bytes: @[u8], fields: @mut [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
     requires count <= fields.len && best < fields.len && remaining > 0u64 && remaining_steps > 1u64
     {
-        transition CompactBinary::read_blob_field(bytes, cursor, number) {
+        transition CompactBinary\read_blob_field(bytes, cursor, number) {
             BlobRead::Read { value, next } -> payload(bytes, fields, count, remaining, best, number, remaining_steps, value.len, next),
             _ -> FrameRead::Invalid
         }
@@ -571,7 +571,7 @@ requires count <= fields.len && remaining_steps > 0u64
     machine read_signed(bytes: @[u8], fields: @mut [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
     requires count <= fields.len && best < fields.len && remaining > 0u64 && remaining_steps > 1u64
     {
-        transition CompactBinary::read_signed_field(bytes, cursor, number) {
+        transition CompactBinary\read_signed_field(bytes, cursor, number) {
             SignedRead::Read { value, next } -> signed(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
             _ -> FrameRead::Invalid
         }
@@ -593,7 +593,7 @@ requires count <= fields.len && remaining_steps > 0u64
     machine read_unsigned(bytes: @[u8], fields: @mut [ScalarSlot], count: u64, cursor: u64, remaining: u64, best: u64, number: u64, remaining_steps: u64) -> FrameRead
     requires count <= fields.len && best < fields.len && remaining > 0u64 && remaining_steps > 1u64
     {
-        transition CompactBinary::read_scalar_field(bytes, cursor, number) {
+        transition CompactBinary\read_scalar_field(bytes, cursor, number) {
             UnsignedRead::Read { value, next } -> unsigned(bytes, fields, count, remaining, best, number, remaining_steps, value, next),
             _ -> FrameRead::Invalid
         }
@@ -629,7 +629,7 @@ requires remaining_steps > 0u64
     }
     machine parse(bytes: @[u8], context: @mut ScalarPlanContext, remaining_steps: u64) -> FrameRead
     requires context.count <= context.slots.len && remaining_steps > 0u64
-    { CompactBinary::read_scalar_fields(bytes, @mut context.slots[..], context.count, 0u64, remaining_steps) }
+    { CompactBinary\read_scalar_fields(bytes, @mut context.slots[..], context.count, 0u64, remaining_steps) }
 }
 
 // The constructor is an explicitly supplied owner operation. Parsing produces
@@ -649,7 +649,7 @@ requires remaining_steps > 0u64
     machine parse(bytes: @'input [u8], context: @mut ScalarPlanContext, next: @mut u64, remaining_steps: u64) -> DecodeResult<T>
     requires context.count <= context.slots.len && remaining_steps > 0u64
     {
-        transition CompactBinary::read_scalar_fields(bytes, @mut context.slots[..], context.count, 0u64, remaining_steps) {
+        transition CompactBinary\read_scalar_fields(bytes, @mut context.slots[..], context.count, 0u64, remaining_steps) {
             FrameRead::Read { next as cursor } -> construct(bytes, context, next, cursor),
             _ -> DecodeResult::Invalid
         }
@@ -663,7 +663,7 @@ requires remaining_steps > 0u64
         }
     }
     machine commit(value: T, next: @mut u64, cursor: u64) -> DecodeResult<T> {
-        next = cursor;
+        $next = cursor;
         DecodeResult::Sound { value: value }
     }
 }
@@ -671,24 +671,24 @@ requires remaining_steps > 0u64
 // Array and borrowed-slice adapters share the same two-pass packed grammar.
 // The complete reflected Kind remains an explicit equality obligation; element
 // and capacity matching never discard a qualification from the field type.
-public machine packed_field<Kind, Element, const N: u64>(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @[Element; N])
+public machine packed_field<Kind, Element, const N: u64>(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @[Element; N])
 requires Kind == [Element; N]
     && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
         || Element == i8 || Element == i16 || Element == i32 || Element == i64)
 {
     compact_packed_field::<Element>(context, info, @value[..]);
 }
-public machine packed_slice_field<Kind, Element>(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @ @[Element])
+public machine packed_slice_field<Kind, Element>(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @ @[Element])
 requires Kind == @[Element]
     && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
         || Element == i8 || Element == i16 || Element == i32 || Element == i64)
 {
     compact_packed_field::<Element>(context, info, @value[..]);
 }
-public machine bytes_field<Kind>(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @ @[u8])
+public machine bytes_field<Kind>(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @ @[u8])
 requires Kind == @[u8]
 {
-    CompactBinary::blob_field(context, info, @value[..]);
+    CompactBinary\blob_field(context, info, @value[..]);
 }
 
 data CompactMeasure {
@@ -748,7 +748,7 @@ requires remaining_steps > 0u64
             || Element == i8 || Element == i16 || Element == i32 || Element == i64)
     {
         let word: u64 = compact_scalar_word::<Element>(@items[index]);
-        transition CompactBinary::write_unsigned(out, cursor, word) {
+        transition CompactBinary\write_unsigned(out, cursor, word) {
             EncodeResult::Encoded { next } -> compact_write_words::<Element>(items, index + 1u64, out, next, remaining_steps - 1u64),
             _ -> CompactCopy::Exhausted
         }
@@ -756,7 +756,7 @@ requires remaining_steps > 0u64
 }
 machine compact_encode_invalid(context: @mut EncodeContext) { context.valid = false; }
 
-machine compact_length_field<machine Measure, machine Write, Payload>(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @Payload)
+machine compact_length_field<machine Measure, machine Write, Payload>(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @Payload)
 requires machine Measure(value: @Payload, remaining_steps: u64) -> CompactMeasure;
 requires machine Write(value: @Payload, out: @mut [u8], cursor: u64, remaining_steps: u64) -> CompactCopy;
 {
@@ -764,7 +764,7 @@ requires machine Write(value: @Payload, out: @mut [u8], cursor: u64, remaining_s
         true -> measure(context, info, items),
         false -> compact_encode_invalid(context)
     }
-    machine measure(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @Payload)
+    machine measure(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @Payload)
     requires context.count < context.fields.len && context.remaining_steps > 0u64
     {
         transition Measure(items, context.remaining_steps) {
@@ -772,7 +772,7 @@ requires machine Write(value: @Payload, out: @mut [u8], cursor: u64, remaining_s
             _ -> compact_encode_invalid(context)
         }
     }
-    machine begin(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
+    machine begin(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
     requires context.count < context.fields.len
     {
         transition remaining_steps > 0u64 {
@@ -780,23 +780,23 @@ requires machine Write(value: @Payload, out: @mut [u8], cursor: u64, remaining_s
             false -> compact_encode_invalid(context)
         }
     }
-    machine tag(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
+    machine tag(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64)
     requires context.count < context.fields.len && remaining_steps > 0u64
     {
-        transition CompactBinary::write_unsigned(@mut context.storage[..], context.used, info.stable_number) {
+        transition CompactBinary\write_unsigned(@mut context.storage[..], context.used, info.stable_number) {
             EncodeResult::Encoded { next } -> length(context, info, items, bytes, remaining_steps, next),
             _ -> compact_encode_invalid(context)
         }
     }
-    machine length(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64, start: u64)
+    machine length(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @Payload, bytes: u64, remaining_steps: u64, start: u64)
     requires context.count < context.fields.len && remaining_steps > 0u64
     {
-        transition CompactBinary::write_unsigned(@mut context.storage[..], start, bytes) {
+        transition CompactBinary\write_unsigned(@mut context.storage[..], start, bytes) {
             EncodeResult::Encoded { next } -> payload(context, info, items, remaining_steps, next),
             _ -> compact_encode_invalid(context)
         }
     }
-    machine payload(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @Payload, remaining_steps: u64, start: u64)
+    machine payload(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @Payload, remaining_steps: u64, start: u64)
     requires context.count < context.fields.len && remaining_steps > 0u64
     {
         transition Write(items, @mut context.storage[..], start, remaining_steps) {
@@ -804,7 +804,7 @@ requires machine Write(value: @Payload, out: @mut [u8], cursor: u64, remaining_s
             _ -> compact_encode_invalid(context)
         }
     }
-    machine remember(context: @mut EncodeContext, info: @reflect::FieldInfo, end: u64, left: u64)
+    machine remember(context: @mut EncodeContext, info: @reflect\FieldInfo, end: u64, left: u64)
     requires context.count < context.fields.len
     {
         context.fields[context.count] = EncodedField { number: info.stable_number, start: context.used, end: end };
@@ -814,7 +814,7 @@ requires machine Write(value: @Payload, out: @mut [u8], cursor: u64, remaining_s
     }
 }
 
-machine compact_packed_field<Element>(context: @mut EncodeContext, info: @reflect::FieldInfo, items: @[Element])
+machine compact_packed_field<Element>(context: @mut EncodeContext, info: @reflect\FieldInfo, items: @[Element])
 requires Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
     || Element == i8 || Element == i16 || Element == i32 || Element == i64
 {
@@ -838,7 +838,7 @@ requires Element == u8 || Element == u16 || Element == u32 || Element == u64 || 
         false -> CompactCopy::Exhausted
     }
 }
-public machine blob_field(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @[u8]) {
+public machine blob_field(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @[u8]) {
     compact_length_field::<compact_measure_blob, compact_write_blob>(context, info, value);
 }
 machine compact_measure_blob(value: @[u8], remaining_steps: u64) -> CompactMeasure {
@@ -869,7 +869,7 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
         _ -> 10u64
     }
 }
-public machine max_scalar_field<Kind>(bound: @mut ScalarBound, field: @reflect::FieldInfo)
+public machine max_scalar_field<Kind>(bound: @mut ScalarBound, field: @reflect\FieldInfo)
 requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
     || Kind == i8 || Kind == i16 || Kind == i32 || Kind == i64
 {
@@ -898,7 +898,7 @@ requires Kind == u8 || Kind == u16 || Kind == u32 || Kind == u64 || Kind == bool
 // A payload plan describes a bounded wire region. Its contents establish no
 // semantic type: the explicitly supplied owner constructor selects recursive
 // decoding, packed values, text validation, or a raw input-buffer view.
-public machine plan_payload<Kind>(context: @mut ScalarPlanContext, field: @reflect::FieldInfo) {
+public machine plan_payload<Kind>(context: @mut ScalarPlanContext, field: @reflect\FieldInfo) {
     let slot: ScalarSlot = ScalarSlot {
         number: field.stable_number, is_signed: false, is_payload: true,
         start: 0u64, end: 0u64, minimum: 0i64, maximum: 0i64,
@@ -936,7 +936,7 @@ requires remaining_steps > 0u64
     machine read(bytes: @[u8], words: @mut [u64], cursor: u64, count: u64, remaining_steps: u64) -> PackedRead
     requires count < words.len && remaining_steps > 1u64
     {
-        transition CompactBinary::read_unsigned(bytes, cursor) {
+        transition CompactBinary\read_unsigned(bytes, cursor) {
             UnsignedRead::Read { value, next } -> check(bytes, words, cursor, count, remaining_steps, value, next),
             _ -> PackedRead::Invalid
         }
@@ -966,7 +966,7 @@ public machine signed_from_word(word: u64) -> i64 {
 
 // Fixed-capacity sequences expose only their live prefix. Capacity is an
 // ordinary generic extent, and an invalid live length fails closed.
-public machine fixed_vec_field<Kind, Element, const N: u64>(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @FixedVec<Element, N>)
+public machine fixed_vec_field<Kind, Element, const N: u64>(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @FixedVec<Element, N>)
 requires Kind == FixedVec<Element, N>
     && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
         || Element == i8 || Element == i16 || Element == i32 || Element == i64)
@@ -975,7 +975,7 @@ requires Kind == FixedVec<Element, N>
         true -> live(context, info, value),
         false -> invalid(context)
     }
-    machine live(context: @mut EncodeContext, info: @reflect::FieldInfo, value: @FixedVec<Element, N>)
+    machine live(context: @mut EncodeContext, info: @reflect\FieldInfo, value: @FixedVec<Element, N>)
     requires value.length <= value.items.len
         && (Element == u8 || Element == u16 || Element == u32 || Element == u64 || Element == bool
             || Element == i8 || Element == i16 || Element == i32 || Element == i64)

@@ -1,6 +1,6 @@
-use targets::macos_arm64::DarwinTimeRead;
-use targets::macos_arm64::darwin_time_host_wait_part;
-use omega::language::core::narrow_u32_to_i32_wrapping;
+use targets\macos_arm64\DarwinTimeRead;
+use targets\macos_arm64\darwin_time_host_wait_part;
+use omega\language\core\narrow_u32_to_i32_wrapping;
 
 public DarwinTimeHost satisfies TimeHost {
     machine monotonic_ticks() -> u64

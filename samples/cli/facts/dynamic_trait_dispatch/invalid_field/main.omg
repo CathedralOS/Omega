@@ -15,7 +15,7 @@ UnitCombine satisfies WeightedCombine {
     requires right >= 40u64 && right <= 40u64
     ensures result >= 100u64 && result <= 100u64
     {
-        observation = left;
+        $observation = left;
         left + right
     }
 }
@@ -26,7 +26,7 @@ OtherCombine satisfies WeightedCombine {
     requires right >= 40u64 && right <= 40u64
     ensures result >= 100u64 && result <= 100u64
     {
-        observation = right;
+        $observation = right;
         left + right
     }
 }

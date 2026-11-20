@@ -11,7 +11,7 @@ data Holder {
 }
 
 machine touch_left(left: @mut u64) {
-    left = 999u64;
+    $left = 999u64;
 }
 
 machine exercise() -> u64

@@ -1,5 +1,5 @@
-use targets::windows_x86_64::WindowsFilesystemIoStatus;
-use targets::windows_x86_64;
+use targets\windows_x86_64\WindowsFilesystemIoStatus;
+use targets\windows_x86_64;
 // Handle-relative, no-follow opens and object-bound removal. The synchronous
 // nonalert NtOpenFile request completes before these nested input loans and
 // output slots return. Do not replace the references with numerical pointers.
@@ -8,10 +8,10 @@ use targets::windows_x86_64;
 // https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenfile
 // https://learn.microsoft.com/windows/win32/api/ntdef/ns-ntdef-_unicode_string
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 data WindowsNativeUnicodeString<'scope>
 requires length > 0 && length <= 8190 && length % 2 == 0 && capacity == 8192

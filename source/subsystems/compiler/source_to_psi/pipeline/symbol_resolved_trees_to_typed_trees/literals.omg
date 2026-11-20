@@ -1,11 +1,11 @@
-use representations::source_files::SourceSet;
-use representations::source_files::SourceSpan;
-use representations::source_files::source_set_byte_or_nul;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::syntax_trees::IntegerLiteral;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_integer_literal;
-use representations::tokens::IntegerSuffix;
+use representations\source_files\SourceSet;
+use representations\source_files\SourceSpan;
+use representations\source_files\source_set_byte_or_nul;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\syntax_trees\IntegerLiteral;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_integer_literal;
+use representations\tokens\IntegerSuffix;
 
 // Integer literal values and anonymous integer values
 // (wiki/spec/language/numeric_values.md#literal-landing-and-destinations).

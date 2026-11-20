@@ -1,7 +1,7 @@
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\FilesystemNamespaceMutation;
 // A 440 Hz sine wave rendered as a canonical 8-bit WAV file: one fixed
 // [u8; 8044] buffer holds the 44-byte RIFF header followed by 8000 unsigned
 // PCM samples, written once through the portable WavOutput binding to a
@@ -14,12 +14,12 @@ use omega::language::core::FilesystemNamespaceMutation;
 // Expected exit: 0 after writing and playback; 1 on write failure, 2 on playback failure.
 // Expected output contains: sine_tone: played sine_tone.wav
 
-use omega::language::core::ProcessExit;
-use wav_output::wav_output::WavOutput;
-use audio_playback::audio_playback::AudioPlayback;
-use omega_language_std::Console;
-use omega::language::core::narrow_i64_to_i32_wrapping;
-use omega::language::core::widen_i32_to_i64;
+use omega\language\core\ProcessExit;
+use wav_output\wav_output\WavOutput;
+use audio_playback\audio_playback\AudioPlayback;
+use omega_language_std\Console;
+use omega\language\core\narrow_i64_to_i32_wrapping;
+use omega\language\core\widen_i32_to_i64;
 
 data Main {
     n: i64;

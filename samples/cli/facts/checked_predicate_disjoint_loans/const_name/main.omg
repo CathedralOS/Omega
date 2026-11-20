@@ -8,8 +8,8 @@ requires values.len == 2, first_index == FIRST, FIRST < values.len, second_index
 {
     let first: @mut Cell = @mut values[FIRST];
     let second: @mut Cell = @mut values[second_index];
-    first = Cell { value: 17 };
-    second = Cell { value: 53 };
+    $first = Cell { value: 17 };
+    $second = Cell { value: 53 };
 }
 const FIRST: u64 = 0;
 machine main() crashes Trap {

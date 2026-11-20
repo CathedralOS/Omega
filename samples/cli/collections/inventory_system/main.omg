@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Inventory system: fixed array of structs with runtime-indexed dispatch,
 // plus a value-returning search machine that finds items by id.
 //
@@ -31,7 +31,7 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Item [copy] {
     id: i32 in Saturating;

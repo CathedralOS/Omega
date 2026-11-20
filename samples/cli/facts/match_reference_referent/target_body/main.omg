@@ -9,9 +9,9 @@ ensures result == true
 }
 
 machine read_through(place: @i64) -> i64
-requires place == 17
+requires $place == 17
 {
-    place
+    $place
 }
 
 machine apply(chosen: @i64, spare: @i64) -> i64 {
@@ -30,7 +30,7 @@ boundary trait SelectedReference {
 
 LinuxX86Reference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
-    requires chosen == 17
+    requires $chosen == 17
     reaches {
         apply(chosen, spare)
     }
@@ -38,7 +38,7 @@ LinuxX86Reference satisfies SelectedReference {
 
 LinuxArmReference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
-    requires chosen == 17
+    requires $chosen == 17
     reaches {
         apply(chosen, spare)
     }
@@ -46,7 +46,7 @@ LinuxArmReference satisfies SelectedReference {
 
 MacReference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
-    requires chosen == 17
+    requires $chosen == 17
     reaches {
         apply(chosen, spare)
     }
@@ -54,7 +54,7 @@ MacReference satisfies SelectedReference {
 
 WindowsReference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
-    requires chosen == 17
+    requires $chosen == 17
     reaches {
         apply(chosen, spare)
     }

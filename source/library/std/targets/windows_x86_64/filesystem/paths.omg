@@ -10,12 +10,12 @@ use omega_language_std;
 // UNC and extended UNC roots as existing namespaces, not components to create.
 // An already-existing prefix succeeds only after a followed directory query;
 // ordinary files and dangling links must not turn mkdir failure into success.
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 machine windows_filesystem_remove_dir_all(path: @[u8] in Path) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery

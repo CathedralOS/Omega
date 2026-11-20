@@ -2584,6 +2584,9 @@ pub(crate) mod expression {
                     resolved::expression::UnaryOperator::BitwiseNot => {
                         typed::expression::UnaryOperator::BitwiseNot
                     }
+                    resolved::expression::UnaryOperator::Dereference => {
+                        typed::expression::UnaryOperator::Dereference
+                    }
                     resolved::expression::UnaryOperator::LogicalNot => {
                         typed::expression::UnaryOperator::LogicalNot
                     }

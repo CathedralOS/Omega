@@ -1,7 +1,7 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete entrypoint. Deliberate constant array-bound violation:
 // a three-element joint-event vector has no element at index three.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { events: [i32; 3]; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     main.events[3] = 1;

@@ -11,8 +11,8 @@ requires self.start >= 0 && self.start <= self.end,
     origin: u32;
 }
 machine mark(value: i32, marker: @mut u32, event: u32) -> i32
-ensures result == value, marker == event
-{ marker = event; value }
+ensures result == value, $marker == event
+{ $marker = event; value }
 machine require_nonnegative(value: i32) requires value >= 0 {}
 machine consume(value: i32) -> i32
 requires value >= 0

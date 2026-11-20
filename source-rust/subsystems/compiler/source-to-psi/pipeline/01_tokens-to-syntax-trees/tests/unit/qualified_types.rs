@@ -10,7 +10,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
                     "machine convert(value: u64) {{ let tagged: u64 = value as u64 in Tagged<{spelling}>; }}"
                 )
             } else {
-                format!("data Packet {{ value: u64 in policy::Tagged<{spelling}>; }}")
+                format!("data Packet {{ value: u64 in policy\\Tagged<{spelling}>; }}")
             };
             let source_id = SourceId(17);
             let tokens = Lexer::new(&text)
@@ -58,11 +58,27 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
 
 #[test]
 fn qualified_type_names_reject_missing_path_members() {
-    for name in ["dungeon::", "dungeon::::Damage", "dungeon::<u64>"] {
+    for name in [
+        "dungeon::",
+        "dungeon::::Damage",
+        "dungeon::<u64>",
+        r"dungeon\",
+        r"dungeon\\Damage",
+        r"dungeon::Packet\Header",
+    ] {
         let text = format!("data Packet {{ value: {name}; }}");
         let tokens = Lexer::new(&text)
             .tokenize()
             .expect("tokenize invalid qualified type");
         crate::parse_syntax_trees(&tokens).expect_err("every separator needs a member");
     }
+}
+
+#[test]
+fn a_module_path_can_end_in_a_static_member_or_generic_call() {
+    let text = r"use net\wire\Packet::Header;
+        data Record { field: net\wire\Packet::Header; }
+        machine caller() { net\wire\send::<u8>(); }";
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    crate::parse_syntax_trees(&tokens).unwrap();
 }

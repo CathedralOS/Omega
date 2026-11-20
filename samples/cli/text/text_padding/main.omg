@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Compute the right-padding needed to align a message to a fixed column width,
 // from the message's carrier length (10 for "ALERT temp").
 //
@@ -18,8 +18,8 @@ use omega::language::core::ProcessExit;
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
-use omega_language_std::Console;
-use omega::language::core::narrow_u64_to_i32_saturating;
+use omega_language_std\Console;
+use omega\language\core\narrow_u64_to_i32_saturating;
 
 domain [u8]::Utf8
 requires

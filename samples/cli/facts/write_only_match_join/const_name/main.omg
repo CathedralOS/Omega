@@ -8,9 +8,9 @@ const CHOSEN: Cell = Cell { before: 3, value: 17, after: 5 };
 const UNSELECTED: Cell = Cell { before: 7, value: 23, after: 9 };
 
 machine choose(counter: @mut u64, flag: bool) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     flag
 }
 
@@ -22,7 +22,7 @@ machine store(flag: bool) -> Outcome crashes Trap {
         true -> @write chosen.value,
         false -> @write other.value
     };
-    selected = 41;
+    $selected = 41;
     transition visits == 1 && chosen.before == 3 && chosen.after == 5 && other.before == 7 && other.after == 9 {
         true -> report(Outcome { chosen: chosen.value, other: other.value }),
         false -> wrong()

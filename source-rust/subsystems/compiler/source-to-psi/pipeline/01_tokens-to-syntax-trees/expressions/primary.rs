@@ -12,7 +12,7 @@ pub(crate) fn try_uninvoked_application<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Option<(ExpressionNode, Input<'tokens, 'source>)> {
     let (_, after_name) = input.expect_token().ok()?;
-    if !after_name.at_punctuation(PunctuationKind::ColonColon) {
+    if !after_name.at_path_member() && !after_name.at_expression_arguments() {
         return None;
     }
     let checkpoint = syntax.append_checkpoint();
@@ -60,7 +60,7 @@ pub(crate) fn try_applied_requirement_head<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let (_, after_name) = input.expect_token().ok()?;
-    if !after_name.at_punctuation(PunctuationKind::ColonColon) {
+    if !after_name.at_path_member() && !after_name.at_expression_arguments() {
         return None;
     }
     probe_applied_requirement_head(syntax, input)

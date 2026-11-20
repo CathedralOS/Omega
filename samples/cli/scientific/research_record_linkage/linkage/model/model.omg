@@ -31,7 +31,7 @@ public machine read_score_byte(rows: @[ScoreCell; 2], index: u64, dynamic: bool)
             _ -> (0)
         }
     }
-    machine score_scalar(value: @u8) -> u64 in Wrapping { value as u64 in Wrapping }
+    machine score_scalar(value: @u8) -> u64 in Wrapping { $value as u64 in Wrapping }
 }
 
 public machine score_byte_witness() -> u64 in Wrapping {

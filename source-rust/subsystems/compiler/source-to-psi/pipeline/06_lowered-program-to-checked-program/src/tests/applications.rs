@@ -21,7 +21,7 @@ fn source_program_in_scope(
         "/../../../../../../source/library/core/option.omg"
     ));
     let declaration = if bundled_optional {
-        "use omega::language::core::Optional;"
+        "use omega\\language\\core\\Optional;"
     } else {
         optional
     };

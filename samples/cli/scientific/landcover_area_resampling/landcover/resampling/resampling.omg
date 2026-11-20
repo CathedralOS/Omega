@@ -1,5 +1,5 @@
-use landcover::geometry;
-use landcover::geometry::overlap;
+use landcover\geometry;
+use landcover\geometry\overlap;
 // Private area buckets: no-data is class 0; classes 1..3 are categorical.
 // Outside coverage is distinct from source no-data and participates in closure.
 public data Areas [copy] {

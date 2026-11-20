@@ -16,7 +16,7 @@ requires progress.outer <= 1 && progress.inner <= 2
     terminates by progress -> Progress::Steps
     requires progress.outer <= 1 && progress.inner > 0 && progress.inner <= 2
     {
-        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        $counter = (($counter as u64 in Wrapping) + 1) as u64;
         let next: Progress = Progress { outer: progress.outer, inner: progress.inner - 0, canary: progress.canary };
         transition { _ -> count(counter, next) }
     }

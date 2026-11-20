@@ -568,7 +568,7 @@ pub(crate) fn parse_name_selection<'tokens, 'source>(
     }
     let mut path = vec![first];
     while input.at_path_member() {
-        let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let after_separator = input.take_path_separator()?;
         let Ok((member, rest)) = after_separator.take_identifier() else {
             return Ok(None);
         };

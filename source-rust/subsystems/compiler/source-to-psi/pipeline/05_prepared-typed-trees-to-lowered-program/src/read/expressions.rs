@@ -388,6 +388,9 @@ impl<'t> Program<'t> {
                 };
                 return self.held(id, slots, handle, value, expected, source);
             }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
+                return self.dereference(id, slots, unary.operand, source);
+            }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
                 match (unary.operator, operand.result) {
@@ -712,6 +715,44 @@ impl<'t> Program<'t> {
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
+    }
+
+    fn dereference(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        operand: ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let descriptor = if let ExpressionNode::Name(path) = self.node(id, operand)?
+            && let Ok(slot) = self.slot_of(id, slots, path)
+            && !slots[slot].erased
+        {
+            let value = Expression {
+                source,
+                call_context: None,
+                kind: ExpressionKind::Slot(slot),
+                result: Some(slots[slot].value_type),
+            };
+            // Incoming borrowed formals already address their referent.
+            if slots[slot].borrowed.is_some() {
+                return Ok(value);
+            }
+            value
+        } else {
+            self.place(id, slots, operand, None, Access::Replace)?
+        };
+        if let Some(held) = descriptor.result
+            && let Some((referent, _)) = self.reference_referent(id, held)?
+        {
+            return Ok(Expression {
+                source,
+                call_context: None,
+                kind: ExpressionKind::Referent(Box::new(descriptor)),
+                result: Some(referent),
+            });
+        }
+        Err(reject(id, source, "`$` requires a reference operand"))
     }
 
     /// A named place where a value is expected. A place that holds a

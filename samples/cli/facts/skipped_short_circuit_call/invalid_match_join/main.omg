@@ -1,9 +1,9 @@
 // A left operand proved false skips the right-hand bump call: the conjunction is false and the counter stays 0.
 // Place: match_join (invalid twin). The left operand is the join of a match whose arms both produce the Boolean. The left operand is true, so bump runs and the counter is no longer known to be 0.
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

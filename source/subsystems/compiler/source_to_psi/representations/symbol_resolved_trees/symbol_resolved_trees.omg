@@ -1,11 +1,11 @@
-use representations::source_files::SourceId;
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::GenericParameter;
-use representations::syntax_trees::GenericParameterKind;
-use representations::syntax_trees::IdentifierSpan;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_generic_parameter;
+use representations\source_files\SourceId;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\GenericParameter;
+use representations\syntax_trees\GenericParameterKind;
+use representations\syntax_trees\IdentifierSpan;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_generic_parameter;
 
 // Name bindings for the parsed roots of a compilation's source set. Each
 // binding table is indexed by the syntax table whose names it binds

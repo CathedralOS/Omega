@@ -11,7 +11,7 @@
 //     there is no carrier field, and no `binding` import.
 //   * `domain ... satisfies ProgressProfile` — domain
 //     declared as a progress profile.
-//   * `Build::select_provider<Scheduler,
+//   * `Build::select_provider::<Scheduler,
 //     SchedulerProvider>` in build.omg.
 //
 // Compile-checked only: no standard-library dependency, no

@@ -1,11 +1,11 @@
 // Expected exit: 0
 // Named 16-bit conversions retain toward-zero results, policy and guarded failures.
-use omega::language::core::I16;
-use omega::language::core::U16;
-use omega::language::core::I16::from_f32;
-use omega::language::core::I16::from_f64;
-use omega::language::core::U16::from_f32;
-use omega::language::core::U16::from_f64;
+use omega\language\core\I16;
+use omega\language\core\U16;
+use omega\language\core\I16::from_f32;
+use omega\language\core\I16::from_f64;
+use omega\language\core\U16::from_f32;
+use omega\language\core\U16::from_f64;
 machine signed32_plain(value: f32) -> i16
 requires value == value && value > -32769.0f32 && value < 32768.0f32
 crashes none {

@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // bombe: a Turing/Welchman Bombe attack on an Enigma I crib, table-driven.
 // The program first encrypts the demo plaintext KEINEBESONDERENEREIGNISSE at
 // start REL under plugboard AW ER MT CQ IK, producing the ciphertext
@@ -56,7 +56,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: verified
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main {
     fwd_left: [i32; 26];   // rotor I    "EKMFLGDQVZNTOWYHXUSPAIBRCJ"

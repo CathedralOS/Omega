@@ -62,7 +62,7 @@ machine run_case(item_code: u64, expected: bool, choose: bool, expected_route: u
 }
 
 machine mark_number(number: u64, route: @mut u64, tag: u64) -> u64
-ensures result == number { route = tag; number }
+ensures result == number { $route = tag; number }
 
 machine main() reaches Choosing crashes Trap {
     run_case(42, true, true, 11);

@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // The selected 64-bit address-model premise crosses a reviewed package boundary.
-use model::main;
+use model\main;
 data Main {}
 
 machine Main::main(context: @mut Main) crashes Trap

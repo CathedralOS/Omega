@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 35.
 // RPN calculator: interpret an encoded postfix program with an operand stack -- a
 // real little bytecode VM. Each token is either a number (push it) or an operator
@@ -16,7 +16,7 @@ use omega::language::core::ProcessExit;
 //   program = [3, 4, -1, 5, -2]   // 3 4 + 5 *  ==  (3 + 4) * 5
 // The program exits with the value it computed. Expected exit: 35.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main
 requires self.sp >= 0 && self.sp <= 16,

@@ -200,7 +200,7 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
         ("use alpha; data Tail {}", 0..1, vec![0]),
         ("data Head {} use alpha;", 1..2, vec![1]),
         (
-            "data Head {} use alpha; let pi(): core::Real = term; data Middle {} use beta; data Tail {}",
+            "data Head {} use alpha; let pi(): core\\Real = term; data Middle {} use beta; data Tail {}",
             1..4,
             vec![1, 3],
         ),

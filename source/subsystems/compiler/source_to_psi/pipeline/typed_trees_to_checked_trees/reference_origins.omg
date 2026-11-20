@@ -1,7 +1,7 @@
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
 
 // Unrecorded incoming descriptors have an arbitrary referent. A descriptor
 // initialized from unknown storage must stay unknown instead of acquiring a

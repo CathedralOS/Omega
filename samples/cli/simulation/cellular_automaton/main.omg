@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
 // diagram -- each generation is one printed row, so the history builds downward. From a
 // single live cell in the centre, Rule 90 (next = left XOR right) draws the SIERPINSKI
@@ -17,8 +17,8 @@ use omega::language::core::ProcessExit;
 // Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 domain [u8]::Utf8
 requires

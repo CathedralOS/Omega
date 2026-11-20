@@ -1,13 +1,13 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete intended-invalid control: an unguarded ordinal cannot index six nodes.
-use omega_language_std::Console;
+use omega_language_std\Console;
 use nodes;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     _ = block Console::read_line(@mut input[..]);
     let coordinates: [i64; 6] = [0,10,3,7,3,7];
-    let value: i64 = nodes::unguarded(@coordinates, input[0] as i32 in Wrapping);
+    let value: i64 = nodes\unguarded(@coordinates, input[0] as i32 in Wrapping);
     ProcessExit::exit_process(0);
 }
 

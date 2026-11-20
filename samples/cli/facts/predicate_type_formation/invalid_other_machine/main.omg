@@ -13,10 +13,10 @@ machine payload(formed: Value<bool>) -> bool {
     }
 }
 machine fill_true(slot: @mut Value<bool>) {
-    slot = Value::Integer { value: 1 };
+    $slot = Value::Integer { value: 1 };
 }
 machine fill_false(slot: @mut Value<bool>) {
-    slot = Value::Boolean { value: false };
+    $slot = Value::Boolean { value: false };
 }
 machine main() crashes Trap {
     let mut formed: Value<bool> = Value::Boolean { value: false };

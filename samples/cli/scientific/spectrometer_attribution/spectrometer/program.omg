@@ -1,15 +1,15 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 2 (empty stdin).
 // Expected output contains: invalid spectrum input
 // Valid spectrum/catalog fixtures exit 0 and emit regions and catalog matches.
-use omega_language_std::Console;
-use spectrometer::model::Spectrometer;
-use spectrometer::model::IntegerRead;
-use spectrometer::input::read_integer;
-use spectrometer::input::load_spectrum;
-use spectrometer::regions::find_regions;
-use spectrometer::matching::match_regions;
-use spectrometer::output::print_report;
+use omega_language_std\Console;
+use spectrometer\model\Spectrometer;
+use spectrometer\model\IntegerRead;
+use spectrometer\input\read_integer;
+use spectrometer\input\load_spectrum;
+use spectrometer\regions\find_regions;
+use spectrometer\matching\match_regions;
+use spectrometer\output\print_report;
 
 // The ordinary hosted entry consumes one complete bounded spectrum/catalog
 // inventory. There are no built-in answers or scenario-dependent branches.

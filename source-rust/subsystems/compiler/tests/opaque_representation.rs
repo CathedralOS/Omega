@@ -19,7 +19,7 @@ fn build_checks_each_carrier_and_only_emits_it_for_a_value_demand() {
         let binding = if use_by_value {
             ""
         } else {
-            "Build::bind(builder, linux_x86_64::ProgramEntry, start);"
+            "Build::bind(builder, linux_x86_64\\ProgramEntry, start);"
         };
         std::fs::write(
             package.join("build.omg"),
@@ -42,7 +42,7 @@ machine build(builder: @mut Build) {{
             &main,
             format!(
                 r#"
-use omega::language::core::OpaqueRepresentation;
+use omega\language\core\OpaqueRepresentation;
 public boundary data Token [linear];
 public data Storage {{ case Empty; case Full(value: {field}); }}
 public TokenRepresentation satisfies OpaqueRepresentation<Token, Storage> {{}}

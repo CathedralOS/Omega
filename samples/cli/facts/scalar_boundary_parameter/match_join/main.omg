@@ -9,7 +9,7 @@ Actual satisfies Consume {
 machine issue(value: u64) -> u64 in AtLeast100 requires value >= 100 { value }
 
 machine mark_issued(value: u64 in AtLeast100, route: @mut u64, marker: u64) -> u64 in AtLeast100 {
-    route = marker;
+    $route = marker;
     value
 }
 machine choose(value: u64 in AtLeast100, route: @mut u64) -> u64 in AtLeast100 {

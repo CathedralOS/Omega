@@ -290,7 +290,7 @@ machine build_entry() {}",
 fn a_transparent_predicate_keeps_ordinary_address_geometry() {
     let source = |input_contract: &str| {
         format!(
-            "public let no_wrap(base: addr, length: u64): core::Strict<0> =
+            "public let no_wrap(base: addr, length: u64): core\\Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
 machine consume(base: addr, length: u64) requires no_wrap(base, length) {{ }}
 machine build_entry(base: addr, length: u64) {input_contract} {{ consume(base, length); }}"

@@ -23,27 +23,27 @@
 
 machine numeric_conversion_signed_bits(value: i64) -> u64 {
     let bits: @u64 = @value as @u64;
-    bits
+    $bits
 }
 
 machine numeric_conversion_signed_8(bits: u8) -> i8 {
     let value: @i8 = @bits as @i8;
-    value
+    $value
 }
 
 machine numeric_conversion_signed_16(bits: u16) -> i16 {
     let value: @i16 = @bits as @i16;
-    value
+    $value
 }
 
 machine numeric_conversion_signed_32(bits: u32) -> i32 {
     let value: @i32 = @bits as @i32;
-    value
+    $value
 }
 
 machine numeric_conversion_signed_64(bits: u64) -> i64 {
     let value: @i64 = @bits as @i64;
-    value
+    $value
 }
 
 // --- Unsigned 16 -> 8 ------------------------------------------------------

@@ -1,11 +1,11 @@
 // Expected exit: 0
 // Named 8-bit conversions retain toward-zero results, policy and guarded failures.
-use omega::language::core::I8;
-use omega::language::core::U8;
-use omega::language::core::I8::from_f32;
-use omega::language::core::I8::from_f64;
-use omega::language::core::U8::from_f32;
-use omega::language::core::U8::from_f64;
+use omega\language\core\I8;
+use omega\language\core\U8;
+use omega\language\core\I8::from_f32;
+use omega\language\core\I8::from_f64;
+use omega\language\core\U8::from_f32;
+use omega\language\core\U8::from_f64;
 machine signed32_plain(value: f32) -> i8
 requires value == value && value > -129.0f32 && value < 128.0f32
 crashes none {

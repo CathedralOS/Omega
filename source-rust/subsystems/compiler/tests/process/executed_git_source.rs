@@ -177,7 +177,7 @@ fn execute_workspace_fixture() {
     let source = std::fs::read_to_string(project.join("main.omg")).unwrap();
     std::fs::write(
         project.join("main.omg"),
-        source.replace("selected::answer()", "selected::private_answer()"),
+        source.replace(r"selected\answer()", r"selected\private_answer()"),
     )
     .unwrap();
     let mut outcomes = orchestration::build(request.clone()).unwrap();

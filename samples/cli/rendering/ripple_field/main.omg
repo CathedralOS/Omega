@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // An animated radial "ripple" -- concentric diamonds pulsing out from the centre of a
 // 30x16 character field, the first per-CELL animated SHADER (every cell's brightness is
 // a function of its position AND time, mapped through a brightness ramp), as opposed to
@@ -13,8 +13,8 @@ use omega::language::core::ProcessExit;
 // no new compiler features.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std::Console;
-use omega_language_std::Clock;
+use omega_language_std\Console;
+use omega_language_std\Clock;
 
 // FULLY EXACT -- no overflow domain anywhere: the counters are plain i32 with
 // guard-proven increments (re-guard hops where the loop-head guard is several

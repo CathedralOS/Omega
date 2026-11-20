@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS
 //
@@ -17,7 +17,7 @@ use omega::language::core::ProcessExit;
 //   6. Self-verify symbol frequencies, per-symbol code lengths (1, 2, 4, 4, 3),
 //      encoded bit count (29), packed bytes, and the 16-byte round-trip.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 domain u64::SymbolSlot requires self < 5;
 domain u8::HuffmanSymbol

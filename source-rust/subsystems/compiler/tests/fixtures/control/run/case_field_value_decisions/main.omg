@@ -28,7 +28,7 @@ machine first_full_case(token: @Token) -> u32 {
 machine first_wildcard(token: @Token) -> u32 {
     match token { _ -> 6, Token::Keyword { keyword: 7, item as _ } -> 99 }
 }
-machine touch(state: @mut u32) -> u8 { state = 9; 0 }
+machine touch(state: @mut u32) -> u8 { $state = 9; 0 }
 machine field_test_effect(token: @Token) -> u32 {
     let mut state: u32 = 1;
     match token {

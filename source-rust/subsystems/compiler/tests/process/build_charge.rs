@@ -344,11 +344,11 @@ fn nested_readiness_jobs() {
             std::fs::write(
                 root.join("backing/leaf/build.omg"),
                 r#"
-use omega::language::core::program_image;
+use omega\language\core\program_image;
 machine build(builder: @mut Build) suspends {
     Build::package(builder, "readiness_leaf");
-    let mut root_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../.." });
-    dependency::with_alias(@mut root_dependency, "root");
+    let mut root_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../.." });
+    dependency\with_alias(@mut root_dependency, "root");
     let root_registration: DependencyRegistration = Build::build_dependency(builder, root_dependency);
     suspend Build::await_provider::<ProgramImage, root::TestImage>(builder);
 }

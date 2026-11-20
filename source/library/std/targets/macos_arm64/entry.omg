@@ -18,7 +18,7 @@ use hosted_entry_arm_extent_value;
 use hosted_entry_extent_shape;
 use hosted_entry_integer_shape;
 use omega_language_std;
-use omega::language::core::ProgramStorageEntry;
+use omega\language\core\ProgramStorageEntry;
 
 // Apple's dyld calls appMain(argc, argv, envp, apple) and receives an int:
 // https://github.com/apple-oss-distributions/dyld/blob/main/dyld/dyldMain.cpp

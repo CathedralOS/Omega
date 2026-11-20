@@ -22,13 +22,13 @@ const UNPROVED: &str = "may overflow `u64`";
 
 const APP_BUILD: &str = "machine build(builder: @mut Build) {
     Build::application(builder, \"acceptance_app\");
-    let mut vendor_dependency: DependencyDescription = dependency::from_source(Source::Path { location: \"vendor\" });
-    dependency::with_alias(@mut vendor_dependency, \"vendor\");
+    let mut vendor_dependency: DependencyDescription = dependency\\from_source(Source::Path { location: \"vendor\" });
+    dependency\\with_alias(@mut vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 }
 ";
-const APP_MAIN: &str = "use vendor::main;
+const APP_MAIN: &str = "use vendor\\main;
 machine main() {
     let value: u64 = count(3u64);
 }

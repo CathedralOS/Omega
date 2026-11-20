@@ -1,4 +1,4 @@
-use omega::language::core::min_i32;
+use omega\language\core\min_i32;
 
 
 data Dungeon {

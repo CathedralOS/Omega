@@ -5,7 +5,7 @@ data Choice { case Empty; case Value(token: Token); }
 data Holder { marker: u64; choice: Choice; sibling: Token; }
 
 machine populate(choice: @mut Choice) -> u64 {
-    choice = Choice::Value { token: Token { value: 42 } };
+    $choice = Choice::Value { token: Token { value: 42 } };
     5
 }
 
@@ -19,9 +19,9 @@ machine discard(choice: Choice) {
 }
 
 machine erase(choice: @mut Choice) {
-    let detached: Choice = choice;
+    let detached: Choice = $choice;
     discard(detached);
-    choice = Choice::Empty {};
+    $choice = Choice::Empty {};
 }
 
 machine read_and_drop(token: Token) -> u64 {

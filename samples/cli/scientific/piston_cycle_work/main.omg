@@ -1,14 +1,14 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use domain::model::Stage;
-use domain::model::evaluate;
-use domain::model::pressure_at;
-use domain::model::near;
-use domain::report::number;
-use domain::report::integer;
-use data::fixtures::count;
-use data::fixtures::load;
+use omega\language\core\ProcessExit;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use domain\model\Stage;
+use domain\model\evaluate;
+use domain\model\pressure_at;
+use domain\model\near;
+use domain\report\number;
+use domain\report\integer;
+use data\fixtures\count;
+use data\fixtures\load;
 
 // Select exactly one declared scenario with an ASCII digit then LF (or EOF).
 // The application consumes at most three bytes and never silently truncates.

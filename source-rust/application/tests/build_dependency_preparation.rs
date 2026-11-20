@@ -42,9 +42,9 @@ fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
 suspends
 {{
     Build::application(builder, \"prepares\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    let mut request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
-    dependency::with_alias(@mut request, \"kit\");
+    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    let mut request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
+    dependency\\with_alias(@mut request, \"kit\");
     let registered: DependencyRegistration = Build::build_dependency(builder, request);
 {after}}}
 "

@@ -1,14 +1,14 @@
-use omega::language::core::F64::from_i32;
-use domain::model;
-use domain::model::Observations;
-use domain::model::Candidate;
-use domain::model::Profile;
-use domain::model::Fit;
-use domain::mathematics;
-use domain::mathematics::exponential;
-use domain::mathematics::logarithm;
-use domain::mathematics::clamp;
-use domain::mathematics::magnitude;
+use omega\language\core\F64::from_i32;
+use domain\model;
+use domain\model\Observations;
+use domain\model\Candidate;
+use domain\model\Profile;
+use domain\model\Fit;
+use domain\mathematics;
+use domain\mathematics\exponential;
+use domain\mathematics\logarithm;
+use domain\mathematics\clamp;
+use domain\mathematics\magnitude;
 
 // Variable projection solves the two bounded linear asymptotes exactly for
 // every nonlinear shape. Enumerating each box face also covers corners. Shape

@@ -1446,14 +1446,14 @@ machine entry_start() crashes Trap {
 "###,
     )
     .unwrap();
-    std::fs::write(root.with_file_name("build.omg"), r###"use omega::language::core::DllImport;
-use omega::language::core::ForeignBinding;
+    std::fs::write(root.with_file_name("build.omg"), r###"use omega\language\core\DllImport;
+use omega\language\core\ForeignBinding;
 machine build(builder: @mut Build) {
     Build::application(builder, "closed_requirement_bindings");
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
     Build::bind::<Probe::take<4>>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
@@ -2037,10 +2037,10 @@ fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
 const REVIEW_BUILD_SOURCE: &str = r#"
 machine build(builder: @mut Build) {
     Build::application(builder, "accepted_package_review");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64\ProgramEntry, main);
 }
 "#;
 
@@ -2648,8 +2648,8 @@ machine main() {}
 fn ordinary_public_requirement_review_keeps_lifetimes_domains_and_open_ceilings() {
     use review_evidence::record::PackagePolicyBaseline;
     const SOURCE: &str = r#"
-use omega::language::core::byte_observation;
-public domain [u8]::Utf8 requires byte_observation::valid_utf8(@self[..]);
+use omega\language\core\byte_observation;
+public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 public trait Window {
     machine view<'input>(packet: @'input [u8] in Utf8) -> @'input [u8] in Utf8;
 }

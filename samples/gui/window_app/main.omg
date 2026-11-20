@@ -1,19 +1,19 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A persistent software-rendered macOS window. The 64x64 animated framebuffer
 // is stretched into a 256x256 client area until the user closes it or presses
 // Escape while this window has focus. Window state is explicitly owned by the
 // application; named provider maps select code without hidden receiver state.
 // No exit annotation: this sample waits for user input. window_demo is the
 // bounded 60-frame exercise of the same shared rendering and event-pump API.
-use omega_language_std::Console;
-use omega_language_std::AppKit;
-use omega_language_std::CoreGraphics;
-use omega_language_std::DarwinClock;
-use omega_language_std::ObjectiveC;
-use omega_language_std::Window;
-use omega_language_std::MacosImageData;
-use omega_language_std::MacosImageObjects;
-use omega_language_std::WindowsGuiHost;
+use omega_language_std\Console;
+use omega_language_std\AppKit;
+use omega_language_std\CoreGraphics;
+use omega_language_std\DarwinClock;
+use omega_language_std\ObjectiveC;
+use omega_language_std\Window;
+use omega_language_std\MacosImageData;
+use omega_language_std\MacosImageObjects;
+use omega_language_std\WindowsGuiHost;
 use providers;
 
 // These requirements expose the shared macos_gui operations' service rows.

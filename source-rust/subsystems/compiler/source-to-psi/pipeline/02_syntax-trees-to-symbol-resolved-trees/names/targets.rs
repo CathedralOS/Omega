@@ -1608,7 +1608,7 @@ mod tests {
 
         let text = r#"
             machine work() -> i32 { 1 }
-            machine caller() -> i32 { kit::work() }
+            machine caller() -> i32 { kit\work() }
         "#;
         let call = resolved_call_in("kit", text, "kit::work");
         assert_eq!(call.symbols_kind, SymbolKind::State);
@@ -1682,12 +1682,12 @@ mod tests {
     fn imported_callable_paths_bind_without_exposing_their_module() {
         let library = "public machine work() -> u64 { 7 } public machine sibling() -> u64 { 8 }";
         let caller = r#"
-            use omega::language::core::kit::work;
-            machine expression() -> u64 { kit::work() }
-            machine statement() { kit::work(); }
-            machine parameter_shadow(kit: u64) { kit::work(); }
-            machine local_shadow() { let kit: u64 = 0; kit::work(); }
-            machine unimported() { kit::sibling(); }
+            use omega\language\core\kit\work;
+            machine expression() -> u64 { kit\work() }
+            machine statement() { kit\work(); }
+            machine parameter_shadow(kit: u64) { kit\work(); }
+            machine local_shadow() { let kit: u64 = 0; kit\work(); }
+            machine unimported() { kit\sibling(); }
         "#;
         let mut sources = crate::source_inputs::SourceMap::default();
         let library_id = sources

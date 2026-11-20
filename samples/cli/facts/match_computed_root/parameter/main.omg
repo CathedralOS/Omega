@@ -4,9 +4,9 @@
 
 
 machine compute(counter: @mut u64) -> u64
-requires counter == 0
+requires $counter == 0
 {
-    counter = counter + 1;
+    $counter = $counter + 1;
     0
 }
 
@@ -15,8 +15,8 @@ machine apply(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> 
         17 -> @mut chosen[0],
         _ -> @mut other[0]
     };
-    selected = 41;
-    selected
+    $selected = 41;
+    $selected
 }
 
 machine main() crashes Trap {

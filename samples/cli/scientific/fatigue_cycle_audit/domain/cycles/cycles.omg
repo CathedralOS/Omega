@@ -1,5 +1,5 @@
-use domain::input;
-use domain::input::Input;
+use domain\input;
+use domain\input\Input;
 
 // Declared synthetic four-point rule: close b,c when its range is no larger
 // than either enclosing range a,b or c,d; remove b,c and re-examine the tail.

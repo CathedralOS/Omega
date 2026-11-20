@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Fixed-limb unsigned bignum arithmetic (8 x u32 little-endian limbs in a record).
 //
 // Exercises per-node arithmetic-policy semantics (Wrapping limb arithmetic,
@@ -25,10 +25,10 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS
 
-use omega_language_std::Console;
-use omega::language::core::narrow_u32_to_u8_wrapping;
-use omega::language::core::narrow_u64_to_u32_wrapping;
-use omega::language::core::widen_u32_to_u64;
+use omega_language_std\Console;
+use omega\language\core\narrow_u32_to_u8_wrapping;
+use omega\language\core\narrow_u64_to_u32_wrapping;
+use omega\language\core\widen_u32_to_u64;
 
 data Bignum [copy] {
     limbs: [u32; 8] in Wrapping;

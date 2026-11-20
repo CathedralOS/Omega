@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete control: constant index 2 cannot select a two-element carrier.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let values: [i32; 2] = [7, 11];

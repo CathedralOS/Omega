@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A month calendar -- the kind of formatted, laid-out output a real application produces.
 // Renders a 30-day month that starts on a Wednesday: a weekday header, then the dates in a
 // 7-column grid, the first week indented past the leading blank days. Each date is a
@@ -8,8 +8,8 @@ use omega::language::core::ProcessExit;
 // and week wrapping. Pure compute + stdout, no new features.
 // Expected exit: 0.
 // Expected output contains: 30
-use omega_language_std::Console;
-use omega::language::core::narrow_i32_to_u8_trapping;
+use omega_language_std\Console;
+use omega\language\core\narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires

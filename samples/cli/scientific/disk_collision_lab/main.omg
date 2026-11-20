@@ -1,27 +1,27 @@
-use omega::language::core::ProcessExit;
-use omega::language::core::abs_f64;
+use omega\language\core\ProcessExit;
+use omega\language\core\abs_f64;
 
 // Expected exit: 2 (closed stdin).
 // Expected output contains: invalid input: one digit 0..9 and LF required
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
-use physics::model;
-use physics::model::totals;
-use physics::model::validate;
-use physics::events;
-use physics::events::contact;
-use physics::events::select_event;
-use physics::events::advance;
-use physics::events::resolve;
-use reporting::ledger;
-use reporting::ledger::contact_row;
-use reporting::ledger::totals_row;
-use reporting::ledger::disk_rows;
-use data::fixtures;
-use data::fixtures::fixture;
-use data::expectations;
-use data::expectations::expected_result;
-use data::expectations::expected_contact;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
+use physics\model;
+use physics\model\totals;
+use physics\model\validate;
+use physics\events;
+use physics\events\contact;
+use physics\events\select_event;
+use physics\events\advance;
+use physics\events\resolve;
+use reporting\ledger;
+use reporting\ledger\contact_row;
+use reporting\ledger\totals_row;
+use reporting\ledger\disk_rows;
+use data\fixtures;
+use data\fixtures\fixture;
+use data\expectations;
+use data\expectations\expected_result;
+use data\expectations\expected_contact;
 data Main {lab:Lab; choice:i32;}
 machine main(main:@mut Main) reaches ProcessExit + Console {
  let input:ByteRead=block Console::read_byte();

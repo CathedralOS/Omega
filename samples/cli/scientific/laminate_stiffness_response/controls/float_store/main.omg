@@ -1,5 +1,5 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
 data Model { z: [f64; 5]; }
 data Main { model: Model; }
 machine main(main: @mut Main) reaches ProcessExit + Console {

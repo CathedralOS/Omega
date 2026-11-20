@@ -3,5 +3,5 @@ use c;
 use e;
 
 machine entry() -> i64 {
-    a::a_value() + c::c_value() + e::e_value()
+    a\a_value() + c\c_value() + e\e_value()
 }

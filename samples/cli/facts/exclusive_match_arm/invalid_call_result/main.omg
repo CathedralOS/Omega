@@ -1,9 +1,9 @@
 // A match on one evaluation of a copyable flag returns the exclusive loan of the selected primitive, writes 41 through that loan, and leaves the unselected primitive unchanged.
 // Place: call_result. Reject twin: the source is used while that loan is live.
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
@@ -20,8 +20,8 @@ machine main() crashes Trap {
     let mut visits: u64 = 0;
     let selected: @mut i64 = select(@mut chosen, @mut other, @mut visits);
     chosen = 7;
-    selected = 41;
-    let observed: i64 = selected;
+    $selected = 41;
+    let observed: i64 = $selected;
     transition observed == 41 && chosen == 41 && other == 0 && visits == 1 {
         true -> done(),
         false -> wrong()

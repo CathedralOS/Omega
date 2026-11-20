@@ -594,7 +594,7 @@ fn shared_subslices_compose_with_literals_calls_and_stored_views() {
 }
 
 const QUALIFIED_BYTE_RANGE: &str = r#"
-        domain [u8]::Path requires byte_observation::no_nul(@self[..]);
+        domain [u8]::Path requires byte_observation\no_nul(@self[..]);
         machine prefix_length(path: @[u8] in Path, position: u64) -> u64
         requires position <= path.len {
             let prefix: @[u8] = @path[0..position];
@@ -630,7 +630,7 @@ fn an_explicit_domain_cast_permits_the_builtin_byte_range_and_keeps_its_bounds()
 }
 
 const QUALIFIED_PREFIX_CAST: &str = r#"
-    domain [u8]::Path requires byte_observation::no_nul(@self[..]);
+    domain [u8]::Path requires byte_observation\no_nul(@self[..]);
     machine prefix_length(path: @[u8] in Path, position: u64) -> u64
     requires position <= path.len {
         let selected: @[u8] in Path = path[0..position] as +Path;
@@ -658,7 +658,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
     );
     let typed = crate::prepare_fixture(super::build_purpose::frontier_with_core(
         "machine product_entry() {}",
-        &format!("use omega::language::core::byte_observation;\n{source}"),
+        &format!("use omega\\language\\core\\byte_observation;\n{source}"),
         source_provenance::DependencyScope::Build,
         &[(
             "byte_observation/byte_observation.omg",
@@ -1872,7 +1872,7 @@ machine use(same: bool) {}"), "accepted");
 #[test]
 fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
     let program = r#"
-        domain [u8]::Path requires byte_observation::no_nul(@self[..]);
+        domain [u8]::Path requires byte_observation\no_nul(@self[..]);
         machine build_entry() {
             let other: @[u8] in Path = "trusted" as +Path;
             let path: @[u8] in Path = "foo/bar" as +Path;
@@ -1899,7 +1899,7 @@ fn a_qualified_byte_literal_still_proves_its_domain_at_introduction() {
 #[test]
 fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
     let program = r#"
-        domain [u8]::Path requires byte_observation::no_nul(@self[..]);
+        domain [u8]::Path requires byte_observation\no_nul(@self[..]);
         machine require_path(path: @[u8] in Path, position: u64)
         requires position <= path.len { }
         machine build_entry(flag: bool) {
@@ -1938,7 +1938,7 @@ fn qualified_byte_arrivals_keep_each_backings_length_and_predicate() {
 #[test]
 fn nested_shared_path_calls_keep_their_predicate_and_extent() {
     let source = r#"
-domain [u8]::Path requires byte_observation::no_nul(@self[..]);
+domain [u8]::Path requires byte_observation\no_nul(@self[..]);
 
 data Context { code: i32; }
 data UnitResult { case Ok; case Error(kind: i32); }

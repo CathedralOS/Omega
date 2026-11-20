@@ -254,7 +254,7 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
 fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
     let source = r#"
         data Cell { value: u32; }
-        machine get(value: @u32) -> u32 { value }
+        machine get(value: @u32) -> u32 { $value }
         machine fetch(items: @[Cell]) -> u32 {
             transition items.len > 0u64 { true -> selected(items), false -> 0u32 }
             machine selected(items: @[Cell]) -> u32 requires items.len > 0u64 {
@@ -274,8 +274,8 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
 
     let mutable = source
         .replace(
-            "machine get(value: @u32) -> u32 { value }",
-            "machine get(value: @mut u32) -> u32 { value = 17u32; value }",
+            "machine get(value: @u32) -> u32 { $value }",
+            "machine get(value: @mut u32) -> u32 { $value = 17u32; value }",
         )
         .replace("items: @[Cell]", "items: @mut [Cell]")
         .replace("get(@items[", "get(@mut items[")
@@ -309,7 +309,7 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
     // Reading the whole non-copy element would copy it out of the view.
     let whole = source
         .replace(
-            "machine get(value: @u32) -> u32 { value }",
+            "machine get(value: @u32) -> u32 { $value }",
             "machine take(cell: Cell) -> u32 { cell.value }",
         )
         .replace("get(@items[0u64].value)", "take(items[0u64])");

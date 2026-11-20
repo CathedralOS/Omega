@@ -2,13 +2,13 @@
 // Named casts establish the constraint and expose plain arithmetic without
 // losing its numerical fact; byte checks observe the authored field offsets.
 // Expected exit: 0
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::FixedLayout;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::Schema;
+use omega\language\core\FieldEntry;
+use omega\language\core\FieldPlan;
+use omega\language\core\FixedLayout;
+use omega\language\core\LayoutPlan;
+use omega\language\core\LayoutStorage;
+use omega\language\core\LayoutTarget;
+use omega\language\core\Schema;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 PairLayout satisfies FixedLayout<Pair> {
@@ -25,8 +25,8 @@ machine make() -> LayoutStorage<Pair, PairLayout> {
     value.hi = 9u64;
     value
 }
-machine first(marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { marker = 17u64; make() }
-machine second(marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { marker = 29u64; make() }
+machine first(marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { $marker = 17u64; make() }
+machine second(marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { $marker = 29u64; make() }
 machine choose(flag: bool, marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { match flag { true -> first(marker), false -> second(marker) } }
 machine exercise(flag: bool, expected_marker: u64) crashes Trap {
     let mut marker: u64 = 0u64;

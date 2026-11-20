@@ -1,10 +1,10 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Value-call result used inline in arithmetic expressions.
 // Arithmetic helpers have no receiver. Intermediate results cross states as
 // ordinary parameters; console input buffers belong to the state using them.
 
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 machine double_val(n: i32 in Saturating) -> i32 in Saturating {
     transition {

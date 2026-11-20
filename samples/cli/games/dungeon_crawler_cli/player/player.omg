@@ -1,6 +1,6 @@
-use omega::language::core::max_i32;
-use omega::language::core::max_u32;
-use omega::language::core::min_i32;
+use omega\language\core\max_i32;
+use omega\language\core\max_u32;
+use omega\language\core\min_i32;
 
 
 data PlayerSystem {

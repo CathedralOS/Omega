@@ -1,5 +1,5 @@
 // Expected exit: 0. Reading an indexed borrow keeps its original array address.
-machine read(value: @u8) -> u8 { value }
+machine read(value: @u8) -> u8 { $value }
 machine main() crashes Trap {
     let bytes: [u8; 3] = [17u8, 37u8, 91u8];
     let view: @[u8] = @bytes[..];

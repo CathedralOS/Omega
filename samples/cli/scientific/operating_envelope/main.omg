@@ -1,9 +1,9 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Runtime operating envelope: one stdin packet, one fully certified polygon.
 // The generic sample harness supplies EOF; it must reject a missing packet.
 // Expected exit: 2.
 // Expected output contains: invalid input
-use omega_language_std::Console;
+use omega_language_std\Console;
 use input;
 use geometry;
 use output;
@@ -12,23 +12,23 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 256];
     _ = block Console::read_line(@mut bytes[..]);
-    let mut packet: input::Packet;
-    input::parse(@mut packet, @bytes);
-    let mut envelope: geometry::Envelope;
-    let admitted: bool = geometry::load(@mut envelope, @packet);
+    let mut packet: input\Packet;
+    input\parse(@mut packet, @bytes);
+    let mut envelope: geometry\Envelope;
+    let admitted: bool = geometry\load(@mut envelope, @packet);
     transition admitted {
         true -> calculate(main, @mut envelope),
         _ -> invalid(main)
     }
-    machine calculate(main: @mut Main, envelope: @mut geometry::Envelope) {
-        geometry::solve(envelope);
+    machine calculate(main: @mut Main, envelope: @mut geometry\Envelope) {
+        geometry\solve(envelope);
         transition envelope.valid {
             true -> emit(main, envelope),
             _ -> failure(main)
         }
     }
-    machine emit(main: @mut Main, envelope: @geometry::Envelope) {
-        output::report(envelope);
+    machine emit(main: @mut Main, envelope: @geometry\Envelope) {
+        output\report(envelope);
         ProcessExit::exit_process(0);
     }
     machine invalid(main: @mut Main) {

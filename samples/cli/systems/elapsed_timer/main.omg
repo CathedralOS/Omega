@@ -1,5 +1,5 @@
-use omega::language::core::ProcessExit;
-// elapsed_timer: times a real workload with std::time -- the first full
+use omega\language\core\ProcessExit;
+// elapsed_timer: times a real workload with std\time -- the first full
 // consumer of the Instant and clock-read surface (TASKS_TIME.md rung 8).
 //
 // Chain: instant_now() captures a start Instant; sleep_for sleeps a
@@ -16,15 +16,15 @@ use omega::language::core::ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std::Console;
-use omega_language_std::Duration;
-use omega_language_std::Instant;
-use omega_language_std::TimeHost;
-use omega_language_std::TotalResult;
-use omega_language_std::duration_checked_as_milliseconds;
-use omega_language_std::elapsed_since;
-use omega_language_std::instant_now;
-use omega_language_std::sleep_for;
+use omega_language_std\Console;
+use omega_language_std\Duration;
+use omega_language_std\Instant;
+use omega_language_std\TimeHost;
+use omega_language_std\TotalResult;
+use omega_language_std\duration_checked_as_milliseconds;
+use omega_language_std\elapsed_since;
+use omega_language_std\instant_now;
+use omega_language_std\sleep_for;
 
 data Main {
 }

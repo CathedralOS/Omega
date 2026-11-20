@@ -44,7 +44,7 @@ crashes Trap;
 }
 WindowsX8664Verify satisfies SelectedVerify {
  machine verify(value: @u64) crashes Trap
-{ transition value == 42 { true -> done(), false -> wrong() } }
+{ transition $value == 42 { true -> done(), false -> wrong() } }
 }
 
 

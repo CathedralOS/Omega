@@ -1,5 +1,5 @@
-use controller::model;
-use controller::model::Problem;
+use controller\model;
+use controller\model\Problem;
 // Mirrored input fixtures.
 public machine load_case(problem: @mut Problem, selector: i32) {
     transition selector {

@@ -10,7 +10,7 @@ machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pi
 }
 
 machine overwrite(slot: @mut u64) -> u64 in Wrapping {
-    slot = 9;
+    $slot = 9;
     (1 as u64 in Wrapping)
 }
 
@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let zero: u64 in Wrapping = 0;
     let mut scratch: u64 = 3;
     let mut referent: @mut u64 = @mut scratch;
-    referent = choose(@mut chosen, @mut other, true);
+    $referent = choose(@mut chosen, @mut other, true);
     let loaded: @mut u64 = referent;
     let marker: u64 in Wrapping = add(overwrite(loaded), zero);
     let found: u8 = read_at(@items, other);

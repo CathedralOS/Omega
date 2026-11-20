@@ -1,22 +1,22 @@
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::PathBinding;
-use representations::symbol_resolved_trees::ValueBinding;
-use representations::symbol_resolved_trees::path_binding_at;
-use representations::symbol_resolved_trees::value_binding;
-use representations::syntax_trees::DomainItem;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_domain_item;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::reference_type;
-use representations::typed_trees::same_carrier;
-use representations::typed_trees::set_expression_type;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
-use representations::typed_trees::typing_reject;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\PathBinding;
+use representations\symbol_resolved_trees\ValueBinding;
+use representations\symbol_resolved_trees\path_binding_at;
+use representations\symbol_resolved_trees\value_binding;
+use representations\syntax_trees\DomainItem;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_domain_item;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\reference_type;
+use representations\typed_trees\same_carrier;
+use representations\typed_trees\set_expression_type;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
+use representations\typed_trees\typing_reject;
 
 // A membership `value in Domain` or `value in Type::Case`
 // (wiki/spec/language/domains.md#refinement-and-tests) is a Boolean. A case

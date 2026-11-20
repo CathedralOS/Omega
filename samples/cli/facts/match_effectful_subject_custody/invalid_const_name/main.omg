@@ -17,7 +17,7 @@ machine relay<'c>(token: Token<'c>) -> Token<'c> {
 }
 
 machine refill<'c>(slot: @mut Token<'c>, counter: @'c mut Counter, flag: bool) -> bool {
-    slot = Token { counter: counter, mark: 5 };
+    $slot = Token { counter: counter, mark: 5 };
     flag
 }
 

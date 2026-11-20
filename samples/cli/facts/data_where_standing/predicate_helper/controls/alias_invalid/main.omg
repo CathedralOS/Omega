@@ -8,8 +8,8 @@ data Counter [copy] {
 }
 machine replace(slot: @mut i32, replacement: i32)
 requires replacement <= 60
-ensures slot <= 60
-{ slot = replacement; }
+ensures $slot <= 60
+{ $slot = replacement; }
 machine produce(replacement: i32) -> Counter
 requires replacement <= 60
 {

@@ -5,7 +5,7 @@ use LinuxArmClockSleepRequest;
 // storage: its reference carries the address through the native call ABI.
 // Both kernel fields are signed 64-bit integers, in seconds/nanoseconds order.
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/time_types.h
-use omega::language::core::widen_u32_to_i64;
+use omega\language\core\widen_u32_to_i64;
 
 // The raw nanosleep wait is its own boundary trait. Selecting `Clock` does not
 // grant this seam; the requirement names `Clock` as its explicit reach.

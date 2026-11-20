@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete intended-invalid source: an unguarded seventeenth slot must fail.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { records: [i32; 16]; }
 machine main(context: @mut Main) reaches ProcessExit + Console {
     context.records[16] = 1;

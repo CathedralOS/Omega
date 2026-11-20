@@ -1,21 +1,21 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::ClauseOwner;
-use representations::syntax_trees::DataCase;
-use representations::syntax_trees::DataField;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::DataMember;
-use representations::syntax_trees::DataMemberKind;
-use representations::syntax_trees::DataMultiplicity;
-use representations::syntax_trees::ErasedBindingKind;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::RetiredIdentity;
-use representations::syntax_trees::RetiredIdentityOwner;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\ClauseOwner;
+use representations\syntax_trees\DataCase;
+use representations\syntax_trees\DataField;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\DataMember;
+use representations\syntax_trees\DataMemberKind;
+use representations\syntax_trees\DataMultiplicity;
+use representations\syntax_trees\ErasedBindingKind;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\RetiredIdentity;
+use representations\syntax_trees\RetiredIdentityOwner;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenStream;
 
 // This describes the canonical case syntax; compatibility parsing does not
 // extend the language surface.

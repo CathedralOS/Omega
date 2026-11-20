@@ -1,10 +1,10 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::ConstantItem;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\ConstantItem;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\TokenStream;
 
 // `[public] const [Owner::]NAME: Type = value;`, entered at the `const` word.
 // A constant names an immutable compile-time value, package-scoped or scoped

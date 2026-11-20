@@ -48,7 +48,7 @@ fn verdict(text: &str) -> String {
 fn a_boundary_can_lend_a_provider_owned_integer_for_an_immediate_read() {
     let source = r#"
 boundary trait Errno { machine slot() -> @i32 reaches none crashes none; }
-machine read(slot: @i32) -> i32 { slot }
+machine read(slot: @i32) -> i32 { $slot }
 machine entry() -> i32 reaches Errno invokes Errno { read(Errno::slot()) }
 "#;
     assert_eq!(verdict(source), "accepted");
@@ -406,7 +406,7 @@ machine entry() reaches Fs invokes Fs {
 
 const PROVIDER_REFERENCE: &str = r#"
 boundary trait Source { machine slot() -> @i32 reaches none crashes none; }
-machine read(slot: @i32) -> i32 { slot }
+machine read(slot: @i32) -> i32 { $slot }
 machine entry() -> i32 reaches Source invokes Source { read(Source::slot()) }
 "#;
 
@@ -586,7 +586,7 @@ fn boundary_reference_completion_keeps_its_logical_input_loan() {
     let source = r#"
 data Token { id: u64; }
 boundary trait Source { machine slot(token: @Token) -> @i32 reaches none crashes none; }
-machine read(slot: @i32) -> i32 { slot }
+machine read(slot: @i32) -> i32 { $slot }
 machine eat(token: Token) {}
 machine entry() -> i32 reaches Source invokes Source {
     let token: Token = Token { id: 1 };

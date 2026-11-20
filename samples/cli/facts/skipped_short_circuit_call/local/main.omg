@@ -2,9 +2,9 @@
 // Place: local. The left operand is a local bound to the Boolean.
 // Expected exit: 0
 machine bump(counter: @mut u64) -> bool
-requires counter <= 1000u64
+requires $counter <= 1000u64
 {
-    counter = counter + 1u64;
+    $counter = $counter + 1u64;
     true
 }
 

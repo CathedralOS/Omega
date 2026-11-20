@@ -1,20 +1,20 @@
-use representations::source_files::SourceSpan;
-use representations::symbol_resolved_trees::MachineArgument;
-use representations::syntax_trees::DataItem;
-use representations::syntax_trees::GenericParameter;
-use representations::syntax_trees::GenericParameterKind;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::syntax_trees_data_item;
-use representations::syntax_trees::syntax_trees_generic_parameter;
-use representations::typed_trees::TypeDiagnosticCode;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::type_row_of;
-use representations::typed_trees::type_table_argument;
-use representations::typed_trees::type_table_push_argument;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_reject;
+use representations\source_files\SourceSpan;
+use representations\symbol_resolved_trees\MachineArgument;
+use representations\syntax_trees\DataItem;
+use representations\syntax_trees\GenericParameter;
+use representations\syntax_trees\GenericParameterKind;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\syntax_trees_data_item;
+use representations\syntax_trees\syntax_trees_generic_parameter;
+use representations\typed_trees\TypeDiagnosticCode;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\type_row_of;
+use representations\typed_trees\type_table_argument;
+use representations\typed_trees\type_table_push_argument;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_reject;
 
 // Generic substitution and inference over the interned type table
 // (wiki/spec/language/generics.md). Bindings map generic-parameter handles to

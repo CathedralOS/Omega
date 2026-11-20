@@ -1,13 +1,13 @@
-use representations::symbol_resolved_trees::NameResolution;
-use representations::syntax_trees::ArmPatternKind;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ExpressionKind;
-use representations::syntax_trees::OperatorKind;
-use representations::syntax_trees::SyntaxTrees;
-use representations::syntax_trees::TransitionArm;
-use representations::syntax_trees::syntax_trees_expression;
-use representations::typed_trees::Typing;
-use representations::typed_trees::typing_expression_type;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\syntax_trees\ArmPatternKind;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ExpressionKind;
+use representations\syntax_trees\OperatorKind;
+use representations\syntax_trees\SyntaxTrees;
+use representations\syntax_trees\TransitionArm;
+use representations\syntax_trees\syntax_trees_expression;
+use representations\typed_trees\Typing;
+use representations\typed_trees\typing_expression_type;
 
 // Alias metadata follows the same branch lifetime as its zone. At a join
 // only associations valid on both reachable paths survive.
@@ -280,7 +280,7 @@ crashes Trap
             places: other.places, conditions: other.conditions,
             limits: other.limits, count: other.count
         };
-        table = saved;
+        $table = saved;
     }
     machine next(table: @mut AliasTable, other: @AliasTable, index: u64 in Trapping) {
         transition index < table.count && index < 16 {

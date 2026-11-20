@@ -1,9 +1,9 @@
 // Adjacent intervals preserve separated content when forwarded.
 // Expected exit: 0
 // Numeric claim accounting only; this program grants no physical backing.
-use omega::language::core::Content;
-use omega::language::core::IntervalSet;
-use omega::language::core::Nat;
+use omega\language\core\Content;
+use omega\language\core\IntervalSet;
+use omega\language\core\Nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 machine drop_region(region: @mut Region) {}
 domain Region::Held;
@@ -15,7 +15,7 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 data Pair { left: Region in Held; right: Region in Held; }
 machine forward(left: Region in Held, right: Region in Held, selected: bool) -> Pair
 requires embed(left.base) + embed(left.length) >= embed(right.base)
-ensures core::Identity::<IntervalSet<Nat>>(
+ensures core\Identity::<IntervalSet<Nat>>(
     separate(Held::content(old(@left)), Held::content(old(@right))),
     separate(Held::content(@result.left), Held::content(@result.right))
 )

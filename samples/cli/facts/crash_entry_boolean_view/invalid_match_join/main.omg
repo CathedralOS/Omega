@@ -9,7 +9,7 @@ public data Byte requires value >= 0 && value <= 1 { value: u8; }
 public machine read_flag(byte: @Byte, flag: bool) -> bool
 {
     let view: @bool = @byte.value as @bool;
-    let viewed: bool = view;
+    let viewed: bool = $view;
     let observed: bool = match flag { true -> viewed, false -> viewed };
     maybe_clear(observed)
 }

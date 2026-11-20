@@ -1,9 +1,9 @@
-use representations::source_files::SourceId;
-use representations::source_files::SourceSet;
-use representations::symbol_resolved_trees::NameResolution;
-use representations::symbol_resolved_trees::OverloadLinks;
-use representations::symbol_resolved_trees::name_resolution_clear;
-use representations::syntax_trees::SyntaxTrees;
+use representations\source_files\SourceId;
+use representations\source_files\SourceSet;
+use representations\symbol_resolved_trees\NameResolution;
+use representations\symbol_resolved_trees\OverloadLinks;
+use representations\symbol_resolved_trees\name_resolution_clear;
+use representations\syntax_trees\SyntaxTrees;
 
 // Resolve one complete source set. This file owns pass order and the first
 // rejection. Each step below calls the machine that owns its part of the IR.

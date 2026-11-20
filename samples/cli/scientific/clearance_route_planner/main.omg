@@ -1,7 +1,7 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 0 (input: 2 0\n).
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
 use fixtures;
 use geometry;
 use graph;
@@ -29,73 +29,73 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         }
     }
     machine plan(main: @mut Main, radius: i64 in Wrapping, variant: i32 in Wrapping) {
-        let mut scene: fixtures::Scene;
-        fixtures::load(@mut scene, variant);
+        let mut scene: fixtures\Scene;
+        fixtures\load(@mut scene, variant);
         Console::write_line("clearance_route_planner");
         Console::write("radius="); number(main, radius); Console::write_line("");
         Console::write("scene="); number(main, variant as i64 in Wrapping); Console::write_line("");
-        let start: i64 in Wrapping = graph::edge(@scene, 0, 0, radius);
-        let goal: i64 in Wrapping = graph::edge(@scene, 1, 1, radius);
+        let start: i64 in Wrapping = graph\edge(@scene, 0, 0, radius);
+        let goal: i64 in Wrapping = graph\edge(@scene, 1, 1, radius);
         transition start >= 0 && goal >= 0 {
             true -> search(main, @scene, radius),
             false -> blocked(main, @scene, radius, start)
         }
     }
-    machine blocked(main: @mut Main, scene: @fixtures::Scene, radius: i64 in Wrapping,
+    machine blocked(main: @mut Main, scene: @fixtures\Scene, radius: i64 in Wrapping,
                   start: i64 in Wrapping) {
         transition start < 0 {
             true -> endpoint(main, scene, 0),
             false -> endpoint(main, scene, 1)
         }
     }
-    machine endpoint(main: @mut Main, scene: @fixtures::Scene, node: i32 in Wrapping)
+    machine endpoint(main: @mut Main, scene: @fixtures\Scene, node: i32 in Wrapping)
     requires node >= 0 && node < 6
     {
         Console::write_line("status=endpoint_blocked");
         Console::write("node="); number(main, node as i64 in Wrapping); Console::write_line("");
         Console::write("minimum_clearance_milli=");
-        number(main, graph::edge(scene, node, node, 0)); Console::write_line("");
+        number(main, graph\edge(scene, node, node, 0)); Console::write_line("");
         ProcessExit::exit_process(2);
     }
-    machine search(main: @mut Main, scene: @fixtures::Scene, radius: i64 in Wrapping) {
-        let mut planner: graph::Planner;
-        graph::build(@mut planner, scene, radius);
-        let found: bool = graph::solve(@mut planner);
+    machine search(main: @mut Main, scene: @fixtures\Scene, radius: i64 in Wrapping) {
+        let mut planner: graph\Planner;
+        graph\build(@mut planner, scene, radius);
+        let found: bool = graph\solve(@mut planner);
         transition found {
             true -> certify(main, scene, radius, @planner),
             false -> infeasible(main, scene, radius, @planner)
         }
     }
-    machine certify(main: @mut Main, scene: @fixtures::Scene, radius: i64 in Wrapping,
-                  planner: @graph::Planner) {
-        let valid: bool = validation::route(scene, planner, radius);
+    machine certify(main: @mut Main, scene: @fixtures\Scene, radius: i64 in Wrapping,
+                  planner: @graph\Planner) {
+        let valid: bool = validation\route(scene, planner, radius);
         transition valid {
             true -> report(main, scene, planner),
             false -> failure(main)
         }
     }
-    machine report(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner) {
+    machine report(main: @mut Main, scene: @fixtures\Scene, planner: @graph\Planner) {
         Console::write_line("status=route");
         Console::write("cost_milli="); number(main, planner.distances[1]); Console::write_line("");
         Console::write("minimum_clearance_milli="); number(main, planner.clearance); Console::write_line("");
         Console::write("coordinates=");
         transition { _ -> coordinates(main, scene, planner, planner.route_count - 1) }
     }
-    machine coordinates(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner,
+    machine coordinates(main: @mut Main, scene: @fixtures\Scene, planner: @graph\Planner,
                       position: i32 in Wrapping) {
         transition position >= 0 && position < 6 {
             true -> coordinate_node(main, scene, planner, position, planner.route[position]),
             false -> finish(main)
         }
     }
-    machine coordinate_node(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner,
+    machine coordinate_node(main: @mut Main, scene: @fixtures\Scene, planner: @graph\Planner,
                           position: i32 in Wrapping, node: i32 in Wrapping) {
         transition node >= 0 && node < 6 {
             true -> coordinate_emit(main, scene, planner, position, node),
             false -> failure(main)
         }
     }
-    machine coordinate_emit(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner,
+    machine coordinate_emit(main: @mut Main, scene: @fixtures\Scene, planner: @graph\Planner,
                           position: i32 in Wrapping, node: i32 in Wrapping)
     requires node >= 0 && node < 6
     {
@@ -105,7 +105,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             false -> finish(main)
         }
     }
-    machine separator(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner,
+    machine separator(main: @mut Main, scene: @fixtures\Scene, planner: @graph\Planner,
                     position: i32 in Wrapping) {
         Console::write(";");
         transition { _ -> coordinates(main, scene, planner, position - 1) }
@@ -113,15 +113,15 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine finish(main: @mut Main) {
         Console::write_line(""); Console::write_line("validated=1"); ProcessExit::exit_process(0);
     }
-    machine infeasible(main: @mut Main, scene: @fixtures::Scene, radius: i64 in Wrapping,
-                     planner: @graph::Planner) {
-        let valid: bool = validation::cut(scene, planner, radius);
+    machine infeasible(main: @mut Main, scene: @fixtures\Scene, radius: i64 in Wrapping,
+                     planner: @graph\Planner) {
+        let valid: bool = validation\cut(scene, planner, radius);
         transition valid {
             true -> witness(main, planner),
             false -> failure(main)
         }
     }
-    machine witness(main: @mut Main, planner: @graph::Planner) {
+    machine witness(main: @mut Main, planner: @graph\Planner) {
         Console::write_line("status=infeasible");
         Console::write("reachable_mask="); number(main, planner.witness as i64 in Wrapping);
         Console::write_line(""); Console::write_line("cut_validated=1"); ProcessExit::exit_process(2);

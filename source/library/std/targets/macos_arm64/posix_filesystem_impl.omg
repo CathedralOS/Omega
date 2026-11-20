@@ -5,12 +5,12 @@ use PosixFilesystemHost;
 use omega_language_std;
 use posix_errno;
 use posix_terminated_path;
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 // Complete macos_arm64 `PosixFilesystemHost` provider over libSystem.
 // Each operation is an ordinary checked adapter: it terminates paths into
 // local buffers, lends caller backing for ordinary read/write transfers,
@@ -27,14 +27,14 @@ use omega::language::core::FilesystemNamespaceMutation;
 //
 // `errno` lives in libc's thread-local storage; std reads it through the
 // shared `PosixErrno` view that `___error` provides.
-use omega::language::core::widen_u8_to_u64;
-use omega::language::core::narrow_u32_to_u16_wrapping;
-use omega::language::core::narrow_u64_to_i64_wrapping;
-use omega::language::core::narrow_i32_to_u16_wrapping;
-use omega::language::core::narrow_i32_to_u32_wrapping;
-use omega::language::core::narrow_i64_to_i32_wrapping;
-use omega::language::core::widen_i32_to_i64;
-use omega::language::core::min_u64;
+use omega\language\core\widen_u8_to_u64;
+use omega\language\core\narrow_u32_to_u16_wrapping;
+use omega\language\core\narrow_u64_to_i64_wrapping;
+use omega\language\core\narrow_i32_to_u16_wrapping;
+use omega\language\core\narrow_i32_to_u32_wrapping;
+use omega\language\core\narrow_i64_to_i32_wrapping;
+use omega\language\core\widen_i32_to_i64;
+use omega\language\core\min_u64;
 
 // The explicit policy exports the borrowed view as pointer/count, not one byte.
 boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCalling> {

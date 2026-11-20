@@ -185,7 +185,12 @@ impl Program<'_> {
                     Statement::Bind { slot, value }
                 })
             }
-            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Unary(crate::source_state::expression::TableUnaryExpression {
+                operator: crate::source_state::expression::UnaryOperator::Dereference,
+                ..
+            }) => {
                 // A destination names existing local storage. Retain its
                 // expression intact after checking the root's authority;
                 // lowering captures its selectors before the replacement.

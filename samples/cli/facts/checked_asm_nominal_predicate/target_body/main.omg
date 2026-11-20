@@ -4,7 +4,7 @@ data Counted [copy] requires length == 7 { length: u64; }
 machine snapshot(start: u64, end: u64) -> Counted
 requires start <= end && end - start == 7 { Counted { length: end - start } }
 machine reset(cursor: @mut u64) -> u64
-ensures cursor == 0 && result == 0 { cursor = 0; 0 }
+ensures $cursor == 0 && result == 0 { $cursor = 0; 0 }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 boundary trait SelectedBodyCheck {

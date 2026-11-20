@@ -14,7 +14,7 @@ crashes Trap value == false
 public machine read_flag(byte: @Byte) -> bool
 {
     let view: @bool = @byte.value as @bool;
-    let observed: bool = view;
+    let observed: bool = $view;
     forward(observed)
 }
 machine main() crashes Trap {

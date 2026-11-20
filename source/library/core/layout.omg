@@ -173,10 +173,10 @@ public machine layout_plan_place_private_field(plan: LayoutPlan, representation:
     plan
 }
 
-use omega::language::core::reflect::TypeSchema;
-use omega::language::core::reflect::CallableInfo;
-use omega::language::core::reflect::FieldInfo;
-use omega::language::core::access;
+use omega\language\core\reflect\TypeSchema;
+use omega\language\core\reflect\CallableInfo;
+use omega\language\core\reflect\FieldInfo;
+use omega\language\core\access;
 
 // Access-policy vocabulary (wiki/spec/resources/access.md). LayoutPlan owns
 // geometry; AccessPlan retains a semantic schema, explicit issuance choice,
@@ -324,13 +324,13 @@ requires field_count <= 32, reader_count <= 32, writer_count <= 32
 
 public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(@schema, Issuance::Only { routes: [R] })
+        access\new_plan(@schema, Issuance::Only { routes: [R] })
     }
 }
 
 public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(@schema, Issuance::Only { routes: Routes })
+        access\new_plan(@schema, Issuance::Only { routes: Routes })
     }
 }
 
@@ -493,7 +493,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
         );
-        access::initialize_from_profile::<P, T, Storage, Role>(storage, value, @profile)
+        access\initialize_from_profile::<P, T, Storage, Role>(storage, value, @profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -505,7 +505,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
         );
-        access::extract_resident::<P, T, Storage, Role>(storage, @profile)
+        access\extract_resident::<P, T, Storage, Role>(storage, @profile)
     }
 }
 

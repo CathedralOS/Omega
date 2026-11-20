@@ -1,6 +1,6 @@
 // Private fixed-dimensional algebra. Four entries retain both covariance
 // off-diagonals: symmetry is checked rather than silently assumed.
-use omega::language::core::F64::is_finite;
+use omega\language\core\F64::is_finite;
 public data Matrix [copy] { a: f64; b: f64; c: f64; d: f64; }
 public data Vector [copy] { position: f64; velocity: f64; }
 public machine multiply(left: Matrix, right: Matrix) -> Matrix {

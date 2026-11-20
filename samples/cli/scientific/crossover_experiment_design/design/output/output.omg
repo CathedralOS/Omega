@@ -1,9 +1,9 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
-use design::model;
-use design::model::Request;
-use design::model::Allocation;
-use design::model::treatment;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
+use design\model;
+use design\model\Request;
+use design\model\Allocation;
+use design\model\treatment;
 
 machine digit(value: i32 in Wrapping) reaches Console {
     transition value {

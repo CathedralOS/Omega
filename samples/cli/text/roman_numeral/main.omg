@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Roman numeral -> integer. Scan left to right, adding each symbol's value.
 // When a symbol exceeds its predecessor, subtract the predecessor twice:
@@ -12,7 +12,7 @@ requires
 domain [u8; 7]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data RomanParse {
     case Invalid;

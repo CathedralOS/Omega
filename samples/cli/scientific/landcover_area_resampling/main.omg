@@ -1,15 +1,15 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete bounded CLI: choose a fixture with one ASCII digit and LF.
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use landcover::geometry;
-use landcover::resampling;
-use landcover::resampling::Areas;
-use landcover::resampling::resample;
-use landcover::resampling::dominant;
-use fixtures::catalog;
-use fixtures::catalog::Configuration;
-use fixtures::catalog::configure;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use landcover\geometry;
+use landcover\resampling;
+use landcover\resampling\Areas;
+use landcover\resampling\resample;
+use landcover\resampling\dominant;
+use fixtures\catalog;
+use fixtures\catalog\Configuration;
+use fixtures\catalog\configure;
 
 data Main {
     input: [u8; 4];

@@ -2,7 +2,7 @@
 use selected;
 
 machine main() crashes Trap {
-    transition selected::answer() == 73u32 {
+    transition selected\answer() == 73u32 {
         true -> done(),
         false -> bad()
     }

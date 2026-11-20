@@ -4,12 +4,12 @@
 // windows_x86_64. Runtime acceptance is recorded per host, not inferred from
 // the availability of a provider or a foreign-target image.
 
-use omega::language::core::FilesystemContentRead;
-use omega::language::core::FilesystemContentWrite;
-use omega::language::core::FilesystemMetadataQuery;
-use omega::language::core::FilesystemMetadataMutation;
-use omega::language::core::DirectoryEnumeration;
-use omega::language::core::FilesystemNamespaceMutation;
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
 
 public data File [copy] {
     handle: u64;
@@ -143,10 +143,10 @@ public machine permissions_set_readonly(permissions: @mut Permissions, readonly:
     }
     machine posix(permissions: @mut Permissions, mode: u32, readonly: bool) {
         let updated: u32 = posix_mode_with_readonly(mode, readonly);
-        permissions = Permissions::Posix { mode: updated };
+        $permissions = Permissions::Posix { mode: updated };
     }
     machine portable(permissions: @mut Permissions, readonly: bool) {
-        permissions = Permissions::Readonly { value: readonly };
+        $permissions = Permissions::Readonly { value: readonly };
     }
 }
 

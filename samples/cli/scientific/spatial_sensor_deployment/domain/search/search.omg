@@ -1,7 +1,7 @@
-use domain::model;
-use domain::model::Problem;
-use domain::model::Search;
-use domain::model::Evaluation;
+use domain\model;
+use domain\model\Problem;
+use domain\model\Search;
+use domain\model\Evaluation;
 // Exhaust each of 8 deployments and 256 demand assignments. No greedy coverage
 // shortcut: capacities couple demand choices. Assignment digit 0 means unserved.
 machine evaluate(problem: @Problem, work: @mut Evaluation,

@@ -371,7 +371,7 @@ mod tests {
         let source = r#"
 machine build(builder: @mut Build) {
     Build::application(builder, "}");
-    _ = Build::dependency(builder, dependency::from_source(Source::Path { location: "(" }));
+    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "(" }));
 }
 "#;
         let layout = discover_build_layout(source).unwrap().unwrap().unwrap();
@@ -381,7 +381,7 @@ machine build(builder: @mut Build) {
         };
         assert_eq!(
             &source[row.start..row.end],
-            r#"_ = Build::dependency(builder, dependency::from_source(Source::Path { location: "(" }));"#
+            r#"_ = Build::dependency(builder, dependency\from_source(Source::Path { location: "(" }));"#
         );
     }
 }

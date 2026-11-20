@@ -1,9 +1,9 @@
-use omega::language::core::abs_i32;
-use omega::language::core::max_i32;
-use omega::language::core::min_i32;
-use domain::model::SensorBlock;
-use domain::model::SensorStream;
-use domain::model::InputBuffer;
+use omega\language\core\abs_i32;
+use omega\language\core\max_i32;
+use omega\language\core\min_i32;
+use domain\model\SensorBlock;
+use domain\model\SensorStream;
+use domain\model\InputBuffer;
 
 // Integer units are 1/16 degree C from an artificial ADC, [0,4095].
 // Quantize onto the origin-anchored grid (2*E+1), ties impossible, clipping

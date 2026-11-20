@@ -1,9 +1,9 @@
-use omega::language::core::ProcessExit;
-use omega_language_std::Console;
-use controller::model;
-use controller::model::Problem;
-use controller::model::Plan;
-use controller::model::power_three;
+use omega\language\core\ProcessExit;
+use omega_language_std\Console;
+use controller\model;
+use controller\model\Problem;
+use controller\model\Plan;
+use controller\model\power_three;
 // Decimal output is computed from the result, with no expected-value strings.
 machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {

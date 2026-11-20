@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // LED channel mixer -- brightness math that cannot overflow. Decision-17
 // SATURATING domains do the clamping in the TYPE, not in hand-written guards:
 // two light sources sum onto a u8 channel and clamp at full brightness (255),
@@ -11,7 +11,7 @@ use omega::language::core::ProcessExit;
 // Each stage re-establishes the values it measures, so nothing is live across
 // a state edge and every reading is an ordinary local.
 // Expected exit: 70.
-use omega_language_std::Console;
+use omega_language_std\Console;
 
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

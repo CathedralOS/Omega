@@ -321,6 +321,7 @@ pub mod expression {
                 match self {
                     Self::BitwiseNot => "~",
                     Self::LogicalNot => "!",
+                    Self::Dereference => "$",
                 }
             }
         }
@@ -2353,6 +2354,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     pub enum UnaryOperator {
         BitwiseNot,
         LogicalNot,
+        Dereference,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]

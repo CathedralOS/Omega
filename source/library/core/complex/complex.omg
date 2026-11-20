@@ -14,13 +14,13 @@
 // high*sqrt(1 + (low/high)^2); a nonfinite result after finite admission is
 // Overflow. It promises no correctly rounded hypot, no relative-error bound for
 // all inputs, and no NaN payload or sign-of-zero result.
-use omega::language::core::F32::negate;
-use omega::language::core::F64::negate;
-use omega::language::core::F32::square_root;
-use omega::language::core::F64::square_root;
-use omega::language::core::float_accuracy::NumericClass;
-use omega::language::core::float_accuracy::classify_f32;
-use omega::language::core::float_accuracy::classify_f64;
+use omega\language\core\F32::negate;
+use omega\language\core\F64::negate;
+use omega\language\core\F32::square_root;
+use omega\language\core\F64::square_root;
+use omega\language\core\float_accuracy\NumericClass;
+use omega\language\core\float_accuracy\classify_f32;
+use omega\language\core\float_accuracy\classify_f64;
 
 // float_accuracy supplies the format-specific classification. This operation's input
 // admission includes both signed zeros and finite nonzero values; its result

@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 
 // Expected exit: 0. `finish` never returns: its only path ends the process.
 // The two loans `entry_start` forms for it are carried into that call, each

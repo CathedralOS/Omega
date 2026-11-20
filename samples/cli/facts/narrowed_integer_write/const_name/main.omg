@@ -1,14 +1,14 @@
 // A completed write of 70 through a signed eight-bit field retains its i64 meaning and leaves the adjacent byte unchanged.
 // Place: const_name.
 // Expected exit: 0
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::FixedLayout;
-use omega::language::core::IntegerInterpretation;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::Schema;
+use omega\language\core\FieldEntry;
+use omega\language\core\FieldPlan;
+use omega\language\core\FixedLayout;
+use omega\language\core\IntegerInterpretation;
+use omega\language\core\LayoutPlan;
+use omega\language\core\LayoutStorage;
+use omega\language\core\LayoutTarget;
+use omega\language\core\Schema;
 
 
 SignedByte satisfies FixedLayout<PortableByte> {
@@ -25,7 +25,7 @@ SignedByte satisfies FixedLayout<PortableByte> {
 }
 data PortableByte [copy] { value: i64; }
 data Memory { bytes: [u8; 2]; }
-machine store(destination: @mut i64, value: i64) { destination = value; }
+machine store(destination: @mut i64, value: i64) { $destination = value; }
 const Written: i64 = 70;
 machine main(memory: @mut Memory) crashes Trap {
     memory.bytes[1] = 85;

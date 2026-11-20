@@ -16,9 +16,9 @@ use posix_metadata_kind;
 // values follow the SDK's sys/stat.h, sys/fcntl.h and sys/dirent.h; the
 // complete raw provider supplies negative errno, never retained libc state.
 // Application data holds no carrier; callers invoke `FilesystemService` requirements directly.
-use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_i32_to_u32_wrapping;
-use omega::language::core::narrow_i64_to_u64_exact;
+use omega\language\core\widen_u32_to_u64;
+use omega\language\core\narrow_i32_to_u32_wrapping;
+use omega\language\core\narrow_i64_to_u64_exact;
 
 // Borrow the complete aligned stat buffer, including the record's padding.
 // A borrowed byte element cannot supply the rest of that storage.

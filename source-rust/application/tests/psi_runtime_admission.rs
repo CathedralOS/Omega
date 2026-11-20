@@ -19,10 +19,10 @@ fn assert_psi_runs(name: &str, source: &str) {
         source,
         r#"machine build(builder: @mut Build) {
     Build::application(builder, "structural_domain_issuer");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64\ProgramEntry, main);
 }
 "#,
     );
@@ -50,9 +50,9 @@ fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
     let project = stage_project(
         "darwin-descriptor-input",
         r#"
-use omega::language::core::ProcessExit;
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
+use omega\language\core\ProcessExit;
+use omega_language_std\ByteRead;
+use omega_language_std\Console;
 machine main() reaches ProcessExit + Console {
     let read: ByteRead = block Console::read_byte();
     transition read { ByteRead::Eof -> done(), _ -> unexpected() }
@@ -64,8 +64,8 @@ machine main() reaches ProcessExit + Console {
             r#"
 machine build(builder: @mut Build) {{
     Build::application(builder, "console_descriptor_eof");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {{ location: "{}" }}));
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
+    Build::bind(builder, macos_arm64\ProgramEntry, main);
 }}
 "#,
             library.join("std").display()
@@ -123,15 +123,15 @@ machine consume(tickets: [Ticket]) {}
 fn psi_runs_the_bundled_atomic_fence_in_its_module() {
     assert_psi_runs(
         "atomic-fence",
-        r#"use omega::language::core::Atomic;
-use omega::language::core::Atomic::fence;
-use omega::language::core::FenceOrdering;
+        r#"use omega\language\core\Atomic;
+use omega\language\core\Atomic\fence;
+use omega\language\core\FenceOrdering;
 machine main() {
     let ordering: FenceOrdering = FenceOrdering::Receive;
     let alias: FenceOrdering = ordering;
-    Atomic::fence(alias);
+    Atomic\fence(alias);
     fence(FenceOrdering::Publish);
-    Atomic::fence(FenceOrdering::ReceivePublish);
+    Atomic\fence(FenceOrdering::ReceivePublish);
 }
 "#,
     );

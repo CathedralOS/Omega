@@ -1,18 +1,18 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Offline controller: input selection, validation, exhaustive search, reporting.
 // No source outside this application supplies any controller algorithm.
-use omega_language_std::Console;
-use omega_language_std::LineReadResult;
-use controller::model;
-use controller::model::Problem;
-use controller::model::Plan;
-use controller::model::valid_problem;
-use controller::search;
-use controller::search::optimize;
-use data::fixtures;
-use data::fixtures::load_case;
-use io::render;
-use io::render::report;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+use controller\model;
+use controller\model\Problem;
+use controller\model\Plan;
+use controller\model\valid_problem;
+use controller\search;
+use controller\search\optimize;
+use data\fixtures;
+use data\fixtures\load_case;
+use io\render;
+use io\render\report;
 
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {

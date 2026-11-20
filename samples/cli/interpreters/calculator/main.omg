@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // A two-digit calculator -- a small but complete app that ties together everything
 // needed to read and evaluate input. It parses the expression "12+34": the operands
 // are read from the text through named widening, subtracting '0', and combining
@@ -16,8 +16,8 @@ requires
 domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std::Console;
-use omega::language::core::widen_u8_to_i32;
+use omega_language_std\Console;
+use omega\language\core\widen_u8_to_i32;
 
 data Main {
     text: [u8; 5] in Utf8;

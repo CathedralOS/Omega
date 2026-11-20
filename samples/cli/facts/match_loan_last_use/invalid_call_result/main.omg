@@ -5,14 +5,14 @@
 data Slot { case Absent; case Present(value: [i64; 4]); }
 
 machine choose(counter: @mut u64) -> bool
-requires counter == 0
+requires $counter == 0
 {
-    counter = 1;
+    $counter = 1;
     true
 }
 
 machine select<'a>(chosen: @'a mut Slot, other: @'a mut Slot, visits: @mut u64) -> @'a mut [i64]
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
+requires chosen in Slot::Present, other in Slot::Present, $visits == 0
 {
     match choose(visits) {
         true -> @mut chosen.value[0..2],

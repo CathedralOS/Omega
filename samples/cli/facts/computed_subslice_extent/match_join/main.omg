@@ -5,7 +5,7 @@ machine marked_window<'a>(items: @'a [u8], low: u64, path: @write u64) -> @'a [u
 requires can_window(items, low) == true
 ensures result.len == 2
 {
-    path = 1;
+    $path = 1;
     items[low + 0u64..low + 2u64]
 }
 

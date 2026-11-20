@@ -1,7 +1,7 @@
-use controller::model;
-use controller::model::Problem;
-use controller::model::Plan;
-use controller::model::power_three;
+use controller\model;
+use controller\model\Problem;
+use controller\model\Plan;
+use controller\model\power_three;
 // Enumerate all base-three words in numeric order, most significant digit
 // first. This is lexicographic order for -1,0,1. Strict improvement retains
 // the first equal-cost word. No pruning or heuristic can hide an optimum.

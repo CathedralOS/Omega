@@ -32,7 +32,7 @@ machine transform<'storage>(carrier: Carrier<'storage>) -> Carrier<'storage> {
 machine repair<'storage>(holder: @mut Holder<'storage>) -> i32 {
     let removed: Carrier<'storage> = holder.carrier;
     holder.carrier = removed;
-    holder.carrier.reference
+    $holder.carrier.reference
 }
 
 data Main { hits: i32 in Wrapping; }

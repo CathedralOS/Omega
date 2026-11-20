@@ -1,6 +1,6 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Complete source-invalid control: division by the constant zero is forbidden.
-use omega_language_std::Console;
+use omega_language_std\Console;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let denominator: i64 = 0;

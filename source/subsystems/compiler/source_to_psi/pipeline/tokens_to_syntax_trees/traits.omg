@@ -1,22 +1,22 @@
-use representations::source_files::SourceSpan;
-use representations::syntax_trees::Clause;
-use representations::syntax_trees::ClauseKind;
-use representations::syntax_trees::ClauseOwner;
-use representations::syntax_trees::Contract;
-use representations::syntax_trees::ContractKind;
-use representations::syntax_trees::MachineContainer;
-use representations::syntax_trees::MachineItem;
-use representations::syntax_trees::OperatorToken;
-use representations::syntax_trees::ParseDiagnosticCode;
-use representations::syntax_trees::RootItem;
-use representations::syntax_trees::RootItemKind;
-use representations::syntax_trees::TraitItem;
-use representations::syntax_trees::machine_item;
-use representations::syntax_trees::syntax_trees_clause;
-use representations::tokens::KeywordKind;
-use representations::tokens::PunctuationKind;
-use representations::tokens::Token;
-use representations::tokens::TokenStream;
+use representations\source_files\SourceSpan;
+use representations\syntax_trees\Clause;
+use representations\syntax_trees\ClauseKind;
+use representations\syntax_trees\ClauseOwner;
+use representations\syntax_trees\Contract;
+use representations\syntax_trees\ContractKind;
+use representations\syntax_trees\MachineContainer;
+use representations\syntax_trees\MachineItem;
+use representations\syntax_trees\OperatorToken;
+use representations\syntax_trees\ParseDiagnosticCode;
+use representations\syntax_trees\RootItem;
+use representations\syntax_trees\RootItemKind;
+use representations\syntax_trees\TraitItem;
+use representations\syntax_trees\machine_item;
+use representations\syntax_trees\syntax_trees_clause;
+use representations\tokens\KeywordKind;
+use representations\tokens\PunctuationKind;
+use representations\tokens\Token;
+use representations\tokens\TokenStream;
 
 // `[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
 // {requires proposition Name(parameters);} { member* }`, entered at the `trait`
@@ -459,7 +459,7 @@ crashes Trap
     machine named(parser: @mut Parser, input: @TokenStream) {
         parser.machine_name_start = parser.name_start;
         parser.machine_name_end = parser.name_end;
-        let qualified: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let qualified: bool = at_path_separator(parser, input);
         transition qualified {
             true -> qualified_requirement(parser, input),
             _ -> clauses(parser, input, false)

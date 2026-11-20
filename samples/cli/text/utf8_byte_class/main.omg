@@ -1,4 +1,4 @@
-use omega::language::core::ProcessExit;
+use omega\language\core\ProcessExit;
 // Classify a UTF-8 byte by its high bits -- the natural home for shifts and casts
 // used DIRECTLY in transition guards (both recently supported). A UTF-8 byte's
 // shape is entirely in its leading bits:
@@ -14,8 +14,8 @@ use omega::language::core::ProcessExit;
 // the start of `€`), and exits with its class code 3.
 // Expected exit: 3.
 
-use omega_language_std::Console;
-use omega::language::core::narrow_u8_to_i8_wrapping;
+use omega_language_std\Console;
+use omega\language\core\narrow_u8_to_i8_wrapping;
 
 data Main {
     byte: u8 in Wrapping;

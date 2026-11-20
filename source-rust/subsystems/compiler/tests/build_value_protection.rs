@@ -18,7 +18,7 @@ static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const BUILD: &str = "\
 machine build(builder: @mut Build) {
     Build::application(builder, \"sealed\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 }
 ";
 
@@ -271,7 +271,7 @@ fn a_record_holding_the_lent_build_drives_it() {
     bind_through(@mut configuration);
 }}
 machine bind_through(configuration: @mut Configuration) {{
-    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+    Build::bind(configuration.builder, linux_arm64\\ProgramEntry, main);
 }}
 "
     );
@@ -320,7 +320,7 @@ fn binding_an_entry_needs_the_mutable_build_value() {
     let helper = |access: &str, argument: &str| {
         format!(
             "machine helper(builder: @{access}Build) {{
-    Build::bind({argument}, linux_arm64::ProgramEntry, main);
+    Build::bind({argument}, linux_arm64\\ProgramEntry, main);
 }}
 "
         )
@@ -366,7 +366,7 @@ fn binding_through_a_stored_build_reference_needs_it_stored_mutable() {
         format!(
             "data Configuration<'activation, 'storage> {{ builder: @'activation {access}Build<'storage>; }}
 machine bind_configuration(configuration: @mut Configuration) {{
-    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+    Build::bind(configuration.builder, linux_arm64\\ProgramEntry, main);
 }}
 machine helper(builder: @mut Build) {{
     {construction}
@@ -414,14 +414,14 @@ machine helper(builder: @mut Build) -> bool {{
         refusals(
             "bind-after-observation",
             &helper(
-                "let observed: bool = observe(view); Build::bind(builder, linux_arm64::ProgramEntry, main); observed"
+                "let observed: bool = observe(view); Build::bind(builder, linux_arm64\\ProgramEntry, main); observed"
             ),
         ),
         Vec::<String>::new()
     );
     rejected_with(
         "bind-during-observation",
-        &helper("Build::bind(builder, linux_arm64::ProgramEntry, main); observe(view)"),
+        &helper("Build::bind(builder, linux_arm64\\ProgramEntry, main); observe(view)"),
         "conflicting loans",
     );
 }

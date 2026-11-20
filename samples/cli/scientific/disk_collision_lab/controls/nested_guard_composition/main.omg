@@ -1,4 +1,4 @@
-use omega::language::core::abs_f64;
+use omega\language\core\abs_f64;
 
 data Measurements { reading:f64; initial:f64; }
 data Probe { lab:Measurements; choice:i32; observed:i32; }

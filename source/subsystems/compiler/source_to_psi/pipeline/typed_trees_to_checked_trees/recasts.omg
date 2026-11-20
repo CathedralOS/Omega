@@ -1,16 +1,16 @@
-use foundation::ExactInteger;
-use representations::checks::CheckDiagnosticCode;
-use representations::checks::checks_reject;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::symbol_resolved_trees::DomainBinding;
-use representations::syntax_trees::Expression;
-use representations::syntax_trees::ReferenceAccess;
-use representations::syntax_trees::SyntaxTrees;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
-use representations::typed_trees::typing_expression_type;
+use foundation\ExactInteger;
+use representations\checks\CheckDiagnosticCode;
+use representations\checks\checks_reject;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\symbol_resolved_trees\DomainBinding;
+use representations\syntax_trees\Expression;
+use representations\syntax_trees\ReferenceAccess;
+use representations\syntax_trees\SyntaxTrees;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
+use representations\typed_trees\typing_expression_type;
 
 // A recast `reference as &T` views the operand's storage under `T`
 // (wiki/spec/layouts/recasts.md#shared-and-mutable-views): a shared view

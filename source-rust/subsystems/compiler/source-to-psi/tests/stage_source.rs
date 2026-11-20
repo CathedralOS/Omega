@@ -275,9 +275,9 @@ fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
 
 #[test]
 fn publication_checks_the_same_grammar_in_root_and_imported_files() {
-    let main = "use kit::answer;
+    let main = "use kit\\answer;
         machine main() -> u32 {
-            transition true { true -> kit::answer(), false -> 0u32 }
+            transition true { true -> kit\\answer(), false -> 0u32 }
         }";
     let helper = "machine id<T>(x: T) -> T { x }
         public machine answer() -> u32 {

@@ -1,18 +1,18 @@
-use foundation::ExactInteger;
-use foundation::ExactResult;
-use foundation::exact_integer_add;
-use foundation::exact_integer_multiply;
-use foundation::exact_integer_negate;
-use foundation::exact_integer_remainder;
-use foundation::exact_integer_subtract;
-use foundation::is_carrier;
-use foundation::maximum;
-use foundation::minimum;
-use representations::symbol_resolved_trees::BuiltinType;
-use representations::typed_trees::TypeKind;
-use representations::typed_trees::TypeRow;
-use representations::typed_trees::Typing;
-use representations::typed_trees::type_table_row;
+use foundation\ExactInteger;
+use foundation\ExactResult;
+use foundation\exact_integer_add;
+use foundation\exact_integer_multiply;
+use foundation\exact_integer_negate;
+use foundation\exact_integer_remainder;
+use foundation\exact_integer_subtract;
+use foundation\is_carrier;
+use foundation\maximum;
+use foundation\minimum;
+use representations\symbol_resolved_trees\BuiltinType;
+use representations\typed_trees\TypeKind;
+use representations\typed_trees\TypeRow;
+use representations\typed_trees\Typing;
+use representations\typed_trees\type_table_row;
 
 // What checking knows about one expression: the place it names, a linear
 // term (`subject + offset`, a constant when the subject is zero) when its

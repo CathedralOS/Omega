@@ -13,7 +13,7 @@
 // ProcessExit provider.
 
 machine replace(destination: @write i32, value: i32) {
-    destination = value;
+    $destination = value;
 }
 
 machine forward(destination: @write i32, value: i32) {
