@@ -31,6 +31,7 @@ public data CheckDiagnosticCode [copy] {
     case DomainUnproven;
     // A crash route outside the machine's published crash causes.
     case CrashNotDeclared;
+    case ServiceOutsideCeiling;
     // A normal return whose machine's `ensures` facts are not proved.
     case GuaranteeUnproven;
     // A cyclic transition of a terminating body whose ranking descent is

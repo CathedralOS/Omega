@@ -251,6 +251,8 @@ public data ResolveDiagnosticCode [copy] {
     case NotAType;
     // A trait position names something other than a trait.
     case NotATrait;
+    case ExpectedBoundaryService;
+    case MissingServiceArguments;
     // A `satisfies` clause names no requirement of its trait.
     case NotARequirement;
     // A token-bound machine whose owner is not a data declaration of its own
@@ -327,6 +329,10 @@ requires
     // For each component of a lexicographic measure, by member handle, the
     // field handle of its owner it names, plus one; zero for none.
     component_fields: [u64; 32000];
+    // One-based trait handle for a resolved service occurrence, zero on
+    // every other path member. The syntax table holds at most 256 traits.
+    service_traits: [u16; 32000];
+    service_member_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -779,4 +785,15 @@ crashes Trap
     machine invalid() {
         crash Trap;
     }
+}
+
+public machine service_trait(resolution: @NameResolution, member: u64 in Trapping) -> u16 {
+    transition member < resolution.service_member_count && member < 32000 {
+        true -> read(resolution, member as -Trapping),
+        _ -> none()
+    }
+    machine read(resolution: @NameResolution, member: u64) -> u16
+    requires member < 32000
+    { resolution.service_traits[member] }
+    machine none() -> u16 { 0 }
 }

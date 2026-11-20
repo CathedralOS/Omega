@@ -1,0 +1,2 @@
+public boundary trait Input {}
+public boundary trait Other {}
