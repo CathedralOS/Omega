@@ -75,6 +75,12 @@ output. The elapsed times cover one invocation per evaluator on a shared
 machine. The customer exercises `clear` and its caller. Request staging and
 decoding have separate tests.
 
+The bootstrap compiler with checked word arithmetic occupies 845,978 bytes.
+Repeating this comparison with that compiler changed the request to 848,897
+bytes (SHA-256 `8f344dc65c26b3bbc388acb53ed32085ec942160f8fc3809f0ec03f16bcfc928`).
+Both evaluators again published exactly the 1,355-byte observation above.
+The resulting 1,350-byte program exited 42 on Alpha.
+
 The [whole construction input](../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 exercises all product sources and the evaluator’s sealed-input provision.
 

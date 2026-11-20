@@ -16,7 +16,7 @@ on every route.
 | Route | Delta compiler runs on | Epsilon implementation | Demonstrated workload |
 | --- | --- | --- | --- |
 | [Original interpreter](../tests/bootstrap/interpreted/epsilon/README.md) | Gamma evaluator on Alpha | Epsilon evaluator, interpreted by Gamma | Reconstructed the full evaluator in 567 s and passed its five portable language cases and two syntax controls. |
-| [Gamma compiled to Alpha](compiled_vm/README.md#compare-a-production-request-operation-across-evaluator-hosts) | Alpha | Epsilon evaluator on Alpha | Compiled the product's `Request.clear` and ran the resulting tape on Alpha. |
+| [Gamma compiled to Alpha](compiled_vm/README.md#compare-a-production-request-operation-across-evaluator-hosts) | Alpha | Epsilon evaluator on Alpha | Compiled the product's `Request.clear` and wire decoder. Both programs ran on the audited Alpha VM. |
 | [Gamma compiled to native](independent/README.md) | Native | Native Epsilon evaluator | Compiled `Request.clear` and the product's complete wire decoder to Alpha. |
 | [Epsilon compiled to Delta, Alpha target](independent/README.md#public-omega-lexer-observations) | Alpha | Epsilon-to-Delta compiler on Alpha | Compiled the string scanner. Its 8,391,472-byte tape passed 17 cases. The full public scanner exceeded the Alpha tape limit. |
 | [Epsilon compiled to Delta, native target](independent/README.md#public-omega-lexer-observations) | Native | Native Epsilon-to-Delta compiler | Compiled the same string scanner and the full public lexer. The full lexer ran 23 cases. |
@@ -93,7 +93,11 @@ Use `--wire` in place of `--epsilon` to take the same four constructions one
 step further. The test gives both target evaluators the complete Omega
 [wire decoder](../source/foundation/wire/codec.omg) and a caller that checks
 zero, `0x12345678` and `0xffffffff`. It compares the emitted Alpha programs
-byte for byte and executes the common tape on the seed VM.
+byte for byte and executes the common tape on the seed VM. Both evaluators
+returned the same 1,612-byte observation for the 848,481-byte request. Its
+1,607-byte tape (SHA-256 `6b6a22fc219aab246a14ad9c7f34ea538fedbe518ecac3850d51d63bdc6e7d8f`)
+exited 42 with empty output. An earlier Alpha-hosted attempt reached its
+1,500 s watchdog on the shared machine. The successful replay took 495 s.
 
 ## Building the compiler
 
