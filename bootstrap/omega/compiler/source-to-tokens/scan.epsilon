@@ -504,7 +504,7 @@ machine OmegaLexScan::scan_line_comment(
     }
 
     state check_open() {
-        transition (source[cursor] == 47) && (source[cursor + 1] == 47) {
+        transition (source[cursor] == '/') && (source[cursor + 1] == '/') {
             true -> begin()
             _ -> self.fail_stage()
         }
@@ -526,7 +526,7 @@ machine OmegaLexScan::scan_line_comment(
 
     state newline(index: i32) {
         transition source[index] {
-            10 -> consume_newline(index)
+            '\n' -> consume_newline(index)
             _ -> scan(index + 1)
         }
     }
@@ -568,7 +568,7 @@ machine OmegaLexScan::scan_block_comment(
     }
 
     state check_open() {
-        transition (source[cursor] == 47) && (source[cursor + 1] == 42) {
+        transition (source[cursor] == '/') && (source[cursor + 1] == '*') {
             true -> begin()
             _ -> self.fail_stage()
         }
@@ -596,14 +596,14 @@ machine OmegaLexScan::scan_block_comment(
     }
 
     state open(index: i32, depth: i32) {
-        transition (source[index] == 47) && (source[index + 1] == 42) {
+        transition (source[index] == '/') && (source[index + 1] == '*') {
             true -> scan(index + 2, depth + 1)
             _ -> close(index, depth)
         }
     }
 
     state close(index: i32, depth: i32) {
-        transition (source[index] == 42) && (source[index + 1] == 47) {
+        transition (source[index] == '*') && (source[index + 1] == '/') {
             true -> close_depth(index, depth)
             _ -> scan(index + 1, depth)
         }
@@ -648,7 +648,7 @@ machine OmegaLexScan::scan_string(
 
     state check_quote() {
         transition source[cursor] {
-            34 -> begin()
+            '\"' -> begin()
             _ -> self.fail_stage()
         }
     }
@@ -670,10 +670,10 @@ machine OmegaLexScan::scan_string(
 
     state classify(index: i32) {
         transition source[index] {
-            34 -> finish(index + 1)
-            10 -> outside_line(index)
-            13 -> outside_line(index)
-            92 -> escape_extent(index)
+            '\"' -> finish(index + 1)
+            '\n' -> outside_line(index)
+            '\r' -> outside_line(index)
+            '\\' -> escape_extent(index)
             _ -> copy(index)
         }
     }
@@ -694,14 +694,14 @@ machine OmegaLexScan::scan_string(
 
     state escape(index: i32) {
         transition source[index + 1] {
-            34 -> simple_escape(index)
-            92 -> simple_escape(index)
-            110 -> simple_escape(index)
-            114 -> simple_escape(index)
-            116 -> simple_escape(index)
-            48 -> simple_escape(index)
-            120 -> hex_extent(index)
-            117 -> outside_escape(index)
+            '\"' -> simple_escape(index)
+            '\\' -> simple_escape(index)
+            'n' -> simple_escape(index)
+            'r' -> simple_escape(index)
+            't' -> simple_escape(index)
+            '0' -> simple_escape(index)
+            'x' -> hex_extent(index)
+            'u' -> outside_escape(index)
             _ -> unsupported_escape(index)
         }
     }
@@ -839,7 +839,7 @@ machine OmegaLexScan::consume_digits(
 
     state classify(index: i32) {
         transition source[index] {
-            95 -> scan(index + 1)
+            '_' -> scan(index + 1)
             _ -> digit(index)
         }
     }
@@ -940,7 +940,7 @@ machine OmegaLexScan::dot_starts_float(
 
     state check_dot() {
         transition source[cursor] {
-            46 -> check_next()
+            '.' -> check_next()
             _ -> invalid()
         }
     }
@@ -953,7 +953,7 @@ machine OmegaLexScan::dot_starts_float(
     }
 
     state classify(next: i32) {
-        transition (next >= 48) && (next <= 57) {
+        transition (next >= '0') && (next <= '9') {
             true -> return 1
             _ -> dot(next)
         }
@@ -961,7 +961,7 @@ machine OmegaLexScan::dot_starts_float(
 
     state dot(next: i32) {
         transition next {
-            46 -> return 0
+            '.' -> return 0
             _ -> identifier(next)
         }
     }
@@ -999,7 +999,7 @@ machine OmegaLexScan::scan_number(
     state classify_first() {
         let first: i32 = source[cursor];
         transition first {
-            46 -> check_leading_dot()
+            '.' -> check_leading_dot()
             _ -> check_digit(first)
         }
     }
@@ -1013,7 +1013,7 @@ machine OmegaLexScan::scan_number(
 
     state check_leading_digit() {
         let next: i32 = source[cursor + 1];
-        transition (next >= 48) && (next <= 57) {
+        transition (next >= '0') && (next <= '9') {
             true -> begin()
             _ -> self.fail_stage()
         }
@@ -1034,7 +1034,7 @@ machine OmegaLexScan::scan_number(
         self.numeric_has_exponent = 0;
         self.numeric_empty_exponent = 0;
         transition source[cursor] {
-            46 -> leading_dot(cursor)
+            '.' -> leading_dot(cursor)
             _ -> integer_begin(cursor)
         }
     }
@@ -1050,7 +1050,7 @@ machine OmegaLexScan::scan_number(
     state integer_begin(index: i32) {
         self.token_kind = OmegaTokenKind::Integer;
         transition source[index] {
-            48 -> prefix_bound(index + 1)
+            '0' -> prefix_bound(index + 1)
             _ -> decimal_digits(index + 1)
         }
     }
@@ -1064,12 +1064,12 @@ machine OmegaLexScan::scan_number(
 
     state prefix(index: i32) {
         transition source[index] {
-            98 -> binary_prefix(index + 1)
-            66 -> binary_prefix(index + 1)
-            111 -> octal_prefix(index + 1)
-            79 -> octal_prefix(index + 1)
-            120 -> hex_prefix(index + 1)
-            88 -> hex_prefix(index + 1)
+            'b' -> binary_prefix(index + 1)
+            'B' -> binary_prefix(index + 1)
+            'o' -> octal_prefix(index + 1)
+            'O' -> octal_prefix(index + 1)
+            'x' -> hex_prefix(index + 1)
+            'X' -> hex_prefix(index + 1)
             _ -> decimal_digits(index)
         }
     }
@@ -1133,7 +1133,7 @@ machine OmegaLexScan::scan_number(
 
     state dot_byte(index: i32) {
         transition source[index] {
-            46 -> dot_decision(index)
+            '.' -> dot_decision(index)
             _ -> exponent_check(index)
         }
     }
@@ -1169,8 +1169,8 @@ machine OmegaLexScan::scan_number(
 
     state exponent_byte(index: i32) {
         transition source[index] {
-            101 -> exponent_begin(index + 1)
-            69 -> exponent_begin(index + 1)
+            'e' -> exponent_begin(index + 1)
+            'E' -> exponent_begin(index + 1)
             _ -> suffix(index)
         }
     }
@@ -1186,8 +1186,8 @@ machine OmegaLexScan::scan_number(
 
     state exponent_sign(index: i32) {
         transition source[index] {
-            43 -> exponent_digits(index + 1)
-            45 -> exponent_digits(index + 1)
+            '+' -> exponent_digits(index + 1)
+            '-' -> exponent_digits(index + 1)
             _ -> exponent_digits(index)
         }
     }
@@ -1307,135 +1307,135 @@ machine OmegaLexScan::scan_punctuation(
 
     state classify(first: i32, second: i32, third: i32) {
         transition first {
-            38 -> ampersand(second)
-            36 -> self.set_punctuation(OmegaPunctuationKind::Dollar, 1)
-            92 -> self.set_punctuation(OmegaPunctuationKind::Backslash, 1)
-            64 -> self.set_punctuation(OmegaPunctuationKind::At, 1)
-            39 -> self.set_punctuation(OmegaPunctuationKind::Apostrophe, 1)
-            42 -> asterisk(second)
-            94 -> self.set_punctuation(OmegaPunctuationKind::Caret, 1)
-            58 -> colon(second)
-            44 -> self.set_punctuation(OmegaPunctuationKind::Comma, 1)
-            46 -> dot(second, third)
-            61 -> equal(second)
-            33 -> exclamation(second)
-            62 -> greater(second)
-            35 -> self.set_punctuation(OmegaPunctuationKind::Hash, 1)
-            123 -> self.set_punctuation(OmegaPunctuationKind::LeftBrace, 1)
-            91 -> self.set_punctuation(OmegaPunctuationKind::LeftBracket, 1)
-            40 -> self.set_punctuation(OmegaPunctuationKind::LeftParen, 1)
-            60 -> less(second)
-            45 -> minus(second)
-            37 -> percent(second)
-            124 -> pipe(second)
-            43 -> plus(second)
-            125 -> self.set_punctuation(OmegaPunctuationKind::RightBrace, 1)
-            93 -> self.set_punctuation(OmegaPunctuationKind::RightBracket, 1)
-            41 -> self.set_punctuation(OmegaPunctuationKind::RightParen, 1)
-            59 -> self.set_punctuation(OmegaPunctuationKind::Semicolon, 1)
-            47 -> slash(second)
-            126 -> self.set_punctuation(OmegaPunctuationKind::Tilde, 1)
+            '&' -> ampersand(second)
+            '$' -> self.set_punctuation(OmegaPunctuationKind::Dollar, 1)
+            '\\' -> self.set_punctuation(OmegaPunctuationKind::Backslash, 1)
+            '@' -> self.set_punctuation(OmegaPunctuationKind::At, 1)
+            '\x27' -> self.set_punctuation(OmegaPunctuationKind::Apostrophe, 1)
+            '*' -> asterisk(second)
+            '^' -> self.set_punctuation(OmegaPunctuationKind::Caret, 1)
+            ':' -> colon(second)
+            ',' -> self.set_punctuation(OmegaPunctuationKind::Comma, 1)
+            '.' -> dot(second, third)
+            '=' -> equal(second)
+            '!' -> exclamation(second)
+            '>' -> greater(second)
+            '#' -> self.set_punctuation(OmegaPunctuationKind::Hash, 1)
+            '{' -> self.set_punctuation(OmegaPunctuationKind::LeftBrace, 1)
+            '[' -> self.set_punctuation(OmegaPunctuationKind::LeftBracket, 1)
+            '(' -> self.set_punctuation(OmegaPunctuationKind::LeftParen, 1)
+            '<' -> less(second)
+            '-' -> minus(second)
+            '%' -> percent(second)
+            '|' -> pipe(second)
+            '+' -> plus(second)
+            '}' -> self.set_punctuation(OmegaPunctuationKind::RightBrace, 1)
+            ']' -> self.set_punctuation(OmegaPunctuationKind::RightBracket, 1)
+            ')' -> self.set_punctuation(OmegaPunctuationKind::RightParen, 1)
+            ';' -> self.set_punctuation(OmegaPunctuationKind::Semicolon, 1)
+            '/' -> slash(second)
+            '~' -> self.set_punctuation(OmegaPunctuationKind::Tilde, 1)
             _ -> unsupported()
         }
     }
 
     state ampersand(second: i32) {
         transition second {
-            38 -> self.set_punctuation(OmegaPunctuationKind::AndAnd, 2)
+            '&' -> self.set_punctuation(OmegaPunctuationKind::AndAnd, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Ampersand, 1)
         }
     }
 
     state asterisk(second: i32) {
         transition second {
-            61 -> self.set_punctuation(OmegaPunctuationKind::AsteriskEqual, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::AsteriskEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Asterisk, 1)
         }
     }
 
     state colon(second: i32) {
         transition second {
-            58 -> self.set_punctuation(OmegaPunctuationKind::ColonColon, 2)
+            ':' -> self.set_punctuation(OmegaPunctuationKind::ColonColon, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Colon, 1)
         }
     }
 
     state dot(second: i32, third: i32) {
         transition second {
-            46 -> dotdot(third)
+            '.' -> dotdot(third)
             _ -> self.set_punctuation(OmegaPunctuationKind::Dot, 1)
         }
     }
 
     state dotdot(third: i32) {
         transition third {
-            61 -> self.set_punctuation(OmegaPunctuationKind::DotDotEqual, 3)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::DotDotEqual, 3)
             _ -> self.set_punctuation(OmegaPunctuationKind::DotDot, 2)
         }
     }
 
     state equal(second: i32) {
         transition second {
-            61 -> self.set_punctuation(OmegaPunctuationKind::EqualEqual, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::EqualEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Equal, 1)
         }
     }
 
     state exclamation(second: i32) {
         transition second {
-            61 -> self.set_punctuation(OmegaPunctuationKind::ExclamationEqual, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::ExclamationEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Exclamation, 1)
         }
     }
 
     state greater(second: i32) {
         transition second {
-            62 -> self.set_punctuation(OmegaPunctuationKind::GreaterGreater, 2)
-            61 -> self.set_punctuation(OmegaPunctuationKind::GreaterEqual, 2)
+            '>' -> self.set_punctuation(OmegaPunctuationKind::GreaterGreater, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::GreaterEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Greater, 1)
         }
     }
 
     state less(second: i32) {
         transition second {
-            60 -> self.set_punctuation(OmegaPunctuationKind::LessLess, 2)
-            61 -> self.set_punctuation(OmegaPunctuationKind::LessEqual, 2)
+            '<' -> self.set_punctuation(OmegaPunctuationKind::LessLess, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::LessEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Less, 1)
         }
     }
 
     state minus(second: i32) {
         transition second {
-            62 -> self.set_punctuation(OmegaPunctuationKind::Arrow, 2)
-            61 -> self.set_punctuation(OmegaPunctuationKind::MinusEqual, 2)
+            '>' -> self.set_punctuation(OmegaPunctuationKind::Arrow, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::MinusEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Minus, 1)
         }
     }
 
     state percent(second: i32) {
         transition second {
-            61 -> self.set_punctuation(OmegaPunctuationKind::PercentEqual, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::PercentEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Percent, 1)
         }
     }
 
     state pipe(second: i32) {
         transition second {
-            124 -> self.set_punctuation(OmegaPunctuationKind::PipePipe, 2)
+            '|' -> self.set_punctuation(OmegaPunctuationKind::PipePipe, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Pipe, 1)
         }
     }
 
     state plus(second: i32) {
         transition second {
-            61 -> self.set_punctuation(OmegaPunctuationKind::PlusEqual, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::PlusEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Plus, 1)
         }
     }
 
     state slash(second: i32) {
         transition second {
-            61 -> self.set_punctuation(OmegaPunctuationKind::SlashEqual, 2)
+            '=' -> self.set_punctuation(OmegaPunctuationKind::SlashEqual, 2)
             _ -> self.set_punctuation(OmegaPunctuationKind::Slash, 1)
         }
     }
@@ -1489,7 +1489,7 @@ machine OmegaLexScan::raw_candidate_end(
 
     state check_raw() {
         transition source[cursor] {
-            114 -> scan(cursor + 1)
+            'r' -> scan(cursor + 1)
             _ -> invalid()
         }
     }
@@ -1503,8 +1503,8 @@ machine OmegaLexScan::raw_candidate_end(
 
     state classify(index: i32) {
         transition source[index] {
-            35 -> scan(index + 1)
-            34 -> return index + 1
+            '#' -> scan(index + 1)
+            '\"' -> return index + 1
             _ -> return -1
         }
     }
@@ -1591,7 +1591,7 @@ machine OmegaLexScan::scan_preflighted_stage(
     }
 
     state comment_extent(byte: i32) {
-        transition (byte == 47) && (source.len - cursor >= 2) {
+        transition (byte == '/') && (source.len - cursor >= 2) {
             true -> comment_second()
             _ -> raw(byte)
         }
@@ -1599,15 +1599,15 @@ machine OmegaLexScan::scan_preflighted_stage(
 
     state comment_second() {
         transition source[cursor + 1] {
-            47 -> self.scan_line_comment(source, cursor)
-            42 -> self.scan_block_comment(source, cursor)
-            _ -> raw(47)
+            '/' -> self.scan_line_comment(source, cursor)
+            '*' -> self.scan_block_comment(source, cursor)
+            _ -> raw('/')
         }
     }
 
     state raw(byte: i32) {
         transition byte {
-            114 -> raw_candidate()
+            'r' -> raw_candidate()
             _ -> identifier(byte)
         }
     }
@@ -1616,7 +1616,7 @@ machine OmegaLexScan::scan_preflighted_stage(
         let end: i32 = self.raw_candidate_end(source, cursor);
         transition end >= 0 {
             true -> raw_reject(end)
-            _ -> identifier(114)
+            _ -> identifier('r')
         }
     }
 
@@ -1636,14 +1636,14 @@ machine OmegaLexScan::scan_preflighted_stage(
     }
 
     state number(byte: i32) {
-        transition (byte >= 48) && (byte <= 57) {
+        transition (byte >= '0') && (byte <= '9') {
             true -> self.scan_number(source, cursor)
             _ -> leading_dot(byte)
         }
     }
 
     state leading_dot(byte: i32) {
-        transition (byte == 46) && (source.len - cursor >= 2) {
+        transition (byte == '.') && (source.len - cursor >= 2) {
             true -> leading_dot_second()
             _ -> string(byte)
         }
@@ -1651,15 +1651,15 @@ machine OmegaLexScan::scan_preflighted_stage(
 
     state leading_dot_second() {
         let next: i32 = source[cursor + 1];
-        transition (next >= 48) && (next <= 57) {
+        transition (next >= '0') && (next <= '9') {
             true -> self.scan_number(source, cursor)
-            _ -> string(46)
+            _ -> string('.')
         }
     }
 
     state string(byte: i32) {
         transition byte {
-            34 -> self.scan_string(source, cursor)
+            '\"' -> self.scan_string(source, cursor)
             _ -> self.scan_punctuation(source, cursor)
         }
     }
