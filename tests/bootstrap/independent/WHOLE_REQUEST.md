@@ -162,8 +162,16 @@ On the 3,994,887-byte construction packet
 the per-unit parser passed the pooled unit-17 capacity limit and reached
 `ValueBinding::Unresolved` in unit 31, at absolute byte 700523. The result-arm
 change at `980fa9c6a6c` parses the complete original unit 31 and the
-payload-bearing result in unit 37. These measurements cover parsing. The
-whole package still needs type checking and executable construction.
+payload-bearing result in unit 37.
+
+The source model replayed this same full packet with the typed literal change
+at `9ab43b811962`. It stopped in unit 59, at byte 1,366,357, on the period in
+`machine_item(...).source_span`. The nine-byte refusal was
+`000200000055d91400`. The model used lazily initialized arrays, 1,580.94 CPU
+seconds and 63,072 KiB of peak resident memory. Commit `20c71aef41c1` parses
+that complete source file in isolation. The later isolated parser also reads
+all 494 expressions of unit 66, which contains `$table = saved`. The whole
+package still needs type checking and executable construction.
 
 ## Compare the complete Omega compiler across routes
 
