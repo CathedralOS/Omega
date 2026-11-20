@@ -216,3 +216,12 @@ That 4,056-byte request had SHA-256
 In 39.012 wall seconds the evaluator returned status zero and the same
 3,077-byte observation, SHA-256
 `9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225`.
+
+Changing the single call `omega_digit_in_base(value, selected)` to
+`omega_digit_in_base(value, value)` passed a byte value where the classifier
+requires an `OmegaNumericBase`. The 3,745-byte source had SHA-256
+`927259ff3b779b8109a2b747f4ba98ef6284210004e8032c82ca2be00a5af318`.
+The same executable and stdin received the resulting 4,053-byte request,
+SHA-256 `ca6c411cbc9efdfcf0e614399af5d11dcaecb8242196c45ffe26fb36251667b1`.
+In 0.131 seconds the evaluator returned process status zero and refusal bytes
+`02 12 f0 07 00 00`, locating the wrong-typed argument at byte 2,032.
