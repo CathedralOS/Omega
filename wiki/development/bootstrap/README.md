@@ -1,5 +1,36 @@
 # Bootstrap experiments
 
+## Select a route
+
+From the checkout root, choose how Gamma runs the Delta implementation, how
+Delta runs the Epsilon implementation, and how the Epsilon program itself
+runs. Each selector accepts `interpret`, `alpha`, `native` (Linux x86-64), or
+`all`. This command holds Gamma and Delta fixed while varying Epsilon.
+
+```sh
+python3 tests/bootstrap/route.py /tmp/omega-three --gamma native --delta interpret --epsilon all
+```
+
+The default control reads `Z`, writes it, and exits 90. All three routes
+must produce `00 5a 00 00 00 5a`. Use `--source FILE --stdin FILE` for your
+own Epsilon program and raw input. Use `--plan` to inspect the stages without
+running them. The plan shows which compiler runs, where it runs, and which
+runtime handoff is required. [Route runner](../../../tests/bootstrap/route.py)
+
+Each run needs a new output directory and the repository's built `xtask` for
+source manifests. Each row retains its source, input, intermediate artifacts,
+and `result.json` with the stages, times, input hashes and outcome. In a batch, each row logs live progress in `stages.log`. Completed
+rows also retain `guest.eeout` for byte comparison. A timeout records the
+stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
+and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
+
+Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
+supply `--gamma-build DIR` with the corresponding `--gamma alpha` or
+`--gamma native`. The runner checks its compiler source and fixed-point
+rebuild and records the host executable's hash. Interpreted Gamma starts
+from Beta. `--profile construction` selects the larger Delta byte limits for
+whole-compiler inputs. [Cold build](../../../tests/bootstrap/linux_x86_64/README.md)
+
 ## Tested threads through the matrix
 
 Read each row from left to right after the common Alpha and Beta steps.

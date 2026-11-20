@@ -2,6 +2,7 @@
 import hashlib
 import os
 from pathlib import Path
+import signal
 import struct
 import subprocess
 import time
@@ -15,9 +16,31 @@ class Invalid(ValueError):
     """A source-constructed compiler rejected the supplied program."""
 
 
-def shell(script, *args):
-    subprocess.run(["sh", "-eu", "-c", script, "compiled-vm", *map(str, args)],
-                   cwd=ROOT, env={**os.environ, "OMEGA_REPO_ROOT": str(ROOT)}, check=True)
+def invoke(command, data, seconds, *, cwd=None, env=None):
+    # Cold construction forks producers. Stop the whole invocation on timeout.
+    with subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, start_new_session=True) as proc:
+        try:
+            stdout, stderr = proc.communicate(data, timeout=seconds)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.communicate()
+            raise
+    if proc.returncode or stderr:
+        raise RuntimeError(f"exit {proc.returncode}, stdout {stdout[:80]!r}, stderr {stderr[:200]!r}")
+    return stdout
+
+
+def shell(script, *args, seconds=None):
+    command = ["sh", "-eu", "-c", script, "compiled-vm", *map(str, args)]
+    env = {**os.environ, "OMEGA_REPO_ROOT": str(ROOT)}
+    if seconds is None:
+        subprocess.run(command, cwd=ROOT, env=env, check=True)
+    else:
+        invoke(command, b"", seconds, cwd=ROOT, env=env)
 
 
 def stamp(tape, executable):
@@ -422,7 +445,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         print("Omega UTF-8: forty-five executables, 28 decoder boundaries, six arithmetic traps, two explicit traps, sixty-five refusal/reset checks passed in eleven fresh processes", flush=True)
 
 
-def reconstruct(work):
+def reconstruct(work, *, seconds=None):
     shell('''
       . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
       . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
@@ -435,5 +458,5 @@ def reconstruct(work):
       "$1/beta" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$1/gamma.tape"
       cmp "$1/gamma.tape" "$OMEGA_PATH_GAMMA_EVALUATOR_TAPE"
       stamp_seed "$1/gamma.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$1/reference"
-    ''', work)
+    ''', work, seconds=seconds)
     print("Beta self-reconstruction and Gamma source construction: byte-exact", flush=True)

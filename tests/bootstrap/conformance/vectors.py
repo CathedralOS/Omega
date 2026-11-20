@@ -85,14 +85,19 @@ def epsilon_syntax_controls(closure):
         yield name, epsilon_request(closure, source, b""), (0, invalid_token)
 
 
-def _epsilon_observations(closure, console):
-    cases = [
+def epsilon_program_cases(console=None):
+    if console is None:
+        console = _epsilon_console(b"&[u8]", b"&mut self")
+    return [
         ("empty source", b"", b"", b"\x02\x08\x00\x00\x00\x00"),
         ("exit", console + b"self.console.write_byte(65); self.console.exit_process(42); }", b"", b"\x00" + struct.pack("<i", 42) + b"A"),
         ("stdin", console + b"let x: i32 = self.console.read_byte(); self.console.write_byte(x); self.console.exit_process(x); }", b"Z", b"\x00" + struct.pack("<i", 90) + b"Z"),
         ("trap", console + b"self.console.write_byte(66); let x: i32 = 1 / 0; }", b"", b"\x01\x02B"),
     ]
-    for name, source, stdin, expected in cases:
+
+
+def _epsilon_observations(closure, console):
+    for name, source, stdin, expected in epsilon_program_cases(console):
         yield name, epsilon_request(closure, source, stdin), (0, expected)
     malformed = struct.pack("<8sBBHIQQQ", b"\xffEEOUT\x01\x00", 1, 1, 0, 1, 0, 0, 0)
     yield "empty EEREQ", b"", (0, malformed)
