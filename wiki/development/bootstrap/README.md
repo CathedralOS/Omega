@@ -21,6 +21,16 @@ runtime handoff is required. Interpreted Delta defaults to the direct interprete
 Add `--delta-interpreter gamma` to translate Delta and interpret the emitted
 Gamma, as in the original interpreted route. [Route runner](../../../tests/bootstrap/route.py)
 
+Use `--case omega-byte-classes` to run the Omega compiler’s byte classifier
+on all 256 input bytes. Its Epsilon entry writes twelve answers per byte,
+including digit membership in four bases both directly and through a function
+taking the named enum. This command checks every answer and exit 42 on all
+three Epsilon routes.
+
+```sh
+python3 tests/bootstrap/route.py /tmp/omega-bytes --gamma native --delta native --epsilon all --case omega-byte-classes --reuse-stages
+```
+
 Each run needs a new output directory and the repository's built `xtask` for
 source manifests. Each row retains its source, input, intermediate artifacts,
 and `result.json` with the stages, times, input hashes, generated artifact hashes and outcome. In a batch, each row logs live progress in `stages.log`. Completed
