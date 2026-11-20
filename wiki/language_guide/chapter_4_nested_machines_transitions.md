@@ -32,8 +32,8 @@ Nesting only limits where a name is visible. `step` can be used anywhere in
 `countdown`; `done` only inside `step`. A machine's statements come first and
 its nested machines after.
 
-A nested machine is not a closure. It sees none of the enclosing machine's
-parameters or locals, so pass what it needs:
+Pass any runtime value the helper needs as an argument. In this example,
+`done` receives the inventory through its own `value` parameter.
 
 ```omega
 machine forward(value: Inventory) -> Inventory {
@@ -47,8 +47,9 @@ machine forward(value: Inventory) -> Inventory {
 }
 ```
 
-Enclosing generic parameters are the exception: they are compile-time context
-and stay in scope.
+A helper can read a visible package constant such as `port` even if its
+caller has a parameter named `port`. Enclosing generic parameters also stay
+in scope as compile-time context.
 
 ## A call returns; a transition arm finishes
 
