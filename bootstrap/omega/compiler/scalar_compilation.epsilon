@@ -863,22 +863,10 @@ machine OmegaScalarCompiler::primitive_type(
         }
     }
     state constrained(row: OmegaTypeReferenceSyntax) {
-        transition row.payload2 == 1 {
-            true -> constraint(row, self.parser.type_constraints[row.payload1])
-            _ -> return 0
-        }
-    }
-    state constraint(row: OmegaTypeReferenceSyntax, constraint: OmegaTypeConstraintSyntax) {
-        transition constraint.path_member_count == 1 {
-            true -> policy(row, self.parser.members[constraint.first_path_member])
-            _ -> return 0
-        }
-    }
-    state policy(row: OmegaTypeReferenceSyntax, name: OmegaRelativeSpan) {
         let base: OmegaTypeReferenceSyntax = self.parser.type_references[row.payload0];
         transition base.kind {
             OmegaTypeReferenceKind::Named -> return self.policy_word(self.primitive_type(source, row.payload0),
-                self.word_policy(source, name))
+                self.word_policy(source, row.payload1, row.payload2))
             _ -> return 0
         }
     }
@@ -886,13 +874,13 @@ machine OmegaScalarCompiler::primitive_type(
 
 // The low byte is the carrier width. Only these carrier/policy pairs have
 // checking, storage and emission rules in this compiler.
-machine OmegaScalarCompiler::word_policy(&mut self, source: &[u8], name: OmegaRelativeSpan) -> i32 {
-    transition self.span_equals(source, name.start, name.end, "Trapping") {
+machine OmegaScalarCompiler::word_policy(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    transition self.span_equals(source, start, end, "Trapping") {
         1 -> return 256
         _ -> wrapping()
     }
     state wrapping() {
-        transition self.span_equals(source, name.start, name.end, "Wrapping") {
+        transition self.span_equals(source, start, end, "Wrapping") {
             1 -> return 512
             _ -> return 0
         }
@@ -1163,7 +1151,7 @@ machine OmegaScalarCompiler::expression_type(
         }
     }
     state cast_domain(row: OmegaCastExpressionSyntax) {
-        let policy: i32 = self.word_policy(source, row.domain);
+        let policy: i32 = self.word_policy(source, row.domain.start, row.domain.end);
         let kind: i32 = self.expression_type(source, owner, state_index, before, row.value);
         transition row.kind {
             OmegaCastKind::AddDomain -> added(self.policy_word(kind, policy))
@@ -1747,7 +1735,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state domain_cast(row: OmegaCastExpressionSyntax) {
-        let policy: i32 = self.word_policy(source, row.domain);
+        let policy: i32 = self.word_policy(source, row.domain.start, row.domain.end);
         transition policy != 0 {
             true -> domain_operation(row, policy)
             _ -> unsupported(row.domain.start)
@@ -2864,7 +2852,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
             (self.span_equals(source, name.start, name.end, "u32") == 0) &&
             (self.span_equals(source, name.start, name.end, "u64") == 0) &&
             (self.span_equals(source, name.start, name.end, "bool") == 0) &&
-            (self.word_policy(source, name) == 0) {
+            (self.word_policy(source, name.start, name.end) == 0) {
             true -> data_names(index + 1)
             _ -> incomplete(4, name.start)
         }
@@ -4263,19 +4251,7 @@ machine OmegaScalarCompiler::scalar_type(
         }
     }
     state qualified(row: OmegaTypeReferenceSyntax) {
-        transition row.payload2 == 1 {
-            true -> constraint(row, self.parser.type_constraints[row.payload1])
-            _ -> return 0
-        }
-    }
-    state constraint(row: OmegaTypeReferenceSyntax, item: OmegaTypeConstraintSyntax) {
-        transition item.path_member_count == 1 {
-            true -> domain(row, self.parser.members[item.first_path_member])
-            _ -> return 0
-        }
-    }
-    state domain(row: OmegaTypeReferenceSyntax, name: OmegaRelativeSpan) {
-        transition self.span_equals(source, name.start, name.end, "Trapping") {
+        transition self.span_equals(source, row.payload1, row.payload2, "Trapping") {
             1 -> array_base(row)
             _ -> return 0
         }
