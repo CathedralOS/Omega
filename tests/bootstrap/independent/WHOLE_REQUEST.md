@@ -65,6 +65,32 @@ bytes for the evaluator in `entry-unit.eereq`. Both construction
 requests select Delta profile 2, which admits the combined source and product
 input and can publish a generated module larger than 4 MiB.
 
+## Verify the Omega self-rebuild
+
+From the checkout that supplied `product.bin`, run the seed-built Epsilon
+constructor on the complete construction application. Supply a fresh output
+directory. Both subsequent compilations receive the same frozen bytes.
+
+```sh
+python3 tests/bootstrap/independent/whole_rebuild.py \
+    "$work/product.bin" "$work/omega" "$work/self-rebuild"
+```
+
+The first output is an Omega compiler tape. The verifier stamps it on the
+checked Alpha seed, runs it on the complete application, and repeats with
+the compiler it produced. It compares the second and third tapes byte for
+byte. Each producing Omega compiler must also compile two programs differing
+by one digit. Their tapes must return 42 and 43 respectively. A trailing
+input byte must exit 253. A Boolean returned from a byte entry must fail
+typing or checking. Both refusals must produce zero output.
+
+`result.json` records the Epsilon executable digest, input and output digests
+and observed exit for each process. Match that first executable digest to
+the preceding seed-construction record to establish its origin. To reuse a
+completed first generation, add `--reuse-tape PATH` and supply the matching
+`product.result.json` from `construct.py --epsilon-compiler` beside the input.
+A refusal leaves the recorded stages available for inspection.
+
 ## Parser storage for the 305-unit compiler
 
 The complete compiler needs more rows than the public OCREQ V1 profile has
