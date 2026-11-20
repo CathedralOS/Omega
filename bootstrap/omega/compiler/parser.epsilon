@@ -271,6 +271,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.state_first_parameter = 0;
     self.state_first_requirement = 0;
     self.state_block_bound = -1;
+    self.state_crash_bound = 0;
     self.machine_parameter_has_more = 0;
     self.machine_path_member_count = 0;
     self.machine_is_public = 0;
@@ -1374,6 +1375,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.state_first_parameter = self.machine_parameter_count;
         self.state_first_requirement = self.requirement_count;
         self.state_block_bound = -1;
+        self.state_crash_bound = 0;
         self.state_first_statement = self.statement_count;
         self.state_has_body_syntax = 0;
         self.state_is_explicit = 0;
@@ -1914,16 +1916,37 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state crash_clause_spelling() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "none") {
-            1 -> admit_effect_member(110)
+            1 -> crash_bound(1, 110)
             _ -> crash_clause_trap()
         }
     }
 
     state crash_clause_trap() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "Trap") {
-            1 -> admit_effect_member(109)
+            1 -> crash_bound(2, 109)
             _ -> other_crash_cause()
         }
+    }
+
+    state crash_bound(bound: i32, resume: i32) {
+        transition self.state_is_explicit {
+            1 -> check_nested_crash_bound(bound)
+            _ -> admit_effect_member(resume)
+        }
+    }
+
+    state check_nested_crash_bound(bound: i32) {
+        transition (self.state_crash_bound == 0) || (self.state_crash_bound == bound) {
+            true -> retain_nested_crash_bound(bound)
+            _ -> syntax_failure(OmegaParseDiagnosticCode::ExpectedCrashCause,
+                self.scan.token_start, self.scan.token_end)
+        }
+    }
+
+    state retain_nested_crash_bound(bound: i32) {
+        self.state_crash_bound = bound;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(59) }
     }
 
     state other_crash_cause() {
@@ -3021,6 +3044,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.state_first_parameter = self.machine_parameter_count;
         self.state_first_requirement = self.requirement_count;
         self.state_block_bound = -1;
+        self.state_crash_bound = 0;
         self.state_first_statement = self.statement_count;
         self.state_has_body_syntax = 0;
         self.state_has_return_type = 0;
@@ -3070,6 +3094,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state explicit_state_block_identifier() {
         transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "blocks") {
             1 -> nested_block_clause()
+            _ -> explicit_state_crash_identifier()
+        }
+    }
+    state explicit_state_crash_identifier() {
+        transition self.scan.span_equals(source, self.scan.token_start, self.scan.token_end, "crashes") {
+            1 -> begin_crash_clause()
             _ -> incomplete_root()
         }
     }
@@ -3105,7 +3135,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state explicit_state_parameters_position() {
-        transition (self.requirement_count == self.state_first_requirement) && (self.state_block_bound < 0) {
+        transition (self.requirement_count == self.state_first_requirement) && (self.state_block_bound < 0) &&
+            (self.state_crash_bound == 0) {
             true -> begin_machine_parameters()
             _ -> incomplete_root()
         }
@@ -3509,6 +3540,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state requirement_machine_clause_identifier() {
         transition (self.scan.span_equals(source, self.scan.token_start,
             self.scan.token_end, "satisfies") == 1) ||
+            (self.scan.span_equals(source, self.scan.token_start,
+            self.scan.token_end, "crashes") == 1) ||
             (self.scan.span_equals(source, self.scan.token_start,
             self.scan.token_end, "reaches") == 1) ||
             (self.scan.span_equals(source, self.scan.token_start,
@@ -7866,6 +7899,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state retain_implicit_state_bounded(continuation: i32) {
         self.machine_states[self.machine_state_count].block_bound = -1;
+        self.machine_states[self.machine_state_count].crash_bound = 0;
         self.machine_states[self.machine_state_count].name.start = 0;
         self.machine_states[self.machine_state_count].name.end = 0;
         self.machine_states[self.machine_state_count].first_parameter =
@@ -7923,6 +7957,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state retain_explicit_state_bounded() {
         self.machine_states[self.machine_state_count].block_bound = self.state_block_bound;
+        self.machine_states[self.machine_state_count].crash_bound = self.state_crash_bound;
         self.machine_states[self.machine_state_count].name_kind =
             OmegaMachineStateNameKind::Authored;
         self.machine_states[self.machine_state_count].name.start =
@@ -9718,6 +9753,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state check_machine_return_position() {
         transition (self.state_has_return_type == 0) && (self.state_block_bound < 0) &&
+            (self.state_crash_bound == 0) &&
             (self.requirement_count == self.state_first_requirement) {
             true -> begin_machine_return_type()
             _ -> incomplete_root()

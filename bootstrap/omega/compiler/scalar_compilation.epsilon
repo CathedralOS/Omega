@@ -199,17 +199,17 @@ data OmegaScalarCompiler {
     // Core Trapping comparisons retain their published Trap ceiling even
     // though the emitted comparison is total. Private bodies infer it; a
     // public body without a supported crash clause cannot admit that ceiling.
-    machine_may_trap: [i32; 4096];
     machine_allows_trap: [i32; 4096];
     // -1 = omitted, 0 = blocks false, 1 = blocks. A private omitted
     // bound infers. The published envelope is distinct from its call marker.
     block_bounds: [i32; 4096];
-    state_may_block: [i32; 4096];
+    // The published and inferred state effects use bit 1 for blocking, bit 2 for Trap.
+    state_effects: [i32; 4096];
     state_incoming: [i32; 4096];
     // 32,768 ordinary calls plus 16,384 transition arms.
     state_invocations: [OmegaStateInvocation; 49152];
     state_invocation_count: i32;
-    block_work: [i32; 4096];
+    effect_work: [i32; 4096];
     call_colors: [i32; 4096];
     call_walk: [i32; 4096];
     call_cursors: [i32; 4096];
@@ -1459,7 +1459,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state policy_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        self.machine_may_trap[owner] = 1;
+        self.state_effects[state_index] = self.state_effects[state_index] | 2;
         transition (self.check_value(source, owner, state_index, before, row.left, left) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, right) == 1) {
             true -> retain(OmegaCheckedValueKind::TrappingArithmetic, self.parser.expressions[expression].payload0)
@@ -1596,7 +1596,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state trapping_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        self.machine_may_trap[owner] = 1;
+        self.state_effects[state_index] = self.state_effects[state_index] | 2;
         transition true { true -> check_operands(row, left, right) }
     }
     state check_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
@@ -1853,13 +1853,8 @@ machine OmegaScalarCompiler::check_call_graph(&mut self) -> i32 {
         transition self.call_colors[callee] {
             0 -> descend(root_index, depth, callee)
             1 -> cycle(edge_index)
-            _ -> inherit(root_index, depth, callee)
+            _ -> walk(root_index, depth)
         }
-    }
-    state inherit(root_index: i32, depth: i32, callee: i32) {
-        self.machine_may_trap[self.call_walk[depth]] =
-            self.machine_may_trap[self.call_walk[depth]] | self.machine_may_trap[callee];
-        transition true { true -> walk(root_index, depth) }
     }
     state descend(root_index: i32, depth: i32, callee: i32) {
         transition depth + 1 < 4096 {
@@ -1877,7 +1872,7 @@ machine OmegaScalarCompiler::check_call_graph(&mut self) -> i32 {
         self.call_colors[self.call_walk[depth]] = 2;
         transition depth {
             0 -> root(root_index + 1)
-            _ -> inherit(root_index, depth - 1, self.call_walk[depth])
+            _ -> walk(root_index, depth - 1)
         }
     }
     state cycle(edge_index: i32) {
@@ -2806,7 +2801,14 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
     state reset_state_node(index: i32) {
         self.state_incoming[index] = -1;
-        self.state_may_block[index] = self.parser.machine_states[index].block_bound;
+        self.state_effects[index] = self.parser.machine_states[index].crash_bound & 2;
+        transition self.parser.machine_states[index].block_bound {
+            1 -> seed_nested_block(index)
+            _ -> reset_state_graph(index + 1)
+        }
+    }
+    state seed_nested_block(index: i32) {
+        self.state_effects[index] = self.state_effects[index] | 1;
         transition true { true -> reset_state_graph(index + 1) }
     }
 
@@ -2901,7 +2903,8 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
     state retain_block_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32, bound: i32) {
         self.block_bounds[index] = bound;
-        self.state_may_block[self.parser.machine_items[index].first_state] = bound;
+        let entry_state: i32 = self.parser.machine_items[index].first_state;
+        self.state_effects[entry_state] = self.state_effects[entry_state] | bound;
         transition true { true -> machine_clauses(index, cursor + 1, end, empty, trap) }
     }
     state merge_crash_ceiling(index: i32, cursor: i32, end: i32, empty: i32, trap: i32) {
@@ -2913,7 +2916,8 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state retain_crash_ceiling(index: i32, empty: i32, trap: i32) {
         // Callers may rely on the declaration across a package edge. Carry its
         // published route even when this particular body happens to be total.
-        self.machine_may_trap[index] = trap;
+        let entry_state: i32 = self.parser.machine_items[index].first_state;
+        self.state_effects[entry_state] = self.state_effects[entry_state] | (trap * 2);
         transition (trap == 1) || ((empty == 0) && (self.parser.machine_items[index].is_public == 0)) {
             true -> set_crash_ceiling(index, 1)
             _ -> set_crash_ceiling(index, 0)
@@ -3067,15 +3071,16 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     state check_crash_route(index: i32, state_index: i32, offset: i32, coordinate: i32) {
         // An unconditional first operation in an unconstrained initial state
         // needs no path analysis. Other possible routes use the call summary.
-        transition (self.machine_allows_trap[index] == 0) &&
-            (state_index == self.parser.machine_items[index].first_state) && (offset == 0) &&
+        transition ((self.parser.machine_states[state_index].crash_bound == 1) ||
+            ((state_index == self.parser.machine_items[index].first_state) &&
+             (self.machine_allows_trap[index] == 0))) && (offset == 0) &&
             (self.parser.machine_states[state_index].requirement_count == 0) {
             true -> reject(-1, 4, coordinate)
             _ -> retain_trap_terminal(index, state_index)
         }
     }
     state retain_trap_terminal(index: i32, state_index: i32) {
-        self.machine_may_trap[index] = 1;
+        self.state_effects[state_index] = self.state_effects[state_index] | 2;
         self.state_terminal_kind[state_index] = 7;
         transition true { true -> check_states(index, state_index + 1) }
     }
@@ -3698,52 +3703,57 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 
     state call_graph() {
         transition self.check_call_graph() {
-            1 -> seed_blocking_states(0, 0)
+            1 -> seed_effect(1, 0, 0)
             _ -> return
         }
     }
 
-    // A published blocking ceiling seeds its own entry. Walk incoming calls
-    // and transfers until each predecessor has been visited once. A disconnected
-    // nested state retains its own obligations without widening its owner.
-    state seed_blocking_states(index: i32, count: i32) {
+    // Each effect follows the same incoming calls and transitions. A state
+    // enters the bounded worklist once per effect, including cycles.
+    state seed_effect(effect: i32, index: i32, count: i32) {
         transition index < self.parser.machine_state_count {
-            true -> check_seed(index, count)
-            _ -> propagate_blocks(0, count)
+            true -> check_seed(effect, index, count)
+            _ -> propagate_effect(effect, 0, count)
         }
     }
-    state check_seed(index: i32, count: i32) {
-        transition self.state_may_block[index] == 1 {
-            true -> enqueue_seed(index, count)
-            _ -> seed_blocking_states(index + 1, count)
+    state check_seed(effect: i32, index: i32, count: i32) {
+        transition (self.state_effects[index] & effect) != 0 {
+            true -> enqueue_seed(effect, index, count)
+            _ -> seed_effect(effect, index + 1, count)
         }
     }
-    state enqueue_seed(index: i32, count: i32) {
-        self.block_work[count] = index;
-        transition true { true -> seed_blocking_states(index + 1, count + 1) }
+    state enqueue_seed(effect: i32, index: i32, count: i32) {
+        self.effect_work[count] = index;
+        transition true { true -> seed_effect(effect, index + 1, count + 1) }
     }
-    state propagate_blocks(cursor: i32, count: i32) {
+    state propagate_effect(effect: i32, cursor: i32, count: i32) {
         transition cursor < count {
-            true -> predecessors(cursor, count, self.state_incoming[self.block_work[cursor]])
+            true -> predecessors(effect, cursor, count, self.state_incoming[self.effect_work[cursor]])
+            _ -> next_effect(effect)
+        }
+    }
+    state next_effect(effect: i32) {
+        transition effect {
+            1 -> seed_effect(2, 0, 0)
             _ -> check_state_bounds(0)
         }
     }
-    state predecessors(cursor: i32, count: i32, edge: i32) {
+    state predecessors(effect: i32, cursor: i32, count: i32, edge: i32) {
         transition edge >= 0 {
-            true -> predecessor(cursor, count, self.state_invocations[edge])
-            _ -> propagate_blocks(cursor + 1, count)
+            true -> predecessor(effect, cursor, count, self.state_invocations[edge])
+            _ -> propagate_effect(effect, cursor + 1, count)
         }
     }
-    state predecessor(cursor: i32, count: i32, edge: OmegaStateInvocation) {
-        transition self.state_may_block[edge.caller] == 1 {
-            true -> predecessors(cursor, count, edge.next)
-            _ -> enqueue_predecessor(cursor, count, edge)
+    state predecessor(effect: i32, cursor: i32, count: i32, edge: OmegaStateInvocation) {
+        transition (self.state_effects[edge.caller] & effect) != 0 {
+            true -> predecessors(effect, cursor, count, edge.next)
+            _ -> enqueue_predecessor(effect, cursor, count, edge)
         }
     }
-    state enqueue_predecessor(cursor: i32, count: i32, edge: OmegaStateInvocation) {
-        self.state_may_block[edge.caller] = 1;
-        self.block_work[count] = edge.caller;
-        transition true { true -> predecessors(cursor, count + 1, edge.next) }
+    state enqueue_predecessor(effect: i32, cursor: i32, count: i32, edge: OmegaStateInvocation) {
+        self.state_effects[edge.caller] = self.state_effects[edge.caller] | effect;
+        self.effect_work[count] = edge.caller;
+        transition true { true -> predecessors(effect, cursor, count + 1, edge.next) }
     }
     state check_state_bounds(index: i32) {
         transition index < self.parser.machine_state_count {
@@ -3752,8 +3762,14 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         }
     }
     state check_state_bound(index: i32) {
-        transition (self.state_may_block[index] == 1) && (self.parser.machine_states[index].block_bound == 0) {
+        transition ((self.state_effects[index] & 1) != 0) && (self.parser.machine_states[index].block_bound == 0) {
             true -> reject(-1, 4, self.parser.machine_states[index].name.start)
+            _ -> check_nested_crash_bound(index)
+        }
+    }
+    state check_nested_crash_bound(index: i32) {
+        transition ((self.state_effects[index] & 2) != 0) && (self.parser.machine_states[index].crash_bound == 1) {
+            true -> incomplete(4, self.parser.machine_states[index].name.start)
             _ -> check_acknowledgements(index, self.state_incoming[index])
         }
     }
@@ -3764,7 +3780,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
         }
     }
     state check_block_marker(target: i32, edge: OmegaStateInvocation) {
-        transition (self.state_may_block[target] == 1) && ((edge.acknowledgements & 1) == 0) {
+        transition ((self.state_effects[target] & 1) != 0) && ((edge.acknowledgements & 1) == 0) {
             true -> reject(-1, 4, edge.coordinate)
             _ -> check_suspend_marker(target, edge)
         }
@@ -3785,7 +3801,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
     }
     state check_crash_bound(index: i32) {
         transition (self.machine_allows_trap[index] == 0) &&
-            (self.machine_may_trap[index] != 0) {
+            ((self.state_effects[self.parser.machine_items[index].first_state] & 2) != 0) {
             true -> incomplete(4, self.parser.machine_items[index].start)
             _ -> check_block_bound(index)
         }
@@ -3793,7 +3809,7 @@ machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i
 
     state check_block_bound(index: i32) {
         let bound: i32 = self.block_bounds[index];
-        transition (self.state_may_block[self.parser.machine_items[index].first_state] == 1) && ((bound == 0) ||
+        transition ((self.state_effects[self.parser.machine_items[index].first_state] & 1) != 0) && ((bound == 0) ||
             ((bound < 0) && (self.parser.machine_items[index].is_public != 0))) {
             true -> reject(-1, 4, self.parser.machine_items[index].start)
             _ -> check_crash_bounds(index + 1)

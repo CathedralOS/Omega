@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,322 lines / 872,007 bytes with SHA-256
-`5d355cb3902ffd568db559ba8bdd1140f88eb2be5a31e2b70582c58d505393b9`.
+manifest materializes 23,377 lines / 874,626 bytes with SHA-256
+`aaf4ca82c2d3eaa57fd6749fb98953c84b02d71d9d288428ad910e046302528e`.
 The manifest itself is 1,698 bytes, SHA-256
-`b3769db51b4cde4eb9f77e4dd7137d45ecb0748290596ce87f618d15c49f9e77`;
+`9f0f9966fc2905c8f54c7747f21dd08531c17452da6312133933177ac7935459`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -221,14 +221,16 @@ it does not claim general
 operator-declaration or package/core admission. Imports, custom operators and
 user domains remain unsupported. The core Trapping comparison family publishes
 `crashes Trap`, even though its emitted value computation is total. The compiler
-retains that conservative summary across all ordinary calls and nested states.
+propagates that summary through calls and terminal transitions to their callers.
+Each nested machine can declare its own unguarded crash ceiling. A disconnected
+helper still satisfies its own contract and contributes no route to its owner.
 An unguarded `crashes Trap` permits that route and publishes it to callers.
 Private checked bodies infer an omitted ceiling. Public bodies with an omitted
 ceiling and bodies declaring `crashes none` must discharge it. An explicit
 `crash Trap;` terminates the current activation abnormally, using Alpha's
 division-by-zero trap. The compiler checks unused declarations as well as
 the selected entry. A forbidden unconditional first crash in an unconstrained
-entry rejects. Possible routes needing a path proof still return Incomplete,
+entry rejects, including an uncalled nested entry. Possible routes needing a path proof still return Incomplete,
 as do guarded clauses and Abort. Full product effect admission remains open.
 [Effect admission](../../../wiki/spec/language/effects.md)
 A bare `blocks` or `blocks true` publishes a possible block on the machine
