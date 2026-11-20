@@ -346,7 +346,7 @@ pub(crate) fn open_products(
     })?;
     let preparation =
         begin_local_project_preparation(root, profiles, offline).map_err(|e| error(e.into()))?;
-    let workspace = project_build::output_directory::base(root, build_directory);
+    let workspace = product_publication::output_directory::base(root, build_directory);
     let mut session = PackageBuildSession::create(&workspace.join("package-manager"))
         .map_err(|e| error(e.into()))?;
     let result = (|| -> Result<_, PackageCommandError> {

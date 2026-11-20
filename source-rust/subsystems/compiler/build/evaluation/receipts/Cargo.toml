@@ -9,7 +9,7 @@ path = "native_binding.rs"
 
 [dependencies]
 record-storage = { path = "../../../../../foundation/record-storage" }
-evaluation-contracts = { path = "../usage" }
+evaluation-contracts = { path = "../accounting/contracts" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 psi-program-identity = { path = "../../../psi/program-identity" }
 wire = { path = "../../../../../foundation/wire" }

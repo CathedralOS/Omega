@@ -38,8 +38,8 @@ discovery, exact occurrence reuse, policy comparison and cache admission live
 here. Application Build runs the admitted dependency work through one
 whole-pass executor that commands and audit share. Package policy does not
 prepare Builds, publish components or finish compiler reviews.
-The independent [declaration](../compiler/build/build-declarations/README.md),
-[output](../compiler/build/build-output/README.md) and [compilation-input](../compiler/build/package-compilation/README.md)
+The independent [declaration](../compiler/build/inputs/declarations/README.md),
+[output](../compiler/build/inputs/trees/README.md) and [compilation-input](../compiler/build/inputs/README.md)
 packages sit below both the compiler and this crate, so the compiler does not
 depend on install/update code. Source acquisition creates input custody, the
 compiler records the exact source units it used, and review joins both to

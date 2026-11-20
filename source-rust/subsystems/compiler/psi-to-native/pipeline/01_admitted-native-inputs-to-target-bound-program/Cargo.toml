@@ -9,17 +9,17 @@ test-support = []
 
 [dependencies]
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
-evaluation-work = { path = "../../../build/evaluation/work" }
+evaluation-work = { path = "../../../build/evaluation/accounting/work" }
 native-execution-scope = { path = "execution-scope" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
-build-value-projection = { path = "../../../build/evaluation/value-projection" }
+build-value-projection = { path = "../../../build/evaluation/values/projection" }
 provider-acceptance = { path = "../../../build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 target-provider-admission = { path = "../../verification/target-providers" }
 provider-plans = { path = "../../../build/providers/plans" }
-evaluation-admission = { path = "../../../build/evaluation/admission" }
+evaluation-admission = { path = "../../../build/evaluation/authority/admission" }
 build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }
 psi-provider-selections = { path = "../../../psi/providers" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
@@ -33,7 +33,7 @@ build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 evaluation-accounting = { path = "../../../build/evaluation/accounting" }
-evaluation-contracts = { path = "../../../build/evaluation/usage" }
+evaluation-contracts = { path = "../../../build/evaluation/accounting/contracts" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }

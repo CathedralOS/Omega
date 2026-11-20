@@ -21,7 +21,7 @@ pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/16_objects-to-image/i
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/16_objects-to-image/native-artifact");
 pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
 pub(super) const PRODUCT_PUBLICATION: &str =
-    "source-rust/subsystems/compiler/build/build-output/product-publication";
+    "source-rust/subsystems/compiler/build/publication";
 
 pub(super) fn scoped_readers() -> Vec<Allowance> {
     let stages = &NATIVE_STAGES;

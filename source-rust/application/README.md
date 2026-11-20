@@ -12,7 +12,7 @@ the result into output and an exit status:
 
 [main.rs](src/main.rs) dispatches an invocation. [Arguments](src/arguments/mod.rs) owns command spelling. [Commands](src/commands/mod.rs) presents results and sets the shell exit status.
 
-For source inputs, the application acquires the project and services the requests its authored Build issues. Project planning opens the Product and hands its compiler request to the source pipeline. The saved-Psi reader decodes and authorizes an existing artifact for the native or interpreter entry. [Source project acquisition](src/project_sources.rs) · [Build planning](../subsystems/compiler/build/planning.rs) · [Saved Psi](src/saved_program.rs)
+For source inputs, the application acquires the project and services the requests its authored Build issues. Project planning opens the Product and hands its compiler request to the source pipeline. The saved-Psi reader decodes and authorizes an existing artifact for the native or interpreter entry. [Source project acquisition](src/project_sources.rs) · [Build planning](../subsystems/compiler/build/planning/mod.rs) · [Saved Psi](src/saved_program.rs)
 
 | Operation | Request and result |
 | --- | --- |

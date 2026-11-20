@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn production_code_running_registered_tests_still_needs_a_checked_invocation() {
         assert!(!is_test_source("build/planning/registered_tests.rs"));
-        assert!(is_test_source("build/execution/src/host/bindings/tests.rs"));
+        assert!(is_test_source("build/evaluation/host/bindings/tests.rs"));
     }
 
     #[test]

@@ -3,26 +3,25 @@ name = "project-build"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
-build = false
 
 [lib]
-path = "build.rs"
+path = "project.rs"
 
 [dependencies]
 review-evidence = { path = "../../package-manager/review/evidence" }
-optimization-requests = { path = "optimization-policy/requests" }
+optimization-requests = { path = "settings/optimizations" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
 source-declarations = { path = "../source-to-psi/representations/symbol-resolved-trees/declarations" }
-build-declarations = { path = "build-declarations" }
+build-declarations = { path = "inputs/declarations" }
 source-compiler = { path = "../source-to-psi" }
 artifacts = { path = "../foundation/measurements" }
-build-execution = { path = "execution" }
-package-compilation = { path = "package-compilation" }
+build-execution = { path = "evaluation" }
+package-compilation = { path = "inputs" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-runtime = { path = "../../interpreter/host" }
 target = { path = "../psi-to-native/targets/target" }
-product-publication = { path = "build-output/product-publication" }
+product-publication = { path = "publication" }
 compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }

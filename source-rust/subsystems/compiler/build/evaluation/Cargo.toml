@@ -1,0 +1,54 @@
+[package]
+name = "build-execution"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+[lib]
+path = "execution.rs"
+
+[dependencies]
+evaluation-work = { path = "accounting/work" }
+build-settings = { path = "../settings" }
+build-evaluation-result = { path = "result" }
+normalized-build-settings = { path = "../settings/normalized" }
+behavior-exclusion-requests = { path = "../settings/behavior-exclusions" }
+numeric-intrinsic-admission = { path = "../../psi-to-native/verification/numeric-intrinsics" }
+selected-provider-plans = { path = "../providers/selections" }
+psi-authorization = { path = "../../psi/authorization" }
+evaluation-admission = { path = "authority/admission" }
+psi-provider-selections = { path = "../../psi/providers" }
+build-scalar-evaluation = { path = "scalars" }
+build-time-values = { path = "values" }
+psi-target-layouts = { path = "../../psi/layout/admission" }
+declaration-scope = { path = "../../foundation/declaration-scope" }
+source-provenance = { path = "../../foundation/source-provenance" }
+optimization-requests = { path = "../settings/optimizations" }
+evaluation-contracts = { path = "accounting/contracts" }
+source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
+source-text = { path = "../../../../foundation/source-text" }
+evaluation-receipts = { path = "receipts" }
+terminal-interpreter = { path = "../../../interpreter" }
+terminal-work = { path = "../../psi/work" }
+terminal-codec = { path = "../../psi/codec" }
+syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }
+source-compiler = { path = "../../source-to-psi" }
+evaluation-accounting = { path = "accounting" }
+filesystem-authority = { path = "authority/filesystem" }
+artifacts = { path = "../../foundation/measurements" }
+build-output = { path = "../inputs/trees" }
+package-compilation = { path = "../inputs" }
+provider-admission = { path = "../../psi-to-native/verification/provider-admission" }
+interpreter-numeric-imports = { path = "../../../interpreter/numeric-imports" }
+target = { path = "../../psi-to-native/targets/target" }
+runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-psi = { path = "../../psi" }
+symbols = { path = "../../foundation/declaration-identity" }
+build-declarations = { path = "../inputs/declarations" }
+
+[dev-dependencies]
+tokens = { path = "../../source-to-psi/representations/tokens" }
+source-compiler = { path = "../../source-to-psi", features = ["test-support"] }
