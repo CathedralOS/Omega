@@ -10,21 +10,32 @@ use source_compiler::source_symbols::SourceScopedTopLevelBinding;
 use source_compiler::{StageSource, compile};
 use source_provenance::DependencyScope;
 use source_text::{SourceId, SourceSpan, Span};
+use std::path::Path;
 use std::sync::Arc;
 
-fn captured(package: PackageKeyIdentity, text: &str) -> (SourceMap, SourceId) {
-    let mut files = SourceMap::default();
-    let id = files
+fn capture_file(
+    files: &mut SourceMap,
+    owner: &str,
+    identity: PackageKeyIdentity,
+    name: &str,
+    text: &str,
+) -> SourceId {
+    files
         .add_checked_instance(
-            "product/main.omg".into(),
+            Path::new(owner).join(name),
             text,
-            "product".into(),
-            Some(package),
+            owner.into(),
+            Some(identity),
             SourceOrigin::User,
             SourceResolutionStratum::Base,
             DependencyScope::Product,
         )
-        .source_id;
+        .source_id
+}
+
+fn captured(package: PackageKeyIdentity, text: &str) -> (SourceMap, SourceId) {
+    let mut files = SourceMap::default();
+    let id = capture_file(&mut files, "product", package, "main.omg", text);
     (files, id)
 }
 
@@ -71,8 +82,10 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     assert_eq!(reopened.to_bytes(), bytes);
 }
 
-const OMEGA_REQUEST: &str = include_str!("../../../../../source/subsystems/compiler/request/request.omg");
-const OMEGA_OUTCOME: &str = include_str!("../../../../../source/subsystems/compiler/request/outcome.omg");
+const OMEGA_REQUEST: &str =
+    include_str!("../../../../../source/subsystems/compiler/request/request.omg");
+const OMEGA_OUTCOME: &str =
+    include_str!("../../../../../source/subsystems/compiler/request/outcome.omg");
 
 #[test]
 fn omega_compiler_storage_and_outcomes_publish_psi() {
@@ -99,43 +112,63 @@ fn omega_compiler_storage_and_outcomes_publish_psi() {
 #[ignore = "checks the complete request decoder and encoder together, which takes several minutes"]
 fn complete_omega_request_protocol_publishes_psi() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
-    let (mut files, root) = captured(package, OMEGA_REQUEST);
-    let outcome = files
-        .add_checked_instance(
-            "product/outcome.omg".into(),
-            OMEGA_OUTCOME,
-            "product".into(),
-            Some(package),
-            SourceOrigin::User,
-            SourceResolutionStratum::Base,
-            DependencyScope::Product,
-        )
-        .source_id;
-    let protocol = files.add_checked_instance(
-        "product/protocol.omg".into(),
+    let wire_package = PackageKeyIdentity::from_digest([0x62; 32]).unwrap();
+    let mut files = SourceMap::default();
+    let request = capture_file(&mut files, "compiler_request", package, "request.omg", OMEGA_REQUEST);
+    let outcome = capture_file(&mut files, "compiler_request", package, "outcome.omg", OMEGA_OUTCOME);
+    let protocol = capture_file(
+        &mut files,
+        "compiler_request",
+        package,
+        "protocol.omg",
         include_str!("../../../../../source/subsystems/compiler/request/protocol.omg"),
-        "product".into(),
-        Some(package),
-        SourceOrigin::User,
-        SourceResolutionStratum::Base,
-        DependencyScope::Product,
-    ).source_id;
-    let wire = files.add_checked_instance(
-        "wire/codec.omg".into(),
+    );
+    let wire = capture_file(
+        &mut files,
+        "wire",
+        wire_package,
+        "codec.omg",
         include_str!("../../../../../source/foundation/wire/codec.omg"),
-        "wire".into(),
-        PackageKeyIdentity::from_digest([0x62; 32]),
-        SourceOrigin::User,
-        SourceResolutionStratum::Base,
-        DependencyScope::Product,
-    ).source_id;
-    let mut stage = product(files, root, package, &[]);
+    );
+    let mut stage = product(files, request, package, &[]);
     stage.roots.extend([outcome, protocol, wire]);
     stage.imports.push(SourceScopedTopLevelBinding::logical_module_import(
         protocol, wire, "wire::u32_from_le_bytes", 1,
     ));
     let program = compile(stage).unwrap();
     assert!(!program.to_bytes().is_empty());
+}
+
+#[test]
+fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
+    let customer = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let psi = PackageKeyIdentity::from_digest([0x62; 32]).unwrap();
+    let import = "psi::representations::lowered_program::ScalarParameter";
+    let check = |body: &str| {
+        let (mut files, root) = captured(customer, &format!("use {import};\n{body}"));
+        let scalar = capture_file(
+            &mut files,
+            "psi",
+            psi,
+            "representations/lowered_program/scalar.omg",
+            include_str!("../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/scalar.omg"),
+        );
+        let layouts = capture_file(
+            &mut files,
+            "psi",
+            psi,
+            "representations/lowered_program/layouts.omg",
+            include_str!("../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/layouts.omg"),
+        );
+        let mut stage = product(files, root, customer, &[]);
+        stage.roots.extend([scalar, layouts]);
+        stage.imports.push(SourceScopedTopLevelBinding::logical_module_import(root, scalar, import, 1));
+        compile(stage)
+    };
+    let artifact = check("machine handle(p: ScalarParameter) -> u64 in Trapping { p.type_handle }").unwrap();
+    assert!(!artifact.to_bytes().is_empty());
+    let errors = check("machine handle(p: ScalarLayout) -> u64 in Trapping { p.size }").unwrap_err();
+    assert!(errors.iter().any(|d| d.message.contains("ScalarLayout")), "{errors:?}");
 }
 
 #[test]
