@@ -15,9 +15,15 @@ python3 tests/bootstrap/route.py /tmp/omega-three --gamma native --delta interpr
 
 The default control reads `Z`, writes it, and exits 90. All three routes
 must produce `00 5a 00 00 00 5a`. Use `--source FILE --stdin FILE` for your
-own Epsilon program and raw input. Use `--plan` to inspect the stages without
-running them. The plan shows which compiler runs, where it runs, and which
-runtime handoff is required. Interpreted Delta defaults to the direct interpreter.
+own Epsilon program and raw input. Add `--expect-observation FILE` to check
+the exact binary Epsilon result. An exit or trap runs the guest. A six-byte
+source rejection checks the frontend’s code and source offset on each route.
+The row records the SHA-256 of the supplied observation. Every completed
+invocation also records the executable and complete input digests, including
+single-route runs.
+
+Use `--plan` to inspect the stages without running them. The plan shows which
+compiler runs, where it runs, and which runtime handoff is required. Interpreted Delta defaults to the direct interpreter.
 Add `--delta-interpreter gamma` to translate Delta and interpret the emitted
 Gamma, as in the original interpreted route. [Route runner](../../../tests/bootstrap/route.py)
 
