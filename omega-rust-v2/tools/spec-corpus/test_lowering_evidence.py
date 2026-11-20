@@ -272,7 +272,7 @@ class ObligationTests(unittest.TestCase):
         self.assertEqual(observed["measurement_errors"], [])
 
     def test_a_failed_spec_aggregate_credits_each_example_only_by_its_own_receipt_without_reading_failure_text(self):
-        failed = result(SPEC_TARGET, SPEC_TEST, "FAILED", ["spec examples with open or unexpected outcomes:", "a.md:10: expected L5 lowered f"])
+        failed = result(SPEC_TARGET, SPEC_TEST, "FAILED", ["unexpected spec example outcomes:", "a.md:10: expected L5 lowered f"])
         cases = {"spec/a.md:1": {"stage": "L5", "status": "executable product inspected"},
                  "spec/a.md:10": {"stage": "L5", "status": "executable product inspected"},
                  "spec/a.md:20": {"stage": "L5", "status": "executable product inspected"}}
@@ -554,14 +554,12 @@ class SpecReceiptTests(unittest.TestCase):
                 self.assertEqual(standing[EXECUTABLE], "unreported")
 
     def test_a_passing_aggregate_cannot_carry_a_failing_receipt(self):
-        gap = receipt_line(GAP)
-        lines = [line for line in SPEC_CAPTURE if f"\t{PANIC}\t" not in line]
-        lines = [line.replace("OMEGA_EXPECTED\tspec\t6", "OMEGA_EXPECTED\tspec\t5") for line in lines]
-        examples, standing, _, errors = self.run_capture(lines, status="ok")
-        self.assertEqual(errors, [f"inconsistent spec example receipt for {GAP}: verdict known gap, but the aggregate passed"])
-        self.assertNotIn(GAP, examples)
+        examples, standing, _, errors = self.run_capture(status="ok")
+        self.assertEqual(errors, [f"inconsistent spec example receipt for {PANIC}: verdict panicked, but the aggregate passed"])
+        self.assertNotIn(PANIC, examples)
+        self.assertEqual(examples[GAP]["verdict"], "known gap")
+        self.assertEqual(standing[GAP], "partial")
         self.assertEqual(standing[EXECUTABLE], "confirmed")
-        self.assertIn(gap, lines)
 
 
 class FullRunTests(unittest.TestCase):

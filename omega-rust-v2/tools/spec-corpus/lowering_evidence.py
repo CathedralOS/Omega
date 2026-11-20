@@ -315,8 +315,7 @@ def spec_receipts(log, report, tests, errors):
     for label, receipt in sorted(raw.items()):
         case = cases.get(label)
         problem = "no spec case result" if case is None else receipt_inconsistency(case, receipt)
-        if not problem and aggregate == "ok" and receipt["verdict"] not in {"passed", "recorded refusal"} and not (
-                receipt["verdict"] == "known gap" and receipt["status"] == "missing context"):
+        if not problem and aggregate == "ok" and receipt["verdict"] not in {"passed", "recorded refusal", "known gap"}:
             problem = f"verdict {receipt['verdict']}, but the aggregate passed"
         if problem:
             errors.append(f"inconsistent spec example receipt for {label}: {problem}")

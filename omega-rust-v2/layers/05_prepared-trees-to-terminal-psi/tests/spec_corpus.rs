@@ -98,7 +98,6 @@ fn spec_fragments_have_reviewed_lowering_outcomes() {
                     failures.push(format!("{label}: expected {expected_frontend}, reached L5"));
                 }
                 let status = if outcome.starts_with("L5 open gap:") {
-                    failures.push(format!("{label}: {outcome}"));
                     "open gap"
                 } else if outcome.starts_with("L5 fragment only:") {
                     // Only produced after the machine-wrapped control met its witness.
@@ -205,9 +204,25 @@ fn spec_fragments_have_reviewed_lowering_outcomes() {
         .iter()
         .map(|(label, outcome)| (label.as_str(), outcome.as_str()))
         .collect();
+    let snapshot = compare_lowering_outcomes(&expected_lowering, &actual, &mut failures);
+    // Every frontend, snapshot and semantic check has now run for every example.
+    // An example's receipt states only its own checks, so a failure elsewhere in
+    // the corpus does not hide an example that completed them all.
+    for receipt in &mut receipts {
+        receipt.lowering = snapshot.get(receipt.label.as_str()).copied().unwrap_or("none");
+        receipt.report();
+    }
+    assert!(failures.is_empty(), "unexpected spec example outcomes:\n{}", failures.join("\n"));
+}
+
+fn compare_lowering_outcomes<'a>(
+    expected_lowering: &BTreeMap<&'a str, &str>,
+    actual: &BTreeMap<&'a str, &str>,
+    failures: &mut Vec<String>,
+) -> BTreeMap<&'a str, &'static str> {
     // The result of each snapshot comparison, by example label.
     let mut snapshot: BTreeMap<&str, &'static str> = BTreeMap::new();
-    for (label, recorded) in &expected_lowering {
+    for (label, recorded) in expected_lowering {
         let check = match actual.get(label) {
             Some(observed) if observed == recorded => "matched",
             Some(_) => "mismatched",
@@ -218,20 +233,35 @@ fn spec_fragments_have_reviewed_lowering_outcomes() {
         }
         snapshot.insert(*label, check);
     }
-    for (label, outcome) in &actual {
+    for (label, outcome) in actual {
         if !expected_lowering.contains_key(label) {
             failures.push(format!("{label}: unrecorded outcome {outcome}"));
             snapshot.insert(*label, "absent");
         }
     }
-    // Every frontend, snapshot and semantic check has now run for every example.
-    // An example's receipt states only its own checks, so a failure elsewhere in
-    // the corpus does not hide an example that completed them all.
-    for receipt in &mut receipts {
-        receipt.lowering = snapshot.get(receipt.label.as_str()).copied().unwrap_or("none");
-        receipt.report();
-    }
-    assert!(failures.is_empty(), "spec examples with open or unexpected outcomes:\n{}", failures.join("\n"));
+    snapshot
+}
+
+#[test]
+fn a_recorded_gap_requires_the_same_diagnostic_at_the_same_example() {
+    let expected = outcomes("a.md:10  L5 open gap: unsupported carrier | reader");
+    let original = expected["a.md:10"];
+    let mut failures = Vec::new();
+    let snapshot = compare_lowering_outcomes(&expected, &expected, &mut failures);
+    assert_eq!(snapshot["a.md:10"], "matched");
+    assert!(failures.is_empty());
+
+    let changed = BTreeMap::from([("a.md:10", "L5 open gap: different reason | reader")]);
+    let snapshot = compare_lowering_outcomes(&expected, &changed, &mut failures);
+    assert_eq!(snapshot["a.md:10"], "mismatched");
+    assert_eq!(failures.len(), 1);
+
+    failures.clear();
+    let moved = BTreeMap::from([("b.md:20", original)]);
+    let snapshot = compare_lowering_outcomes(&expected, &moved, &mut failures);
+    assert_eq!(snapshot["a.md:10"], "extra");
+    assert_eq!(snapshot["b.md:20"], "absent");
+    assert_eq!(failures.len(), 2);
 }
 
 /// The final status of one example after all of its checks ran.

@@ -18,7 +18,7 @@ Run `mbx test --locked -p omega-lowering --no-fail-fast -- --include-ignored` to
 
 ## Typed obligations to reconcile before sign-off
 
-The [spec corpus test](tests/spec_corpus.rs) runs each published example independently and reports all observed L5 open gaps and unexpected outcomes together. Its summary counts examples that stopped before L5, fragments missing package context, declarations and executable products separately. An open lowering gap now fails the run even when it matches the recorded diagnostic.
+The [spec corpus test](tests/spec_corpus.rs) runs each published example independently and reports all observed L5 open gaps and unexpected outcomes together. Its summary counts examples that stopped before L5, fragments missing package context, declarations and executable products separately. The workspace test requires the recorded outcome for each example. The readiness report counts each open lowering gap as a blocker, including those whose diagnostic matches the baseline.
 
 The prepared package exposes the following [typed obligation kinds](../../representations/typed/src/typed_tree/proofs/obligation_kind.rs). Some facts reach Psi through a declaration, type or edge. A row below identifies a place to verify that meaning. A nearby positive test alone cannot close all the obligations on its row.
 
