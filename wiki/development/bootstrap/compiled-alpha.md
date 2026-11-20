@@ -89,10 +89,19 @@ The route writes the public Gamma receipt, Alpha tape and observations under
 
 ### Running the whole Omega constructor on one tape
 
+The cold launcher used the original Gamma evaluator to compile the
+43,315-byte Alpha-targeting compiler source, SHA-256
+`afee5b7c75679386d30e483d4a627aeeca617f9c3de2dd637adc0474277cc007`.
+It produced a 207,681-byte compiler tape. Running that tape on its own
+source and repeating with its successor gave three byte-identical tapes,
+SHA-256 `c3274d349b53511e4a8bcd8624927d1d2aee3052f1212ed113234255f650f7e1`.
+
 The Gamma-to-Alpha compiler assembled the 25,733,081-byte Gamma constructor
 from `bcf71f0bbfc` into one 11,976,860-byte tape, SHA-256
 `172bd421b5c2cf334a7a5688c843e1e9dc24cefe11d7bb2b25a9d514ad17d491`.
-The uncompressed instructions occupy 57,004,893 bytes. The stamped program
+A seed-built Linux executable of the Gamma-to-Alpha compiler emitted this
+tape. The Alpha seed then ran the resulting constructor and both product
+tapes below. The uncompressed instructions occupy 57,004,893 bytes. The stamped program
 starts with a 340-byte Alpha decoder and a 3,840-byte dictionary. The seed
 runs the decoder itself. Programs that fit the seed directly keep their
 plain Alpha instructions. The Alpha backend grew from 3,681 to 11,814 bytes. Using the original Gamma interpreter to
@@ -141,8 +150,9 @@ python3 tests/bootstrap/independent/product_wire.py /tmp/omega-packed-wire --con
 To exercise the packed entry without assembling the Omega constructor, run
 `python3 tests/bootstrap/compiled_vm/source_test.py --compiler-only --large-alpha`.
 The control compiles 700 unused arithmetic definitions and a forward call.
-It checks byte output, a guest refusal, an arithmetic trap, and rejection
-of an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
+Its 21,467,587 ordinary instruction bytes produced a 5,030,606-byte tape.
+The stamped program matched byte output, a guest refusal and an arithmetic
+trap. The compiler rejected an invalid call in the last declaration. [Source](../../../tests/bootstrap/compiled_vm/source_test.py) ·
 [Whole-constructor input](../../../tests/bootstrap/independent/WHOLE_REQUEST.md)
 
 #### Checking the expanded instructions
