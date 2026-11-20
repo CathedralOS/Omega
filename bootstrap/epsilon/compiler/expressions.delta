@@ -37,17 +37,18 @@
         (epsilon_emit_call "epsilon_compiled_finish_scalar"
           (epsilon_emit_call "epsilon_evaluator_i32_outcome" negative))))))
 
-; A literal or checked scalar parameter read cannot trap or change effects.
+; Literals cannot trap or change effects. The pure convention also passes scalar
+; parameters as immutable values. Stored locals must still read their homes.
 ; Lower those values directly into a typed target temporary rather than
 ; constructing an outcome immediately followed by its four-case elimination.
-(def epsilon_delta_is_total_scalar ((expression EpsilonExpression)) Int
+(def epsilon_delta_is_total_scalar ((expression EpsilonExpression) (allowLocal Int)) Int
   (match expression
     ((EpsilonIntegerExpression start end literal) 1)
     ((EpsilonCharacterExpression start end literal) 1)
     ((EpsilonTrueExpression start end) 1)
     ((EpsilonFalseExpression start end) 1)
-    ((EpsilonNameExpression start end name) 1)
-    ((EpsilonGroupedExpression start end inner) (epsilon_delta_is_total_scalar inner))
+    ((EpsilonNameExpression start end name) allowLocal)
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_is_total_scalar inner allowLocal))
     ((EpsilonStringExpression start end literal) 0)
     ((EpsilonQualifiedExpression start end owner member arguments) 0)
     ((EpsilonFieldExpression start end base member) 0)
@@ -87,15 +88,17 @@
     ((EpsilonDeltaUnsupported offset) compilation)
     ((EpsilonDeltaInternal offset) compilation)))
 
+(def epsilon_emit_scalar_binding ((coordinate Int) (value Bytes) (continuation Bytes)) Bytes
+  (epsilon_emit_call "let" (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate)
+    (epsilon_emit_spaced "Int" (epsilon_emit_spaced value continuation)))))
+
 (def epsilon_delta_scalar_then ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (continuation Bytes)) EpsilonDeltaCompilation
   (let coordinate Int (epsilon_expression_start expression)
-    (if (epsilon_delta_is_total_scalar expression)
+    (if (epsilon_delta_is_total_scalar expression 1)
       (match (epsilon_delta_total_scalar context expression)
         ((EpsilonDeltaCompiled value)
-          (EpsilonDeltaCompiled (epsilon_emit_call "let"
-            (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate)
-              (epsilon_emit_spaced "Int" (epsilon_emit_spaced value continuation))))))
+          (EpsilonDeltaCompiled (epsilon_emit_scalar_binding coordinate value continuation)))
         ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
         ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
         ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))

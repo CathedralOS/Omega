@@ -57,26 +57,50 @@
     (EpsilonDeltaShortOnTrue (epsilon_delta_stored_logical_left coordinate "1" rightText))
     (EpsilonDeltaShortOnFalse (epsilon_delta_stored_logical_left coordinate "0" rightText))))
 
-(def epsilon_delta_stored_binary ((context EpsilonDeltaContext)
-  (operator EpsilonBinaryOperator) (left EpsilonExpression) (right EpsilonExpression)
-  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
-  (match (epsilon_delta_stored_expression context left store output)
-    ((EpsilonDeltaCompiled leftText)
-      (let leftCoordinate Int (epsilon_expression_start left)
-        (let rightCoordinate Int (epsilon_expression_start right)
-          (match (epsilon_delta_stored_expression context right
-            (epsilon_emit_generated "store" leftCoordinate) (epsilon_emit_generated "output" leftCoordinate))
-            ((EpsilonDeltaCompiled rightText)
-              (let next Bytes (epsilon_emit_stored_scalar_then rightCoordinate rightText
-                (epsilon_delta_stored_binary_result operator leftCoordinate rightCoordinate))
-                (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then leftCoordinate leftText
-                  (epsilon_delta_stored_binary_left operator leftCoordinate next)))))
+; A literal contributes its checked scalar and passes the incoming store and
+; output through. Other operands can change either effect or stop the expression.
+(def epsilon_delta_stored_operand ((context EpsilonDeltaContext) (expression EpsilonExpression)
+  (literal Int) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (if literal (epsilon_delta_total_scalar context expression)
+    (epsilon_delta_stored_expression context expression store output)))
+
+(def epsilon_emit_stored_operand_then ((literal Int) (coordinate Int) (text Bytes)
+  (store Bytes) (output Bytes) (continuation Bytes)) Bytes
+  (if literal
+    (epsilon_emit_scalar_binding coordinate text
+      (epsilon_emit_stored_alias_effects coordinate store output continuation))
+    (epsilon_emit_stored_scalar_then coordinate text continuation)))
+
+(def epsilon_delta_stored_binary_right ((context EpsilonDeltaContext) (operator EpsilonBinaryOperator)
+  (leftCoordinate Int) (right EpsilonExpression)) EpsilonDeltaCompilation
+  (let rightCoordinate Int (epsilon_expression_start right)
+    (let literal Int (epsilon_delta_is_total_scalar right 0)
+      (let store Bytes (epsilon_emit_generated "store" leftCoordinate)
+        (let output Bytes (epsilon_emit_generated "output" leftCoordinate)
+          (match (epsilon_delta_stored_operand context right literal store output)
+            ((EpsilonDeltaCompiled text)
+              (EpsilonDeltaCompiled (epsilon_emit_stored_operand_then literal rightCoordinate text
+                store output (epsilon_delta_stored_binary_result operator leftCoordinate rightCoordinate))))
             ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
             ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
-    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
-    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))
+
+(def epsilon_delta_stored_binary ((context EpsilonDeltaContext) (operator EpsilonBinaryOperator)
+  (left EpsilonExpression) (right EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let leftCoordinate Int (epsilon_expression_start left)
+    (let literal Int (epsilon_delta_is_total_scalar left 0)
+      (match (epsilon_delta_stored_operand context left literal store output)
+        ((EpsilonDeltaCompiled leftText)
+          (match (epsilon_delta_stored_binary_right context operator leftCoordinate right)
+            ((EpsilonDeltaCompiled rightText)
+              (EpsilonDeltaCompiled (epsilon_emit_stored_operand_then literal leftCoordinate leftText
+                store output (epsilon_delta_stored_binary_left operator leftCoordinate rightText))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
 
 (def epsilon_delta_stored_nonpure ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
