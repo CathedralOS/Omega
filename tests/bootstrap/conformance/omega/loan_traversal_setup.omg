@@ -1,24 +1,56 @@
-// The harness supplies the product's holds_references machine. Observe its
-// original handle, the initial offset, and both borrowed buffer addresses.
+// The two product traversal machines receive a small type table. One array
+// contains a reference and one contains an empty type. The latter must walk
+// back to its parent and terminate after visiting its only element.
 public data SyntaxTrees [copy] { marker: u8; }
-public data Typing [copy] { marker: u8; }
-
-machine walk_reference_types(syntax: @SyntaxTrees, typing: @Typing,
-    handles: @mut [u64 in Trapping; 9], offsets: @mut [u64 in Trapping; 9]) -> bool
-{
-    let initial: u64 in Trapping = handles[0];
-    offsets[0] = 1 as +Trapping;
-    let still: u64 in Trapping = handles[0];
-    let last: u64 in Trapping = offsets[8];
-    transition ((initial as -Trapping) == 42) && ((still as -Trapping) == 42) && ((last as -Trapping) == 0) {
-        true -> true,
-        _ -> false
-    }
+public data TypeTable [copy] { marker: u8; }
+public data Typing [copy] { types: TypeTable; }
+data TypeKind [copy] { case Empty; case Reference; case Array; case Data; }
+data TypeRow [copy] {
+    kind: TypeKind;
+    inner: u64 in Trapping;
+    item: u64 in Trapping;
+    argument_count: u64 in Trapping;
+    first_argument: u64 in Trapping;
 }
+data DataItem [copy] { field_count: u64 in Trapping; first_field: u64 in Trapping; }
+data DataField [copy] { type_reference: u64 in Trapping; }
+
+machine type_table_row(table: @TypeTable, handle: u64 in Trapping) -> TypeRow {
+    transition (handle as -Trapping) {
+        1 -> array(42 as +Trapping),
+        2 -> array(7 as +Trapping),
+        42 -> reference(),
+        _ -> empty()
+    }
+    machine array(inner: u64 in Trapping) -> TypeRow {
+        let mut row: TypeRow;
+        row.kind = TypeKind::Array;
+        row.inner = inner;
+        row
+    }
+    machine reference() -> TypeRow {
+        let mut row: TypeRow;
+        row.kind = TypeKind::Reference;
+        row
+    }
+    machine empty() -> TypeRow { let row: TypeRow; row }
+}
+
+machine syntax_trees_data_item(syntax: @SyntaxTrees, handle: u64 in Trapping) -> DataItem {
+    let item: DataItem;
+    item
+}
+machine syntax_trees_field(syntax: @SyntaxTrees, handle: u64 in Trapping) -> DataField {
+    let field: DataField;
+    field
+}
+machine reference_type(typing: @Typing, reference: u64 in Trapping) -> u64 in Trapping { reference }
+machine type_table_argument(table: @TypeTable, handle: u64 in Trapping) -> u64 in Trapping { handle }
 
 machine main() -> u8 crashes Trap {
     let syntax: SyntaxTrees;
     let typing: Typing;
-    let result: bool = holds_references(@syntax, @typing, 42 as +Trapping);
-    transition result { true -> 42, _ -> 1 }
+    let contains_reference: bool = holds_references(@syntax, @typing, 1 as +Trapping);
+    let contains_empty: bool = holds_references(@syntax, @typing, 2 as +Trapping);
+    transition contains_reference && !contains_empty { true -> 42, _ -> 1 }
 }
