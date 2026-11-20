@@ -25,10 +25,18 @@ def check_tape(work, data, seconds, name="wire", expected=42):
     print(f"{name} exited {expected}. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
 
 
+def declarations(file, signatures):
+    source = file.read_bytes()
+    for signature in signatures:
+        start = source.index(signature.encode())
+        end = source.index(b"\n}", start) + 2
+        yield source[start:end]
+
+
 def signed_mask_checker_input(encode):
     compiler = ROOT / "source/subsystems/compiler/source_to_psi"
     checker = compiler / "pipeline/typed_trees_to_checked_trees"
-    declarations = [
+    files = [
         (compiler / "foundation/integers.omg",
          ("public data ExactInteger ", "public machine exact_integer_negate(", "public machine exact_integer_at_most(")),
         (checker / "zone.omg", ("public data Bound ", "public machine bound_at_most(")),
@@ -36,15 +44,17 @@ def signed_mask_checker_input(encode):
          ("public data Value ", "public machine value_unknown(", "public machine value_constant(",
           "public machine value_nonnegative(", "machine pick(", "public machine value_conjunction(")),
     ]
-    units = []
-    for file, signatures in declarations:
-        source = file.read_bytes()
-        for signature in signatures:
-            start = source.index(signature.encode())
-            end = source.index(b"\n}", start) + 2
-            units.append(source[start:end])
+    units = [unit for file, signatures in files for unit in declarations(file, signatures)]
     cases = ROOT / "tests/bootstrap/independent/fixtures/interval/signed_mask.omg"
     source = b"\n".join(units) + b"\n\n" + cases.read_bytes()
+    return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
+
+
+def core_low_bytes_input(encode):
+    core = ROOT / "source/library/core/numeric_conversion.omg"
+    functions = [f"public machine narrow_u64_to_u{bits}_wrapping(" for bits in (8, 16, 32)]
+    cases = ROOT / "tests/bootstrap/independent/fixtures/interval/low_bytes.omg"
+    source = b"\n".join([*declarations(core, functions), cases.read_bytes()])
     return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
 
 
@@ -119,6 +129,18 @@ def main():
     if args.omega_constructor:
         runner = args.omega_constructor.resolve(strict=True)
         check_build_source_ownership(encode, runner, work, args.seconds)
+        mask_request = core_low_bytes_input(encode)
+        (work / "core-low-bytes.stdin").write_bytes(mask_request)
+        status, tape = execute(runner, mask_request, args.seconds)
+        if status:
+            raise SystemExit(f"Omega constructor refused core low-byte conversions with exit {status}")
+        check_tape(work, tape, args.seconds, "core-low-bytes")
+        too_wide = (b"machine convert(value:u64)->u8 {(value & 0x1FF) as u8} "
+                    b"machine main()->u8 {convert(0x100)}")
+        wide_request = encode([("app", 0)], [], [(0, too_wide)], 0, b"main", paths=["main.omg"])[0]
+        (work / "nine-bit-byte-cast.stdin").write_bytes(wide_request)
+        if execute(runner, wide_request, args.seconds) != (247, b""):
+            raise SystemExit("nine-bit mask must fail the u8 fit check before publication")
         status, output = execute(runner, linked, args.seconds)
         if status:
             raise SystemExit(f"Omega constructor refused linked wire package with exit {status}")

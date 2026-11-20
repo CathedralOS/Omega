@@ -30,6 +30,9 @@ public data ScalarOperationKind [copy] {
     case ReturnValue;
     case ReturnUnit;
     case Trap;
+    // Read the low bytes of an evaluated word. The mask lowerer selects
+    // widths 1, 2 and 4; the Alpha word slot itself is eight bytes.
+    case LowBytes;
 }
 
 public data ScalarOperation [copy] {

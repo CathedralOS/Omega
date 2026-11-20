@@ -110,11 +110,17 @@ crashes Trap
     }
 }
 
+machine alpha_slot_address(emitter: @mut AlphaEmitter, offset: u64 in Trapping, register: u8)
+crashes Trap
+{
+    alpha_immediate(emitter, register, offset * 8);
+    alpha_registers(emitter, 3, register, 251);
+}
+
 machine alpha_slot(emitter: @mut AlphaEmitter, offset: u64 in Trapping, register: u8, store: bool)
 crashes Trap
 {
-    alpha_immediate(emitter, 2, offset * 8);
-    alpha_registers(emitter, 3, 2, 251);
+    alpha_slot_address(emitter, offset, 2);
     transition store {
         true -> write(emitter, register),
         _ -> read(emitter, register)
@@ -215,7 +221,7 @@ crashes Trap
 machine alpha_load_width(emitter: @mut AlphaEmitter, width: u64 in Trapping)
 crashes Trap
 {
-    transition width {
+    transition width as -Trapping {
         1 -> byte(emitter),
         2 -> narrow(emitter, 2),
         4 -> narrow(emitter, 4),
@@ -260,7 +266,7 @@ crashes Trap
 machine alpha_store_width(emitter: @mut AlphaEmitter, width: u64 in Trapping)
 crashes Trap
 {
-    transition width {
+    transition width as -Trapping {
         1 -> byte(emitter),
         2 -> narrow(emitter, 2),
         4 -> narrow(emitter, 4),
@@ -549,6 +555,7 @@ crashes Trap
 machine alpha_keeps_value(kind: ScalarOperationKind) -> bool {
     transition kind {
         ScalarOperationKind::IntegerConstant -> yes(),
+        ScalarOperationKind::LowBytes -> yes(),
         ScalarOperationKind::ExactIntegerAdd -> yes(),
         ScalarOperationKind::ExactIntegerSubtract -> yes(),
         ScalarOperationKind::ExactIntegerMultiply -> yes(),
@@ -573,6 +580,7 @@ crashes Trap
 {
     transition operation.kind {
         ScalarOperationKind::IntegerConstant -> constant(emitter, operation.left),
+        ScalarOperationKind::LowBytes -> low_bytes(emitter, body, operation),
         ScalarOperationKind::Call -> call(emitter, program, body, operation),
         ScalarOperationKind::FrameAddress -> address(emitter, body, operation.left),
         ScalarOperationKind::AddressOffset -> offset(emitter, body, operation),
@@ -604,6 +612,12 @@ crashes Trap
         alpha_immediate(emitter, 2, operation.extra);
         alpha_registers(emitter, 5, 1, 2);
         alpha_registers(emitter, 3, 0, 1);
+    }
+    machine low_bytes(emitter: @mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        // Alpha words are little endian. The first bytes of the source slot
+        // have exactly the masked value, including when its high bit is set.
+        alpha_slot_address(emitter, operation.left - body.first, 0);
+        alpha_load_width(emitter, operation.extra);
     }
     machine load(emitter: @mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
         alpha_slot(emitter, operation.left - body.first, 0, false);
