@@ -1,17 +1,11 @@
 // User-facing error variants for every way a `build.omg` file can fail syntax
 // projection.
 
-use crate::BuildDeclarationKind;
+use build_declarations::BuildDeclarationKind;
 use std::fmt;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildDeclarationError {
-    MissingBuildFile { path: PathBuf },
-    ReadBuildFile { path: PathBuf, message: String },
-    InvalidBuildFileEncoding { path: PathBuf },
-    Lex { message: String },
-    Parse { message: String },
     AuthoredToolchainVocabulary { name: String },
     ScopedBuildMachine { scope: String },
     DuplicateBuildMachines { count: usize },
@@ -33,8 +27,6 @@ pub enum BuildDeclarationError {
     DuplicateArtifactOnlyDeclarations { count: usize },
     ArtifactOnlyRequiresApplication { found: BuildDeclarationKind },
     MissingBuildDeclaration,
-    MissingPackageDeclaration,
-    ExpectedPackageDeclaration { found: BuildDeclarationKind },
     DuplicatePackageDeclarations { count: usize },
     DuplicateApplicationDeclarations { count: usize },
     MixedBuildDeclarations,
@@ -50,17 +42,6 @@ pub enum BuildDeclarationError {
 impl fmt::Display for BuildDeclarationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingBuildFile { path } => {
-                write!(formatter, "package build file is missing: {}", path.display())
-            }
-            Self::ReadBuildFile { path, message } => {
-                write!(formatter, "cannot read {}: {message}", path.display())
-            }
-            Self::InvalidBuildFileEncoding { path } => {
-                write!(formatter, "{} is not UTF-8 Omega source", path.display())
-            }
-            Self::Lex { message } => write!(formatter, "cannot lex package build: {message}"),
-            Self::Parse { message } => write!(formatter, "cannot parse package build: {message}"),
             Self::AuthoredToolchainVocabulary { name } => write!(
                 formatter,
                 "package build must not declare toolchain package vocabulary `{name}`"
@@ -130,14 +111,6 @@ impl fmt::Display for BuildDeclarationError {
             ),
             Self::MissingBuildDeclaration => formatter.write_str(
                 "build must declare exactly one kind through `Build::package`, `Build::application`, or one or more `Build::member` statements",
-            ),
-            Self::MissingPackageDeclaration => formatter.write_str(
-                "package build must contain one direct `Build::package(builder, \"kebab_name\")` declaration",
-            ),
-            Self::ExpectedPackageDeclaration { found } => write!(
-                formatter,
-                "expected a package build declaration, found an explicit {} declaration",
-                found.as_str()
             ),
             Self::DuplicatePackageDeclarations { count } => {
                 write!(formatter, "package build declares its package name {count} times")

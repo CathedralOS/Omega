@@ -5,10 +5,8 @@
 use crate::declarations::dependencies::read::{
     DependencyPurpose, DependencySourceRequest, PackageSelection,
 };
-use build_declarations::{
-    BUILD_TYPE_NAME, DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER,
-    FROM_SOURCE_HELPER_NAME, WITH_ALIAS_HELPER_NAME,
-};
+use build_declarations::{BUILD_TYPE_NAME};
+use crate::declarations::editable_build::{DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, FROM_SOURCE_HELPER_NAME, WITH_ALIAS_HELPER_NAME};
 
 use super::BUILDER_PARAMETER_NAME;
 

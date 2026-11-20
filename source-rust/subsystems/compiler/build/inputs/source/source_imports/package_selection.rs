@@ -10,7 +10,7 @@
 //   we reject immediately and name the `Build::dependency` / `Build::build_dependency`
 //   registration needed to authorize it rather than falling back to a requester-local path.
 // - If an import has no requester-local source and its first segment spells a known
-//   package in the closure or bundled library roster, we retain `MissingDependencyEdge`
+//   package in the captured closure, we retain `MissingDependencyEdge`
 //   diagnostic metadata so exact-target resolution reports the missing dependency
 //   declaration when neither generated nor physical source exists.
 
@@ -316,57 +316,12 @@ fn known_package_spelling(
     requester: semantic_vocabulary::PackageKeyIdentity,
     first: &str,
 ) -> Option<String> {
-    let mut closure = packages
+    packages
         .packages()
         .map(|(identity, _)| identity)
-        .filter(|identity| *identity != requester)
-        .filter(|identity| {
-            packages
-                .package_name(*identity)
-                .is_some_and(|name| default_alias_spelling(name) == first)
-        })
-        .collect::<Vec<_>>();
-    closure.sort();
-    if let Some(identity) = closure.first() {
-        return Some(packages.package_label(*identity));
-    }
-    bundled_package_roster()
-        .into_iter()
-        .find(|(name, _)| default_alias_spelling(name) == first)
-        .map(|(name, _)| format!("`{name}` (bundled)"))
-}
-
-fn default_alias_spelling(package_name: &str) -> &str {
-    package_name
-}
-
-fn bundled_package_roster() -> Vec<(String, PathBuf)> {
-    let Some(entries) = super::bundled_omega_root()
-        .ok()
-        .and_then(|root| std::fs::read_dir(root).ok())
-    else {
-        return Vec::new();
-    };
-    let mut roster = entries
-        .flatten()
-        .filter_map(|entry| {
-            let root = entry.path();
-            let build_source = std::fs::read_to_string(root.join("build.omg")).ok()?;
-            let name = declared_package_name(&build_source)?;
-            Some((name, root))
-        })
-        .collect::<Vec<_>>();
-    roster.sort();
-    roster
-}
-
-fn declared_package_name(build_source: &str) -> Option<String> {
-    let build_declarations::BuildDeclaration::Package(declaration) =
-        build_declarations::project_build_declaration_from_source(build_source).ok()?
-    else {
-        return None;
-    };
-    Some(declaration.name.into_string())
+        .filter(|identity| *identity != requester && packages.package_name(*identity) == Some(first))
+        .min()
+        .map(|identity| packages.package_label(identity))
 }
 
 #[cfg(test)]
@@ -380,8 +335,7 @@ mod tests {
     use source_text::SourceId;
     use std::sync::Arc;
 
-    #[test]
-    fn core_local_import_keeps_its_logical_path_and_issued_contract_precedence() {
+    fn captured_root() -> (semantic_vocabulary::PackageKeyIdentity, PackageCompilationInputs) {
         let identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap();
         let package = PackageSourceBinding::new(
             identity,
@@ -406,6 +360,19 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
+        (identity, packages)
+    }
+
+    #[test]
+    fn unrelated_bundled_packages_do_not_supply_missing_alias_diagnostics() {
+        let (root, packages) = captured_root();
+        assert_eq!(known_package_spelling(&packages, root, "omega_language_std"), None);
+        assert_eq!(known_package_spelling(&packages, root, "local_route_test"), None);
+    }
+
+    #[test]
+    fn core_local_import_keeps_its_logical_path_and_issued_contract_precedence() {
+        let (_, packages) = captured_root();
         let mut syntax = SourceSyntax::default();
         let parsed = SourceInput(
             [LoadedSource {

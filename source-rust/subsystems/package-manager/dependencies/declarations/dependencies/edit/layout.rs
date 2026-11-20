@@ -6,10 +6,8 @@ use crate::declarations::dependencies::edit::{
     BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
 };
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use build_declarations::{
-    BUILD_TYPE_NAME, DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER,
-    DependencyOperation, FROM_SOURCE_HELPER_NAME,
-};
+use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
+use crate::declarations::editable_build::{DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, FROM_SOURCE_HELPER_NAME};
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use tokens::{PunctuationKind, TokenKind, TokenStream};

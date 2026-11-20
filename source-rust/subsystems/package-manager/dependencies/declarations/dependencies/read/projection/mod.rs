@@ -11,7 +11,7 @@ source identity or a declaration from an interpreted activation.
 use super::error::DependencyProjectionError;
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use super::{DependencyPurpose, DependencySourceRequest};
-use build_declarations as shared;
+use crate::declarations::editable_build;
 use syntax_trees::SyntaxTrees;
 
 mod calls;
@@ -43,9 +43,9 @@ fn project_editable_dependencies(
     syntax_trees: &SyntaxTrees,
 ) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
     reject_authored_toolchain_vocabulary(syntax_trees)?;
-    let build_entry = match shared::project_build_entry_syntax(syntax_trees) {
+    let build_entry = match editable_build::project_build_entry_syntax(syntax_trees) {
         Ok(projection) => projection,
-        Err(error @ shared::BuildDeclarationError::MissingBuildDeclaration) => {
+        Err(error @ editable_build::BuildDeclarationError::MissingBuildDeclaration) => {
             reject_unprojected_dependency_syntax(syntax_trees, &[], &[], &[])?;
             return Err(map_build_declaration_error(error));
         }
@@ -58,7 +58,7 @@ fn project_editable_dependencies(
         &dependencies.accepted_sources,
         &dependencies.accepted_calls,
     )?;
-    shared::project_build_declaration_in_entry(syntax_trees, build_entry)
+    editable_build::project_build_declaration_in_entry(syntax_trees, build_entry)
         .map_err(map_build_declaration_error)?;
     Ok(dependencies.requests)
 }
