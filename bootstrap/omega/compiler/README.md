@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,702 lines / 890,302 bytes with SHA-256
-`7860b04d47b2963183db6a5f690f496cdde7eab7ec4a8dd287314b253d6a0691`.
+manifest materializes 23,707 lines / 890,604 bytes with SHA-256
+`32463136fdcc0ea4f4080bf421e69c194204ac3e20b817574b1db49ce12cf1fc`.
 The manifest itself is 1,698 bytes, SHA-256
-`f598b353f6a7e0a33297b00594c06653f27232bbb912c5a749a5f0f48f4699b5`;
+`8ac64eee0c6eb624860d64d675a7d8a9749813327d16db6eddd4bf1c3dec66f8`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -300,8 +300,8 @@ evaluate their fields in authored order; arguments evaluate left to right and
 copy values into distinct staging storage before the next call can overwrite
 its result. No affine record moves or partial initialization are admitted yet.
 Fixed arrays may be retained, zero-established and copied inside these records.
-Fixed arrays of `u8` and copy records support indexed reads and whole-element
-writes through a checked core operation plan. The plan retains the concrete
+Fixed arrays of `u8`, bare `u64`, and copy records support indexed reads and
+whole-element writes through a checked core operation plan. The plan retains the concrete
 element type, layout stride, array length, collection, selector, access mode,
 parent backing and bounds evidence. An indexed record can supply a named field
 in an rvalue. Each field suffix retains its base expression and name span. The
@@ -310,7 +310,9 @@ checked field offset. Whole-record stores copy exactly one element while the
 loan covers the parent array. Explicit shared or mutable removal of the array
 shell's `Trapping` domain preserves element types
 and closes its empty restoration debt. Reads use shared views and writes use
-mutable views; other reference attenuation remains unsupported. Other domains,
+mutable views; other reference attenuation remains unsupported. A bare `u64`
+array local without an initializer uses zero-initialized storage and the same
+checked selectors and element stride as a record field. Other domains,
 range views and structural
 equivalence of separately spelled array value types remain unsupported.
 
