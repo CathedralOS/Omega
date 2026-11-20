@@ -90,7 +90,7 @@ public machine main()->u8 crashes Trap {
         ('bad-guard', caller.replace(b'word >= 0 && word <= 255 {true', b'word <= 255 {true'), declaration,
          (0, b'machine decode', 2)),
         ('forbidden-crash', caller.replace(b'public machine main()->u8 crashes Trap', b'public machine main()->u8 crashes none'),
-         declaration, (0, b'public machine main', 1)),
+         declaration, (0, b'public machine main', 2)),
     ]:
         inputs = [(0, app), (1, broad), (2, tighter)]
         wire, _, _, rows = encode([('app', 0), ('broad', 0), ('other', 0)], [(0, 1, 'api'), (0, 2, 'strict')],
