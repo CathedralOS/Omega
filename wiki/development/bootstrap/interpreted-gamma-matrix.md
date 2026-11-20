@@ -308,9 +308,12 @@ Each produced the same 2,204,117-byte Alpha tape, SHA-256
 | Gamma compiler running on Alpha | 48.749 | 403.606 | 182.8 |
 | Gamma compiler running on Linux x86-64 | 7.869 | 54.205 | 182.5 |
 
-The original host read the emitter as Gamma source. The other two used a
-compiled emitter. To overlap the two long builds, Alpha emission began with an
-independently produced evaluator. The complete 753,279-byte input matched byte
+The original host read the emitter with the same 48,043-byte Beta interpreter
+used for the Delta build. The Alpha-hosted compiler reused the emitter's
+35,345 bytes of source for its own fixed point. The Linux host shared the
+frontend and lowering and added an 8,703-byte x86-64 backend.
+To overlap the two long builds, Alpha emission began with an independently
+produced evaluator. The complete 753,279-byte input matched byte
 for byte when reconstructed from the fresh Delta result, SHA-256
 `ce4fbd4ffaa784c885eb67598fb0131c65eee6c94fecbdfa0c3c3e5d0b906e58`. The earlier
 `4a46aff75770` run reached its 4,500-second wall limit before producing a tape.
@@ -326,3 +329,30 @@ the independent replay on the Linux-produced tape.
 Replay on `9e902e188371`, which has the same bootstrap tree, with
 `python3 tests/bootstrap/route.py NEW --gamma interpret --delta alpha --epsilon interpret --case omega-byte-classes --seconds 16300`.
 Use `omega-wrong-base` in a fresh directory for the paired refusal.
+
+### Run the generated evaluator directly on Gamma
+
+The `--delta-interpreter gamma` route lets the Beta-written interpreter execute
+the same 717,930-byte generated Epsilon evaluator. The table starts after the
+shared Delta-to-Gamma build and gives CPU seconds. The seed-stamped Gamma
+interpreter had SHA-256
+`e0e5046e537ce578f7b9b816a5fd52522cfd094441f2eea92a822e93652e2833`.
+It read Delta compiler source with SHA-256
+`ceb6e8bfe734e581afcdf1b06a07093d3f6a6cb5b9673b0ced907d184dfef3f4`.
+
+| Route after Delta emits Gamma | Build the Alpha evaluator | All 256 bytes | Wrong-base refusal |
+| --- | ---: | ---: | ---: |
+| Interpret the generated Gamma | 0 | 703.145 | 14.662 |
+| Emit Alpha using original Gamma, then run the tape | 784.047 | 31.727 | 0.634 |
+
+The 721,990-byte framed Gamma invocation had SHA-256
+`e327fd34bcd48808c3dfd3f0dbe5297305390b3667fb7b7c894e9c6576b4c38b`.
+It ran the same 3,748-byte classifier on all 256 bytes and returned the same 3,077-byte observation. The original host
+took 7,193.823 elapsed seconds on the shared host. The wrong-base packet
+returned the same six-byte type refusal at byte 2,032 in 144.988 elapsed
+seconds. The framed refusal request had SHA-256
+`4ca848e67feff76bd1f18100e11cb93c0265044746e46b9a255e9d5f91b2f595`.
+
+The 27-route table uses direct Delta interpretation in its interpret column.
+This alternate executes Delta-generated Gamma. Replay either case above with
+`--gamma interpret --delta interpret --delta-interpreter gamma --epsilon interpret`.
