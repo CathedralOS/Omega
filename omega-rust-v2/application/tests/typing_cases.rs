@@ -7,6 +7,49 @@
 mod diagnostic_twins;
 use diagnostic_twins::{Case, check};
 
+mod direct_call_pause {
+    use super::*;
+    use omega_typer::DirectCallPauseError::{self, *};
+
+    fn check_pause(effect: &str, good_caller: &str, bad_caller: &str, reason: &str, cause: DirectCallPauseError) {
+        let source = |caller: &str| format!("machine work() {effect} {{}}\n{caller}");
+        diagnostic_twins::check_with_reason(Case {
+            layer: "L3",
+            producer: "typer",
+            good: &[("pause.omg", &source(good_caller))],
+            bad: &[("pause.omg", &source(bad_caller))],
+            file: "pause.omg",
+            occurrence: "work()",
+            reason,
+            rule: "Evidence and effects",
+        }, None, Some(cause.into()));
+    }
+
+    #[test]
+    fn missing_block() {
+        check_pause("blocks", "machine f(){block work()}", "machine f(){work()}",
+            "call requires a block acknowledgement", MissingBlockAcknowledgement);
+    }
+
+    #[test]
+    fn missing_suspend() {
+        check_pause("suspends", "machine f(){suspend work()}", "machine f(){work()}",
+            "call requires a suspend acknowledgement", MissingSuspendAcknowledgement);
+    }
+
+    #[test]
+    fn blocking_ceiling() {
+        check_pause("blocks", "public machine f() blocks {block work()}", "public machine f(){block work()}",
+            "call exceeds the machine's blocking ceiling", ExceedsBlockingCeiling);
+    }
+
+    #[test]
+    fn suspension_ceiling() {
+        check_pause("suspends", "public machine f() suspends {suspend work()}", "public machine f(){suspend work()}",
+            "call exceeds the machine's suspension ceiling", ExceedsSuspensionCeiling);
+    }
+}
+
 #[test]
 fn domain_membership_checks_the_declared_carrier() {
     check(Case {
@@ -579,15 +622,27 @@ machine release(h: Handle) { let Handle { mark as _ } = h; }
     );
 }
 
+fn check_crash(good: &str, bad: &str, occurrence: &str, reason: &str, cause: omega_typer::CrashDeclarationError) {
+    diagnostic_twins::check_with_reason(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("main.omg", good)],
+        bad: &[("main.omg", bad)],
+        file: "main.omg",
+        occurrence,
+        reason,
+        rule: "Evidence and effects",
+    }, None, Some(cause.into()));
+}
+
 #[test]
 fn crashes_none_rejects_a_route_guard() {
-    check_source_change(
+    check_crash(
         "machine f() crashes none {}\n",
-        "crashes none",
-        "crashes none true",
+        "machine f() crashes none true {}\n",
         "crashes none true",
         "crashes none cannot carry a route guard",
-        "Evidence and effects",
+        omega_typer::CrashDeclarationError::GuardOnNone,
     );
 }
 
@@ -653,13 +708,22 @@ fn a_callback_call_must_match_its_declared_arity() {
 
 #[test]
 fn a_crash_clause_requires_a_builtin_cause() {
-    check_source_change(
+    check_crash(
         "data Other {}\nmachine check() crashes Trap {}\n",
-        "crashes Trap",
-        "crashes Other",
+        "data Other {}\nmachine check() crashes Other {}\n",
         "Other",
         "crash clause requires Trap, Abort or none",
-        "Evidence and effects",
+        omega_typer::CrashDeclarationError::UnknownCause,
+    );
+}
+
+#[test]
+fn crashes_none_conflicts_with_a_declared_route() {
+    let bad = "machine wrong() crashes none crashes Abort{}";
+    check_crash(
+        "machine wrong() crashes Abort{}", bad, bad,
+        "crashes none conflicts with a declared cause",
+        omega_typer::CrashDeclarationError::NoneWithDeclaredCause,
     );
 }
 
