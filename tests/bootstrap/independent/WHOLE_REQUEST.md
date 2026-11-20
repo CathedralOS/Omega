@@ -218,7 +218,23 @@ python3 tests/bootstrap/route.py /tmp/whole-compiler \
 Select another host on any rung, or use `all` on an axis for a matrix. This
 case selects the construction profile by default so the Delta source of the
 compiled constructor fits. Pass `--profile conformance` to measure that
-profile's byte limits. The following selection uses a Linux Epsilon compiler
+profile's byte limits.
+
+To run the very same compiler and package on another checkout, supply the
+saved Epsilon source and raw package. `--expect-omega-exit` requires the
+constructor to return a tape, then runs it on the Alpha seed and checks its
+host process status (0–255) and empty stdout and stderr. Adding the saved
+observation also checks every emitted byte. The output directory records
+both executions.
+
+```sh
+python3 tests/bootstrap/route.py /tmp/frozen-compiler \
+  --gamma native --delta native --epsilon interpret \
+  --source /tmp/whole-compiler/subject.epsilon --stdin /tmp/whole-compiler/stdin.bin \
+  --expect-observation /tmp/whole-compiler/guest.eeout --expect-omega-exit 42
+```
+
+The following selection uses a Linux Epsilon compiler
 to produce the module and a direct Delta interpreter on Linux to run the
 compiled constructor. [Route runner](../route.py)
 

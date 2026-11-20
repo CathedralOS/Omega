@@ -5695,7 +5695,22 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state field(offset: i32, size: i32) {
         transition offset < self.parser.data_items[index].field_count {
             true -> field_type(offset, size, self.parser.data_items[index].first_field + offset)
-            _ -> requirements(0, size)
+            _ -> field_bounds(size)
+        }
+    }
+    // Laying out a nested record can load another file. A requirement's
+    // expression index belongs to this record's file even when the nested
+    // record has a field with the same name.
+    state field_bounds(size: i32) {
+        transition self.parser.data_items[index].requirement_count > 0 {
+            true -> load_bounds(size)
+            _ -> finish(size)
+        }
+    }
+    state load_bounds(size: i32) {
+        transition self.select_construction_unit(source, self.construction.types[index].unit) {
+            1 -> requirements(0, size)
+            _ -> return 0
         }
     }
     state field_type(offset: i32, size: i32, slot: i32) {
