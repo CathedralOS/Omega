@@ -11,6 +11,7 @@ use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
     receiver: super::build_receiver::BuildReceiver,
+    returned_integers: Box<[source_compiler::ReturnedIntegerFact]>,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -33,6 +34,10 @@ impl SelectedBuildMachine {
         module: &'module terminal_psi::TerminalModule,
     ) -> Result<&'module [terminal_psi::StructuralParameterDeclaration], String> {
         self.receiver.parameters_for(module)
+    }
+
+    pub fn returned_integers(&self) -> &[source_compiler::ReturnedIntegerFact] {
+        &self.returned_integers
     }
 
     pub fn has_same_frame(&self, previous: &Self) -> bool {
@@ -117,6 +122,7 @@ pub fn admit_build_machine(
     };
     Ok(SelectedBuildMachine {
         receiver,
+        returned_integers: prepared.closure().returned_integers().into(),
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,

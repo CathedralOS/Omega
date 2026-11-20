@@ -243,7 +243,7 @@ fn about_result(description: Proposition, result: ValueId) -> Vec<Proposition> {
 /// own bound is `next`: the one further out in the direction `outward`
 /// (`Less` for a lower bound). `Some(None)` before any return; `None` once a
 /// return has no bound, or two bounds cannot be compared.
-fn widest(
+pub(super) fn widest(
     so_far: Option<Option<IntegerValue>>,
     next: Option<IntegerValue>,
     integer: IntegerType,

@@ -75,6 +75,8 @@ mod prove;
 mod rankings;
 mod refinement;
 mod result_summaries;
+mod returned_integers;
+pub use returned_integers::{IntegerBound, ReturnedIntegerFact};
 mod reuse;
 mod static_contracts;
 mod static_reach;
@@ -294,6 +296,7 @@ pub struct MachineDischarge {
     /// Prepared warning inputs are consumed only by accepted diagnostics.
     /// They never decide a mandatory obligation or storage/loan judgment.
     branch_warnings: branch_warnings::Deferred,
+    returned_integers: Vec<ReturnedIntegerFact>,
 }
 
 /// An authored transition arm whose condition contradicts the facts in force
@@ -569,6 +572,7 @@ fn discharge_inner(
                     windows: Vec::new(),
                     weakened_joins: Vec::new(),
                     conflicts: Vec::new(),
+                    returned_integers: Vec::new(),
                     branch_warnings: branch_warnings::Deferred::default(),
                 });
             }
@@ -739,7 +743,7 @@ fn machine(
 
 #[allow(clippy::too_many_arguments)]
 fn check_prepared_machine(
-    prepared: PreparedMachine<'_, '_>,
+    mut prepared: PreparedMachine<'_, '_>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     tables: &mut MachineTables,
     unreached: &[ValueId],
@@ -758,7 +762,7 @@ fn check_prepared_machine(
         context,
         ranking_bindings,
         storage,
-        references,
+        ref mut references,
     } = prepared;
     let invariants = &module.proofs.scalar_block_invariants;
     let mut decided: Vec<Option<Checked<Discharged>>> =
@@ -1109,7 +1113,9 @@ fn check_prepared_machine(
             verdict,
         });
     }
+    let returned_integers = returned_integers::prove(&mut prepared, tables, unreached, activity)?;
     Ok(MachineDischarge {
+        returned_integers,
         verdicts: settled,
         uses,
         windows: closures,

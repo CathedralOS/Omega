@@ -121,7 +121,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     let (prepared, _) = assembled
         .build_stage_source()
         .unwrap()
-        .prepare(0, &Default::default(), "linux_x86_64", None)
+        .prepare(0, &[], &Default::default(), "linux_x86_64", None)
         .expect("exact declared requirement calls reach typed preparation");
     let typed = prepared.typed();
     let unresolved: Vec<_> = typed

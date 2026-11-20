@@ -90,6 +90,10 @@ mod catalog_declaration;
 pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
+    pub fn returned_integers(&self) -> &[source_compiler::ReturnedIntegerFact] {
+        self.execution.returned_integers()
+    }
+
     /// Judges and admits the next stage of this Build and makes it the
     /// execution that runs next. The stage is a complete Build entry to
     /// every owner that sees it: the lowered-form checker judges it as it

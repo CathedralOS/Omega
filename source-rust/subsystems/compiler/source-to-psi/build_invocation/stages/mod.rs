@@ -159,6 +159,7 @@ impl EntryPlan {
         &self,
         syntax: &mut SyntaxTrees,
         use_frame: bool,
+        facts: &[crate::ReturnedIntegerFact],
     ) -> Result<BuildStage, Vec<Diagnostic>> {
         let mut stage = self.stage.clone();
         stage.index = if use_frame {
@@ -189,23 +190,16 @@ impl EntryPlan {
             u32::try_from(end - self.first_statement).expect("statement count fits its span");
         syntax.items.state_mut(self.state).statements =
             arena::HandleSpan::from_parts_or_empty(span.handle_at(offset), count);
+        let mut declaration = self.machine.clone();
         if !self.homes.is_empty() {
-            frame::project(
-                syntax,
-                self.state,
-                &self.statements,
-                &self.homes,
-                self.incoming.map(|i| &stage.program_ends[i]),
-                stage.program_ends.get(stage.index),
-            )?;
+            frame::project(syntax, self, &stage, &mut declaration, facts)?;
         }
         if stage.next_index().is_some() {
-            let mut declaration = self.machine.clone();
             declaration.nested_machines = arena::HandleSpan::empty();
-            syntax
-                .items
-                .replace_item(self.item, Item::Machine(declaration));
         }
+        syntax
+            .items
+            .replace_item(self.item, Item::Machine(declaration));
         Ok(stage)
     }
 }
@@ -216,7 +210,7 @@ fn select_build_stage(
     selected_entry: SourceSpan,
     stage: usize,
 ) -> Result<BuildStage, Vec<Diagnostic>> {
-    EntryPlan::new(syntax, selected_entry, stage)?.project(syntax, true)
+    EntryPlan::new(syntax, selected_entry, stage)?.project(syntax, true, &[])
 }
 
 /// The selected Build declaration with the state that holds its
