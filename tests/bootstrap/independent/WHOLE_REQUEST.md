@@ -122,6 +122,57 @@ The construction-profile evaluator also accepted the 4,807,765-byte packet
 with the package count changed to 65. The guest returned exit 3 for malformed
 framing (`00 03 00 00 00`) with outer process status 0.
 
+## Staging the 304-unit construction input
+
+The constructor now copies eight bytes from the console in one machine
+state. The previous loop visited three states for every source byte.
+The declared four-mebibyte array bounds every write. Console EOF is stable,
+so a missing byte anywhere in a group makes its last read return `-1`.
+The constructor discards that group and exits 3 with no payload. It checks
+the remaining zero to seven bytes individually and still requires EOF
+after the declared arena. [Epsilon Console](../../../bootstrap/epsilon/LANGUAGE.md)
+
+For a matched comparison, freeze `product.bin` from `36cb9c98760` before
+rebuilding the constructor. It contains 3,950,880 bytes for seven packages,
+seven dependencies and 304 units. Its SHA-256 is
+`c570004e5315aa9a838b9d3070fff5cd32ddd513391a3d7cf11481e6dcec1ec0`.
+Taking its first 589,824 bytes keeps all 3,872 bytes of header and rows.
+The next 585,952 bytes end inside the declared 3,947,008-byte arena, so
+guest exit 3 on this input measures staging without invoking the Omega parser.
+
+The grouped constructor finished staging the 576 KiB prefix inside the
+10 GiB RSS guard. It returned `0003000000` and process status 0 at EOF.
+The original constructor reached the guard on the same bytes with empty
+stdout and stderr. The table uses CPU seconds and Linux peak resident
+memory. Both executables use the same seed-built Linux Epsilon, Delta and
+Gamma compilers. Only the construction entry source differs.
+
+| Frozen input | Original | Eight-byte groups |
+| --- | --- | --- |
+| Header and rows only (3,872 bytes) | Exit 3, 72,976 KiB, 1.20 s | Exit 3, 72,988 KiB, 1.09 s |
+| First 16,384 bytes | Exit 3, 320,912 KiB, 9.13 s | Exit 3, 231,324 KiB, 4.39 s |
+| First 589,824 bytes | Guard, 10,485,904 KiB, 259.44 s | Exit 3, 7,487,004 KiB, 211.56 s |
+
+After subtracting the header-only measurement, the grouped constructor
+used 12.65 KiB of additional peak RSS per staged arena byte on both
+completed prefixes. On the complete frozen 3,950,880-byte product, the
+10 GiB guard stopped it after 369.47 CPU seconds with empty stdout and
+stderr. The complete run produced no tape or compiler diagnostic.
+
+Both constructors gave the same five-byte refusal on 16 truncations of
+the 828-byte wire-package input. Source bytes `0x00`, `0x80` and `0xff`
+each produced the same compiler refusal at byte 30. The grouped constructor compiled the complete
+input to the existing 1,607-byte Alpha tape, which exited 42.
+A source merge with the directory-aware constructor from `60ddbd9c9af`
+also passed the directory-import and malformed-directory cases in the published
+Epsilon evaluator. Alpha ran the 43-byte directory-import tape to exit 42,
+and the malformed directory returned guest exit 1 at byte 37.
+
+| Linux constructor | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Original | 58,603,133 | `ccc6eb867203f3250e9025e8f616d07e8b2253582b34499201ffe9e4ce4cb21b` |
+| Eight-byte groups | 58,746,073 | `13dcd00473a0e54aefdaeb0bce4c1fb40d97090cd3393e7c5ce3c7a1e51d45a1` |
+
 ## Named payload bindings
 
 The source-built Linux Epsilon compiler compiled the updated Omega compiler

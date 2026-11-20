@@ -34,6 +34,12 @@ def main():
     unlinked, _, _, unit_rows = encode(packages, [], units, 0, b"main")
 
     inputs = {"linked": linked, "missing-edge": unlinked, "trailing-byte": linked + b"\0"}
+    # Each truncated packet keeps the declared arena length. Sweep through
+    # the partial final group and a preceding full group in the native entry.
+    truncations = {}
+    if args.constructor:
+        truncations = {f"missing-{count}-bytes": linked[:-count] for count in range(1, 17)}
+        inputs.update(truncations)
     for name, stdin in inputs.items():
         (work / f"{name}.stdin").write_bytes(stdin)
     if args.evaluator:
@@ -80,6 +86,9 @@ def main():
     if malformed != b"\x00" + struct.pack("<I", 3):
         raise SystemExit(f"trailing byte: expected framing failure, got {malformed[:40].hex()}")
     print(f"Missing edge refused at byte {caller_start}. Trailing byte refused before compilation.", flush=True)
+    for name in truncations:
+        if evaluate(name) != b"\x00" + struct.pack("<I", 3):
+            raise SystemExit(f"{name}: truncated input must exit 3 without a diagnostic")
 
 
 if __name__ == "__main__":

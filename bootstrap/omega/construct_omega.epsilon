@@ -137,21 +137,54 @@ machine Main::main(&mut self) {
         self.compiler.parser.sources.units[index].path.end = end;
         transition true { true -> unit(index + 1) }
     }
+    // Reads after EOF also return -1. Check the last read in each group before
+    // advancing. Bytes in an incomplete group are private and discarded on exit 3.
     state source_byte(index: i32) {
-        transition index < self.length {
-            true -> read_source_byte(index, self.console.read_byte())
-            _ -> end()
+        transition index + 8 <= self.length {
+            true -> copy_group(index)
+            _ -> tail(index)
         }
     }
-    state read_source_byte(index: i32, value: i32) {
-        transition value >= 0 {
-            true -> retain_source_byte(index, value)
+    state copy_group(index: i32) {
+        self.source[index] = self.console.read_byte() & 255;
+        self.source[index + 1] = self.console.read_byte() & 255;
+        self.source[index + 2] = self.console.read_byte() & 255;
+        self.source[index + 3] = self.console.read_byte() & 255;
+        self.source[index + 4] = self.console.read_byte() & 255;
+        self.source[index + 5] = self.console.read_byte() & 255;
+        self.source[index + 6] = self.console.read_byte() & 255;
+        let last: i32 = self.console.read_byte();
+        self.source[index + 7] = last & 255;
+        transition (last >= 0) && (index + 16 <= self.length) {
+            true -> copy_group(index + 8)
+            _ -> group_end(index + 8, last)
+        }
+    }
+    state group_end(index: i32, last: i32) {
+        transition last >= 0 {
+            true -> tail(index)
             _ -> self.console.exit_process(3)
         }
     }
-    state retain_source_byte(index: i32, value: i32) {
-        self.source[index] = value;
-        transition true { true -> source_byte(index + 1) }
+    state tail(index: i32) {
+        transition index < self.length {
+            true -> copy_byte(index)
+            _ -> end()
+        }
+    }
+    state copy_byte(index: i32) {
+        let next: i32 = self.console.read_byte();
+        self.source[index] = next & 255;
+        transition (next >= 0) && (index + 1 < self.length) {
+            true -> copy_byte(index + 1)
+            _ -> copied(next)
+        }
+    }
+    state copied(last: i32) {
+        transition last >= 0 {
+            true -> end()
+            _ -> self.console.exit_process(3)
+        }
     }
     state end() {
         transition self.console.read_byte() == -1 {
