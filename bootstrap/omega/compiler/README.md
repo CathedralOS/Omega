@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 24,707 lines / 935,858 bytes with SHA-256
-`a6b3dea8b4438abd69b01d5a403835bf15c6165fde943a507f629e0085277f79`.
-The manifest itself is 2,037 bytes, SHA-256
-`17fac9250a57f7782635b9ee3b1baefd7dcf4cfd4fdfbb74d857e99fb296468a`;
+manifest materializes 24,929 lines / 946,631 bytes with SHA-256
+`2af9b666a4a338f021aaf30af045378e5a1ce57a0c43d820c6e49a4dfb59dc5a`.
+The manifest itself is 2,038 bytes, SHA-256
+`729140dfb0061e23ec5be1c640f4f778737776960916c32f809f72a2d5a85ae7`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -524,8 +524,22 @@ declarations across a package edge and runs the resulting tape on Alpha.
 [Service checker](resolution/services.epsilon) ·
 [Construction suite](../../../tests/bootstrap/independent/service_reach.py)
 
-An operation-bearing boundary still returns `Incomplete` at its boundary
-keyword until the checker can validate its requirements and provider authority.
+A boundary may declare one terminal operation taking an ordinary `i32` and
+returning a fieldless record whose sole default predicate is the literal
+`false`. The checker resolves its result under the boundary's source unit.
+Its requirement publishes the owner's service reach, `crashes none` and
+`terminates`. Calling the uninstalled requirement returns `Incomplete` at
+its boundary keyword. The construction packet supplies no provider or
+process-domain authority.
+
+The same proof of an empty default domain applies to ordinary checked
+machines. A machine returning such a type can end in a checked Trap or
+transfer to another non-returning machine. Calls still check their arguments
+and propagate blocking, reach and crash obligations. On Alpha the transfer
+jumps to the checked callee without pushing a return address. Zero
+initialization and record literals cannot establish a value of the empty
+type. [Published no-return](../../../wiki/spec/language/state_contracts.md#published-no-return) ·
+[Uninhabited types](../../../wiki/spec/language/data_and_literals.md#the-uninhabited-type-never)
 [Core ProcessExit](../../../source/library/core/process_exit.omg) ·
 [Process-exit contract](../../../wiki/spec/language/process_exit.md)
 
