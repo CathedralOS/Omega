@@ -58,14 +58,22 @@ under [the hosted application](../../../source/application/ocreq) does not decla
 list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 
+The v2 construction entry interprets a ground application Build and the
+empty activated core default. It checks the application role, the authored
+`alpha_bootstrap\ProgramEntry` binding, and one optional ProcessExit provider
+selection. The file's own imports resolve each designated Product operand.
+An incomplete activation stops before code publication. A completed pure
+application compiles from its resolved entry declaration. The selected
+terminal provider remains separate from the runtime's process-domain grant.
+
 The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,154 lines / 1,047,970 bytes with SHA-256
-`2c03069f2b710ed7f8f3cc0e7ad0889417aa9ebc968e0eee58058fadaf04b68f`.
-The manifest itself is 2,381 bytes, SHA-256
-`b28a600613c2d77c24aa654053cbc83b387591d718acc864267d8d7d871c5af5`;
+The manifest materializes 27,491 lines / 1,064,516 bytes with SHA-256
+`57b878054e8320c4ba83b6cb117c362c4d981a36ceb9b4e229b9ca6949a039dd`.
+The manifest itself is 2,551 bytes, SHA-256
+`24a4b26c8d355a656ffb5bf92ef2f764934310ddb0eb4a38512d03a869eb06e0`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.

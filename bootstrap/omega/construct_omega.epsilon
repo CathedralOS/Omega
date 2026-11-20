@@ -232,9 +232,20 @@ machine Main::main(&mut self) {
     }
     state check_builds(source: &[u8]) {
         transition (self.compiler.parser.sources.valid(source) == 1) && (self.valid_builds(source) == 1) {
-            true -> pending(self.compiler.parser.sources.units[self.entry_unit].package)
+            true -> replay(source, self.compiler.parser.sources.units[self.entry_unit].package)
             _ -> self.console.exit_process(3)
         }
+    }
+    state replay(source: &[u8], requester: i32) {
+        transition self.checked_application_build(source, requester) {
+            1 -> resolved(source, self.compiler.build.entry_definition)
+            _ -> pending(requester)
+        }
+    }
+    state resolved(source: &[u8], entry: OmegaRelativeSpan) {
+        self.entry_unit = self.compiler.parser.sources.unit_at(entry.start);
+        self.entry_name = entry;
+        transition true { true -> compile(source) }
     }
     state pending(requester: i32) {
         // A valid Build inventory still needs admitted execution. Anchor the
@@ -362,5 +373,66 @@ machine Main::valid_builds(&mut self, source: &[u8]) -> i32 {
             true -> entry(requester + 1)
             _ -> return 0
         }
+    }
+}
+// The supported graph has one authored application. Other packages can
+// contribute the ordinary, empty core default. Check each selected Build
+// and require complete scope coverage before publishing any Product code.
+machine Main::checked_application_build(&mut self, source: &[u8], owner: i32) -> i32 {
+    transition (self.compiler.parser.sources.dependency_count == 0) &&
+        (self.compiler.parser.sources.packages[owner].role == 0) &&
+        (self.compiler.parser.sources.unit_count < 512) {
+        true -> source_file(0)
+        _ -> return 0
+    }
+    state source_file(index: i32) {
+        transition index < self.build_count {
+            true -> file(index, self.build_units[index])
+            _ -> activation(0)
+        }
+    }
+    // Helpers and additional Build files cannot be skipped without checking
+    // their declarations. Covered non-root files are evaluated empty defaults.
+    state file(index: i32, row: ConstructionBuildSource) {
+        transition index == self.build_entries[owner] {
+            true -> root(index, row)
+            _ -> default_source(index, row)
+        }
+    }
+    state root(index: i32, row: ConstructionBuildSource) {
+        transition (row.supplier == owner) && (self.compiler.span_equals(source, row.path.start, row.path.end, "build.omg") == 1) {
+            true -> source_file(index + 1)
+            _ -> return 0
+        }
+    }
+    state default_source(index: i32, row: ConstructionBuildSource) {
+        transition (self.compiler.parser.sources.packages[row.supplier].role == 1) &&
+            (self.compiler.span_equals(source, row.path.start, row.path.end, "defaults/build.omg") == 1) &&
+            (index == self.build_entries[row.supplier]) && (self.compiler.empty_build(source, row.start, row.end) == 1) {
+            true -> source_file(index + 1)
+            _ -> return 0
+        }
+    }
+    state activation(package: i32) {
+        transition package < self.compiler.parser.sources.package_count {
+            true -> activated(package, self.build_units[self.build_entries[package]])
+            _ -> scope(self.compiler.parser.sources.unit_count, self.build_units[self.build_entries[owner]])
+        }
+    }
+    state activated(package: i32, row: ConstructionBuildSource) {
+        transition (package == owner) || ((self.compiler.parser.sources.packages[package].role == 1) && (row.supplier == package)) {
+            true -> activation(package + 1)
+            _ -> return 0
+        }
+    }
+    state scope(count: i32, row: ConstructionBuildSource) {
+        self.compiler.parser.sources.units[count].package = row.supplier;
+        self.compiler.parser.sources.units[count].path = row.path;
+        self.compiler.parser.sources.units[count].start = row.start;
+        self.compiler.parser.sources.units[count].end = row.end;
+        self.compiler.parser.sources.unit_count = count + 1;
+        let result: i32 = self.compiler.check_ground_application(source, count, self.entry_unit, self.entry_name);
+        self.compiler.parser.sources.unit_count = count;
+        return result;
     }
 }

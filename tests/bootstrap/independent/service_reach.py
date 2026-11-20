@@ -310,6 +310,56 @@ def build_scope_cases():
     yield 'scoped-selected-default', fallback, pending(fallback[-size:].index(default))
 
 
+def rooted_application_cases():
+    encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
+    core = ROOT / 'source/library/core'
+    service = (core / 'process_exit.omg').read_bytes()
+    wrapper = (ROOT / 'source/library/std/process_exit.omg').read_bytes()
+    default = (core / 'defaults/build.omg').read_bytes()
+    packages = [('app', 0), ('core', 1)]
+    product_core = [(1, service), (1, (core / 'never.omg').read_bytes()),
+                    (1, (core / 'process_exit_native.omg').read_bytes())]
+    paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg']
+    bind = b'Build::bind(builder, alpha_bootstrap\\ProgramEntry, entry_start);'
+    selection = b'Build::select_provider::<ProcessExit,NativeProcessExit>(builder,alpha_bootstrap);'
+    config = (b'use omega\\language\\core\\ProcessExit; machine build(builder:@mut Build){'
+              b'Build::application(builder,"app");' + bind + selection + b'}')
+    pure = b'public machine entry_start()->u8 {42}'
+    effect = b'public machine entry_start() reaches ProcessExit {ProcessExit::exit_process(-257i32);}'
+
+    def trial(name, build=config, entry=pure, outcome='root', *, fallback=default, extra=(), entry_unit=0):
+        product = [(0, wrapper + b'\n' + entry), *product_core]
+        builds = [(0, 'build.omg', build), (1, 'defaults/build.omg', fallback), *extra]
+        wire, _, _, units = encode(packages, [], product, entry_unit, b'entry_start', paths=paths,
+                                  build_sources=builds, build_entries=[(0, 0), (1, 1)])
+        if outcome == 42:
+            return name, wire, 42
+        if outcome == 'service':
+            position = units[1][1] + service.index(b'boundary trait ProcessExit')
+        else:
+            length, = struct.unpack_from('<I', wire, 32)
+            position = wire[-length:].index(fallback if entry_unit else build)
+        return name, wire, b'\0' + struct.pack('<II', 2, position)
+
+    yield trial('build-bound-entry', outcome=42)
+    yield trial('build-entry-without-selection', config.replace(selection, b''), outcome=42)
+    yield trial('build-selection-grants-no-domain', entry=effect, outcome='service')
+    yield trial('build-missing-provider-no-domain', config.replace(selection, b''), effect, 'service')
+    yield trial('build-unknown-provider', config.replace(b'NativeProcessExit>', b'NoSuchProvider>'))
+    yield trial('build-handle-shadows-entry', config.replace(b'builder', b'entry_start'))
+    yield trial('build-handle-shadows-target', config.replace(b'builder', b'alpha_bootstrap'))
+    yield trial('build-other-receiver', config.replace(b'Build::application', b'Other::application'))
+    yield trial('build-bare-operation', config.replace(b'Build::application', b'application'))
+    yield trial('build-wrong-entry-file', entry_unit=1)
+    yield trial('build-wrong-role-name', config.replace(b'"app"', b'"other"'))
+    yield trial('build-other-target', config.replace(b'alpha_bootstrap\\ProgramEntry', b'other\\ProgramEntry'))
+    yield trial('build-unresolved-entry', config.replace(b', entry_start)', b', absent)'))
+    yield trial('build-unresolved-import', config.replace(b'use omega\\language\\core\\ProcessExit;', b''))
+    yield trial('build-unfinished', config[:-1] + b'Build::unknown(builder);}')
+    yield trial('build-nonempty-default', fallback=b'machine build(builder:@mut Build){Build::unknown(builder);}')
+    yield trial('build-additional-unit', extra=[(0, 'helper.omg', b'machine helper(){}')])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path, help='new directory for input, results and Alpha tapes')
@@ -325,7 +375,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *build_scope_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *build_scope_cases(), *rooted_application_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")
