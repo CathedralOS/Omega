@@ -8878,18 +8878,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaTokenKind::Identifier -> begin_named_assignment_value()
             OmegaTokenKind::Integer -> check_integer_expression()
             OmegaTokenKind::StringLiteral -> retain_string_expression()
-            OmegaTokenKind::Keyword -> requirement_keyword()
+            OmegaTokenKind::Keyword -> assignment_keyword_value()
             OmegaTokenKind::Punctuation -> requirement_punctuation()
             _ -> missing_requirement()
-        }
-    }
-
-    state requirement_keyword() {
-        transition self.scan.keyword {
-            OmegaKeywordKind::SelfValue -> begin_self_assignment_value()
-            OmegaKeywordKind::True -> retain_boolean_expression(1)
-            OmegaKeywordKind::False -> retain_boolean_expression(0)
-            _ -> incomplete_root()
         }
     }
 
