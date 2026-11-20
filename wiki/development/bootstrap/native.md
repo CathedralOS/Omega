@@ -640,3 +640,15 @@ with SHA-256 `e9343bc5219ff0dd30766b242ba3cc2091f5ca788bdc353741bc6d9cb2c73f0a`.
 That tape returned the identical eight bytes on the seed. The customer enters
 the checker with prepared syntax. Constructing the full Omega compiler from its
 Epsilon sources remains open. [Signature customer](../../../tests/bootstrap/independent/epsilon/signature_main.epsilon)
+
+### Full bootstrap compiler source
+
+A separate run gave the compiled Epsilon frontend the complete 845,978-byte
+bootstrap compiler plus its 6,118-byte construction entry. The 852,096-byte
+source had SHA-256 `01565beaf9f51478a156fa9b9ca997f5808b06ef39db66a41e4baf644ff59225`.
+The stock frontend built from `35e76509787` ran for 1,500 seconds on the
+shared host. The revised frontend ran for the last 125 seconds of that same
+wall-clock budget. Neither had published a Delta module or diagnostic when
+stopped. The unequal budgets leave their relative speed unmeasured. This step
+compiles the Epsilon implementation of the bootstrap compiler. Supplying Omega
+product source to the resulting compiler would be a subsequent step.
