@@ -2,7 +2,7 @@
 
 A selected `TaskRuntime` boundary provider executes an ordinary named machine
 as a distinct activation.
-`TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(runtime_authority, job)`
+`TaskRuntime::start::<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(runtime_authority, job)`
 and the matching `TaskRuntime::try_start` are boundary
 requirements invoked by path like any other; there is no receiver value, and
 the provider behind them is a build selection. The machine argument is a

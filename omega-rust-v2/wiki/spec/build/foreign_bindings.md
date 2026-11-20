@@ -135,7 +135,7 @@ to one field of the table supplied at each call. The binding identifies where
 to read the function address; the requirement's calling plan independently
 describes which arguments the foreign function receives.
 
-`Build::bind<Requirement>(builder, target, binding)` accepts an ordinary
+`Build::bind::<Requirement>(builder, target, binding)` accepts an ordinary
 `FunctionFieldBinding` description with two operands:
 
 | Operand | Meaning |
@@ -222,7 +222,7 @@ firmware issuance: program-constructed tables remain valid when their existing
 contracts establish the required facts.
 
 The migration includes repairing the UEFI allocation/release boundary in
-`source/library/std/targets/uefi_x86_64/handoff.omg`. A table borrow and raw
+`source/library/std/uefi_x86_64_handoff.omg`. A table borrow and raw
 address/page-count integers alone do not establish allocation ownership or
 permission to release it. Use existing [allocation](../resources/allocation.md)
 and [foreign-storage custody](foreign_storage.md) contracts to connect an issued

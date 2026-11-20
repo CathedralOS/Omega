@@ -169,7 +169,7 @@ fn published_unit_operands_and_operator_homes_survive_typing() {
 
 #[test]
 fn published_range_views_preserve_bounds_and_authority() {
-    let example = block(EXPRESSIONS, 499);
+    let example = block(EXPRESSIONS, 505);
     let lines: Vec<_> = example.lines().collect();
     let [shared, exclusive, commented] = lines.as_slice() else {
         panic!("expected the three published alternatives")
@@ -338,7 +338,7 @@ fn published_numeric_landings_do_not_mask_each_others_verdicts() {
 
 #[test]
 fn published_operator_in_its_own_module_keeps_the_domain_home() {
-    let example = block(EXPRESSIONS, 337);
+    let example = block(EXPRESSIONS, 343);
     let (module, root) = example.split_once("// The same package's root file:").unwrap();
     let (_, root) = root.split_once('\n').unwrap();
     let caller = "use units; machine sum(x:u64 in Distance,y:u64 in Distance)->u64 in Distance {x+y}";
@@ -436,7 +436,7 @@ fn published_domain_alias_normalizes_to_the_two_socket_domains() {
 
 #[test]
 fn published_record_pattern_binds_the_version_only_in_its_arm() {
-    let pattern = block(include_str!("../../../wiki/spec/language/patterns.md"), 22);
+    let pattern = block(include_str!("../../../wiki/spec/language/patterns.md"), 26);
     let definitions = "data Header {ok:u8;version:u16;} machine accept(version:u16)->bool {true} machine reject()->bool {false}";
     let body = format!("machine inspect(header:Header)->bool {{\n{pattern}\n}}");
     let stage = check(&[("definitions.omg", definitions), ("pattern.omg", &body)]).unwrap();

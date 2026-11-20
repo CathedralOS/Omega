@@ -59,7 +59,7 @@ never execute during Build; product compilation starts only after the join.
 ## Native binding intent
 
 The owning package records a direct native binding with
-`Build::bind<Requirement>(builder, target, locator)` under
+`Build::bind::<Requirement>(builder, target, locator)` under
 [foreign bindings](foreign_bindings.md#build-owned-native-binding). The exact
 requirement is an inert designated product-selection reference until product
 discovery and checking resolve its complete owned declaration/application.
@@ -317,7 +317,7 @@ graph, not provider-slot selection. Transitive reach,
 invocation, blocking/suspension, termination, observations, and authority
 demands compose into the root's published ceiling.
 
-`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)` is an
+`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)` is an
 evaluated root-authorized product selection under the
 [assumed-binding contract](assumed_binding_contracts.md), not a statically
 projected project/dependency declaration. Its exact product references do not

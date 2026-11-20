@@ -15,6 +15,7 @@ justify its name.
 
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega build <root.omg>
 omega run [--engine native|psi | --both] [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -27,9 +28,8 @@ omega psi inspect --artifact <file>
 ```
 
 These forms show routing, not an exhaustive restatement of existing options.
-The staged V2 build form is `omega build <root.omg>`. It shares its
-[initial entry selection](#build-first-entry-selection) with `omega run`.
-V2 implements `omega source parse` as a whole-file syntax check. Success
+Build and run share the same [initial entry selection](#build-first-entry-selection).
+`omega source parse` checks the syntax of the whole file. Success
 exits silently with status 0. File-read, lexer and parser errors go to stderr
 with status 1. Source refusals include the path, one-based line and byte
 column, and byte range. Invalid usage exits with status 2. Use `--` before
@@ -71,8 +71,7 @@ guides and command examples together.
 
 ## Build-first entry selection
 
-The V2 commands `omega build <file>` and `omega run <file>` start from the
-file the caller names. Both use the same first-stage rule in `omega::core`.
+`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega::core`.
 A build requests the product artifact. A run requests execution under the
 [engine and target rules](embedding.md#standalone-execution-selection).
 

@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'omega-rust-v2/**'
+      - 'wiki/spec/**'
       - '.github/workflows/admission.yml'
       - 'tools/mbx-version'
       - 'tools/xtask/bootstrap-mbx.sh'
@@ -28,6 +29,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
+      - name: Compare the workspace copy with the Omega specification
+        run: git diff --exit-code HEAD:wiki/spec HEAD:omega-rust-v2/wiki/spec
       - name: Check the repository archive and its boundary with active code
         run: |
           # A symlink can redirect an existing module or path dependency without editing its caller.

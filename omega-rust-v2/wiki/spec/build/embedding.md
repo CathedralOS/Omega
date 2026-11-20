@@ -212,9 +212,9 @@ import/export adapters. The identities do not make native address arithmetic or
 physical memory accesses meaningful by themselves. Interpreted assembly follows
 the [instruction execution contract](../language/assembly.md#interpreted-execution),
 including explicit mappings for operations requiring physical geometry.
-`code_layout<Machine>()` cannot describe a purely interpreted body's native
+`code_layout::<Machine>()` cannot describe a purely interpreted body's native
 regions: those do not exist. Data
-`size_of<T>()` and `align_of<T>()` instead observe the selected target layout,
+`size_of::<T>()` and `align_of::<T>()` instead observe the selected target layout,
 not the interpreter's host storage.
 
 ## Ownership and lifetime

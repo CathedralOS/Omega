@@ -37,10 +37,10 @@ normalized parameter bounds to select type or value equality.
 
 ## What is authoritative
 
-- **V1 and V2 share the Omega specification.** Both implement the rules in
-  [`wiki/spec/`](wiki/spec/). Changes to language or build semantics belong
-  in the shared spec. This plan records compiler responsibilities, implementation
-  status and open questions. **Decided.**
+- **Omega has one specification.** Edit the [root specification](../wiki/spec/)
+  and keep the [workspace copy](wiki/spec/) byte-identical. This plan records
+  the experimental compiler's responsibilities, implementation status and open
+  questions.
 - **The language guide is for humans**, not a source for V2. **Decided.**
 - **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
 - **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context

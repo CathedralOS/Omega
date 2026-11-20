@@ -119,8 +119,8 @@ address observations are not canonical target-semantic observations. Recording
 an executable entry relocation for later realization is distinct from evaluating
 its eventual numeric address as a constant, type argument, or proof input.
 
-Data `size_of<T>()` and `align_of<T>()` consume the selected validated layout
-under these ordinary rules. `code_layout<Machine>()` is late native artifact
+Data `size_of::<T>()` and `align_of::<T>()` consume the selected validated layout
+under these ordinary rules. `code_layout::<Machine>()` is late native artifact
 metadata, not a value computed here from an unfinished product. Its code-region
 sizes cannot feed that same product's types, constants or layout evaluation.
 
@@ -192,7 +192,7 @@ or an entry guarantee for one target profile. A subject not fixed by target
 closure rejects. Values and interpretation selectors use the same heterogeneous
 typed mechanism; an endianness selector need not be encoded as an integer.
 The source spelling of these projections remains unsettled; conceptual
-`TargetSemantics::address_bound<addr>()` is not an approved API declaration.
+`TargetSemantics::address_bound::<addr>()` is not an approved API declaration.
 
 Installed memory, devices, page geometry, and current CPU features instead come
 from explicit providers, capabilities, installation, or admitted hardware input.

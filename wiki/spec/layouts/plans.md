@@ -1,7 +1,7 @@
 # Layout policies and plans
 
 [Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
-have uniform descriptor/reference fields in the borrowed V1 representation.
+have uniform descriptor/reference fields in the borrowed representation.
 A layout cannot inline an unknown witness, vary field offsets by that witness,
 or reinterpret descriptor bits as type authority. New admissible call targets
 or witnesses do not change a semantic global roster or the package layout;

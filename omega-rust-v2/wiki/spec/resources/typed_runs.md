@@ -20,7 +20,7 @@ obligations, including non-runtime fields and contained loans.
 As in [resident custody](access.md), `P` identifies the domain access policy;
 the independently selected validated layout and its correspondence remain in
 occurrence evidence. A policy contains no layout. The cell footprint comes from
-that established placement, not an unconditional `size_of<T>()` calculation.
+that established placement, not an unconditional `size_of::<T>()` calculation.
 Ordinary placement uses the native array stride for `T`. Checked mathematical
 arithmetic establishes that count times footprint equals the run's occupied byte
 length, together with alignment and backing compatibility. Spare capacity is not
@@ -99,8 +99,8 @@ routes.
 
 | Primitive | Caller obligations | Custody result |
 | --- | --- | --- |
-| `Run::split<P, T>(run, cut)` | Own a live run and prove `cut <= run.count`, with the backing partition and outstanding loans valid. | Consume `run`; return `RunParts<P, T>` with live `left` and `right` fields owning exactly its prefix and suffix. Their counts are `cut` and the input count minus `cut`. |
-| `Run::merge<P, T>(left, right)` | Own both live runs; prove compatible placement, backing and carry obligations, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
+| `Run::split::<P, T>(run, cut)` | Own a live run and prove `cut <= run.count`, with the backing partition and outstanding loans valid. | Consume `run`; return `RunParts<P, T>` with live `left` and `right` fields owning exactly its prefix and suffix. Their counts are `cut` and the input count minus `cut`. |
+| `Run::merge::<P, T>(left, right)` | Own both live runs; prove compatible placement, backing and carry obligations, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
 
 Both operations are total when their preconditions hold. Bounds, adjacency and
 compatibility are `requires` obligations; a caller with runtime inputs can branch
