@@ -177,235 +177,232 @@
         jeq r1 r2 0x3ec ; -> next_punctuation:
 0x375: ; next_body:
         jlt r0 r82 0x389 ; -> next_body_byte:
-        jmp 0x485 ; -> next_done:
+        jmp 0x404 ; -> next_done:
 0x389: ; next_body_byte:
         loadb r1 r0
         imm r2 0x21
-        jlt r1 r2 0x485 ; -> next_done:
+        jlt r1 r2 0x404 ; -> next_done:
         imm r2 0x3b
-        jeq r1 r2 0x485 ; -> next_done:
+        jeq r1 r2 0x404 ; -> next_done:
         imm r2 0x28
-        jeq r1 r2 0x485 ; -> next_done:
+        jeq r1 r2 0x404 ; -> next_done:
         imm r2 0x29
-        jeq r1 r2 0x485 ; -> next_done:
+        jeq r1 r2 0x404 ; -> next_done:
         add r0 r91
         jmp 0x375 ; -> next_body:
 0x3ec: ; next_punctuation:
         add r0 r91
-        jmp 0x485 ; -> next_done:
+        jmp 0x404 ; -> next_done:
 0x3f8: ; next_character:
-        add r0 r91
-        jlt r0 r82 0x40f ; -> next_character_byte:
-        jmp 0x1ac2 ; -> invalid:
-0x40f: ; next_character_byte:
-        loadb r1 r0
-        imm r2 0x5c
-        jeq r1 r2 0x433 ; -> next_character_escape:
-        add r0 r91
-        jmp 0x44d ; -> next_character_close:
-0x433: ; next_character_escape:
-        add r0 r91
-        jlt r0 r82 0x44a ; -> next_character_escape_byte:
-        jmp 0x1ac2 ; -> invalid:
-0x44a: ; next_character_escape_byte:
-        add r0 r91
-0x44d: ; next_character_close:
-        jlt r0 r82 0x461 ; -> next_character_close_byte:
-        jmp 0x1ac2 ; -> invalid:
-0x461: ; next_character_close_byte:
-        loadb r1 r0
-        imm r2 0x27
-        jeq r1 r2 0x482 ; -> next_character_done:
-        jmp 0x1ac2 ; -> invalid:
-0x482: ; next_character_done:
-        add r0 r91
-0x485: ; next_done:
+        call 0x67e ; -> parse_character:
+        mov r0 r2
+0x404: ; next_done:
         mov r87 r0
         sub r87 r86
         mov r85 r0
         mov r0 r91
         ret
 
-0x492: ; need_token:
+0x411: ; need_token:
         call 0x28c ; -> next_token:
         jz r0 0x1ac2 ; -> invalid:
         ret
 
 ; r0 packed ASCII, r1 length. Return r0=0/1 against current token.
-0x4a6: ; token_equals:
-        jeq r87 r1 0x4b5 ; -> token_equals_begin:
-0x4b1: ; token_no_match:
+0x425: ; token_equals:
+        jeq r87 r1 0x434 ; -> token_equals_begin:
+0x430: ; token_no_match:
         mov r0 r90
         ret
-0x4b5: ; token_equals_begin:
+0x434: ; token_equals_begin:
         mov r2 r90
         mov r3 r0
-0x4bb: ; token_equals_loop:
-        jeq r2 r1 0x4fd ; -> token_equals_true:
+0x43a: ; token_equals_loop:
+        jeq r2 r1 0x47c ; -> token_equals_true:
         mov r4 r86
         add r4 r2
         loadb r5 r4
         imm r6 0x100
         mov r7 r3
         mod r7 r6
-        jeq r5 r7 0x4ee ; -> token_equals_next:
+        jeq r5 r7 0x46d ; -> token_equals_next:
         mov r0 r90
         ret
-0x4ee: ; token_equals_next:
+0x46d: ; token_equals_next:
         div r3 r6
         add r2 r91
-        jmp 0x4bb ; -> token_equals_loop:
-0x4fd: ; token_equals_true:
+        jmp 0x43a ; -> token_equals_loop:
+0x47c: ; token_equals_true:
         mov r0 r91
         ret
 
 ; Pack the nonempty head once, reading only bytes within the token. Source
 ; bytes are nonzero ASCII, so zero padding distinguishes every short token.
 ; A longer head cannot equal a word in the table and names a function call.
-0x501: ; classify_list_head:
+0x480: ; classify_list_head:
         imm r1 0x8
-        jlt r1 r87 0x4b1 ; -> token_no_match:
+        jlt r1 r87 0x430 ; -> token_no_match:
         mov r2 r86
         add r2 r87
         mov r3 r90
         imm r4 0x100
-0x529: ; pack_list_head_byte:
+0x4a8: ; pack_list_head_byte:
         sub r2 r91
         loadb r0 r2
         mul r3 r4
         add r3 r0
-        jlt r86 r2 0x529 ; -> pack_list_head_byte:
+        jlt r86 r2 0x4a8 ; -> pack_list_head_byte:
         imm r8 0x1c63 ; -> list_head_table:
         mov r0 r91
-0x54d: ; classify_list_head_loop:
+0x4cc: ; classify_list_head_loop:
         load r4 r8
-        jeq r4 r90 0x4b1 ; -> token_no_match:
-        jeq r4 r3 0x575 ; -> classify_list_head_found:
+        jeq r4 r90 0x430 ; -> token_no_match:
+        jeq r4 r3 0x4f4 ; -> classify_list_head_found:
         add r0 r91
         add r8 r1
-        jmp 0x54d ; -> classify_list_head_loop:
-0x575: ; classify_list_head_found:
+        jmp 0x4cc ; -> classify_list_head_loop:
+0x4f4: ; classify_list_head_found:
         ret
 
 ; next_token isolates parentheses; character literals start with an apostrophe.
 ; A byte comparison is therefore the exact punctuation-token test. Both helpers
 ; retain their 30-byte slots and preserve the token registers r86/r87.
-0x576: ; is_open:
+0x4f5: ; is_open:
         loadb r0 r86
         imm r1 0x28
         sub r0 r1
-        jz r0 0x4fd ; -> token_equals_true:
+        jz r0 0x47c ; -> token_equals_true:
         mov r0 r90
         ret
-0x594: ; is_close:
+0x513: ; is_close:
         loadb r0 r86
         imm r1 0x29
         sub r0 r1
-        jz r0 0x4fd ; -> token_equals_true:
+        jz r0 0x47c ; -> token_equals_true:
         mov r0 r90
         ret
-0x5b2: ; expect_open:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+0x531: ; expect_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1ac2 ; -> invalid:
         ret
-0x5cf: ; expect_close:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+0x54e: ; expect_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jz r0 0x1ac2 ; -> invalid:
         ret
-0x5ec: ; expect_int:
-        call 0x492 ; -> need_token:
+0x56b: ; expect_int:
+        call 0x411 ; -> need_token:
         imm r0 0x746e49
         imm r1 0x3
-        call 0x4a6 ; -> token_equals:
+        call 0x425 ; -> token_equals:
         jz r0 0x1ac2 ; -> invalid:
         ret
 
 ; Parse current decimal token. Return value r0 and success flag r1.
-0x61d: ; parse_integer:
-        jz r87 0x6f8 ; -> parse_integer_fail:
+0x59c: ; parse_integer:
+        jz r87 0x677 ; -> parse_integer_fail:
         mov r2 r90
         mov r3 r90
         mov r4 r90
         loadb r5 r86
         imm r6 0x27
-        jeq r5 r6 0x6ff ; -> parse_character:
+        jeq r5 r6 0x67e ; -> parse_character:
         imm r6 0x2d
-        jeq r5 r6 0x666 ; -> parse_integer_minus:
-        jmp 0x677 ; -> parse_integer_loop:
-0x666: ; parse_integer_minus:
+        jeq r5 r6 0x5e5 ; -> parse_integer_minus:
+        jmp 0x5f6 ; -> parse_integer_loop:
+0x5e5: ; parse_integer_minus:
         mov r4 r91
         add r2 r91
-        jeq r2 r87 0x6f8 ; -> parse_integer_fail:
-0x677: ; parse_integer_loop:
-        jeq r2 r87 0x6dd ; -> parse_integer_done:
+        jeq r2 r87 0x677 ; -> parse_integer_fail:
+0x5f6: ; parse_integer_loop:
+        jeq r2 r87 0x65c ; -> parse_integer_done:
         mov r5 r86
         add r5 r2
         loadb r5 r5
         imm r6 0x30
-        jlt r5 r6 0x6f8 ; -> parse_integer_fail:
+        jlt r5 r6 0x677 ; -> parse_integer_fail:
         imm r7 0x3a
-        jlt r5 r7 0x6be ; -> parse_integer_digit:
-        jmp 0x6f8 ; -> parse_integer_fail:
-0x6be: ; parse_integer_digit:
+        jlt r5 r7 0x63d ; -> parse_integer_digit:
+        jmp 0x677 ; -> parse_integer_fail:
+0x63d: ; parse_integer_digit:
         sub r5 r6
         imm r6 0xa
         mul r3 r6
         add r3 r5
         add r2 r91
-        jmp 0x677 ; -> parse_integer_loop:
-0x6dd: ; parse_integer_done:
-        jz r4 0x6f1 ; -> parse_integer_positive:
+        jmp 0x5f6 ; -> parse_integer_loop:
+0x65c: ; parse_integer_done:
+        jz r4 0x670 ; -> parse_integer_positive:
         mov r0 r90
         sub r0 r3
         mov r1 r91
         ret
-0x6f1: ; parse_integer_positive:
+0x670: ; parse_integer_positive:
         mov r0 r3
         mov r1 r91
         ret
-0x6f8: ; parse_integer_fail:
+0x677: ; parse_integer_fail:
         mov r0 r90
         mov r1 r90
         ret
 
-; Tokenization has established 'X' or one closed escape: \n or \s.
-0x6ff: ; parse_character:
-        imm r2 0x3
-        jeq r87 r2 0x732 ; -> parse_character_simple:
-        imm r2 0x4
-        jeq r87 r2 0x754 ; -> parse_character_escape:
-        jmp 0x7bb ; -> parse_character_fail:
-0x732: ; parse_character_simple:
-        mov r0 r86
-        add r0 r91
-        loadb r0 r0
-        imm r2 0x27
-        jeq r0 r2 0x7bb ; -> parse_character_fail:
-        mov r1 r91
-        ret
-0x754: ; parse_character_escape:
+; Decode a quoted character from the current token start. Return its value
+; in r0, success in r1, and the offset after the closing apostrophe in r2.
+0x67e: ; parse_character:
         mov r2 r86
-        imm r4 0x2
-        add r2 r4
-        loadb r2 r2
-        imm r3 0x6e
-        jeq r2 r3 0x79a ; -> parse_character_newline:
-        imm r3 0x73
-        jeq r2 r3 0x7ad ; -> parse_character_space:
-        jmp 0x7bb ; -> parse_character_fail:
-0x79a: ; parse_character_newline:
+        add r2 r91
+        call 0x75d ; -> character_byte:
+        imm r1 0x5c
+        jeq r3 r1 0x6d8 ; -> character_escape:
+        imm r1 0x20
+        jlt r3 r1 0x1ac2 ; -> invalid:
+        imm r1 0x27
+        jeq r3 r1 0x1ac2 ; -> invalid:
+        mov r0 r3
+        jmp 0x732 ; -> character_close:
+0x6d8: ; character_escape:
+        call 0x75d ; -> character_byte:
+        imm r1 0x6e
+        jeq r3 r1 0x714 ; -> character_newline:
+        imm r1 0x73
+        jeq r3 r1 0x728 ; -> character_space:
+        jmp 0x1ac2 ; -> invalid:
+0x714: ; character_newline:
         imm r0 0xa
-        jmp 0x7b7 ; -> parse_character_true:
-0x7ad: ; parse_character_space:
+        call 0x732 ; -> character_close:
+        ret
+0x728: ; character_space:
         imm r0 0x20
-0x7b7: ; parse_character_true:
+0x732: ; character_close:
+        call 0x75d ; -> character_byte:
+        imm r1 0x27
+        jeq r3 r1 0x759 ; -> character_done:
+        jmp 0x1ac2 ; -> invalid:
+0x759: ; character_done:
         mov r1 r91
         ret
-0x7bb: ; parse_character_fail:
-        mov r0 r90
-        mov r1 r90
+
+; Read one source byte into r3. Never consume sealed guest input.
+0x75d: ; character_byte:
+        jlt r2 r82 0x771 ; -> character_byte_in_source:
+        jmp 0x1ac2 ; -> invalid:
+0x771: ; character_byte_in_source:
+        loadb r3 r2
+        add r2 r91
+        ret
+
+; Function, parameter and let declarations require a symbol. Parentheses
+; are punctuation. Character and decimal literals are integer expressions.
+0x778: ; need_name:
+        call 0x411 ; -> need_token:
+        loadb r0 r86
+        imm r1 0x28
+        jeq r0 r1 0x1ac2 ; -> invalid:
+        imm r1 0x29
+        jeq r0 r1 0x1ac2 ; -> invalid:
+        call 0x59c ; -> parse_integer:
+        jnz r1 0x1ac2 ; -> invalid:
         ret
 
 ; Value stack stores (word, kind) evaluator intermediates and call arguments.
@@ -533,17 +530,17 @@
 
 ; Structurally consume one expression without evaluating it.
 0x9a2: ; skip_expression:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jnz r0 0x9bf ; -> skip_expression_list:
         ret
 0x9bf: ; skip_expression_list:
         mov r8f r91
 0x9c2: ; skip_expression_loop:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jnz r0 0x9fa ; -> skip_expression_open:
-        call 0x594 ; -> is_close:
+        call 0x513 ; -> is_close:
         jnz r0 0xa1b ; -> skip_expression_close:
         jmp 0x9c2 ; -> skip_expression_loop:
 0x9fa: ; skip_expression_open:
@@ -564,14 +561,14 @@
 0xa32: ; census_loop:
         call 0x28c ; -> next_token:
         jz r0 0xbd4 ; -> census_done:
-        call 0x576 ; -> is_open:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1ac2 ; -> invalid:
-        call 0x492 ; -> need_token:
+        call 0x411 ; -> need_token:
         imm r0 0x666564
         imm r1 0x3
-        call 0x4a6 ; -> token_equals:
+        call 0x425 ; -> token_equals:
         jz r0 0x1ac2 ; -> invalid:
-        call 0x492 ; -> need_token:
+        call 0x778 ; -> need_name:
         call 0x8b5 ; -> find_function:
         jnz r0 0x1ac2 ; -> invalid:
         imm r0 0x200000
@@ -586,30 +583,30 @@
         store r0 r87
         imm r0 0x6e69616d
         imm r1 0x4
-        call 0x4a6 ; -> token_equals:
+        call 0x425 ; -> token_equals:
         jz r0 0xb12 ; -> census_parameters:
         jnz r8b 0x1ac2 ; -> invalid:
         mov r8b r8c
 0xb12: ; census_parameters:
-        call 0x5b2 ; -> expect_open:
+        call 0x531 ; -> expect_open:
         mov r0 r8c
         imm r1 0x10
         add r0 r1
         store r0 r86
         mov r8f r90
 0xb31: ; census_parameter_loop:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0xb87 ; -> census_parameters_done:
-        call 0x576 ; -> is_open:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1ac2 ; -> invalid:
-        call 0x492 ; -> need_token:
-        call 0x5ec ; -> expect_int:
-        call 0x5cf ; -> expect_close:
+        call 0x411 ; -> need_token:
+        call 0x56b ; -> expect_int:
+        call 0x54e ; -> expect_close:
         add r8f r91
         jmp 0xb31 ; -> census_parameter_loop:
 0xb87: ; census_parameters_done:
-        call 0x5ec ; -> expect_int:
+        call 0x56b ; -> expect_int:
         mov r0 r8c
         imm r1 0x18
         add r0 r1
@@ -619,7 +616,7 @@
         add r0 r1
         store r0 r8f
         call 0x9a2 ; -> skip_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         add r88 r91
         jmp 0x1ff9 ; -> index_completed_function:
 0xbd4: ; census_done:
@@ -646,19 +643,19 @@
         imm r1 0x10
         add r0 r1
         load r85 r0
-        call 0x5b2 ; -> expect_open:
+        call 0x531 ; -> expect_open:
         mov r8f r90
 0xc3e: ; validate_parameter_loop:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0xca0 ; -> validate_parameters_done:
-        call 0x576 ; -> is_open:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1ac2 ; -> invalid:
-        call 0x492 ; -> need_token:
+        call 0x778 ; -> need_name:
         mov r0 r90
         call 0x941 ; -> add_environment:
-        call 0x5ec ; -> expect_int:
-        call 0x5cf ; -> expect_close:
+        call 0x56b ; -> expect_int:
+        call 0x54e ; -> expect_close:
         add r8f r91
         jmp 0xc3e ; -> validate_parameter_loop:
 0xca0: ; validate_parameters_done:
@@ -669,19 +666,19 @@
         jeq r8f r0 0xcc7 ; -> validate_return_type:
         jmp 0x1ac2 ; -> invalid:
 0xcc7: ; validate_return_type:
-        call 0x5ec ; -> expect_int:
+        call 0x56b ; -> expect_int:
         call 0xcef ; -> validate_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         add r9d r91
         jmp 0xbff ; -> validate_program_loop:
 0xcee: ; validate_program_done:
         ret
 
 0xcef: ; validate_expression:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jnz r0 0xd32 ; -> validate_list_expression:
-        call 0x61d ; -> parse_integer:
+        call 0x59c ; -> parse_integer:
         jnz r1 0xd31 ; -> validate_expression_done:
         call 0x8f9 ; -> find_environment:
         jz r0 0x1ac2 ; -> invalid:
@@ -689,8 +686,8 @@
         ret
 
 0xd32: ; validate_list_expression:
-        call 0x492 ; -> need_token:
-        call 0x501 ; -> classify_list_head:
+        call 0x411 ; -> need_token:
+        call 0x480 ; -> classify_list_head:
         jz r0 0xefd ; -> validate_call_expression:
         imm r1 0x1
         jeq r0 r1 0xda1 ; -> validate_if_expression:
@@ -704,51 +701,51 @@
         call 0xcef ; -> validate_expression:
         call 0xcef ; -> validate_expression:
         call 0xcef ; -> validate_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         ret
 0xdc6: ; validate_binary_expression:
         call 0xcef ; -> validate_expression:
         call 0xcef ; -> validate_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         ret
 0xde2: ; validate_input_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         ret
 0xdec: ; validate_unary_expression:
         call 0xcef ; -> validate_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         ret
 0xdff: ; validate_let_expression:
         mov r0 r89
         call 0x7c2 ; -> push_value:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jnz r0 0xe3c ; -> validate_let_group:
         mov r85 r86
         call 0xea5 ; -> validate_let_binding:
         jmp 0xe86 ; -> validate_let_body:
 0xe3c: ; validate_let_group:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0xe86 ; -> validate_let_body:
-        call 0x576 ; -> is_open:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1ac2 ; -> invalid:
         call 0xea5 ; -> validate_let_binding:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         jmp 0xe3c ; -> validate_let_group:
 0xe86: ; validate_let_body:
         call 0xcef ; -> validate_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         mov r89 r0
         ret
 0xea5: ; validate_let_binding:
-        call 0x492 ; -> need_token:
+        call 0x778 ; -> need_name:
         mov r0 r86
         call 0x7c2 ; -> push_value:
         mov r0 r87
         call 0x7c2 ; -> push_value:
-        call 0x5ec ; -> expect_int:
+        call 0x56b ; -> expect_int:
         call 0xcef ; -> validate_expression:
         call 0x7f4 ; -> pop_value:
         mov r87 r0
@@ -763,8 +760,8 @@
         mov r1 r90
         call 0xf94 ; -> begin_call_context:
 0xf1c: ; validate_call_arguments:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0xf6c ; -> validate_call_done:
         mov r85 r86
         call 0xcef ; -> validate_expression:
@@ -850,15 +847,15 @@
         imm r4 0x10
         add r3 r4
         load r85 r3
-        call 0x5b2 ; -> expect_open:
+        call 0x531 ; -> expect_open:
         mov r8f r90
 0x109a: ; enter_parameter_loop:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0x1135 ; -> enter_parameters_done:
-        call 0x576 ; -> is_open:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1ac2 ; -> invalid:
-        call 0x492 ; -> need_token:
+        call 0x411 ; -> need_token:
         mov r0 r8d
         imm r1 0x10
         sub r0 r1
@@ -873,8 +870,8 @@
         load ra2 r3
         load r0 r0
         call 0x941 ; -> add_environment:
-        call 0x5ec ; -> expect_int:
-        call 0x5cf ; -> expect_close:
+        call 0x56b ; -> expect_int:
+        call 0x54e ; -> expect_close:
         add r8f r91
         jmp 0x109a ; -> enter_parameter_loop:
 0x1135: ; enter_parameters_done:
@@ -929,7 +926,7 @@
         imm r1 0x10
         add r0 r1
         load r85 r0
-        call 0x5b2 ; -> expect_open:
+        call 0x531 ; -> expect_open:
         mov r8f r90
         mov r98 r90
         jmp 0x109a ; -> enter_parameter_loop:
@@ -938,11 +935,11 @@
 ; a tail call returns a request for enter_function to reuse this activation.
 0x123e: ; eval_tail_expression:
         mov r9c r85
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jz r0 0x12ac ; -> eval_tail_fallback_reset:
-        call 0x492 ; -> need_token:
-        call 0x501 ; -> classify_list_head:
+        call 0x411 ; -> need_token:
+        call 0x480 ; -> classify_list_head:
         jz r0 0x13c3 ; -> eval_tail_call:
         imm r1 0x1
         jeq r0 r1 0x12b9 ; -> eval_tail_if:
@@ -968,27 +965,27 @@
 ; Bind one initializer or a sequential group. Initializers see earlier bindings,
 ; never their own binder. The caller owns scope restoration or tail-frame reuse.
 0x1302: ; bind_let_initializer:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jnz r0 0x132a ; -> bind_let_group:
         mov r85 r86
         jmp 0x1362 ; -> bind_one_let_initializer:
 0x132a: ; bind_let_group:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0x1361 ; -> bind_let_group_done:
         call 0x1362 ; -> bind_one_let_initializer:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         jmp 0x132a ; -> bind_let_group:
 0x1361: ; bind_let_group_done:
         ret
 0x1362: ; bind_one_let_initializer:
-        call 0x492 ; -> need_token:
+        call 0x411 ; -> need_token:
         mov r0 r86
         call 0x7c2 ; -> push_value:
         mov r0 r87
         call 0x7c2 ; -> push_value:
-        call 0x5ec ; -> expect_int:
+        call 0x56b ; -> expect_int:
         call 0x1455 ; -> eval_expression:
         mov r8 r0
         mov r9 ra2
@@ -1014,8 +1011,8 @@
         mov r1 r8a
         call 0xf94 ; -> begin_call_context:
 0x13f2: ; prepare_call_arguments:
-        call 0x492 ; -> need_token:
-        call 0x594 ; -> is_close:
+        call 0x411 ; -> need_token:
+        call 0x513 ; -> is_close:
         jnz r0 0x144b ; -> prepare_call_done:
         mov r85 r86
         call 0x1455 ; -> eval_expression:
@@ -1033,10 +1030,10 @@
 
 ; Evaluate one expression at r85 and leave r85 after it.
 0x1455: ; eval_expression:
-        call 0x492 ; -> need_token:
-        call 0x576 ; -> is_open:
+        call 0x411 ; -> need_token:
+        call 0x4f5 ; -> is_open:
         jnz r0 0x14bf ; -> eval_list:
-        call 0x61d ; -> parse_integer:
+        call 0x59c ; -> parse_integer:
         jnz r1 0x14bb ; -> eval_scalar_return:
         call 0x8f9 ; -> find_environment:
         jz r0 0x1ace ; -> authored_trap:
@@ -1054,8 +1051,8 @@
         ret
 
 0x14bf: ; eval_list:
-        call 0x492 ; -> need_token:
-        call 0x501 ; -> classify_list_head:
+        call 0x411 ; -> need_token:
+        call 0x480 ; -> classify_list_head:
         jz r0 0x1a84 ; -> eval_call:
         imm r1 0x1
         jeq r0 r1 0x1582 ; -> eval_if:
@@ -1081,14 +1078,14 @@
         call 0x1455 ; -> eval_expression:
         call 0x7c2 ; -> push_value:
         call 0x9a2 ; -> skip_expression:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         ret
 0x15cc: ; eval_if_false:
         call 0x9a2 ; -> skip_expression:
         call 0x1455 ; -> eval_expression:
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         ret
 
@@ -1098,7 +1095,7 @@
         call 0x1302 ; -> bind_let_initializer:
         call 0x1455 ; -> eval_expression:
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         mov r6 r0
         mov r7 ra2
@@ -1118,7 +1115,7 @@
         call 0x7c2 ; -> push_value:
         call 0x1455 ; -> eval_expression:
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         call 0x820 ; -> require_scalar:
         mov r5 r0
@@ -1182,7 +1179,7 @@
         ret
 
 0x1802: ; eval_input:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         mov r0 r84
         jmp 0x14bb ; -> eval_scalar_return:
 0x1817: ; eval_read:
@@ -1195,7 +1192,7 @@
         add r0 r83
         loadb r0 r0
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         ret
 0x186a: ; eval_write:
@@ -1208,7 +1205,7 @@
 0x18a5: ; eval_write_ok:
         call 0x19f ; -> write_output:
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         ret
 
@@ -1217,7 +1214,7 @@
         call 0x7c2 ; -> push_value:
         call 0x1455 ; -> eval_expression:
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         mov r5 r0
         mov r7 ra2
@@ -1276,7 +1273,7 @@
         load ra2 r2
         load r0 r0
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         ret
 
@@ -1292,7 +1289,7 @@
         load ra2 r2
         load r0 r0
         call 0x7c2 ; -> push_value:
-        call 0x5cf ; -> expect_close:
+        call 0x54e ; -> expect_close:
         call 0x7f4 ; -> pop_value:
         ret
 
@@ -1425,10 +1422,10 @@
         mov rb2 r90
         mov r85 r81
         call 0x28c ; -> next_token:
-        call 0x576 ; -> is_open:
+        call 0x4f5 ; -> is_open:
         jz r0 0x1da0 ; -> classify_program_done:
-        call 0x492 ; -> need_token:
-        call 0x492 ; -> need_token:
+        call 0x411 ; -> need_token:
+        call 0x411 ; -> need_token:
         imm r0 0xc
         jeq r87 r0 0x1d3e ; -> classify_marker_length:
         jmp 0x1da0 ; -> classify_program_done:

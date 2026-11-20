@@ -9,6 +9,9 @@ GAMMA_CASES = [
     ("signed", "(def main () Int (+ (/ -85 2) 84))", b"", (0, b"*")),
     ("modulo", "(def main () Int (+ (% -85 2) 43))", b"", (0, b"*")),
     ("character", "(def main () Int ' ')", b"", (0, b" ")),
+    ("character-delimiters",
+     "(def 4id ((a'b Int)) Int a'b) (def main () Int (let ((x Int (write '(')) (y Int (write ')')) "
+     "(z Int (write ';')) (s Int (write '\\s'))) (4id '\\n')))", b"", (0, b"(); \n")),
     ("grouped", "(def main () Int (let ((first Int 40) (second Int (+ first 2))) second))", b"", (0, b"*")),
     ("binder-let", "(def main () Int (let ((let Int 42)) let))", b"", (0, b"*")),
     ("minimum-word", "(def main () Int (+ 41 (lt -9223372036854775808 0)))", b"", (0, b"*")),
@@ -54,6 +57,14 @@ INVALID_GAMMA = [
     b"(def f ((x Int)) Int x) (def main () Int (f))",
     b"(def main () Int (+ 1))",
     b"(def main () Int 42);comment\r(def unused () Wrong 0)",
+    b"(def main () Int '\t')", b"(def main () Int '\n')", b"(def main () Int '\r')",
+    b"(def '\\q' () Int 0) (def main () Int 42)",
+    b"(def main () Int (let '\\q' Int 6 '\\q'))",
+    b"(def 'x' () Int 0) (def main () Int 42)",
+    b"(def unused (('x' Int)) Int 0) (def main () Int 42)",
+    b"(def main () Int (let (('x' Int 1)) 42))",
+    b"(def 42 () Int 0) (def main () Int 42)",
+    b"(def main () Int (let -42 Int 1 42))",
     b"(def main () Int ''')", b"(def main () Int '\\')",
 ]
 
