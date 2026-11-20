@@ -11,6 +11,15 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.parser.parse_view("machine p(name:@[u8]) {transition name != \".\" && name != \"\\x2e.\" {true->pass(), _->fail()} machine pass() {} machine fail() {}}");
+    self.check_complete();
+    assert self.parser.binary_expression_count == 3;
+    self.check_subject_string(self.parser.binary_expressions[0].right, 42, 45, 1);
+    self.check_subject_string(self.parser.binary_expressions[1].right, 57, 64, 2);
+
+    self.parser.parse_view("machine p(name:@[u8]) {transition name != \".\" && name != \"\\xG0\" {true->pass(), _->fail()} machine pass() {} machine fail() {}}");
+    self.check_lexical_failure();
+
     self.parser.parse_view("machine p(path:@[u8],start:u64,index:u64) requires start <= index, index <= path.len {}");
     self.check_complete();
     self.check_state_requirement_range(0, 0, 2);
@@ -1356,5 +1365,16 @@ machine Main::check_machine_requirement_refused(&mut self, start:i32, end:i32) {
     }
     state coordinates() {
         self.check_syntax_refused(start, end);
+    }
+}
+
+machine Main::check_subject_string(&mut self, expression: i32, start: i32, end: i32, length: i32) {
+    let literal: OmegaExpressionSyntax = self.parser.expressions[expression];
+    assert literal.payload0 == start;
+    assert literal.payload1 == end;
+    assert literal.payload2 == length;
+    transition literal.kind {
+        OmegaExpressionKind::String -> return
+        _ -> self.console.exit_process(1)
     }
 }
