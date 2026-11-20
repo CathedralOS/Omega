@@ -81,7 +81,7 @@ def string_cases():
     return [(label, source, offset, result, b'') for label, source, offset, result in cases]
 
 
-def scan_source(root, fixtures, boundary, public):
+def scan_source(root, fixtures, boundary, public, *, public_entry='lexer_public_main.epsilon'):
     base = root / 'bootstrap/omega/compiler'
     representations = (base / 'representations.epsilon').read_bytes()
     lexer = (base / 'source-to-tokens/scan.epsilon').read_bytes()
@@ -95,13 +95,48 @@ def scan_source(root, fixtures, boundary, public):
     lexical = (base / 'source-to-tokens/byte_classes.epsilon').read_bytes()
     if public:
         implementation = utf8[utf8.index(b'machine OmegaUtf8Validation::validate('):] + lexical + lexer
-        customer = fixtures / 'lexer_public_main.epsilon'
+        customer = fixtures / public_entry
     else:
         implementation = (lexical + lexer[:lexer.index(b'machine OmegaLexScan::span_equals(')]
                           + lexer[lexer.index(b'machine OmegaLexScan::scan_string('):
                                   lexer.index(b'machine OmegaLexScan::consume_digits(')])
         customer = fixtures / 'lexer_string_main.epsilon'
     return utf8_type + token_types + implementation + boundary + (fixtures / 'lexer_scan_main.epsilon').read_bytes() + customer.read_bytes()
+
+
+def public_scan_source(root, entry):
+    fixtures = root / 'tests/bootstrap/independent/epsilon'
+    boundary = (fixtures / 'console.epsilon').read_bytes()
+    return scan_source(root, fixtures, boundary, public=True, public_entry=entry)
+
+
+def public_scan_case(root):
+    source = public_scan_source(root, 'lexer_public_main.epsilon')
+    payload, expected = batch(lexical_cases())
+    return source, payload, expected
+
+
+def punctuation_case(root):
+    source = public_scan_source(root, 'lexer_punctuation_main.epsilon')
+    spellings = br"""& && ' -> * ^ : :: , . .. ..= = == ! != > >= >> # { [ (
+                     < <= << - % | || + += -= *= /= %= } ] ) ; / ~ @ \ $""".split()
+    request = bytearray()
+    expected = bytearray(b'\0' + struct.pack('<i', 42))
+    for spelling in spellings:
+        for text, offset in ((spelling, 0), (b'x' + spelling + b'q', 1)):
+            request.extend(bytes((len(text), offset)) + text)
+            expected.extend(bytes([len(spelling)]) + spelling + b'\n')
+    return source, bytes(request), bytes(expected)
+
+
+def public_scan_wrong_offset_case(root):
+    source, payload, _ = public_scan_case(root)
+    call = b'self.scanner.scan_at(source, offset)'
+    if source.count(call) != 1:
+        raise ValueError('expected one public scan call in the lexer customer')
+    offset = source.index(call)
+    invalid = source.replace(call, b'self.scanner.scan_at(source, source)')
+    return invalid, payload, struct.pack('<BBI', 2, 18, offset)
 
 
 def run(work, composition, boundary, compiler, observe, compile_delta, reference, identity, alpha_program, check_alpha):

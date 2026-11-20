@@ -1,0 +1,65 @@
+machine Main::inspect(&mut self, source: &[u8], offset: i32) {
+    self.scanner.scan_at(source, offset);
+    transition self.scanner.has_token {
+        1 -> check_kind()
+        _ -> self.console.exit_process(1)
+    }
+
+    state check_kind() {
+        transition self.scanner.token_kind {
+            OmegaTokenKind::Punctuation -> emit()
+            _ -> self.console.exit_process(2)
+        }
+    }
+
+    state emit() {
+        self.console.write_byte(self.scanner.token_end - offset);
+        transition self.scanner.punctuation {
+            OmegaPunctuationKind::Ampersand -> self.console.write_line("&")
+            OmegaPunctuationKind::AndAnd -> self.console.write_line("&&")
+            OmegaPunctuationKind::Apostrophe -> self.console.write_line("'")
+            OmegaPunctuationKind::Arrow -> self.console.write_line("->")
+            OmegaPunctuationKind::Asterisk -> self.console.write_line("*")
+            OmegaPunctuationKind::Caret -> self.console.write_line("^")
+            OmegaPunctuationKind::Colon -> self.console.write_line(":")
+            OmegaPunctuationKind::ColonColon -> self.console.write_line("::")
+            OmegaPunctuationKind::Comma -> self.console.write_line(",")
+            OmegaPunctuationKind::Dot -> self.console.write_line(".")
+            OmegaPunctuationKind::DotDot -> self.console.write_line("..")
+            OmegaPunctuationKind::DotDotEqual -> self.console.write_line("..=")
+            OmegaPunctuationKind::Equal -> self.console.write_line("=")
+            OmegaPunctuationKind::EqualEqual -> self.console.write_line("==")
+            OmegaPunctuationKind::Exclamation -> self.console.write_line("!")
+            OmegaPunctuationKind::ExclamationEqual -> self.console.write_line("!=")
+            OmegaPunctuationKind::Greater -> self.console.write_line(">")
+            OmegaPunctuationKind::GreaterEqual -> self.console.write_line(">=")
+            OmegaPunctuationKind::GreaterGreater -> self.console.write_line(">>")
+            OmegaPunctuationKind::Hash -> self.console.write_line("#")
+            OmegaPunctuationKind::LeftBrace -> self.console.write_line("{")
+            OmegaPunctuationKind::LeftBracket -> self.console.write_line("[")
+            OmegaPunctuationKind::LeftParen -> self.console.write_line("(")
+            OmegaPunctuationKind::Less -> self.console.write_line("<")
+            OmegaPunctuationKind::LessEqual -> self.console.write_line("<=")
+            OmegaPunctuationKind::LessLess -> self.console.write_line("<<")
+            OmegaPunctuationKind::Minus -> self.console.write_line("-")
+            OmegaPunctuationKind::Percent -> self.console.write_line("%")
+            OmegaPunctuationKind::Pipe -> self.console.write_line("|")
+            OmegaPunctuationKind::PipePipe -> self.console.write_line("||")
+            OmegaPunctuationKind::Plus -> self.console.write_line("+")
+            OmegaPunctuationKind::PlusEqual -> self.console.write_line("+=")
+            OmegaPunctuationKind::MinusEqual -> self.console.write_line("-=")
+            OmegaPunctuationKind::AsteriskEqual -> self.console.write_line("*=")
+            OmegaPunctuationKind::SlashEqual -> self.console.write_line("/=")
+            OmegaPunctuationKind::PercentEqual -> self.console.write_line("%=")
+            OmegaPunctuationKind::RightBrace -> self.console.write_line("}")
+            OmegaPunctuationKind::RightBracket -> self.console.write_line("]")
+            OmegaPunctuationKind::RightParen -> self.console.write_line(")")
+            OmegaPunctuationKind::Semicolon -> self.console.write_line(";")
+            OmegaPunctuationKind::Slash -> self.console.write_line("/")
+            OmegaPunctuationKind::Tilde -> self.console.write_line("~")
+            OmegaPunctuationKind::At -> self.console.write_line("@")
+            OmegaPunctuationKind::Backslash -> self.console.write_line("\\")
+            OmegaPunctuationKind::Dollar -> self.console.write_line("$")
+        }
+    }
+}
