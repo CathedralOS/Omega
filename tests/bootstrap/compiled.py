@@ -337,7 +337,7 @@ def omega_control_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega runtime control: 25 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 50 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega runtime control: 25 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 52 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_storage_customer(work, timeout):
