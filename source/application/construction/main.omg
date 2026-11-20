@@ -30,9 +30,8 @@ data ConstructionInput {
     bytes: [u8; 4194304];
 }
 
-machine malformed() reaches ProcessExit + Console crashes Trap {
+machine malformed() reaches ProcessExit crashes none {
     ProcessExit::exit_process(253);
-    crash Trap;
 }
 
 machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
@@ -46,7 +45,6 @@ machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
     { value as u8 }
     machine truncated() -> u8 {
         ProcessExit::exit_process(253);
-        crash Trap;
     }
 }
 
@@ -153,7 +151,6 @@ reaches ProcessExit + Console crashes Trap
     { input.rows[index] }
     machine invalid() -> u32 {
         ProcessExit::exit_process(253);
-        crash Trap;
     }
 }
 
@@ -215,7 +212,7 @@ reaches ProcessExit + Console crashes Trap
             _ -> full()
         }
     }
-    machine full() { ProcessExit::exit_process(252); crash Trap; }
+    machine full() { ProcessExit::exit_process(252); }
     machine done() {}
 }
 
@@ -254,7 +251,7 @@ reaches ProcessExit + Console crashes Trap
             _ -> full()
         }
     }
-    machine full() { ProcessExit::exit_process(252); crash Trap; }
+    machine full() { ProcessExit::exit_process(252); }
     machine done() {}
 }
 
@@ -480,7 +477,7 @@ reaches ProcessExit + Console crashes Trap
         omega_compiler\compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
         transition { _ -> next(input, compilation, lexer, index + 1) }
     }
-    machine full() { ProcessExit::exit_process(252); crash Trap; }
+    machine full() { ProcessExit::exit_process(252); }
     machine done() {}
 }
 
