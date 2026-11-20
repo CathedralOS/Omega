@@ -1501,15 +1501,27 @@ pub mod domain {
         if name.as_str().parse::<i128>().is_ok() {
             return Ok(format!("integer:{expected}:{}", name.as_str()));
         }
+        if !symbol.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "indexed-domain const argument `{name}` has no resolved declaration"
+            )));
+        }
         Ok(format!(
-            "binder:{}:{}",
-            if symbol.is_valid() {
-                program.symbols.display_path(*symbol, "::")
-            } else {
-                name.as_str().to_owned()
-            },
-            expected
+            "binder:{}:{expected}",
+            program.symbols.display_path(*symbol, "::")
         ))
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn an_unresolved_const_index_cannot_supply_a_binder_identity() {
+        let mut trees = TypedTrees::default();
+        let argument = trees.type_reference_table.insert(Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::from("Missing"),
+        });
+        let refusal = closed_domain_argument_identity(&trees, argument, "Unit", &[]).unwrap_err();
+        assert!(refusal.message.contains("`Missing` has no resolved declaration"));
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
