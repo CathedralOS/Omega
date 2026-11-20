@@ -3,7 +3,7 @@
 // membership; merely available callbacks do not become emission roots.
 
 use super::callback_thunks::{PreparedCallbackBodies, prepare_installed_callbacks};
-use crate::compile_body::{self, BodyEmissionError};
+use crate::driver::compile_body::{self, BodyEmissionError};
 use super::selected_physical_pipeline_failed;
 use verified_optimization_input::ValidatedNativeProgramEntrySettlement;
 use diagnostics::Diagnostic;
@@ -47,11 +47,11 @@ pub(crate) fn emit_realization_object(
     roster: super::plan_callables::PlannedProgramBodies<'_>,
     program_entry: Option<&ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
-        crate::runtime_provisions::NativeRuntimePlan<
-            crate::runtime_provisions::NativeForeignAdapterRequest,
+        crate::driver::runtime::NativeRuntimePlan<
+            crate::driver::runtime::NativeForeignAdapterRequest,
         >,
     >,
-    observation: &crate::observations::NativePipelineObservation,
+    observation: &crate::driver::observations::NativePipelineObservation,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let (target, prepared_callbacks) = PreparedCallbackBodies::from_roster(roster)?;
     let physical_root = program_entry
@@ -197,14 +197,14 @@ pub(crate) fn emit_realization_object(
     let physical_entry = physical_entry.map(installation_binding::entries::bind_physical_entry);
     let runtime_provisions = runtime_provisions.map(|runtime| {
         runtime.map_adapters(|request| {
-            crate::foreign_adapters::plan(request)
+            crate::driver::runtime::foreign_adapters::plan(request)
                 .map(installation_binding::entries::bind_foreign_adapter)
         })
     });
     // Body membership, entry transport and installation resources are now closed.
     // Encoding consumes these plans and cannot discover or request another body.
     let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(crate::foreign_adapters::encode));
+        runtime_provisions.map(|runtime| runtime.map_adapters(crate::driver::runtime::foreign_adapters::encode));
     let hosted_entry = hosted_entry
         .map(native_encoding::hosted_program::encode_hosted_program_entry)
         .transpose()
@@ -222,7 +222,7 @@ pub(crate) fn emit_realization_object(
         |body| body.encode(),
     )?;
     let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(crate::foreign_adapters::place));
+        runtime_provisions.map(|runtime| runtime.map_adapters(crate::driver::runtime::foreign_adapters::place));
     let hosted_entry = hosted_entry
         .map(placement::program_entry_layout::resolve_hosted_program)
         .transpose()
@@ -240,7 +240,7 @@ pub(crate) fn emit_realization_object(
         |body| body.layout(),
     )?;
     let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(crate::foreign_adapters::construct));
+        runtime_provisions.map(|runtime| runtime.map_adapters(crate::driver::runtime::foreign_adapters::construct));
     let hosted_entry =
         hosted_entry.map(object_file::program_entry_object::HostedProgramObject::from_placement);
     let physical_entry = physical_entry

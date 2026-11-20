@@ -26,6 +26,10 @@ pub fn admit<Publisher>(
 }
 
 impl<Publisher> AdmittedProviderDemand<Publisher> {
+    pub fn inputs(&self) -> &ProviderDemandInputs {
+        self.demand.inputs()
+    }
+
     pub fn into_parts(self) -> (IssuedProviderDemand<Publisher>, AuthorizedTerminalArtifact) {
         (self.demand, self.authorization)
     }

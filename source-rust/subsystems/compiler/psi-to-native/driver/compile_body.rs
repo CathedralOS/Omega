@@ -2,7 +2,7 @@
 //! Callers bind measured handlers between frame planning and instruction encoding.
 //! Validators can request the original stage inputs for independent replay.
 
-use crate::observations::{NativePipelineObservation, NativePipelineStage};
+use crate::driver::observations::{NativePipelineObservation, NativePipelineStage};
 use artifact_lowering::VerifiedNativeArtifactInput;
 use function_layout::FunctionRelativeOptimizationRealizationError;
 use instruction_selection::OptimizedSelectionPipelineError;

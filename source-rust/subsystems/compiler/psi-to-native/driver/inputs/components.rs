@@ -51,7 +51,7 @@ pub(crate) fn prepare_components<'input>(
         for execution in &exports {
             demand.extend(execution.scalar_application_demand(proposal.target_profile())?);
         }
-        let scalars = crate::target_inputs::required_scalars::required_scalars(
+        let scalars = crate::driver::inputs::required_scalars::required_scalars(
             artifact,
             &demand,
             compilation.scalars,

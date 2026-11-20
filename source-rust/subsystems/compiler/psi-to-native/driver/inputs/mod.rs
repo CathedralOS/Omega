@@ -1,12 +1,8 @@
-// Select native work before any Omega stage runs. `prepare` binds explicit
-// platform installation assumptions to the retained artifact and proposal,
-// admits independent component calls and private entry RAM initializers
-// against target layouts, chooses the root and component executions with their
-// provider demand, and keeps the completed scalar values each one reads. Every
-// step reads the retained Terminal product, its native proposal and the
-// request; `compile` then runs Omega 00 to 09 once, front to back.
+//! Gather the inputs needed by the body and runtime drivers. Stage 01 selects
+//! root and component executions. Entry memory, requested installation assumptions
+//! and completed scalar values are checked against the retained publication and target.
 
-mod program_entry;
+pub(crate) mod components;
 pub(crate) mod published_application;
 pub(crate) mod required_scalars;
 
@@ -25,7 +21,7 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
     pub(crate) scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
-    pub(crate) components: Vec<crate::component_inputs::PreparedComponent<'input>>,
+    pub(crate) components: Vec<crate::driver::inputs::components::PreparedComponent<'input>>,
 }
 
 pub(crate) fn prepare<'input>(
@@ -41,7 +37,7 @@ pub(crate) fn prepare<'input>(
             request.installation_assumptions,
         )?;
         let components =
-            crate::component_inputs::prepare_components(request.components, artifact.view())?;
+            crate::driver::inputs::components::prepare_components(request.components, artifact.view())?;
         let selections = psi_target_layouts::terminal_target_context(
             artifact.view(),
             proposal.target_profile().target_name(),

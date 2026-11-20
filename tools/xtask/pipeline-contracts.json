@@ -153,7 +153,7 @@
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:authority#1",
       "kind": "carried_record",
       "meaning": "The provider admission that authorizes this callable.",
@@ -165,7 +165,7 @@
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:code#1",
       "kind": "carried_record",
       "meaning": "The callable artifact code needed by independent object verification.",
@@ -177,7 +177,7 @@
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:coverage#1",
       "kind": "carried_record",
       "meaning": "The admitted applications at the callable's boundaries.",
@@ -189,31 +189,31 @@
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:observation#1",
       "kind": "carried_record",
       "meaning": "The counters for stages entered while compiling this callable.",
       "producer": "native callable planning",
-      "signature": "099ce5fd22133364ea75a5114eb69f28ab31a2068ef5a574c4634c48de469e1c"
+      "signature": "fb1f66cedb8bb439fa1eeec804e7499ca0a76f75810b3031f3e7f048096764e2"
     },
     {
       "consumers": [
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:runtime#1",
       "kind": "carried_record",
       "meaning": "Host provisions and borrowed storage layouts for this callable.",
       "producer": "native callable planning",
-      "signature": "dc9aa0e1050c1110f0c2887460b21cd385ef631f324008a26c372c2523095aa4"
+      "signature": "5e869ef812f897f05501ef4de8eb1fbbb743b3f915056bf1691f82561dc10d5a"
     },
     {
       "consumers": [
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "CallableTargetProduct::field:target#1",
       "kind": "carried_record",
       "meaning": "The prepared target body and its surviving private references.",
@@ -225,7 +225,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:admission#1",
       "kind": "carried_record",
       "meaning": "The root admission inputs from which callable admission selects its own entry.",
@@ -237,7 +237,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:budget#1",
       "kind": "carried_record",
       "meaning": "The optimization work budget used for body planning.",
@@ -249,7 +249,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:execution#1",
       "kind": "carried_record",
       "meaning": "The prepared provider execution used to lower private callables.",
@@ -261,7 +261,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:optimization_selections#1",
       "kind": "carried_record",
       "meaning": "The optimization choices applied to the root and each retained callable.",
@@ -273,7 +273,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:proposal#1",
       "kind": "carried_record",
       "meaning": "The declared native realization choices used to lower each discovered callable.",
@@ -285,7 +285,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:retain_native_stage_inputs#1",
       "kind": "carried_record",
       "meaning": "Whether an explicit audit requested the original stage inputs.",
@@ -297,7 +297,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "NativeProgramPlanningRequest::field:scalar_applications#1",
       "kind": "carried_record",
       "meaning": "The admitted scalar applications available to the callable lowerer.",
@@ -308,7 +308,7 @@
       "consumers": [
         "physical planning and object emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PlannedNativeProgram::field:bodies#1",
       "kind": "carried_record",
       "meaning": "The planned root and every private function reached during lowering.",
@@ -319,7 +319,7 @@
       "consumers": [
         "native realization coordinator"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PlannedNativeProgram::field:boundary_application_coverage#1",
       "kind": "carried_record",
       "meaning": "The root admission record for boundary applications that image publication must account for.",
@@ -330,7 +330,7 @@
       "consumers": [
         "native realization coordinator"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PlannedNativeProgram::field:providers#1",
       "kind": "carried_record",
       "meaning": "The admitted provider evidence retained for image publication after the root takes its installation.",
@@ -341,7 +341,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PlannedProgramBodies::field:bodies#1",
       "kind": "carried_record",
       "meaning": "The reachable private target bodies and the entry contracts selected for each.",
@@ -352,7 +352,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PlannedProgramBodies::field:placement_count#1",
       "kind": "carried_record",
       "meaning": "The size of the original placement table, including unused slots.",
@@ -363,7 +363,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PlannedProgramBodies::field:root#1",
       "kind": "carried_record",
       "meaning": "The target body whose surviving references started callback discovery.",
@@ -374,7 +374,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateBodyDemand::field:by_placement#1",
       "kind": "carried_record",
       "meaning": "Map each original placement to its occurrence in the proposal.",
@@ -385,7 +385,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateBodyDemand::field:occurrences#1",
       "kind": "carried_record",
       "meaning": "The proposal owns the exact callback operation, function, body and calling plan at each occurrence.",
@@ -396,7 +396,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateBodyDemand::field:pending#1",
       "kind": "carried_record",
       "meaning": "The ordered occurrence indices whose private bodies the native planner must lower.",
@@ -407,7 +407,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateBodyDemand::field:queued#1",
       "kind": "carried_record",
       "meaning": "Record which original occurrences already have a place in the transitive work list.",
@@ -419,7 +419,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:boundary_entry_plan#1",
       "kind": "carried_record",
       "meaning": "The inbound calling convention for the retained entry.",
@@ -431,7 +431,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:callback_function#1",
       "kind": "carried_record",
       "meaning": "The private function identity referenced by retained target instructions.",
@@ -443,7 +443,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:entry#1",
       "kind": "carried_record",
       "meaning": "The machine that executes the callback.",
@@ -455,7 +455,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:entry_parameters#1",
       "kind": "carried_record",
       "meaning": "The lowered parameters used to construct the private entry.",
@@ -467,7 +467,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:parameter_formals#1",
       "kind": "carried_record",
       "meaning": "The formal positions supplied by the callback entry.",
@@ -479,7 +479,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:placement_index#1",
       "kind": "carried_record",
       "meaning": "The position in the original table of offered callbacks.",
@@ -491,7 +491,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:psi#1",
       "kind": "carried_record",
       "meaning": "The identity of the callable's terminal artifact.",
@@ -503,7 +503,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "PrivateEntryContract::field:terminal_operation#1",
       "kind": "carried_record",
       "meaning": "The operation that selected this entry.",
@@ -514,7 +514,7 @@
       "consumers": [
         "physical publication fixture"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "function:inspect_private_body_demand#1",
       "kind": "test_support",
       "meaning": "Exercise the production demand resolver with independently admitted native body plans.",
@@ -525,7 +525,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "function:plan_callable#1",
       "kind": "producer",
       "meaning": "Plan one admitted callable and retain its target body with its runtime provisions and entry authority.",
@@ -536,10 +536,10 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "function:plan_callback_target#1",
       "kind": "producer",
-      "meaning": "Lower the precise callable selected by the proposal occurrence, under the admitted program\u2019s provider context.",
+      "meaning": "Lower the precise callable selected by the proposal occurrence, under the admitted program’s provider context.",
       "producer": "native program planning",
       "signature": "45513edd9bd3455c8e8bfe7e909140765c94df370d1e7cdabe1299517d138f71"
     },
@@ -547,7 +547,7 @@
       "consumers": [
         "native realization coordinator"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "function:plan_program#1",
       "kind": "producer",
       "meaning": "Lower the admitted root with its own provider settlements, close the reachable private bodies and transfer the remaining admission evidence to image publication.",
@@ -558,7 +558,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:From < & 'a TerminalCallbackOccurrenceProposal > for PrivateEntryContract < 'a >::implementation#1",
       "kind": "producer",
       "meaning": "Project the entry, artifact identity, formal slots and calling policy from the same original occurrence.",
@@ -569,7 +569,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:From < & 'a TerminalCallbackOccurrenceProposal > for PrivateEntryContract < 'a >::method:from#1",
       "kind": "producer",
       "meaning": "Project the entry, artifact identity, formal slots and calling policy from the same original occurrence.",
@@ -580,7 +580,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:PlannedProgramBodies < 'contract >::implementation#1",
       "kind": "definition",
       "meaning": "Return the planned root and reachable private bodies for physical planning.",
@@ -591,7 +591,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:PlannedProgramBodies < 'contract >::method:from_root#1",
       "kind": "producer",
       "meaning": "Start from the lowered root and schedule the admitted private functions reached transitively. Preserve sibling order from the original proposal.",
@@ -602,7 +602,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:PlannedProgramBodies < 'contract >::method:into_parts#1",
       "kind": "producer",
       "meaning": "Transfer the planned root, placement count and reachable private bodies together.",
@@ -613,7 +613,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:PrivateBodyDemand < 'a >::implementation#1",
       "kind": "definition",
       "meaning": "Schedule original occurrences demanded by the current target body.",
@@ -624,10 +624,10 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:PrivateBodyDemand < 'a >::method:enqueue#1",
       "kind": "producer",
-      "meaning": "Resolve every retained reference against its original occurrence and the current body\u2019s admitted callbacks or interrupt entries. Schedule each callee once.",
+      "meaning": "Resolve every retained reference against its original occurrence and the current body’s admitted callbacks or interrupt entries. Schedule each callee once.",
       "producer": "native program planning",
       "signature": "cf8d5e0a86f77daab62417a0729d6ed4f4ea7cb285096752a410b3871b3ee148"
     },
@@ -635,7 +635,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "impl:PrivateBodyDemand < 'a >::method:new#1",
       "kind": "producer",
       "meaning": "Index the complete original placement roster and reject duplicate or out-of-range placements.",
@@ -647,7 +647,7 @@
         "private physical planning",
         "callable object publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:CallableTargetProduct#1",
       "kind": "definition",
       "meaning": "The target body and provisions issued for one admitted callable.",
@@ -659,7 +659,7 @@
         "native program planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:NativeProgramPlanningRequest#1",
       "kind": "definition",
       "meaning": "Supply the checked proposal, execution and native planning policy for the admitted root.",
@@ -670,7 +670,7 @@
       "consumers": [
         "native realization coordinator"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:PlannedNativeProgram#1",
       "kind": "definition",
       "meaning": "The closed target bodies and the provider and boundary evidence for publishing their image.",
@@ -681,7 +681,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:PlannedProgramBodies#1",
       "kind": "definition",
       "meaning": "The root and all private target bodies selected by its transitive references.",
@@ -692,7 +692,7 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:PrivateBodyDemand#1",
       "kind": "carried_record",
       "meaning": "Index original occurrences once and schedule each retained private function once in producer order.",
@@ -704,7 +704,7 @@
         "private entry planning",
         "installed handler planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "struct:PrivateEntryContract#1",
       "kind": "definition",
       "meaning": "The entry contract associated with a reachable private function.",
@@ -715,7 +715,7 @@
       "consumers": [
         "callable_planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:artifact_lowering :: admit_prepared_native_realization#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -726,10 +726,10 @@
       "consumers": [
         "native program planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:backend_plan :: TerminalCallbackOccurrenceProposal#1",
       "kind": "definition",
-      "meaning": "Use the proposal\u2019s checked callback occurrence as the source of the private entry and ABI.",
+      "meaning": "Use the proposal’s checked callback occurrence as the source of the private entry and ABI.",
       "producer": "native program planning",
       "signature": "c9f5351883c8dde6b20b68352aea6b212a494aac8232679046a79ff45418a1f5"
     },
@@ -737,18 +737,18 @@
       "consumers": [
         "root and callable target planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
-      "item": "use:crate :: compile_body :: NativeBodyPlanningError#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
+      "item": "use:crate :: driver :: compile_body :: NativeBodyPlanningError#1",
       "kind": "definition",
       "meaning": "Report failures from the common optimizer and target lowering used for callable and root bodies.",
       "producer": "native body planner",
-      "signature": "4a9bee0ce21a342f1dc947e3cc564abde8e38e89aed8ee1ac901b86baf736f0c"
+      "signature": "2ef3746977869c212eeac2654668b70ad4090c9f8408a467a338ea8db079e130"
     },
     {
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Return compiler diagnostics when a required callable cannot be planned.",
@@ -759,7 +759,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:provider_admission :: provider_admission :: realization_error#1",
       "kind": "definition",
       "meaning": "Report planning errors with their native compilation context.",
@@ -770,7 +770,7 @@
       "consumers": [
         "native callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:provider_realization :: native_execution :: PreparedNativeExecution#1",
       "kind": "definition",
       "meaning": "The callable planner borrows the provider rows chosen for its enclosing program or export.",
@@ -781,7 +781,7 @@
       "consumers": [
         "native physical planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Share the admitted provider context across callable admissions.",
@@ -792,7 +792,7 @@
       "consumers": [
         "native callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "item": "use:verified_optimization_input :: TerminalNativeRealizationProposal#1",
       "kind": "definition",
       "meaning": "The callable planner reads the target and proposed providers alongside the prepared execution when binding a callable.",
@@ -803,7 +803,7 @@
       "consumers": [
         "native compiler callback planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "item": "function:handler_planning_order#1",
       "kind": "producer",
       "meaning": "Orders installed handlers before their installers and rejects cyclic resource demand.",
@@ -814,7 +814,7 @@
       "consumers": [
         "native compiler callback planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "item": "handler_planning_order::enum:State#1",
       "kind": "definition",
       "meaning": "The unseen, active and finished states for one installation in the dependency walk.",
@@ -825,7 +825,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "item": "module:tests#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -836,7 +836,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "item": "tests::function:nested_installations_use_bounded_heap_work#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -847,7 +847,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "item": "tests::function:shared_handlers_precede_each_installer_and_ordinary_callbacks_follow_root#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -858,7 +858,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "item": "tests::use:super :: handler_planning_order#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -869,7 +869,7 @@
       "consumers": [
         "root and private body diagnostics"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "BodyEmissionError::Installation::field:0#1",
       "kind": "carried_record",
       "meaning": "Reason the prepared instructions could not use the requested installations.",
@@ -882,7 +882,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "BodyEmissionError::Object::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating Object failure, carried through the native pipeline diagnostic.",
@@ -895,7 +895,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "BodyEmissionError::Physical::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating Physical failure, carried through the native pipeline diagnostic.",
@@ -907,7 +907,7 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "BodyObject::field:originals#1",
       "kind": "carried_record",
       "meaning": "Only the compilation report receives the complete physical stage originals.",
@@ -919,10 +919,10 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "BodyObject::field:projection#1",
       "kind": "carried_record",
-      "meaning": "The object produced from this body\u2019s placed code.",
+      "meaning": "The object produced from this body’s placed code.",
       "producer": "native compilation driver",
       "signature": "3e510552d9b6e39c2393bf9c5eb82bb1ff504d96c2a16201c4d3618819710811"
     },
@@ -932,10 +932,10 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "EncodedBody::field:originals#1",
       "kind": "carried_record",
-      "meaning": "The optional originals used to independently verify the current stage\u00e2\u20ac\u2122s instructions, allocation and layout.",
+      "meaning": "The optional originals used to independently verify the current stageâ€™s instructions, allocation and layout.",
       "producer": "native compiler physical and object driver",
       "signature": "c6b81699b23f952732e125b932007fffef307442b1a9d93395d1757a6c54d81d"
     },
@@ -945,7 +945,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "EncodedBody::field:program#1",
       "kind": "carried_record",
       "meaning": "Stage 12 issues the encoded body and its branch templates. Stage 13 takes that issued value to place its functions.",
@@ -957,7 +957,7 @@
         "object replay construction",
         "independent physical verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "LaidOutBody::field:originals#1",
       "kind": "carried_record",
       "meaning": "Physical stage inputs retained for an explicit audit of this body.",
@@ -970,7 +970,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "LaidOutBody::field:placed#1",
       "kind": "carried_record",
       "meaning": "Object construction receives placed code paired with the publication checked against its encoding.",
@@ -983,7 +983,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::Encoding::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating Encoding failure, carried through the native pipeline diagnostic.",
@@ -996,7 +996,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating FunctionRelativeRealization failure, carried through the native pipeline diagnostic.",
@@ -1009,7 +1009,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::Layout::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating Layout failure, carried through the native pipeline diagnostic.",
@@ -1022,7 +1022,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::LayoutOptimization::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating LayoutOptimization failure, carried through the native pipeline diagnostic.",
@@ -1035,7 +1035,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating PostAllocationMachine failure, carried through the native pipeline diagnostic.",
@@ -1048,7 +1048,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::RegisterAllocation::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating RegisterAllocation failure, carried through the native pipeline diagnostic.",
@@ -1061,7 +1061,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating RegisterEnvironment failure, carried through the native pipeline diagnostic.",
@@ -1074,7 +1074,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::SelectedOptimization::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating SelectedOptimization failure, carried through the native pipeline diagnostic.",
@@ -1087,7 +1087,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::Selection::field:0#1",
       "kind": "carried_record",
       "meaning": "The originating Selection failure, carried through the native pipeline diagnostic.",
@@ -1100,10 +1100,10 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "PhysicalBody::field:originals#1",
       "kind": "carried_record",
-      "meaning": "The optional originals used to independently verify the current stage\u00e2\u20ac\u2122s instructions, allocation and layout.",
+      "meaning": "The optional originals used to independently verify the current stageâ€™s instructions, allocation and layout.",
       "producer": "native compiler physical and object driver",
       "signature": "c6b81699b23f952732e125b932007fffef307442b1a9d93395d1757a6c54d81d"
     },
@@ -1112,7 +1112,7 @@
         "installation binding",
         "body encoding"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "PhysicalBody::field:stage#1",
       "kind": "carried_record",
       "meaning": "The complete input or output of frame binding for this body.",
@@ -1123,7 +1123,7 @@
       "consumers": [
         "native correspondence verifier"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "PhysicalPlanningOriginals::field:allocation#1",
       "kind": "carried_record",
       "meaning": "Retained allocator input and decisions for this physical body.",
@@ -1134,7 +1134,7 @@
       "consumers": [
         "native correspondence verifier"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "PhysicalPlanningOriginals::field:machine#1",
       "kind": "carried_record",
       "meaning": "Retained post-allocation input and machine plan for comparison.",
@@ -1145,7 +1145,7 @@
       "consumers": [
         "native correspondence verifier"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "PhysicalPlanningOriginals::field:selected_optimization#1",
       "kind": "carried_record",
       "meaning": "The selected rewrite replay when that optimization ran.",
@@ -1158,7 +1158,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "alias:BoundPhysicalBody#1",
       "kind": "carried_record",
       "meaning": "The physical frame and resource authority bound to the exact program before encoding.",
@@ -1171,7 +1171,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "alias:PreparedPhysicalBody#1",
       "kind": "carried_record",
       "meaning": "A physically planned root or callable body waiting for bound installation resources.",
@@ -1184,7 +1184,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "enum:BodyEmissionError#1",
       "kind": "definition",
       "meaning": "The original physical pipeline error or object/image diagnostics for the body.",
@@ -1197,7 +1197,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "enum:OptimizedVerifiedPhysicalPipelineError#1",
       "kind": "definition",
       "meaning": "The originating refusal from physical selection, encoding, placement or relative realization.",
@@ -1210,7 +1210,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:construct_body_object#1",
       "kind": "producer",
       "meaning": "Pass the issued stage 16 object to image emission and transfer the physical audit originals to the compilation report.",
@@ -1223,7 +1223,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:encode_physical_body#1",
       "kind": "producer",
       "meaning": "Submit the stage 11 body to encoding and retain original instructions only for explicit replay.",
@@ -1236,7 +1236,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:layout_encoded_body#1",
       "kind": "producer",
       "meaning": "Pass the issued encoding to placement, its placed program to relaxation, and the relaxed program to function placement.",
@@ -1249,10 +1249,10 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:object_publication_error#1",
       "kind": "definition",
-      "meaning": "Report the object producer\u2019s refusal to the compiler with the original error.",
+      "meaning": "Report the object producer’s refusal to the compiler with the original error.",
       "producer": "native compiler physical and object driver",
       "signature": "74404fcc24e7f6b0d2ac0f282e7b72df5b5e177a59d323f7296eeb901e96b730"
     },
@@ -1261,7 +1261,7 @@
         "Application entries",
         "Private callable bodies"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:prepare_physical_body#1",
       "kind": "producer",
       "meaning": "Advance the issued target body through instruction selection, rewriting, register allocation, machine lowering and frame planning. Retain stage originals only for requested replay.",
@@ -1272,7 +1272,7 @@
       "consumers": [
         "physical publication regression"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:EncodedBody::implementation#1",
       "kind": "test_support",
       "meaning": "Provide the publication regression a non-owning reference to the original encoded body.",
@@ -1283,7 +1283,7 @@
       "consumers": [
         "physical publication regression"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:EncodedBody::method:original_encoding_weak#1",
       "kind": "test_support",
       "meaning": "Observe the lifetime of the issued instruction encoding across ordinary and audited object publication.",
@@ -1296,7 +1296,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:From < FunctionRelativeOptimizationRealizationError > for BodyEmissionError::implementation#1",
       "kind": "definition",
       "meaning": "Preserve stage-specific native pipeline errors and format their source diagnostics.",
@@ -1309,7 +1309,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:From < FunctionRelativeOptimizationRealizationError > for BodyEmissionError::method:from#1",
       "kind": "definition",
       "meaning": "Preserve or format the exact originating native pipeline failure.",
@@ -1322,7 +1322,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:From < OptimizedVerifiedPhysicalPipelineError > for BodyEmissionError::implementation#1",
       "kind": "definition",
       "meaning": "Preserve stage-specific native pipeline errors and format their source diagnostics.",
@@ -1335,7 +1335,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:From < OptimizedVerifiedPhysicalPipelineError > for BodyEmissionError::method:from#1",
       "kind": "definition",
       "meaning": "Preserve or format the exact originating native pipeline failure.",
@@ -1348,7 +1348,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:PreparedPhysicalBody::implementation#1",
       "kind": "producer",
       "meaning": "Bind stack and handler resources to the frame of an already planned function body.",
@@ -1361,7 +1361,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:PreparedPhysicalBody::method:bind#1",
       "kind": "producer",
       "meaning": "Confirm the planned frame and installation resources agree before passing the body to encoding.",
@@ -1374,7 +1374,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:std :: error :: Error for OptimizedVerifiedPhysicalPipelineError::implementation#1",
       "kind": "definition",
       "meaning": "Preserve stage-specific native pipeline errors and format their source diagnostics.",
@@ -1387,7 +1387,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:std :: fmt :: Display for OptimizedVerifiedPhysicalPipelineError::implementation#1",
       "kind": "definition",
       "meaning": "Preserve stage-specific native pipeline errors and format their source diagnostics.",
@@ -1400,7 +1400,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "impl:std :: fmt :: Display for OptimizedVerifiedPhysicalPipelineError::method:fmt#1",
       "kind": "definition",
       "meaning": "Preserve or format the exact originating native pipeline failure.",
@@ -1412,7 +1412,7 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "struct:BodyObject#1",
       "kind": "carried_record",
       "meaning": "Pairs the emitted body projection with the originals collected for an explicit audit.",
@@ -1425,7 +1425,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "struct:EncodedBody#1",
       "kind": "carried_record",
       "meaning": "The encoding issued to layout and any originals requested for independent validation.",
@@ -1438,7 +1438,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "struct:LaidOutBody#1",
       "kind": "carried_record",
       "meaning": "Carry placed functions into object construction and preserve requested inputs separately for the object auditor.",
@@ -1451,7 +1451,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "struct:PhysicalBody#1",
       "kind": "carried_record",
       "meaning": "The issued frame-planning or binding output and the originals requested for validation.",
@@ -1462,7 +1462,7 @@
       "consumers": [
         "native correspondence verifier"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "struct:PhysicalPlanningOriginals#1",
       "kind": "carried_record",
       "meaning": "Inputs preserved for replay of the selected rewrites, allocation and physical instruction mapping.",
@@ -1475,12 +1475,12 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
-      "item": "use:crate :: observations :: { NativePipelineObservation , NativePipelineStage }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
+      "item": "use:crate :: driver :: observations :: { NativePipelineObservation , NativePipelineStage }#1",
       "kind": "definition",
       "meaning": "Import crate::observations::{ NativePipelineObservation , NativePipelineStage } for native compiler physical and object driver.",
       "producer": "native compiler physical and object driver",
-      "signature": "50dbc3fdc9523ee4036e9ef34f4af6a2c18cb08c54ef26747f0f2c563740f066"
+      "signature": "45d4ddf6c342f3daf1cd217cabb52d923d062197da257fa2499cba5fb8ea4cad"
     },
     {
       "consumers": [
@@ -1488,7 +1488,7 @@
         "private callable and component export compilation",
         "independent native correspondence tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:function_layout :: FunctionRelativeOptimizationRealizationError#1",
       "kind": "definition",
       "meaning": "Import function_layout::FunctionRelativeOptimizationRealizationError for native compiler physical and object driver.",
@@ -1499,7 +1499,7 @@
       "consumers": [
         "pipeline"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:instruction_selection :: OptimizedSelectionPipelineError#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -1510,7 +1510,7 @@
       "consumers": [
         "pipeline"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:machine :: OptimizedPostAllocationMachinePipelineError#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -1521,7 +1521,7 @@
       "consumers": [
         "pipeline"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:selected_rewrites :: SelectedInstructionOptimizationError#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -1532,7 +1532,7 @@
       "consumers": [
         "plan_native_body"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:target_lowering :: { NativeBodyPlan , OptimizedTargetLoweringRequest }#1",
       "kind": "definition",
       "meaning": "Name the target-lowering request and its produced native body plan.",
@@ -1544,7 +1544,7 @@
         "callable and root body planning",
         "runtime provision admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "enum:NativeBodyPlanningError#1",
       "kind": "carried_record",
       "meaning": "Preserve the stage at which body optimization or target lowering failed.",
@@ -1556,10 +1556,10 @@
         "callable and root body planning",
         "runtime provision admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "NativeBodyPlanningError::AbstractOptimization::field:0#1",
       "kind": "carried_record",
-      "meaning": "Keep the abstract optimizer\u2019s validation failure.",
+      "meaning": "Keep the abstract optimizer’s validation failure.",
       "producer": "stage 03 abstract optimizer",
       "signature": "64eb6b4dbca3ba9faa4c67b5585e88d94f165a6244caa6f5f9883e3b9d4716f0"
     },
@@ -1568,7 +1568,7 @@
         "callable and root body planning",
         "runtime provision admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "NativeBodyPlanningError::Target::field:0#1",
       "kind": "carried_record",
       "meaning": "Keep the target lowering or runtime borrow layout failure.",
@@ -1580,7 +1580,7 @@
         "plan_native_body",
         "plan_runtime_storage"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:optimize#1",
       "kind": "producer",
       "meaning": "Record entry to abstract optimization on the invocation observer, apply its requested selections and work budget to the verified input, and return the validated optimizer output.",
@@ -1592,7 +1592,7 @@
         "root body planning",
         "private callable planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:plan_native_body#1",
       "kind": "producer",
       "meaning": "Observe entry to target lowering and produce the target plan shared by root and private callable bodies. Retain originals only on request.",
@@ -1603,7 +1603,7 @@
       "consumers": [
         "runtime provision admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:plan_runtime_storage#1",
       "kind": "producer",
       "meaning": "Use the same optimizer and its lowering input to plan borrowed storage for runtime-only admission.",
@@ -1614,7 +1614,7 @@
       "consumers": [
         "native body planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:artifact_lowering :: VerifiedNativeArtifactInput#1",
       "kind": "definition",
       "meaning": "Accept the verified native artifact input for both shared body-planning entrances.",
@@ -1625,7 +1625,7 @@
       "consumers": [
         "native body planner"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:optimization_core :: { OptimizationWorkBudget , PostTerminalOptimizationSelections }#1",
       "kind": "definition",
       "meaning": "Pass the selected post-Terminal passes and bounded work allowance to the abstract optimizer.",
@@ -1636,7 +1636,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "PublishedNativeEntry::field:artifact#1",
       "kind": "carried_record",
       "meaning": "Published executable artifact for the exact target provider result.",
@@ -1647,7 +1647,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "PublishedNativeEntry::field:nomination#1",
       "kind": "carried_record",
       "meaning": "Source program, entry signature and schema selected once for this target.",
@@ -1658,7 +1658,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "PublishedNativeEntry::field:providers#1",
       "kind": "carried_record",
       "meaning": "Complete selected provider declarations used for the two entry calls.",
@@ -1669,7 +1669,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::implementation#1",
       "kind": "definition",
       "meaning": "Require the nominated source program and deployment target to match the admitted provider selection before settling entry calls.",
@@ -1680,7 +1680,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:binding_role#1",
       "kind": "carried_record",
       "meaning": "Read the package role of the physical entry schema.",
@@ -1691,7 +1691,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:for_program#1",
       "kind": "checker",
       "meaning": "Require the nominated source program and deployment target to match the admitted provider selection before settling entry calls.",
@@ -1702,7 +1702,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:nominal_root#1",
       "kind": "carried_record",
       "meaning": "Project the nominal root from the established entry declaration.",
@@ -1713,7 +1713,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:schema_declaration#1",
       "kind": "carried_record",
       "meaning": "Exact Terminal identity of the schema whose package custody must be admitted.",
@@ -1724,7 +1724,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:settle_calling_plans#1",
       "kind": "producer",
       "meaning": "Pass the admitted nomination, executable, provider declarations, requester custody, semantic binding and package permissions to native entry policy planning.",
@@ -1735,7 +1735,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "impl:PublishedNativeEntry < 'a >::method:source_signature#1",
       "kind": "carried_record",
       "meaning": "Read the signature of the already checked entry.",
@@ -1746,7 +1746,7 @@
       "consumers": [
         "native_compiler::prepare_published_application"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "struct:PublishedNativeEntry#1",
       "kind": "carried_record",
       "meaning": "The borrowed canonical executable, original entry nomination and exact provider declarations joined by Products for this target.",
@@ -1758,7 +1758,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:crate :: { PublishedEntryNomination , SelectedCompilerProgramEntry }#1",
       "kind": "definition",
       "meaning": "Use crate::{ PublishedEntryNomination , SelectedCompilerProgramEntry } when settling the published entry and its calls.",
@@ -1770,7 +1770,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:crate :: { PublishedSelection , SelectedProviderResult }#1",
       "kind": "definition",
       "meaning": "Use crate::{ PublishedSelection , SelectedProviderResult } when settling the published entry and its calls.",
@@ -1782,7 +1782,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Use diagnostics::Diagnostic when settling the published entry and its calls.",
@@ -1794,7 +1794,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:effects :: semantic_bindings :: { AcceptedSemanticBinding , AcceptedSemanticBindingRole }#1",
       "kind": "definition",
       "meaning": "Use effects::semantic_bindings::{ AcceptedSemanticBinding , AcceptedSemanticBindingRole } when settling the published entry and its calls.",
@@ -1806,7 +1806,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:semantic_vocabulary :: compiler_evaluation :: { DeclarationCustody , ProductDeclarationScope }#1",
       "kind": "definition",
       "meaning": "Use semantic_vocabulary::compiler_evaluation::{ DeclarationCustody , ProductDeclarationScope } when settling the published entry and its calls.",
@@ -1818,7 +1818,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Use std::sync::Arc when settling the published entry and its calls.",
@@ -1830,7 +1830,7 @@
         "PublishedNativeEntry::for_program",
         "PublishedNativeEntry::settle_calling_plans"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "item": "use:terminal_codec :: CanonicalTerminalArtifact#1",
       "kind": "definition",
       "meaning": "Use terminal_codec::CanonicalTerminalArtifact when settling the published entry and its calls.",
@@ -1842,7 +1842,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:authority#1",
       "kind": "carried_record",
       "meaning": "The admitted native callable authority associated with its code and runtime provisions.",
@@ -1854,7 +1854,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:code#1",
       "kind": "carried_record",
       "meaning": "The accepted Terminal code used as original evidence for this callable.",
@@ -1866,7 +1866,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:coverage#1",
       "kind": "carried_record",
       "meaning": "Closed boundary application demands and their realizations for the callable.",
@@ -1878,19 +1878,19 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableCustody::field:observation#1",
       "kind": "carried_record",
       "meaning": "The independent native observation scope completed after fragment emission.",
       "producer": "native callable compiler driver",
-      "signature": "190910f0854102ff52a8c3f7b2b5d9b400fc5bf71f2d2b9f1b249c5513543c98"
+      "signature": "e67f24deec3d9b90bd41e01bb87cec730162f49ddc582b879b3e9b97b457d1ee"
     },
     {
       "consumers": [
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:authority#1",
       "kind": "carried_record",
       "meaning": "The admitted native callable authority associated with its code and runtime provisions.",
@@ -1902,10 +1902,10 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:physical_original#1",
       "kind": "carried_record",
-      "meaning": "The callable\u00e2\u20ac\u2122s source/coverage evidence keyed to the effective emitted program.",
+      "meaning": "The callableâ€™s source/coverage evidence keyed to the effective emitted program.",
       "producer": "native callable compiler driver",
       "signature": "b7f5d84ed4c5f7b581fab295d26c7db82e374fc952b31bd1b5ef0c6382d5be24"
     },
@@ -1914,7 +1914,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:projection#1",
       "kind": "carried_record",
       "meaning": "The stage 09 function-fragment object emitted for the callable.",
@@ -1926,22 +1926,22 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:runtime#1",
       "kind": "carried_record",
-      "meaning": "Carry the callable\u2019s runtime provisions with its object-form foreign adapters.",
+      "meaning": "Carry the callable’s runtime provisions with its object-form foreign adapters.",
       "producer": "callable object construction",
-      "signature": "4270e4d9e26ce2b13c934553292fbe5226e583447f8b80d3aecda82d8307e127"
+      "signature": "0f21de7bc4fa7508561b4b176a17c746b2ba8a8fbdbb819ebed1ca46b1372ced"
     },
     {
       "consumers": [
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableObjectProduct::field:stage_originals#1",
       "kind": "carried_record",
-      "meaning": "Carry the requested physical audit inputs to the report under this body\u2019s identity.",
+      "meaning": "Carry the requested physical audit inputs to the report under this body’s identity.",
       "producer": "native compilation driver",
       "signature": "1331b127fd3db69f0be72fd206c9117fe0a760516a94bcc7779a6ac14e56e74a"
     },
@@ -1950,7 +1950,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableProduct::field:body#1",
       "kind": "carried_record",
       "meaning": "The callable body owned at this stage.",
@@ -1962,7 +1962,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableProduct::field:custody#1",
       "kind": "carried_record",
       "meaning": "The original code, boundary coverage, callable authority and observation scope.",
@@ -1974,10 +1974,10 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "CallableProduct::field:runtime#1",
       "kind": "carried_record",
-      "meaning": "The callable\u00e2\u20ac\u2122s host provisions and foreign adapters at the same stage as its body.",
+      "meaning": "The callableâ€™s host provisions and foreign adapters at the same stage as its body.",
       "producer": "native callable compiler driver",
       "signature": "adfc6d84fc45626a38da9fc7e58c2098222339afd91384382062045a5a8e05a4"
     },
@@ -1986,7 +1986,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:BoundCallable#1",
       "kind": "carried_record",
       "meaning": "The callable body and every runtime adapter have passed installation binding and can enter encoding.",
@@ -1998,7 +1998,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:CallablePhysicalProduct#1",
       "kind": "carried_record",
       "meaning": "The checked callable body with physical runtime-adapter plans.",
@@ -2010,7 +2010,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:EncodedCallable#1",
       "kind": "carried_record",
       "meaning": "The callable machine-code program and runtime adapters encoded from its selected recipes.",
@@ -2022,10 +2022,10 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "alias:LaidOutCallable#1",
       "kind": "carried_record",
-      "meaning": "The callable\u00e2\u20ac\u2122s placed functions and placed foreign adapters.",
+      "meaning": "The callableâ€™s placed functions and placed foreign adapters.",
       "producer": "native callable compiler driver",
       "signature": "cdf4192978ea3574e978641adf08c95a5d4d647449b53291236ee631fb501c16"
     },
@@ -2034,7 +2034,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "function:callable_error#1",
       "kind": "definition",
       "meaning": "Preserve originating callable diagnostics from the physical or object/image stage.",
@@ -2046,10 +2046,10 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "function:prepare_callable_physical#1",
       "kind": "producer",
-      "meaning": "Close one selected callable\u00e2\u20ac\u2122s physical body, installation requirements, runtime requests and authority.",
+      "meaning": "Close one selected callableâ€™s physical body, installation requirements, runtime requests and authority.",
       "producer": "native callable compiler driver",
       "signature": "8ba8eb6147d8df912aa1ee774c9f72cbf550da05de21399e78808739f2eb21e1"
     },
@@ -2058,7 +2058,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:BoundCallable::implementation#1",
       "kind": "producer",
       "meaning": "The callable body with installation authority bound before physical encoding.",
@@ -2070,7 +2070,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:BoundCallable::method:encode#1",
       "kind": "producer",
       "meaning": "Encode the callable and its selected entry or foreign adapters before placement.",
@@ -2082,7 +2082,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:CallablePhysicalProduct::implementation#1",
       "kind": "producer",
       "meaning": "The checked callable body with physical runtime-adapter plans.",
@@ -2094,7 +2094,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:CallablePhysicalProduct::method:bind#1",
       "kind": "producer",
       "meaning": "Bind the callable body to the measured handlers and bind each planned foreign adapter for encoding.",
@@ -2106,7 +2106,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:EncodedCallable::implementation#1",
       "kind": "producer",
       "meaning": "The callable machine-code program and runtime adapters encoded from its selected recipes.",
@@ -2118,7 +2118,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:EncodedCallable::method:layout#1",
       "kind": "producer",
       "meaning": "Place the callable and its associated entry or foreign adapters before object construction.",
@@ -2130,7 +2130,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:LaidOutCallable::implementation#1",
       "kind": "producer",
       "meaning": "Construct a callable object from placed function text and its placed runtime helpers.",
@@ -2142,7 +2142,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "impl:LaidOutCallable::method:construct_object#1",
       "kind": "producer",
       "meaning": "Publish the callable body, construct its helper objects and return its code identity, execution authority and original for review.",
@@ -2154,10 +2154,10 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "struct:CallableCustody#1",
       "kind": "carried_record",
-      "meaning": "The callable\u00e2\u20ac\u2122s exact retained Terminal code, boundary coverage, native authority and observation scope.",
+      "meaning": "The callableâ€™s exact retained Terminal code, boundary coverage, native authority and observation scope.",
       "producer": "native callable compiler driver",
       "signature": "bdaa80d03bea7a834c2a78a24b0caeb60fbc64417cd97528cf9b00a841e2b608"
     },
@@ -2166,7 +2166,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "struct:CallableObjectProduct#1",
       "kind": "carried_record",
       "meaning": "The emitted callable fragment with its native authority, runtime adapters and original source evidence.",
@@ -2178,7 +2178,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "struct:CallableProduct#1",
       "kind": "carried_record",
       "meaning": "A callable body, its retained authority and its runtime adapters at one particular stage.",
@@ -2189,7 +2189,7 @@
       "consumers": [
         "callable_objects"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "use:crate :: callable_planning :: CallableTargetProduct#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -2200,19 +2200,19 @@
       "consumers": [
         "private callable and component export objects"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
-      "item": "use:crate :: compile_body :: { self , BodyEmissionError }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
+      "item": "use:crate :: driver :: compile_body :: { self , BodyEmissionError }#1",
       "kind": "definition",
       "meaning": "Use the shared body stage sequence and its emission diagnostics.",
       "producer": "native body planner",
-      "signature": "7e2d0573d5b12a9f2a7f46bfbab0487eaa034c89ed96bf8c6cdfecb5103c08b5"
+      "signature": "606d2691cc5dd8656dbe62d4c4b1ba76c436f5cfbc4b3131b09380ad3e84f5ed"
     },
     {
       "consumers": [
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Import diagnostics::Diagnostic for native callable compiler driver.",
@@ -2224,7 +2224,7 @@
         "private callback construction",
         "component export construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "item": "use:provider_admission :: provider_admission :: realization_error#1",
       "kind": "definition",
       "meaning": "Import provider_admission::provider_admission::realization_error for native callable compiler driver.",
@@ -2237,7 +2237,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "BoundPrivateBody::field:callable#1",
       "kind": "carried_record",
       "meaning": "The callable body paired to this private entry at the current stage.",
@@ -2250,7 +2250,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "BoundPrivateBody::field:entry#1",
       "kind": "carried_record",
       "meaning": "Stage 11 issues this private entry with its callable identity and selected arrival bridge.",
@@ -2263,7 +2263,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PlannedPrivateBody::field:callable#1",
       "kind": "carried_record",
       "meaning": "The callable body paired to this private entry at the current stage.",
@@ -2276,7 +2276,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PlannedPrivateBody::field:entry#1",
       "kind": "carried_record",
       "meaning": "The selected or realized private entry for the exact callable and installation.",
@@ -2289,7 +2289,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PlannedPrivateBody::field:identity#1",
       "kind": "carried_record",
       "meaning": "The exact compiler-private callable identity in its parent program.",
@@ -2302,7 +2302,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PlannedPrivateBody::field:measurement#1",
       "kind": "carried_record",
       "meaning": "One cached measurement or refusal from the real handler frame and installed entry.",
@@ -2315,7 +2315,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedCallbackBodies::field:after_root#1",
       "kind": "carried_record",
       "meaning": "Callable placements whose installation dependencies allow planning after the root.",
@@ -2328,7 +2328,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedCallbackBodies::field:bodies#1",
       "kind": "carried_record",
       "meaning": "Physical body plans retained at their actual placement coordinates.",
@@ -2341,7 +2341,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedCallbackBodies::field:installed_plans#1",
       "kind": "carried_record",
       "meaning": "Per-placement plans for the actual installed interrupt or fatal context.",
@@ -2354,7 +2354,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedCallbackBodies::field:order#1",
       "kind": "carried_record",
       "meaning": "The closed callback membership order used to publish corresponding private bodies.",
@@ -2367,7 +2367,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedCallbackBodies::field:selected#1",
       "kind": "carried_record",
       "meaning": "The actual selected private entry contracts, indexed by callback placement.",
@@ -2380,7 +2380,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedCallbackBodies::field:target_bodies#1",
       "kind": "carried_record",
       "meaning": "The native target plan belonging to each reachable callback placement.",
@@ -2393,7 +2393,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedEntry::field:entry#1",
       "kind": "carried_record",
       "meaning": "The selected or realized private entry for the exact callable and installation.",
@@ -2406,7 +2406,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedEntry::field:plan#1",
       "kind": "carried_record",
       "meaning": "The selected interrupt or fatal-context arrival protocol.",
@@ -2419,7 +2419,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedEntry::field:scope#1",
       "kind": "carried_record",
       "meaning": "The exact admitted installation scope that issued these entries.",
@@ -2432,7 +2432,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PreparedEntryPlans::field:entries#1",
       "kind": "carried_record",
       "meaning": "The admitted installed entries and their placements within the owning scope.",
@@ -2445,7 +2445,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PrivateBody::field:callable#1",
       "kind": "carried_record",
       "meaning": "The callable body paired to this private entry at the current stage.",
@@ -2458,7 +2458,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PrivateBody::field:entry#1",
       "kind": "carried_record",
       "meaning": "The selected or realized private entry for the exact callable and installation.",
@@ -2470,7 +2470,7 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PrivateBodyObject::field:object#1",
       "kind": "carried_record",
       "meaning": "The bound private entry and the object it calls.",
@@ -2482,7 +2482,7 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PrivateBodyObject::field:physical_original#1",
       "kind": "carried_record",
       "meaning": "The original checked program and its boundary coverage for this private function.",
@@ -2494,10 +2494,10 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "PrivateBodyObject::field:stage_originals#1",
       "kind": "carried_record",
-      "meaning": "Carry the requested physical audit inputs to the report under this body\u2019s identity.",
+      "meaning": "Carry the requested physical audit inputs to the report under this body’s identity.",
       "producer": "native compilation driver",
       "signature": "1331b127fd3db69f0be72fd206c9117fe0a760516a94bcc7779a6ac14e56e74a"
     },
@@ -2507,7 +2507,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "RetainedInstallation::field:entries#1",
       "kind": "carried_record",
       "meaning": "The admitted installed entries and their placements within the owning scope.",
@@ -2520,7 +2520,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "RetainedInstallation::field:scope#1",
       "kind": "carried_record",
       "meaning": "The exact admitted installation scope that issued these entries.",
@@ -2533,7 +2533,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "alias:EncodedPrivateBody#1",
       "kind": "carried_record",
       "meaning": "The encoder issues the private callable and arrival instructions from their bound inputs.",
@@ -2546,7 +2546,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "alias:LaidOutPrivateBody#1",
       "kind": "carried_record",
       "meaning": "Function placement issues the private callable and its arrival fragment for object construction.",
@@ -2559,7 +2559,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "function:plan_physical_callback#1",
       "kind": "producer",
       "meaning": "Join the admitted installation, physical body, ABI formals and checked private entry into one selected callback plan.",
@@ -2572,7 +2572,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "function:prepare_installed_callbacks#1",
       "kind": "producer",
       "meaning": "Match each retained installation to its actual private body and compose the measured stack requirements.",
@@ -2585,7 +2585,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "function:retained_handler_measurements#1",
       "kind": "producer",
       "meaning": "Collect the real measured handlers for every surviving root or private stack guard.",
@@ -2598,7 +2598,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "function:retained_installations#1",
       "kind": "checker",
       "meaning": "Find the surviving installation operations and their admitted entries, rejecting duplicate application coordinates.",
@@ -2611,7 +2611,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:BoundPrivateBody::implementation#1",
       "kind": "producer",
       "meaning": "The private callable with bound installation authority and the previously planned arrival recipe.",
@@ -2624,7 +2624,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:BoundPrivateBody::method:encode#1",
       "kind": "producer",
       "meaning": "Encode the callable and its selected entry or foreign adapters before placement.",
@@ -2637,7 +2637,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:EncodedPrivateBody::implementation#1",
       "kind": "producer",
       "meaning": "The encoded private callable and its encoded entry transport.",
@@ -2650,7 +2650,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:EncodedPrivateBody::method:layout#1",
       "kind": "producer",
       "meaning": "Place the callable body and pass its encoded entry through field resolution, fixed-width relaxation and function placement.",
@@ -2663,7 +2663,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:LaidOutPrivateBody::implementation#1",
       "kind": "producer",
       "meaning": "Construct the private function object from its placed callable body and entry.",
@@ -2676,7 +2676,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:LaidOutPrivateBody::method:construct_object#1",
       "kind": "producer",
       "meaning": "Bind the completed callable object to its private entry and return the object and original together.",
@@ -2689,7 +2689,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PlannedPrivateBody::implementation#1",
       "kind": "producer",
       "meaning": "A selected private body and entry with its exact identity and memoized installed handler measurement.",
@@ -2702,7 +2702,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PlannedPrivateBody::method:bind#1",
       "kind": "producer",
       "meaning": "Bind installation authority against retained handler measurements and issue the arrival entry for encoding.",
@@ -2715,7 +2715,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PlannedPrivateBody::method:measured_handler#1",
       "kind": "checker",
       "meaning": "Measure the actual installed handler once and verify its machine/operation match the requested installation.",
@@ -2728,7 +2728,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedCallbackBodies < '_ >::implementation#1",
       "kind": "producer",
       "meaning": "The closed, placement-indexed callbacks, dependency order and installation-entry plans used before encoding.",
@@ -2741,7 +2741,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedCallbackBodies < '_ >::method:finish_physical#1",
       "kind": "producer",
       "meaning": "Finish any remaining physical callback plans and recover the exact ordered private-body roster.",
@@ -2754,7 +2754,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedCallbackBodies < 'contract >::implementation#1",
       "kind": "producer",
       "meaning": "The closed, placement-indexed callbacks, dependency order and installation-entry plans used before encoding.",
@@ -2767,7 +2767,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedCallbackBodies < 'contract >::method:from_roster#1",
       "kind": "producer",
       "meaning": "Take the planned root and its reachable private entries together, then order their physical planning by handler stack dependencies.",
@@ -2780,7 +2780,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedCallbackBodies < 'contract >::method:plan#1",
       "kind": "producer",
       "meaning": "Realize the chosen callback body and its actual admitted entry at the specified placement index.",
@@ -2793,7 +2793,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedEntryPlans::implementation#1",
       "kind": "producer",
       "meaning": "The admitted installed entry at each actual callback placement.",
@@ -2806,7 +2806,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedEntryPlans::method:dependencies#1",
       "kind": "producer",
       "meaning": "Record admitted entries belonging to surviving installation scopes and return their actual callback placements.",
@@ -2819,7 +2819,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedEntryPlans::method:for_body#1",
       "kind": "checker",
       "meaning": "Match the private contract to its original installed scope and issue its checked installed-entry execution.",
@@ -2832,7 +2832,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedEntryPlans::method:new#1",
       "kind": "producer",
       "meaning": "Create the empty per-placement inventory for installed private entries.",
@@ -2845,7 +2845,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:PreparedEntryPlans::method:retain#1",
       "kind": "producer",
       "meaning": "Authenticate the exact timer/fatal associations and retain their arrival protocols at the issuing placements.",
@@ -2858,7 +2858,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "retained_handler_measurements::use:std :: collections :: { BTreeMap , BTreeSet }#1",
       "kind": "definition",
       "meaning": "Import std::collections::{ BTreeMap , BTreeSet } for native callback compilation driver.",
@@ -2871,7 +2871,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:BoundPrivateBody#1",
       "kind": "carried_record",
       "meaning": "The bound private callable and arrival entry consumed together by encoding.",
@@ -2884,7 +2884,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:PlannedPrivateBody#1",
       "kind": "carried_record",
       "meaning": "A selected private body and entry with its exact identity and memoized installed handler measurement.",
@@ -2897,7 +2897,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:PreparedCallbackBodies#1",
       "kind": "carried_record",
       "meaning": "The closed, placement-indexed callbacks, dependency order and installation-entry plans used before encoding.",
@@ -2910,7 +2910,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:PreparedEntry#1",
       "kind": "carried_record",
       "meaning": "One checked installed entry, its enclosing installation and its chosen arrival protocol.",
@@ -2923,7 +2923,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:PreparedEntryPlans#1",
       "kind": "carried_record",
       "meaning": "The admitted installed entry at each actual callback placement.",
@@ -2936,7 +2936,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:PrivateBody#1",
       "kind": "carried_record",
       "meaning": "A private callable paired with its corresponding entry transport at the same stage.",
@@ -2948,7 +2948,7 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:PrivateBodyObject#1",
       "kind": "carried_record",
       "meaning": "Groups the callback object, its physical proof and the requested independent audit inputs.",
@@ -2961,7 +2961,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "struct:RetainedInstallation#1",
       "kind": "carried_record",
       "meaning": "One admitted installation scope with the surviving entries belonging to its operation.",
@@ -2972,7 +2972,7 @@
       "consumers": [
         "callback_thunks"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "use:crate :: callable_planning :: { CallableTargetProduct , PrivateEntryContract }#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -2985,7 +2985,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Import diagnostics::Diagnostic for native callback compilation driver.",
@@ -2998,7 +2998,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "use:image_emission :: PrivateFunctionObject#1",
       "kind": "definition",
       "meaning": "Import image_emission::PrivateFunctionObject for native callback compilation driver.",
@@ -3011,7 +3011,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "use:provider_admission :: provider_admission :: { AdmittedInstalledInterruptCohort , AdmittedInstalledInterruptEntry , AdmittedInstalledInterruptScope , realization_error , }#1",
       "kind": "definition",
       "meaning": "Import provider_admission::provider_admission::{ AdmittedInstalledInterruptCohort , AdmittedInstalledInterruptEntry , AdmittedInstalledInterruptScope , realization_error , } for native callback compilation driver.",
@@ -3024,7 +3024,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "use:runtime_abi :: static_interrupts :: { InstalledInterruptEntryPlan , InstalledInterruptFrame }#1",
       "kind": "definition",
       "meaning": "Import runtime_abi::static_interrupts::{ InstalledInterruptEntryPlan , InstalledInterruptFrame } for native callback compilation driver.",
@@ -3037,7 +3037,7 @@
         "installation requirement binding",
         "private fragment composition"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Import std::sync::Arc for native callback compilation driver.",
@@ -3048,7 +3048,7 @@
       "consumers": [
         "callback thunk construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "module:handler_order#1",
       "kind": "definition",
       "meaning": "Order installed callback handlers before emitting thunks that depend on them.",
@@ -3060,7 +3060,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "BodyRoster::field:private#1",
       "kind": "carried_record",
       "meaning": "The complete ordered private callback/handler roster at the same stage as the root.",
@@ -3072,10 +3072,10 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "BodyRoster::field:root#1",
       "kind": "carried_record",
-      "meaning": "The application root at the roster\u00e2\u20ac\u2122s current stage.",
+      "meaning": "The application root at the rosterâ€™s current stage.",
       "producer": "native compiler program driver",
       "signature": "db2a81d11cddf8e66fd443d290ebf840db375d257bdad0ff49040140c51055a6"
     },
@@ -3084,7 +3084,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "EmittedRealizationObject::field:object#1",
       "kind": "carried_record",
       "meaning": "The published root and private objects carry the runtime adapter objects and the storage layouts required by this program.",
@@ -3096,7 +3096,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "EmittedRealizationObject::field:physical_originals#1",
       "kind": "carried_record",
       "meaning": "The actual private body source/coverage records indexed by their emitted function identities.",
@@ -3108,7 +3108,7 @@
         "compile report",
         "independent body verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "EmittedRealizationObject::field:stage_replay#1",
       "kind": "carried_record",
       "meaning": "Indexed audit inputs for the root body and each identified private function.",
@@ -3120,7 +3120,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "function:emit_realization_object#1",
       "kind": "producer",
       "meaning": "Pass root, private, hosted and physical entries through their layout stages before issuing objects for image construction.",
@@ -3132,7 +3132,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "impl:BodyRoster < Root , Private >::implementation#1",
       "kind": "carried_record",
       "meaning": "The application root and every selected private body at a single numbered stage.",
@@ -3144,7 +3144,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "impl:BodyRoster < Root , Private >::method:try_map#1",
       "kind": "producer",
       "meaning": "Advance the root and the complete private vector together and return the next roster only after every per-body operation succeeds.",
@@ -3156,7 +3156,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "module:tests#1",
       "kind": "definition",
       "meaning": "Regression tests for the closed root/private body roster.",
@@ -3168,7 +3168,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "struct:BodyRoster#1",
       "kind": "carried_record",
       "meaning": "The application root and every selected private body at a single numbered stage.",
@@ -3180,7 +3180,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "struct:EmittedRealizationObject#1",
       "kind": "carried_record",
       "meaning": "The composed program object with its separate physical originals, runtime provisions and borrowed storage layouts.",
@@ -3192,7 +3192,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "tests::function:image_emission_waits_for_the_last_private_object#1",
       "kind": "checker",
       "meaning": "Exercise the root and private object traversal with a failing last body and require that only a complete roster reaches image assembly.",
@@ -3204,7 +3204,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "tests::use:std :: cell :: RefCell#1",
       "kind": "definition",
       "meaning": "Import std::cell::RefCell for native compiler program driver.",
@@ -3216,7 +3216,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "tests::use:super :: BodyRoster#1",
       "kind": "definition",
       "meaning": "Import super::BodyRoster for native compiler program driver.",
@@ -3227,7 +3227,7 @@
       "consumers": [
         "object_emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "use:artifact_lowering :: ValidatedNativeProgramEntrySettlement#1",
       "kind": "definition",
       "meaning": "Names the declared stage API or driver type used in this module.",
@@ -3238,19 +3238,19 @@
       "consumers": [
         "root object emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
-      "item": "use:crate :: compile_body :: { self , BodyEmissionError }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
+      "item": "use:crate :: driver :: compile_body :: { self , BodyEmissionError }#1",
       "kind": "definition",
       "meaning": "Use the shared body stage sequence and its emission diagnostics.",
       "producer": "native body planner",
-      "signature": "7e2d0573d5b12a9f2a7f46bfbab0487eaa034c89ed96bf8c6cdfecb5103c08b5"
+      "signature": "606d2691cc5dd8656dbe62d4c4b1ba76c436f5cfbc4b3131b09380ad3e84f5ed"
     },
     {
       "consumers": [
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "use:crate :: realization :: callback_thunks :: { PreparedCallbackBodies , prepare_installed_callbacks }#1",
       "kind": "definition",
       "meaning": "Import crate::realization::callback_thunks::{ PreparedCallbackBodies , prepare_installed_callbacks } for native compiler program driver.",
@@ -3262,7 +3262,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "use:crate :: realization :: selected_physical_pipeline_failed#1",
       "kind": "definition",
       "meaning": "Import crate::realization::selected_physical_pipeline_failed for native compiler program driver.",
@@ -3274,7 +3274,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Import diagnostics::Diagnostic for native compiler program driver.",
@@ -3286,7 +3286,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "use:native_artifact :: { FragmentObjectPublicationRequest , PublishedFragmentObject , publish_fragment_object , }#1",
       "kind": "definition",
       "meaning": "Import native_artifact::{ FragmentObjectPublicationRequest , PublishedFragmentObject , publish_fragment_object , } for native compiler program driver.",
@@ -3298,7 +3298,7 @@
         "native compilation coordinator",
         "root image and runtime publication"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "use:provider_admission :: provider_admission :: realization_error#1",
       "kind": "definition",
       "meaning": "Import provider_admission::provider_admission::realization_error for native compiler program driver.",
@@ -3415,7 +3415,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "function:native_calling_applications#1",
       "kind": "producer",
-      "meaning": "Returns the unique materialized default applications for the supplied native bindings using the selected target\u00e2\u20ac\u2122s import or syscall policy.",
+      "meaning": "Returns the unique materialized default applications for the supplied native bindings using the selected targetâ€™s import or syscall policy.",
       "producer": "03 native and component calling planning",
       "signature": "e89f4d92b75a8622ce661b2b3311500ec3b1774ea643fa99f1fe89702e50adc9"
     },
@@ -3427,7 +3427,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/calling_policy_plans/selected_application.rs",
       "item": "function:native_calling_results#1",
       "kind": "producer",
-      "meaning": "Reuses completed defaults only for the same target, full artifact manifest, boundary and binding receipt. Otherwise verifies the declared ABI and evaluates the actual native mechanism\u00e2\u20ac\u2122s default policy.",
+      "meaning": "Reuses completed defaults only for the same target, full artifact manifest, boundary and binding receipt. Otherwise verifies the declared ABI and evaluates the actual native mechanismâ€™s default policy.",
       "producer": "03 native and component calling planning",
       "signature": "f04cf35645b47a3ae1e7acfe67a563fdfe3f30dd7cc2283f8bc31076fe469b73"
     },
@@ -3588,7 +3588,7 @@
       "kind": "producer",
       "meaning": "Admit selected native supply, verify source body correspondence and installation reach, then retain the entry nomination for the exact module and profile.",
       "producer": "03 native program planning",
-      "signature": "7ae813d97f0add70f984ca30ee6586937ae6d4eb6487dd220c5e67e1cdd06081"
+      "signature": "454007acf5e8f3bf835db1a5b3ab484b5f7e7965b8cac72be2f0beff625fdb48"
     },
     {
       "consumers": [
@@ -3608,7 +3608,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/execution.rs",
       "item": "function:selected_boundary_implementations#1",
       "kind": "checker",
-      "meaning": "Reconstruct and check the target\u00e2\u20ac\u2122s actual checked implementations, including duplicate or competing boundary choices.",
+      "meaning": "Reconstruct and check the targetâ€™s actual checked implementations, including duplicate or competing boundary choices.",
       "producer": "03 native program planning",
       "signature": "42e888bfa29196416cf9fdb0d8982faede860953f4d974e8fa63a326802d559d"
     },
@@ -3875,7 +3875,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
       "item": "function:prepare#1",
       "kind": "producer",
-      "meaning": "Normalizes authored Build inputs using each exact declaration\u00e2\u20ac\u2122s canonical callable, records their identity dictionary, and completes missing native defaults with the selected program\u00e2\u20ac\u2122s own calling planner.",
+      "meaning": "Normalizes authored Build inputs using each exact declarationâ€™s canonical callable, records their identity dictionary, and completes missing native defaults with the selected programâ€™s own calling planner.",
       "producer": "03 package review planning",
       "signature": "1798eab66eab4c850ebce7356d5b1060cf187a5ac03db7cd1324695e04f89709"
     },
@@ -4376,7 +4376,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/provider_selection.rs",
       "item": "impl:PublishedSelection < Publisher , SelectedExecution >::method:bind_folded_entry#1",
       "kind": "checker",
-      "meaning": "Bind the nominated entry\u00e2\u20ac\u2122s folded dependencies using the original canonical program and accepted evidence.",
+      "meaning": "Bind the nominated entryâ€™s folded dependencies using the original canonical program and accepted evidence.",
       "producer": "provider demand to selected execution",
       "signature": "a8a5db5eda0381642093f0013bae78c4e266b8a990fb653293434379906ada79"
     },
@@ -4483,7 +4483,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/provider_selection.rs",
       "item": "use:crate :: { SelectedExecution , SelectedProviderResult }#1",
       "kind": "definition",
-      "meaning": "Use the provider stage\u00e2\u20ac\u2122s selected execution and frozen results when retaining the publisher that issued the demand.",
+      "meaning": "Use the provider stageâ€™s selected execution and frozen results when retaining the publisher that issued the demand.",
       "producer": "provider demand to selected execution",
       "signature": "6fc9a89578753db392b800377a4368427b188d65a407f45de99b6fba24310c43"
     },
@@ -4508,7 +4508,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "SelectedExecution::field:folded_reach#1",
       "kind": "carried_record",
-      "meaning": "The portable scalar-reach receipt or refusal available to this target\u00e2\u20ac\u2122s executable product.",
+      "meaning": "The portable scalar-reach receipt or refusal available to this targetâ€™s executable product.",
       "producer": "03 native program planning",
       "signature": "e9a6d852251f08fcedfad6dbf1904039e4be09bb8026ec51a9d82b6960b7fc64"
     },
@@ -4626,7 +4626,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "impl:SelectedExecution::method:bind_folded_entry#1",
       "kind": "producer",
-      "meaning": "Join retained portable scalar reach to this execution\u00e2\u20ac\u2122s real plans and retain the distinct effective artifact when there are actual dependencies.",
+      "meaning": "Join retained portable scalar reach to this executionâ€™s real plans and retain the distinct effective artifact when there are actual dependencies.",
       "producer": "03 native program planning",
       "signature": "2493ef79007fef0c976bf049611b24ee39a3bcd18f294c90632ad790db531f6b"
     },
@@ -4679,7 +4679,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "impl:SelectedExecution::method:result#1",
       "kind": "carried_record",
-      "meaning": "Borrow the in-progress driver\u00e2\u20ac\u2122s immutable selected facts without releasing the fold capability.",
+      "meaning": "Borrow the in-progress driverâ€™s immutable selected facts without releasing the fold capability.",
       "producer": "03 native program planning",
       "signature": "d7db9b69888776214e26a305e58b66d7dc8889130f690ccd9268be33ea5582af"
     },
@@ -4693,7 +4693,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "impl:SelectedExecution::method:with_folded_entry_reach#1",
       "kind": "producer",
-      "meaning": "Attach stage02\u00e2\u20ac\u2122s closed scalar entry reach or original refusal before issuing the selected target.",
+      "meaning": "Attach stage02â€™s closed scalar entry reach or original refusal before issuing the selected target.",
       "producer": "03 native program planning",
       "signature": "5fb8a4e92117cc790f8c0c7b0fbc88034979e140235f781e6ff3ab61aab5f420"
     },
@@ -4838,7 +4838,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "impl:SelectedProviderResult::method:realization#1",
       "kind": "carried_record",
-      "meaning": "Borrow the target\u00e2\u20ac\u2122s admitted provider realization.",
+      "meaning": "Borrow the targetâ€™s admitted provider realization.",
       "producer": "03 native program planning",
       "signature": "2f4010dd50a4fec19280aaddf89f6e3ea5537d65644c0bbbf6a20337377ff135"
     },
@@ -5074,7 +5074,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
       "item": "ProviderPlanRealizationInput::field:schema_declaration#1",
       "kind": "carried_record",
-      "meaning": "Canonical identity of the schema\u00e2\u20ac\u2122s selecting declaration.",
+      "meaning": "Canonical identity of the schemaâ€™s selecting declaration.",
       "producer": "03 native provider admission",
       "signature": "37ea8d830e292eb580b20050df6253a4bc6d249149c67a1d96bd6f9491ad744b"
     },
@@ -5321,7 +5321,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
       "item": "TargetSupplyRealizationInput::field:reached#1",
       "kind": "carried_record",
-      "meaning": "Only boundary occurrences reached from this request\u00e2\u20ac\u2122s actual entry or closed provider bodies.",
+      "meaning": "Only boundary occurrences reached from this requestâ€™s actual entry or closed provider bodies.",
       "producer": "03 native provider admission",
       "signature": "53cf359fc0f32abb9c9a0e24960c957131ec32b7beed5ef4b7ffeadaa9162468"
     },
@@ -5516,7 +5516,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/target_supply/realized_supply.rs",
       "item": "impl:SelectedProviderRealization::method:composition_modes#1",
       "kind": "carried_record",
-      "meaning": "Read each selected provider\u00e2\u20ac\u2122s admitted composition mode.",
+      "meaning": "Read each selected providerâ€™s admitted composition mode.",
       "producer": "03 native provider admission",
       "signature": "4d6dcfc03989d4e5e3343c4adf4a4b1ab8bce7c7082aa29c35e68d275aaa0a0f"
     },
@@ -6012,7 +6012,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/src/physical_facts.rs",
       "item": "function:port_writes#1",
       "kind": "producer",
-      "meaning": "Prepare port-write observations from each function\u2019s selected physical alternatives.",
+      "meaning": "Prepare port-write observations from each function’s selected physical alternatives.",
       "producer": "physical program planning",
       "signature": "f96878590abed9ff6756ffd900c6808082d0ef5c54346bbf65d5fd480ec3d23c"
     },
@@ -6024,7 +6024,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/src/physical_facts.rs",
       "item": "function:port_writes_for_function#1",
       "kind": "producer",
-      "meaning": "Record each port write\u2019s instruction, original operation, service, port and value for one function.",
+      "meaning": "Record each port write’s instruction, original operation, service, port and value for one function.",
       "producer": "physical program planning",
       "signature": "dd17f0de7437583c63d71ba987fd2b1462e673b2295cceabcf31ace9ca32b35b"
     },
@@ -6199,7 +6199,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
       "item": "entries::function:bind_callable_entry#1",
       "kind": "producer",
-      "meaning": "Issue the callable context and bridge after the planner\u2019s CPU measurement has served binding.",
+      "meaning": "Issue the callable context and bridge after the planner’s CPU measurement has served binding.",
       "producer": "installation binding",
       "signature": "016d24ff2d5e91b064564cf4e8f0a94d05b73281ae636ee51398f1ca7aeedd49"
     },
@@ -6211,7 +6211,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
       "item": "entries::function:bind_foreign_adapter#1",
       "kind": "producer",
-      "meaning": "Admit the frame planner\u2019s complete foreign adapter for encoding.",
+      "meaning": "Admit the frame planner’s complete foreign adapter for encoding.",
       "producer": "installation binding",
       "signature": "97d55f1c2e67acbd163592e7e688872db56a20f73a37b288fb8ca08d648db171"
     },
@@ -6434,7 +6434,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs",
       "item": "impl:RetainedHandlerMeasurements::method:measure_guard#1",
       "kind": "producer",
-      "meaning": "Compare the installer\u2019s guard with the measured handler at its placement.",
+      "meaning": "Compare the installer’s guard with the measured handler at its placement.",
       "producer": "installation binding",
       "signature": "9b998c5f5d0eb6bef781238c16c120de6cc9f41430e703fdc72722293cd734a4"
     },
@@ -6853,7 +6853,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
       "item": "impl:FixedEntry < T >::method:into_layout#1",
       "kind": "definition",
-      "meaning": "Transfer the entry\u2019s resolved fields after relaxation.",
+      "meaning": "Transfer the entry’s resolved fields after relaxation.",
       "producer": "layout relaxation",
       "signature": "7df8e18c20067a3f5a39f320b806cda48e7b324c354452b5c75c1c70b4e4b1b4"
     },
@@ -8949,7 +8949,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication.rs",
       "item": "SemanticEmissionFacts::field:admission#1",
       "kind": "carried_record",
-      "meaning": "The lowered program\u00e2\u20ac\u2122s checked semantic admission, including original entry and selected boundary custody.",
+      "meaning": "The lowered programâ€™s checked semantic admission, including original entry and selected boundary custody.",
       "producer": "03 optimization and lowering admission",
       "signature": "d17e6256da430bfcb335d26c3db0712f899bc0c8eb119b65f3985a1eff243f26"
     },
@@ -9188,7 +9188,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
       "item": "RetainedTargetOperations::field:0#1",
       "kind": "carried_record",
-      "meaning": "Shared immutable ownership of this audit\u00e2\u20ac\u2122s exact source graphs, prepared plan and issuance marker.",
+      "meaning": "Shared immutable ownership of this auditâ€™s exact source graphs, prepared plan and issuance marker.",
       "producer": "03 native program planning",
       "signature": "4523e61e7ca048a109a79c2a00ab9dbde073878d3d741beba975a4614eac1786"
     },
@@ -9542,7 +9542,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
       "item": "struct:BodyPublication#1",
       "kind": "carried_record",
-      "meaning": "Carries each stage\u2019s body facts and the target original requested for independent validation.",
+      "meaning": "Carries each stage’s body facts and the target original requested for independent validation.",
       "producer": "target publication",
       "signature": "443bbf821ab3ba64400a512b5b5784f4547c20ba8fa9cd26b0bf0d16d2ecbef0"
     },
@@ -9711,7 +9711,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/src/placed_body.rs",
       "item": "NativeBodyReadback::field:instruction_effects#1",
       "kind": "carried_record",
-      "meaning": "Each instruction\u2019s owning function, local identity and decoded effects.",
+      "meaning": "Each instruction’s owning function, local identity and decoded effects.",
       "producer": "function placement",
       "signature": "b8b298b33c17247740074d70b92a1423b44d0b2f81d800c579d06dc801ddce07"
     },
@@ -9735,7 +9735,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/src/placed_body.rs",
       "item": "NativeBodyReadback::field:physical#1",
       "kind": "carried_record",
-      "meaning": "The register model that defines the instruction\u2019s physical units.",
+      "meaning": "The register model that defines the instruction’s physical units.",
       "producer": "function placement",
       "signature": "629dc8c2daffd9546e950fcb323c14fba6cbf22089f844a37c39019db1cbc86c"
     },
@@ -9771,7 +9771,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/src/placed_body.rs",
       "item": "PlacedInstructionEffects::field:instruction#1",
       "kind": "carried_record",
-      "meaning": "The instruction\u2019s number within that function.",
+      "meaning": "The instruction’s number within that function.",
       "producer": "function placement",
       "signature": "43e27fe35744a17f12448b77cea0e31b42095adc8b76c3602840bc81e15ad4a8"
     },
@@ -10308,7 +10308,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs",
       "item": "struct:NativeBodyFacts#1",
       "kind": "carried_record",
-      "meaning": "Keep the target body\u2019s accepted semantics, closed private references and admitted installations together through physical lowering.",
+      "meaning": "Keep the target body’s accepted semantics, closed private references and admitted installations together through physical lowering.",
       "producer": "Target lowering and instruction selection",
       "signature": "8d8644160109567e13a71e5b9c21338f208b3510c1c8ebad797e95dd443f7ced"
     },
@@ -10813,7 +10813,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/frame_protocol.rs",
       "item": "FrameProtocolInstructions::field:functions#1",
       "kind": "carried_record",
-      "meaning": "The ordered frame recipes for the program\u00e2\u20ac\u2122s functions.",
+      "meaning": "The ordered frame recipes for the programâ€™s functions.",
       "producer": "04 physical planning",
       "signature": "a892da9d6954f5ae4ef997f78cc2b310fb94c1865b3f9112676b0e083ac18dd3"
     },
@@ -10873,7 +10873,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/frame_protocol.rs",
       "item": "FrameRecipe::Aarch64::field:0#1",
       "kind": "carried_record",
-      "meaning": "The target register model\u00e2\u20ac\u2122s validated AArch64 frame plan.",
+      "meaning": "The target register modelâ€™s validated AArch64 frame plan.",
       "producer": "04 physical planning",
       "signature": "73059239fbcf60624af9477239d8b8e36f588ffa1992bf79ea0b57bd3440023b"
     },
@@ -10885,7 +10885,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/frame_protocol.rs",
       "item": "FrameRecipe::X86::field:0#1",
       "kind": "carried_record",
-      "meaning": "The target register model\u00e2\u20ac\u2122s validated x86-64 frame plan.",
+      "meaning": "The target register modelâ€™s validated x86-64 frame plan.",
       "producer": "04 physical planning",
       "signature": "cec7aea45f19c9edc7d5d2c59f57c58a6fdfe596be563d409ab31c801914dc10"
     },
@@ -10933,7 +10933,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/frame_protocol.rs",
       "item": "PhysicalFrameProgram::field:storage#1",
       "kind": "carried_record",
-      "meaning": "The physical program\u00e2\u20ac\u2122s retained callee-save storage plan.",
+      "meaning": "The physical programâ€™s retained callee-save storage plan.",
       "producer": "04 physical planning",
       "signature": "521d68edd4ef9995d8a5a4c9f29d69f2d21776be8242546598cffab98e02a2fd"
     },
@@ -11141,7 +11141,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/frame_protocol.rs",
       "item": "impl:PlannedTargetFrameProtocols < Origin >::method:functions#1",
       "kind": "carried_record",
-      "meaning": "The ordered frame recipes for the program\u00e2\u20ac\u2122s functions.",
+      "meaning": "The ordered frame recipes for the programâ€™s functions.",
       "producer": "04 physical planning",
       "signature": "9dca67666f9ea7bce87473bc1826404a8b53a97663975c2b42f3e1953a5c73ad"
     },
@@ -12030,7 +12030,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/imports.rs",
       "item": "ImportInstructions::field:entry_resources#1",
       "kind": "carried_record",
-      "meaning": "The selected import entry\u00e2\u20ac\u2122s effects and local stack bytes.",
+      "meaning": "The selected import entryâ€™s effects and local stack bytes.",
       "producer": "04 physical planning",
       "signature": "d2dee1675700fe91a6878b9bedf5c4984659e33919019ffd2b7537affeb07ce9"
     },
@@ -12126,7 +12126,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/imports.rs",
       "item": "impl:PhysicalImportProgram < Origin >::method:entry_resources#1",
       "kind": "carried_record",
-      "meaning": "The selected import entry\u00e2\u20ac\u2122s effects and local stack bytes.",
+      "meaning": "The selected import entryâ€™s effects and local stack bytes.",
       "producer": "04 physical planning",
       "signature": "6fa26c0c3dae6462e5e979e0324244d403ae14c56383c80fb4ae46b9430e8cdb"
     },
@@ -12533,7 +12533,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/native_entry_bridge.rs",
       "item": "NativeEntryBridgeRequest::field:inbound#1",
       "kind": "carried_record",
-      "meaning": "The caller\u00e2\u20ac\u2122s incoming placements, control and interrupted-state contract.",
+      "meaning": "The callerâ€™s incoming placements, control and interrupted-state contract.",
       "producer": "04 physical planning",
       "signature": "4e4af3ce8610629b762efb6d1ac7dd2976c3ea05895fffcba9c51beba4ee34cd"
     },
@@ -12663,7 +12663,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/native_entry_bridge.rs",
       "item": "NativeEntryParameter::field:inbound_ordinal#1",
       "kind": "carried_record",
-      "meaning": "The argument\u00e2\u20ac\u2122s original ordinal in the incoming ABI.",
+      "meaning": "The argumentâ€™s original ordinal in the incoming ABI.",
       "producer": "04 physical planning",
       "signature": "089394891beadbf66d6b99f4a99adcb489f24ca9386f66ad5336b8ea957b8d37"
     },
@@ -12728,7 +12728,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/native_entry_bridge.rs",
       "item": "function:call_stack_bias#1",
       "kind": "definition",
-      "meaning": "Use the target ABI\u00e2\u20ac\u2122s eight-byte return-address bias for x86-64 and zero for AArch64.",
+      "meaning": "Use the target ABIâ€™s eight-byte return-address bias for x86-64 and zero for AArch64.",
       "producer": "04 physical planning",
       "signature": "c415de85040ebda437638df0af51ef56a923b3dc53fb7db98e1dae071afca68c"
     },
@@ -12897,7 +12897,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/native_entry_bridge.rs",
       "item": "impl:NativeEntryBridgePlan < Origin >::method:call_stack_bias#1",
       "kind": "definition",
-      "meaning": "Use the target ABI\u00e2\u20ac\u2122s eight-byte return-address bias for x86-64 and zero for AArch64.",
+      "meaning": "Use the target ABIâ€™s eight-byte return-address bias for x86-64 and zero for AArch64.",
       "producer": "04 physical planning",
       "signature": "bbc0f50f10235e3358970e7bc5659ca1505525ef2c94b4b25618345757620418"
     },
@@ -13212,7 +13212,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/native_foreign_bridge.rs",
       "item": "ForeignAdapterParts::field:imports#1",
       "kind": "carried_record",
-      "meaning": "The import body selected for this adapter\u2019s exact locator and target.",
+      "meaning": "The import body selected for this adapter’s exact locator and target.",
       "producer": "foreign adapter physical planning",
       "signature": "77ed492c0769cac231749b8fcdf5e134cb063fbede7621deead819ea6360acaa"
     },
@@ -13371,7 +13371,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/native_foreign_bridge.rs",
       "item": "impl:ForeignAdapterPlan < Origin >::implementation#1",
       "kind": "definition",
-      "meaning": "Expose the physical adapter\u2019s operands to the encoder.",
+      "meaning": "Expose the physical adapter’s operands to the encoder.",
       "producer": "foreign adapter physical planning",
       "signature": "137c1fd13ad80644e3324e8c9ce1d31aa9bdbe2c1aa236b764f880f9fc2e5fed"
     },
@@ -13813,7 +13813,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes/src/physical_stack_switch.rs",
       "item": "PhysicalIncomingStackRequirement::field:caller_alignment#1",
       "kind": "carried_record",
-      "meaning": "Alignment required of the caller\u00e2\u20ac\u2122s stack.",
+      "meaning": "Alignment required of the callerâ€™s stack.",
       "producer": "04 physical planning",
       "signature": "6fd9995a646a1712420ccd3dae53a25c4e9f2ca2a458c929f01173df3edd1799"
     },
@@ -14585,7 +14585,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
       "item": "PackageTargetReview::field:bindings#1",
       "kind": "carried_record",
-      "meaning": "Complete normalized binding inventory with its calling results, or the failure to normalize the package\u00e2\u20ac\u2122s authored binding inputs.",
+      "meaning": "Complete normalized binding inventory with its calling results, or the failure to normalize the packageâ€™s authored binding inputs.",
       "producer": "03 package review planning",
       "signature": "8fccfa287e20b99268064afee4d90f6ae1061009216064348ca8f914fe7f77e3"
     },
@@ -14634,7 +14634,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
       "item": "ReviewedNativeBinding::field:boundary#1",
       "kind": "carried_record",
-      "meaning": "Checked Terminal boundary that the package\u00e2\u20ac\u2122s Build slot and requirement identified.",
+      "meaning": "Checked Terminal boundary that the packageâ€™s Build slot and requirement identified.",
       "producer": "02 portable publication",
       "signature": "e27f18e2bd0cb4232207ece70f13ddf758a9f09ca4d6a1ba394e50a753a9d71a"
     },
@@ -14783,7 +14783,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
       "item": "impl:ReviewedNumericBinding::method:from_leaf#1",
       "kind": "checker",
-      "meaning": "Independently validate the leaf\u00e2\u20ac\u2122s calling custody, canonical numeric schema, actual declared operation and target realization before sealing the boundary association.",
+      "meaning": "Independently validate the leafâ€™s calling custody, canonical numeric schema, actual declared operation and target realization before sealing the boundary association.",
       "producer": "03 package target review",
       "signature": "c1fdb6e5e501e08ab0b272bdf49f0765ec13d58a95de3a55d0e000eafe96560a"
     },
@@ -14807,7 +14807,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/package_review.rs",
       "item": "struct:PackageReviewRequirements#1",
       "kind": "carried_record",
-      "meaning": "Independent source-derived results for the package\u00e2\u20ac\u2122s numeric demand and every authored native binding for one deployment. Each inventory retains its own refusal.",
+      "meaning": "Independent source-derived results for the packageâ€™s numeric demand and every authored native binding for one deployment. Each inventory retains its own refusal.",
       "producer": "02 portable publication",
       "signature": "d85ff1dec01f7a3d2ba73ba85793e0ef6e19805c34aa25deefd51a25c8fcb45c"
     },
@@ -14951,7 +14951,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
       "item": "InstalledPackageProviders::field:semantic_bindings#1",
       "kind": "carried_record",
-      "meaning": "The host application\u2019s accepted roles and the terminal permissions on each role.",
+      "meaning": "The host application’s accepted roles and the terminal permissions on each role.",
       "producer": "receiving host package installation",
       "signature": "d4136a867bbeed189757893a72568155f865066410ebe109e8ff18572b88137e"
     },
@@ -15213,7 +15213,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
       "item": "enum:ProviderDemandInputs#1",
       "kind": "carried_record",
-      "meaning": "The ordinary data for either unscoped provider roots or a concrete target\u00e2\u20ac\u2122s closed provider choices and permissions. A publisher issues this value separately.",
+      "meaning": "The ordinary data for either unscoped provider roots or a concrete targetâ€™s closed provider choices and permissions. A publisher issues this value separately.",
       "producer": "provider-plan representation",
       "signature": "6c5f06e344678fae41636f914c032ceda09889eded736121d996b41f32d3cdd0"
     },
@@ -15438,7 +15438,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs",
       "item": "impl:TargetProviderInstallation::implementation#1",
       "kind": "producer",
-      "meaning": "Tie the receiving host\u00e2\u20ac\u2122s evaluated bindings and package permissions to one program and target.",
+      "meaning": "Tie the receiving hostâ€™s evaluated bindings and package permissions to one program and target.",
       "producer": "source publication or the receiving host",
       "signature": "2937146cba020e82f0e140bd08cb837db2fe200846198cf8901575122abb03e7"
     },
@@ -16104,7 +16104,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
       "item": "function:validate_selected_service_schemas#1",
       "kind": "checker",
-      "meaning": "Verify the complete selected service schema against the module\u00e2\u20ac\u2122s canonical declaration and application.",
+      "meaning": "Verify the complete selected service schema against the moduleâ€™s canonical declaration and application.",
       "producer": "provider plan correspondence",
       "signature": "431b3e557d641bc75443923c4bdc283430505963898347e0ff9e6d2b0d57c82e"
     },
@@ -17599,7 +17599,7 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "portable::invocation::macro:include#1",
       "kind": "definition",
-      "meaning": "Compile the shared private invocation for this host\u00e2\u20ac\u2122s concrete image type.",
+      "meaning": "Compile the shared private invocation for this hostâ€™s concrete image type.",
       "producer": "terminal hosted interpreter",
       "signature": "233ac8e7c424a21e572abbb342c46a19fa59b138c2f7e999f2b9f28b9ea8f36b"
     },
@@ -17612,7 +17612,7 @@
       "file": "source-rust/subsystems/interpreter/host/src/execution.rs",
       "item": "portable::module:invocation#1",
       "kind": "definition",
-      "meaning": "Compile the shared private invocation for this host\u00e2\u20ac\u2122s concrete image type.",
+      "meaning": "Compile the shared private invocation for this hostâ€™s concrete image type.",
       "producer": "terminal hosted interpreter",
       "signature": "1c49dc1b33d59162ec08e087b32f568c237edf79cfe5da45ead4d81f51bdcf53"
     },
@@ -19779,7 +19779,7 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "module:tests#1",
       "kind": "test_support",
-      "meaning": "Test the source publication\u00e2\u20ac\u2122s fixed judgment, optimization selection and refusal custody.",
+      "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
       "producer": "01 source compilation",
       "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
     },
@@ -19805,7 +19805,7 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "tests::function:accepted_publication_refuses_unexecuted_psi_optimizations#1",
       "kind": "test_support",
-      "meaning": "Test the source publication\u00e2\u20ac\u2122s fixed judgment, optimization selection and refusal custody.",
+      "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
       "producer": "01 source compilation",
       "signature": "4dda1d3287f5e503127ddda427f29e11639df869a9e027811aab554e794f8b81"
     },
@@ -19818,7 +19818,7 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "tests::function:publication_keeps_its_projection_and_one_refusal_without_retry#1",
       "kind": "test_support",
-      "meaning": "Test the source publication\u00e2\u20ac\u2122s fixed judgment, optimization selection and refusal custody.",
+      "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
       "producer": "01 source compilation",
       "signature": "914c2ce4607b556a9525869346f638ad6cc80ab48fb7e082d88e1739a47a3539"
     },
@@ -19831,7 +19831,7 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "tests::use:optimization :: PsiOptimization#1",
       "kind": "test_support",
-      "meaning": "Test the source publication\u00e2\u20ac\u2122s fixed judgment, optimization selection and refusal custody.",
+      "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
       "producer": "01 source compilation",
       "signature": "6481806337c5ccc537a413e82fdc2ca36d5e3727e3dceb64b07fae3941c1b87a"
     },
@@ -19844,7 +19844,7 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "tests::use:super :: *#1",
       "kind": "test_support",
-      "meaning": "Test the source publication\u00e2\u20ac\u2122s fixed judgment, optimization selection and refusal custody.",
+      "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
       "producer": "01 source compilation",
       "signature": "5d9f812e6d6973f484fcf6f9205e773ecbb4503112229f85e702d7904367395b"
     },
@@ -20381,7 +20381,7 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "NativeBuildEvaluation::field:observation_digest#1",
       "kind": "carried_record",
-      "meaning": "Commitment to the Build invocation\u2019s observed inputs.",
+      "meaning": "Commitment to the Build invocation’s observed inputs.",
       "producer": "native binding Build evaluation",
       "signature": "70b77001953a681c44ef04bda9d09960dfb1bd89d1259226db3ac8800989b1bd"
     },
@@ -20481,7 +20481,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/driver/image/plan_callables.rs",
       "allowed_kinds": [
         "carried_record",
         "definition",
@@ -20490,7 +20490,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks/handler_order.rs",
       "allowed_kinds": [
         "definition",
         "producer",
@@ -20498,7 +20498,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "allowed_kinds": [
         "carried_record",
         "definition",
@@ -20507,7 +20507,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/target_inputs/program_entry.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application/program_entry.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -20516,7 +20516,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/driver/image/callable_objects.rs",
       "allowed_kinds": [
         "carried_record",
         "definition",
@@ -20524,7 +20524,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -20533,7 +20533,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

@@ -1,0 +1,119 @@
+//! Receive source and saved Psi publications for the ordinary native driver.
+use diagnostics::Diagnostic;
+use provider_realization::published_application::{
+    NativeApplicationSettings, bind_published_application,
+};
+use std::sync::Arc;
+use verified_optimization_input::TerminalNativeRealizationProposal;
+
+/// Target, permissions and installations explicitly supplied by the receiving host.
+pub struct SavedProgramTarget<'a> {
+    pub profile: target::TargetProfile,
+    pub requested_boundaries: Vec<semantic_vocabulary::BoundaryMachineId>,
+    pub installation: host_provider_inputs::TargetProviderInstallation,
+    pub application: target::NativeApplicationMetadata,
+    pub optimizations: &'a optimization_core::OptimizationSelections,
+    pub behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+}
+
+pub struct SourceNativeTarget<'a> {
+    pub profile: target::TargetProfile,
+    pub settings: NativeApplicationSettings<'a>,
+    pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
+    pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+    pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+}
+
+/// Receive the ordinary source publisher's target-bound program and Build choices.
+pub fn prepare_source_program(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    publication: provider_demand::PublishedTargetProviders,
+    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    target: SourceNativeTarget<'_>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let artifact = authorization.shared_artifact();
+    let demand = publication.receive(artifact, target.profile.target_name())?;
+    let issued = provider_demand::IssuedProviderDemand::from_publication(
+        artifact.manifest().identity(),
+        Arc::clone(artifact),
+        Some(target.profile),
+        demand,
+        target.package_permissions,
+        target.semantic_bindings,
+    )?;
+    prepare_issued_program(
+        authorization,
+        issued,
+        target.settings,
+        exclusions,
+        target.installation_assumptions,
+    )
+}
+
+pub fn prepare_saved_program(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    target: SavedProgramTarget<'_>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let issued = provider_demand::IssuedProviderDemand::from_saved_program(
+        authorization.shared_artifact(),
+        target.profile,
+        target.requested_boundaries,
+        target.installation,
+    )?;
+    prepare_issued_program(
+        authorization,
+        issued,
+        NativeApplicationSettings {
+            application: target.application,
+            optimizations: target.optimizations,
+            x86_scalar_fma_provider: target.x86_scalar_fma_provider,
+        },
+        target.behavior_exclusions,
+        Vec::new(),
+    )
+}
+
+/// Admit an issued target demand against its authorized Psi, then use its selected
+/// providers and application settings to prepare one native invocation.
+fn prepare_issued_program<Publisher>(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    issued: provider_demand::IssuedProviderDemand<Publisher>,
+    settings: NativeApplicationSettings<'_>,
+    behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let subsystem = settings.application.subsystem;
+    let admitted = native_inputs::admit(authorization, issued)
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let (terminal, permissions) =
+        bind_published_application(admitted, settings, behavior_exclusions)?;
+    Ok(crate::NativeProgram {
+        terminal,
+        permissions,
+        subsystem,
+        installation_assumptions,
+    })
+}
+
+/// Complete exactly the scalar applications required by the authorized native entry.
+pub fn complete_entry_scalars(
+    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    proposal: &TerminalNativeRealizationProposal,
+    accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
+) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, Vec<Diagnostic>> {
+    let Some(demand) =
+        provider_realization::native_execution::entry_scalar_demand(proposal, authorization)?
+    else {
+        return Ok(None);
+    };
+    native_scalar_inputs::complete(
+        authorization.shared_artifact(),
+        proposal.target_profile().target_name(),
+        &demand,
+        proposal.target_provider_proposals(),
+        accounting,
+    )
+    .map(Some)
+    .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])
+}

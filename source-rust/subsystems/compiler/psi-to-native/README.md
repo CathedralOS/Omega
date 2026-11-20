@@ -1,27 +1,27 @@
 # Psi to native code
 
-The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](target_inputs/published_application.rs) · [Psi authorization](../psi/authorization/authorization.rs)
+The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](driver/inputs/published_application.rs) · [Psi authorization](../psi/authorization/authorization.rs)
 
 ## Follow a compilation
 
 | Work | Owner |
 | --- | --- |
-| Admit the exact program, entry and provider demand | [Stage 00](pipeline/00_psi-to-admitted-native-inputs/admit.rs) receives the program and the [provider installation](pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs). [Stage 01](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs) binds the selected entry, calling contracts and reachable bodies. Its [provider selection](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution/provider_bindings.rs) matches the reachable requirements to providers and checks competing external bindings for both programs and exports. |
-| Prepare the target inputs | [Target preparation](target_inputs.rs) checks the retained publication, private entry memory and scalar inputs. Build can also request [admitted scalar values](pipeline/00_psi-to-admitted-native-inputs/scalar-applications/scalar_applications.rs). |
-| Lower one selected body | [Stage 02](pipeline/02_target-bound-program-to-abstract-operations/lower.rs) lowers its checked Psi to abstract operations. The [body driver](compile_body.rs) coordinates stages 03–15 for the entry, private callables and component exports, from optimization through object construction. |
-| Complete the requested product | The [program driver](driver.rs) returns the interpreter’s provisions at runtime admission. An image request [collects the required bodies](emit_program.rs) and [stage 16](pipeline/16_objects-to-image/) publishes the finished image. [Entry signature and storage contract](representations/program-entry-contracts/program_entry.rs) · [Target arrival ABI](targets/calling-conventions/src/process_entry.rs) |
+| Admit the exact program, entry and provider demand | [Stage 00](pipeline/00_psi-to-admitted-native-inputs/admit.rs) receives the program and the [provider installation](pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs). [Stage 01](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs) binds the [published entry and its calling contracts](pipeline/01_admitted-native-inputs-to-target-bound-program/src/published_application.rs) to the selected target and reachable bodies. Its [provider selection](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution/provider_bindings.rs) matches the reachable requirements to providers and checks competing external bindings for both programs and exports. |
+| Prepare the target inputs | [Target preparation](driver/inputs/mod.rs) checks the retained publication, private entry memory and scalar inputs. Build can also request [admitted scalar values](pipeline/00_psi-to-admitted-native-inputs/scalar-applications/scalar_applications.rs). |
+| Lower one selected body | [Stage 02](pipeline/02_target-bound-program-to-abstract-operations/lower.rs) lowers its checked Psi to abstract operations. The [body driver](driver/compile_body.rs) coordinates stages 03–15 for the entry, private callables and component exports, from optimization through object construction. |
+| Complete the requested product | The [program driver](driver/mod.rs) returns the interpreter’s provisions at runtime admission. An image request [collects the required bodies](driver/image/mod.rs) and [stage 16](pipeline/16_objects-to-image/) publishes the finished image. [Entry signature and storage contract](representations/program-entry-contracts/program_entry.rs) · [Target arrival ABI](targets/calling-conventions/src/process_entry.rs) |
 | Verify an emitted object | An [explicit stage validator](verification/stage_validators.rs) requests originals from the emission and gives them to [published-object verification](verification/published-objects/). Its checks compare the root, callable and component objects against their own retained stage inputs before the caller releases the image. |
 
 The public standalone program file is the portable `.psi` artifact. The historical `OMGNTI41` record captured a native realization proposal for a particular artifact and target. Its reader and writer are retained in [the native derivation archive](../../../../_recycling/source-rust/subsystems/compiler/psi-to-native/native-derivation-record/). [Portable Psi encoding](../../../../wiki/spec/terminal-psi/encoding.md)
 
-The program driver schedules specialized work around each body. Component export joins, callback thunks and target ABI adapters have their own inputs. [Component exports](emit_program/components/exports.rs) · [Callback thunks](emit_program/callback_thunks.rs) · [Foreign adapters](foreign_adapters.rs) · [Interpreter provisions](runtime_provisions.rs)
+The program driver schedules specialized work around each body. Component export joins, callback thunks and target ABI adapters have their own inputs. [Component exports](driver/image/components/exports.rs) · [Callback thunks](driver/image/callback_thunks.rs) · [Foreign adapters](driver/runtime/foreign_adapters.rs) · [Interpreter provisions](driver/runtime/mod.rs)
 
 ## Where code belongs
 
 | Code | Owner |
 | --- | --- |
 | Transformation of an issued program form | The numbered stage under [pipeline/](pipeline/). |
-| Coordination of several transformations | The program and body drivers at this directory's root. |
+| Coordination of several transformations | The [program driver](driver/mod.rs) coordinates input admission, body compilation and the requested image or runtime product. |
 | Program records exchanged by stages | The corresponding form under [representations/](representations/). |
 | Target descriptions, calling conventions and registers | [targets/](targets/) |
 | Independent checks of provider, installation or emitted object evidence | [verification/](verification/) |

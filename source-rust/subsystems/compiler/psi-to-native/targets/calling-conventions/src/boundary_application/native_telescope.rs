@@ -10,6 +10,7 @@ use crate::{
     BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     NativeCallbackDemand, NativeParameterId, NativePlace,
 };
+use semantic_vocabulary::ScalarType;
 use target::NativeTarget;
 use terminal_psi::CallingDirectCallback;
 
@@ -198,5 +199,59 @@ mod tests {
             .err()
             .unwrap();
         assert!(pointer.contains("8/8 target function-pointer shape"));
+    }
+}
+
+impl crate::BoundaryCallingApplication {
+    /// Project the foreign frame's scalar formals onto their checked native ordinals.
+    pub fn foreign_scalar_parameters(
+        &self,
+        formal_count: usize,
+        formals: &[(usize, ScalarType)],
+    ) -> Result<Vec<Option<ScalarType>>, String> {
+        let rows = self
+            .signature
+            .native_parameters
+            .span(self.signature.native_parameter_rows)
+            .ok_or("foreign frame scalar transport has stale native telescope storage")?;
+        let count = self.plan.plan().call.parameters.len();
+        if rows.len() != count {
+            return Err("foreign frame scalar transport has an incomplete native telescope".into());
+        }
+        let mut result = vec![None; count];
+        let mut native_seen = vec![false; count];
+        let mut scalar_seen = vec![false; formals.len()];
+        for row in rows {
+            let ordinal = usize::try_from(row.native_ordinal)
+                .map_err(|_| "foreign frame native ordinal overflows")?;
+            let seen = native_seen
+                .get_mut(ordinal)
+                .ok_or("foreign frame native ordinal is outside its calling plan")?;
+            if std::mem::replace(seen, true) {
+                return Err("foreign frame native ordinal is repeated".into());
+            }
+            let BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } = row.origin else {
+                continue;
+            };
+            let formal = usize::try_from(formal_ordinal)
+                .map_err(|_| "foreign frame semantic ordinal overflows")?;
+            if formal >= formal_count {
+                return Err("foreign frame semantic ordinal is outside its declaration".into());
+            }
+            if let Some((index, (_, scalar))) = formals
+                .iter()
+                .enumerate()
+                .find(|(_, (position, _))| *position == formal)
+            {
+                if std::mem::replace(&mut scalar_seen[index], true) {
+                    return Err("foreign frame scalar formal has repeated native transport".into());
+                }
+                result[ordinal] = Some(*scalar);
+            }
+        }
+        if scalar_seen.contains(&false) {
+            return Err("foreign frame lost a scalar formal's native transport".into());
+        }
+        Ok(result)
     }
 }

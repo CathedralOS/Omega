@@ -8,7 +8,7 @@ mod object_emission;
 pub(crate) mod plan_callables;
 
 use crate::driver::AdmittedRealization;
-use crate::observations::NativePipelineObservation;
+use crate::driver::observations::NativePipelineObservation;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
 use published_object_verification::NativeStageReplay;

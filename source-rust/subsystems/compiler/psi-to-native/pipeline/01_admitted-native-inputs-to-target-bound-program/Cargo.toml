@@ -8,6 +8,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+behavior-exclusion-requests = { path = "../../../build/settings/behavior-exclusions" }
+optimization-core = { path = "../../representations/optimization-records" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 evaluation-work = { path = "../../../build/evaluation/accounting/work" }
 native-execution-scope = { path = "execution-scope" }

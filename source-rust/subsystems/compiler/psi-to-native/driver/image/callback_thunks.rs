@@ -214,7 +214,7 @@ impl<'contract> PreparedCallbackBodies<'contract> {
 /// Measure only placements that a surviving guard actually references, after
 /// physical planning has closed the callback roster.
 pub(super) fn retained_handler_measurements(
-    root: &crate::compile_body::PreparedPhysicalBody,
+    root: &crate::driver::compile_body::PreparedPhysicalBody,
     private: &[PlannedPrivateBody],
 ) -> Result<installation_binding::RetainedHandlerMeasurements, Vec<Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet};

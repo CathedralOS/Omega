@@ -45,7 +45,7 @@ fn operation_owner(relative: &str, name: &str) -> Option<&'static str> {
         let owner = relative.strip_prefix("source-rust/subsystems/compiler/psi-to-native/");
         return (!matches!(
             owner,
-            Some("psi_to_native.rs" | "driver.rs" | "request.rs" | "target_inputs.rs")
+            Some("psi_to_native.rs" | "driver/mod.rs" | "driver/request.rs" | "driver/inputs/mod.rs")
         ))
         .then_some("submit the published Psi program to the native driver");
     }
@@ -151,7 +151,7 @@ mod tests {
     fn helpers_cannot_reconstruct_the_native_request_or_parked_codec() {
         assert!(
             operation_owner(
-                "source-rust/subsystems/compiler/psi-to-native/request.rs",
+                "source-rust/subsystems/compiler/psi-to-native/driver/request.rs",
                 NATIVE_REQUEST
             )
             .is_none()
@@ -172,7 +172,7 @@ mod tests {
         );
         assert!(
             operation_owner(
-                "source-rust/subsystems/compiler/psi-to-native/driver.rs",
+                "source-rust/subsystems/compiler/psi-to-native/driver/mod.rs",
                 "recover_native_derivation_inputs"
             )
             .is_some()

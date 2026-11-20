@@ -1,15 +1,7 @@
 //! Compile an authorized Psi program for one receiving target.
 #![forbid(unsafe_code)]
 
-mod compile_body;
-mod component_inputs;
 mod driver;
-mod emit_program;
-mod foreign_adapters;
-mod observations;
-mod request;
-mod runtime_provisions;
-mod target_inputs;
 
 #[cfg(test)]
 #[path = "tests/physical_publication/mod.rs"]
@@ -19,9 +11,10 @@ mod physical_publication_tests;
 pub mod stage_validators;
 
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
+pub use provider_realization::published_application::NativeApplicationSettings;
 pub use native_artifact::AdmittedRuntimeProgram;
-pub use target_inputs::published_application::{
-    NativeApplicationSettings, SavedProgramTarget, SourceNativeTarget, prepare_saved_program,
+pub use driver::inputs::published_application::{
+    SavedProgramTarget, SourceNativeTarget, prepare_saved_program,
     prepare_source_program,
 };
 
@@ -29,8 +22,8 @@ use diagnostics::Diagnostic;
 use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
-use request::NativeCompileRequest;
-use target_inputs::published_application::complete_entry_scalars;
+use driver::request::NativeCompileRequest;
+use driver::inputs::published_application::complete_entry_scalars;
 use verified_optimization_input::RetainedTerminalArtifact;
 
 /// Integration tests can supply an already retained input to isolate admission or
@@ -38,12 +31,12 @@ use verified_optimization_input::RetainedTerminalArtifact;
 #[cfg(feature = "test-support")]
 pub mod test_support {
     pub use crate::driver::{admit_runtime, compile};
-    pub use crate::foreign_adapters::compile_runtime_foreign_adapter;
-    pub use crate::observations::{
+    pub use crate::driver::runtime::foreign_adapters::compile_runtime_foreign_adapter;
+    pub use crate::driver::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
-    pub use crate::request::NativeCompileRequest;
-    pub use crate::target_inputs::published_application::complete_entry_scalars;
+    pub use crate::driver::request::NativeCompileRequest;
+    pub use crate::driver::inputs::published_application::complete_entry_scalars;
 }
 
 /// Emit the requested native image from a published Psi program.
@@ -86,7 +79,6 @@ pub fn admit_published_runtime(
 pub struct NativeProgram {
     terminal: RetainedTerminalArtifact,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
-    profile: target::TargetProfile,
     subsystem: u16,
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
@@ -119,7 +111,7 @@ impl NativeProgram {
         ),
         stage_validators::NativeValidationError,
     > {
-        let profile = self.profile;
+        let profile = self.native_realization_proposal()?.target_profile();
         let (image, replay) = self.emit_image(entry_memory, !validators.is_empty())?;
         let rows = validators.check(profile, &image, &replay)?;
         Ok((image, rows))

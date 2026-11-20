@@ -8,6 +8,7 @@ version.workspace = true
 path = "demand.rs"
 
 [dependencies]
+psi-provider-selections = { path = "../../../../psi/providers" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 source-provider-publication = { path = "../../../../source-to-psi/representations/published-target-providers" }
