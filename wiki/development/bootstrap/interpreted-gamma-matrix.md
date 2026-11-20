@@ -359,35 +359,36 @@ This alternate executes Delta-generated Gamma. Replay either case above with
 
 ### What the Delta output profile changes
 
-The default Gamma execution above uses **ConformanceBytesV1**. A retained
-Linux build of the same Delta compiler emitted **ConstructionBytesV1** for
-the identical 620,128-byte evaluator source. Its 718,770-byte Gamma result
-(SHA-256 `f49b1b93c26c1f04827d90f9da2d547497f044cf71640d709c29e2dfb47f86d6`) differs
-solely in the final adapter. Both ran on the same original Beta-written Gamma
-interpreter with the same Epsilon requests. CPU seconds reflect one run per
-observation on a shared host.
+The default Gamma execution above uses **ConformanceBytesV1**. A retained Linux build
+of the same Delta compiler emitted **ConstructionBytesV1** for the identical
+620,128-byte evaluator source. Its 718,770-byte Gamma result (SHA-256
+`f49b1b93c26c1f04827d90f9da2d547497f044cf71640d709c29e2dfb47f86d6`) differs solely in
+the final adapter. Both ran on the same original Beta-written Gamma interpreter with
+the same Epsilon requests. CPU seconds reflect one run per observation on a shared
+host.
 
 | Delta profile on original Gamma | Four input bytes | Sixteen input bytes | All 256 | Wrong-base refusal |
 | --- | ---: | ---: | ---: | ---: |
 | Conformance (default) | 22.151 | 44.233 | 703.145 | 14.662 |
-| Construction | 19.203 | 39.920 | In progress | 14.842 |
+| Construction | 19.203 | 39.920 | 383.274 | 14.842 |
 
-The original host was still executing the full construction-profile request when this draft was prepared. Both profiles returned the same 53 and 197 bytes for the shorter
-positive inputs (`00 32 46 ff` and each multiple of sixteen from 0 to 240) and
-the same six-byte refusal at byte 2,032.
+The full construction request (SHA-256
+`f41c980ae8295a6f4b9d8478aa8b2f9e22186e2ddeb28e0e3135f5140ab2641c`) returned the same
+3,077 bytes in 383.274 CPU seconds and 3,931.438 elapsed seconds. Both profiles
+returned the same 53 and 197 bytes for the shorter positive inputs (`00 32 46 ff` and
+each multiple of sixteen from 0 to 240) and the same six-byte refusal at byte 2,032.
 Use the Gamma route above with `--profile construction` to select the alternative.
 
 #### Publishing appended bytes
 
-Epsilon appends console bytes one at a time. Publishing a rope of *N* such
-appends by indexing from its root visits *N(N+1)/2* concatenations.
-Construction visits each concatenation once and allocates a pair for its
-pending right child. A Delta control started with `(bytes_empty)` and
-appended `(bytes_single (% n 256))` for each integer from *N* down to 1.
-Each measured row produced identical bytes across all three adapters on the
-original Gamma interpreter. Empty, right-deep, shared and sealed-input ropes
-also agreed. The final column selects the construction walk
-in scratch while retaining the conformance input and output checks.
+Epsilon appends console bytes one at a time. Publishing a rope of *N* such appends by
+indexing from its root visits *N(N+1)/2* concatenations. Construction visits each
+concatenation once and allocates a pair for its pending right child. A Delta control
+started with `(bytes_empty)` and appended `(bytes_single (% n 256))` for each integer
+from *N* down to 1. Each measured row produced identical bytes across all three
+adapters on the original Gamma interpreter. Empty, right-deep, shared and
+sealed-input ropes also agreed. The final column selects the construction walk in
+scratch while retaining the conformance input and output checks.
 [Rope definitions](../../../bootstrap/delta/compiler/support/bytes.gamma) ·
 [Console output](../../../bootstrap/epsilon/interpreter/execution/console/output.delta)
 
@@ -397,28 +398,29 @@ in scratch while retaining the conformance input and output checks.
 | 512 | 6.006 | 0.165 | 0.171 |
 | 1024 | 28.742 | 0.173 | 0.343 |
 
-On Linux the conformance, construction and bounded-walker variants all returned the same 3,077 bytes with guest exit 42. Their single-run CPU times were 4.639, 1.468 and 1.602 seconds.
+On Linux the conformance, construction and bounded-walker variants all returned the
+same 3,077 bytes with guest exit 42. Their single-run CPU times were 4.639, 1.468 and
+1.602 seconds.
 
 #### Sharing and limits
 
-A shared value made by doubling a singleton 20 times also
-produced identical 1 MiB outputs on Linux. Peak RSS was 1,024 KiB with
-indexed publication, 33,792 KiB with construction and 33,664 KiB with
-the bounded walker. The conformance adapter and the bounded walker refused
-a 4 MiB + 1 output with status 254 and empty stdout. Construction published
-all 4,194,305 bytes, and refused 128 MiB + 1 with status 254. Construction also published the exact 128 MiB output.
-Each adapter checked its input extent before a deliberately trapping guest.
-The legacy conformance request reproduced its pinned 3,072-byte Gamma.
-Substituting the bounded walker would produce 3,964 bytes.
+A shared value made by doubling a singleton 20 times also produced identical 1 MiB
+outputs on Linux. Peak RSS was 1,024 KiB with indexed publication, 33,792 KiB with
+construction and 33,664 KiB with the bounded walker. The conformance adapter and the
+bounded walker refused a 4 MiB + 1 output with status 254 and empty stdout.
+Construction published all 4,194,305 bytes, and refused 128 MiB + 1 with status 254.
+Construction also published the exact 128 MiB output. Each adapter checked its input
+extent before a deliberately trapping guest. The legacy conformance request
+reproduced its pinned 3,072-byte Gamma. Substituting the bounded walker would produce
+3,964 bytes.
 
-Prepending 1,024 empty ropes to a singleton and doubling that shared value
-ten times returned just 1,024 bytes. Indexed publication used 128
-KiB peak RSS on Linux. The construction walker used 32,640 KiB.
-With 22 doublings, the output is exactly 4 MiB. The existing walker would
-allocate at least 4,294,967,296 pending pairs across those wrappers, above the original
-Gamma interpreter's 3,422,447,206-pair provision. That last count follows
-from the emitted code. The cross-profile test runs the scaled source at eight
-and ten doublings with
+Prepending 1,024 empty ropes to a singleton and doubling that shared value ten times
+returned just 1,024 bytes. Indexed publication used 128 KiB peak RSS on Linux. The
+construction walker used 32,640 KiB. With 22 doublings, the output is exactly 4 MiB.
+The existing walker would allocate at least 4,294,967,296 pending pairs across those
+wrappers, above the original Gamma interpreter's 3,422,447,206-pair provision. That
+last count follows from the emitted code. The cross-profile test runs the scaled
+source at eight and ten doublings with
 `python3 tests/bootstrap/independent/delta_profiles.py DELTA_COMPILER GAMMA_COMPILER`.
 [Scaled Delta source](../../../tests/bootstrap/independent/shared_empty_rope.delta) ·
 [Original Gamma capacities](../../../bootstrap/gamma/interpreter/EVALUATOR_PROFILE.md) ·
