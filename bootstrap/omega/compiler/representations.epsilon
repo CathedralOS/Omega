@@ -254,6 +254,7 @@ data OmegaSourceUnit {
     end: i32;
     path: OmegaRelativeSpan;
     first_module_member: i32;
+    module_end: i32;
     module_member_count: i32;
 }
 

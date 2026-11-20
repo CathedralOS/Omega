@@ -42,10 +42,9 @@ machine OmegaParser::ordinary_name_token(&mut self) -> i32 {
     }
 }
 
-// Unit parsing appends into the same arenas only after independent lexical
-// preflight. All retained spans stay absolute; lookup recovers their exact
-// source owner from the admitted disjoint ranges.
-machine OmegaParser::parse_set(&mut self, source: &[u8]) {
+// Only live row counts confer access to parser storage. The sealed source set
+// and its package graph survive a reset between construction units.
+machine OmegaParser::reset_syntax(&mut self) {
     self.root_count = 0;
     self.boundary_trait_count = 0;
     self.boundary_requirement_count = 0;
@@ -86,6 +85,13 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
     self.data_payload_field_count = 0;
     self.data_case_count = 0;
     self.type_reference_count = 0;
+}
+
+// Unit parsing appends into the same arenas only after independent lexical
+// preflight. All retained spans stay absolute; lookup recovers their exact
+// source owner from the admitted disjoint ranges.
+machine OmegaParser::parse_set(&mut self, source: &[u8]) {
+    self.reset_syntax();
     transition self.sources.valid(source) {
         1 -> unit(0)
         _ -> invalid_source_set()
@@ -125,6 +131,7 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
 machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
     path: OmegaRelativeSpan) {
     self.sources.units[index].first_module_member = self.member_count;
+    self.sources.units[index].module_end = path.start;
     self.sources.units[index].module_member_count = 0;
     self.status = OmegaParserStatus::Complete;
     transition path.start == path.end {
@@ -166,6 +173,7 @@ machine OmegaParser::retain_unit_namespace(&mut self, source: &[u8], index: i32,
         self.members[self.member_count].start = start;
         self.members[self.member_count].end = end;
         self.member_count = self.member_count + 1;
+        self.sources.units[index].module_end = end;
         self.sources.units[index].module_member_count =
             self.sources.units[index].module_member_count + 1;
         transition true { true -> scan(end + 1, end + 1) }

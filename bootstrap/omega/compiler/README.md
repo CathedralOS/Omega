@@ -62,11 +62,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current eleven-member
-manifest materializes 24,194 lines / 913,023 bytes with SHA-256
-`8ccdac7502e40c71aae4965b79ff5f7c73c0f0534f8a571b6d2b33afa09099ff`.
-The manifest itself is 1,868 bytes, SHA-256
-`edcea6076f5d9ca9c9f5503ec95562b1df3cbea1f505de61f49825be0dff49ef`;
+The current twelve-member
+manifest materializes 24,509 lines / 926,397 bytes with SHA-256
+`e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643`.
+The manifest itself is 2,037 bytes, SHA-256
+`8f5f765146c1c4bd52fb60cdea1c1cce0c4095cd0db741c6b151628a97124f3e`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -90,6 +90,23 @@ parent directory component for name resolution and refuses a legacy `module`
 header. Files in one package directory share a namespace. Types and calls retain
 their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
+
+For multi-unit construction the compiler parses each whole file in a fresh
+syntax arena. Free machines with by-value scalar parameter and result types,
+including nested states, can share a declaration directory. A machine without
+a result completes with Unit. The directory retains names, public visibility,
+owner files and the ranges of machine, state and parameter rows. Each file's
+imports resolve against that directory before signature checking. The existing
+checker then computes every signature and allocates the parameters' permanent
+storage. The body pass checks and emits one file at a time and reuses its local
+expression and statement rows. A callee receives fresh addresses for its local
+values. The caller's live values keep theirs. Call cycles and effects are
+checked before publishing the tape.
+
+Nominal layouts, reference signatures, machine clauses and state-entry requirements
+still use the pooled checker after the per-file syntax pass. The single-unit
+public resource limits remain in force.
+[Per-unit compilation](construction/units.epsilon)
 
 Imports are file-local. Exact imports select declarations; namespace imports
 bind a namespace without importing its ordinary machines as bare names.

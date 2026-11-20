@@ -63,8 +63,8 @@ def require_rung_identities(directory, adapter):
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 913023,
-                     "8ccdac7502e40c71aae4965b79ff5f7c73c0f0534f8a571b6d2b33afa09099ff")
+    require_identity("D", compiler, 926397,
+                     "e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643")
     return compiler, epsilon
 
 

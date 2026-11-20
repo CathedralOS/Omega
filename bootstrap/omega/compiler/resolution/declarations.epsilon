@@ -16,8 +16,14 @@ machine OmegaScalarCompiler::declaration_name(
 ) -> OmegaRelativeSpan {
     transition kind {
         OmegaDeclarationKind::Data -> return self.parser.data_items[index].name
-        OmegaDeclarationKind::Machine -> return self.parser.members[self.parser.machine_items[index].first_path_member]
         OmegaDeclarationKind::Service -> return self.parser.boundary_traits[index].name
+        OmegaDeclarationKind::Machine -> machine_name()
+    }
+    state machine_name() {
+        transition self.construction.active {
+            1 -> return self.construction.machines[index].name
+            _ -> return self.parser.members[self.parser.machine_items[index].first_path_member]
+        }
     }
 }
 
@@ -26,8 +32,14 @@ machine OmegaScalarCompiler::declaration_public(
 ) -> i32 {
     transition kind {
         OmegaDeclarationKind::Data -> return self.parser.data_items[index].is_public
-        OmegaDeclarationKind::Machine -> return self.parser.machine_items[index].is_public
         OmegaDeclarationKind::Service -> return self.parser.boundary_traits[index].is_public
+        OmegaDeclarationKind::Machine -> machine_visibility()
+    }
+    state machine_visibility() {
+        transition self.construction.active {
+            1 -> return self.construction.machines[index].is_public
+            _ -> return self.parser.machine_items[index].is_public
+        }
     }
 }
 
@@ -100,24 +112,8 @@ machine OmegaScalarCompiler::read_query(&mut self, source: &[u8], start: i32, en
 machine OmegaScalarCompiler::same_module(&mut self, source: &[u8], left: i32, right: i32) -> i32 {
     let a: OmegaSourceUnit = self.parser.sources.units[left];
     let b: OmegaSourceUnit = self.parser.sources.units[right];
-    transition (a.package == b.package) && (a.module_member_count == b.module_member_count) {
-        true -> member(a, b, 0)
-        _ -> return 0
-    }
-    state member(a: OmegaSourceUnit, b: OmegaSourceUnit, offset: i32) {
-        transition offset < a.module_member_count {
-            true -> compare(a, b, offset)
-            _ -> return 1
-        }
-    }
-    state compare(a: OmegaSourceUnit, b: OmegaSourceUnit, offset: i32) {
-        transition self.parser.sources.equal_name(source,
-            self.parser.members[a.first_module_member + offset],
-            self.parser.members[b.first_module_member + offset]) {
-            1 -> member(a, b, offset + 1)
-            _ -> return 0
-        }
-    }
+    return (a.package == b.package) && (self.span_equals(source,
+        a.path.start, a.module_end, source[b.path.start..b.module_end]) == 1);
 }
 
 // An absolute address starts at the requester's own package or one direct
@@ -192,21 +188,23 @@ machine OmegaScalarCompiler::address_matches_module(
         let row: OmegaSourceUnit = self.parser.sources.units[unit];
         transition (row.package == package) &&
             (row.module_member_count == self.address_path.count - first - terminal) {
-            true -> member(row, first, 0)
+            true -> member(row, first, 0, row.path.start)
             _ -> return 0
         }
     }
-    state member(row: OmegaSourceUnit, first: i32, offset: i32) {
+    // The checked package-relative path contains literal slash separators.
+    // Its directory prefix remains available after releasing a unit's syntax.
+    state member(row: OmegaSourceUnit, first: i32, offset: i32, cursor: i32) {
         transition offset < row.module_member_count {
-            true -> compare(row, first, offset)
+            true -> compare(row, first, offset, cursor, self.address_path.members[first + offset])
             _ -> return 1
         }
     }
-    state compare(row: OmegaSourceUnit, first: i32, offset: i32) {
-        transition self.parser.sources.equal_name(source,
-            self.parser.members[row.first_module_member + offset],
-            self.address_path.members[first + offset]) {
-            1 -> member(row, first, offset + 1)
+    state compare(row: OmegaSourceUnit, first: i32, offset: i32, cursor: i32, component: OmegaRelativeSpan) {
+        let width: i32 = component.end - component.start;
+        transition (width <= row.module_end - cursor) && (source[cursor + width] == '/') &&
+            (self.span_equals(source, cursor, cursor + width, source[component.start..component.end]) == 1) {
+            true -> member(row, first, offset + 1, cursor + width + 1)
             _ -> return 0
         }
     }
