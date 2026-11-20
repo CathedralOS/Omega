@@ -1,5 +1,5 @@
-//! Structural custody of owned fixed-array elements selected by a literal or
-//! frozen constant ordinal through the normal package entry.
+//! Fixed-array elements can be copied at a runtime index. An owned transfer
+//! also needs the selected ordinal so cleanup can identify the other elements.
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, OperationKind, OperationResult, Parameter, PlaceProjection, ProjectedPlace};
@@ -317,4 +317,84 @@ fn an_intact_array_invokes_each_elements_cleanup_in_reverse_establishment_order(
             matches!(action,CleanupAction::Invoke{place,ty,target} if *target==hook.id && *ty==hook.parameter_types[0] && place.root==root && place.path==[PlaceProjection::FixedIndex(ordinal)])
         );
     }
+}
+
+#[test]
+fn reading_a_field_of_an_indexed_record_preserves_the_selector_and_bounds_obligation() {
+    for (selector, slot) in [("left", 1), ("right", 2)] {
+        let text = format!("data Cell [copy] {{ v:u8; }} machine read(cells:[Cell;2],left:u64,right:u64)->u8 {{ cells[{selector}].v }}");
+        let pkg = {
+            let resolved = sources::resolve(&[("indexed.omg", &text)]);
+            let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+            let typed = prepared.typed();
+            let [access] = &typed.collection_accesses[..] else {
+                panic!("one indexed access")
+            };
+            assert_eq!(access.primitive, omega_toolchain::CollectionPrimitive::Read);
+            assert_eq!(access.element.nominal_parts().unwrap().0.path, "Cell");
+            assert_eq!(access.result, access.element);
+            assert_eq!(access.site.span.slice(text.as_bytes()), Some(format!("cells[{selector}]").as_bytes()));
+            omega_lowering::lower_package(&prepared).unwrap()
+        };
+        let body = &pkg.machines[0].body;
+        let Parameter::Structural(root) = body.parameters[0] else {
+            panic!("expected array parameter")
+        };
+        let [copy, read] = body.operations.as_slice() else {
+            panic!("expected an indexed copy followed by a field read")
+        };
+        let OperationKind::StructuralLeafCopy { source, path } = &copy.kind else {
+            panic!("expected a record copy")
+        };
+        let [step] = path.as_slice() else { panic!("expected one checked index") };
+        assert_eq!(*source, root);
+        assert_eq!(Parameter::Scalar(step.selector), body.parameters[slot]);
+        assert_eq!(
+            body.diagnostics.bounds[step.obligation.get() - 1]
+                .span
+                .slice(text.as_bytes()),
+            Some(selector.as_bytes())
+        );
+        assert!(matches!(&read.kind, OperationKind::ProjectedScalarRead { source }
+            if OperationResult::Structural(source.root) == copy.result && matches!(&source.path[..], [PlaceProjection::Field(field)] if field.path == "Cell::v")));
+        assert!(
+            matches!(body.blocks[0].terminator, BlockTerminator::Return { result: omega_psi::ReturnEdge::Scalar(value), .. }
+            if read.result == OperationResult::Scalar(value))
+        );
+    }
+}
+
+#[test]
+fn a_field_read_uses_the_record_returned_by_one_call() {
+    let text = "data Cell [copy] { v:u8; } machine make(n:u8)->Cell { Cell {v:n} } machine read(n:u8)->u8 { make(n).v }";
+    let package = sources::lower(&[("returned.omg", text)]).unwrap();
+    let make = package
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "make")
+        .unwrap();
+    let body = &package
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "read")
+        .unwrap()
+        .body;
+    let [call, read] = body.operations.as_slice() else {
+        panic!("the receiver must execute once")
+    };
+    assert!(matches!(call.kind, OperationKind::Call {callee:omega_psi::CallTarget::Machine(id),..} if id == make.id));
+    assert!(matches!(&read.kind, OperationKind::ProjectedScalarRead { source } if
+        OperationResult::Structural(source.root) == call.result && matches!(&source.path[..], [PlaceProjection::Field(field)] if field.path=="Cell::v")));
+    assert!(
+        matches!(body.blocks[0].terminator, BlockTerminator::Return { result: omega_psi::ReturnEdge::Scalar(value), .. }
+        if read.result == OperationResult::Scalar(value))
+    );
+}
+
+#[test]
+fn a_field_read_of_an_owned_call_result_requires_cleanup_of_the_temporary() {
+    let text = "data Cell { v:u8; } machine make(n:u8)->Cell { Cell {v:n} } machine read(n:u8)->u8 { make(n).v }";
+    let error = sources::lower(&[("returned.omg", text)]).unwrap_err();
+    assert_eq!(error.message, "computed field receiver requires a copyable record");
+    assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"make(n)".as_slice()));
 }

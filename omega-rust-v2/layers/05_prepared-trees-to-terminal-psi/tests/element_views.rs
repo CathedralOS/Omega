@@ -231,11 +231,15 @@ fn an_element_length_contract_is_not_a_byte_or_fixed_length() {
 #[test]
 fn an_element_length_contract_on_a_mutable_view_still_rejects() {
     let text = "machine get(items:@mut [u32],i:u64)->u32 requires i < items.len { items[i] }";
-    assert!(sources::lower(&[("contract.omg", text)]).is_err());
+    let error = sources::lower(&[("contract.omg", text)]).unwrap_err();
+    assert_eq!(error.message, "unsupported contract predicate expression");
+    assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"items.len".as_slice()));
 }
 
 #[test]
 fn a_mutable_element_view_is_not_an_immutable_parameter() {
     let text = "machine get(items:@mut [u32],i:u64)->u32 { items[i] }";
-    assert!(sources::lower(&[("mutable.omg", text)]).is_err());
+    let error = sources::lower(&[("mutable.omg", text)]).unwrap_err();
+    assert_eq!(error.message, "no Psi lowering for carrier @mut [u32]");
+    assert_eq!(error.site.span.slice(text.as_bytes()), Some(b"items".as_slice()));
 }

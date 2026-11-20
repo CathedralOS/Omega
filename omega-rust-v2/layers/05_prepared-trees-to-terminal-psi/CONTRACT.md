@@ -82,6 +82,8 @@ The module-spec example that defines a domain on `Audio` resolves and type-check
 
 ## Evidence for sign-off
 
+The [handoff evidence](LOCK_EVIDENCE.md) identifies which changes to a prepared input the tests can distinguish in Psi, which valid programs still stop, and which typed obligations still need an individual trace.
+
 For each source operation assigned to L5, identify the Psi records a consumer needs and inspect them after lowering through the ordinary package entry point. The deciding operands, declarations, paths, edge destinations and obligations must survive after the prepared trees are dropped. For example, two branch destinations can both be legal while only one runs the next guard on failure. A regression for that decision must catch exchanging the destinations. [L5 to L7 in the architecture plan](../../PLAN.md#l5-to-l7)
 
 Account for every open lowering gap against the spec before sign-off. Record separately the programs that stop before L5 and the examples that only produce declarations. The corpus samples the language and cannot establish completeness by counting successes. Where a prerequisite is missing, identify the first handoff that lacks it and the concrete consumer that needs it. [Corpus evidence](tests/spec_corpus.rs)

@@ -73,25 +73,32 @@ fn each_return_arm_owns_only_its_field_complement() {
 
 #[test]
 fn transferring_a_field_to_a_call_does_not_dispose_the_argument_twice() {
-    let source = format!("{PAIR} machine take(t:Token) {{}} machine apply(p:Pair){{take(move p.right);}}");
-    let package = sources::lower(&[("call.omg", &source)]).unwrap();
-    let apply = package
-        .machines
-        .iter()
-        .find(|m| m.declaration.path == "apply")
-        .unwrap();
-    let [transfer, call] = apply.body.operations.as_slice() else {
-        panic!("expected transfer and call")
-    };
-    assert!(
-        matches!(&call.kind,OperationKind::Call{arguments,..} if matches!(arguments.as_slice(),[CallArgument::MoveWhole(place)] if transfer.result==OperationResult::Structural(*place)))
-    );
-    let BlockTerminator::Return { cleanup, .. } = &apply.body.blocks[0].terminator else {
-        panic!("return expected")
-    };
-    assert!(
-        matches!(cleanup.as_slice(),[CleanupAction::DiscardResidual{place,..}] if matches!(place.path.as_slice(),[PlaceProjection::Field(f)] if f.path=="Pair::left"))
-    );
+    for (field, sibling) in [("right", "left"), ("left", "right")] {
+        let source = format!("{PAIR} machine take(t:Token) {{}} machine apply(p:Pair){{take(move p.{field});}}");
+        let package = sources::lower(&[("call.omg", &source)]).unwrap();
+        let apply = package
+            .machines
+            .iter()
+            .find(|m| m.declaration.path == "apply")
+            .unwrap();
+        let [transfer, call] = apply.body.operations.as_slice() else {
+            panic!("expected transfer and call")
+        };
+        let [Parameter::Structural(root)] = apply.body.parameters[..] else {
+            panic!("expected owned parameter")
+        };
+        assert!(matches!(&transfer.kind, OperationKind::MoveStructural { source }
+        if source.root == root && matches!(&source.path[..], [PlaceProjection::Field(f)] if f.path == format!("Pair::{field}"))));
+        assert!(
+            matches!(&call.kind,OperationKind::Call{arguments,..} if matches!(arguments.as_slice(),[CallArgument::MoveWhole(place)] if transfer.result==OperationResult::Structural(*place)))
+        );
+        let BlockTerminator::Return { cleanup, .. } = &apply.body.blocks[0].terminator else {
+            panic!("return expected")
+        };
+        assert!(
+            matches!(cleanup.as_slice(),[CleanupAction::DiscardResidual{place,..}] if place.root == root && matches!(place.path.as_slice(),[PlaceProjection::Field(f)] if f.path==format!("Pair::{sibling}")))
+        );
+    }
 }
 
 #[test]

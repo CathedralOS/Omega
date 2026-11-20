@@ -45,6 +45,7 @@ pub(crate) fn element_view_length(operation: &omega_typed::TypedOperation) -> Op
 
 pub(crate) fn select_indexed_read<'a>(
     types: &crate::LoweringTypes,
+    data: &[crate::LoweredData],
     trees: &'a TypedTrees<'_>,
     tree: &'a LoweringTree<'_>,
     node: usize,
@@ -52,7 +53,11 @@ pub(crate) fn select_indexed_read<'a>(
 ) -> Result<IndexedRead<'a>, LoweringError> {
     let file = tree.resolved().file;
     let refuse = |node, message| LoweringError::new(&site_at(tree, node), message);
-    if !types.can_forward_value(result) {
+    let copy_record = crate::lowering::types::contains_nominal_value(result)
+        && types
+            .id_for(result)
+            .is_ok_and(|id| !super::ownership::owned(id, types, data));
+    if !types.can_forward_value(result) && !copy_record {
         return Err(refuse(node, "indexed read requires a copyable scalar or fixed-array element"));
     }
     let (_, path) = trees.place_path(file.node_id(node));

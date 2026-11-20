@@ -76,7 +76,7 @@ pub(super) fn original_place<'a>(
     node: usize,
     body: &MachineBody,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    project_place(expressions, node, body, false)
+    project_place(expressions, node, body, PlaceUse::Original)
 }
 
 pub(super) fn move_place<'a>(
@@ -84,15 +84,40 @@ pub(super) fn move_place<'a>(
     node: usize,
     body: &MachineBody,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    project_place(expressions, node, body, true)
+    project_place(expressions, node, body, PlaceUse::Move)
 }
 
 fn project_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
-    moving: bool,
+    usage: PlaceUse,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
+    let (root, path, ty) = select_place(expressions, node, body, usage)?;
+    let PlaceRoot::Bound(root) = root else {
+        unreachable!("original places require a bound root")
+    };
+    Ok((ProjectedPlace { root, path }, ty))
+}
+
+pub(super) enum PlaceRoot<'a> {
+    Bound(crate::PlaceId),
+    Expression(usize, &'a ValueType),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlaceUse {
+    Original,
+    Move,
+    ScalarRead,
+}
+
+fn select_place<'a>(
+    expressions: &'a Expressions<'_>,
+    node: usize,
+    body: &MachineBody,
+    usage: PlaceUse,
+) -> Result<(PlaceRoot<'a>, Vec<PlaceProjection>, &'a ValueType), LoweringError> {
     let tree = expressions.tree;
     let resolved = tree.resolved();
     let file = resolved.file;
@@ -101,6 +126,32 @@ fn project_place<'a>(
     let mut selected_type = None;
     loop {
         let site = site_at(tree, current);
+        // A field of a computed copyable record reads the result of that
+        // expression. Its calls, selections and bounds checks execute once.
+        if usage == PlaceUse::ScalarRead
+            && !fields.is_empty()
+            && !matches!(
+                file.nodes[current].kind,
+                NodeKind::PathExpression | NodeKind::FieldAccess | NodeKind::Dereference | NodeKind::Paren
+            )
+        {
+            let ty = tree
+                .semantics_at(current)
+                .find_map(|record| match record {
+                    NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
+                    _ => None,
+                })
+                .ok_or_else(|| LoweringError::new(&site, "field receiver has no result type"))?;
+            let id = expressions
+                .types
+                .id_for(ty)
+                .map_err(|e| LoweringError::new(&site, e.to_string()))?;
+            if ty.nominal_parts().is_none() || super::ownership::owned(id, expressions.types, expressions.data) {
+                return Err(LoweringError::new(&site, "computed field receiver requires a copyable record"));
+            }
+            fields.reverse();
+            return Ok((PlaceRoot::Expression(current, ty), fields, selected_type.expect("field has a selected type")));
+        }
         let mut field = None;
         let mut ty = None;
         let mut copied = None;
@@ -109,14 +160,14 @@ fn project_place<'a>(
                 NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && ty.is_none_or(|t| t == &e.ty) => ty = Some(&e.ty),
                 NodeSemantics::Field(id) if field.is_none() => field = Some(id),
                 NodeSemantics::Obligation(o)
-                    if moving && current == file.ungroup(node) && copied.is_none() && matches!(o.kind, ObligationKind::CopyRead(_)) =>
+                    if usage != PlaceUse::Original && current == file.ungroup(node) && copied.is_none() && matches!(o.kind, ObligationKind::CopyRead(_)) =>
                 {
                     if let ObligationKind::CopyRead(carrier) = &o.kind {
                         copied = Some(carrier);
                     }
                 }
                 NodeSemantics::Obligation(o)
-                    if moving
+                    if usage == PlaceUse::Move
                         && current == file.ungroup(node)
                         && matches!(&o.kind,ObligationKind::RestoreBorrowed{place,..} if *place==file.node_id(current)) => {}
                 _ => return Err(LoweringError::new(&site, "reference projection requires a typed original place")),
@@ -189,7 +240,7 @@ fn project_place<'a>(
                 current = *base;
             }
             // Every fixed ordinal on the route to the moved operand belongs to its claim.
-            (NodeKind::Index, [base, _], None) if moving && copied.is_none() => {
+            (NodeKind::Index, [base, _], None) if usage == PlaceUse::Move && copied.is_none() => {
                 fields.push(super::fixed_arrays::element_step(expressions, current, ty)?);
                 current = *base;
             }
@@ -210,20 +261,19 @@ fn project_place<'a>(
                     return Err(LoweringError::new(&site, "reference root disagrees with its place type"));
                 }
                 fields.reverse();
-                return Ok((ProjectedPlace { root, path: fields }, selected_type.expect("each selected place has a type")));
+                return Ok((PlaceRoot::Bound(root), fields, selected_type.expect("each selected place has a type")));
             }
             _ => return Err(LoweringError::new(&site, "unsupported original storage projection")),
         }
     }
 }
 
-pub(super) fn read_scalar(
-    expressions: &Expressions<'_>,
+pub(super) fn scalar_read<'a>(
+    expressions: &'a Expressions<'_>,
     node: usize,
     carrier: &ValueType,
-    body: &mut MachineBody,
-) -> Result<OperationResult, LoweringError> {
-    use super::expressions::{EmitOperation, OperationOutput};
+    body: &MachineBody,
+) -> Result<(PlaceRoot<'a>, Vec<PlaceProjection>), LoweringError> {
     let tree = expressions.tree;
     let site = site_at(tree, node);
     let borrowed_read = tree
@@ -231,22 +281,14 @@ pub(super) fn read_scalar(
         .any(|row| matches!(row, NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == carrier)));
     // Typing publishes CopyRead when the scalar comes through a loan. An owned
     // field has the same selected path and no loan to justify copying through.
-    let (source, selected) = if borrowed_read {
-        move_place(expressions, node, body)?
-    } else {
-        original_place(expressions, node, body)?
-    };
-    if selected != carrier || borrowed_read != source.path.contains(&PlaceProjection::Referent) {
+    let (root, path, selected) = select_place(expressions, node, body, PlaceUse::ScalarRead)?;
+    if selected != carrier || borrowed_read != path.contains(&PlaceProjection::Referent) {
         return Err(LoweringError::new(
             &site,
             "scalar read disagrees with its type or borrowed copy-read obligation",
         ));
     }
-    let ty = expressions
-        .types
-        .id_for(carrier)
-        .map_err(|error| LoweringError::new(&site, error.to_string()))?;
-    Ok(body.push_operation(OperationOutput::Scalar(ty), crate::OperationKind::ProjectedScalarRead { source }, site))
+    Ok((root, path))
 }
 
 pub(super) fn dispatch_cases(
