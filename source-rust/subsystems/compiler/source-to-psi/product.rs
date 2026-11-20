@@ -261,6 +261,7 @@ fn prepare_and_judge(
         &typed,
         root_bindings,
         build.targets,
+        build.calling_targets,
     )?;
     // The normalized provider application below carries the selected trait arguments.
     let mut selected = Vec::new();
@@ -462,17 +463,9 @@ fn prepare_and_judge(
             // checked entry contract when they prepare execution.
             continue;
         };
-        // Shape preparation retains the actual executed binding order and
-        // implementation. The slot text is diagnostic text only.
-        let implementation = roster
-            .bindings
-            .get(selected)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected entry lost its target-resolved source shape",
-                )]
-            })?
-            .implementation;
+        // Selection returns the original authored row, including inactive rows
+        // in its numbering. Only selected rows have projected calling shapes.
+        let implementation = root_bindings[selected].implementation_symbol;
         let nomination = crate::product::entry_contracts::select_program_entry_contract(&program, profile)?;
         nomination
             .require_owner(&program)
