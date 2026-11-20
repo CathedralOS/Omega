@@ -19,10 +19,13 @@ from conformance.vectors import epsilon_program_cases, epsilon_request
 from independent.epsilon.composition import CompileRefusal, compiler_source, linked_program
 from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
 from independent.epsilon.lexer_scan_test import public_scan_case, public_scan_wrong_offset_case, punctuation_case
+from independent.product_wire import check_tape
+from independent.whole_request import small_constructor_case
 from interpreted.delta.interpreter import materialize
 
 MODES = ("interpret", "alpha", "native")
 COMPILER_PROGRAMS = {
+    "omega-constructor": small_constructor_case,
     "omega-byte-classes": byte_class_case,
     "omega-lexer": public_scan_case,
     "omega-punctuation": punctuation_case,
@@ -219,6 +222,19 @@ class Route:
             self.run("guest.eeout", "run the compiled Epsilon program with stdin.bin", program,
                      stdin.read_bytes, terminal=True)
 
+        if getattr(self.args, "case", None) == "omega-constructor":
+            self.stage("run the constructed Omega program on the Alpha seed and require exit 42",
+                       self.check_omega_program)
+
+    def check_omega_program(self):
+        output = (self.work / "guest.eeout").read_bytes()
+        if output[:5] != bytes(5):
+            raise ValueError(f"Omega constructor did not return exit 0: {output[:9].hex()}")
+        tape = output[5:]
+        check_tape(self.work, tape, self.args.seconds, name="omega-program", expected=42)
+        self.artifacts["omega-program.tape"] = {"bytes": len(tape), "sha256": sha256(tape).hexdigest(),
+                                               "guest_exit": 42}
+
 
 def check_observation(route, expected, report):
     compiler_response = route.expect_rejection and route.args.epsilon != "interpret"
@@ -245,7 +261,8 @@ def check_observation(route, expected, report):
     if compiler_response:
         report["result"] = "expected-rejection"
     else:
-        report["result"] = "matched" if expected is not None else "observed"
+        matched = expected is not None or "omega-program.tape" in route.artifacts
+        report["result"] = "matched" if matched else "observed"
 
 
 def prior_invocations(directories):
@@ -337,10 +354,13 @@ def main():
                         help="share intermediate outputs of identical invocations within this matrix")
     parser.add_argument("--reuse-from", action="append", default=[], type=Path, metavar="DIR",
                         help="reuse intermediate invocations recorded in an earlier route or matrix directory")
-    parser.add_argument("--profile", choices=("conformance", "construction"), default="conformance")
+    parser.add_argument("--profile", choices=("conformance", "construction"),
+                        help="Delta byte limits (default: construction for omega-constructor, otherwise conformance)")
     add_invocation_budget(parser)
     parser.add_argument("--plan", action="store_true", help="print the stages without building or running them")
     args = parser.parse_args()
+    if args.profile is None:
+        args.profile = "construction" if args.case == "omega-constructor" else "conformance"
     if not args.output and not args.plan:
         parser.error("an output directory is required for execution")
     if args.stdin and not args.source:

@@ -7,6 +7,7 @@ from pathlib import Path
 import runpy
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tests/bootstrap"))
@@ -18,6 +19,20 @@ from independent.epsilon.composition import compiler_source, linked_program
 def write(work, name, data):
     (work / name).write_bytes(data)
     print(f"{name}: {len(data)} bytes sha256={sha256(data).hexdigest()}")
+
+
+def constructor_source(work):
+    library = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources", work / "omega.epsilon")
+    return library + (ROOT / "bootstrap/omega/construct_omega.epsilon").read_bytes()
+
+
+def small_constructor_case(root):
+    builder = runpy.run_path(str(root / "source/application/construction/construct.py"))
+    source = b"machine main() -> u8 { 42 }\n"
+    stdin, _, _, _ = builder["encode"]([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])
+    with tempfile.TemporaryDirectory() as temp:
+        guest = constructor_source(Path(temp))
+    return guest, stdin, None  # The emitted program must execute on Alpha.
 
 
 def main():
@@ -46,11 +61,9 @@ def main():
     product = work / "product.bin"
     constructor = ROOT / "source/application/construction/construct.py"
     subprocess.run([sys.executable, constructor, "--input", product], check=True)
-    compiler = pack("bootstrap/omega/compiler/omega_compiler.epsilon.sources",
-                    work / "omega.epsilon")
+    guest = constructor_source(work)
     evaluator = pack("bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources",
                      work / "evaluator.delta")
-    guest = compiler + (ROOT / "bootstrap/omega/construct_omega.epsilon").read_bytes()
     support = pack("bootstrap/delta/compiler/support/support.gamma.sources", work / "support.bin")
     interpreter = evaluator + (ROOT / "bootstrap/epsilon/interpreter.delta").read_bytes()
     write(work, "compiler.dcreq", delta_request(compiler_source(evaluator), support, profile=2))

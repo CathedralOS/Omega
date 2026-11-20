@@ -107,6 +107,30 @@ class RouteTests(unittest.TestCase):
             (work / "result.json").write_text(json.dumps({"artifacts": replay.artifacts}))
             self.assertEqual(prior_invocations([source, work]), cache)
 
+    def test_whole_constructor_requires_the_emitted_omega_tape_to_exit_42(self):
+        # Call main, halt, then return the unsigned byte literal from main.
+        tape = bytes.fromhex("13 0b00000000000000 00 00 01 00 2a00000000000000 14")
+        cases = {"returns-42": bytes(5) + tape, "returns-41": bytes(5) + tape.replace(b"*", b")"),
+                 "no-tape": bytes(5), "constructor-refused": bytes.fromhex("0002000000")}
+        with tempfile.TemporaryDirectory() as temp:
+            for name, output in cases.items():
+                with self.subTest(name=name):
+                    work = Path(temp) / name
+                    args = argparse.Namespace(gamma="native", delta="native", epsilon="native",
+                                              profile="construction", seconds=None, case="omega-constructor")
+                    route = Route(args, work)
+                    route.host = Program(Path(sys.executable))
+                    route.file("guest.eeout", "Omega constructor output", lambda: output)
+                    route.stage("check the emitted Omega program", route.check_omega_program)
+                    status, report = execute_route(route, b"compiler", b"input", None, verbose=False)
+                    if name == "returns-42":
+                        self.assertEqual((status, report["result"]), (0, "matched"))
+                        self.assertEqual(report["artifacts"]["omega-program.tape"],
+                                         {"bytes": len(tape), "sha256": sha256(tape).hexdigest(), "guest_exit": 42})
+                    else:
+                        self.assertEqual((status, report["result"]), (1, "failed"))
+                        self.assertNotIn("omega-program.tape", report["artifacts"])
+
     def test_each_plan_executes_the_selected_epsilon_target(self):
         for gamma, delta, epsilon in product(MODES, repeat=3):
             with self.subTest(gamma=gamma, delta=delta, epsilon=epsilon):
