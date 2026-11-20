@@ -83,7 +83,6 @@ machine OmegaParser::parse_set(&mut self, source: &[u8]) {
     self.data_payload_field_count = 0;
     self.data_case_count = 0;
     self.type_reference_count = 0;
-    self.type_constraint_count = 0;
     transition self.sources.valid(source) {
         1 -> unit(0)
         _ -> invalid_source_set()
@@ -10049,42 +10048,12 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition (self.type_required_nodes >= 1) &&
             (self.type_required_nodes <= 16384) &&
             (self.type_reference_count <= 16384 - self.type_required_nodes) {
-            true -> retain_constraint_storage(member_end, next_cursor)
+            true -> begin_retain_type_tree(member_end, next_cursor)
             _ -> resource_failure(
                 OmegaParserResource::TypeNodes,
                 16384,
                 self.type_reference_count + self.type_required_nodes
             )
-        }
-    }
-
-    state retain_constraint_storage(member_end: i32, next_cursor: i32) {
-        transition self.type_constraint_depth >= 0 {
-            true -> retain_domain_path_capacity(member_end, next_cursor)
-            _ -> begin_retain_type_tree(member_end, next_cursor)
-        }
-    }
-
-    state retain_domain_path_capacity(member_end: i32, next_cursor: i32) {
-        transition self.member_count < 16384 {
-            true -> retain_domain_constraint(member_end, next_cursor)
-            _ -> resource_failure(
-                OmegaParserResource::PathMembers,
-                16384,
-                self.member_count + 1
-            )
-        }
-    }
-
-    state retain_domain_constraint(member_end: i32, next_cursor: i32) {
-        self.members[self.member_count].start = self.type_domain_name_start;
-        self.members[self.member_count].end = self.type_domain_name_end;
-        self.type_constraints[self.type_constraint_count].first_path_member =
-            self.member_count;
-        self.type_constraints[self.type_constraint_count].path_member_count = 1;
-        self.member_count = self.member_count + 1;
-        transition true {
-            true -> begin_retain_type_tree(member_end, next_cursor)
         }
     }
 
@@ -10208,10 +10177,10 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.type_references[self.type_reference_count].payload0 =
             self.type_root;
         self.type_references[self.type_reference_count].payload1 =
-            self.type_constraint_count;
-        self.type_references[self.type_reference_count].payload2 = 1;
+            self.type_domain_name_start;
+        self.type_references[self.type_reference_count].payload2 =
+            self.type_domain_name_end;
         self.type_root = self.type_reference_count;
-        self.type_constraint_count = self.type_constraint_count + 1;
         self.type_reference_count = self.type_reference_count + 1;
         transition true {
             true -> retain_remaining_layers(member_end, next_cursor)

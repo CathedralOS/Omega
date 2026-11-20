@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,707 lines / 890,604 bytes with SHA-256
-`32463136fdcc0ea4f4080bf421e69c194204ac3e20b817574b1db49ce12cf1fc`.
+manifest materializes 23,643 lines / 888,045 bytes with SHA-256
+`cad029545ea7842cb5c93445e24945706128e1ce968bac962516dc6d1869ada9`.
 The manifest itself is 1,698 bytes, SHA-256
-`8ac64eee0c6eb624860d64d675a7d8a9749813327d16db6eddd4bf1c3dec66f8`;
+`cd393783030956014d75e26ca96f028cb4da6aac134828c26849d01cf86327f2`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -611,10 +611,9 @@ requirement profile is described above. Parameters, a return,
 implicit statements, or an otherwise empty machine require the implicit entry;
 an explicit-state-only machine without those forms does not manufacture one. A
 free machine uses the generated `entry` identity, while an attached machine
-names its entry with the final authored declaration-path member. Machine,
-termination-witness, and domain paths share the general path-member arena, but
-a machine snapshots its
-path extent before parameter types can append domain members. A trailing
+names its entry with the final authored declaration-path member. Machine and
+termination-witness paths share the general path-member arena. A machine
+snapshots its declaration path before reading parameter types and clauses. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
 `Slice<T>` spelling, return types placed after clauses, generics, remaining
 machine-clause forms beyond the supported contracts, and `boundary` forms; target
@@ -675,13 +674,13 @@ named domain can qualify the leaf, an inner array or the outer array. Its
 constrained type node wraps the carrier selected by the source brackets. A case reaches its
 contiguous payload-field span in a separate arena; direct and payload fields
 share one binding control path. Type references are postorder tagged nodes: a
-constrained root points to its base and to one source-shaped constraint, while
+constrained root points to its base and stores the start and end of the domain name, while
 an outer Reference points backward to its complete referee tree and retains
 shared/mutable/write-only access plus an optional exact lifetime span.
 FixedArray and Slice nodes point backward to their element; FixedArray also
 retains the exact length span. SelfType and Unit need no payload.
-Domain constraints point into the general path arena; array lengths retain exact
-spans without interpreting their values. Data predicates retain source-ordered
+The constrained type node owns the entire single-name domain span. Array lengths
+retain exact spans without interpreting their values. Data predicates retain source-ordered
 ordinary expression roots and clause spans; each data row owns its exact
 requirement span, including an empty span for a declaration with no predicates.
 The common expression builder owns precedence, groups, paths, literals and
@@ -701,7 +700,7 @@ stop as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data/machine/state rows and
 16,384 path-member/data-member/direct-field/payload-field/case/machine-parameter/
-machine-clause/data-requirement/type-node/constraint/statement/call-statement/call-expression/
+machine-clause/data-requirement/type-node/statement/call-statement/call-expression/
 cast-expression/assignment/local-data/transition/expression/binary-expression/
 unary-expression/
 indexed-expression/
@@ -716,11 +715,9 @@ every count. Root capacity dominates use/data/machine capacity, while `States`
 becomes independently exhaustible as soon as one machine may own multiple
 states. Data-member capacity dominates direct-field/case capacity. Fields,
 parameters, and state returns share the type-node table, making `TypeNodes`
-independently exhaustible. Its equal ceiling dominates payload-field,
-machine-parameter, and constraint capacity in
-the current slice because every retained row of those kinds owns at least one
-type node.
-Import/domain paths, call receivers, and path expressions share the
+independently exhaustible. Its equal ceiling dominates payload-field and
+machine-parameter capacity because each retained row owns at least one type node.
+Import paths, call receivers, and path expressions share the
 independently exhaustible path-member arena after each machine snapshots its
 declaration path. Every retained call or transition-target argument owns one
 expression row, so `Expressions` dominates the equal argument table. Every

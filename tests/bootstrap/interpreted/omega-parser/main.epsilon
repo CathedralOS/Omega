@@ -58,17 +58,27 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data R { leaf:[[u64 in Trapping;2];3]; shell:[[u8;2] in Trapping;3]; }");
     self.check_complete();
     assert self.parser.type_reference_count == 8;
-    assert self.parser.type_constraint_count == 2;
+    assert self.parser.member_count == 0;
     assert self.parser.data_fields[0].type_reference == 3;
     assert self.parser.data_fields[1].type_reference == 7;
     // Children precede parents. The same domain wraps the leaf in the
     // first field and the inner array in the second.
     self.check_array_type(3, 2);
     self.check_array_type(2, 1);
-    self.check_domain_type(1, 0, 0);
+    self.check_domain_type(1, 0, 23, 31);
     self.check_array_type(7, 6);
-    self.check_domain_type(6, 5, 1);
+    self.check_domain_type(6, 5, 56, 64);
     self.check_array_type(5, 4);
+
+    // A qualified type owns its domain span even when every path slot is occupied.
+    self.parser.parse_view("");
+    self.parser.member_count = 16384;
+    self.parser.append_unit("data R { a:u32 in Trapping; }", 0);
+    self.check_complete();
+    self.check_domain_type(1, 0, 18, 26);
+    assert self.parser.member_count == 16384;
+    self.parser.append_unit("machine f() {}", 0);
+    self.check_full_path_arena();
 
     self.parser.parse_view("data R { leaf:[u64 in ;2]; }");
     self.check_syntax_refused(22, 23);
@@ -511,15 +521,34 @@ machine Main::check_array_type(&mut self, node: i32, element: i32) {
     state child() { assert self.parser.type_references[node].payload0 == element; }
 }
 
-machine Main::check_domain_type(&mut self, node: i32, carrier: i32, constraint: i32) {
+machine Main::check_full_path_arena(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::ResourceFailure -> resource()
+        _ -> self.console.exit_process(92)
+    }
+    state resource() {
+        transition self.parser.resource {
+            OmegaParserResource::PathMembers -> refusal()
+            _ -> self.console.exit_process(92)
+        }
+    }
+    state refusal() {
+        assert self.parser.resource_limit == 16384;
+        assert self.parser.resource_requested == 16385;
+        assert self.parser.diagnostic_start == 8;
+        assert self.parser.diagnostic_end == 9;
+    }
+}
+
+machine Main::check_domain_type(&mut self, node: i32, carrier: i32, start: i32, end: i32) {
     transition self.parser.type_references[node].kind {
         OmegaTypeReferenceKind::Constrained -> child()
         _ -> self.console.exit_process(92)
     }
     state child() {
         assert self.parser.type_references[node].payload0 == carrier;
-        assert self.parser.type_references[node].payload1 == constraint;
-        assert self.parser.type_references[node].payload2 == 1;
+        assert self.parser.type_references[node].payload1 == start;
+        assert self.parser.type_references[node].payload2 == end;
     }
 }
 
@@ -530,7 +559,6 @@ machine Main::check_data_rows(&mut self) {
     assert self.parser.machine_count == 0;
     assert self.parser.data_field_count == 4;
     assert self.parser.type_reference_count == 7;
-    assert self.parser.type_constraint_count == 1;
     assert self.parser.statement_count == 0;
     assert self.parser.data_fields[0].type_reference == 1;
     assert self.parser.data_fields[1].type_reference == 2;
@@ -541,12 +569,7 @@ machine Main::check_data_rows(&mut self) {
     assert self.parser.type_references[2].payload1 == 43;
     assert self.parser.type_references[4].payload0 == 3;
     assert self.parser.type_references[4].payload1 == 0;
-    assert self.parser.type_references[6].payload0 == 5;
-    assert self.parser.type_references[6].payload1 == 0;
-    assert self.parser.type_references[6].payload2 == 1;
-    assert self.parser.type_constraints[0].path_member_count == 1;
-    assert self.parser.members[self.parser.type_constraints[0].first_path_member].start == 63;
-    assert self.parser.members[self.parser.type_constraints[0].first_path_member].end == 69;
+    self.check_domain_type(6, 5, 63, 69);
     assert self.parser.requirement_count == 1;
     assert self.parser.data_items[0].first_requirement == 0;
     assert self.parser.data_items[0].requirement_count == 1;
@@ -679,7 +702,6 @@ machine Main::check_machine_rows(&mut self) {
     assert self.parser.struct_literal_field_count == 1;
     assert self.parser.cast_expression_count == 1;
     assert self.parser.type_reference_count == 0;
-    assert self.parser.type_constraint_count == 0;
     self.check_cast_kind(0, 1);
 }
 
