@@ -128,6 +128,10 @@ impl ProductStage<'_> {
         self.source().produce_build_provider(profile.target_name(), declaration_path)
     }
 
+    pub fn deployment_targets(&self) -> &[&'static str] {
+        &self.deployments
+    }
+
     pub fn source(&self) -> StageSource<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;
