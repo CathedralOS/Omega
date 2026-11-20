@@ -49,6 +49,14 @@ Each published tape ran the original 148-byte batch and returned the expected
 with both the evaluator and the native executable. The smallest tape leaves
 9,434,357 bytes in the seed. [Lexer cases and expected bytes](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
 
+A separate cold run copied only `bootstrap/` into a new source root and ran the
+external Linux launcher with an empty `PATH`. From the admitted seed it built
+the native Gamma, Delta and Epsilon compilers. A byte packer read the Epsilon
+compiler's own source and runtime lists. The compiled Epsilon program used
+its standard entry. The cold Gamma compiler also built the Alpha-targeting
+compiler that emitted the 7,342,855-byte tape. Stamping that tape into the seed
+reproduced the 465-byte observation. [Source lists and commands](../../../bootstrap/epsilon/compiler/README.md)
+
 The old encoding repeated a 69-byte stack push at 209,820 sites and a
 32-byte pop at 179,121 sites. The Alpha backend now calls three leaf routines
 with nine-byte Alpha calls. One pushes the current word and its tag. The other
