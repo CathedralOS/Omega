@@ -31,6 +31,50 @@ bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
 
 The native driver feeds the seed and each reconstructed compiler directly. [Linux construction and inputs](../linux_x86_64/README.md)
 
+### Compare a production request operation across evaluator hosts
+
+The [Request.clear test](../../tests/bootstrap/independent/request_clear.py)
+takes the production `Request` declaration and `clear` machine byte for byte
+from [the request package](../../source/subsystems/compiler/request/request.omg).
+Its caller sets both metadata words and the last byte of the 64 KiB request
+buffer. After calling `clear`, it checks both words are zero and uses the
+preserved byte as the exit code.
+
+Build the Linux and Alpha Epsilon evaluators from the same Delta request,
+then pass both executables to the test. [Linux construction](../linux_x86_64/README.md#run-the-compiled-alpha-tape-route)
+
+```sh
+python3 tests/bootstrap/independent/request_clear.py /tmp/omega-epsilon/successor \
+    --compare-with /tmp/omega-epsilon-alpha/successor --timeout 1200
+```
+
+The test sends the same sealed request to both evaluators, prints executable
+and observation identities, compares every output byte, then runs the common
+Alpha tape and requires exit 42 with empty output. The timeout applies to
+each evaluator separately.
+
+At `e488ba404bf` on Linux x86-64, the checked-in Linux construction driver
+built the Alpha-hosted evaluator from the seed and admitted Beta tape in
+192.870 seconds. All three Gamma compiler tapes matched. The constructed
+Delta compiler emitted the same 726,601-byte evaluator Gamma source as the
+native route. Its SHA-256 was
+`1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af`.
+The Alpha backend compiled it into a 7,844,855-byte evaluator tape.
+
+| Epsilon evaluator | Executable SHA-256 | Elapsed for the same request |
+| --- | --- | ---: |
+| Freshly seed-built Alpha host | `fefb42b13bf9ba1a3eb87e7d810f9441d2f73ed0119544438eb910db33c7bace` | 664.705 s |
+| Reused native Linux host | `80226b25de03c6608638a1c6a35f4d0fcbc23a3dd1445aa474fb9a34194907f8` | 118.177 s |
+
+Both evaluators received the same 842,218-byte request, SHA-256
+`3f534a4a2c566fae357899a4fbb15994314bac581e278a5d1b5b717779a946a8`.
+Each published the same 1,355-byte observation, SHA-256
+`e267db6d2e9b3a39e3cb1207452ce08d74345037892aa723ba162c160c021b45`.
+The 1,350-byte program in that observation ran on Alpha with exit 42 and empty
+output. The elapsed times cover one invocation per evaluator on a shared
+machine. The customer exercises `clear` and its caller. Request staging and
+decoding have separate tests.
+
 ## Host checks
 
 On an executable Alpha seed host, Python and shell drive the differential tests. The [Python Gamma compiler](../../tests/bootstrap/compiled_vm/gamma.py) supplies an independent implementation for comparison and for the explicit `--accelerated` test mode.
