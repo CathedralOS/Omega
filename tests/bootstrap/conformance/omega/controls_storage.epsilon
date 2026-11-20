@@ -144,6 +144,12 @@ machine Main::main(&mut self) {
         self.refusal("data Words { array:[u64;2]; } machine main()->u8 {let mut w:Words;w.array[0]=7;let base:u64=1;let index:u64 in Trapping=base as +Trapping;w.array[index]=42;transition w.array[0]==7 && w.array[1]==42 {true->yes(),_->no()}machine yes()->u8{42}machine no()->u8{7}}", 1, 96);
         self.refusal("data W {a:[u64;2];} machine overwrite(w:@W){w.a[0]=3;} machine main()->u8{let w:W;overwrite(@w);42}", 1, 97);
         self.refusal("data W {a:[u64 in Trapping;2];} machine main()->u8 {let w:W;let raw:u64=w.a[0];42}", 2, 98);
+        // Exclusive loans conflict in either argument order. A tail transfer
+        // must also check forwarded parameters, even when the callee has no writes.
+        self.refusal("data C{x:u8;} machine pair(a:@mut C,b:@mut C){} machine main()->u8{let mut c:C;pair(@mut c,@mut c);42}", 1, 100);
+        self.refusal("data C{x:u8;} machine pair(a:@mut C,b:@C){} machine main()->u8{let mut c:C;pair(@mut c,@c);42}", 1, 101);
+        self.refusal("data C{x:u8;} data P{c:C;} machine pair(a:@P,b:@mut C){} machine main()->u8{let mut p:P;pair(@p,@mut p.c);42}", 1, 102);
+        self.refusal("data C{x:u8;} machine outer(a:@mut C,b:@mut C){transition{_->pair(a,a)} machine pair(x:@mut C,y:@mut C){}} machine main()->u8{42}", 1, 103);
         self.positive("machine main() -> u8 { 59 }", 59, 90);
     }
 }

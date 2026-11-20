@@ -2732,25 +2732,13 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
             _ -> unsupported(self.parser.machine_parameters[slot].name.start)
         }
     }
+    // Every call and transfer checks its arguments from left to right.
+    // The caller keeps each reference loan live while it checks later
+    // arguments, so an exclusive parameter cannot alias another parameter.
     state allocate_parameter(index: i32, offset: i32, slot: i32, kind: i32) {
         transition self.require_cell(source, slot, kind) {
-            1 -> parameter_reference(index, offset, slot, kind, 0)
+            1 -> parameter_scope(index, offset, self.parser.machine_parameters[slot].name)
             _ -> return 0
-        }
-    }
-    // One reference parameter per callable excludes unknown inter-parameter
-    // aliasing in this first profile. Borrowed argument evaluation still owns
-    // its independent overlap checks; this signature bound is not a loan proof.
-    state parameter_reference(index: i32, offset: i32, slot: i32, kind: i32, prior: i32) {
-        transition (kind >= 400000) && (prior < offset) {
-            true -> previous_reference(index, offset, slot, kind, prior)
-            _ -> parameter_scope(index, offset, self.parser.machine_parameters[slot].name)
-        }
-    }
-    state previous_reference(index: i32, offset: i32, slot: i32, kind: i32, prior: i32) {
-        transition self.parameter_types[self.parser.machine_states[index].first_parameter + prior] >= 400000 {
-            true -> unsupported(self.parser.machine_parameters[slot].name.start)
-            _ -> parameter_reference(index, offset, slot, kind, prior + 1)
         }
     }
     state parameter_scope(index: i32, offset: i32, name: OmegaRelativeSpan) {
@@ -5306,9 +5294,8 @@ machine OmegaScalarCompiler::check_place(
     state missing(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
 }
 
-// Each live call-argument loan freezes its exact backing range while later
-// arguments evaluate. One reference parameter alone would not prevent an
-// overlapping by-value read in a later argument.
+// Shared loans permit overlapping reads. An exclusive loan covers its
+// backing range while later arguments are checked, including by-value reads.
 machine OmegaScalarCompiler::place_available(
     &mut self, source: &[u8], expression: i32, access: i32
 ) -> i32 {
