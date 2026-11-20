@@ -576,20 +576,6 @@ impl ConstantEvaluation<'_, '_> {
             .signatures()
             .get(selection.machine.as_ref())
             .ok_or(PreparationReason::CallbackWithoutSignature)?;
-        let tree = self.tree(signature.node)?;
-        let file = tree.resolved().file;
-        let declaration = signature.node.node;
-        if tree.resolved().declaration_at(declaration) != Some(selection.machine.as_ref())
-            || file.child(declaration, NodeKind::Body).is_none()
-            || file.generic_parameters(declaration).count() != selection.arguments.len()
-            || selection.all_arguments().any(ValueType::depends_on_call_input)
-            || file.child(declaration, NodeKind::Hypothesis).is_some()
-            || tree.resolved().is_exported(declaration) && !signature.terminates
-            || signature.satisfies.is_some()
-        {
-            return Err(PreparationReason::CallbackContractOutsideFragment.into());
-        }
-        self.check_multiplicity_bounds(signature, &selection.arguments)?;
         let mut trait_scopes = selection
             .enclosing_arguments
             .iter()
@@ -610,6 +596,20 @@ impl ConstantEvaluation<'_, '_> {
         {
             return Err(PreparationReason::RuntimeBoundaryCallback.into());
         }
+        let tree = self.tree(signature.node)?;
+        let file = tree.resolved().file;
+        let declaration = signature.node.node;
+        if tree.resolved().declaration_at(declaration) != Some(selection.machine.as_ref())
+            || file.child(declaration, NodeKind::Body).is_none()
+            || file.generic_parameters(declaration).count() != selection.arguments.len()
+            || selection.all_arguments().any(ValueType::depends_on_call_input)
+            || file.child(declaration, NodeKind::Hypothesis).is_some()
+            || tree.resolved().is_exported(declaration) && !signature.terminates
+            || signature.satisfies.is_some()
+        {
+            return Err(PreparationReason::CallbackContractOutsideFragment.into());
+        }
+        self.check_multiplicity_bounds(signature, &selection.arguments)?;
         let effects = self
             .machine_effects(index)
             .ok_or(PreparationReason::CallbackWithoutOperationalBounds)?;

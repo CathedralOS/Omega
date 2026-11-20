@@ -444,3 +444,12 @@ fn named_case_pattern_binds_the_selected_payload_field() {
         assert_eq!(prepared.integer_constant(declaration(&prepared, name)), Some(&expected.into()), "{name}");
     }
 }
+
+#[test]
+fn a_nested_projection_uses_each_applied_field_type() {
+    let source = "data Pair<T [copy]> [copy]{left:T; right:u16;} data Box<T [copy]> [copy]{value:T;}
+                  machine first<T [copy]>(p:Box<Pair<T>>)->T{p.value.left}
+                  const ANSWER:u8=first::<u8>(Box::<Pair<u8>>{value:Pair::<u8>{right:256u16,left:42u8}});";
+    let prepared = prepare(source).unwrap();
+    assert_eq!(prepared.constant(declaration(&prepared, "ANSWER")), Some(&PreparedValue::Integer(42u8.into())));
+}
