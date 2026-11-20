@@ -41,7 +41,7 @@ machine Main::main(&mut self) {
             13 -> batch_13()
             14 -> array_literals()
             15 -> array_loans()
-            16 -> batch_0()
+            16 -> loan_traversal()
             _ -> self.console.exit_process(99)
         }
     }
@@ -324,6 +324,13 @@ machine Main::main(&mut self) {
         self.refusal("machine f(a:u8)->u8{a} machine main()->u8{f(42]}",2,41);
         self.positive("machine main()->u8 {let a:[[u8;2];2]=[[1,2],[3,42]];42}",42,42);
         self.positive("data B [copy] { x:[u8;2];} machine main()->u8 {let b:B=B{x:[1,42]};b.x[1]}",42,43);
+    }
+    state loan_traversal() {
+        self.positive(self.source.as_slice[0..self.length],42,40);
+        // A ceiling bounds a returned difference. It cannot discharge underflow.
+        self.refusal("machine choose(depth:u64 in Trapping)->u8 crashes Trap requires depth<11 { transition depth>0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(8 as +Trapping)}",2,41);
+        self.refusal("machine choose(depth:u64 in Trapping)->u8 crashes none requires depth<9 { transition depth==0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(0 as +Trapping)}",2,42);
+        self.positive("machine choose(depth:u64 in Trapping)->u8 crashes Trap requires depth<9 { transition depth==0 {true->bounded(depth-1),_->1} machine bounded(value:u64 in Trapping)->u8 requires value<9 {transition value==7 {true->42,_->1}} } machine main()->u8 crashes Trap {choose(0 as +Trapping)}",0,43);
     }
     state array_loans() {
         self.positive(self.source.as_slice[0..self.length],42,40);
