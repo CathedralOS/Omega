@@ -149,7 +149,7 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
         panic!("expected source image")
     };
     let publication =
-        source_compiler::compile_for_target(stage.source(), profile.target_name()).unwrap();
+        source_compiler::compile_for_target(stage.source(), profile.target_name(), None).unwrap();
     let (published, providers, exclusions) = publication.into_parts();
     let reopened = Arc::new(CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap());
     let trust = HostProducerTrust::accept("source-produced Windows fixture");
@@ -306,7 +306,7 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
 fn folded_product(path: &Path, profile: TargetProfile) -> product_publication::CompletedProduct {
     let product = open_project(path, &[profile]);
     let stage = product.product_stage(&[profile]).unwrap();
-    let source = source_compiler::compile(stage.source()).unwrap_or_else(|reasons| {
+    let source = source_compiler::compile(stage.source(), None).unwrap_or_else(|reasons| {
         panic!(
             "portable publication of {} for {}: {reasons:?}",
             path.display(),

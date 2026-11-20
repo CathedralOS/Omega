@@ -18,8 +18,6 @@ pub mod provider_declarations;
 pub(crate) mod provider_settlement;
 pub mod retained_application;
 pub mod source_targets;
-mod typed_frontier;
-pub use typed_frontier::TypedFrontier;
 
 pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
 
@@ -115,12 +113,21 @@ impl CompletedProductSource {
     }
 }
 
+/// Which declaration supplies the entry of this Product judgment.
+#[derive(Clone, Copy)]
+pub(crate) enum ProductEntry<'a> {
+    BuildBindings,
+    Inspection(&'a str),
+    RegisteredTest {
+        root: &'a crate::registered_tests::TestRoot,
+        target: &'a str,
+    },
+}
+
 pub(crate) fn prepare_lower_and_check(
     mut continuation: crate::SourceContinuation,
     mut inputs: ProductSourceInputs<'_>,
-    inspection: Option<&str>,
-    test_root: Option<(&crate::registered_tests::TestRoot, &str)>,
-    frontier: Option<&mut Option<crate::TypedFrontier>>,
+    entry: ProductEntry<'_>,
     timings: &mut crate::CompileTimings,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
     let (activation, admitted) = inputs.policy.admit(&mut continuation, inputs.subject)?;
@@ -141,12 +148,16 @@ pub(crate) fn prepare_lower_and_check(
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
     let unprepared = has_defaults.then(|| typed.clone());
-    let root_bindings = match test_root {
-        Some((test, target)) => vec![test.bind(&typed, &admitted.declarations.test_groups, target)?],
-        None => symbol_resolved_trees_to_typed_trees::product_declarations::collect_root_bindings(
-            &typed,
-            inputs.root_binding_requests,
-        )?,
+    let root_bindings = match entry {
+        ProductEntry::RegisteredTest { root, target } => {
+            vec![root.bind(&typed, &admitted.declarations.test_groups, target)?]
+        }
+        ProductEntry::BuildBindings | ProductEntry::Inspection(_) => {
+            symbol_resolved_trees_to_typed_trees::product_declarations::collect_root_bindings(
+                &typed,
+                inputs.root_binding_requests,
+            )?
+        }
     };
     let mut pass = ProductSourcePass {
         inputs,
@@ -157,8 +168,7 @@ pub(crate) fn prepare_lower_and_check(
         native_supplies,
         root_bindings,
         default_provider_selections,
-        inspection,
-        frontier,
+        entry,
         initial_accounting: accounting.clone(),
         accounting: &mut accounting,
         timings,
@@ -199,8 +209,7 @@ struct ProductSourcePass<'a, 'f> {
     native_supplies: Vec<crate::provider_choice_inputs::NativeBuildSupply>,
     root_bindings: Vec<crate::RootBinding>,
     default_provider_selections: Vec<crate::provider_choice_inputs::ProviderSelection>,
-    inspection: Option<&'f str>,
-    frontier: Option<&'f mut Option<crate::TypedFrontier>>,
+    entry: ProductEntry<'f>,
     initial_accounting: crate::compile_time::SourceCompletionAccounting,
     accounting: &'f mut crate::compile_time::SourceCompletionAccounting,
     timings: &'f mut crate::CompileTimings,
@@ -325,10 +334,10 @@ fn prepare_and_judge(
         declarations: None,
     };
 
-    let inspection_root = pass
-        .inspection
-        .map(|name| inspection_root(&typed, subject, name))
-        .transpose()?;
+    let inspection_root = match pass.entry {
+        ProductEntry::Inspection(name) => Some(inspection_root(&typed, subject, name)?),
+        ProductEntry::BuildBindings | ProductEntry::RegisteredTest { .. } => None,
+    };
     // Entry policies are executable dependencies of the selected targets.
     // Inactive bindings still identify real slots but need no physical contract.
     let exact_sources = source_admission::source_identity::toolchain_source_identities(
@@ -519,18 +528,6 @@ fn prepare_and_judge(
     let mut source_completion_accounting =
         pass.inputs.build_accounting.cloned().unwrap_or_default();
     source_completion_accounting.append(pass.accounting.clone());
-    if let Some(frontier) = pass.frontier.as_deref_mut() {
-        *frontier = Some(crate::TypedFrontier {
-            typed: program.clone(),
-            source_completion_accounting: source_completion_accounting.clone(),
-            entries: roster.entries.clone(),
-            subject,
-            selected: roster.selected.clone(),
-            bindings: roster.bindings.clone(),
-            supplies: roster.supplies.clone(),
-            normalization: Arc::clone(&roster.normalization),
-        });
-    }
     let judged =
         crate::SourcePublication::judge(program.clone(), roster, build.optimizations.clone());
     let terminal_publication = Arc::new(judged?);

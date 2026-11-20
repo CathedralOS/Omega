@@ -29,7 +29,7 @@ pub use stages::*;
 
 pub mod registered_tests;
 
-use product::{ProductSourceInputs, prepare_lower_and_check};
+use product::{ProductEntry, ProductSourceInputs, prepare_lower_and_check};
 use std::sync::Arc;
 
 pub type PublishedPsi = Arc<terminal_codec::CanonicalTerminalArtifact>;
@@ -44,7 +44,7 @@ pub struct StageSource<'a> {
 /// Return the source judgment's advisories as soon as the Product is checked.
 pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let (product, resolved) = source.resolve()?;
-    let checked = product.judge(resolved, None, None)?;
+    let checked = product.judge(resolved, ProductEntry::BuildBindings)?;
     Ok(checked
         .terminal_publication
         .accepted()?
@@ -52,15 +52,11 @@ pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>
         .to_vec())
 }
 
-pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {
-    compile_reporting(source, None)
-}
-
-pub fn compile_reporting(
+pub fn compile(
     source: StageSource<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedPsi, Vec<Diagnostic>> {
-    publish_stage(source, None, advisories).map(|(artifact, _)| artifact)
+    publish_stage(source, ProductEntry::BuildBindings, advisories).map(|(artifact, _)| artifact)
 }
 
 /// Source choices for one deployment, judged by the same stage that published the Psi.
@@ -148,13 +144,6 @@ impl PublishedTargetProgram {
 pub fn compile_for_target(
     source: StageSource<'_>,
     target: &str,
-) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
-    compile_for_target_reporting(source, target, None)
-}
-
-pub fn compile_for_target_reporting(
-    source: StageSource<'_>,
-    target: &str,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
     if !source.product.calling_targets.contains(&target) {
@@ -163,7 +152,7 @@ pub fn compile_for_target_reporting(
         ))]);
     }
     let subject = source.product.subject;
-    let (artifact, checked) = publish_stage(source, None, advisories)?;
+    let (artifact, checked) = publish_stage(source, ProductEntry::BuildBindings, advisories)?;
     published_target(artifact, checked, target, subject)
 }
 
@@ -190,16 +179,16 @@ fn published_target(
 }
 
 pub fn inspect(source: StageSource<'_>, machine: &str) -> Result<PublishedPsi, Vec<Diagnostic>> {
-    publish_stage(source, Some(machine), None).map(|(artifact, _)| artifact)
+    publish_stage(source, ProductEntry::Inspection(machine), None).map(|(artifact, _)| artifact)
 }
 
 fn publish_stage(
     source: StageSource<'_>,
-    inspection: Option<&str>,
+    entry: ProductEntry<'_>,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<(PublishedPsi, product::CompletedProductSource), Vec<Diagnostic>> {
     let (product, continuation) = source.resolve()?;
-    let checked = product.judge(continuation, inspection, None)?;
+    let checked = product.judge(continuation, entry)?;
     let psi = product.publish(&checked)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
@@ -230,15 +219,12 @@ impl ProductSourceInputs<'_> {
     fn judge(
         &self,
         continuation: SourceContinuation,
-        inspection: Option<&str>,
-        test: Option<(&registered_tests::TestRoot, &str)>,
+        entry: ProductEntry<'_>,
     ) -> Result<product::CompletedProductSource, Vec<Diagnostic>> {
         prepare_lower_and_check(
             continuation,
             self.clone(),
-            inspection,
-            test,
-            None,
+            entry,
             &mut CompileTimings::default(),
         )
     }

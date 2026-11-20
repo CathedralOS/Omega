@@ -85,7 +85,7 @@ pub fn compile(
                 source.product.calling_targets,
                 |_| "this product stops at Terminal Psi before target operations",
             )?;
-            let artifact = source_to_psi::compile_reporting(source, options.advisories)?;
+            let artifact = source_to_psi::compile(source, options.advisories)?;
             Ok(CompileOutput {
                 artifact: Artifact::Psi(artifact),
                 validations,
@@ -159,7 +159,7 @@ impl Program<'_> {
                 target,
                 runtime_consent,
             } => {
-                let publication = source_to_psi::compile_for_target_reporting(
+                let publication = source_to_psi::compile_for_target(
                     source,
                     target.profile.target_name(),
                     advisories,

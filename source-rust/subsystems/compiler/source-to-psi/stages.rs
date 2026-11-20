@@ -98,9 +98,6 @@ pub use crate::production::{
 /// Logical provider closure; native planning consumes only its accepted result.
 pub use checked_program_to_psi::provider_supply;
 
-pub use crate::product::TypedFrontier;
-
-
 /// Inspect preparation in counterexample tests without granting acceptance.
 #[cfg(any(test, feature = "test-support"))]
 pub fn prepare_source_for_test(
