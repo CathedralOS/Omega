@@ -242,7 +242,8 @@ def _site(row):
 def details(result):
     lines = ["## Preparation reasons", "",
              "L4 supplies the list through `PreparationReason::ALL`. Each witness compares the cause, package, file, byte range and full diagnostic. "
-             "CLI witnesses also require the package command to return that diagnostic for the same input.", ""]
+             "CLI witnesses also require the package command to return that diagnostic for the same input. "
+             "Tests in `typed_input_diagnostics.rs` prepare a healthy typed package, then change one input record to exercise L4 directly.", ""]
     if not result["measured"]:
         lines += ["Not measured. The roster of owned reasons could not be trusted:", "", *[f"- {display(p)}" for p in result["problems"]], ""]
     else:

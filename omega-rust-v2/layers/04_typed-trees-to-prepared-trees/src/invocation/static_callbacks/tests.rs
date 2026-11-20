@@ -532,7 +532,7 @@ fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
     let error = evaluator
         .evaluate_value_request(constant("VALUE"), None)
         .unwrap_err();
-    let EvaluationError::AtCall(refusal) = error else {
+    let EvaluationError::Located(refusal) = error else {
         panic!("{error:?}")
     };
     assert_callback_refusal(
@@ -561,7 +561,7 @@ fn a_forwarded_callback_keeps_the_refinement_of_its_selected_formal() {
     let error = evaluator
         .evaluate_value_request(constant("OTHER"), None)
         .unwrap_err();
-    let EvaluationError::AtCall(call_refusal) = error else { panic!("{error:?}") };
+    let EvaluationError::Located(call_refusal) = error else { panic!("{error:?}") };
     // Freezing must preserve the same refusal at OTHER's call, even though
     // VALUE called the same machine with the same operands.
     let refusal = match evaluator.finish() {
@@ -679,7 +679,7 @@ fn a_nested_callback_carries_checked_capture_refinement_to_its_own_use() {
     let error = evaluator
         .evaluate_value_request(&constant.initializer, None)
         .unwrap_err();
-    let EvaluationError::AtCall(refusal) = error else {
+    let EvaluationError::Located(refusal) = error else {
         panic!("{error:?}")
     };
     assert_callback_refusal(
@@ -824,7 +824,7 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
         .unwrap_err();
     // The K=4 refinement is checked at the inner apply call, so the refusal
     // carries the call chain from FOUR's initializer.
-    let EvaluationError::AtCall(refusal) = error else {
+    let EvaluationError::Located(refusal) = error else {
         panic!("{error:?}")
     };
     assert_callback_refusal(
@@ -840,7 +840,7 @@ fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_typ
     let error = evaluator
         .evaluate_value_request(constant("FOUR"), None)
         .unwrap_err();
-    let EvaluationError::AtCall(refusal) = error else {
+    let EvaluationError::Located(refusal) = error else {
         panic!("{error:?}")
     };
     assert_callback_refusal(

@@ -7,49 +7,15 @@
 //! with the route and guard from the library's own tree. L4 must run that guard
 //! with the client's operands before admitting the invocation.
 use omega_preparation::{CheckedPreparationEvidence, PreparationAnswers, PreparedValue, prepare_typing_pass};
-use omega_resolver::{Dependency, ParsedSource, StageSource, resolve_stage};
-use omega_typer::{CrashCause, TypeError, TypedTrees, TypingProgress, type_stage};
+#[path = "support/typed_packages.rs"]
+mod typed_packages;
+use typed_packages::typed;
+use omega_typer::{CrashCause, TypeError, TypedTrees, TypingProgress};
 
 const ADMISSION: &str = "static evaluation cannot admit this invocation: the selected Trap route remains possible for the supplied arguments";
 
 fn producer(guard: &str) -> String {
     format!("public machine guarded(x:u8)->u8 reaches none crashes Trap {guard} terminates {{x}}")
-}
-
-/// Resolve and type both packages together. Only the client may name `geo`.
-fn typed<'text>(
-    library: &'text str,
-    client: &'text str,
-) -> TypedTrees<'text> {
-    let texts = [("geometry", "geometry.omg", library), ("client", "client.omg", client)];
-    let syntax: Vec<_> = texts
-        .iter()
-        .map(|&(_, _, text)| {
-            let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
-            let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
-            (tokens, tree)
-        })
-        .collect();
-    let sources: Vec<_> = texts
-        .iter()
-        .zip(&syntax)
-        .map(|(&(package, logical_path, text), (tokens, tree))| StageSource {
-            package,
-            source: ParsedSource {
-                logical_path,
-                text,
-                tokens,
-                tree,
-            },
-        })
-        .collect();
-    let dependencies = [Dependency {
-        requester: "client",
-        alias: "geo",
-        package: "geometry",
-    }];
-    let resolved = resolve_stage(&sources, &dependencies).unwrap_or_else(|error| panic!("{error:?}"));
-    type_stage(&resolved).unwrap_or_else(|error| panic!("{error:?}"))
 }
 
 /// Run the public preparation pass over the completed typed stage.

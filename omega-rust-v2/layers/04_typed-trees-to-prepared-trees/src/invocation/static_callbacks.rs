@@ -412,7 +412,7 @@ impl ConstantEvaluation<'_, '_> {
         } else {
             PreparationReason::CallablePreconditionNeedsJudgment
         };
-        Err(EvaluationError::AtCall(crate::evaluation::refusal(&call.site, reason)))
+        Err(EvaluationError::Located(crate::evaluation::refusal(&call.site, reason)))
     }
 
     fn admit_bound_callback(

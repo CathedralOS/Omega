@@ -125,7 +125,7 @@ impl ConstantEvaluation<'_, '_> {
             .ok_or_else(|| EvaluationError::OpenTarget(crate::evaluation::refusal(&site, PreparationReason::FloatNeedsTargetRealization)))?;
         let realization = target.float_realization(format, operation).ok_or_else(|| {
             let reason = PreparationReason::UnsupportedFloatOperation;
-            EvaluationError::AtCall(PreparationRefusal::rendered(
+            EvaluationError::Located(PreparationRefusal::rendered(
                 omega_typed::TypeError::new(
                     &site.package,
                     &site.file,

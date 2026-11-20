@@ -24,9 +24,9 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub(super) enum EvaluationError {
-    Refused(RefusalCause),
+    Refused(RefusalCause, Option<TreeNodeId>),
     NeedsConstant { declaration: DeclarationId, reference: TreeNodeId },
-    AtCall(PreparationRefusal),
+    Located(PreparationRefusal),
     OpenTarget(PreparationRefusal),
 }
 
@@ -34,13 +34,13 @@ pub(super) enum EvaluationError {
 // `PreparationReason::ALL`. Forwarded reasons name their owner explicitly.
 impl From<PreparationReason> for EvaluationError {
     fn from(reason: PreparationReason) -> Self {
-        Self::Refused(RefusalCause::Preparation(reason))
+        Self::Refused(RefusalCause::Preparation(reason), None)
     }
 }
 
 impl From<RefusalCause> for EvaluationError {
     fn from(cause: RefusalCause) -> Self {
-        Self::Refused(cause)
+        Self::Refused(cause, None)
     }
 }
 
@@ -329,7 +329,10 @@ impl ConstantEvaluation<'_, '_> {
         while let Some(step) = execution.steps.pop() {
             if let Err(error) = self.evaluate_step(step, &mut execution) {
                 return Err(match error {
-                    EvaluationError::Refused(reason) if !execution.chain.is_empty() => {
+                    EvaluationError::Refused(reason, Some(node)) => {
+                        EvaluationError::Located(self.diagnostic_at(node, reason, &execution.chain, &[]))
+                    }
+                    EvaluationError::Refused(reason, None) if !execution.chain.is_empty() => {
                         self.call_refusal(reason, &execution.chain, &[])
                     }
                     other => other,
@@ -373,7 +376,7 @@ impl ConstantEvaluation<'_, '_> {
                     self.evaluate_integer(&tree, site.node, &carrier, &scope, execution)
                 };
                 result.map_err(|error| match error {
-                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY)) if matches!(scope, Scope::Initializer { in_argument: true, .. }) => {
+                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY), None) if matches!(scope, Scope::Initializer { in_argument: true, .. }) => {
                         UNSUPPORTED_ARGUMENT.into()
                     }
                     other => other,
@@ -620,7 +623,7 @@ impl ConstantEvaluation<'_, '_> {
         chain: &[TreeNodeId],
         cycle: &[&TypedCall],
     ) -> EvaluationError {
-        EvaluationError::AtCall(self.call_diagnostic(reason, chain, cycle))
+        EvaluationError::Located(self.call_diagnostic(reason, chain, cycle))
     }
 
     fn call_diagnostic(
@@ -632,7 +635,17 @@ impl ConstantEvaluation<'_, '_> {
         let site = cycle
             .last()
             .map_or_else(|| *chain.last().expect("visited call"), |call| call.node);
-        let site = self.visited_site(site);
+        self.diagnostic_at(site, reason, chain, cycle)
+    }
+
+    fn diagnostic_at(
+        &self,
+        node: TreeNodeId,
+        reason: impl Into<RefusalCause>,
+        chain: &[TreeNodeId],
+        cycle: &[&TypedCall],
+    ) -> PreparationRefusal {
+        let site = self.visited_site(node);
         let mut refusal = crate::evaluation::refusal(&site, reason);
         let error = &mut refusal.diagnostic;
         if chain.len() > 1 {

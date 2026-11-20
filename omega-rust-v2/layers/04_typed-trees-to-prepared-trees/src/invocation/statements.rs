@@ -147,7 +147,7 @@ impl ConstantEvaluation<'_, '_> {
                 let operand_carrier = checked_carrier_in_scope(&tree, operand, &scope)?;
                 self.admit_owned_value(&operand_carrier, execution)
                     .map_err(|error| match error {
-                        EvaluationError::Refused(reason) => EvaluationError::AtCall(crate::evaluation::refusal(&omega_typed::site_at(file, operand), reason)),
+                        EvaluationError::Refused(reason, None) => EvaluationError::Located(crate::evaluation::refusal(&omega_typed::site_at(file, operand), reason)),
                         other => other,
                     })?;
                 execution.steps.extend([
@@ -219,7 +219,7 @@ impl ConstantEvaluation<'_, '_> {
             let Some(values) = self
                 .dispatch_pattern(&tree, pattern, subject_node, subject_type, &subject)
                 .map_err(|error| match error {
-                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY)) => PreparationReason::PatternWithoutSelection.into(),
+                    EvaluationError::Refused(RefusalCause::Preparation(UNSUPPORTED_BODY), None) => PreparationReason::PatternWithoutSelection.into(),
                     other => other,
                 })?
             else {
