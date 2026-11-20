@@ -41,4 +41,6 @@ machine operands(counter: Counter, view: @[u8], operations: Operations) {
     _ = Sensor::<29u64>::read();
     _ = (clear satisfies A::clear);
     _ = 1.5e3f32 + 0xFFu8 + "bytes"[0];
+    _ = $$record.view;
+    _ = move $view;
 }

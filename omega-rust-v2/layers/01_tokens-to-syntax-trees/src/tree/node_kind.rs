@@ -109,6 +109,7 @@ pub enum NodeKind {
     Index,
     Range,
     Borrow,
+    Dereference,
     Unary,
     Move,
     CallMarker,

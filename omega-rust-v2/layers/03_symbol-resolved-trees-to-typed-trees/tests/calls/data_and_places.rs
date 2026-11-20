@@ -387,7 +387,7 @@ fn nested_runtime_callables_require_both_effect_ceilings_at_their_own_type() {
 fn a_write_only_field_loan_cannot_be_strengthened_to_readable_access() {
     let defs = "data Cell {value:u8;}";
     for place in ["cell.value", "(cell.value)"] {
-        let source = format!("{defs} machine observe(cell:@write Cell)->u8 {{let view=@mut {place}; view}}");
+        let source = format!("{defs} machine observe(cell:@write Cell)->u8 {{let view=@mut {place}; $view}}");
         let error = check(&[("loan.omg", &source)]).unwrap_err();
         assert_eq!(error.message, "cannot read through a write-only reference");
         assert_eq!(error.span.slice(source.as_bytes()), Some(b"cell.value".as_slice()));

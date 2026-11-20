@@ -115,10 +115,10 @@ A terminal value completes the invocation. A call-shaped transition arm is a
 [terminal call](state_contracts.md#terminal-calls-in-transition-arms), with
 ordinary call, suspension and completion obligations.
 
-Temporary storage must outlive every derived borrow and receive cleanup on
-every cleanup-bearing exit. Shared lending may be implicit at a shared-reference
-parameter under ordinary argument-admission rules. For named machine calls,
-mutable and write-only lending require explicit `@mut` and `@write` expressions.
+A by-value argument requires [explicit dereference](#explicit-dereference) to read a referent.
+Temporary storage must outlive every derived borrow and receive cleanup on every cleanup-bearing exit.
+Shared lending may be implicit at a shared-reference parameter under ordinary argument-admission rules.
+Named calls require explicit `@mut` and `@write` expressions for mutable and write-only lending.
 Such a loan requires existing writable authority at the selected place;
 [owned-local mutability](ownership.md#owned-local-mutability) requires a
 `mut` binding when that place is the local's owned storage. Passing it to a
@@ -571,3 +571,32 @@ use normalized extents: a live `items[1..]` need not conflict with `items[0]`,
 but conflicts with overlapping access to `items[1]`. Dynamic extents remain
 conservative without disjointness evidence. Byte indexing of UTF-8 is not
 character or grapheme indexing; those require separately named operations.
+
+## Explicit dereference
+
+Prefix `$` follows one reference to its referent. Given `v: @u8`, `v` has
+type `@u8` and `$v` denotes the referenced `u8` place. The operand is
+evaluated once. Prefixes nest from the right, so `$$r` follows two references.
+Field selection and indexing bind more tightly. Thus `$record.view` follows the
+reference stored in the field. The operand of `$` must be a reference.
+
+Omega never inserts a dereference to satisfy an expected value type, including
+for `[copy]` types. This applies to bindings, assignments, field initializers,
+returns, call arguments, operator operands and value patterns. The following
+examples use `v: @u8` and a machine `take(n: u8)`.
+
+| Source | Result |
+| --- | --- |
+| `let byte: u8 = $v;` | Copies the referenced byte. |
+| `let byte: u8 = v;` | Type error. |
+| `take($v)` or `$v + 1u8` | Supplies the byte as an operand. |
+| `take(v)` | Requires a candidate accepting the reference itself. A by-value candidate is inapplicable. |
+| `match $v { 0 -> true, _ -> false }` | Compares the referenced byte with zero. |
+
+The use of the place determines the required access. Reading `$v` follows
+the [ownership rules](ownership.md) for a read from borrowed storage. Writing
+`$v = x;` requires writable access and selects the referent as the assignment
+destination. A write-only loan permits replacement and forbids reading the
+old value. Each use preserves the loan's lifetime, qualifications and
+restoration obligations. Shared lending at a call, field projection and
+borrowed structural patterns keep their existing place and access rules.

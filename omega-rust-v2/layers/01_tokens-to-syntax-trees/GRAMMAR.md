@@ -442,9 +442,13 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
     selection  = path 'satisfies' type
     postfix = primary ( '(' args ')' | '.' word expr_args? | '[' index ']' )*
     index   = expression | expression? ( '..' | '..=' ) expression?
-    prefix  = ( '@' ( 'mut' | 'write' )? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
+    prefix  = ( '@' ( 'mut' | 'write' )? | '$' | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
     cast    = prefix ( 'as' type? cast_entry* )*
     cast_entry = ( '+' | '-' | '=' ) path_type
+
+Dereference is a builtin prefix expression. `$v.field` dereferences the field,
+`$$v` follows two references, and `move $v` moves from the referenced place
+under the usual ownership rules.
 
 A cast binds tighter than every binary operator and looser than a prefix, so
 `-a as i64` casts `-a` and `a as u64 * 2` multiplies the cast.
@@ -487,7 +491,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
 - **Call markers** `suspend`, `block`, `suspend block` come before a call
   (language/effects.md:871). `move`, `suspend` and `block` are prefixes only
   directly before another word, so each is still a name everywhere else:
-  `block(x)` calls a machine named `block`.
+  `block(x)` calls a machine named `block`. A `$` operand also admits the `move` prefix.
 - **`mut` and `write` after `@`** mark access only if an operand follows. `@mut;`
   borrows a name spelled `mut`.
 - **A record literal needs parentheses** where a `{` after a name means

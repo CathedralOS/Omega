@@ -161,10 +161,6 @@ impl BodyTyper<'_, '_> {
             _ => Err(TypeError::unsupported(self.unit.file, node_index)),
         }
     }
-    /// A value pattern compares against the referent of a readable reference
-    /// subject, as a case pattern does. Reading a copyable primitive through it
-    /// is an ordinary copy read (domains.md), recorded at `read`, the
-    /// expression whose referent is read; a non-copy referent refuses there.
     fn compare_value(
         &mut self,
         pattern: usize,
@@ -173,25 +169,14 @@ impl BodyTyper<'_, '_> {
         read: usize,
         from: &PatternSource,
     ) -> Result<(), TypeError> {
-        let compared = if let Some((access, inner)) = subject.reference_parts() {
-            let through = access
-                .through(from.place.as_ref().map(|p| &p.access))
-                .map_err(|m| TypeError::at(self.unit.file, pattern, m))?;
-            if through == Access::Write {
-                return Err(TypeError::at(self.unit.file, pattern, "cannot read through a write-only reference"));
-            }
-            self.land_value(read, subject, inner, false)?;
-            inner
-        } else {
-            if let Some(place) = &from.place {
-                let inspection = Access::Shared
-                    .through(Some(&place.access))
-                    .map_err(|m| TypeError::at(self.unit.file, read, m))?;
-                self.read_borrowed(read, &inspection, subject)?;
-            }
-            subject
-        };
-        self.check_destination(pattern, value, compared)
+        self.check_destination(pattern, value, subject)?;
+        if let Some(place) = &from.place {
+            let inspection = Access::Shared
+                .through(Some(&place.access))
+                .map_err(|m| TypeError::at(self.unit.file, read, m))?;
+            self.read_borrowed(read, &inspection, subject)?;
+        }
+        Ok(())
     }
     /// A tuple literal initializer supplies each component from its own
     /// expression, so a refusal or copy read names that component.
@@ -254,6 +239,9 @@ impl BodyTyper<'_, '_> {
                 if let Some(Symbol::Declaration(id)) = self.unit.symbol(expr)
                     && id.kind == Case
                 {
+                    if !from.permits_inspection(subject) {
+                        return Err(TypeError::at(source, node_index, "cannot read through a write-only reference"));
+                    }
                     if pattern_subject(subject)
                         .nominal_parts()
                         .is_none_or(|(owner, _)| owner != self.catalog.case_owner[id])
@@ -268,6 +256,9 @@ impl BodyTyper<'_, '_> {
                     Some(Symbol::Builtin(s)) if matches!(s.as_str(), "true" | "false") => PatternCoverage::Bool(s == "true"),
                     _ => PatternCoverage::Partial,
                 })
+            }
+            RecordPattern | TuplePattern if !from.permits_inspection(subject) => {
+                Err(TypeError::at(source, node_index, "cannot read through a write-only reference"))
             }
             TuplePattern if matches!(subject, ValueType::Tuple(_)) => {
                 let ValueType::Tuple(types) = subject else { unreachable!() };
@@ -305,9 +296,6 @@ impl BodyTyper<'_, '_> {
                 })
             }
             RecordPattern | TuplePattern => {
-                if matches!(subject.reference_parts(), Some((crate::Access::Write, _))) {
-                    return Err(TypeError::at(source, node_index, "cannot read through a write-only reference"));
-                }
                 let (owner, args) = pattern_subject(subject)
                     .nominal_parts()
                     .ok_or_else(|| TypeError::at(source, node_index, "pattern requires a record or case subject"))?;
