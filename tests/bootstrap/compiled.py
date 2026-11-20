@@ -331,7 +331,7 @@ def omega_control_customer(work, timeout):
     (work / "control-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 0, 42, 42, 42, 0, 42, 42, 42)):
+    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 42, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 0, 42, 42, 42, 0, 42, 42, 42)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -345,7 +345,7 @@ def omega_control_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega runtime control: 25 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 52 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega runtime control: 26 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 51 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_storage_customer(work, timeout):
@@ -373,7 +373,7 @@ def omega_storage_customer(work, timeout):
     (work / "storage-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 0, 51, 53, 59)):
+    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 0, 51, 53, 42, 59)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -387,7 +387,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: thirteen executables, actual SourceUnit append/read and ModulePath boundaries, 38 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: fourteen executables, actual SourceUnit append/read and ModulePath boundaries, 37 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_utf8_customer(work, timeout, batch=None):
@@ -423,7 +423,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, 44),
         (42, 42, 43, 44, 45),
         (42, -4, 42, 42),
-        (42, 42, 42, 42, 42, -4, 42),
+        (42, 42, 42, 42, 42, 42, -4, 42),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
@@ -456,7 +456,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         assert offset == len(observation), "unexpected publication after the final artifact"
         print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
     if batch is None:
-        print("Omega UTF-8: fifty-two executables, 28 decoder boundaries, six arithmetic traps, three explicit traps, seventy-four refusal/reset checks passed in twelve fresh processes", flush=True)
+        print("Omega UTF-8: fifty-three executables, 28 decoder boundaries, six arithmetic traps, three explicit traps, seventy-three refusal/reset checks passed in twelve fresh processes", flush=True)
 
 
 def reconstruct(work, *, seconds=None):

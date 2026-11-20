@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,379 lines / 874,775 bytes with SHA-256
-`c610df365bfb94bdddee39290ab7497898914d2cc4e98d43e86db35305aeb3a9`.
+manifest materializes 23,368 lines / 874,168 bytes with SHA-256
+`4270e6d761b2dc9895c8a8ebcb120567d440ffcf8aec73b81d8242223976f74f`.
 The manifest itself is 1,698 bytes, SHA-256
-`da27c2be78d269dc50e11c8bdcccf2bea3ad9921f8fa81074f1a2d4e74dc8033`;
+`f686da661aaed6fb43309cee770910aeff43de4f4c9d005aebf23d41c25af9ac`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -219,9 +219,10 @@ This closed slice projects the primitive operators and the fixed core policy
 comparison and arithmetic families specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
 it does not claim general
 operator-declaration or package/core admission. Imports, custom operators and
-user domains remain unsupported. The core Trapping comparison family publishes
-`crashes Trap`, even though its emitted value computation is total. The compiler
-propagates that summary through calls and terminal transitions to their callers.
+user domains remain unsupported. Core comparisons publish `crashes none`,
+including on Trapping operands. Evaluating either operand can still call a
+machine that publishes `Trap` or perform Trapping arithmetic. The compiler
+propagates those effects through calls and terminal transitions.
 Each nested machine can declare its own unguarded crash ceiling. A disconnected
 helper still satisfies its own contract and contributes no route to its owner.
 An unguarded `crashes Trap` permits that route and publishes it to callers.
