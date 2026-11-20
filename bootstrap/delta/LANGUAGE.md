@@ -180,7 +180,7 @@ profile's `Incomplete` result and proves neither rejection nor divergence.
 Delta itself has no byte-I/O operation. Its source semantics ends at a pure
 returned value; a compiler-generated Gamma adapter may join that value to
 sealed input and an external observation contract. The adapter
-choice as one closed, sealed application-profile ID supplied alongside the
+choice is one closed, sealed application-profile ID supplied alongside the
 exact Delta source. The ID is part of compilation identity and reconstruction
 evidence. It is not Delta syntax, an ambient host flag, a filename convention,
 or a property inferred from source names.
@@ -195,7 +195,8 @@ The canonical version-1 request is one exact length-delimited byte sequence:
 ```
 
 The consuming compiler artifact's embedded metadata owns the profile-ID set.
-Version 1 assigns `1` to `ConformanceBytesV1`; zero and every other ID reject.
+The current version-1 artifact assigns `1` to `ConformanceBytesV1` and `2`
+to `ConstructionBytesV1`. Zero and every other ID reject.
 A later ID does not require a new envelope version, while a representation
 change does. The exact request and selected embedded metadata participate in
 compilation identity. Profile facts are never repeated as request claims or
@@ -207,11 +208,12 @@ the request's exact end with the bound support section: the packed members of
 order, under the `GammaComposedV2` composition contract
 (`bootstrap/gamma/interpreter/COMPOSED_ARTIFACT.md`). The members are the ordinary
 Gamma source the compiler copies into emitted programs - the byte-rope
-runtime, the `ConformanceBytesV1` adapter runtime, and the generated `main`
-adapter - each authored once under `compiler/support/` rather than re-encoded inside
-the emitter. The compiler validates the complete section's presence during
-request admission and every member's exact bytes before any Delta-source
-phase; copying during publication is a byte-level walk of the sealed input,
+runtime, sealed-input support, and both generated `main` adapters, each
+authored once under `compiler/support/`. Both profiles admit the full four-member
+section. ID 1 also accepts its exact original 2,998-byte three-member
+section. ID 2 requires its construction member. The compiler verifies each
+present member against its bound extent and rolling sum before observing
+Delta source; copying during publication is a byte-level walk of the sealed input,
 not a host-provided semantic operation.
 
 `ConformanceBytesV1` selects exact 4,194,304-byte maximum sealed-input and
@@ -223,9 +225,31 @@ trap or compiler-boundary result. These limits are distinct from the
 implementing Gamma evaluator's source and sealed-input resources even where
 numeric values coincide.
 
-The former profile ID 2 and `EpsilonCompilerV1` schema are retired. The
-Delta-written Epsilon implementation executes Epsilon and does not request an
-Epsilon-to-Alpha adapter from this compiler.
+`ConstructionBytesV1` requires the same typed `main : Bytes -> Bytes`.
+It supports compiler-sized source and products with the following inclusive
+limits. Delta source and emitted Gamma are compiler resources. Application
+input and output are byte extents of the executable produced from that Gamma.
+
+| DCREQ ID | Delta source | Emitted Gamma | Application input | Application output |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 4 MiB | 16,777,212 bytes | 4 MiB | 4 MiB |
+| 2 | 64 MiB | 128 MiB | 8 MiB | 128 MiB |
+
+The construction adapter checks the input length before calling `main` and
+the returned rope length before writing. Its publisher visits concatenation
+children in order, skips empty nodes, writes singleton bytes directly and
+reads sealed-input views in their original order. Exceeding the input or
+output limit returns 253 or 254 respectively with empty stdout. Execution
+resources of the selected Gamma host still apply. When running the receipt in
+the Gamma interpreter, the four-byte length, Gamma source and sealed input
+share its 137,363,456-byte request provision. A maximum-size construction
+receipt leaves 3,145,724 bytes for application input in that host. Compiling
+the receipt to native code or Alpha tape encounters the backend's separate
+image limits.
+
+Older compiler artifacts retired the former `EpsilonCompilerV1` use of ID 2.
+The composed artifact identity determines the ID registry. The current ID 2
+accepts ordinary Delta byte applications only.
 
 ### Conformance observation profile
 
@@ -386,8 +410,8 @@ the bound support members, profile text, definition separators, and the
 entry-owned final LF. Expression nodes cache exact occurrence extents using the serializer's
 shared atom and prefix formatting, so preflight need not unfold shared children
 again. Rebuilt nodes refresh that summary; extent addition is checked, not
-saturated. A count above 16,777,212 returns `Incomplete` code 12 in emitted-payload
-coordinate space 2, at byte 16,777,212, with limit 16,777,212 and the exact
+saturated. A count above the selected emitted-Gamma limit returns `Incomplete`
+code 12 in emitted-payload coordinate space 2, at that limit, with the exact
 complete requested count. Count and publication share formatting ownership;
 no partial artifact precedes this refusal.
 Negative retained emission counts propagate to completed preflight and report
@@ -397,32 +421,35 @@ complete-program emission record, not the corrupt child or an authored source
 location. Positive signed count overflow in private metadata and late replay
 disagreement remain raw evaluator failures, not canonical DCOUT outcomes. The
 [selected producer's occurrence bound](compiler/implementation/emission/README.md#reachable-byte-count-bound)
-keeps admitted-source intermediate and complete emission counts below `2^62`;
-the private overflow case is not reachable through that producer. This is a
-source-level implementation argument, not a checked Delta refinement proof.
+keeps profile-1 intermediate and complete emission counts below `2^62`.
+The 64 MiB construction source limit lies outside that argument. Extent
+addition remains checked for both profiles.
 Grammar implements the 1,024-level expression `parse_depth` profile: bodies
 start at level 1, expression children including atoms advance by one, and match
 arm bodies are at their enclosing match's level plus one. Declaration, parameter,
 and pattern structure adds no expression levels. Before judging a level-1,025
 expression, it returns `Incomplete` code 8 at that node's source start, with
 limit 1,024 and requested 1,025. Complete balanced parsing precedes this check.
-The syntax producer separately provisions 114,294,752 syntax-arena bytes.
+Parsing and grammar share a syntax arena of 114,294,752 bytes in the ordinary
+profile. ConstructionBytesV1 provisions 1,073,741,824 bytes for the Delta
+programs emitted by the Epsilon compiler.
 Its source-owned ledger counts parser nodes, both construction spines, parser
 frames, the program root, and grammar work at the selected evaluator's actual
 40 bytes per immutable pair. Usage is cumulative across completed lists and
 declarations; phase-outcome carriers and later compiler phases are excluded.
 Each allocation group is checked before allocation. Refusal returns
 `Incomplete` code 7 at the owning source construct (or EOF for the final program
-spine), the selected limit, and the exact requested cumulative bytes. Allocation
-granularity can leave unusable tail bytes without changing the limit. Earlier
+spine), the selected limit, and the exact requested cumulative bytes. With 40-byte pair rows, profile 1 has 32 tail bytes and profile 2 has 24.
+A multi-pair allocation group can leave further space unused. Earlier
 request, byte, and lexical failures retain precedence, and a reached syntax
 refusal stops before any later parse or grammar judgment.
-The emitted program's admission under the selected evaluator profile is
-closed. The complete receipt is at most 16,777,212 bytes, inside the
+For profile 1 the complete receipt is at most 16,777,212 bytes, inside the
 137,363,456-byte request extent. Every completed declaration consumes at
 least eight receipt bytes (its parenthesis, `def`, `Int`, and close), so a
 generated program carries at most 2,097,151 declarations and fits the
 evaluator's 2,097,152-row function census without a compiler-owned refusal.
+For profile 2, this receipt-length argument alone does not prove census
+containment. Gamma still checks the actual program at admission.
 Normalization bounds every generated body at 255 nested expression lists, and
 generated lexical scopes stay inside the 68,608-binding normalization
 allowance, below the evaluator's 131,072-row environment; fixed runtime and
@@ -439,7 +466,7 @@ no general bound shows that every admitted composition fits the selected
 3,422,453,760-pair arena. The
 [measured worst-shape
 study](../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
-projects 417,063,339 pairs at admitted extents, below that arena. This
+projects 417,063,339 pairs at profile-1 extents, below that arena. This
 supports the selected provision, but until the general proof closes it does
 not establish that an admitted compile never ends in a raw Gamma heap
 failure. The compiler-owned DCOUT outcomes are exactly the resource and

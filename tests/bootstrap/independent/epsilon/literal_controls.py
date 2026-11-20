@@ -27,8 +27,8 @@ def run(work, vm, producer, realize, seconds):
                                         realize=realize)
         assert vm.execute(executable) == (0, expected), ("literal bytes", index)
 
-    # The canonical request admits only profile one. Exercise the existing
-    # raw-source diagnostic entry separately, preserving that boundary.
+    # Both canonical profiles require a Bytes entry. Exercise the existing
+    # raw-source scalar diagnostic entry separately.
     development_source = vm.pack(
         "bootstrap/delta/compiler/implementation/implementation.gamma.sources",
         work / "literal-development.gamma",

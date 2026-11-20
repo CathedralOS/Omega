@@ -11,10 +11,9 @@ the generic Gamma application result
 
 Admission order is complete 16-byte header, first incorrect magic/version/
 reserved byte, full profile ID, declared source provision, then body extent,
-the complete bound support section, and exact end. Profile 1 alone is
-admitted. In particular, a declared oversized
-body yields source incompleteness without reading that body, and profile 2
-remains retired. A truncated fixed header reports its first missing byte even
+the complete bound support section, and exact end. Profile 1 admits up to
+4 MiB of Delta source and profile 2 admits up to 64 MiB. A declared
+oversized body yields source incompleteness before reading that body. A truncated fixed header reports its first missing byte even
 when an earlier available header byte is incorrect.
 The sealed input continues past the request's exact end with the packed
 support section — the ordered members of
@@ -23,10 +22,10 @@ A body shorter than its declared extent is `malformed_request`; an input that
 ends inside the support section is a space-5 `incomplete_support_section` at
 the observed end of input; one byte after the complete sealed input is
 `malformed_request` at that first trailing offset.
-After admission establishes an exact body extent, the canonical source view
-uses the sealed input length minus the 16-byte header and the bound support
-extent. This equals the admitted
-declared length without decoding that header for every scanner bound check.
+The source view reads the admitted u32 length at offset 12. Its declared end
+locates the trailer. Profile 1 accepts the exact original three members or
+the complete four members. Profile 2 requires all four. Both forms verify
+every present member before observing source.
 Request admission itself still reads and provisions the declared length before
 checking body extent; no source helper runs on a refused request.
 
@@ -36,7 +35,7 @@ The implemented request-admission outcomes are:
 | --- | --- | --- | --- | --- |
 | 1 Reject | 1 | malformed_request | first missing, incorrect, or trailing byte under the admission order | zero/zero |
 | 1 Reject | 2 | unknown_profile | 8 | zero/zero |
-| 2 Incomplete | 1 | source_bytes | 12 | 4,194,304 / exact declared u32 length |
+| 2 Incomplete | 1 | source_bytes | 12 | selected source limit / exact declared u32 length |
 | 1 Reject | 1 | incomplete_support_section | 5 bound support section: observed end of input | zero/zero |
 | 1 Reject | 2 | member_mismatch | 5 bound support section: member's absolute sealed-input offset | zero/zero |
 
@@ -242,7 +241,7 @@ no shortcut around an annotation or a compiler-owned provision.
 Authored functions, fixed runtime helpers, adapters, and extracted normalization
 helpers all occupy Gamma function rows. Each completed declaration consumes at
 least eight receipt bytes — its parenthesis, `def`, `Int`, and close — so the
-16,777,212-byte payload extent keeps the emitted census at or below 2,097,151
+profile-1 16,777,212-byte payload extent keeps the emitted census at or below 2,097,151
 declarations, inside the evaluator's 2,097,152-row table without a
 compiler-owned refusal. This does not change Delta's separate authored-row
 provision; the remaining generated-program admission bounds are the 255-list
@@ -357,20 +356,22 @@ resource row as missing implementation:
 
 | Code | Resource | Selected limit |
 | --- | --- | ---: |
-| 1 | source bytes | 4,194,304 |
+| 1 | source bytes | 4,194,304 (profile 1), 67,108,864 (profile 2) |
 | 2 | total type rows | 65,536 |
 | 3 | constructor rows | 65,536 |
 | 4 | authored function rows | 32,768 |
 | 5 | active environment rows | 65,536 |
 | 6 | coverage rows | 65,536 |
-| 7 | syntax-arena bytes | 114,294,752 |
+| 7 | syntax-arena bytes | 114,294,752 (profile 1), 1,073,741,824 (profile 2) |
 | 8 | expression parse depth | 1,024 |
 | 9 | live local slots | 65,535 |
 | 10 | labels | 65,536 |
 | 11 | fixups | 116,508 |
-| 12 | payload bytes | 16,777,212 |
+| 12 | payload bytes | 16,777,212 (profile 1), 134,217,728 (profile 2) |
 
-These are selected compiler-profile provisions, not language restrictions.
+Both syntax ledgers charge 40 bytes per pair. Their limits leave 32 and 24
+bytes respectively after the last complete pair. These are selected
+compiler-profile provisions, not language restrictions.
 Changed provisions require coherent containment, canonical failure, and relevant
 exact/adjacent controls. Zero-use resources below do not acquire invented uses.
 
@@ -395,7 +396,7 @@ realization belongs below Delta. For the same reason, internal code 3's
 label/fixup contradiction has no producer here. This is nonreachability for this
 representation, not retirement of a ratified resource or diagnostic identity.
 
-The evaluator profile's request-byte argument bounds every function row,
+The profile-1 payload-size argument bounds every function row,
 including fixed runtime, adapters and extracted helpers. The
 [normalization audit](../normalization/README.md#height-and-completion-argument)
 establishes the 255-list bound for transformed bodies and a conservative
@@ -436,7 +437,7 @@ by the emission audit's injective `(origin, ancestor cut)` charge at
 owed: this envelope exceeds the arena from `N = 238`. The
 [measured worst-shape
 study](../../../../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
-projects 417,063,339 pairs at full admitted extents — 8.2× under the
+projects 417,063,339 pairs at full profile-1 extents — 8.2× under the
 3,422,453,760-pair arena. That supports the provision but is not a proof that
 no admitted source can exhaust it. Under the retired 40,265,318-pair profile, the
 [measured whole-producer study](execution_storage.md#whole-producer-pair-study-measured)
@@ -546,14 +547,14 @@ and preserve already-owned outcomes without claiming arbitrary corruption is
 canonicalized. Likewise, an unrepresentable expanded byte demand is not
 automatically corrupt metadata. The
 [emission occurrence argument](../emission/README.md#reachable-byte-count-bound)
-bounds all source-generated intermediate and complete byte counts below `2^62`;
-private overflowing counts are not a missing authored-source refusal case.
+bounds profile-1 source-generated intermediate and complete byte counts below
+`2^62`. The larger construction source limit lies outside that numerical proof.
 
 ### Publication and generated admission
 
 After normalization, the shared serializer counts the complete Gamma payload
-before publishing its first byte. Above 16,777,212 bytes it returns tag 2,
-resource 12, payload coordinate space 2, coordinate and limit 16,777,212, and
+before publishing its first byte. Above the selected limit it returns tag 2,
+resource 12, payload coordinate space 2, that limit as both coordinate and limit, and
 the exact full requested count. Bound support members, declaration
 separators, and the entry-owned final LF all participate. Count mode writes
 nothing; successful publication follows the same formatting decisions.
@@ -561,8 +562,7 @@ This closes payload-size refusal, not later internal replay failure or every
 generated Gamma admission limit.
 
 The common layout, IDs, and selected provisions are defined above. No detached
-host table participates in execution. Retirement of the Epsilon compiler
-profile removes profile 2, not the request-failure identities.
+host table participates in execution. Both application profiles use the same request-failure identities.
 
 Canonical frontend rejection and the owned source-byte, syntax-arena, global-row,
 active-environment, parse-depth, and payload-byte refusals
@@ -576,7 +576,7 @@ Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
 expression. A separate normalizer extracts over-height fragments under the
 selected evaluator's 255-list body budget before serialization. It introduces
-no new refusal code or profile limit. Generated function storage fits by the
+no new refusal code or profile limit. Profile-1 generated function storage fits by the
 request bound, and transformed bodies fit the height and static-environment
 bounds; a generated program's non-tail contexts and immutable allocation
 remain resources of that program's execution, not a compiler outcome. The
