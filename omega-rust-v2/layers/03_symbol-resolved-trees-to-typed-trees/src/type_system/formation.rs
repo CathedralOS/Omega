@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 pub(super) enum TypeRequirement {
     Index(ValueType),
     Universe(ValueType, ValueType),
+    RuntimeParameter(DeclarationId, usize),
     Application(DeclarationId, Vec<ValueType>),
 }
 pub(crate) struct SiteRequirements {
@@ -37,6 +38,18 @@ impl Formations {
         value: ValueType,
     ) {
         self.retain(unit, node, vec![TypeRequirement::Index(value)]);
+    }
+
+    pub(super) fn runtime_parameters(
+        &self,
+        unit: &ResolvedSourceFile<'_>,
+        node: usize,
+        ty: &ValueType,
+    ) {
+        let parameters = ty
+            .machine_type_parameters()
+            .map(|(owner, index)| TypeRequirement::RuntimeParameter(owner.clone(), index));
+        self.retain(unit, node, parameters.collect());
     }
 
     pub(super) fn retain(
@@ -68,12 +81,11 @@ impl Formations {
         output: &mut TypedStage,
     ) -> Result<(), TypeError> {
         let sites = self.local.borrow();
-        let graph = DeclarationRequirements::from_sites(
-            types,
-            sites
-                .values()
-                .chain(self.imported.into_iter().flat_map(|m| m.values())),
-        );
+        let all_sites = sites
+            .values()
+            .chain(self.imported.into_iter().flat_map(|m| m.values()));
+        check_runtime_arguments(all_sites.clone(), output)?;
+        let graph = DeclarationRequirements::from_sites(types, all_sites);
         let mut proofs = Vec::new();
         for call in &output.calls {
             let applications = graph
@@ -102,7 +114,7 @@ impl Formations {
                         continue;
                     }
                     TypeRequirement::Index(ValueType::IndexedInteger { width, .. }) => ObligationKind::PositiveWidth(*width.clone()),
-                    TypeRequirement::Index(_) => continue,
+                    TypeRequirement::Index(_) | TypeRequirement::RuntimeParameter(..) => continue,
                     TypeRequirement::Universe(subject, sort) => ObligationKind::UniverseMembership {
                         subject: subject.clone(),
                         sort: sort.clone(),
@@ -120,6 +132,44 @@ impl Formations {
     }
 }
 
+/// A machine may store T only in its body. Follow the uses of that parameter
+/// through forwarding calls so that each concrete selection is checked once.
+fn check_runtime_arguments<'a>(
+    sites: impl Iterator<Item = &'a SiteRequirements>,
+    output: &'a TypedStage,
+) -> Result<(), TypeError> {
+    let calls = output
+        .calls
+        .iter()
+        .chain(output.library.into_iter().flat_map(|library| &library.calls));
+    let mut selections = HashMap::<_, Vec<_>>::new();
+    for call in calls {
+        for (owner, args) in std::iter::once((&call.machine, &call.type_arguments)).chain(call.enclosing_arguments.iter().map(|(id, args)| (id, args))) {
+            selections.entry(owner).or_default().push((&call.site, args));
+        }
+    }
+    let mut pending: Vec<_> = sites
+        .flat_map(|site| &site.rows)
+        .filter_map(|row| match row {
+            TypeRequirement::RuntimeParameter(owner, index) => Some((owner, *index)),
+            _ => None,
+        })
+        .collect();
+    let mut seen = HashSet::new();
+    while let Some((owner, index)) = pending.pop() {
+        if seen.insert((owner, index)) {
+            for &(site, args) in selections.get(owner).into_iter().flatten() {
+                let argument = &args[index];
+                if let Some((_, reason)) = argument.open_runtime_contract() {
+                    return Err(TypeError::for_site(site, reason));
+                }
+                pending.extend(argument.machine_type_parameters());
+            }
+        }
+    }
+    Ok(())
+}
+
 type Application = (DeclarationId, Vec<ValueType>);
 struct DeclarationRequirements<'a>(HashMap<&'a DeclarationId, Vec<&'a TypeRequirement>>);
 impl<'a> DeclarationRequirements<'a> {
@@ -133,6 +183,9 @@ impl<'a> DeclarationRequirements<'a> {
         for site in sites {
             let Some(owner) = &site.owner else { continue };
             for row in &site.rows {
+                if matches!(row, TypeRequirement::RuntimeParameter(..)) {
+                    continue;
+                }
                 by_owner.entry(owner).or_default().push(row);
                 if let TypeRequirement::Application(target, args) = row {
                     for (scope, _) in types.scoped_arguments(target, args) {
@@ -165,6 +218,7 @@ impl<'a> DeclarationRequirements<'a> {
         let mut nested = Vec::new();
         for row in self.0.get(owner).into_iter().flatten() {
             match row {
+                TypeRequirement::RuntimeParameter(..) => {}
                 TypeRequirement::Index(value) => {
                     let applied = apply(value);
                     applied.validate_closed_indices()?;

@@ -1,4 +1,21 @@
 File
+  Data
+    'data'
+    'Transform'
+    '='
+    MachineType
+      'machine'
+      Params
+        '('
+        Param
+          'v'
+          ':'
+          PathType 'u32'
+        ')'
+      Result
+        '->'
+        PathType 'u32'
+    ';'
   Machine
     'machine'
     Path 'every_form'
@@ -33,18 +50,7 @@ File
         'const'
         'F'
         ':'
-        MachineType
-          'machine'
-          Params
-            '('
-            Param
-              'v'
-              ':'
-              PathType 'u32'
-            ')'
-          Result
-            '->'
-            PathType 'u32'
+        PathType 'Transform'
       ','
       ConstParam
         'const'
@@ -70,6 +76,29 @@ File
           PathType 'T'
       ')'
     Body '{' '}'
+  Data
+    'data'
+    'MonotoneStep'
+    '='
+    MachineType
+      'machine'
+      Params
+        '('
+        Param
+          'value'
+          ':'
+          PathType 'u64'
+        ')'
+      Result
+        '->'
+        PathType 'u64'
+      Ensures
+        'ensures'
+        Binary
+          PathExpression 'result'
+          '>='
+          PathExpression 'value'
+    ';'
   Machine
     'machine'
     Path 'forward'
@@ -79,24 +108,7 @@ File
         'const'
         'F'
         ':'
-        MachineType
-          'machine'
-          Params
-            '('
-            Param
-              'value'
-              ':'
-              PathType 'u64'
-            ')'
-          Result
-            '->'
-            PathType 'u64'
-          Ensures
-            'ensures'
-            Binary
-              PathExpression 'result'
-              '>='
-              PathExpression 'value'
+        PathType 'MonotoneStep'
       '>'
     Params
       '('

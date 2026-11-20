@@ -1,4 +1,4 @@
-"""Run the intended verdicts of the twelve published V2 front-end examples.
+"""Run the intended verdicts of the published front-end examples.
 
 Run from any directory with the repository's qualified mbx on PATH:
     python tools/spec-corpus/check_frontend_readiness.py
@@ -18,21 +18,22 @@ STAGE_TESTS = {
         "explicit_quantity_carrier_matches_the_subject_in_every_domain_position",
     ),
     "language/effects.md:51": ("published_inherited_call_contributes_its_declared_reach",),
-    "language/effects.md:201": ("published_counter_fields_retain_their_callable_contracts",),
-    "language/effects.md:871": ("published_pause_markers_cover_each_required_effect",),
+    "language/effects.md:203": ("published_counter_fields_retain_their_callable_contracts",),
+    "language/effects.md:878": ("published_pause_markers_cover_each_required_effect",),
     "language/generics.md:61": ("published_sort_requirement_binds_each_calls_element_and_ordering",),
-    "language/generics.md:306": (
+    "language/generics.md:310": (
         "published_equality_binds_a_shadowing_parameter",
         "published_static_type_disjunction_reaches_typing",
     ),
-    "language/generics.md:636": ("published_static_parameters_require_the_declared_argument_role",),
-    "language/machine_values.md:17": ("published_record_call_selects_the_shared_counter_field",),
+    "language/generics.md:640": ("published_static_parameters_require_the_declared_argument_role",),
+    "language/machine_values.md:22": ("published_record_call_selects_the_shared_counter_field",),
+    "language/machine_values.md:44": ("published_reader_and_factory_bind_their_own_preconditions",),
     "language/modules.md:102": ("published_import_exposes_the_exact_remote_domain",),
 }
 PRODUCT_CASES = (
     "language/conformances.md:204",
     "language/reflection.md:77",
-    "language/some_packages.md:39",
+    "language/some_packages.md:41",
 )
 
 

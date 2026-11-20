@@ -36,8 +36,8 @@ is an obligation on the generic type application, checked before the subject
 predicate. This is a distinction of checking scope, not a special first
 `requires` clause or permission for a predicate to justify its own formation.
 
-A static callable parameter states its contract as its type:
-`const Step: machine(...)` is structural and
+A static callable parameter states its contract through a type.
+`const Step: ReadStep` names a structural callable alias, and
 `const Handler: Trait::requirement` is nominal under
 [typed static parameters](generics.md#typed-static-parameters). Both are
 originating contracts. A `const Step: machine` parameter may instead
@@ -68,26 +68,28 @@ A bodyless machine declaration or requirement ends with one semicolon after its
 complete header. That terminator belongs to the declaration, not whichever
 clause happens to come last.
 
-A callable parameter's clauses sit inside its type, so an executable machine
-header has no nested declaration to terminate:
+A structural callable parameter names its type alias. Clauses in the alias
+belong to the callable, and clauses on the machine using it belong to that machine.
 
 ```omega
-machine invoke<const Step: machine() -> u64 terminates>() -> u64
+data ReadStep = machine() -> u64 terminates;
+
+machine invoke<const Step: ReadStep>() -> u64
 crashes Trap
 {
     Step()
 }
 ```
 
-Here `terminates` belongs to the type of `Step`, and `crashes Trap` belongs to
-`invoke`. To put a crash ceiling on `Step`, write that clause in its type. A
-callable type with several operational axes writes them together:
+Here `terminates` belongs to `ReadStep`, and `crashes Trap` belongs to
+`invoke`. To put a crash ceiling on `Step`, write it in the alias. Several
+operational clauses can appear in the same alias.
 
 ```omega
-const Target: machine() -> u64
+data WaitForValue = machine() -> u64
     suspends
     blocks
-    terminates
+    terminates;
 ```
 
 A machine-shaped `requires machine` hypothesis in a

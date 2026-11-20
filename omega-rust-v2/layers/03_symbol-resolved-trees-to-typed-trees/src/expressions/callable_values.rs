@@ -171,12 +171,15 @@ impl BodyTyper<'_, '_> {
         if c.pause.suspend && !ack.suspend || c.pause.block && !ack.block {
             return Err(TypeError::at(source, node_index, "callback requires its declared pause acknowledgement"));
         }
+        self.unit
+            .check_runtime_type(node_index, &c.result, &self.catalog.types)?;
         let params = &c.parameters;
         if params.len() != source.nodes[args].children.len() {
             return Err(TypeError::at(source, node_index, "incorrect callback arity"));
         }
         let mut operands = Vec::with_capacity(params.len());
         for (position, (&arg, p)) in source.nodes[args].children.iter().zip(params).enumerate() {
+            self.unit.check_runtime_type(arg, p, &self.catalog.types)?;
             let operand = self.argument_operand(arg, Some(p).into())?;
             self.admit_argument(node_index, position, &operand, p)?;
             operands.push(IndirectOperand {

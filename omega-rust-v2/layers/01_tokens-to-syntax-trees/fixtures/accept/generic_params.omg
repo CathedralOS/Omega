@@ -1,11 +1,12 @@
 // GRAMMAR.md: generic parameters, every form.
+data Transform = machine(v: u32) -> u32;
 machine every_form<
     T,
     Element [copy],
     Count: u32,
     u: core\Level,
     const N: u64,
-    const F: machine(v: u32) -> u32,
+    const F: Transform,
     const G: machine,
     machine Step,
     some S,
@@ -13,8 +14,9 @@ machine every_form<
 >(value: @'a T) {
 }
 
-// A machine type's clause inside `<...>` ends at the closing `>`.
-machine forward<const F: machine(value: u64) -> u64 ensures result >= value>(x: u64) -> u64 {
+// The aliased contract retains its result guarantee when used as a static bound.
+data MonotoneStep = machine(value: u64) -> u64 ensures result >= value;
+machine forward<const F: MonotoneStep>(x: u64) -> u64 {
     F(x)
 }
 

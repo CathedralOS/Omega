@@ -15,9 +15,9 @@ Requirement spelling follows [unified requirement clauses](state_contracts.md#re
 the spelling does not merge static admission with runtime entry obligations or
 flatten nested callable contracts.
 
-A static callable parameter is written `const Step: machine(...)` for a
-structural contract or `const Step: Trait::requirement` for a nominal one
-under [typed static parameters](#typed-static-parameters).
+A static callable parameter uses `const Step: StepType` for a structural
+contract named by a [callable alias](machine_values.md#named-structural-callable-types),
+or `const Step: Trait::requirement` for a nominal one under [typed static parameters](#typed-static-parameters).
 The type is an originating contract, not a contract guessed from an
 invocation's shape or the current consumer set. A `const Step: machine`
 parameter on a wrapper may instead acquire its exact type by
@@ -144,8 +144,12 @@ data SmallBytes = ByteBuffer<64>;
 The aliases partially apply an existing constructor: they may fix, forward,
 reorder or compute arguments and expose the remaining ordinary parameters.
 Their binders use the same type, lifetime, value, static-machine and named
-implementation kinds and contracts as other generic declarations. Buffer and
-the policy implementation above are selected ordinary declarations, not names
+implementation kinds and contracts as other generic declarations. A callable
+alias explicitly takes any such arguments that its signature needs from a
+surrounding declaration. Invocation binders belonging to the callable stay
+inside its signature.
+
+Buffer and the policy implementation above are selected ordinary declarations, not names
 that grant alias-specific compiler behavior. General aliases are not the
 domain-conjunction aliases described under [domains](domains.md#aliases-and-identity).
 
@@ -627,14 +631,16 @@ separate binder species are types:
 
 | Role | Parameter | Permitted use |
 | --- | --- | --- |
-| Structural callable | `const Key: machine(card: @Card) -> u64` | Static calls under that complete callable contract. |
+| Structural callable | `const F: Transform` | Static calls under the contract of the named callable alias. |
 | Nominal callable | `const Handler: HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
 | Declaration identity | `const Requirement: reflect\CallableInfo` | Identity relationships only; no invocation. |
 | Implementation | `const Order: Ranked<T>` | Calls to its exact selections, written `Order::member(...)`. |
 | Inferred callable | `const F: machine` | As inferred under [inferred callable parameter types](#inferred-callable-parameter-types). |
 
 ```omega
-machine apply<const F: machine(value: u32) -> u32>(x: u32) -> u32 {
+data Transform = machine(value: u32) -> u32;
+
+machine apply<const F: Transform>(x: u32) -> u32 {
     F(x)
 }
 
@@ -654,9 +660,9 @@ separate; this decision unifies only what the generic list contains.
 
 ### Callable parameter types
 
-A structural callable type is the signature and clauses of a
-[callable contract](effects.md#open-callable-contracts). A callable parameter
-needs a complete originating or inferred type. The compiler cannot invent one
+A [transparent callable alias](machine_values.md#callable-types-and-construction)
+names a structural signature and its [contract](effects.md#open-callable-contracts).
+A callable parameter needs a complete originating or inferred type. The compiler cannot invent one
 from direct invocations, matching signatures, visible conformances or the
 current consumer set, even with one whole-program instantiation. Missing or
 ambiguous types reject. If only one implementation is intended, source can call
@@ -690,10 +696,9 @@ result. Runtime materialization requires the closed form and a finite envelope.
 Static selection supplies no purity, termination or proof admissibility of its
 own.
 
-A callable type may take static parameters of its own, written
-`machine<const Inner: ...>(...) -> ...`. Such a type is a family: it is usable
-only where the value is static, and it is applied with explicit arguments
-under [nested callable types](#nested-contracts-and-proof-families).
+A callable alias may describe a family whose signature binds static parameters
+of its own. Such a family is usable only where the value is static. Each call
+supplies its explicit arguments under [nested callable types](#nested-contracts-and-proof-families).
 
 Prose elsewhere that speaks of a static machine binder or an evidence binder
 means a `const` parameter of callable type or of implementation type.
@@ -740,7 +745,8 @@ relocation; an exposed numeric address cannot replace that relationship.
 ### Retired spellings
 
 `<machine F>` with `requires machine F(...);` is written
-`<const F: machine(...)>`. `<machine F>` with
+`<const F: Callback>`, where `Callback` is the transparent alias for the
+structural contract. `<machine F>` with
 `requires machine F satisfies Trait::member;` is written
 `<const F: Trait::member>`. A `machine Requirement` binder with no clause is
 written `<const Requirement: reflect\CallableInfo>`. `<Order satisfies Ranked<T>>`
@@ -853,21 +859,24 @@ member projection obligations, not a different generic matching judgment.
 
 ## Nested contracts and proof families
 
-A callable type may bind static parameters of its own:
+A callable type may bind static parameters of its own. Put those binders on the
+signature inside the alias. Parameters on the alias name are supplied by the
+consumer naming the type. Parameters on the signature are supplied by the
+consumer invoking the callback.
 
 ```omega
-machine forward<
-    const Schema: machine<const Inner: machine(index: Nat) -> Rat>(
-        value: Stream<Inner>
-    ) -> Stream<Inner>,
-    const Selected: machine(index: Nat) -> Rat
->(value: Stream<Selected>) -> Stream<Selected> {
+data Coefficient = machine(index: Nat) -> Rat;
+data StreamTransform = machine<const Inner: Coefficient>(value: Stream<Inner>) -> Stream<Inner>;
+
+machine forward<const Schema: StreamTransform, const Selected: Coefficient>(
+    value: Stream<Selected>
+) -> Stream<Selected> {
     Schema::<Selected>(value)
 }
 ```
 
-`Inner` belongs to the type of `Schema`; `Selected` belongs to `forward`. Each
-callable type carries its own clauses, so nesting needs no terminators. The
+`Inner` belongs to the callable signature in `StreamTransform`. `Selected`
+belongs to `forward`. Each alias ends after its complete contract. The
 machine-shaped hypotheses of a mathematical declaration keep one terminator
 for each nested bodyless callable under
 [machine header delimiters](state_contracts.md#machine-header-delimiters).

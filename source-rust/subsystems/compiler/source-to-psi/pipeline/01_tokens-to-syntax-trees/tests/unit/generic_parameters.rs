@@ -32,12 +32,9 @@ fn parse_parameters(
 }
 
 #[test]
-fn typed_callable_binders_keep_the_existing_declaration_boundaries() {
+fn inline_callable_bounds_are_rejected_and_inferred_binders_remain_admitted() {
     for syntax in SYNTAX_CHOICES {
-        assert_eq!(
-            parse_parameters("<const Callback: machine()>", syntax).is_ok(),
-            !matches!(syntax, GenericParameterSyntax::TypeAndConst),
-        );
+        assert!(parse_parameters("<const Callback: machine()>", syntax).is_err());
     }
     assert!(
         parse_parameters(

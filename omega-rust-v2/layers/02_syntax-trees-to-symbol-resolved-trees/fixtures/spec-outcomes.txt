@@ -59,12 +59,12 @@ language/domains.md:995  unresolved name Socket
 language/domains.md:1020  unresolved name Unit
 language/effects.md:51  unresolved trait ClockOps
 language/effects.md:101  accepted
-language/effects.md:201  unresolved name Counter
-language/effects.md:226  accepted
-language/effects.md:571  accepted
-language/effects.md:636  accepted
-language/effects.md:743  unresolved name Handler::read
-language/effects.md:871  unresolved name ordinary_call
+language/effects.md:203  unresolved name Counter
+language/effects.md:231  accepted
+language/effects.md:576  accepted
+language/effects.md:641  accepted
+language/effects.md:750  unresolved name Handler::read
+language/effects.md:878  unresolved name ordinary_call
 language/expressions.md:157  unresolved name Vec2
 language/expressions.md:343  unavailable import units
 language/expressions.md:411  accepted
@@ -72,18 +72,19 @@ language/expressions.md:505  unresolved name view
 language/expressions.md:532  accepted
 language/generics.md:61  unresolved name Ordering
 language/generics.md:138  unresolved name LayoutStorage
-language/generics.md:223  unresolved name embed
-language/generics.md:242  accepted
-language/generics.md:306  unresolved name T
-language/generics.md:363  accepted
-language/generics.md:406  unresolved name u64::AtMost
-language/generics.md:506  accepted
-language/generics.md:636  unresolved name Ranked
-language/generics.md:761  accepted
-language/generics.md:858  unresolved name Nat
+language/generics.md:227  unresolved name embed
+language/generics.md:246  accepted
+language/generics.md:310  unresolved name T
+language/generics.md:367  accepted
+language/generics.md:410  unresolved name u64::AtMost
+language/generics.md:510  accepted
+language/generics.md:640  unresolved name Ranked
+language/generics.md:767  accepted
+language/generics.md:867  unresolved name Nat
 language/lifetimes.md:20  accepted
 language/lifetimes.md:96  unresolved name Value
-language/machine_values.md:17  unresolved name counter
+language/machine_values.md:22  unresolved name counter
+language/machine_values.md:44  accepted
 language/machines.md:33  accepted
 language/modules.md:117  unavailable import ui_policy\screen\Point::OnScreen
 language/modules.md:203  builtin type u7 cannot be redeclared
@@ -99,13 +100,13 @@ language/patterns.md:162  unresolved name Command
 language/process_exit.md:17  unresolved name Never
 language/reflection.md:77  unresolved name reflect\field
 language/some_packages.md:15  accepted
-language/some_packages.md:39  unresolved name Reader
-language/some_packages.md:69  unresolved name Reader
+language/some_packages.md:41  unresolved name Reader
+language/some_packages.md:71  unresolved name Reader
 language/state_contracts.md:74  accepted
-language/state_contracts.md:86  accepted
-language/state_contracts.md:321  unresolved name ProcessExit
-language/state_contracts.md:397  unresolved name Never
-language/state_contracts.md:440  unresolved name Storage::read
+language/state_contracts.md:88  accepted
+language/state_contracts.md:323  unresolved name ProcessExit
+language/state_contracts.md:399  unresolved name Never
+language/state_contracts.md:442  unresolved name Storage::read
 language/termination.md:35  unresolved name remaining
 layouts/plans.md:74  unresolved name Schema
 layouts/plans.md:100  unresolved name FixedLayout

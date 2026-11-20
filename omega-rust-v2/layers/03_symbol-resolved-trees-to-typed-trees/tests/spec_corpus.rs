@@ -1,6 +1,7 @@
 use omega_lexer::lex;
-use omega_parser::{FragmentKind, parse_fragment};
+use omega_parser::parse_fragment;
 use omega_resolver::{ParsedSource, StageSource, resolve_stage};
+use spec_corpus::parser_examples::{fragment_kind, parser_source};
 use std::path::Path;
 
 #[test]
@@ -13,14 +14,9 @@ fn spec_fragments_have_reviewed_typing_outcomes() {
 
     for example in examples {
         let label = example.get_label();
-        let kind = match label.as_str() {
-            "language/generics.md:306" | "language/termination.md:35" | "resources/content_custody.md:129" => FragmentKind::Clauses,
-            "language/state_contracts.md:86" => FragmentKind::GenericParam,
-            _ => FragmentKind::Statements,
-        };
-        let text = example.source_text.replace("{ ... }", "{     }");
+        let text = parser_source(&example.source_text);
         let tokens = lex(text.as_bytes()).unwrap();
-        let tree = parse_fragment(text.as_bytes(), &tokens, kind).unwrap();
+        let tree = parse_fragment(text.as_bytes(), &tokens, fragment_kind(&label)).unwrap();
         let input = StageSource {
             package: "example",
             source: ParsedSource {

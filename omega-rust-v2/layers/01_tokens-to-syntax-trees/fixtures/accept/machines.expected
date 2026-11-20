@@ -260,6 +260,29 @@ File
         Params '(' ')'
         Body '{' '}'
       '}'
+  Data
+    'data'
+    'Step'
+    '='
+    MachineType
+      'machine'
+      Params
+        '('
+        Param
+          'value'
+          ':'
+          PathType 'u32'
+        ')'
+      Result
+        '->'
+        PathType 'u32'
+      Reaches
+        'reaches'
+        PathType 'none'
+      Crashes
+        'crashes'
+        PathType 'none'
+    ';'
   Machine
     'machine'
     Path 'apply'
@@ -268,21 +291,7 @@ File
       Param
         'step'
         ':'
-        MachineType
-          'machine'
-          Params
-            '('
-            Param
-              'value'
-              ':'
-              PathType 'u32'
-            ')'
-          Result
-            '->'
-            PathType 'u32'
-          Reaches
-            'reaches'
-            PathType 'none'
+        PathType 'Step'
       ','
       Param
         'start'

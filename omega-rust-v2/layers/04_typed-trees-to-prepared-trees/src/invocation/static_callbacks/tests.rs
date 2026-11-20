@@ -93,7 +93,7 @@ fn check_reflexivity<'stage, 'text>(trees: &'stage TypedTrees<'text>) -> Option<
 #[test]
 fn a_checked_refinement_authorizes_only_its_exact_callable_binding() {
     let source = "machine identity(n:u64)->u64 requires n == n {n}
-                  machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+                  data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
                   const VALUE:u64=apply::<identity>(3u64);";
     let original = typed(source);
     let TypingProgress::Complete(trees) = &original else { unreachable!() };
@@ -304,7 +304,8 @@ fn a_callable_bound_checks_the_actual_result_against_its_guarantee_judgment() {
 #[test]
 fn callable_evidence_cannot_cross_applications_with_equal_operand_and_result_types() {
     let source = "machine leaf(n:u64)->u64 {n}
-                  machine apply<const K:u64, const F:machine(n:u64)->u64 requires K == 0u64>(n:u64)->u64 {F(n)}
+                  data NumberStep<const K:u64> = machine(n:u64)->u64 requires K == 0u64;
+                  machine apply<const K:u64, const F:NumberStep<K> >(n:u64)->u64 {F(n)}
                   machine run<const K:u64>(n:u64)->u64 {apply::<K,leaf>(n)}
                   const ZERO:u64=run::<0>(3u64);
                   const FOUR:u64=run::<4>(3u64);";

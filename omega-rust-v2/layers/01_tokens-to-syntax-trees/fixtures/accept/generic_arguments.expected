@@ -1,4 +1,21 @@
 File
+  Data
+    'data'
+    'Transform'
+    '='
+    MachineType
+      'machine'
+      Params
+        '('
+        Param
+          'value'
+          ':'
+          PathType 'u32'
+        ')'
+      Result
+        '->'
+        PathType 'u32'
+    ';'
   Machine
     'machine'
     Path 'arguments'
@@ -170,18 +187,7 @@ File
           'Callback'
           TypeArgs
             '<'
-            MachineType
-              'machine'
-              Params
-                '('
-                Param
-                  'value'
-                  ':'
-                  PathType 'u32'
-                ')'
-              Result
-                '->'
-                PathType 'u32'
+            PathType 'Transform'
             ','
             FunctionType
               PathType 'A'

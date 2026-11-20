@@ -73,7 +73,7 @@ value (`ByteBuffer<64>`, `Buffer<N * 2>`), and the two can start alike. The
 parser decides by looking ahead:
 
 1. Skip any `[` the argument opens with.
-2. `@`, `machine(`, or a named function binder such as `(n: u8) ->` there begins a type.
+2. `@` and a named function binder such as `(n: u8) ->` begin a type. The parser also recognizes an inline `machine(...)` here to diagnose it and suggest a named alias.
 3. A name there, with any module prefix and `::name` parts, begins a type if the token after
    it is `<`, `->` or, at the top, `in`, or ends the argument: `,` or `>` at
    the top, `]` or `;` inside brackets. So `[u8]` and `[u8; 4]` are types,
@@ -129,7 +129,7 @@ untyped `const clear_a = (clear satisfies A::clear);`
 ### data
 
     data        = visibility? 'data' word generic_params? attributes? dropped_by?
-                  ( '=' type ';' | requires* '{' data_member* '}' )
+                  ( '=' (type | machine_type) ';' | requires* '{' data_member* '}' )
     data_member = stable_number? word attributes? ':' ( type_in | data ) ';'
                 | stable_number? 'case' word ( '(' ( case_field % ',' )? ')' )? ';'
                 | data
@@ -238,14 +238,13 @@ this form; inside a body it is a statement.
     generic_param  = word attributes?                 type parameter:    T, Element [copy]
                    | word ':' type                    kinded parameter:  Count: u32, u: core\Level
                    | 'const' word ':' type            static value:      const N: u64
-                   | 'const' word ':' machine_type    static machine:    const F: machine(v: u32) -> u32
                    | 'const' word ':' 'machine'       inferred machine:  const F: machine
                    | 'machine' word                   machine binder:    machine Step
                    | 'some' word                      per-value binder:  some S
                    | lifetime                         'a
 
-Shown at language/conformances.md:338 and :526, language/generics.md:223,
-:636, :761 and :858, language/data_and_literals.md:109,
+Shown at language/conformances.md:338 and :526, language/generics.md:227,
+:640, :767 and :867, language/data_and_literals.md:109,
 proofs/mathematical_bindings.md:63 and :226.
 
 ## Types
@@ -255,7 +254,6 @@ proofs/mathematical_bindings.md:63 and :226.
     type_operand = '@' lifetime? ( 'mut' | 'write' )? type_operand
                 | '[' type ']'
                 | '[' type ';' expression ']'
-                | machine_type
                 | path_type ( '(' arguments? ')' )?
     path_type   = module_prefix word type_args? ( '::' word type_args? )*
     type_in     = type ( 'in' type_domains )?
@@ -265,8 +263,8 @@ proofs/mathematical_bindings.md:63 and :226.
 
 References and views `@[u8]`, `@mut [u8]`, `@'a U`, `@'a mut S`
 (language/data_and_literals.md:109, language/some_packages.md:15), arrays
-`[u8; 38]` (language/expressions.md:532), machine types as field and
-parameter types (language/effects.md:201), function types `A -> B` in
+`[u8; 38]` (language/expressions.md:532), named callable types for fields and
+parameters, function types `A -> B` in
 mathematical declarations and in machine parameters
 (proofs/mathematical_bindings.md:63 and :226), and qualification
 `i32 in Km & Positive` (language/domains.md:572).
@@ -275,13 +273,12 @@ mathematical declarations and in machine parameters
 - **The function arrow** groups to the right, and `@A -> B` is a function
   from `@A`. It is a type everywhere except directly after `as`: in an arm
   written `x as T -> ...` the arrow belongs to the arm.
-- **`machine` alone is a name.** It is a machine type when `(` or `<`
-  follows it, which is how `const F: machine` (an inferred machine) parses.
-- **A machine type inside `<...>` ends at the closing `>`**, even in the
-  middle of one of its clauses: in
-  `<const F: machine(v: u64) -> u64 ensures result >= v>` the last `>` closes
-  the list (language/effects.md:571). A greater-than comparison in such a
-  clause is written in parentheses.
+- A structural machine signature is the complete right-hand side of a data alias.
+  For example, `data Predicate<T> = machine(value: T) -> bool;` names an open
+  callback contract. `const Accept: Predicate<T>` uses it in a static position.
+  An inferred callable bound still uses `const Accept: machine`.
+  The alias signature's parameters and result use ordinary type names, including
+  aliases for other callables. [Machine values](../../wiki/spec/language/machine_values.md)
 - **Each `@` adds one reference layer.** `@@T` and `@ @T` have the same tree.
   In expressions, `@@x` borrows a borrow. Decision 12 reserves prefix `@`
   for references and borrows. `&` and `&&` keep their operator meanings.
@@ -345,7 +342,7 @@ mathematical declarations and in machine parameters
 - Clauses may come in any order after the result, and `requires` and
   `ensures` may repeat (V1's rule; the spec's examples vary the order and
   repeat `requires`, proofs/contracts.md:826).
-- Forms: language/effects.md:743, language/termination.md:35,
+- Forms: language/effects.md:750, language/termination.md:35,
   language/assembly.md:61 and :142, language/conformances.md:615.
 
 ## Statements
@@ -390,7 +387,7 @@ mathematical declarations and in machine parameters
   where the next one starts, which is what a clause gets from the next clause
   word; the comma is that marker.
 - With no subject, each pattern is a condition or `_`
-  (language/state_contracts.md:440).
+  (language/state_contracts.md:442).
 - A subject cannot be a record literal unless it is in parentheses, since
   `match x {` would otherwise read `x { ... }` as one. This is V1's rule; the
   spec is silent.
@@ -489,7 +486,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
   cast therefore begins an entry, never an addition or subtraction"
   (language/expressions.md). Examples at language/domains.md:623 and :701.
 - **Call markers** `suspend`, `block`, `suspend block` come before a call
-  (language/effects.md:871). `move`, `suspend` and `block` are prefixes only
+  (language/effects.md:878). `move`, `suspend` and `block` are prefixes only
   directly before another word, so each is still a name everywhere else:
   `block(x)` calls a machine named `block`. A `$` operand also admits the `move` prefix.
 - **`mut` and `write` after `@`** mark access only if an operand follows. `@mut;`
@@ -503,7 +500,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
 - Membership `self in Value::Integer` (language/data_and_literals.md:272).
 - Views `view[2..4]`, `bytes[..]` (language/expressions.md:505, :532).
 - A call through a field `(operations.value)(@counter)`
-  (language/machine_values.md:17).
+  (language/machine_values.md:22).
 - A selection `(clear satisfies A::clear)` is an expression and a generic
   argument (decision 9; language/conformances.md:197, :526).
 
@@ -543,7 +540,7 @@ the word is an ordinary name.
 | `use`, `const`, `data`, `trait` | a declaration can start here and a name follows | `data = 3;` |
 | `domain` | a declaration can start here and a name or `<` follows | `domain.size` |
 | `machine` | a declaration can start here and a name, or an operator and a name, follows | `machine.run();` |
-| `machine` (in a type) | `(` or `<` follows | `const F: machine` |
+| `machine` (in a type) | A signature follows `=` in a data alias | `const F: machine` |
 | `asm` | `machine` and a name follow; or, in a body, `{` or a clause word follows | `asm = public;` |
 | `let` (top of file) | a name and then `(` or `<` follow | |
 | `let` (in a body) | a name or `(` follows | `let = 3;` |
@@ -607,11 +604,11 @@ V2's spec corpus incorporates four syntax decisions from the parser review.
 | 7 | `name<T>(x)` in expressions | `name::<T>(x)` |
 | 1 | One `if` statement (language/conformances.md:39) | Rewritten as a `transition` |
 | 12 | Prefix `&` for references and borrows | Prefix `@` in types and expressions. Each adjacent `@` adds one layer. |
-| 4 | `requires ...;` and `requires ...,` before a body (language/generics.md:223, :242) | Nothing before the body |
+| 4 | `requires ...;` and `requires ...,` before a body (language/generics.md:227, :246) | Nothing before the body |
 
 Also not source, and tagged as such in the corpus: bodies written `{ ... }`
 (build/task_runtime.md:133, language/data_and_literals.md:20,
-language/generics.md:636), and the many examples that are fragments
+language/generics.md:640), and the many examples that are fragments
 (statements, clauses or expressions outside any declaration).
 
 ## Rules and their fixtures
@@ -684,7 +681,7 @@ the grammar had missed; all 132 parse now.
 
 | # | Example | What the grammar had | What the example needs | Resolution |
 | --- | --- | --- | --- | --- |
-| F1 | language/effects.md:571 | A machine type's clauses were ordinary predicates. | `<const F: machine(v: u64) -> u64 ensures result >= value>`: the clause ends at the `>` that closes the list. | Inside `<...>`, a `>` ends a machine type's clause. |
+| F1 | [Callable contracts](../../wiki/spec/language/machine_values.md#named-structural-callable-types) | An inline return signature could take the enclosing machine’s clauses. | `data Predicate<T> = machine(value: T) -> bool;` | Declare the signature once and use its name in other types and static bounds. |
 | F2 | proofs/mathematical_bindings.md:226 | Function types only in mathematical `let`. | A machine parameter typed `A -> core\Strict<v>`. | `A -> B` is a type everywhere except directly after `as`. |
 | F3 | proofs/mathematical_bindings.md:226 | A hypothesis only on a conformance. | `requires machine Step(...) ...;` on a machine. | A hypothesis is a clause; a conformance takes only that one. |
 | F4 | language/termination.md:35 | `terminates by e in e`. | `in 0..=limit`. | The bound may be a range. |
@@ -753,7 +750,7 @@ every file before parsing.
 | D7 | The `some S` binder | Not recognized | Written 2026-11-10 | Spec ahead |
 
 The two rotted examples are worth reporting to whoever maintains the spec:
-language/conformances.md:39 and language/generics.md:223.
+language/conformances.md:39 and language/generics.md:227.
 
 ## What V1 accepts that the spec never shows
 

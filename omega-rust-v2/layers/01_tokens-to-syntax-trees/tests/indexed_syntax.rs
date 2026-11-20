@@ -324,7 +324,7 @@ fn mathematical_bindings_separate_the_result_type_from_the_definition() {
 
 #[test]
 fn machine_headers_and_callable_types_expose_each_named_annotation() {
-    let source = "asm machine noop {} machine call(f:machine(x:u8)->bool,y:u32)->bool { f(1) }";
+    let source = "data Predicate = machine(x:u8)->bool; asm machine noop {} machine call(f:Predicate,y:u32)->bool { f(1) }";
     let tokens = lex(source.as_bytes()).unwrap();
     let parsed = parse_file(source.as_bytes(), &tokens).unwrap();
     let tree = parsed.index(source, &tokens).unwrap();
@@ -341,7 +341,7 @@ fn machine_headers_and_callable_types_expose_each_named_annotation() {
                 assert_eq!(result, None);
             }
             NodeKind::Machine => {
-                assert_eq!(params, [("f", "machine(x:u8)->bool"), ("y", "u32")]);
+                assert_eq!(params, [("f", "Predicate"), ("y", "u32")]);
                 assert_eq!(result, Some("bool"));
             }
             NodeKind::MachineType => {

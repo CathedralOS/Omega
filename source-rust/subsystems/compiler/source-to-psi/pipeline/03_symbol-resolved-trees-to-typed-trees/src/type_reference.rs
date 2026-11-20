@@ -529,8 +529,20 @@ pub(crate) mod alias_uses {
                     ));
                 }
             };
+        // A source-free symbol table retains borrowed names. Its selected alias
+        // declaration still owns the exact span used by transparent expansion.
+        let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
+            if source.symbols.source_map().is_some() {
+                return None;
+            }
+            source
+                .type_aliases
+                .iter()
+                .find(|alias| alias.symbol == declaration)
+                .map(|alias| alias.name.source_span())
+        });
         if source.symbols.get(declaration).kind != symbols::SymbolKind::TypeAlias
-            || source.symbols.symbol_source_span(declaration) != Some(declaration_source)
+            || selected_source != Some(declaration_source)
         {
             return Err(Diagnostic::error(
                 "type alias application does not rejoin its selected source declaration",

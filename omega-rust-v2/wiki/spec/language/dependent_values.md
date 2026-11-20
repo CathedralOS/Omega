@@ -381,9 +381,9 @@ argument places it is called with. The term is published as a row of
 and each application substitutes the selected callback's published frame:
 
 ```omega
-public machine apply<
-    const F: machine(entry: @mut Entry, time: u64) crashes none
->(entry: @mut Entry, time: u64) {
+public data UpdateEntry = machine(entry: @mut Entry, time: u64) crashes none;
+
+public machine apply<const F: UpdateEntry>(entry: @mut Entry, time: u64) {
     F(entry, time);
 }
 

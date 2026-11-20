@@ -55,20 +55,13 @@ impl SyntaxParser<'_> {
         lexer hands us one word that is not `ensures`, and in the second
         `reaches` is consumed as the operand `<` was waiting for, long before
         this loop sees it.
-
-        `type_position` matters for one case. The clauses of a machine type
-        written directly inside `<...>` end at the `>` that closes the list, so
-        their predicates must not read that `>` as greater-than.
     */
-    pub(crate) fn parse_clauses(
-        &mut self,
-        type_position: TypePosition,
-    ) -> Parsed {
+    pub(crate) fn parse_clauses(&mut self) -> Parsed {
         while let Some(clause) = self.nth_word(0).and_then(clause) {
             if matches!(clause, Clause::Predicate(NodeKind::Requires)) && self.nth_at_keyword(1, "machine") && self.nth_at_word(2) {
-                self.parse_hypothesis(type_position)?;
+                self.parse_hypothesis()?;
             } else {
-                self.parse_clause(clause, type_position)?;
+                self.parse_clause(clause)?;
             }
         }
 
@@ -77,7 +70,7 @@ impl SyntaxParser<'_> {
 
     pub(super) fn parse_data_requirements(&mut self) -> Parsed {
         while self.at_keyword("requires") {
-            self.parse_clause(Clause::Predicate(NodeKind::Requires), TypePosition::Plain)?;
+            self.parse_clause(Clause::Predicate(NodeKind::Requires))?;
         }
         Ok(())
     }
@@ -86,18 +79,14 @@ impl SyntaxParser<'_> {
     fn parse_clause(
         &mut self,
         header: Clause,
-        type_position: TypePosition,
     ) -> Parsed {
-        let stops_at_greater = type_position == TypePosition::InsideAngles;
-        let predicate_context = ExpressionContext::BEFORE_BRACE.with_stops_at_greater(stops_at_greater);
-        let measure_context = ExpressionContext::MEASURE.with_stops_at_greater(stops_at_greater);
         let clause = self.open();
 
         self.bump();
 
         let kind = match header {
             Clause::Predicate(kind) => {
-                self.parse_expression(predicate_context)?;
+                self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
                 kind
             }
             Clause::Crashes => {
@@ -120,13 +109,13 @@ impl SyntaxParser<'_> {
                     .into_iter()
                     .any(|punctuation| self.at(punctuation));
                 if !at_boundary {
-                    self.parse_expression(predicate_context)?;
+                    self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
                 }
                 NodeKind::Crashes
             }
             Clause::Type(kind) => {
                 // `none` is an ordinary name here; what it means is not this layer's question.
-                self.parse_type(type_position)?;
+                self.parse_type(TypePosition::Plain)?;
                 kind
             }
             Clause::Flag(kind) => {
@@ -138,14 +127,14 @@ impl SyntaxParser<'_> {
             Clause::Terminates => {
                 // `terminates ( 'by' measure ( '->' order )? ( 'in' bound )? )?`
                 if self.eat_keyword("by") {
-                    self.parse_expression(measure_context)?;
+                    self.parse_expression(ExpressionContext::MEASURE)?;
 
                     if self.eat(Punctuation::Arrow) {
-                        self.parse_expression(measure_context)?;
+                        self.parse_expression(ExpressionContext::MEASURE)?;
                     }
 
                     if self.eat_keyword("in") {
-                        self.parse_bound(predicate_context)?;
+                        self.parse_bound(ExpressionContext::BEFORE_BRACE)?;
                     }
                 }
                 NodeKind::Terminates
@@ -153,7 +142,7 @@ impl SyntaxParser<'_> {
             Clause::Registers => {
                 self.expect_word("a register name")?;
                 self.expect(Punctuation::Equal, "`=`")?;
-                self.parse_expression(predicate_context)?;
+                self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
                 NodeKind::Registers
             }
             Clause::Clobbers => {
@@ -196,10 +185,7 @@ impl SyntaxParser<'_> {
     /// A hypothesis assumes a machine with this signature exists. It is the one clause that ends
     /// in a semicolon: it carries clauses of its own, and without the `;` there would be no telling
     /// where they stop and the enclosing header's clauses resume.
-    pub(crate) fn parse_hypothesis(
-        &mut self,
-        type_position: TypePosition,
-    ) -> Parsed {
+    pub(crate) fn parse_hypothesis(&mut self) -> Parsed {
         self.enter_nesting()?;
         let hypothesis = self.open();
 
@@ -209,10 +195,10 @@ impl SyntaxParser<'_> {
         self.parse_params()?;
 
         if self.at(Punctuation::Arrow) {
-            self.parse_result(type_position)?;
+            self.parse_result()?;
         }
 
-        self.parse_clauses(type_position)?;
+        self.parse_clauses()?;
         self.expect(Punctuation::Semicolon, "a clause or `;`")?;
         self.close(hypothesis, NodeKind::Hypothesis);
         self.leave_nesting();

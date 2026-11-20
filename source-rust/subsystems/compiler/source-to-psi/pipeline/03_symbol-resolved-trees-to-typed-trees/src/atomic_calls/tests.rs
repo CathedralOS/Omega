@@ -13,8 +13,9 @@ fn type_source(source: &str) -> Result<crate::source_state::TypedTrees, Diagnost
 #[test]
 fn callable_field_named_store_keeps_its_value_arguments() {
     let typed = type_source(
-        "data Registry {
-            store: machine(key: u64, value: u64) -> u64 reaches none crashes none terminates;
+        "data StoreOperation = machine(key: u64, value: u64) -> u64 reaches none crashes none terminates;
+        data Registry {
+            store: StoreOperation;
         }
         machine call(registry: Registry) -> u64 {
             (registry.store)(1u64, 42u64)

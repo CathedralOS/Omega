@@ -1,7 +1,6 @@
 //! Assembly: `asm machine` declarations and `asm { ... }` blocks.
 
 use crate::grammar::contexts::expression_context::ExpressionContext;
-use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
 use crate::tree::node_kind::NodeKind;
@@ -29,10 +28,10 @@ impl SyntaxParser<'_> {
         }
 
         if self.at(Punctuation::Arrow) {
-            self.parse_result(TypePosition::Plain)?;
+            self.parse_result()?;
         }
 
-        self.parse_clauses(TypePosition::Plain)?;
+        self.parse_clauses()?;
         self.refuse_separator_before_body()?;
         self.expect(Punctuation::LeftBrace, "a clause or `{`")?;
         self.parse_asm_lines()?;
@@ -63,7 +62,7 @@ impl SyntaxParser<'_> {
         let asm_block = self.open();
 
         self.bump();
-        self.parse_clauses(TypePosition::Plain)?;
+        self.parse_clauses()?;
         self.refuse_separator_before_body()?;
         self.expect(Punctuation::LeftBrace, "a clause or `{`")?;
         self.parse_asm_lines()?;

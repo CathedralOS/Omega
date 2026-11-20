@@ -218,6 +218,11 @@ impl<'a> ResolvedSourceFile<'a> {
             _ => {}
         }
         let carrier = self.annotation(annotation, types)?;
+        if let ValueType::Callable(callable) = &carrier {
+            for runtime_type in callable.parameters.iter().chain([&callable.result]) {
+                self.check_runtime_type(annotation, runtime_type, types)?;
+            }
+        }
         if !(node.kind == NodeKind::ConstParam && carrier.supports_closed_snapshot())
             && !matches!(
                 carrier,

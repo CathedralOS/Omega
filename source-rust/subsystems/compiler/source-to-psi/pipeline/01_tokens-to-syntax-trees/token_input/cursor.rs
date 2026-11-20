@@ -67,10 +67,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    pub(crate) fn resume_tokens(&mut self, tokens: &'tokens [Token]) {
-        *self = self.advanced(tokens);
-    }
-
     pub(crate) fn spelling(self, token: &Token) -> &'tokens str {
         self.stream.spelling(token)
     }

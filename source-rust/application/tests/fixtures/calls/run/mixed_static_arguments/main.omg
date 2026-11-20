@@ -4,7 +4,9 @@ requires Count > 0u64
 { Count }
 machine forward<T>(value: @T) -> u64 { keep::<T, 3u64>(value) }
 machine measure<T>(value: @T) -> u64 { 41u64 }
-machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 { Step(value) }
+data MeasureValue<T> = machine(value: @T) -> u64;
+
+machine invoke<T, const Step: MeasureValue<T>>(value: @T) -> u64 { Step(value) }
 machine selected<T>(value: @T) -> u64 { invoke::<T, measure<T>>(value) }
 machine main() crashes Trap {
     let input: u32 = 17u32;

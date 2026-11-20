@@ -1051,9 +1051,9 @@ fn a_static_callable_receipt_cannot_open_an_explicit_empty_bound() {
             let main =
                 repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/static_callable_specialization/main.omg");
             let source = std::fs::read_to_string(&main).unwrap();
-            let binder = "const Callback: machine(value: u64) -> u64";
-            assert_eq!(source.matches(binder).count(), 1);
-            let source = source.replace(binder, &format!("{binder} reaches none"));
+            let alias = "data TransformValue = machine(value: u64) -> u64";
+            assert_eq!(source.matches(alias).count(), 1);
+            let source = source.replace(alias, &format!("{alias} reaches none"));
             let root = std::env::temp_dir()
                 .join(format!("omega-explicit-callback-reach-{}", std::process::id()));
             std::fs::create_dir(&root).expect("private staging directory");

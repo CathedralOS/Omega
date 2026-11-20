@@ -2,7 +2,9 @@ machine picked(value: u64) -> u64 {
     transition value == 7u64 { true -> 42u64, false -> 99u64 }
 }
 machine other(value: u64) -> u64 { value }
-machine apply<const Callback: machine(value: u64) -> u64>(value: u64) -> u64 {
+data TransformValue = machine(value: u64) -> u64;
+
+machine apply<const Callback: TransformValue>(value: u64) -> u64 {
     Callback(value)
 }
 const EXPECTED: u64 = apply::<picked>(7u64);

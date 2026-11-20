@@ -9,6 +9,7 @@
     ordinary type replacing it. This stage forms no checked admission receipt.
 */
 
+use super::callable_signatures::SignatureInputs;
 use super::declaration_selection::{ConstantSelection, GenericParameterRole};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -54,6 +55,7 @@ mod expression_bindings {
         alias: &TypeAliasDefinition,
         arguments: &[TypeReferenceHandle],
         bindings: &mut ExpressionBindings,
+        callable_scope: Option<(&super::SignatureInputs, usize)>,
     ) -> Vec<TypeReferenceHandle> {
         let mut expressions = HashSet::new();
         collect_expression_handles(templates, root, &mut expressions);
@@ -83,6 +85,13 @@ mod expression_bindings {
                             .iter()
                             .any(|binding| binding.as_str() == name.as_str(templates))
                     });
+                    if callable_scope.is_some_and(|(inputs, scope)| {
+                        shadowed
+                            || name.as_str(templates) == "result"
+                            || inputs.hides_value(scope, name.as_str(templates))
+                    }) {
+                        continue;
+                    }
                     let bound_parameter = parameters.iter().any(|parameter| {
                         parameter.name.as_str(templates) == name.as_str(templates)
                     });
@@ -767,6 +776,10 @@ impl Expansion<'_, '_> {
             | TypeReferenceNode::Slice { element_type } => {
                 self.reference(syntax, element_type, bound)?
             }
+            TypeReferenceNode::Callable { signature } => {
+                let signature = syntax.items.state_signature(signature).clone();
+                self.signature(syntax, &signature, bound)?;
+            }
             _ => {}
         }
         Ok(())
@@ -857,6 +870,7 @@ impl Expansion<'_, '_> {
             &mut undeclared_lifetimes,
             &mut array_length_uses,
             &mut expressions,
+            None,
         );
         // lifetimes.md: named applications "use binders declared in the
         // lexical owner. Duplicate binders and undeclared tags reject."
@@ -974,6 +988,7 @@ fn bind_type_occurrences(
     undeclared_lifetimes: &mut Vec<Identifier>,
     array_length_uses: &mut Vec<(SourceSpan, String, TypeReferenceHandle)>,
     expressions: &mut expression_bindings::ExpressionBindings,
+    callable_scope: Option<(&SignatureInputs, usize)>,
 ) {
     for application in templates.type_references.type_alias_applications(reference) {
         bind_type_occurrences(
@@ -988,9 +1003,15 @@ fn bind_type_occurrences(
             undeclared_lifetimes,
             array_length_uses,
             expressions,
+            callable_scope,
         );
     }
     let mut lifetime = |name: &Identifier| {
+        if callable_scope
+            .is_some_and(|(inputs, scope)| inputs.hides_lifetime(scope, name.as_str(templates)))
+        {
+            return;
+        }
         if let Some(position) = alias
             .lifetime_parameters
             .iter()
@@ -1007,11 +1028,15 @@ fn bind_type_occurrences(
     };
     let children = match templates.type_references.type_reference(reference) {
         TypeReferenceNode::Named(name) => {
-            if let Some(position) = templates
-                .items
-                .type_parameters(alias.type_parameters)
-                .iter()
-                .position(|parameter| parameter.name.as_str(templates) == name.as_str(templates))
+            if !callable_scope
+                .is_some_and(|(inputs, scope)| inputs.hides_type(scope, name.as_str(templates)))
+                && let Some(position) = templates
+                    .items
+                    .type_parameters(alias.type_parameters)
+                    .iter()
+                    .position(|parameter| {
+                        parameter.name.as_str(templates) == name.as_str(templates)
+                    })
             {
                 types.push((reference, arguments[position]));
             }
@@ -1048,6 +1073,7 @@ fn bind_type_occurrences(
                 alias,
                 arguments,
                 expressions,
+                callable_scope,
             )
         }
         TypeReferenceNode::Constrained {
@@ -1076,7 +1102,9 @@ fn bind_type_occurrences(
                     children.push(*reference)
                 }
                 syntax_trees::types::FixedArrayLength::ConstParameter(name) => {
-                    if let Some(position) = templates
+                    if !callable_scope.is_some_and(|(inputs, scope)| {
+                        inputs.hides_value(scope, name.as_str(templates))
+                    }) && let Some(position) = templates
                         .items
                         .type_parameters(alias.type_parameters)
                         .iter()
@@ -1095,6 +1123,48 @@ fn bind_type_occurrences(
             }
             children
         }
+        TypeReferenceNode::Callable { signature } => {
+            let inputs =
+                SignatureInputs::of(templates, templates.items.state_signature(*signature));
+            let mut children = inputs.types.clone();
+            for &(scope, expression) in &inputs.expressions {
+                let prior_unresolved = expressions.unresolved.len();
+                let references = expression_bindings::bind_const_expression(
+                    templates,
+                    selection,
+                    expression,
+                    alias,
+                    arguments,
+                    expressions,
+                    Some((&inputs, scope)),
+                );
+                // A fact may call a predicate or select a qualified declaration.
+                // Retain its authored scope for ordinary signature resolution.
+                for reference in expressions.unresolved.drain(prior_unresolved..) {
+                    expressions
+                        .declaration_references
+                        .push(templates.expressions.source_span(reference));
+                }
+                children.extend(references.into_iter().map(|reference| (scope, reference)));
+            }
+            for (scope, child) in children {
+                bind_type_occurrences(
+                    templates,
+                    selection,
+                    child,
+                    alias,
+                    arguments,
+                    lifetimes,
+                    types,
+                    lifetime_uses,
+                    undeclared_lifetimes,
+                    array_length_uses,
+                    expressions,
+                    Some((&inputs, scope)),
+                );
+            }
+            Vec::new()
+        }
         TypeReferenceNode::Slice { element_type } => vec![*element_type],
         _ => Vec::new(),
     };
@@ -1111,6 +1181,7 @@ fn bind_type_occurrences(
             undeclared_lifetimes,
             array_length_uses,
             expressions,
+            callable_scope,
         );
     }
 }
@@ -1241,13 +1312,23 @@ impl Expansion<'_, '_> {
             match parameter.kind {
                 TypeParameterKind::Const { type_reference } => {
                     self.reference(syntax, type_reference, &bound)?;
-                    if let Some(contract) = super::callable_types::nominal_contract(
-                        syntax,
-                        self.selection,
-                        type_reference,
-                        &bound,
-                        &self.declarations,
-                    )? {
+                    let contract = match syntax.type_references.type_reference(type_reference) {
+                        TypeReferenceNode::Callable { signature } => {
+                            let mut signature = syntax.items.state_signature(*signature).clone();
+                            signature.name = parameter.name;
+                            Some(syntax_trees::item::MachineParameterContract::Structural(
+                                signature,
+                            ))
+                        }
+                        _ => super::callable_types::nominal_contract(
+                            syntax,
+                            self.selection,
+                            type_reference,
+                            &bound,
+                            &self.declarations,
+                        )?,
+                    };
+                    if let Some(contract) = contract {
                         syntax.items.type_parameters_mut(parameter_span)[index].kind =
                             TypeParameterKind::Machine {
                                 contract: Some(contract),
@@ -1525,6 +1606,42 @@ mod type_alias_tests {
             ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
         normalize(&mut syntax, &selection, &[])?;
         Ok(syntax)
+    }
+
+    #[test]
+    fn a_generic_alias_supplies_an_open_static_machine_contract() {
+        let syntax = normalized(
+            "machine admissible<T>(value: T) -> bool { true }
+             data Predicate<T> = machine(value: T) -> bool requires admissible(value);
+             machine accepts<const Test: Predicate<u32>>(value: u32) -> bool { Test(value) }",
+        )
+        .unwrap();
+        let machine = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) if machine.name.as_str(&syntax) == "accepts" => {
+                    Some(machine)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let parameters = syntax.items.type_parameters(machine.type_parameters);
+        let TypeParameterKind::Machine {
+            contract: Some(syntax_trees::item::MachineParameterContract::Structural(signature)),
+        } = &parameters[0].kind
+        else {
+            panic!("Test must be a structural callable binder");
+        };
+        assert_eq!(signature.name.as_str(&syntax), "Test");
+        assert!(signature.service_reach_keyword_source_spans.is_empty());
+        assert!(!signature.declares_no_crash_route);
+        let argument = syntax.items.state_parameters(signature.parameters)[0];
+        let reference = syntax.items.state_parameter(argument).type_reference;
+        let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(reference)
+        else {
+            panic!("the applied predicate has a concrete input");
+        };
+        assert_eq!(name.as_str(&syntax), "u32");
     }
 
     /// lifetimes.md: "Duplicate binders and undeclared tags reject." An

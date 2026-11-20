@@ -332,6 +332,8 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Parallel language and compiler lanes
 
+- Check [callable families](wiki/spec/language/generics.md#invocation-lifetime-families) whose signature introduces its own generic parameter. In the experimental Rust compiler, `data Visitor = machine<T>(item: T) reaches none crashes none;` currently reports `missing L2 definition`. A static consumer must be able to use the same selected generic visitor at two different types. Keep the callable’s own binder distinct from an alias parameter such as `Visitor<T>`.
+
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
 
 ## P5 - Cathedral over general Omega primitives
@@ -349,6 +351,7 @@ Write each item so any agent can start from it alone: current state, files and e
 ## Omega-written compiler
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Finish the [Omega-written compiler](source/README.md) and its [public request](wiki/spec/build/compiler_request.md).
+  - Teach the Omega-written frontend to parse [named callable aliases](wiki/spec/language/machine_values.md#named-structural-callable-types) and represent their signatures. Check a factory returning a named reader and diagnose an inline reader signature at its use.
   - Exercise the construction application against the frontend's directory namespaces. The closed source-set format still needs to carry each unit's package-relative path for the Omega resolver.
   - Checking all 109 frontend units with the Rust source-stage API gives 1,001 diagnostics. Compared with the old package compiled flat, the hexadecimal decoder’s sentinel accounts for the one resolved diagnostic. Remaining errors include missing explicit `Trapping` casts and overlapping loans. The Omega resolver still needs exact member imports.
   - The Linux construction application reaches product checking with its Alpha binding present. Running `omega --check --target linux_x86_64 source/application/construction/main.omg` reports 536 diagnostics in the reachable program. The first is in [the typer](source/subsystems/compiler/source_to_psi/pipeline/symbol_resolved_trees_to_typed_trees/typer.omg#L132), where the expression index must have type `u64 in Trapping`. Of the 536, 300 concern arguments with missing `Trapping` and 60 concern overlapping loans.

@@ -190,8 +190,10 @@ needs both clauses written, with `none` for empty:
 - a boundary requirement, which publishes one stable interface across
   providers.
 
-An open contract in a closed position rejects, and the diagnostic names the
-missing clause. Openness belongs to the contract. No position reinterprets an
+A transparent alias may name an open contract. Its declaration checks the
+signature and its clauses. Each use checks the expanded contract against its
+position. A closed position rejects an open contract and names the missing
+clause in its diagnostic. Openness belongs to the contract. No position reinterprets an
 omitted clause as empty, so a signature copied from a requirement into a field
 type cannot change from "whatever the selection does" to "nothing" without the
 author writing `reaches none` or `crashes none`. Checking a statically known
@@ -199,9 +201,12 @@ selection against an explicitly closed destination is ordinary
 [contract refinement](machines.md#substitution).
 
 ```omega
+data ClearCounter = machine(counter: @mut Counter) reaches none crashes none terminates;
+data CounterValue = machine(counter: @Counter) -> u64 reaches none crashes none terminates;
+
 data CounterOps {
-    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
-    value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
+    clear: ClearCounter;
+    value: CounterValue;
 }
 ```
 
@@ -569,9 +574,9 @@ field selection, a call, or a first-class value of the unapplied relation, and
 it does not introduce a `requires` projection.
 
 ```omega
-public machine forward<const F: machine(value: u64) -> u64 ensures result >= value>(
-    x: u64
-) -> u64
+public data Nondecreasing = machine(value: u64) -> u64 ensures result >= value;
+
+public machine forward<const F: Nondecreasing>(x: u64) -> u64
 ensures F::ensures(x, result)
 {
     F(x)
@@ -634,7 +639,9 @@ suspend. A narrower originating callback contract can state that guarantee
 directly.
 
 ```omega
-public machine apply<const F: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+public data SuspendingTransform = machine(value: u32) -> u32 suspends;
+
+public machine apply<const F: SuspendingTransform>(value: u32) -> u32
 suspends
 {
     suspend F(value)

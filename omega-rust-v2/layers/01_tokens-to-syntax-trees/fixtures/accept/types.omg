@@ -1,4 +1,6 @@
 // GRAMMAR.md: types.
+data Transform = machine(value: u32) -> u32;
+data Visitor = machine<T>(value: T) reaches none;
 machine types(
     a: u32,
     b: core\Level,
@@ -10,8 +12,8 @@ machine types(
     h: @'a mut S,
     i: [u8; 38],
     j: [[u8; 4]; N * 2],
-    k: machine(value: u32) -> u32,
-    l: machine<T>(value: T) reaches none,
+    k: Transform,
+    l: Visitor,
     m: A -> B,
     n: i32 in Km & Positive,
     o: ByteBuffer<64>,

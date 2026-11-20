@@ -10,4 +10,4 @@ omega-lexer = { path = "../00_bytes-to-tokens" }
 omega-parser = { path = "../01_tokens-to-syntax-trees" }
 
 [dev-dependencies]
-spec-corpus = { path = "../../tools/spec-corpus" }
+spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }

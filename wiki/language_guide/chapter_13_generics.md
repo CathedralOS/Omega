@@ -74,24 +74,27 @@ and nothing changes meaning when a new one is imported.
 
 ## Passing a machine
 
-A parameter can be a single machine. Its type is the signature it must have:
+A parameter can be a single machine. A transparent alias names the signature
+that each supplied machine must satisfy.
 
 ```omega
-machine Deck::score<const Key: machine(card: @Card) -> u64>(card: @Card) -> u64 {
+data CardKey = machine(card: @Card) -> u64;
+
+machine score_card<const Key: CardKey>(card: @Card) -> u64 {
     Key(card)
 }
 
-Deck::score::<Card::power_key>(@card);
+score_card::<power_key>(@card);
 ```
 
-This is not a function pointer. `Deck::score<Card::power_key>` compiles to a
-direct call of `Card::power_key`.
+The caller supplies a named machine, `power_key`, as a static argument.
+After specialization, `Key(card)` calls `power_key` directly.
 
 Every parameter that carries code has the same form, `const Name: Type`:
 
 | Type | The argument is |
 | --- | --- |
-| `machine(card: &Card) -> u64` | Any machine with that signature and contract. |
+| `CardKey` | Any machine with the alias's signature and contract. |
 | `HookProcedure::call` | A machine bound to that trait requirement ([Chapter 14](chapter_14_traits.md#binding-a-machine-to-a-requirement)). |
 | `Ranked<T>` | An implementation of the trait. |
 | `machine` | A machine whose type is taken from where it is passed on. |
