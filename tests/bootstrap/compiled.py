@@ -34,8 +34,62 @@ def execute(executable, payload=b"", timeout=60):
     return result.returncode, result.stdout
 
 
+def gamma_request(source, guest=b""):
+    """Frame a Gamma source and its sealed guest input for the interpreter."""
+    return struct.pack("<I", len(source)) + source + guest
+
+
 def reference(evaluator, source, payload=b""):
-    return execute(evaluator, struct.pack("<I", len(source)) + source + payload)
+    return execute(evaluator, gamma_request(source, payload))
+
+
+def gamma_backend_source(target):
+    """Read the complete Gamma compiler source for the requested target."""
+    root = ROOT / "bootstrap/gamma/compiler"
+    if target == "alpha":
+        backend = "alpha/alpha_backend.gamma"
+    elif target == "linux":
+        backend = "linux_x86_64/native.gamma"
+    else:
+        raise ValueError(f"unknown Gamma target {target!r}")
+    return b"\n".join((root / name).read_bytes() for name in ("compiler.gamma", "frontend.gamma", backend))
+
+
+def produce(compiler, source, artifact, seconds):
+    start = time.monotonic()
+    status, data = execute(compiler, source, seconds)
+    if status != 0 or not data:
+        raise RuntimeError(f"{artifact.name}: compiler exit {status}, {len(data)} output bytes")
+    artifact.write_bytes(data)
+    print(f"{artifact.name}: {len(data)} bytes, sha256={hashlib.sha256(data).hexdigest()}, "
+          f"{time.monotonic() - start:.2f}s", flush=True)
+    return data
+
+
+def executable(artifact, target):
+    """Make a produced Linux ELF or Alpha tape runnable and return its path."""
+    if target == "linux":
+        artifact.chmod(0o700)
+        return artifact
+    if target == "alpha":
+        program = artifact.with_suffix(".vm")
+        stamp(artifact, program)
+        return program
+    raise ValueError(f"unknown Gamma target {target!r}")
+
+
+def gamma_program(host, runner, source, artifact, seconds):
+    """Return the runner and input prefix for this Gamma source on the given host.
+
+    For the interpreted host, runner is the Gamma evaluator. For a compiled
+    host, runner is a Gamma compiler that produces code for that host.
+    """
+    if host == "gamma":
+        return runner, gamma_request(source)
+    if host not in ("alpha", "linux"):
+        raise ValueError(f"unknown Gamma host {host!r}")
+    produce(runner, source, artifact, seconds)
+    return executable(artifact, host), b""
 
 
 def compile_program(work, source, name="subject", *, compiler, realize=stamp):

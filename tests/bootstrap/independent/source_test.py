@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 import platform
 import shutil
-import struct
 import subprocess
 import sys
 import time
@@ -24,11 +23,7 @@ import compiled as vm
 
 
 def source(native):
-    paths = [ROOT / "bootstrap/gamma/compiler" / name
-             for name in ("compiler.gamma", "frontend.gamma")]
-    paths.append(ROOT / ("bootstrap/gamma/compiler/linux_x86_64/native.gamma" if native
-                         else "bootstrap/gamma/compiler/alpha/alpha_backend.gamma"))
-    return b"\n".join(path.read_bytes() for path in paths)
+    return vm.gamma_backend_source("linux" if native else "alpha")
 
 
 def identity(data):
@@ -94,7 +89,7 @@ def main():
     alpha_source = source(False)
     (work / "compiler.gamma").write_bytes(native_source)
     (work / "alpha-compiler.gamma").write_bytes(alpha_source)
-    request = struct.pack("<I", len(native_source)) + native_source + native_source
+    request = vm.gamma_request(native_source, native_source)
     (work / "construction.request").write_bytes(request)
     started = time.monotonic()
     if args.accelerated:
