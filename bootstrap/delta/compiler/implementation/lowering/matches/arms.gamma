@@ -7,7 +7,7 @@
     (let chain Int
       (lowering_match_chain (- total 1) (second reversed)
         (first (second context)) (second (first reversed)))
-      (lowering_resume (lowering_match_wrap context chain) depth frames globals))
+      (lowering_resume (lowering_match_wrap context total chain) depth frames globals))
     (let ((arm Int (first arms))
           (pattern Int (syntax_child arm 0))
           (constructor Int (lowering_match_constructor pattern))

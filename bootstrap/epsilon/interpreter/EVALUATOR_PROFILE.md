@@ -26,7 +26,7 @@ bound, or restores an Epsilon Alpha backend.
 | packed Epsilon evaluator closure | 615,652 | `691122629a7f47ab7a929289a1ec33aae27577b9a955b874c06a8fe444e86ab2` |
 | execution driver `execution_driver.delta` | 2,150 | `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa` |
 | Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
-| reconstructed evaluator receipt | 712,603 | `0155e1ae30f168f955c1e23e0c69017215cbf53f8eb2ea990bbd454da631fbc2` |
+| reconstructed evaluator receipt | 692,938 | `cc781abb4ea5bfd276afd316223215bf4b0054ee4ed7b825a85c6fc213b1fb90` |
 
 Compilation of the packed evaluator plus driver plus the bound support
 section through the bound Delta compiler (`DCREQ`, profile 1) reconstructs
@@ -45,7 +45,7 @@ declared result buffer.
 The edge consumes one Gamma evaluator request:
 
 ```text
-0..4    little-endian u32 receipt length = 712,603
+0..4    little-endian u32 receipt length = 692,938
 4..     exact receipt bytes
 ...     sealed input = the private driver frame:
 
@@ -101,8 +101,8 @@ counter names its owner, limit, refusal observation, and witness.
 Two bounds therefore dominate this composition by construction:
 
 - The adapter's 4,194,304-byte sealed-input bound binds before the request
-  extent can: the largest admitted request is `4 + 712,603 + 4,194,304 =
-  4,906,911` bytes, far below 137,363,456. The request extent refuses only
+  extent can: the largest admitted request is `4 + 692,938 + 4,194,304 =
+  4,887,246` bytes, far below 137,363,456. The request extent refuses only
   requests the adapter would already refuse, so it is a dominated outer
   bound - still pinned by the executed adjacent witness.
 - The adapter's 4,194,304-byte output bound binds before the evaluator's
