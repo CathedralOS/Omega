@@ -14,6 +14,8 @@ Work through the V2 junction in the assigned worktree. Start with the layer’s 
 
 ## How to review the handoff
 
+Before sending the review prompts, have the coordinator set aside a plausible violation and a nearby lawful case for this handoff. Derive both from the contract and what the producer can emit. Write down the expected public results and keep the cases out of the prompts. Once the reviewers submit, run both through the consumer and record which failure, if any, the reviewers found independently. Keep these checks with the handoff they exercise.
+
 Give three GPT-6.2 Sol reviewers the same contract and the distinct questions from the [parallel handoff review](../../../PLAN.md#handoff-review).
 
 | Reviewer | Question to answer |
@@ -27,6 +29,8 @@ Have the consumer reviewer list the facts the consumer relies on for the decisio
 Run every proposed mutation and its control through the same consumer. Restore the valid input between mutations. Record the expected and observed result for each pair, including which fact lost credit and whether unaffected facts kept theirs. If the input cannot reveal the answer, name the independent evidence needed. For example, detecting a missing diagnostic record requires some independent indication that the producer returned a refusal. Leave that claim unverified until the evidence exists.
 
 Keep an independent open review alongside the inventory. Give the equivalent-input reviewer the contract and producer output, and let them choose their own cases before sharing the inventory or other findings. At sign-off, combine the reproduced failures from both reviews and group them by the decision that needs repair. Use the ranked findings to order repairs after replaying the full inventory. Distinguish newly exposed defects, correctly rejected mutations, and cases the available evidence could not settle. A count of probes alone cannot establish coverage.
+
+After a repair, rerun the original failing input and the nearest lawful edge case through the repaired consumer. Assert the required outcome for each. For example, an L5 diagnostic reader should reject a dependency record that claims a local source position. A local record for a zero-length span has a valid line and column and an empty excerpt. Require the reader to preserve that location and credit the valid record. A rule that requires every local excerpt to contain text would lose it.
 
 For a broad sweep, split the open layer into distinct decisions. When the owner requests Pi, use the requested model and effort (the L5 sweep used Opus 5.5 on high). Give each reviewer one decision, the same layer contract, and the relevant canonical spec excerpt. Supply the excerpt from the authorized spec when reviewers are confined to the V2 junction. Ask each reviewer for the files inspected, the smallest witness and its nearest passing control, and the predicted output field or diagnostic. A reviewer who finds no defect should say which paths they examined.
 
