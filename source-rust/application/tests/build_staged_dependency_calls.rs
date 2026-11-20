@@ -15,7 +15,7 @@ A `build.omg` registers a build dependency, waits for it, and then calls it:
         ... registered = Build::build_dependency(builder, request aliased "kit");
 
         suspend Build::prepare_dependency(builder, registered);
-        let seven: i32 = kit::v();
+        let seven: i32 = kit\v();
         ...
     }
 
@@ -29,7 +29,7 @@ and including the wait. Once the dependency is prepared, the rest is
 resolved with `kit` selectable, checked, and run against the same Build: the
 same `builder`, the same registrations, nothing run twice.
 
-The first program does exactly that, and binds its entry only if `kit::v()`
+The first program does exactly that, and binds its entry only if `kit\v()`
 returned what the dependency declares (7) and `builder.tests.disabled`, set
 before the wait, is still set after it. Its other arm declares a second
 project role, which a Build is refused for. So the program compiles only if
@@ -135,13 +135,13 @@ fn after(callee: &str) -> String {
 
 #[test]
 fn a_build_calls_the_dependency_it_prepared_and_keeps_what_it_did_before() {
-    let (compiled, stderr) = check("called", "", &after("kit::v"), 7);
+    let (compiled, stderr) = check("called", "", &after("kit\\v"), 7);
     assert!(compiled, "{stderr}");
 }
 
 #[test]
 fn the_value_after_the_wait_is_the_one_the_dependency_returns() {
-    let (compiled, stderr) = check("other-value", "", &after("kit::v"), 8);
+    let (compiled, stderr) = check("other-value", "", &after("kit\\v"), 8);
     assert!(!compiled);
     assert!(stderr.contains("project role"), "{stderr}");
 }
@@ -169,8 +169,8 @@ fn a_local_bound_before_the_wait_is_not_carried_across_it() {
 fn a_call_written_before_the_wait_names_nothing() {
     let (compiled, stderr) = check(
         "used-before",
-        "    let early: i32 = kit::v();",
-        &after("kit::v"),
+        "    let early: i32 = kit\\v();",
+        &after("kit\\v"),
         7,
     );
     assert!(!compiled);
@@ -201,10 +201,10 @@ fn a_call_written_before_the_wait_names_nothing() {
 fn a_product_dependency_is_not_selectable_from_the_build() {
     let (compiled, stderr) = check(
         "product-dependency",
-        "    let mut lib_request: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
-    dependency::with_alias(@mut lib_request, \"lib\");
+        "    let mut lib_request: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
+    dependency\\with_alias(@mut lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);",
-        &after("lib::v"),
+        &after("lib\\v"),
         7,
     );
     assert!(!compiled);
@@ -233,6 +233,86 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
 
 #[test]
 fn a_private_machine_of_the_dependency_is_not_selectable() {
-    let (compiled, _) = check("private", "", &after("kit::hidden"), 7);
+    let (compiled, _) = check("private", "", &after("kit\\hidden"), 7);
     assert!(!compiled);
+}
+
+#[test]
+fn preparation_makes_a_product_dependency_ready_only_for_its_product() {
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "prepared-product-scope",
+        false,
+    )
+    .unwrap();
+    let root = project.path();
+    std::fs::create_dir(root.join("kit")).unwrap();
+    std::fs::write(
+        root.join("kit/build.omg"),
+        r#"machine build(builder: @mut Build) { Build::package(builder, "kit"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("kit/main.omg"),
+        "public machine value() -> i32 { 7 }",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"use kit;
+machine main() crashes Trap {
+    transition kit\value() == 7 {
+        true -> pass(),
+        _ -> wrong()
+    }
+}
+machine pass() {}
+machine wrong() crashes Trap { crash Trap; }
+"#,
+    )
+    .unwrap();
+    let build = r#"machine build(builder: @mut Build) suspends {
+    Build::application(builder, "prepared_product");
+    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+}
+"#;
+    let invoke = |contents: &str| {
+        std::fs::write(root.join("build.omg"), contents).unwrap();
+        Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--both", "--target", "linux_x86_64", "build.omg"])
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap()
+    };
+    let output = invoke(build);
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.status.success()
+            && report.contains("native exit 0")
+            && report.contains("interp exit: 0"),
+        "{report}"
+    );
+
+    let leaked = format!(
+        "use kit;\n{}",
+        build.replace(
+            "    Build::bind",
+            "    let leaked: i32 = kit\\value();\n    Build::bind"
+        )
+    );
+    let output = invoke(&leaked);
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success()
+            && (report.contains("no visible declaration")
+                || report.contains("Product dependency")
+                || report.contains("product dependency")),
+        "{report}"
+    );
 }

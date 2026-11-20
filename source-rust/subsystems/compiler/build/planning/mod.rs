@@ -1,17 +1,15 @@
 //! Run the admitted Build entry and retain its original activation through source settlement.
 
-mod registered_tests;
 mod product;
+mod registered_tests;
 pub use product::ProductStage;
 mod source;
 pub use source::{
     PlannedProduct, PlanningRequest, PlanningSources, PreparedPlanningStage, prepare,
 };
 
-use build_declarations::BuildRequest;
-use build_execution::host::bindings::{
-    BuildProductQuery, BuildProviderRequest,
-};
+use build_declarations::{BuildRequest, DependencyPurpose};
+use build_execution::host::bindings::{BuildProductQuery, BuildProviderRequest};
 use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
     BuildDependencySelection, BuildSourceResult, CompileFailure, EvaluatedBuild,
@@ -203,9 +201,14 @@ pub fn interpret(
         })?;
         let host = execution.host()?;
         let mut activation = host.start().map_err(refusal)?;
-        let mut prepared = Vec::new();
+        let mut build_dependencies = Vec::new();
         loop {
-            let ran = run(&mut activation, &mut source, services, &mut prepared);
+            let ran = run(
+                &mut activation,
+                &mut source,
+                services,
+                &mut build_dependencies,
+            );
             let spent = activation.helper_evaluation_accounting().clone();
             ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
             if source.stage.is_last() {
@@ -215,7 +218,7 @@ pub fn interpret(
                     .map_err(|failure| failure.with_source_completion_accounting(spent));
             }
             activation = source
-                .resume(&mut evaluation, activation, &prepared, services)
+                .resume(&mut evaluation, activation, &build_dependencies, services)
                 .map_err(|failure| failure.with_source_completion_accounting(spent))?;
         }
     })();
@@ -234,13 +237,13 @@ fn run(
     activation: &mut TerminalBuildActivation,
     source: &mut source::PlanningSource,
     services: &mut impl PlanningServices,
-    prepared: &mut Vec<ProductQueryDependency>,
+    build_dependencies: &mut Vec<ProductQueryDependency>,
 ) -> Result<(), CompileFailure> {
     loop {
         let step = activation.advance(1024).map_err(refusal)?;
         if let Some(query) = step.awaiting_query {
             let (description, selections) =
-                source.describe_product(activation, &query, prepared, services)?;
+                source.describe_product(activation, &query, build_dependencies, services)?;
             activation
                 .answer_query(&query, description, &selections)
                 .map_err(refusal)?;
@@ -280,18 +283,8 @@ fn run(
                 request_ordinal: request.request_ordinal,
                 package: root,
             };
-            if let Some(previous) = prepared
-                .iter()
-                .find(|mounted| mounted.alias == dependency.alias)
-            {
-                if previous != &dependency {
-                    return Err(refusal(
-                        "the Build dependency alias was already prepared from different sources"
-                            .into(),
-                    ));
-                }
-            } else {
-                prepared.push(dependency);
+            if request.purpose == DependencyPurpose::Build {
+                mount_build_dependency(build_dependencies, dependency)?;
             }
             activation.dependency_prepared(selected).map_err(refusal)?;
         } else if step.returned {
@@ -305,4 +298,25 @@ fn refusal(reason: String) -> CompileFailure {
         "Build activation failed: {reason}"
     ))]
     .into()
+}
+
+// The dependency service settles both purposes. Only Build-purpose source is visible
+// to the resumed Build. Product source stays with the package's ordinary Product graph.
+fn mount_build_dependency(
+    mounted: &mut Vec<ProductQueryDependency>,
+    dependency: ProductQueryDependency,
+) -> Result<(), CompileFailure> {
+    if let Some(previous) = mounted
+        .iter()
+        .find(|mounted| mounted.alias == dependency.alias)
+    {
+        if previous != &dependency {
+            return Err(refusal(
+                "the Build dependency alias was already prepared from different sources".into(),
+            ));
+        }
+    } else {
+        mounted.push(dependency);
+    }
+    Ok(())
 }
