@@ -1,6 +1,6 @@
 # Project Build
 
-[Project planning](planning/mod.rs) prepares the project’s captured Build source, resumes its interpreter when it requests a dependency or provider, and opens the Product selected by its return. [Product planning](planning/product.rs) passes the selected source, bindings and settings to the source and native compilers.
+The CLI starts a project Build with `project_build::prepare` and passes the captured source to [the project-build crate root](planning/mod.rs). `project_build::interpret` resumes the authored Build when it requests a dependency or provider. Its returned stage opens the selected Product with `open_product`. [Product planning](planning/product.rs) passes the selected source, bindings and settings to the source and native compilers.
 
 | Directory | Responsibility |
 | --- | --- |
