@@ -479,4 +479,25 @@ File
             Literal '0'
             ']'
         ';'
+      Discard
+        '_'
+        '='
+        Dereference
+          '$'
+          Dereference
+            '$'
+            FieldAccess
+              PathExpression 'record'
+              '.'
+              'view'
+        ';'
+      Discard
+        '_'
+        '='
+        Move
+          'move'
+          Dereference
+            '$'
+            PathExpression 'view'
+        ';'
       '}'

@@ -348,8 +348,8 @@ terminal transfer, and generic substitution retain the applicable subject/policy
 relationships. Public field names or ownership of the enclosing record do not
 waive an installed field policy.
 
-Reading a copyable primitive through a readable reference uses ordinary
-[copy rules](ownership.md); it needs no separate reference-to-value cast.
+Reading a copyable primitive through a reference requires [explicit dereference](expressions.md#explicit-dereference)
+and follows the ordinary [copy rules](ownership.md).
 Copyability does not grant read authority or remove qualification.
 Removing a domain remains subject to [domain casts](#domain-casts),
 and authorized publication remains subject to the result contract below.

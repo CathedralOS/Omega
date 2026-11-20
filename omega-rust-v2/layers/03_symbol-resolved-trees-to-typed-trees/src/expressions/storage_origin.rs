@@ -112,6 +112,13 @@ pub(super) struct PatternSource {
 }
 
 impl PatternSource {
+    pub(super) fn permits_inspection(
+        &self,
+        subject: &ValueType,
+    ) -> bool {
+        !matches!(self.place.as_ref().map(|p| &p.access), Some(Access::Write)) && !matches!(subject.reference_parts(), Some((Access::Write, _)))
+    }
+
     pub(super) fn of(value: Origin) -> Self {
         Self {
             value,
@@ -217,6 +224,34 @@ impl BodyTyper<'_, '_> {
         carried
     }
 
+    /// Follow exactly the reference written at this occurrence. The caller
+    /// decides whether to read, lend, or write the resulting place.
+    pub(super) fn dereference_place(
+        &mut self,
+        node: usize,
+    ) -> Result<(ValueType, Access), TypeError> {
+        let operand = self.unit.single_child(node)?;
+        let (reference, outer) = self.place_operand(operand)?;
+        let (access, inner) = reference
+            .reference_parts()
+            .ok_or_else(|| TypeError::at(self.unit.file, operand, format!("dereference requires a reference, found {reference}")))?;
+        let effective = access
+            .through(outer.as_ref())
+            .map_err(|m| TypeError::at(self.unit.file, node, m))?;
+        let backing = self.origin(operand).whole();
+        self.record_place(node, operand, Some(access), None);
+        self.set_origin(node, backing.clone());
+        self.places.insert(
+            node,
+            StoragePlace {
+                access: effective.clone(),
+                backing,
+            },
+        );
+        self.record_expression(node, inner.clone());
+        Ok((inner.clone(), effective))
+    }
+
     /// Type an operand that names a place without reading it. A binding of a
     /// field of borrowed storage names that field in place, and so does a
     /// field selection, so a borrow, assignment, field selection or index
@@ -233,6 +268,10 @@ impl BodyTyper<'_, '_> {
             self.set_origin(node_index, self.origin(self.unit.single_child(node_index)?));
             self.record_expression(node_index, ty.clone());
             return Ok((ty, borrowed));
+        }
+        if source.nodes[node_index].kind == NodeKind::Dereference {
+            let (ty, access) = self.dereference_place(node_index)?;
+            return Ok((ty, Some(access)));
         }
         if source.nodes[node_index].kind == NodeKind::FieldAccess {
             return self.project_fields(node_index, &Access::Shared);
@@ -373,18 +412,18 @@ impl BodyTyper<'_, '_> {
         // from its old referent continues to denote that evaluated place.
         let mut updates = Vec::new();
         if !path.is_empty() {
+            let target: Vec<_> = path.iter().flat_map(|step| step.projections()).collect();
             for (&span, (binder, _)) in &self.borrowed_places {
                 let (base, alias) = self.output.place_path(file.node_id(*binder));
-                if binding(base) != binding(root)
-                    || !path
-                        .iter()
-                        .zip(&alias)
-                        .all(|(a, b)| a.projection == b.projection)
-                {
+                if binding(base) != binding(root) {
+                    continue;
+                }
+                let alias: Vec<_> = alias.iter().flat_map(|step| step.projections()).collect();
+                if !alias.starts_with(&target) && !target.starts_with(&alias) {
                     continue;
                 }
                 // Separate evaluations can observe different referents of a mutable binding.
-                let value = if root == base && path.len() == alias.len() {
+                let value = if root == base && target.len() == alias.len() {
                     stored.clone()
                 } else {
                     self.binding_origin(&span).join(&stored.whole())

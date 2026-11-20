@@ -85,15 +85,6 @@ impl BodyTyper<'_, '_> {
             );
             return Ok(());
         }
-        // The lifetime belongs to the loan. Reading its pointee preserves that
-        // loan and uses the same access check as an unannotated reference.
-        if let Some((Access::Shared | Access::Mut, inner)) = value.reference_parts()
-            && inner == expected
-            && self.copy_eligible(expected)
-        {
-            self.record_obligation(node_index, ObligationKind::CopyRead(expected.clone()));
-            return Ok(());
-        }
         if !value.fits(expected) {
             let indices = &self.catalog.types.indices;
             if indices.can_wait_for_equality(value, expected) {
