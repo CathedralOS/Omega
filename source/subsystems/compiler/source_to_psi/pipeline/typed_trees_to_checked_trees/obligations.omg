@@ -898,7 +898,7 @@ crashes Trap
     }
 
     machine fixed(length: u64 in Trapping) -> Value {
-        let magnitude: u64 in Wrapping = length as u64 +Wrapping;
+        let magnitude: u64 in Wrapping = (length as -Trapping) as +Wrapping;
         let value: Value = value_constant(ExactInteger { negative: false, magnitude: magnitude });
         value
     }
