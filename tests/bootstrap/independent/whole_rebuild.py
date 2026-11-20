@@ -5,6 +5,7 @@ from functools import partial
 import json
 from pathlib import Path
 import runpy
+import struct
 import subprocess
 import sys
 import time
@@ -104,7 +105,10 @@ def main():
     packet = args.input.read_bytes()
     # Re-read the matching checkout once to rule out a substitute customer.
     # Every actual compiler invocation below receives the frozen packet.
-    canonical, manifest = constructor["compiler_input"]()
+    if packet.startswith(struct.pack("<II", 0, 2)):
+        canonical, manifest = constructor["compiler_input"](with_build_sources=True)
+    else:
+        canonical, manifest = constructor["compiler_input"]()
     if canonical != packet:
         raise ValueError("input differs from the full product closure in this checkout")
     producer = args.epsilon_compiler.resolve(strict=True)
@@ -113,6 +117,8 @@ def main():
     directory.mkdir(parents=True)
     report = {"input_sha256": digest(packet), "units": len(manifest["units"]),
               "epsilon_compiler_sha256": producer_hash, "stages": [], "verified": False}
+    report["closed_set_version"] = manifest.get("closed_set_version", 1)
+    report["build_units"] = len(manifest.get("build_units", []))
     run = partial(observe, directory, report)
     try:
         if args.reuse_tape:
