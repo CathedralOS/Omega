@@ -20,6 +20,14 @@
   (limit Int) (requested Int)) Int
   (pair tag (pair space (pair code (pair coordinate (pair limit requested))))))
 
+; The compiler and direct interpreter share these wire words and the DCOUT writer.
+(def little_endian4 ((a Int) (b Int) (c Int) (d Int)) Int
+  (+ (+ a (* 256 b)) (* 65536 (+ c (* 256 d)))))
+
+(def little_endian8 ((a Int) (b Int) (c Int) (d Int)
+                     (e Int) (f Int) (g Int) (h Int)) Int
+  (+ (little_endian4 a b c d) (* 4294967296 (little_endian4 e f g h))))
+
 (def write_unsigned_little_endian ((value Int) (remaining Int)) Int
   (if (eq remaining 0)
     0
