@@ -12,16 +12,26 @@ use omega_syntax::NodeKind;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy)]
-struct Definition {
+struct Definition<'a> {
     file: usize,
     node: usize,
     expression: usize,
+    owner: &'a DeclarationId,
 }
 #[derive(Clone, Copy, PartialEq)]
 enum State {
     Unseen,
     Visiting,
     Complete,
+    Waiting,
+}
+
+struct DefinitionTraversal {
+    state: Vec<State>,
+    head_state: Vec<State>,
+    pending: Vec<Work>,
+    /// Definitions whose dependencies are still being visited, from the root inward.
+    active: Vec<(usize, bool)>,
 }
 
 enum Work {
@@ -91,7 +101,7 @@ pub(crate) fn index_type_definitions<'a>(
     for (file, unit) in units.iter().enumerate() {
         for (node, syntax) in unit.file.nodes.iter().enumerate() {
             let id = definitions.len();
-            let expression = match syntax.kind {
+            let (expression, owner) = match syntax.kind {
                 ConstParam | KindedParam => {
                     let name = syntax.binder_name().expect("a bound parameter has a name");
                     let Some((owner, index)) = unit.parameter_slot(name.span, types) else {
@@ -107,31 +117,38 @@ pub(crate) fn index_type_definitions<'a>(
                     by_binding.insert((file, name.span), id);
                     by_owner.entry(owner).or_default().insert(index, id);
                     binders.push(id);
-                    unit.single_child(node)?
+                    (unit.single_child(node)?, owner)
                 }
                 Data if syntax.leaves.iter().any(|w| w.text == "=") => {
-                    declarations.insert(unit.declaration(node)?, id);
-                    *syntax
+                    let owner = unit.declaration(node)?;
+                    declarations.insert(owner, id);
+                    let target = *syntax
                         .children
                         .last()
-                        .ok_or_else(|| TypeError::unsupported(unit.file, node))?
+                        .ok_or_else(|| TypeError::unsupported(unit.file, node))?;
+                    (target, owner)
                 }
                 Domain => {
                     let decl = unit.declaration(node)?;
                     declarations.insert(decl, id);
-                    unit.file
+                    let head = unit.file
                         .child(node, PathType)
-                        .ok_or_else(|| TypeError::unsupported(unit.file, node))?
+                        .ok_or_else(|| TypeError::unsupported(unit.file, node))?;
+                    (head, decl)
                 }
                 _ => continue,
             };
-            definitions.push(Definition { file, node, expression });
+            definitions.push(Definition { file, node, expression, owner });
         }
     }
-    let mut state = vec![State::Unseen; definitions.len()];
-    let mut head_state = vec![State::Unseen; definitions.len()];
-    let mut pending = Vec::new();
-    let mut prepare = |root: usize, units: &mut [ResolvedSourceFile<'a>], types: &mut TypeCatalog<'a>| -> Result<(), TypeError> {
+    let mut traversal = DefinitionTraversal {
+        state: vec![State::Unseen; definitions.len()],
+        head_state: vec![State::Unseen; definitions.len()],
+        pending: Vec::new(),
+        active: Vec::new(),
+    };
+    let mut walk = |root: usize, units: &mut [ResolvedSourceFile<'a>], types: &mut TypeCatalog<'a>, traversal: &mut DefinitionTraversal| -> Result<(), TypeError> {
+        let DefinitionTraversal { state, head_state, pending, active } = traversal;
         pending.push(Work::Visit(root));
         while let Some(work) = pending.pop() {
             let id = match work {
@@ -204,7 +221,7 @@ pub(crate) fn index_type_definitions<'a>(
                 }
                 Work::Visit(id) | Work::Finish(id) | Work::VisitHead(id) | Work::FinishHead(id) => id,
             };
-            let Definition { file, node, expression } = definitions[id];
+            let Definition { file, node, expression, .. } = definitions[id];
             let unit = &mut units[file];
             let is_domain = unit.file.nodes[node].kind == Domain;
             let in_head = matches!(work, Work::VisitHead(_));
@@ -216,6 +233,8 @@ pub(crate) fn index_type_definitions<'a>(
             if matches!(work, Work::FinishHead(_)) {
                 unit.index_domain_head(node, expression, types)?;
                 head_state[id] = State::Complete;
+                let finished = active.pop();
+                debug_assert_eq!(finished, Some((id, true)));
                 continue;
             }
             if matches!(work, Work::Finish(_)) {
@@ -231,7 +250,6 @@ pub(crate) fn index_type_definitions<'a>(
                         if let crate::ValueType::Callable(callable) = &target
                             && unit.file.nodes[expression].kind == NodeKind::MachineType
                         {
-                            output.record_callable_origin(callable.contract.clone(), unit.file.node_id(expression));
                             // An alias can leave its own effects open. Its operands and
                             // result are still carried at runtime on every invocation.
                             for annotation in unit
@@ -242,6 +260,7 @@ pub(crate) fn index_type_definitions<'a>(
                             {
                                 unit.runtime_annotation(annotation, types)?;
                             }
+                            output.record_callable_origin(callable.contract.clone(), unit.file.node_id(expression));
                         }
                         types.aliases.insert(unit.declaration(node)?, target);
                     }
@@ -249,11 +268,14 @@ pub(crate) fn index_type_definitions<'a>(
                     _ => unit.index_binder_carrier(node, expression, types)?,
                 }
                 state[id] = State::Complete;
+                let finished = active.pop();
+                debug_assert_eq!(finished, Some((id, false)));
                 continue;
             }
-            let states = if in_head { &mut head_state } else { &mut state };
+            let states = if in_head { &mut *head_state } else { &mut *state };
             match states[id] {
                 State::Complete => continue,
+                State::Waiting => return Err(types.indices.wait(unit.file, node)),
                 State::Visiting => {
                     let reason = if is_domain {
                         "cyclic domain alias"
@@ -264,6 +286,7 @@ pub(crate) fn index_type_definitions<'a>(
                 }
                 State::Unseen => states[id] = State::Visiting,
             }
+            active.push((id, in_head));
             pending.push(if in_head { Work::FinishHead(id) } else { Work::Finish(id) });
             let dependencies_start = pending.len();
             let mut deferred_names = Vec::new();
@@ -355,6 +378,27 @@ pub(crate) fn index_type_definitions<'a>(
             }
         }
         Ok(())
+    };
+    let mut prepare = |root: usize, units: &mut [ResolvedSourceFile<'a>], types: &mut TypeCatalog<'a>| {
+        if traversal.state[root] == State::Waiting {
+            return Ok(());
+        }
+        match walk(root, units, types, &mut traversal) {
+            Err(error) if error.waiting_for_static_value() => {
+                // These active definitions all need the unfinished selection. Leave
+                // completed candidate heads available to independent definitions.
+                traversal.pending.clear();
+                for (id, in_head) in traversal.active.drain(..) {
+                    let definition = definitions[id];
+                    let state = if in_head { &mut traversal.head_state } else { &mut traversal.state };
+                    state[id] = State::Waiting;
+                    types.indices.defer_declaration(definition.owner);
+                    types.indices.block_node(units[definition.file].file.node_id(definition.node));
+                }
+                Ok(())
+            }
+            result => result,
+        }
     };
     for root in binders {
         prepare(root, units, types)?;

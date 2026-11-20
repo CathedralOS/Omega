@@ -1,5 +1,7 @@
 use super::call_arguments::{CallOperand, PendingComparisons, SelectedMachine};
 use super::destination::Destination;
+use crate::declarations::declaration_catalog::{PendingParameter, PendingSignature};
+use crate::evaluation::check_static_indices::IndexEvaluations;
 use crate::expressions::body_typer::BodyTyper;
 use crate::type_error::SourceTypeError;
 use crate::type_system::dependent_subjects::DependentSubjects;
@@ -70,6 +72,77 @@ struct CallCandidate<'signature, 'expected> {
     prospective_lookup: bool,
 }
 
+struct UnfinishedCall<'a> {
+    declaration: &'a DeclarationId,
+    signature: &'a PendingSignature,
+    bindings: CallBindings,
+    supplies_context: bool,
+}
+
+/// Determine the common destination using only facts the final signatures must preserve.
+/// An unfinished candidate can supply an operand's context even if another operand later excludes it.
+fn unfinished_operand_destination<'a>(
+    unfinished: &[UnfinishedCall<'_>],
+    position: usize,
+    capture: impl Fn(&ValueType) -> ValueType,
+    types: &'a mut Vec<ValueType>,
+    indices: &IndexEvaluations<'_>,
+) -> Option<Destination<'a>> {
+    let mut undecided = false;
+    let mut qualified = false;
+    let mut qualified_carrier: Option<ValueType> = None;
+    let distinct = |left: &ValueType, right: &ValueType| left != right && !indices.can_wait_for_equality(left, right);
+    let (certain, possible) = (unfinished.iter().filter(|c| c.supplies_context), unfinished.iter().filter(|c| !c.supplies_context));
+    for candidate in certain.chain(possible) {
+        let parameter = &candidate.signature.parameters[position];
+        match parameter {
+            PendingParameter::Complete(ty) => {
+                let ty = capture(ty);
+                if ty.components().any(|t| matches!(t, ValueType::Subject { .. } | ValueType::BoundSubject(_))) {
+                    undecided = true;
+                    continue;
+                }
+                let Some(ty) = candidate.bindings.operand_type(&ty, candidate.declaration) else {
+                    if candidate.supplies_context {
+                        return Some(Destination::Unspecified);
+                    }
+                    undecided = true;
+                    continue;
+                };
+                if candidate.supplies_context {
+                    types.push(ty);
+                } else if !types.contains(&ty) {
+                    undecided = true;
+                }
+            }
+            PendingParameter::QualifiedCarrier(ty) => {
+                if candidate.supplies_context {
+                    qualified = true;
+                    let ty = capture(ty.carrier());
+                    if !ty.components().any(|t| matches!(t, ValueType::Subject { .. } | ValueType::BoundSubject(_)))
+                        && let Some(carrier) = candidate.bindings.operand_type(&ty, candidate.declaration)
+                    {
+                        if qualified_carrier.as_ref().is_some_and(|previous| distinct(previous.carrier(), carrier.carrier())) {
+                            return Some(Destination::Unspecified);
+                        }
+                        qualified_carrier = Some(carrier);
+                    }
+                }
+                undecided = true;
+            }
+            PendingParameter::Unknown => undecided = true,
+        }
+    }
+    // A qualified type cannot become equal to an unqualified one, even when
+    // both have the same integer width.
+    if qualified && types.iter().any(|ty| ty.domains().is_empty() || qualified_carrier.as_ref().is_some_and(|carrier| distinct(ty.carrier(), carrier.carrier())))
+        || !types.is_empty() && matches!(Destination::common(types, indices), Destination::Unspecified)
+    {
+        return Some(Destination::Unspecified);
+    }
+    (!undecided).then(|| Destination::common(types, indices))
+}
+
 impl CallCandidate<'_, '_> {
     fn available_operand_type(
         &self,
@@ -124,6 +197,39 @@ impl CallCandidate<'_, '_> {
 }
 
 impl BodyTyper<'_, '_> {
+    /// An unfinished overload may keep a call waiting but can never select a machine.
+    fn unfinished_call_may_match(
+        &self,
+        declaration: &DeclarationId,
+        signature: &PendingSignature,
+        formals: &[ValueType],
+        operands: &[CallOperand],
+        capture: impl Fn(&ValueType) -> ValueType,
+    ) -> bool {
+        let indices = &self.catalog.types.indices;
+        let mut bindings = vec![None; formals.len()];
+        signature.parameters.iter().zip(operands).enumerate().all(|(position, (parameter, operand))| {
+            let carrier_operand;
+            let (formal, operand) = match parameter {
+                PendingParameter::Complete(ty) => (ty, operand),
+                PendingParameter::QualifiedCarrier(ty) => {
+                    if operand.value.domains().is_empty() {
+                        return false;
+                    }
+                    carrier_operand = self.call_operand(operand.node, operand.value.carrier().clone());
+                    (ty.carrier(), &carrier_operand)
+                }
+                PendingParameter::Unknown => return true,
+            };
+            let formal = capture(formal).substitute(declaration, formals);
+            // Earlier operand subjects become available with the full signature.
+            formal.components().any(|ty| matches!(ty, ValueType::Subject { .. } | ValueType::BoundSubject(_)))
+                || self.infer_operand_with(NodeKind::Call, position, operand, &formal, declaration, &mut bindings, &mut |left, right| {
+                    indices.can_wait_for_equality(left, right)
+                })
+        })
+    }
+
     pub(super) fn type_call(
         &mut self,
         node_index: usize,
@@ -245,11 +351,17 @@ impl BodyTyper<'_, '_> {
         let capture = |t: &ValueType| t.in_enclosing_scopes(&enclosing_arguments);
         let indices = &self.catalog.types.indices;
         let mut prepared = Vec::new();
+        let mut unfinished = Vec::new();
         let mut argument_error = None;
         let candidate_count = declarations.len() + requirements.len();
         for id in declarations.iter().chain(requirements) {
-            let Some(signature) = self.catalog.signatures.get(id) else { continue };
-            if signature.parameters.len() != source.nodes[args].children.len() {
+            let partial = self.catalog.pending_signatures.get(id);
+            let signature = self.catalog.signatures.get(id);
+            if partial.is_none() && indices.declaration_is_pending(id) {
+                return Err(indices.wait(source, node_index));
+            }
+            let arity = signature.map(|s| s.parameters.len()).or_else(|| partial.map(|s| s.parameters.len()));
+            if arity != Some(source.nodes[args].children.len()) {
                 continue;
             }
             let formals = match self
@@ -262,7 +374,17 @@ impl BodyTyper<'_, '_> {
                     continue;
                 }
             };
-            let declared_result = capture(&signature.result);
+            let declared_result = signature.map(|s| &s.result).or_else(|| partial?.result.as_ref());
+            let Some(declared_result) = declared_result else {
+                unfinished.push(UnfinishedCall {
+                    declaration: id,
+                    signature: partial.expect("the result belongs to a pending signature"),
+                    bindings: CallBindings::from_explicit(formals, explicit.len()),
+                    supplies_context: false,
+                });
+                continue;
+            };
+            let declared_result = capture(declared_result);
             let result = declared_result.substitute(id, &formals);
             let wanted = expected.map_or(&[][..], ValueType::domains);
             // An operand can determine the entire return type or an index in a
@@ -279,6 +401,16 @@ impl BodyTyper<'_, '_> {
                 if let Some(inferred) = expected.and_then(|ty| bindings.with_result(&declared_result, ty, id)) {
                     bindings = inferred;
                 }
+                if let Some(signature) = partial {
+                    unfinished.push(UnfinishedCall {
+                        declaration: id,
+                        signature,
+                        bindings,
+                        supplies_context: result.domains() == wanted && pending_destination.is_none(),
+                    });
+                    continue;
+                }
+                let signature = signature.expect("a completed signature");
                 // A pending index can change which result type is expected. These
                 // alternatives only carry that dependency to nested calls.
                 let possible_bindings = pending_destination
@@ -325,7 +457,14 @@ impl BodyTyper<'_, '_> {
                     }
                 }
             }
-            let argument_destination = if let Some(pending) = pending_inputs {
+            let argument_destination = if !unfinished.is_empty() && all_parameters_available {
+                if pending_destination.is_some() || prepared.iter().any(|candidate| candidate.result_destination.is_some()) {
+                    Destination::Unresolved
+                } else {
+                    unfinished_operand_destination(&unfinished, position, capture, &mut available_types, indices)
+                        .unwrap_or(Destination::Unresolved)
+                }
+            } else if let Some(pending) = pending_inputs {
                 pending.conditional(&available_types)
             } else if all_parameters_available {
                 Destination::common(&available_types, indices)
@@ -363,7 +502,9 @@ impl BodyTyper<'_, '_> {
             operands.push(operand);
         }
         let mut matches = Vec::new();
-        let mut waiting = false;
+        let mut waiting = unfinished.into_iter().any(|candidate| {
+            self.unfinished_call_may_match(candidate.declaration, candidate.signature, &candidate.bindings.arguments, &operands, capture)
+        });
         for candidate in prepared {
             let matched = candidate.match_operands(self, capture, &operands, &subjects);
             if let Some(destination) = pending_destination {

@@ -71,6 +71,9 @@ impl BodyTyper<'_, '_> {
         selection: &MachineApplication,
     ) -> Result<(), TypeError> {
         let machine = selection.machine.as_ref();
+        if self.catalog.types.indices.declaration_is_pending(machine) {
+            return Err(self.catalog.types.indices.wait(self.unit.file, node_index));
+        }
         let signature = self
             .catalog
             .signatures

@@ -17,6 +17,7 @@ CLI_CASES = {
     "wrong_return_type_during_initial_typing": ("L3", "typer"),
     "deeply_grouped_result_reports_the_type_mismatch_at_the_result": ("L3", "typer"),
     "wrong_array_identity_after_evaluation": ("L3", "typer (after static evaluation)"),
+    "a_domain_alias_with_no_matching_evaluated_width_identifies_its_target": ("L3", "typer (after static evaluation)"),
     "failed_precondition_during_static_evaluation": ("L4", "preparation"),
     "unavailable_target_for_a_required_extent": ("L4", "preparation (target input)"),
     "attributed_alias_refused_by_lowering": ("L5", "lowering"),

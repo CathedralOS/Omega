@@ -1,5 +1,6 @@
-use crate::ValueType;
+use crate::{TypeError, ValueType};
 use crate::evaluation::check_static_indices::IndexEvaluations;
+use omega_resolved::IndexedSource;
 
 /// A destination can affect overload selection before it is used to land a
 /// value. Keep a prospective common type separate from an exact destination.
@@ -7,6 +8,8 @@ use crate::evaluation::check_static_indices::IndexEvaluations;
 pub(super) enum Destination<'a> {
     #[default]
     Unspecified,
+    /// An unfinished signature may change which type the operand receives.
+    Unresolved,
     Exact(&'a ValueType),
     Pending(PendingDestination<'a>),
 }
@@ -18,6 +21,19 @@ impl<'a> From<Option<&'a ValueType>> for Destination<'a> {
 }
 
 impl<'a> Destination<'a> {
+    pub(super) fn when_known(
+        self,
+        indices: &IndexEvaluations<'_>,
+        source: &IndexedSource<'_>,
+        node: usize,
+    ) -> Result<Self, TypeError> {
+        if matches!(self, Self::Unresolved) {
+            Err(indices.wait(source, node))
+        } else {
+            Ok(self)
+        }
+    }
+
     pub(super) fn exact(self) -> Option<&'a ValueType> {
         match self {
             Self::Exact(ty) => Some(ty),

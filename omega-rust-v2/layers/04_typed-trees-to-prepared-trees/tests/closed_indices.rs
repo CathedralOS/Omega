@@ -73,6 +73,15 @@ fn lower_array_parameter_shapes(
         .collect()
 }
 
+#[path = "closed_indices/domain_widths.rs"]
+mod domain_widths;
+#[path = "closed_indices/domain_handoff.rs"]
+mod domain_handoff;
+#[path = "closed_indices/domain_ancestors.rs"]
+mod domain_ancestors;
+#[path = "closed_indices/domain_calls.rs"]
+mod domain_calls;
+
 #[test]
 fn computing_an_extent_preserves_the_indexed_elements_domain_and_operator() {
     for extent in ["4", "width()"] {

@@ -17,7 +17,7 @@ impl BodyTyper<'_, '_> {
         declaration: &omega_resolved::DeclarationId,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
-        if self.catalog.types.indices.constant_is_pending(declaration) {
+        if self.catalog.types.indices.declaration_is_pending(declaration) {
             return Err(self.catalog.types.indices.wait(source, node));
         }
         let ty = self
@@ -99,15 +99,17 @@ impl BodyTyper<'_, '_> {
         machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         use NodeKind::*;
-        let expected = destination.exact();
         let source_file = self.unit.file;
+        let indices = &self.catalog.types.indices;
+        let context = || destination.when_known(indices, source_file, node_index);
         let node = &source_file.nodes[node_index];
         let mut static_argument_slot = None;
         let value = match node.kind {
             PathExpression | PathType if node.kind == PathExpression || self.context == ExpressionContext::StaticArgument => {
-                self.path_value(node_index, expected, &mut static_argument_slot)?
+                self.path_value(node_index, destination, &mut static_argument_slot)?
             }
-            Literal if let Some(carrier) = self.owned_byte_literal(node_index, expected, machine_result)? => carrier,
+            Literal if node.leaves[0].kind == omega_tokens::TokenKind::Quoted
+                && let Some(carrier) = self.owned_byte_literal(node_index, context()?.exact(), machine_result)? => carrier,
             Literal => {
                 let (value, suffix) = numeric_literals::literal(source_file, node_index)?;
                 if let Some(ty) = suffix {
@@ -118,7 +120,7 @@ impl BodyTyper<'_, '_> {
                 }
             }
             Binary => return self.binary_chain(node_index),
-            Cast => self.cast(node_index, expected)?,
+            Cast => self.cast(node_index, context()?.exact())?,
             Tuple => ValueType::Tuple(
                 node.children
                     .iter()
@@ -140,12 +142,12 @@ impl BodyTyper<'_, '_> {
                 );
                 ty
             }
-            Call => self.type_call(node_index, destination)?,
+            Call => self.type_call(node_index, context()?)?,
             Selection => crate::contracts::conformance::bind_expression(self.unit, self.catalog, node_index, self.output)?,
-            RecordLiteral => self.record(node_index, expected, machine_result)?,
-            Match => self.dispatch(node_index, destination, machine_result)?,
-            Body => self.check_block(node_index, destination, machine_result)?,
-            ArrayLiteral => self.array_literal(node_index, destination, machine_result)?,
+            RecordLiteral => self.record(node_index, context()?.exact(), machine_result)?,
+            Match => self.dispatch(node_index, context()?, machine_result)?,
+            Body => self.check_block(node_index, context()?, machine_result)?,
+            ArrayLiteral => self.array_literal(node_index, context()?, machine_result)?,
             Borrow => {
                 let place = self.unit.single_child(node_index)?;
                 self.check_place(
@@ -296,11 +298,13 @@ impl BodyTyper<'_, '_> {
     fn path_value(
         &mut self,
         node_index: usize,
-        expected: Option<&ValueType>,
+        destination: Destination<'_>,
         static_argument_slot: &mut Option<usize>,
     ) -> Result<ValueType, TypeError> {
         use NodeKind::*;
         let source_file = self.unit.file;
+        let indices = &self.catalog.types.indices;
+        let expected = || destination.when_known(indices, source_file, node_index).map(Destination::exact);
         let node = &source_file.nodes[node_index];
         let symbol = self.unit.name_in_role(node_index, false);
         if !node.children.is_empty()
@@ -378,13 +382,12 @@ impl BodyTyper<'_, '_> {
                 .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
             Some(Symbol::Declaration(id))
                 if id.kind == Machine
-                    && let Some(wanted @ (ValueType::Function(..) | ValueType::FamilyApplication { .. } | ValueType::Squash(_))) = expected =>
+                    && let Some(wanted @ (ValueType::Function(..) | ValueType::FamilyApplication { .. } | ValueType::Squash(_))) = expected()? =>
             {
                 self.mathematical_citation(node_index, id, wanted)?;
                 wanted.clone()
             }
-            Some(Symbol::Declaration(id)) if id.kind == Machine && matches!(expected, Some(ValueType::Callable(_))) => {
-                let Some(ValueType::Callable(c)) = expected else { unreachable!() };
+            Some(Symbol::Declaration(id)) if id.kind == Machine && let Some(ValueType::Callable(c)) = expected()? => {
                 self.refine_callable(
                     node_index,
                     c,
@@ -398,7 +401,7 @@ impl BodyTyper<'_, '_> {
                 ValueType::Callable(c.clone())
             }
             Some(Symbol::Declaration(id)) if id.kind == MathLet => {
-                self.mathematical_application(node_index, node_index, Some(id), self.catalog.types.mathematical[id].clone(), &[], expected)?
+                self.mathematical_application(node_index, node_index, Some(id), self.catalog.types.mathematical[id].clone(), &[], expected()?)?
             }
             Some(Symbol::Declaration(id)) if id.kind == Field => {
                 let (owner, args) = self
@@ -408,8 +411,7 @@ impl BodyTyper<'_, '_> {
                     .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
                 let field = id.path.rsplit([':', '\\']).next().unwrap_or(&id.path);
                 self.catalog
-                    .fields
-                    .get(owner)
+                    .fields_at(owner, source_file, node_index)?
                     .and_then(|fs| fs.get(field))
                     .filter(|(_, field)| &field.declaration == id)
                     .map(|(_, field)| self.catalog.types.apply_type_arguments(&field.ty, owner, args))
@@ -417,10 +419,11 @@ impl BodyTyper<'_, '_> {
             }
             Some(Symbol::Declaration(id)) if id.kind == Const => self.constant_reference(node_index, id)?,
             Some(Symbol::Declaration(id)) if id.kind == Case => {
-                if !self.catalog.fields[id].ordered.is_empty() {
+                let fields = self.catalog.fields_at(id, source_file, node_index)?.ok_or_else(|| TypeError::at(source_file, node_index, "missing field declarations"))?;
+                if !fields.ordered.is_empty() {
                     return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
                 }
-                let carrier = self.case_type(node_index, id, expected)?;
+                let carrier = self.case_type(node_index, id, expected()?)?;
                 let owner = self.catalog.case_owner[id];
                 if self.catalog.predicates.contains(owner) {
                     self.record_obligation(node_index, ObligationKind::EstablishData(owner.clone()));

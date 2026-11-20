@@ -223,6 +223,21 @@ fn wrong_array_identity_after_evaluation() {
     });
 }
 #[test]
+fn a_domain_alias_with_no_matching_evaluated_width_identifies_its_target() {
+    let good = "machine width()->u64{8u64} machine wide()->u64{16u64}
+domain u<width()>::Ready; domain u<wide()>::Ready;
+domain u8::Selected=u8::Ready; machine read(x:u8 in Selected){}";
+    let bad = good.replace("{8u64}", "{32u64}");
+    check(Case {
+        stage: "L3",
+        producer: "typer (after static evaluation)",
+        good: good.as_bytes(),
+        bad: bad.as_bytes(),
+        occurrence: b"u8::Ready",
+        reason: "no visible domain on the written carrier",
+    });
+}
+#[test]
 fn failed_precondition_during_static_evaluation() {
     let bad = DIVIDE.replace("12,3", "12,0");
     check(Case {

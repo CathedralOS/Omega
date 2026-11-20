@@ -47,6 +47,21 @@ pub(crate) struct DeclarationCatalog<'a> {
     pub(crate) declarations: DeclaredItems<'a>,
     pub(crate) overloads: HashMap<(&'a str, &'a str), Vec<&'a DeclarationId>>,
     pub(crate) local_machines: Vec<&'a DeclarationId>,
+    /// Only complete signatures enter overload selection. These partial types
+    /// can rule out a dependency on an unfinished overload in the current pass.
+    pub(crate) pending_signatures: HashMap<&'a DeclarationId, PendingSignature>,
+}
+
+pub(crate) struct PendingSignature {
+    pub parameters: Vec<PendingParameter>,
+    pub result: Option<ValueType>,
+}
+
+pub(crate) enum PendingParameter {
+    Complete(ValueType),
+    /// A domain qualification is undecided but its underlying type is known.
+    QualifiedCarrier(ValueType),
+    Unknown,
 }
 
 impl<'a> std::ops::Deref for DeclarationCatalog<'a> {
@@ -83,6 +98,14 @@ pub(crate) struct DeclaredItems<'a> {
 }
 
 impl DeclarationCatalog<'_> {
+    /// A partially typed record has no field layout to inspect in this pass.
+    pub(crate) fn fields_at(&self, id: &DeclarationId, file: &omega_resolved::IndexedSource<'_>, node: usize) -> Result<Option<&RecordFields<'_>>, crate::TypeError> {
+        if self.types.indices.declaration_is_pending(id) {
+            return Err(self.types.indices.wait(file, node));
+        }
+        Ok(self.fields.get(id))
+    }
+
     /// Retain source order, including installed declarations ahead of source machines.
     /// Consumers share the checked machine contracts and field layouts.
     pub(crate) fn publish_declarations(

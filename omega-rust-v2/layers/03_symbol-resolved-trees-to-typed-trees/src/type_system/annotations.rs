@@ -346,6 +346,9 @@ impl<'a> ResolvedSourceFile<'a> {
                         let application = self.indexed_domain(node_index, id, &carrier, types)?;
                         return Ok(ValueType::Qualified(Box::new(carrier), vec![application]));
                     }
+                    if types.indices.declaration_is_pending(id) {
+                        return Err(types.indices.wait(source, node_index));
+                    }
                     let args = self
                         .arguments_for(node_index, id)
                         .iter()

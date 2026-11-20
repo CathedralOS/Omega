@@ -19,7 +19,10 @@ impl<'a> ResolvedSourceFile<'a> {
         use NodeKind::*;
         let source = self.file;
         let items = &mut catalog.declarations;
-        for (node_index, id) in self.tree.declaration_nodes() {
+        'declarations: for (node_index, id) in self.tree.declaration_nodes() {
+            if catalog.types.indices.declaration_is_pending(id) {
+                continue;
+            }
             let node = &source.nodes[node_index];
             match id.kind {
                 Field | CaseField | MathLet => continue,
@@ -93,9 +96,9 @@ impl<'a> ResolvedSourceFile<'a> {
                     let [_, annotation, _] = *node.children.as_slice() else {
                         return Err(TypeError::unsupported(source, node_index));
                     };
-                    items
-                        .constants
-                        .insert(id, self.annotation(annotation, &catalog.types)?);
+                    if let Some(ty) = catalog.types.indices.ready_annotation(id, self.annotation(annotation, &catalog.types))? {
+                        items.constants.insert(id, ty);
+                    }
                 }
                 Data | Case => {
                     if node.leaves.iter().any(|w| w.text == "=") {
@@ -110,7 +113,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     if let Some(numbers) = super::schema_numbering::member_scope(source, node_index)? {
                         items.schema_numbering.insert(id, std::sync::Arc::new(numbers));
                     }
-                    let fields = items.fields.entry(id).or_default();
+                    let mut fields = super::declaration_catalog::RecordFields::default();
                     for &field in &node.children {
                         match source.nodes[field].kind {
                             GenericParams | StableNumber | RetiredNumber | Case | Data | DroppedBy => continue,
@@ -127,7 +130,12 @@ impl<'a> ResolvedSourceFile<'a> {
                             match source.nodes[i].kind {
                                 StableNumber => continue,
                                 Data => annotation = Some(catalog.types.open_data(self.declaration(i)?)),
-                                _ => annotation = Some(self.runtime_annotation(i, &catalog.types)?),
+                                _ => {
+                                    annotation = catalog.types.indices.ready_annotation(id, self.runtime_annotation(i, &catalog.types))?;
+                                    if annotation.is_none() {
+                                        continue 'declarations;
+                                    }
+                                }
                             }
                         }
                         fields.insert(
@@ -139,6 +147,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     if node.kind == Data && !fields.ordered.is_empty() && node.children.iter().any(|&c| source.nodes[c].kind == Case) {
                         return Err(TypeError::at(source, node_index, "data cannot contain both fields and cases"));
                     }
+                    items.fields.insert(id, fields);
                 }
                 Machine | AsmMachine => {
                     if node.kind == AsmMachine && catalog.assembly.is_none() {
@@ -155,13 +164,38 @@ impl<'a> ResolvedSourceFile<'a> {
                     {
                         return Err(TypeError::unsupported(source, clause));
                     }
-                    let params = source
-                        .parameters(node_index)
-                        .map(|(name, annotation)| Ok((name.span, self.runtime_annotation(annotation, &catalog.types)?)))
-                        .collect::<std::result::Result<Vec<_>, TypeError>>()?;
+                    use super::declaration_catalog::{PendingParameter, PendingSignature};
+                    let indices = &catalog.types.indices;
+                    let mut params = Vec::new();
+                    let mut partial = Vec::new();
+                    for (name, annotation) in source.parameters(node_index) {
+                        if let Some(ty) = indices.ready_annotation(id, self.runtime_annotation(annotation, &catalog.types))? {
+                            if partial.is_empty() {
+                                params.push((name.span, ty));
+                            } else {
+                                partial.push(PendingParameter::Complete(ty));
+                            }
+                        } else {
+                            partial.extend(params.drain(..).map(|(_, ty)| PendingParameter::Complete(ty)));
+                            let node = &source.nodes[annotation];
+                            let carrier = if node.kind == QualifiedType && let Some(&base) = node.children.first() {
+                                indices.ready_annotation(id, self.runtime_annotation(base, &catalog.types))?
+                            } else {
+                                None
+                            };
+                            partial.push(carrier.map_or(PendingParameter::Unknown, PendingParameter::QualifiedCarrier));
+                        }
+                    }
                     let result = source
                         .result_annotation(node_index)
-                        .map_or(Ok(ValueType::NoResult), |ty| self.runtime_annotation(ty, &catalog.types))?;
+                        .map_or(Ok(ValueType::NoResult), |ty| self.runtime_annotation(ty, &catalog.types));
+                    let result = indices.ready_annotation(id, result)?;
+                    if result.is_none() || !partial.is_empty() {
+                        partial.extend(params.into_iter().map(|(_, ty)| PendingParameter::Complete(ty)));
+                        catalog.pending_signatures.insert(id, PendingSignature { parameters: partial, result });
+                        continue;
+                    }
+                    let result = result.expect("all annotations completed");
                     let site = site_at(source, node_index);
                     let family = catalog.overloads.entry((&id.package, &id.path)).or_default();
                     for &previous in family

@@ -329,7 +329,7 @@ impl BodyTyper<'_, '_> {
                     }
                     owner
                 };
-                let fields = &self.catalog.fields[shape];
+                let fields = self.catalog.fields_at(shape, source, node_index)?.ok_or_else(|| TypeError::at(source, node_index, "missing field declarations"))?;
                 let mut seen = HashSet::new();
                 let mut rest = false;
                 let mut total = true;

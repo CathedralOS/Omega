@@ -17,6 +17,9 @@ pub(crate) fn check_bodies(
         }
         for (node_index, node) in unit.file.nodes.iter().enumerate().skip(1) {
             use NodeKind::*;
+            if unit.declaration_at(node_index).is_some_and(|id| catalog.types.indices.declaration_is_pending(id)) {
+                continue;
+            }
             if node.kind == Data {
                 crate::declarations::data_properties::check(unit, node_index, catalog, output)?;
             }
@@ -28,9 +31,6 @@ pub(crate) fn check_bodies(
             }
             if node.kind == Const {
                 let id = unit.declaration(node_index)?;
-                if catalog.types.indices.constant_is_pending(id) {
-                    continue;
-                }
                 let initializer = *node
                     .children
                     .last()
