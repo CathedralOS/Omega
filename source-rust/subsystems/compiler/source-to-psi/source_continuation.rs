@@ -245,11 +245,12 @@ impl ResolveAndTypeRequest {
             pending_pre_checks,
             context,
         });
-        self.frontends.retain(Arc::clone(&input))?;
-        Ok(SourceContinuation {
+        let source = SourceContinuation {
             input,
             completions: Default::default(),
-        })
+        };
+        self.frontends.retain(&source)?;
+        Ok(source)
     }
 }
 
@@ -660,7 +661,7 @@ impl SourceFrontends {
                 )]
             })
     }
-    fn retain(&self, input: Arc<SourceCompletionInput>) -> Result<(), Vec<Diagnostic>> {
+    pub(crate) fn retain(&self, source: &SourceContinuation) -> Result<(), Vec<Diagnostic>> {
         self.entries
             .lock()
             .map_err(|_| {
@@ -668,7 +669,7 @@ impl SourceFrontends {
                     "source frontend retention owner is poisoned",
                 )]
             })?
-            .push(input);
+            .push(Arc::clone(&source.input));
         Ok(())
     }
 }

@@ -19,7 +19,7 @@ product selections are never copied as plain settings.
 
 use optimization_requests::OptimizationReportRequest;
 use normalized_build_settings::EvaluatedBuildSettings;
-use package_compilation::build_execution::build_value::BuildValueAdmission;
+use package_compilation::build_execution::SelectedBuildMachine;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
 use build_time_values::BuildTimeValue;
 use terminal_interpreter::{
@@ -29,23 +29,16 @@ use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTy
 
 pub fn extract(
     instance: &TerminalInstance<'_, '_>,
-    admission: BuildValueAdmission,
-    initial: &BuildTimeValue,
+    machine: &SelectedBuildMachine,
 ) -> Result<(EvaluatedBuildSettings, OptimizationReportRequest), String> {
     let BuildTimeValue::Struct {
         type_name,
         fields: initial_fields,
-    } = initial
+    } = &machine.initial_build
     else {
         return Err("admitted Build input is not a record".to_owned());
     };
-    let entry = instance
-        .program()
-        .entry()
-        .map_err(|error| format!("Build entry: {error:?}"))?;
-    let [parameter] = entry.structural_parameters else {
-        return Err("Build settings require one original structural argument".to_owned());
-    };
+    let parameter = machine.receiver_for(instance.program().module())?;
     let declaration = instance
         .program()
         .structural_type(parameter.structural_type)
@@ -82,7 +75,7 @@ pub fn extract(
         let value = read_field(instance, &mut path, field, Some(template))?;
         values.push((name.clone(), value));
     }
-    admission.extract(&BuildTimeValue::Struct {
+    machine.value_admission.extract(&BuildTimeValue::Struct {
         type_name: type_name.clone(),
         fields: values,
     })

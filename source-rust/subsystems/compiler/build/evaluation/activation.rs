@@ -32,7 +32,7 @@ than a callback loop:
    runs as several accepted programs against this one activation. `carry`
    ends a stage that returned after completing its preparation and using its locals, and
    `TerminalBuildHost::resume` starts the next stage's program with what the
-   earlier stages left: the guest `Build`, the issued requests, the executed
+   earlier stages left: the guest `Build`, its live frame homes, the issued requests, the executed
    selections, the log and the filesystem runtime. Only the last stage is
    completed; nothing an earlier stage did runs again.
 */
@@ -48,7 +48,6 @@ pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
 use normalized_build_settings::EvaluatedBuildSettings;
-use package_compilation::build_execution::build_value::BuildValueAdmission;
 use source_compiler::declaration_selection::ProductEntryBinding;
 use source_compiler::ProducedTerminalProgram;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
@@ -211,7 +210,6 @@ pub struct TerminalBuildHost {
     filesystem: Arc<crate::host::filesystem::TerminalBuildFilesystemHost>,
     started: std::sync::atomic::AtomicBool,
     execution_profile: Option<target::TargetProfile>,
-    value_admission: BuildValueAdmission,
     default_source: bool,
     default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
@@ -299,7 +297,6 @@ impl TerminalBuildHost {
             filesystem,
             started: std::sync::atomic::AtomicBool::new(false),
             execution_profile,
-            value_admission: machine.value_admission,
             default_source,
             default_sources,
             machine,
@@ -367,7 +364,7 @@ impl TerminalBuildHost {
     /// stage left.
     fn instantiate(
         self: &Arc<Self>,
-        contents: Option<Vec<terminal_interpreter::TerminalBoundaryStorageValue>>,
+        contents: Option<Vec<terminal_interpreter::TerminalStructuralContents>>,
         output_issued: bool,
     ) -> Result<TerminalInstance<'static, 'static>, String> {
         let artifact = self.produced.view();
@@ -433,21 +430,32 @@ impl TerminalBuildHost {
                 .defer_component(supplies, *boundary)
                 .map_err(describe)?;
         }
-        let contents = contents.map(|values| terminal_interpreter::TerminalStructuralContents {
-            argument_index: 0,
-            values,
-        });
-        let zero_initialized: &[u32] = if contents.is_some() { &[] } else { &[0] };
+        let storage = self.machine.entry_storage_for(artifact.module())?;
+        let mut arguments = Vec::with_capacity(storage.len());
+        arguments.push(self.original.clone());
+        for slot in &storage[1..] {
+            // Frame arguments have distinct storage identities for this activation.
+            arguments.push(TerminalStructuralValue::minted(
+                self.original.opaque_identity + u64::from(slot.position),
+                slot.structural_type,
+                Vec::new(),
+            ));
+        }
+        let zero_initialized = if contents.is_none() {
+            storage.iter().map(|parameter| parameter.position).collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         // An absent payload remains absent after stage reconstruction. Its
         // empty record contents cannot reissue the original Output authority.
         let output = output_issued.then(|| self.output.binding());
         let mut instance = program
             .instantiate(TerminalInstantiation {
                 structural_inputs: TerminalStructuralInputs {
-                    arguments: std::slice::from_ref(&self.original),
-                    contents: contents.as_slice(),
+                    arguments: &arguments,
+                    contents: contents.as_deref().unwrap_or_default(),
                     projected_host_atoms: output.as_slice(),
-                    zero_initialized_arguments: zero_initialized,
+                    zero_initialized_arguments: &zero_initialized,
                     ..Default::default()
                 },
                 installation: Some(&supplies),
@@ -508,7 +516,7 @@ impl TerminalBuildHost {
 /// What a checked program that completed its preparation leaves for the
 /// next stage of the same activation.
 pub(crate) struct CarriedStage {
-    contents: Vec<terminal_interpreter::TerminalBoundaryStorageValue>,
+    contents: Vec<terminal_interpreter::TerminalStructuralContents>,
     output_issued: bool,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
@@ -711,7 +719,7 @@ impl TerminalBuildActivation {
     pub(crate) fn carry(
         mut self,
         successor: &terminal_psi::TerminalModule,
-        receiver: semantic_vocabulary::StructuralTypeId,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
     ) -> Result<CarriedStage, String> {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("a Build stage is continued only after its normal return".into());
@@ -722,7 +730,7 @@ impl TerminalBuildActivation {
                     .into(),
             );
         }
-        let contents = storage::transfer(&self.instance, successor, receiver)?;
+        let contents = storage::transfer(&self.instance, successor, parameters)?;
         let output_issued = self.host.output.is_issued(&self.instance)?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
@@ -787,11 +795,8 @@ impl TerminalBuildActivation {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("Build completion requires its normal interpreter return".into());
         }
-        let (settings, optimization_report) = build_settings::extract(
-            &self.instance,
-            self.host.value_admission,
-            &self.host.machine.initial_build,
-        )?;
+        let (settings, optimization_report) =
+            build_settings::extract(&self.instance, &self.host.machine)?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
         let declaration = if self.host.default_source {

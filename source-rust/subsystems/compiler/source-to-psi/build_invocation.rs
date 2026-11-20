@@ -5,10 +5,10 @@ use crate::compile_time::{
 };
 use crate::source_state::TypedTrees;
 use crate::{
-    AcceptedTerminalSource, ConstantRead, ParsedStageSources, ProducedTerminalProgram,
-    ResolveAndTypeRequest, SourceAdmission, SourceContinuation, SourcePreparation,
-    SourcePreparationFailure, SourcePreparationRequest, TerminalProductionCustody,
-    TerminalSourceCompilation, CompileTimings,
+    AcceptedTerminalSource, CompileTimings, ConstantRead, ParsedStageSources,
+    ProducedTerminalProgram, ResolveAndTypeRequest, SourceAdmission, SourceContinuation,
+    SourcePreparation, SourcePreparationFailure, SourcePreparationRequest,
+    TerminalProductionCustody, TerminalSourceCompilation,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -61,9 +61,49 @@ impl BuildStageSource {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
         let entry = self.entry;
-        let mut request = self.request(preparation, host, authority)?;
-        let stage = stages::select_build_stage(&mut request.syntax.trees, entry, index)?;
-        let source = request.prepare(&mut CompileTimings::default())?;
+        let request = self.request(preparation, host, authority)?;
+        let plan = stages::EntryPlan::new(&request.syntax.trees, entry, index)?;
+        let prepare =
+            |mut request: ResolveAndTypeRequest, use_frame| -> Result<_, Vec<Diagnostic>> {
+                let stage = plan.project(&mut request.syntax.trees, use_frame)?;
+                let source = request.prepare(&mut CompileTimings::default())?;
+                Ok((source, stage))
+            };
+        let Some(wait) = plan.optional_wait(&request.syntax.trees) else {
+            return prepare(request, false);
+        };
+        // Both projections use the ordinary resolver. Only the chosen projection
+        // can supply checked declarations to the next stage.
+        let mut candidate = request.clone();
+        candidate.frontends = request.frontends.fork()?;
+        let whole = prepare(candidate, false);
+        let after_wait = |span: source_text::SourceSpan| {
+            span.source_id == entry.source_id && span.span.start > wait.end
+        };
+        let needs_scope = match &whole {
+            Ok((source, _)) => {
+                use crate::source_state::deferred_refusals::DeferredRequest;
+                let typed = source.typed();
+                typed.deferred_refusals.iter().any(|row| {
+                    typed.symbols.symbol_source_span(row.declaration) == Some(entry)
+                        && after_wait(row.source_span)
+                        && matches!(
+                            row.request,
+                            DeferredRequest::UndeclaredCallName
+                                | DeferredRequest::UndeclaredValueName
+                                | DeferredRequest::UnresolvedCallTarget
+                        )
+                })
+            }
+            Err(rows) => rows
+                .iter()
+                .all(|row| row.source_span.is_some_and(after_wait)),
+        };
+        if needs_scope {
+            return prepare(request, true);
+        }
+        let (source, stage) = whole?;
+        request.frontends.retain(&source)?;
         Ok((source, stage))
     }
 

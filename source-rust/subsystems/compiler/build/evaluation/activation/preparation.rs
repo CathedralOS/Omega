@@ -113,6 +113,7 @@ impl PreparedBuildExecution {
         prepared: source_compiler::CheckedBuildInvocation,
         providers: crate::admission::provider_execution::BuildProviderPlans,
         machine: symbols::SymbolHandle,
+        stage: &source_compiler::BuildStage,
         source: package_compilation::BuildSourceSelection,
         package_inputs: Option<&package_compilation::PackageCompilationInputs>,
     ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
@@ -120,6 +121,7 @@ impl PreparedBuildExecution {
             prepared,
             providers,
             machine,
+            stage,
             &self.filesystem_scope,
             self.evaluation_sponsor.as_ref(),
             self.execution_profile,
@@ -188,12 +190,12 @@ impl PreparedBuildExecution {
         }
         self.host_issued = true;
         let successor = self.produced.view().module();
-        let receiver = self
-            .machine
-            .receiver_for(successor)
-            .map_err(|reason| self.refuse(&reason))?;
+        if !self.machine.has_same_frame(&previous.host.machine) {
+            return Err(self.refuse("Build continuation storage belongs to different local declarations"));
+        }
+        let parameters = self.machine.entry_storage_for(successor).map_err(|reason| self.refuse(&reason))?;
         let mut carried = previous
-            .carry(successor, receiver.structural_type)
+            .carry(successor, parameters)
             .map_err(|reason| self.refuse(&reason))?;
         crate::TerminalBuildHost::new(
             self.execution_purpose,

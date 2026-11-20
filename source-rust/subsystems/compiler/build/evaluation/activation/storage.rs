@@ -1,4 +1,4 @@
-//! Transfer the settings the guest wrote into its next checked Build receiver.
+//! Move the returned Build receiver and continuation homes to their admitted successors.
 //! Both admitted declarations are present at the handoff. Translate storage
 //! coordinates by their source declarations while observing the returned instance.
 
@@ -15,29 +15,45 @@ use terminal_psi::{
 pub(super) fn transfer(
     instance: &TerminalInstance<'_, '_>,
     destination: &TerminalModule,
-    receiver: StructuralTypeId,
-) -> Result<Vec<TerminalBoundaryStorageValue>, String> {
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+) -> Result<Vec<terminal_interpreter::TerminalStructuralContents>, String> {
     let entry = instance.program().entry().map_err(super::describe)?;
-    let [parameter] = entry.structural_parameters else {
-        return Err("Build storage requires one original receiver".into());
-    };
-    let mut transfer = Transfer {
-        instance,
-        source: instance.program().module(),
-        destination,
-        from: Vec::new(),
-        to: Vec::new(),
-        values: Vec::new(),
-    };
-    transfer.structural(parameter.structural_type, receiver)?;
-    transfer
-        .values
-        .sort_by(|left, right| left.path.cmp(&right.path));
-    Ok(transfer.values)
+    if entry.structural_parameters.len() != parameters.len() {
+        return Err("Build continuation changed the number of storage homes".into());
+    }
+    entry
+        .structural_parameters
+        .iter()
+        .zip(parameters)
+        .map(|(old, new)| {
+            if old.position != new.position {
+                return Err("Build continuation changed the order of its storage homes".into());
+            }
+            let argument_index = old.position;
+            let mut transfer = Transfer {
+                instance,
+                argument_index,
+                source: instance.program().module(),
+                destination,
+                from: Vec::new(),
+                to: Vec::new(),
+                values: Vec::new(),
+            };
+            transfer.structural(old.structural_type, new.structural_type)?;
+            transfer
+                .values
+                .sort_by(|left, right| left.path.cmp(&right.path));
+            Ok(terminal_interpreter::TerminalStructuralContents {
+                argument_index,
+                values: transfer.values,
+            })
+        })
+        .collect()
 }
 
 struct Transfer<'a, 'host, 'program> {
     instance: &'a TerminalInstance<'host, 'program>,
+    argument_index: u32,
     source: &'a TerminalModule,
     destination: &'a TerminalModule,
     from: Vec<Path>,
@@ -113,7 +129,7 @@ impl Transfer<'_, '_, '_> {
                     selected,
                 )) = self
                     .instance
-                    .observe_borrowed_entry(0, &self.from)
+                    .observe_borrowed_entry(self.argument_index, &self.from)
                     .map_err(super::describe)?
                 else {
                     return Err("Build storage lost the selected case".into());
@@ -201,7 +217,7 @@ impl Transfer<'_, '_, '_> {
     fn leaf(&mut self) -> Result<(), String> {
         let contents = match self
             .instance
-            .observe_borrowed_entry(0, &self.from)
+            .observe_borrowed_entry(self.argument_index, &self.from)
             .map_err(super::describe)?
         {
             TerminalStorageObservationValue::Bytes(bytes) => {
