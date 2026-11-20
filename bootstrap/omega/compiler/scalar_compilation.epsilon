@@ -30,6 +30,15 @@ data OmegaStateInvocation {
     acknowledgements: i32;
 }
 
+data OmegaEntryBound {
+    root: i32;
+    offset: i32;
+    field: i32;
+    minimum: i32;
+    // -1 leaves the upper end open.
+    maximum: i32;
+}
+
 data OmegaScalarCompilationStatus {
     case Pending;
     case Complete;
@@ -120,10 +129,7 @@ data OmegaScalarCompiler {
     bound_first: [i32; 4096];
     bound_count: [i32; 4096];
     bound_total: i32;
-    bound_roots: [i32; 16384];
-    bound_offsets: [i32; 16384];
-    bound_limits: [i32; 16384];
-    bound_fields: [i32; 16384];
+    entry_bounds: [OmegaEntryBound; 16384];
     value_states: [i32; 16384];
     value_befores: [i32; 16384];
     local_befores: [i32; 16384];
@@ -1455,25 +1461,55 @@ machine OmegaScalarCompiler::check_value(
     state trapping(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
         transition row.operator {
             OmegaBinaryOperatorKind::Multiply -> trapping_multiply(row, left, right, policy)
-            _ -> checked_trapping(row, left, right)
+            _ -> policy_operands(row, left, right, OmegaCheckedValueKind::TrappingArithmetic)
         }
     }
     state trapping_multiply(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, policy: i32) {
         transition policy == 320 {
             true -> unsupported(row.operator_start)
-            _ -> checked_trapping(row, left, right)
+            _ -> policy_operands(row, left, right, OmegaCheckedValueKind::TrappingArithmetic)
         }
-    }
-    state checked_trapping(row: OmegaBinaryExpressionSyntax, left: i32, right: i32) {
-        self.state_effects[state_index] = self.state_effects[state_index] | 2;
-        transition true { true -> policy_operands(row, left, right, OmegaCheckedValueKind::TrappingArithmetic) }
     }
     state policy_operands(row: OmegaBinaryExpressionSyntax, left: i32, right: i32, kind: OmegaCheckedValueKind) {
         transition (self.check_value(source, owner, state_index, before, row.left, left) == 1) &&
             (self.check_value(source, owner, state_index, before, row.right, right) == 1) {
-            true -> retain(kind, self.parser.expressions[expression].payload0)
+            true -> policy_kind(row, kind)
             _ -> return 0
         }
+    }
+    state policy_kind(row: OmegaBinaryExpressionSyntax, kind: OmegaCheckedValueKind) {
+        transition kind {
+            OmegaCheckedValueKind::TrappingArithmetic -> policy_effect(row)
+            _ -> retain(kind, self.parser.expressions[expression].payload0)
+        }
+    }
+    state policy_effect(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Subtract -> subtract_effect(row)
+            _ -> possible_trap()
+        }
+    }
+    state subtract_effect(row: OmegaBinaryExpressionSyntax) {
+        transition self.value_kinds[row.right] {
+            OmegaCheckedValueKind::Literal -> subtract_literal(row, self.value_payloads[row.right])
+            _ -> possible_trap()
+        }
+    }
+    // For unsigned x - k, underflow is impossible exactly when x >= k.
+    // Keep the checked operation in the tape even when its route is discharged.
+    state subtract_literal(row: OmegaBinaryExpressionSyntax, amount: i32) {
+        transition (amount >= 0) &&
+            (self.prove_bound(source, state_index, before, row.left, amount, -1, -1, 0) == 1) {
+            true -> checked_arithmetic()
+            _ -> possible_trap()
+        }
+    }
+    state possible_trap() {
+        self.state_effects[state_index] = self.state_effects[state_index] | 2;
+        transition true { true -> checked_arithmetic() }
+    }
+    state checked_arithmetic() {
+        transition true { true -> retain(OmegaCheckedValueKind::TrappingArithmetic, self.parser.expressions[expression].payload0) }
     }
     state addition(row: OmegaBinaryExpressionSyntax) {
         transition self.expression_type(source, owner, state_index, before, row.left) == 64 {
@@ -1502,7 +1538,7 @@ machine OmegaScalarCompiler::check_value(
     }
     state add_limit(row: OmegaBinaryExpressionSyntax, amount: i32) {
         transition (amount >= 0) &&
-            (self.prove_upper(source, state_index, before, row.left, 2147483647 - amount, -1, 0) == 1) {
+            (self.prove_ceiling(source, state_index, before, row.left, 2147483647 - amount) == 1) {
             true -> retain(OmegaCheckedValueKind::ExactAddition, self.parser.expressions[expression].payload0)
             _ -> unsupported(row.operator_start)
         }
@@ -5030,8 +5066,8 @@ machine OmegaScalarCompiler::check_field_bound(
     &mut self, source: &[u8], field: i32, expression: i32
 ) -> i32 {
     transition (self.field_upper_bounds[field] < 0) ||
-        (self.prove_upper(source, self.value_states[expression], self.value_befores[expression],
-            expression, self.field_upper_bounds[field], -1, 0) == 1) {
+        (self.prove_ceiling(source, self.value_states[expression], self.value_befores[expression],
+            expression, self.field_upper_bounds[field]) == 1) {
         true -> return 1
         _ -> unsupported()
     }
@@ -5568,7 +5604,7 @@ machine OmegaScalarCompiler::check_index_bound(
     }
     state contextual() {
         let plan: OmegaByteIndexPlan = self.index_plans[expression];
-        transition self.prove_upper(source, plan.owner_state, plan.before, selector, plan.extent - 1, -1, 0) {
+        transition self.prove_ceiling(source, plan.owner_state, plan.before, selector, plan.extent - 1) {
             1 -> retain(3, selector, plan.extent - 1)
             _ -> unsupported()
         }
@@ -5767,8 +5803,10 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     state binary(row: OmegaBinaryExpressionSyntax) {
         transition row.operator {
             OmegaBinaryOperatorKind::And -> conjunction(row)
-            OmegaBinaryOperatorKind::Less -> subject(row, 1)
-            OmegaBinaryOperatorKind::LessEqual -> subject(row, 0)
+            OmegaBinaryOperatorKind::Less -> subject(row)
+            OmegaBinaryOperatorKind::LessEqual -> subject(row)
+            OmegaBinaryOperatorKind::Greater -> subject(row)
+            OmegaBinaryOperatorKind::GreaterEqual -> subject(row)
             _ -> unsupported()
         }
     }
@@ -5779,83 +5817,114 @@ machine OmegaScalarCompiler::decode_entry_predicate(
             _ -> return 0
         }
     }
-    state subject(row: OmegaBinaryExpressionSyntax, strict: i32) {
+    state subject(row: OmegaBinaryExpressionSyntax) {
         transition self.parser.expressions[row.left].kind {
-            OmegaExpressionKind::Path -> place(row, strict)
+            OmegaExpressionKind::Path -> place(row)
             _ -> unsupported()
         }
     }
-    state place(row: OmegaBinaryExpressionSyntax, strict: i32) {
+    state place(row: OmegaBinaryExpressionSyntax) {
         transition self.check_place(source, state_index, 0, row.left) {
-            1 -> formal(row, strict, self.place_roots[row.left])
+            1 -> formal(row, self.place_roots[row.left])
             _ -> return 0
         }
     }
-    state formal(row: OmegaBinaryExpressionSyntax, strict: i32, root: i32) {
+    state formal(row: OmegaBinaryExpressionSyntax, root: i32) {
         let body: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
         transition (root >= body.first_parameter) && (root < body.first_parameter + body.parameter_count) &&
             ((self.parameter_types[root] < 100000) || (self.parameter_types[root] >= 400000)) {
-            true -> carrier(row, strict, self.place_types[row.left])
+            true -> carrier(row, self.place_types[row.left])
             _ -> unsupported()
         }
     }
-    state carrier(row: OmegaBinaryExpressionSyntax, strict: i32, kind: i32) {
+    state carrier(row: OmegaBinaryExpressionSyntax, kind: i32) {
         transition (kind == 8) || (kind == 32) || (kind == 64) || (self.is_policy_word(kind) == 1) {
-            true -> literal(row, strict, kind % 256, self.parser.expressions[row.right])
+            true -> literal(row, kind % 256, self.parser.expressions[row.right])
             _ -> unsupported()
         }
     }
-    state literal(row: OmegaBinaryExpressionSyntax, strict: i32, kind: i32, right: OmegaExpressionSyntax) {
+    state literal(row: OmegaBinaryExpressionSyntax, kind: i32, right: OmegaExpressionSyntax) {
         transition right.kind {
-            OmegaExpressionKind::Integer -> scan(row, strict, kind, right)
+            OmegaExpressionKind::Integer -> scan(row, kind, right)
             _ -> unsupported()
         }
     }
-    state scan(row: OmegaBinaryExpressionSyntax, strict: i32, kind: i32, right: OmegaExpressionSyntax) {
+    state scan(row: OmegaBinaryExpressionSyntax, kind: i32, right: OmegaExpressionSyntax) {
         self.scan_scalar_literal(source, right.payload0, right.payload1, kind);
-        transition (self.literal_status == 1) && (self.literal_value >= strict) && (self.bound_total < 16384) {
-            true -> retain(row, self.literal_value - strict)
+        transition (self.literal_status == 1) && (self.literal_value >= 0) && (self.bound_total < 16384) {
+            true -> relation(row, self.literal_value)
             _ -> unsupported()
         }
     }
-    state retain(row: OmegaBinaryExpressionSyntax, limit: i32) {
-        self.bound_roots[self.bound_total] = self.place_roots[row.left];
-        self.bound_offsets[self.bound_total] = self.place_offsets[row.left];
-        self.bound_limits[self.bound_total] = limit;
-        self.bound_fields[self.bound_total] = self.place_fields[row.left];
+    state relation(row: OmegaBinaryExpressionSyntax, value: i32) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Less -> strict_ceiling(row, value)
+            OmegaBinaryOperatorKind::LessEqual -> retain(row, 0, value)
+            OmegaBinaryOperatorKind::Greater -> strict_floor(row, value)
+            OmegaBinaryOperatorKind::GreaterEqual -> retain(row, value, -1)
+            _ -> unsupported()
+        }
+    }
+    state strict_floor(row: OmegaBinaryExpressionSyntax, value: i32) {
+        transition value < 2147483647 {
+            true -> retain(row, value + 1, -1)
+            _ -> unsupported()
+        }
+    }
+    state strict_ceiling(row: OmegaBinaryExpressionSyntax, value: i32) {
+        transition value > 0 {
+            true -> retain(row, 0, value - 1)
+            _ -> unsupported()
+        }
+    }
+    state retain(row: OmegaBinaryExpressionSyntax, minimum: i32, maximum: i32) {
+        self.entry_bounds[self.bound_total].root = self.place_roots[row.left];
+        self.entry_bounds[self.bound_total].offset = self.place_offsets[row.left];
+        self.entry_bounds[self.bound_total].field = self.place_fields[row.left];
+        self.entry_bounds[self.bound_total].minimum = minimum;
+        self.entry_bounds[self.bound_total].maximum = maximum;
         self.bound_total = self.bound_total + 1;
         return 1;
     }
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
 }
-// Unsigned upper bounds have one meaning across entry contracts, indexed
+// Unsigned intervals have one meaning across entry contracts, indexed
 // access and invariant-preserving stores. Missing evidence is not a runtime
 // check or an inferred precondition. A copied immutable initializer keeps its
 // earlier snapshot; mutable referents use exact root/projection versions.
-machine OmegaScalarCompiler::prove_upper(
-    &mut self, source: &[u8], state_index: i32, before: i32,
-    expression: i32, limit: i32, guard: i32, truth: i32
+machine OmegaScalarCompiler::prove_ceiling(
+    &mut self, source: &[u8], state_index: i32, before: i32, expression: i32, maximum: i32
 ) -> i32 {
-    transition limit >= 0 {
+    transition maximum >= 0 {
+        true -> return self.prove_bound(source, state_index, before, expression, 0, maximum, -1, 0)
+        _ -> return 0
+    }
+}
+
+machine OmegaScalarCompiler::prove_bound(
+    &mut self, source: &[u8], state_index: i32, before: i32,
+    expression: i32, minimum: i32, maximum: i32, guard: i32, truth: i32
+) -> i32 {
+    transition (minimum >= 0) && ((maximum == -1) || (minimum <= maximum)) {
         true -> value()
         _ -> return 0
     }
     state value() {
         transition self.value_kinds[expression] {
             OmegaCheckedValueKind::Literal -> literal(self.value_payloads[expression])
-            OmegaCheckedValueKind::RepresentationCast -> return self.prove_upper(source, state_index, before, self.value_payloads[expression], limit, guard, truth)
+            OmegaCheckedValueKind::RepresentationCast -> return self.prove_bound(source, state_index, before, self.value_payloads[expression], minimum, maximum, guard, truth)
             OmegaCheckedValueKind::Place -> place()
             OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
             _ -> return 0
         }
     }
     state literal(value: i32) {
-        transition (value >= 0) && (value <= limit) { true -> return 1 _ -> return 0 }
+        transition (value >= minimum) && ((maximum < 0) || (value <= maximum)) { true -> return 1 _ -> return 0 }
     }
     state place() {
-        transition self.prove_place_upper(source, state_index, before,
+        transition self.prove_place_bound(source, state_index, before,
             self.place_roots[expression], self.place_offsets[expression],
-            self.place_fields[expression], self.place_types[expression], limit, guard, truth) {
+            self.place_fields[expression], self.place_types[expression], minimum, maximum, guard, truth) {
             1 -> return 1
             _ -> local(self.place_roots[expression])
         }
@@ -5869,7 +5938,7 @@ machine OmegaScalarCompiler::prove_upper(
     }
     state initializer(index: i32, row: OmegaLocalDataStatementSyntax) {
         transition (row.is_mutable == 0) && (row.has_initial_value == 1) {
-            true -> return self.prove_upper(source, state_index, self.local_befores[index], row.initial_value, limit, -1, 0)
+            true -> return self.prove_bound(source, state_index, self.local_befores[index], row.initial_value, minimum, maximum, -1, 0)
             _ -> return 0
         }
     }
@@ -5880,33 +5949,33 @@ machine OmegaScalarCompiler::prove_upper(
         }
     }
     state added(row: OmegaBinaryExpressionSyntax, amount: i32) {
-        transition (amount >= 0) && (amount <= limit) {
-            true -> return self.prove_upper(source, state_index, before, row.left, limit - amount, guard, truth)
+        transition (minimum == 0) && (amount >= 0) && (amount <= maximum) {
+            true -> return self.prove_bound(source, state_index, before, row.left, 0, maximum - amount, guard, truth)
             _ -> return 0
         }
     }
 }
 
-machine OmegaScalarCompiler::prove_place_upper(
+machine OmegaScalarCompiler::prove_place_bound(
     &mut self, source: &[u8], state_index: i32, before: i32,
     root: i32, offset: i32, field: i32, kind: i32,
-    limit: i32, guard: i32, truth: i32
+    minimum: i32, maximum: i32, guard: i32, truth: i32
 ) -> i32 {
-    transition (kind == 8) && (limit >= 255) {
+    transition (minimum == 0) && ((maximum < 0) || ((kind == 8) && (maximum >= 255))) {
         true -> return 1
         _ -> declared()
     }
     state declared() {
-        transition field >= 0 {
+        transition (minimum == 0) && (field >= 0) {
             true -> field_bound(self.field_upper_bounds[field])
             _ -> guarded()
         }
     }
     state field_bound(known: i32) {
-        transition (known >= 0) && (known <= limit) { true -> return 1 _ -> guarded() }
+        transition (known >= 0) && (known <= maximum) { true -> return 1 _ -> guarded() }
     }
     state guarded() {
-        transition self.guard_upper(root, offset, limit, guard, truth) {
+        transition self.guard_bound(root, offset, minimum, maximum, guard, truth) {
             1 -> return 1
             _ -> preserved()
         }
@@ -5919,13 +5988,14 @@ machine OmegaScalarCompiler::prove_place_upper(
     }
     state contract(index: i32) {
         transition index < self.bound_count[state_index] {
-            true -> bound(index, self.bound_first[state_index] + index)
+            true -> bound(index, self.entry_bounds[self.bound_first[state_index] + index])
             _ -> return 0
         }
     }
-    state bound(index: i32, bound: i32) {
-        transition (self.bound_roots[bound] == root) && (self.bound_offsets[bound] == offset) &&
-            (self.bound_limits[bound] <= limit) {
+    state bound(index: i32, bound: OmegaEntryBound) {
+        transition (bound.root == root) && (bound.offset == offset) &&
+            (bound.minimum >= minimum) &&
+            ((maximum < 0) || ((bound.maximum >= 0) && (bound.maximum <= maximum))) {
             true -> return 1
             _ -> contract(index + 1)
         }
@@ -6004,14 +6074,14 @@ machine OmegaScalarCompiler::guard_place(&mut self, expression: i32, root: i32, 
     }
 }
 
-machine OmegaScalarCompiler::guard_upper(&mut self, root: i32, offset: i32, limit: i32, expression: i32, truth: i32) -> i32 {
+machine OmegaScalarCompiler::guard_bound(&mut self, root: i32, offset: i32, minimum: i32, maximum: i32, expression: i32, truth: i32) -> i32 {
     transition expression >= 0 {
         true -> value()
         _ -> return 0
     }
     state value() {
         transition self.value_kinds[expression] {
-            OmegaCheckedValueKind::LogicalNot -> return self.guard_upper(root, offset, limit, self.value_payloads[expression], 1 - truth)
+            OmegaCheckedValueKind::LogicalNot -> return self.guard_bound(root, offset, minimum, maximum, self.value_payloads[expression], 1 - truth)
             OmegaCheckedValueKind::BooleanBinary -> binary(self.parser.binary_expressions[self.value_payloads[expression]])
             _ -> return 0
         }
@@ -6036,14 +6106,14 @@ machine OmegaScalarCompiler::guard_upper(&mut self, root: i32, offset: i32, limi
         transition truth { 1 -> both(row, 1) _ -> either(row, 0) }
     }
     state either(row: OmegaBinaryExpressionSyntax, value: i32) {
-        transition (self.guard_upper(root, offset, limit, row.left, value) == 1) ||
-            (self.guard_upper(root, offset, limit, row.right, value) == 1) {
+        transition (self.guard_bound(root, offset, minimum, maximum, row.left, value) == 1) ||
+            (self.guard_bound(root, offset, minimum, maximum, row.right, value) == 1) {
             true -> return 1 _ -> return 0
         }
     }
     state both(row: OmegaBinaryExpressionSyntax, value: i32) {
-        transition (self.guard_upper(root, offset, limit, row.left, value) == 1) &&
-            (self.guard_upper(root, offset, limit, row.right, value) == 1) {
+        transition (self.guard_bound(root, offset, minimum, maximum, row.left, value) == 1) &&
+            (self.guard_bound(root, offset, minimum, maximum, row.right, value) == 1) {
             true -> return 1 _ -> return 0
         }
     }
@@ -6063,28 +6133,48 @@ machine OmegaScalarCompiler::guard_upper(&mut self, root: i32, offset: i32, limi
         transition matched { 1 -> equal_sides(row) _ -> return 0 }
     }
     state equal_sides(row: OmegaBinaryExpressionSyntax) {
-        transition self.guard_upper_pair(root, offset, limit, row.left, row.right, 0) {
+        transition self.guard_bound_pair(root, offset, minimum, maximum, row.left, row.right, 0) {
             1 -> return 1 _ -> compare(row.right, row.left, 0)
         }
     }
     state compare(subject: i32, other: i32, strict: i32) {
-        return self.guard_upper_pair(root, offset, limit, subject, other, strict);
+        return self.guard_bound_pair(root, offset, minimum, maximum, subject, other, strict);
     }
 }
 
-machine OmegaScalarCompiler::guard_upper_pair(&mut self, root: i32, offset: i32, limit: i32, subject: i32, other: i32, strict: i32) -> i32 {
+machine OmegaScalarCompiler::guard_bound_pair(&mut self, root: i32, offset: i32, minimum: i32, maximum: i32, subject: i32, other: i32, strict: i32) -> i32 {
+    // Normal form: subject < other (strict = 1) or subject <= other.
     transition self.guard_place(subject, root, offset) {
-        1 -> other_kind()
-        _ -> return 0
+        1 -> ceiling()
+        _ -> right_place()
     }
-    state other_kind() {
+    state ceiling() {
         transition self.value_kinds[other] {
-            OmegaCheckedValueKind::Literal -> literal(self.value_payloads[other])
+            OmegaCheckedValueKind::Literal -> ceiling_literal(self.value_payloads[other])
             _ -> return 0
         }
     }
-    state literal(value: i32) {
-        transition (value >= strict) && (value - strict <= limit) { true -> return 1 _ -> return 0 }
+    state ceiling_literal(value: i32) {
+        transition (minimum == 0) && (maximum >= 0) && (value >= strict) &&
+            (value - strict <= maximum) { true -> return 1 _ -> return 0 }
+    }
+    state right_place() {
+        transition self.guard_place(other, root, offset) {
+            1 -> floor()
+            _ -> return 0
+        }
+    }
+    state floor() {
+        transition self.value_kinds[subject] {
+            OmegaCheckedValueKind::Literal -> floor_literal(self.value_payloads[subject])
+            _ -> return 0
+        }
+    }
+    state floor_literal(value: i32) {
+        // Compare before adding one, including at INT_MAX.
+        transition (maximum < 0) && (value >= 0) && (value >= minimum - strict) {
+            true -> return 1 _ -> return 0
+        }
     }
 }
 
@@ -6120,47 +6210,47 @@ machine OmegaScalarCompiler::check_call_bounds(
     }
     state requirement(index: i32) {
         transition index < self.bound_count[target] {
-            true -> actual(index, self.bound_first[target] + index)
+            true -> actual(index, self.entry_bounds[self.bound_first[target] + index])
             _ -> return 1
         }
     }
-    state actual(index: i32, bound: i32) {
-        let offset: i32 = self.bound_roots[bound] - self.parser.machine_states[target].first_parameter;
+    state actual(index: i32, bound: OmegaEntryBound) {
+        let offset: i32 = bound.root - self.parser.machine_states[target].first_parameter;
         transition (offset >= 0) && (offset < count) {
             true -> argument(index, bound, self.parser.call_arguments[first_argument + offset])
             _ -> unsupported()
         }
     }
-    state argument(index: i32, bound: i32, argument: i32) {
-        transition self.parameter_types[self.bound_roots[bound]] >= 400000 {
+    state argument(index: i32, bound: OmegaEntryBound, argument: i32) {
+        transition self.parameter_types[bound.root] >= 400000 {
             true -> reference(index, bound, argument)
             _ -> scalar(index, bound, argument)
         }
     }
-    state scalar(index: i32, bound: i32, argument: i32) {
-        transition self.prove_upper(source, state_index, before, argument, self.bound_limits[bound], guard, truth) {
+    state scalar(index: i32, bound: OmegaEntryBound, argument: i32) {
+        transition self.prove_bound(source, state_index, before, argument, bound.minimum, bound.maximum, guard, truth) {
             1 -> requirement(index + 1)
             _ -> unsupported()
         }
     }
-    state reference(index: i32, bound: i32, argument: i32) {
+    state reference(index: i32, bound: OmegaEntryBound, argument: i32) {
         transition self.value_kinds[argument] {
             OmegaCheckedValueKind::Borrow -> referent(index, bound, self.value_payloads[argument])
             OmegaCheckedValueKind::ForwardedReference -> referent(index, bound, argument)
             _ -> unsupported()
         }
     }
-    state referent(index: i32, bound: i32, place: i32) {
-        let field: i32 = self.bound_fields[bound];
+    state referent(index: i32, bound: OmegaEntryBound, place: i32) {
+        let field: i32 = bound.field;
         transition field >= 0 {
             true -> field_bound(index, bound, place, field)
             _ -> unsupported()
         }
     }
-    state field_bound(index: i32, bound: i32, place: i32, field: i32) {
-        transition self.prove_place_upper(source, state_index, before,
-            self.place_roots[place], self.place_offsets[place] + self.bound_offsets[bound],
-            field, self.field_types[field], self.bound_limits[bound], guard, truth) {
+    state field_bound(index: i32, bound: OmegaEntryBound, place: i32, field: i32) {
+        transition self.prove_place_bound(source, state_index, before,
+            self.place_roots[place], self.place_offsets[place] + bound.offset,
+            field, self.field_types[field], bound.minimum, bound.maximum, guard, truth) {
             1 -> requirement(index + 1)
             _ -> unsupported()
         }

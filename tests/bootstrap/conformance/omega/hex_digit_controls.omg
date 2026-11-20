@@ -1,0 +1,12 @@
+machine main() -> u8 crashes none {
+    let invalid: u32 = 4294967295;
+    transition hex_digit_value(48 as +Trapping) == 0 && hex_digit_value(57 as +Trapping) == 9 &&
+        hex_digit_value(65 as +Trapping) == 10 && hex_digit_value(70 as +Trapping) == 15 &&
+        hex_digit_value(97 as +Trapping) == 10 && hex_digit_value(102 as +Trapping) == 15 &&
+        hex_digit_value(47 as +Trapping) == invalid && hex_digit_value(71 as +Trapping) == invalid {
+        true -> pass(),
+        _ -> miss()
+    }
+    machine pass() -> u8 { 42 }
+    machine miss() -> u8 { 7 }
+}

@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,419 lines / 876,834 bytes with SHA-256
-`b5a8801d7d9f17b6efff1ba0bd644a8a25a789ba9d9396d531352e66423da639`.
+manifest materializes 23,509 lines / 880,641 bytes with SHA-256
+`fa51ef5d90bc9cb76b20bb24e62cf683b647aba5cb7407d4830f270d8d20a98c`.
 The manifest itself is 1,698 bytes, SHA-256
-`837ace243bb55c617d650fd4fe9130514ad4306e9d289fa61a2c35c2fa40c501`;
+`27ee79aaae01e93037509639bfc57b53b79218a9813523ce314db90d564fc5ad`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -201,6 +201,9 @@ word addition is then exact; unproved plain arithmetic remains unsupported.
 Qualified `u32 in Trapping` supports addition, subtraction and multiplication;
 qualified `u64 in Trapping` supports addition and subtraction. Each selected
 core operator checks overflow or underflow and realizes an abnormal Alpha Trap.
+For unsigned subtraction by a nonnegative literal, a checked lower bound on the
+left operand can discharge the underflow route. Both operands still contribute
+their own effects and Alpha still performs the runtime check.
 Qualified `u64 in Wrapping` supports addition, subtraction and multiplication
 modulo 2^64. These operations introduce no crash effect and retain the policy
 on the result. The qualified operand selects the family; a same-carrier plain peer is allowed,
@@ -300,8 +303,9 @@ equivalence of separately spelled array value types remain unsupported.
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
-profile supports `true`, conjunction, and unsigned formal/projected-field `<` or
-`<=` literal bounds. Every call and transfer must discharge the exact target
+profile supports `true`, conjunction, and unsigned formal or projected-field
+bounds against a literal using `<`, `<=`, `>` and `>=`. Each retained entry bound
+records an inclusive minimum and an optional inclusive maximum. Every call and transfer must discharge the exact target
 requirements; unsupported predicates cannot disappear. Pure Boolean guards
 establish bounds at nested arrivals, with pure actual expressions required for
 contract-bearing calls. No private requirement is inferred from a later access.
