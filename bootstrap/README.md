@@ -18,18 +18,19 @@ shared by multiple outcomes.
 
 ## Tested threads through the matrix
 
-| Gamma → Delta → Epsilon | Furthest shared workload measured |
-| --- | --- |
-| Interpret → interpret generated Gamma → interpret Epsilon | Rebuilt the Epsilon evaluator and ran four lexer predicates on six inputs. The portable Omega compilation reached its 300 s allowance. [Interpreted run](../tests/bootstrap/interpreted/epsilon/README.md) |
-| Alpha → Alpha → interpret Epsilon on Alpha | Compiled the product wire decoder and `Request.clear` to Alpha. [Alpha run](routes/compiled-alpha.md#compare-a-production-request-operation-across-evaluator-hosts) |
-| Linux → Linux → interpret Epsilon on Linux | Produced both of those Alpha programs byte for byte. [Wire decoder comparison](#gamma-host-and-target-comparison) |
-| Emit Alpha → emit Gamma for Alpha → compile Epsilon via Delta to Alpha | The string scanner passed 17 cases. The full scanner exceeded Alpha's tape limit. [Scanner measurements](routes/native.md#public-omega-lexer-observations) |
-| Emit Linux → emit Gamma for Linux → compile Epsilon via Delta to Linux | The string scanner passed the same 17 cases. The complete public lexer passed 23. [Scanner measurements](routes/native.md#public-omega-lexer-observations) |
+Read each row from left to right after the common Alpha and Beta steps.
 
-The Alpha and Linux scanner executables came from the same Gamma for each
-customer. The measured scanner runs reused source-built predecessors. Timing
-out, exceeding a tape limit and completing an execution are recorded separately
-in the route reports.
+| Gamma runs the Delta compiler on | Delta runs the Epsilon tool on | Epsilon program runs as | Result |
+| --- | --- | --- | --- |
+| Interpreter | Interpreted Gamma | Interpreted Epsilon | Four lexer predicates matched on six inputs. Portable Omega compilation reached 300 s. [Run](../tests/bootstrap/interpreted/epsilon/README.md) |
+| Alpha | Alpha | Interpreted Epsilon | The wire decoder and `Request.clear` compiled and ran. [Run](routes/compiled-alpha.md#compare-a-production-request-operation-across-evaluator-hosts) |
+| Linux | Linux | Interpreted Epsilon | Both Omega programs matched the Alpha-hosted builds byte for byte. [Run](routes/gamma-hosts.md) |
+| Linux | Alpha and Linux, compared | Alpha tape | Both Epsilon compilers emitted identical Delta for the string scanner. The tape passed 17 cases. [Run](routes/native.md#public-omega-lexer-observations) |
+| Linux | Linux | Linux executable | The string scanner passed 17 cases and the full public lexer passed 23. [Run](routes/native.md#public-omega-lexer-observations) |
+
+The scanner runs reused source-built Linux tools to turn emitted Delta into
+Gamma. The Gamma backends then built the actual scanner programs. The full
+public scanner exceeded the Alpha tape limit.
 
 The next rung is [Omega](omega/README.md). A winning thread must construct
 the Omega compiler from the declared seed and use it to reproduce itself.
