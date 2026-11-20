@@ -31,7 +31,8 @@
         (fields Int (second failure))
         (location Int (second (second fields)))
         (resource Int (second location))
-        (magic Int (write_unsigned_little_endian 374200355472639 8))
+        (magic Int (write_unsigned_little_endian
+          (little_endian8 255 'D' 'C' 'O' 'U' 'T' 1 0) 8))
         (outcome Int (write tag))
         (space Int (write (first fields)))
         (reserved Int (write_unsigned_little_endian 0 2))
