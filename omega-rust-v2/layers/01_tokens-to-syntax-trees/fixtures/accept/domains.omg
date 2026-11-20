@@ -6,6 +6,6 @@ public domain Reservation::Issued access ReservationAccess;
 domain<T> T::Metres;
 domain<T, const U: Unit> T::Quantity<U>;
 public domain Socket::Usable = Socket::Connected & Socket::Authenticated;
-domain Folder::Writable access IssuedBy<reflect::callable(choose_folder)>;
-domain Handle::Open access IssuedByAny<2, [reflect::callable(open_file), reflect::callable(open_dir)]>;
+domain Folder::Writable access IssuedBy<reflect\callable(choose_folder)>;
+domain Handle::Open access IssuedByAny<2, [reflect\callable(open_file), reflect\callable(open_dir)]>;
 domain Cell::Held requires self.count > 0 access CellAccess dropped by release_cell;

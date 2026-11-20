@@ -1,2 +1,2 @@
-call | send(count) | game::send | no result
+call | send(count) | game\send | no result
 landing | 5 | u8

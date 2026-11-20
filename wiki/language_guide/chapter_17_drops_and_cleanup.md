@@ -44,7 +44,7 @@ wait or crash. Closing a file that can report an error is an explicit call.
 ## Dispose of a value early
 
 ```omega
-omega::core::drop(guard);                                  // run its cleanup now
+omega\core\drop(guard);                                  // run its cleanup now
 
 let closed: CloseResult = block File::close(move file);    // a consumer with a result
 let outcome: TaskOutcome<T> = suspend block Task::finish(move task);

@@ -316,7 +316,7 @@ impl std::fmt::Display for IntegerIndex {
                     .collect::<Vec<_>>()
                     .join(&format!(" {token} "))
             ),
-            Self::Binder { owner, index } => write!(f, "{}::{}<{}>", owner.package, owner.path, index),
+            Self::Binder { owner, index } => write!(f, "{}\\{}<{}>", owner.package, owner.path, index),
             Self::Add(terms) | Self::Multiply(terms) => {
                 let token = if matches!(self, Self::Add(_)) { " + " } else { " * " };
                 write!(

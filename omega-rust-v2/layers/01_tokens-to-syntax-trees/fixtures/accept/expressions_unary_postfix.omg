@@ -37,7 +37,7 @@ machine operands(counter: Counter, view: @[u8], operations: Operations) {
     _ = Point { .. };
     _ = Point { };
     _ = Envelope::<u32>::Body::Value { value: 7 };
-    _ = integer::max::<i32>();
+    _ = integer\max::<i32>();
     _ = Sensor::<29u64>::read();
     _ = (clear satisfies A::clear);
     _ = 1.5e3f32 + 0xFFu8 + "bytes"[0];

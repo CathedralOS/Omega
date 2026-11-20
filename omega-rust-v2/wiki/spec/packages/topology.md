@@ -111,26 +111,26 @@ from application source or selects it as a runtime provider.
 Illustrative root `build.omg` (schematic APIs and abbreviated error handling):
 
 ```omega
-use build_support::deployment;
+use build_support\deployment;
 
 machine build(builder: @mut Build) {
     Build::application(builder, "payments_deployment");
-    let mut topology_dependency: DependencyDescription = dependency::from_source(Source::Path {
+    let mut topology_dependency: DependencyDescription = dependency\from_source(Source::Path {
         location: "../topology"
     });
-    dependency::with_alias(@mut topology_dependency, "topology");
+    dependency\with_alias(@mut topology_dependency, "topology");
     let topology_registration: DependencyRegistration = Build::build_dependency(builder, topology_dependency);
     Build::artifact_only(builder);
 
     let inputs = deployment_inputs(@mut builder.source);
     let output = builder.output.require("payments.plan");
-    suspend Build::await_provider::<TopologyBuild, topology::DiagnosticTopology>(builder);
+    suspend Build::await_provider::<TopologyBuild, topology\DiagnosticTopology>(builder);
     compose_payments(inputs, output);
 }
 ```
 
 `TopologyBuild` is a requirement already known when this Build is checked.
-`topology::DiagnosticTopology` explicitly names the dependency's implementation;
+`topology\DiagnosticTopology` explicitly names the dependency's implementation;
 it is a deferred selection reference, not an ordinary import of unresolved code.
 The dependency request may proceed while `deployment_inputs` performs local work;
 provider readiness suspends only if the admitted implementation is not installed

@@ -77,7 +77,7 @@ fn consume(text: &str) -> Result<crate::TypedTrees<'_>, crate::TypeError> {
 
 #[test]
 fn imported_inherited_rows_keep_the_declaring_requirement_and_its_applied_type() {
-    let source = "use lib::ByteReader; machine copy(x:u8)->u8{x} Adapter satisfies ByteReader { ByteReader::read = copy; }";
+    let source = "use lib\\ByteReader; machine copy(x:u8)->u8{x} Adapter satisfies ByteReader { ByteReader::read = copy; }";
     let stage = consume(source).unwrap();
     let row = stage
         .conformance_rows
@@ -93,7 +93,7 @@ fn imported_inherited_rows_keep_the_declaring_requirement_and_its_applied_type()
 
 #[test]
 fn compiled_domains_and_values_keep_their_declared_types_in_clients() {
-    let stage = consume("use lib::u8::Small; machine keep(x:u8 in Small)->u8 in Small{x} machine limit()->u8{lib::limit}").unwrap();
+    let stage = consume("use lib\\u8::Small; machine keep(x:u8 in Small)->u8 in Small{x} machine limit()->u8{lib\\limit}").unwrap();
     let keep = stage
         .signatures
         .iter()
@@ -102,13 +102,13 @@ fn compiled_domains_and_values_keep_their_declared_types_in_clients() {
     assert_eq!(keep.parameters[0].1, keep.result);
     assert!(matches!(&keep.result, crate::ValueType::Qualified(_, domains)
         if matches!(domains.as_slice(), [small] if small.declaration.package == "library" && small.declaration.path == "u8::Small")));
-    let error = consume("machine wrong()->bool{lib::limit}").unwrap_err();
+    let error = consume("machine wrong()->bool{lib\\limit}").unwrap_err();
     assert!(error.message.contains("expected bool, found u8"), "{error:?}");
 }
 
 #[test]
 fn imported_index_constraints_apply_to_the_clients_actual_arguments() {
-    let stage = consume("machine accept(w:lib::Word<2>){}").unwrap();
+    let stage = consume("machine accept(w:lib\\Word<2>){}").unwrap();
     assert_eq!(stage.trees().len(), 1);
     assert!(stage.operations.is_empty());
     assert!(
@@ -119,16 +119,16 @@ fn imported_index_constraints_apply_to_the_clients_actual_arguments() {
             .iter()
             .any(|op| op.token == "-")
     );
-    let source = "machine bad(w:lib::Word<1>){}";
+    let source = "machine bad(w:lib\\Word<1>){}";
     let error = consume(source).unwrap_err();
     assert_eq!(error.package, "client");
     assert_eq!(error.message, "integer width must be positive");
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"lib::Word<1>".as_slice()));
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"lib\\Word<1>".as_slice()));
 }
 
 #[test]
 fn imported_body_effects_propagate_to_the_selected_caller() {
-    let stage = consume("machine action() reaches lib::Device crashes none {} machine call(){lib::run(action)}").unwrap();
+    let stage = consume("machine action() reaches lib\\Device crashes none {} machine call(){lib\\run(action)}").unwrap();
     let caller = stage
         .machine_effects
         .iter()
@@ -138,8 +138,8 @@ fn imported_body_effects_propagate_to_the_selected_caller() {
     assert!(
         matches!(caller.invokes.as_slice(), [crate::InvocationTarget::Declaration(slot)] if slot.declaration.package == "client" && slot.declaration.path == "action")
     );
-    consume("machine local()->bool{true} machine proof() requires lib::apply::<local>() {}").unwrap();
-    let error = consume("machine parked()->bool suspends {true} machine proof() requires lib::apply::<parked>() {}").unwrap_err();
+    consume("machine local()->bool{true} machine proof() requires lib\\apply::<local>() {}").unwrap();
+    let error = consume("machine parked()->bool suspends {true} machine proof() requires lib\\apply::<parked>() {}").unwrap_err();
     assert!(error.message.contains("effect-free computation"), "{error:?}");
 }
 
@@ -172,8 +172,8 @@ fn type_checked_client(source: &str) -> (Result<crate::TypedTrees<'_>, crate::Ty
 #[test]
 fn checked_and_joint_typing_agree_on_operator_visibility_and_ownership() {
     let (imported, joint) = type_checked_client(
-        "use geo::Point; machine sum(a:Point,b:Point)->Point{a+b}
-        machine via_public(a:Point,b:Point)->Point{geo::difference(a,b)}",
+        "use geo\\Point; machine sum(a:Point,b:Point)->Point{a+b}
+        machine via_public(a:Point,b:Point)->Point{geo\\difference(a,b)}",
     );
     let imported = imported.unwrap();
     let joint = joint.unwrap();
@@ -201,12 +201,12 @@ fn checked_and_joint_typing_agree_on_operator_visibility_and_ownership() {
 
     for (source, span, message) in [
         (
-            "use geo::Point; machine bad(a:Point,b:Point)->Point{a-b}",
+            "use geo\\Point; machine bad(a:Point,b:Point)->Point{a-b}",
             b"a-b".as_slice(),
             "no matching operator -",
         ),
         (
-            "use geo::Point; machine - foreign(a:Point,b:Point)->Point{a}",
+            "use geo\\Point; machine - foreign(a:Point,b:Point)->Point{a}",
             b"-".as_slice(),
             "only a nominal operand's declaring package may bind this operator",
         ),
@@ -223,7 +223,7 @@ fn checked_and_joint_typing_agree_on_operator_visibility_and_ownership() {
 #[test]
 fn inherited_imported_operator_keeps_its_evidence_in_a_static_index() {
     let (imported, joint) = type_checked_client(
-        "trait Bound:geo::Add {} data Buffer<const K:u8>{}
+        "trait Bound:geo\\Add {} data Buffer<const K:u8>{}
          machine buffer<const N:u8,const E:Bound>()->Buffer<N+1>{Buffer::<N+1>{}}",
     );
     for stage in [imported.unwrap(), joint.unwrap()] {
@@ -273,8 +273,8 @@ fn imported_crash_routes_keep_the_guard_and_the_forwarded_call_operands() {
     use crate::{CrashCause, CrashRouteRef, GuardedCall, GuardedInvocationRef};
     const CLIENT: &str = "
         machine local(x:u8)->u8 crashes Abort x == 1 {x}
-        machine direct(x:u8)->u8{geo::guarded(x)}
-        machine indirect(x:u8)->u8{geo::forward::<geo::guarded>(x)}";
+        machine direct(x:u8)->u8{geo\\guarded(x)}
+        machine indirect(x:u8)->u8{geo\\forward::<geo\\guarded>(x)}";
     let (imported, joint) = type_checked_client(CLIENT);
     let imported = imported.unwrap();
     let joint = joint.unwrap();

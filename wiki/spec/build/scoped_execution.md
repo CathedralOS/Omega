@@ -76,7 +76,7 @@ or evidence systems:
 `Build::dependency` registers a product dependency; `Build::build_dependency`
 registers a dependency for interpreted Build code. Both consume a configured
 dependency description and return its exact registration. The description may
-be prepared by ordinary library helpers, including `dependency::with_alias`;
+be prepared by ordinary library helpers, including `dependency\with_alias`;
 registration atomically fixes source selection, purpose, alias and delegated
 execution context before coordination may schedule work. There is no mutable
 half-registered edge, post-registration alias setter or spelling-based retarget.
@@ -127,7 +127,7 @@ operations use this one registration mechanism; their distinct requirements
 remain under [validation subjects](validation_subjects.md#buildvalidate).
 
 The following illustrates the selected surface.
-`dependency::from_source` and configuration helpers are ordinary library code;
+`dependency\from_source` and configuration helpers are ordinary library code;
 source selection is resolved through the invocation's authorized acquisition
 route or supplied filesystem backing, never the compiler's ambient filesystem:
 
@@ -138,14 +138,14 @@ machine build(builder: @mut Build)
 suspends
 {
   Build::application(builder, "payments");
-  let mut request = dependency::from_source(Source::Path {
+  let mut request = dependency\from_source(Source::Path {
     location: "../topology"
   });
-  dependency::with_alias(@mut request, "topology");
+  dependency\with_alias(@mut request, "topology");
   let registered = Build::build_dependency(builder, request);
 
   suspend Build::prepare_dependency(builder, registered);
-  topology::configure_products(builder);
+  topology\configure_products(builder);
 }
 ```
 
@@ -300,9 +300,9 @@ names when lookup fails.
 Toolchain operations have designated product operands:
 
 ```omega
-Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
+Build::bind(builder, windows_x86_64\ProgramEntry, Application::start);
 Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
-Build::select_provider::<windows_x86_64::Console, TestConsole>(builder);
+Build::select_provider::<windows_x86_64\Console, TestConsole>(builder);
 Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
 _ = builder.tests.group::<Tests::memory>();
 ```

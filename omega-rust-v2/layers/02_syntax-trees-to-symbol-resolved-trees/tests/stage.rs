@@ -108,13 +108,13 @@ fn imports_need_public_declarations_and_requester_local_edges() {
         alias: "lib",
         package: "geometry",
     };
-    let caller = ("app", "main.omg", "use lib::math::score; machine f() { score() }");
+    let caller = ("app", "main.omg", "use lib\\math\\score; machine f() { score() }");
     let public = ("geometry", "math/s.omg", "public machine score() -> u32 { 7 }");
     let stage = run(&[caller, public], &[edge]).unwrap();
     assert!(
         stage
             .uses()
-            .any(|u| matches!(&u.target, Symbol::Declaration(id) if id.package == "geometry" && id.path == "math::score"))
+            .any(|u| matches!(&u.target, Symbol::Declaration(id) if id.package == "geometry" && id.path == "math\\score"))
     );
     assert!(run(&[caller, public], &[]).is_err());
     assert!(run(&[caller, ("geometry", "math/s.omg", "machine score() { 7 }")], &[edge]).is_err());
@@ -239,7 +239,7 @@ fn public_signature_checks_private_types_but_private_body_helpers_are_allowed() 
 #[test]
 fn domain_exposure_requires_both_the_exact_carrier_and_an_import_of_the_domain() {
     let lib = ("geometry", "types.omg", "public data Point {}");
-    let dom = ("policy", "screen/types.omg", "use geom::Point; public domain Point::OnScreen;");
+    let dom = ("policy", "screen/types.omg", "use geom\\Point; public domain Point::OnScreen;");
     let edges = [
         Dependency {
             requester: "policy",
@@ -257,13 +257,13 @@ fn domain_exposure_requires_both_the_exact_carrier_and_an_import_of_the_domain()
             package: "policy",
         },
     ];
-    for import in ["use ui::screen;", "use ui::screen::Point::OnScreen;"] {
-        let text = format!("use g::Point; {import} machine draw(p: Point in Point::OnScreen) {{}}");
+    for import in ["use ui\\screen;", "use ui\\screen\\Point::OnScreen;"] {
+        let text = format!("use g\\Point; {import} machine draw(p: Point in Point::OnScreen) {{}}");
         run(&[lib, dom, ("app", "main.omg", &text)], &edges).unwrap();
     }
     for text in [
-        "use g::Point; machine draw(p: Point in Point::OnScreen) {}",
-        "data Point {} use ui::screen; machine draw(p: Point in Point::OnScreen) {}",
+        "use g\\Point; machine draw(p: Point in Point::OnScreen) {}",
+        "data Point {} use ui\\screen; machine draw(p: Point in Point::OnScreen) {}",
     ] {
         assert!(run(&[lib, dom, ("app", "main.omg", text)], &edges).is_err());
     }
@@ -275,7 +275,7 @@ fn compiled_domains_keep_the_carrier_from_the_declaring_package() {
     let policy = (
         "policy",
         "screen/d.omg",
-        "use geom::Point; public domain Point::Ready; public domain Point::Ready::Stable;",
+        "use geom\\Point; public domain Point::Ready; public domain Point::Ready::Stable;",
     );
     let policy_edge = Dependency {
         requester: "policy",
@@ -287,7 +287,7 @@ fn compiled_domains_keep_the_carrier_from_the_declaring_package() {
     let parent = exports
         .declarations
         .iter()
-        .find(|e| e.id.path == "screen::Point::Ready")
+        .find(|e| e.id.path == "screen\\Point::Ready")
         .unwrap();
     assert!(matches!(&parent.domain_carrier, Some(omega_resolver::DomainCarrier::Named(id)) if id.package == "geometry" && id.path == "Point"));
     let consumer = |text: &str, deps: &[Dependency<'_>]| {
@@ -324,17 +324,17 @@ fn compiled_domains_keep_the_carrier_from_the_declaring_package() {
             package: "geometry",
         },
     ];
-    let uses = consumer("use geom::Point; use ui::screen; machine f(p:Point in Point::Ready::Stable){}", &edges).unwrap();
+    let uses = consumer("use geom\\Point; use ui\\screen; machine f(p:Point in Point::Ready::Stable){}", &edges).unwrap();
     assert!(
         uses.iter()
-            .any(|id| id.package == "policy" && id.path == "screen::Point::Ready::Stable")
+            .any(|id| id.package == "policy" && id.path == "screen\\Point::Ready::Stable")
     );
-    assert!(consumer("data Point{} use ui::screen; machine f(p:Point in Point::Ready){}", &edges).is_err());
+    assert!(consumer("data Point{} use ui\\screen; machine f(p:Point in Point::Ready){}", &edges).is_err());
     assert_eq!(
-        consumer("use ui::screen::Point::Ready::Stable;", &edges[..1])
+        consumer("use ui\\screen\\Point::Ready::Stable;", &edges[..1])
             .unwrap_err()
             .message,
-        "no authority to name carrier geometry::Point"
+        "no authority to name carrier geometry\\Point"
     );
 }
 
@@ -358,19 +358,19 @@ fn selecting_a_child_domain_requires_visibility_of_its_carrier() {
         },
     ];
     for name in ["Point::Ready", "Point::Ready::Stable"] {
-        let source = format!("use lib::{name};");
+        let source = format!("use lib\\{name};");
         let files = [
             ("app", "main.omg", source.as_str()),
             ("geometry", "types.omg", "public data Point {}"),
             (
                 "lib",
                 "domains.omg",
-                "use geom::Point; public domain Point::Ready; public domain Point::Ready::Stable;",
+                "use geom\\Point; public domain Point::Ready; public domain Point::Ready::Stable;",
             ),
         ];
         run(&files, &edges).unwrap();
         let error = run(&files, &edges[..2]).unwrap_err();
-        assert_eq!(error.message, "no authority to name carrier geometry::Point");
+        assert_eq!(error.message, "no authority to name carrier geometry\\Point");
         assert_eq!(error.span.slice(source.as_bytes()), Some(&source.as_bytes()[4..source.len() - 1]));
     }
 }
@@ -578,6 +578,54 @@ fn lexical_static_members_bind_before_their_schema_is_known() {
 }
 
 #[test]
+fn machine_qualification_rejects_two_eligible_owners_before_searching_their_members() {
+    let source = r"use live\Output; use muted\Output; machine preview() { Output::play(); }";
+    let error = run(
+        &[
+            ("app", "main.omg", source),
+            ("app", "live/items.omg", "public trait Output { machine play(); }"),
+            ("app", "muted/items.omg", "public trait Output { machine stop(); }"),
+        ],
+        &[],
+    )
+    .unwrap_err();
+    assert_eq!(error.message, "ambiguous static root Output");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"Output".as_slice()));
+}
+
+#[test]
+fn a_module_path_binds_its_imported_owner_before_looking_up_the_member() {
+    let items = [
+        ("app", "left/audio/items.omg", "public machine play() {}"),
+        ("app", "right/audio/items.omg", "public machine stop() {}"),
+        ("app", "audio/items.omg", "public machine play() {}"),
+    ];
+    let ambiguous = r"use left\audio; use right\audio; machine preview() { audio\play(); }";
+    let error = run(&[("app", "main.omg", ambiguous), items[0], items[1]], &[]).unwrap_err();
+    assert_eq!(error.message, "competing module paths audio");
+    assert_eq!(error.span.slice(ambiguous.as_bytes()), Some(b"audio".as_slice()));
+
+    let missing = r"use right\audio; machine preview() { audio\play(); }";
+    let error = run(&[("app", "main.omg", missing), items[1], items[2]], &[]).unwrap_err();
+    assert_eq!(error.message, r"unresolved name audio\play");
+}
+
+#[test]
+fn a_static_member_call_does_not_fall_back_to_a_module() {
+    let source = "use audio; machine preview() { audio::play(1u8); }";
+    let error = run(
+        &[
+            ("app", "main.omg", source),
+            ("app", "audio/play.omg", "public machine play(volume:u8) {}"),
+        ],
+        &[],
+    )
+    .unwrap_err();
+    assert_eq!(error.message, "unresolved name audio::play");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"audio::play".as_slice()));
+}
+
+#[test]
 fn a_static_root_collision_retains_both_visible_names() {
     let applied = "trait R { machine m<T>(); } machine f<const E:R>() { E::<u8>::m(); E::m::<u8>(); }";
     let names = run(&[("app", "apply.omg", applied)], &[]).unwrap();
@@ -593,7 +641,7 @@ fn a_static_root_collision_retains_both_visible_names() {
     let stage = run(
         &[
             ("app", "main.omg", text),
-            ("app", "O/run.omg", "machine run() {}"),
+            ("app", "ops.omg", "trait O { machine run(); }"),
         ],
         &[],
     )
@@ -649,7 +697,7 @@ fn operator_declarations_and_uses_retain_the_token_and_declaring_home() {
     .unwrap();
     assert_eq!(stage.operator_declarations[0].token, "+");
     assert!(stage.operator_declarations[0].public);
-    assert!(matches!(&stage.operator_declarations[0].declared_home, Some(Symbol::Declaration(id)) if id.path == "units::i32::Km"));
+    assert!(matches!(&stage.operator_declarations[0].declared_home, Some(Symbol::Declaration(id)) if id.path == "units\\i32::Km"));
     assert!(
         stage
             .trees()
@@ -660,7 +708,7 @@ fn operator_declarations_and_uses_retain_the_token_and_declaring_home() {
     let members = run(&[("app", "ops.omg", traits)], &[]).unwrap();
     assert!(!members.operator_declarations[0].public);
     assert!(members.operator_declarations[1].public);
-    let foreign = operator.replace("use units;", "use lib::units;");
+    let foreign = operator.replace("use units;", "use lib\\units;");
     let duplicate = operator.replace("Km::add", "Km::sum");
     let stage = run(
         &[
@@ -718,9 +766,9 @@ fn operator_declarations_and_uses_retain_the_token_and_declaring_home() {
 #[test]
 fn same_spelled_operand_types_imported_from_distinct_packages_distinguish_overloads() {
     let files = [
-        ("app", "one.omg", "use left::Point; machine draw(p: Point) {}"),
-        ("app", "two.omg", "use right::Point; machine draw(p: Point) {}"),
-        ("app", "caller.omg", "use left::Point; machine call(p: Point) { draw(p) }"),
+        ("app", "one.omg", "use left\\Point; machine draw(p: Point) {}"),
+        ("app", "two.omg", "use right\\Point; machine draw(p: Point) {}"),
+        ("app", "caller.omg", "use left\\Point; machine call(p: Point) { draw(p) }"),
         ("a", "p.omg", "public data Point {}"),
         ("b", "p.omg", "public data Point {}"),
     ];
@@ -747,8 +795,8 @@ fn same_spelled_operand_types_imported_from_distinct_packages_distinguish_overlo
 #[test]
 fn admitted_dependencies_are_requester_local_and_never_transitive() {
     let files = [
-        ("app", "main.omg", "machine run() { dep::work() }"),
-        ("lib", "l.omg", "public machine work() { dep::leaf() }"),
+        ("app", "main.omg", "machine run() { dep\\work() }"),
+        ("lib", "l.omg", "public machine work() { dep\\leaf() }"),
         ("core", "c.omg", "public machine leaf() {}"),
     ];
     let edges = [
@@ -772,7 +820,7 @@ fn admitted_dependencies_are_requester_local_and_never_transitive() {
             .any(|u| matches!(&u.target,Symbol::Declaration(id) if id.package=="core"))
     );
     let bad = [
-        ("app", "main.omg", "machine run() { core::leaf() }"),
+        ("app", "main.omg", "machine run() { core\\leaf() }"),
         files[1],
         files[2],
     ];
@@ -799,14 +847,14 @@ fn admitted_dependencies_are_requester_local_and_never_transitive() {
 #[test]
 fn namespace_and_import_order_never_break_a_tie() {
     let files = [
-        ("app", "main.omg", "use a::f; use b::f; machine g() { f() }"),
+        ("app", "main.omg", "use a\\f; use b\\f; machine g() { f() }"),
         ("app", "a/f.omg", "machine f() {}"),
         ("app", "b/f.omg", "machine f() {}"),
     ];
     let error = run(&files, &[]).unwrap_err();
-    assert!(error.message.contains("a::f") && error.message.contains("b::f"));
+    assert!(error.message.contains("a\\f") && error.message.contains("b\\f"));
     let repeat = [
-        ("app", "main.omg", "use a::f; use a::f; machine g() { f() }"),
+        ("app", "main.omg", "use a\\f; use a\\f; machine g() { f() }"),
         files[1],
         files[2],
     ];
@@ -860,7 +908,7 @@ fn inherited_trait_rows_keep_the_declaring_owner() {
     run(
         &[
             ("lib", "p.omg", "public trait Base { machine read(); } public trait Derived: Base {}"),
-            ("app", "main.omg", "use dep::Derived::read; machine f() { read() }"),
+            ("app", "main.omg", "use dep\\Derived::read; machine f() { read() }"),
         ],
         &[Dependency {
             requester: "app",
@@ -891,9 +939,9 @@ fn a_public_conformance_exposes_its_interface_and_keeps_its_realizations_private
         alias: "provider",
         package: "lib",
     };
-    let caller = ("app", "main.omg", "machine f() { provider::Log.write() }");
+    let caller = ("app", "main.omg", "machine f() { provider\\Log.write() }");
     run(&[caller, provider], &[edge]).unwrap();
-    let direct = ("app", "main.omg", "machine f() { provider::Log::write() }");
+    let direct = ("app", "main.omg", "machine f() { provider\\Log::write() }");
     assert!(run(&[direct, provider], &[edge]).is_err());
     let reused = (
         "lib",
@@ -905,8 +953,8 @@ fn a_public_conformance_exposes_its_interface_and_keeps_its_realizations_private
 
 #[test]
 fn ambiguous_domains_report_each_owner_carrier_and_exposing_import() {
-    let caller = "use geom::Point; use left; use right; machine f(p: Point in Point::Ready) {}";
-    let domain = "use geom::Point; domain Point::Ready;";
+    let caller = "use geom\\Point; use left; use right; machine f(p: Point in Point::Ready) {}";
+    let domain = "use geom\\Point; domain Point::Ready;";
     let files = [
         ("app", "main.omg", caller),
         ("app", "geom/p.omg", "data Point {}"),
@@ -915,9 +963,9 @@ fn ambiguous_domains_report_each_owner_carrier_and_exposing_import() {
     ];
     let error = run(&files, &[]).unwrap_err();
     for label in [
-        "app::left::Point::Ready",
-        "app::right::Point::Ready",
-        "app::geom::Point",
+        "app\\left\\Point::Ready",
+        "app\\right\\Point::Ready",
+        "app\\geom\\Point",
     ] {
         assert!(error.message.contains(label), "{}", error.message);
     }
@@ -934,7 +982,7 @@ mod support;
 
 #[test]
 fn annotated_binders_leave_their_equality_role_to_typing() {
-    let mixed = "machine f<A:core::Type<0>,N:u8>() requires A == N {}";
+    let mixed = "machine f<A:core\\Type<0>,N:u8>() requires A == N {}";
     let resolved = run(&[("app", "probe.omg", mixed)], &[]).unwrap();
     let tree = resolved.trees().next().unwrap();
     assert!((0..tree.file.nodes.len()).any(|n| tree.file.operator(n).is_some_and(|op| op.token == "==")));
@@ -985,10 +1033,10 @@ fn a_shadowing_initializer_reads_the_previous_binding_and_the_tail_reads_the_new
 fn imported_alias_bounds_leave_both_visible_argument_names_at_the_call() {
     let caller = "data X{} machine f<X:u8>(){pick::<X>(true)}";
     let files = [
-        ("app", "type/kind.omg", "public data Sort=core::Type<0>;"),
+        ("app", "type/kind.omg", "public data Sort=core\\Type<0>;"),
         ("app", "value/kind.omg", "public data Sort=u8;"),
-        ("app", "a.omg", "use type::Sort; machine pick<A:Sort>(x:u8){}"),
-        ("app", "b.omg", "use value::Sort; machine pick<N:Sort>(x:bool){}"),
+        ("app", "a.omg", "use type\\Sort; machine pick<A:Sort>(x:u8){}"),
+        ("app", "b.omg", "use value\\Sort; machine pick<N:Sort>(x:bool){}"),
         ("app", "caller.omg", caller),
     ];
     let stage = run(&files, &[]).unwrap();
@@ -1015,7 +1063,7 @@ fn imported_alias_bounds_leave_both_visible_argument_names_at_the_call() {
 
 #[test]
 fn imported_overloads_come_only_from_the_requesters_selected_package() {
-    let imported = "use dep::math::score; machine caller() { score(1) }";
+    let imported = "use dep\\math\\score; machine caller() { score(1) }";
     let bare = "machine caller() { score(1) }";
     let overloads = "public machine score(n:u8) {} public machine score(n:u32) {}";
     let other = "public machine score(n:bool) {}";
@@ -1048,7 +1096,7 @@ fn imported_overloads_come_only_from_the_requesters_selected_package() {
             assert!(
                 candidates
                     .iter()
-                    .all(|id| id.package == selected && id.path == "math::score")
+                    .all(|id| id.package == selected && id.path == "math\\score")
             );
             for operand in ["u8", "u32"] {
                 assert!(candidates.iter().any(|id| id.operands == [operand]), "{candidates:?}");
@@ -1064,9 +1112,9 @@ fn imported_overloads_come_only_from_the_requesters_selected_package() {
         let error = run(&files, &[other_edge]).unwrap_err();
         assert_eq!(
             (error.package.as_str(), error.file.as_str(), error.message.as_str()),
-            ("app", "main.omg", "unavailable import dep::math::score")
+            ("app", "main.omg", "unavailable import dep\\math\\score")
         );
-        assert_eq!(error.span.slice(imported.as_bytes()), Some("dep::math::score".as_bytes()));
+        assert_eq!(error.span.slice(imported.as_bytes()), Some("dep\\math\\score".as_bytes()));
 
         files[0].2 = bare;
         let error = run(&files, &[edge]).unwrap_err();
@@ -1120,7 +1168,7 @@ fn child_domains_follow_the_visible_parent_on_the_annotated_carrier() {
         package: "lib",
     };
     let body = "machine inspect(x:i32 in Positive::Small) {}";
-    let imported = format!("use limits::units; {body}");
+    let imported = format!("use limits\\units; {body}");
     run(&[domains, ("app", "caller.omg", &imported)], &[edge]).unwrap();
     let err = run(&[domains, ("app", "caller.omg", body)], &[edge]).unwrap_err();
     assert_eq!(err.message, "unresolved name Positive::Small");
@@ -1129,7 +1177,7 @@ fn child_domains_follow_the_visible_parent_on_the_annotated_carrier() {
 #[test]
 fn annotated_domain_heads_preserve_the_lexical_type_candidates() {
     for bound in ["Sort", "Byte"] {
-        let code = format!("data T {{}} data Sort=core::Type<0>; data Byte=u8; domain<const T:{bound},const N:u8> T::Mark<N>;");
+        let code = format!("data T {{}} data Sort=core\\Type<0>; data Byte=u8; domain<const T:{bound},const N:u8> T::Mark<N>;");
         let stage = run(&[("app", "domain.omg", &code)], &[]).unwrap();
         let tree = stage.trees().next().unwrap();
         let head = tree
@@ -1219,7 +1267,7 @@ fn chapter_block(
 fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declarations() {
     use omega_parser::NodeKind;
     let selectors = chapter_block(include_str!("../../../wiki/spec/language/reflection.md"), 77);
-    let mut source = String::from("use omega::language::core::reflect; machine inspect(){");
+    let mut source = String::from("use omega\\language\\core\\reflect; machine inspect(){");
     for selector in selectors.lines() {
         source.push_str(&format!("_ = {selector};"));
     }
@@ -1240,7 +1288,7 @@ fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declar
         package: "core",
     }];
     let error = run(&files, &edges).unwrap_err();
-    assert_eq!(error.message, "unresolved name reflect::field");
+    assert_eq!(error.message, "unresolved name reflect\\field");
     // Supply the query names separately so this checks ordinary resolution
     // independently of which primitives the toolchain ships.
     files.push((
@@ -1265,7 +1313,7 @@ fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declar
         [
             ("Controller::status", NodeKind::Field),
             ("Buffer::used", NodeKind::Field),
-            ("Controller::update", NodeKind::Machine),
+            ("Controller\\update", NodeKind::Machine),
             ("ControllerWriter::write", NodeKind::Machine)
         ]
     );
@@ -1279,8 +1327,20 @@ fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declar
 
 #[test]
 fn published_import_exposes_the_exact_remote_domain() {
-    let text = chapter_block(include_str!("../../../wiki/spec/language/modules.md"), 102);
-    let requester = format!("{text}\nmachine check(p:ui_policy::screen::Point in OnScreen) {{}}");
+    let chapter = include_str!("../../../wiki/spec/language/modules.md");
+    let section = chapter
+        .split_once("### Foreign attached declaration paths")
+        .unwrap()
+        .1;
+    let text = section
+        .split_once("```omega")
+        .unwrap()
+        .1
+        .split_once("```")
+        .unwrap()
+        .0
+        .trim();
+    let requester = format!("{text}\nmachine check(p:ui_policy\\screen\\Point in OnScreen) {{}}");
     let library = ("policy", "screen/point.omg", "public data Point{} public domain Point::OnScreen;");
     let edge = Dependency {
         requester: "app",
@@ -1295,7 +1355,7 @@ fn published_import_exposes_the_exact_remote_domain() {
         .flat_map(|tree| tree.occurrences())
         .find(|u| u.span.slice(requester.as_bytes()) == Some(b"OnScreen"))
         .unwrap();
-    assert!(matches!(&usage.target,Symbol::Declaration(d) if d.package=="policy" && d.path=="screen::Point::OnScreen"));
+    assert!(matches!(&usage.target,Symbol::Declaration(d) if d.package=="policy" && d.path=="screen\\Point::OnScreen"));
     let error = run(&files, &[]).unwrap_err();
     assert_eq!(error.file, "main.omg");
     assert!(error.message.contains("ui_policy"), "{error:?}");
@@ -1420,7 +1480,7 @@ fn selected(
         .flat_map(|tree| tree.occurrences())
         .filter(|u| text.get(u.span.get_start_offset()..u.span.get_end_offset()) == Some(spelling))
         .map(|u| match &u.target {
-            Symbol::Declaration(id) => format!("{}::{}", id.package, id.path),
+            Symbol::Declaration(id) => format!("{}\\{}", id.package, id.path),
             other => format!("{other:?}"),
         })
         .collect()
@@ -1433,38 +1493,38 @@ fn a_qualified_path_and_its_import_select_the_same_root_module_declaration() {
     // reached by a qualified path or by an import.
     let root = ("app", "combat/s.omg", "machine score() -> u32 { 1 } data Point { x: u32; }");
     let child = ("app", "game/combat/s.omg", "machine score() -> u32 { 2 } data Point { y: u32; }");
-    let qualified = "machine f(p: combat::Point) -> u32 { combat::score() }";
-    let imported = "use combat::score; use combat::Point; machine f(p: Point) -> u32 { score() }";
+    let qualified = "machine f(p: combat\\Point) -> u32 { combat\\score() }";
+    let imported = "use combat\\score; use combat\\Point; machine f(p: Point) -> u32 { score() }";
     for caller in ["main.omg", "game/main.omg"] {
         for text in [qualified, imported] {
             let stage = run(&[root, child, ("app", caller, text)], &[]).unwrap();
             for (spelling, expected) in [
-                ("combat::score", "app::combat::score"),
-                ("score", "app::combat::score"),
-                ("combat::Point", "app::combat::Point"),
-                ("Point", "app::combat::Point"),
+                ("combat\\score", "app\\combat\\score"),
+                ("score", "app\\combat\\score"),
+                ("combat\\Point", "app\\combat\\Point"),
+                ("Point", "app\\combat\\Point"),
             ] {
                 for target in selected(&stage, caller, text, spelling) {
                     assert_eq!(target, expected, "{caller}: `{text}` selects {spelling}");
                 }
             }
-            assert!(!selected(&stage, caller, text, "combat::score").is_empty());
+            assert!(!selected(&stage, caller, text, "combat\\score").is_empty());
         }
     }
     for (text, message) in [
-        ("machine f() -> u32 { combat::score() }", "unresolved name combat::score"),
-        ("use combat::score; machine f() -> u32 { score() }", "unavailable import combat::score"),
-        ("machine f(p: combat::Point) {}", "unresolved name combat::Point"),
+        ("machine f() -> u32 { combat\\score() }", "unresolved name combat\\score"),
+        ("use combat\\score; machine f() -> u32 { score() }", "unavailable import combat\\score"),
+        ("machine f(p: combat\\Point) {}", "unresolved name combat\\Point"),
     ] {
         let error = run(&[child, ("app", "game/main.omg", text)], &[])
             .err()
-            .unwrap_or_else(|| panic!("`{text}` in game/ reached game::combat"));
+            .unwrap_or_else(|| panic!("`{text}` in game/ reached game\\combat"));
         assert_eq!((error.file.as_str(), error.message.as_str()), ("game/main.omg", message));
     }
 }
 
 #[test]
-fn a_dependency_alias_that_also_names_a_root_directory_or_declaration_is_refused_in_every_directory() {
+fn module_paths_reject_competing_directories_and_ignore_same_named_data() {
     let edge = Dependency {
         requester: "app",
         alias: "dep",
@@ -1472,28 +1532,34 @@ fn a_dependency_alias_that_also_names_a_root_directory_or_declaration_is_refused
     };
     let library = ("lib", "l.omg", "public machine item() -> u32 { 1 }");
     let directory = ("app", "dep/x.omg", "machine item() -> u32 { 2 }");
-    let qualified = "machine f() -> u32 { dep::item() }";
-    let imported = "use dep::item; machine f() -> u32 { item() }";
+    let qualified = "machine f() -> u32 { dep\\item() }";
+    let imported = "use dep\\item; machine f() -> u32 { item() }";
     for caller in ["main.omg", "sub/main.omg"] {
         for text in [qualified, imported] {
-            // A root declaration named like the alias competes the same way.
-            for local in [directory, ("app", "d.omg", "data dep { case item; }")] {
-                let error = run(&[library, local, ("app", caller, text)], &[edge])
-                    .err()
-                    .unwrap_or_else(|| {
-                        let stage = run(&[library, local, ("app", caller, text)], &[edge]).unwrap();
-                        panic!("{caller}: `{text}` was accepted and selects {:?}", selected(&stage, caller, text, "dep::item"))
-                    });
-                assert_eq!(error.file, caller);
-                assert_eq!(error.message, "competing module paths dep: package lib and app::dep");
-                assert_eq!(text.get(error.span.get_start_offset()..error.span.get_end_offset()), Some("dep::item"));
-            }
+            let error = run(&[library, directory, ("app", caller, text)], &[edge])
+                .err()
+                .unwrap_or_else(|| {
+                    let stage = run(&[library, directory, ("app", caller, text)], &[edge]).unwrap();
+                    panic!("{caller}: `{text}` was accepted and selects {:?}", selected(&stage, caller, text, "dep\\item"))
+                });
+            assert_eq!(error.file, caller);
+            assert_eq!(error.message, "competing module paths dep: package lib and app\\dep");
+            assert_eq!(text.get(error.span.get_start_offset()..error.span.get_end_offset()), Some("dep\\item"));
             for (files, edges, expected) in [
-                (vec![library, ("app", caller, text)], vec![edge], "lib::item"),
-                (vec![directory, ("app", caller, text)], vec![], "app::dep::item"),
+                (vec![library, ("app", caller, text)], vec![edge], "lib\\item"),
+                (
+                    vec![
+                        library,
+                        ("app", "d.omg", "data dep { case item; }"),
+                        ("app", caller, text),
+                    ],
+                    vec![edge],
+                    "lib\\item",
+                ),
+                (vec![directory, ("app", caller, text)], vec![], "app\\dep\\item"),
             ] {
                 let stage = run(&files, &edges).unwrap();
-                let mut targets = selected(&stage, caller, text, "dep::item");
+                let mut targets = selected(&stage, caller, text, "dep\\item");
                 targets.extend(selected(&stage, caller, text, "item"));
                 assert!(!targets.is_empty());
                 assert!(targets.iter().all(|t| t == expected), "{caller}: `{text}` selects {targets:?}");
@@ -1566,7 +1632,7 @@ fn word_targets(
         .flat_map(|tree| tree.occurrences())
         .filter(|u| text.get(u.span.get_start_offset()..u.span.get_end_offset()) == Some(word))
         .map(|u| match &u.target {
-            Symbol::Declaration(id) => format!("{:?} {}::{}", id.kind, id.package, id.path),
+            Symbol::Declaration(id) => format!("{:?} {}\\{}", id.kind, id.package, id.path),
             Symbol::Binding { span, kind, .. } => format!("{kind:?}@{}", span.get_start_offset()),
             other => format!("{other:?}"),
         })
@@ -1598,7 +1664,7 @@ fn a_bare_subject_arm_binds_even_when_a_constant_has_the_same_name() {
             );
         }
     }
-    let text = "use limits::x; machine f(v:u32)->u32 { match v { limits::x -> 1, x -> x } }";
+    let text = "use limits\\x; machine f(v:u32)->u32 { match v { limits\\x -> 1, x -> x } }";
     let stage = run(
         &[
             ("app", "limits/values.omg", consts.2),
@@ -1608,13 +1674,13 @@ fn a_bare_subject_arm_binds_even_when_a_constant_has_the_same_name() {
     )
     .unwrap();
     assert_eq!(
-        word_targets(&stage, "main.omg", text, "limits::x"),
-        ["Const app::limits::x", "Const app::limits::x"]
+        word_targets(&stage, "main.omg", text, "limits\\x"),
+        ["Const app\\limits\\x", "Const app\\limits\\x"]
     );
     let binder = text.find(", x ->").unwrap() + 2;
     assert_eq!(word_targets(&stage, "main.omg", text, "x"), [format!("BindingPattern@{binder}")]);
 
-    let text = "use left::x; use right::x; machine f(v:u32)->u32 { match v { x -> x } }";
+    let text = "use left\\x; use right\\x; machine f(v:u32)->u32 { match v { x -> x } }";
     let left = ("app", "left/values.omg", "const x:u32=1;");
     let right = ("app", "right/values.omg", "const x:u32=2;");
     let stage = run(&[left, right, ("app", "main.omg", text)], &[]).unwrap();
@@ -1625,7 +1691,7 @@ fn a_bare_subject_arm_binds_even_when_a_constant_has_the_same_name() {
         run(&[left, right, ("app", "main.omg", &ordinary)], &[])
             .unwrap_err()
             .message,
-        "competing declarations: app::left::x, app::right::x"
+        "competing declarations: app\\left\\x, app\\right\\x"
     );
 }
 
@@ -1670,7 +1736,7 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
         );
     }
     // A named implementation, a domain and a module can each own a top-level machine.
-    let module_source = "machine + combat::sum(a:u32,b:u32)->u32 {a}";
+    let module_source = "machine + combat\\sum(a:u32,b:u32)->u32 {a}";
     let module = run(
         &[
             ("app", "combat/helper.omg", "machine helper(){}"),
@@ -1682,7 +1748,7 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
     let [binding] = module.operator_declarations.as_slice() else {
         panic!("expected one binding")
     };
-    assert_eq!(binding.machine.path, "combat::sum");
+    assert_eq!(binding.machine.path, "combat\\sum");
     assert!(binding.declared_home.is_none());
     for files in [
         vec![(
@@ -1697,7 +1763,7 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
         )],
         vec![
             ("app", "combat/x.omg", "machine other() {}"),
-            ("app", "main.omg", "machine combat::score() {} machine g() { combat::score() }"),
+            ("app", "main.omg", "machine combat\\score() {} machine g() { combat\\score() }"),
         ],
     ] {
         run(&files, &[]).unwrap_or_else(|e| panic!("{files:?}: {e:?}"));
@@ -1706,20 +1772,20 @@ fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_own
 
 #[test]
 fn importing_an_inherited_requirement_keeps_the_final_signature_owner() {
-    let caller = "use views; use views::Child::read; use views::Child::read; machine copy(x:numbers::Word)->numbers::Word{x} Adapter satisfies Child { Child::read = copy; }";
+    let caller = "use views; use views\\Child::read; use views\\Child::read; machine copy(x:numbers\\Word)->numbers\\Word{x} Adapter satisfies Child { Child::read = copy; }";
     let files = [
         ("app", "main.omg", caller),
         ("app", "numbers/types.omg", "public data Word {}"),
-        ("app", "api/base.omg", "use numbers::Word; public trait Parent {machine read(x:Word)->Word;}"),
-        ("app", "views/child.omg", "use api::Parent; public trait Child:Parent {}"),
+        ("app", "api/base.omg", "use numbers\\Word; public trait Parent {machine read(x:Word)->Word;}"),
+        ("app", "views/child.omg", "use api\\Parent; public trait Child:Parent {}"),
     ];
     let stage = run(&files, &[]).unwrap();
     let declaration = stage
         .declarations
         .iter()
-        .find(|d| d.path == "api::Parent::read")
+        .find(|d| d.path == "api\\Parent::read")
         .unwrap();
-    assert_eq!(declaration.signature_owners, [("app".into(), "numbers::Word".into())]);
+    assert_eq!(declaration.signature_owners, [("app".into(), "numbers\\Word".into())]);
     let selections: Vec<_> = stage
         .trees()
         .filter(|tree| tree.file.path == "main.omg")
@@ -1730,8 +1796,8 @@ fn importing_an_inherited_requirement_keeps_the_final_signature_owner() {
     assert_eq!(
         selections,
         [
-            b"views::Child::read".as_slice(),
-            b"views::Child::read",
+            b"views\\Child::read".as_slice(),
+            b"views\\Child::read",
             b"Child::read"
         ]
     );
@@ -1742,9 +1808,9 @@ fn a_value_binder_cannot_merge_overloads_on_distinct_imported_types() {
     let files = [
         ("app", "red/point.omg", "public data Point {}"),
         ("app", "blue/point.omg", "public data Point {}"),
-        ("app", "a.omg", "use red::Point; machine visit<const Point:u8>(p:Point) {}"),
-        ("app", "b.omg", "use blue::Point; machine visit<const Point:u8>(p:Point) {}"),
-        ("app", "caller.omg", "machine f(p:red::Point) { visit::<1>(p); }"),
+        ("app", "a.omg", "use red\\Point; machine visit<const Point:u8>(p:Point) {}"),
+        ("app", "b.omg", "use blue\\Point; machine visit<const Point:u8>(p:Point) {}"),
+        ("app", "caller.omg", "machine f(p:red\\Point) { visit::<1>(p); }"),
     ];
     let stage = run(&files, &[]).unwrap();
     let candidates = stage
@@ -1764,15 +1830,15 @@ fn a_value_binder_cannot_merge_overloads_on_distinct_imported_types() {
     assert_eq!(
         owners,
         [
-            &[("app".into(), "blue::Point".into())][..],
-            &[("app".into(), "red::Point".into())]
+            &[("app".into(), "blue\\Point".into())][..],
+            &[("app".into(), "red\\Point".into())]
         ]
     );
 }
 
 #[test]
 fn a_public_value_name_cannot_expose_a_private_traits_inherited_requirements() {
-    let caller = ("app", "main.omg", "use dep::Child::read;");
+    let caller = ("app", "main.omg", "use dep\\Child::read;");
     let edge = Dependency {
         requester: "app",
         alias: "dep",
@@ -1780,8 +1846,8 @@ fn a_public_value_name_cannot_expose_a_private_traits_inherited_requirements() {
     };
     let library = "public trait Parent {machine read();} trait Child:Parent {} public machine Child() {}";
     let err = run(&[caller, ("lib", "lib.omg", library)], &[edge]).unwrap_err();
-    assert_eq!(err.message, "unavailable import dep::Child::read");
-    assert_eq!(err.span.slice(caller.2.as_bytes()), Some(b"dep::Child::read".as_slice()));
+    assert_eq!(err.message, "unavailable import dep\\Child::read");
+    assert_eq!(err.span.slice(caller.2.as_bytes()), Some(b"dep\\Child::read".as_slice()));
 }
 
 #[test]
@@ -1860,7 +1926,7 @@ fn an_applied_overload_keeps_arguments_for_each_candidate_at_the_same_site() {
 
 #[test]
 fn qualified_lookup_preserves_each_segments_scope() {
-    let source = "machine caller() {nested::api::<u8>::score();}";
+    let source = "machine caller() {nested\\api::<u8>::score();}";
     let err = run(
         &[
             ("app", "main.omg", source),
@@ -1869,8 +1935,8 @@ fn qualified_lookup_preserves_each_segments_scope() {
         &[],
     )
     .unwrap_err();
-    assert_eq!(err.message, "unresolved application owner nested::api");
-    assert_eq!(err.span.slice(source.as_bytes()), Some(b"nested::api".as_slice()));
+    assert_eq!(err.message, "unresolved name nested\\api::score");
+    assert_eq!(err.span.slice(source.as_bytes()), Some(b"nested\\api::<u8>::score".as_slice()));
     for (source, name) in [
         ("machine f(x:u8){machine helper(){}} machine f(x:bool){helper();}", "helper"),
         ("data Choice {case One;} use Choice::One; machine f() {One}", "One"),
@@ -1898,10 +1964,10 @@ fn module_import_exposes_only_public_foreign_domain_attachments() {
         package: "lib",
     };
     for (path, decl) in [
-        ("u8::Any", "units::T::Any"),
-        ("dep::units::T::Any", "units::T::Any"),
+        ("u8::Any", "units\\T::Any"),
+        ("dep\\units\\T::Any", "units\\T::Any"),
     ] {
-        let source = format!("use dep::units; machine f(x:u8 in {path}) {{}}");
+        let source = format!("use dep\\units; machine f(x:u8 in {path}) {{}}");
         let stage = run(&[library, ("app", "main.omg", &source)], &[edge]).unwrap();
         let name = stage
             .trees()
@@ -1911,14 +1977,14 @@ fn module_import_exposes_only_public_foreign_domain_attachments() {
             .unwrap();
         assert!(matches!(&name.target,Symbol::Declaration(id) if id.package=="lib" && id.path==decl));
     }
-    let source = "use dep::units; machine f(x:u8 in u8::Hidden) {}";
+    let source = "use dep\\units; machine f(x:u8 in u8::Hidden) {}";
     let err = run(&[library, ("app", "main.omg", source)], &[edge]).unwrap_err();
     assert_eq!(err.message, "unresolved name u8::Hidden");
 }
 
 #[test]
 fn a_domain_passed_to_a_bound_parameter_retains_its_written_carrier() {
-    let source = "domain<T> T::Flag; machine take<const A:core::Type<0>>(){} machine test(){take::<u8::Flag>();}";
+    let source = "domain<T> T::Flag; machine take<const A:core\\Type<0>>(){} machine test(){take::<u8::Flag>();}";
     let stage = run(&[("app", "main.omg", source)], &[]).unwrap();
     let tree = stage.trees().next().unwrap();
     let usage = stage
@@ -1952,7 +2018,7 @@ fn a_compiled_trait_retains_its_identity_as_a_parent_and_a_call_qualifier() {
             .unwrap()
             .clone()]
     );
-    let text = "trait Child:wire::Middle {} machine f(){wire::Middle::run();}";
+    let text = "trait Child:wire\\Middle {} machine f(){wire\\Middle::run();}";
     let tokens = lex(text.as_bytes()).unwrap();
     let parsed = parse_file(text.as_bytes(), &tokens).unwrap();
     let sources = [StageSource {
@@ -1979,7 +2045,7 @@ fn a_compiled_trait_retains_its_identity_as_a_parent_and_a_call_qualifier() {
     assert_eq!(stage.trait_ancestors(child).collect::<Vec<_>>(), [("wire", "Middle"), ("wire", "Parent")]);
     let call = stage
         .uses()
-        .find(|u| u.span.slice(text.as_bytes()) == Some(b"wire::Middle::run"))
+        .find(|u| u.span.slice(text.as_bytes()) == Some(b"wire\\Middle::run"))
         .unwrap();
     let tree = stage.trees().next().unwrap();
     assert!(matches!(tree.qualifier(call.node.node),Some(Symbol::Declaration(id)) if id.path=="Middle" && id.package=="wire"));
@@ -2114,7 +2180,7 @@ fn compiled_modules_and_lookup_results_survive_export_reordering() {
         };
         omega_resolver::resolve_stage_with_exports(&[StageSource { package: "app", source }], &edges, &Default::default(), interface)
     };
-    let client = "use lib::detail; use lib::api::draw; machine f(){draw(1u8)}";
+    let client = "use lib\\detail; use lib\\api\\draw; machine f(){draw(1u8)}";
     let source = run(&[files[0], files[1], files[2], ("app", "main.omg", client)], &edges).unwrap();
     let compiled = consume(client, &interface).unwrap();
     let client_uses = source
@@ -2123,13 +2189,13 @@ fn compiled_modules_and_lookup_results_survive_export_reordering() {
         .unwrap()
         .occurrences();
     assert!(client_uses.eq(compiled.uses()));
-    let hidden = "use lib::detail::Hidden;";
+    let hidden = "use lib\\detail\\Hidden;";
     let hidden_refusal = consume(hidden, &interface).unwrap_err();
-    assert_eq!(hidden_refusal.message, "unavailable import lib::detail::Hidden");
-    assert_eq!(hidden_refusal.span.slice(hidden.as_bytes()), Some(b"lib::detail::Hidden".as_slice()));
-    let competing = "use lib::api::n; use other::n; machine f(){n}";
+    assert_eq!(hidden_refusal.message, "unavailable import lib\\detail\\Hidden");
+    assert_eq!(hidden_refusal.span.slice(hidden.as_bytes()), Some(b"lib\\detail\\Hidden".as_slice()));
+    let competing = "use lib\\api\\n; use other\\n; machine f(){n}";
     let refusal = consume(competing, &interface).unwrap_err();
-    assert_eq!(refusal.message, "competing declarations: lib::api::n, other::n");
+    assert_eq!(refusal.message, "competing declarations: lib\\api\\n, other\\n");
     for (text, expected) in [(hidden, &hidden_refusal), (competing, &refusal)] {
         let from_source = run(&[files[0], files[1], files[2], ("app", "main.omg", text)], &edges).unwrap_err();
         assert_eq!(&from_source, expected);
@@ -2150,7 +2216,7 @@ fn an_interface_exports_public_declarations_with_their_defining_module() {
         .iter()
         .map(|export| export.id.path.as_str())
         .collect();
-    assert_eq!(paths, ["kit::Box", "kit::Box::value", "kit::wrap"]);
+    assert_eq!(paths, ["kit\\Box", "kit\\Box::value", "kit\\wrap"]);
     assert!(exports.declarations.iter().all(|export| export.module == "kit"));
     let imported = omega_resolver::resolve_stage_with_exports(&[], &[], &Default::default(), &exports).unwrap();
     assert_eq!(
@@ -2165,7 +2231,7 @@ fn an_interface_exports_public_declarations_with_their_defining_module() {
 
 #[test]
 fn identical_source_nodes_in_two_packages_keep_their_own_application_bindings() {
-    let caller = "use dep::api; machine f(x:Box<u8>) {}";
+    let caller = "use dep\\api; machine f(x:Box<u8>) {}";
     let library = "public data Box<T>{}";
     let stage = run(
         &[
@@ -2194,7 +2260,7 @@ fn identical_source_nodes_in_two_packages_keep_their_own_application_bindings() 
         let [(section, name)] = tree.applications().collect::<Vec<_>>()[..] else {
             panic!("expected one application")
         };
-        assert!(matches!(&name.target, Symbol::Declaration(id) if id.package == expected && id.path == "api::Box"));
+        assert!(matches!(&name.target, Symbol::Declaration(id) if id.package == expected && id.path == "api\\Box"));
         assert!(
             tree.names(name.node.node)
                 .any(|found| std::ptr::eq(found, name))
@@ -2213,7 +2279,7 @@ fn qualified_machine_heads_retain_the_exact_owner_occurrence() {
     use omega_resolver::NameRole;
 
     let source =
-        "trait Logger { machine write(); } Sink satisfies Logger { Logger::write = Sink::write; } machine Sink::write() {} machine support::helper() {}";
+        "trait Logger { machine write(); } Sink satisfies Logger { Logger::write = Sink::write; } machine Sink::write() {} machine support\\helper() {}";
     let stage = run(
         &[
             ("app", "main.omg", source),
@@ -2234,7 +2300,7 @@ fn qualified_machine_heads_retain_the_exact_owner_occurrence() {
     assert!(
         matches!(&conformance.target, Symbol::Declaration(id) if id.package == "app" && id.path == "Sink" && id.kind == omega_parser::NodeKind::Conformance)
     );
-    let module = qualifier_at("support::helper");
+    let module = qualifier_at("support\\helper");
     assert_eq!(module.span.slice(source.as_bytes()), Some(b"support".as_slice()));
     assert!(matches!(&module.target, Symbol::Module { package, path } if package == "app" && path == "support"));
 }
@@ -2246,18 +2312,18 @@ fn importing_a_module_cannot_hide_a_dependency_alias_conflict() {
         alias: "dep",
         package: "lib",
     };
-    let source = "use other::dep; machine f() { dep::run() }";
+    let source = "use other\\dep; machine f() { dep\\run() }";
     let files = [
         ("app", "main.omg", source),
         ("app", "other/dep/run.omg", "machine run() {}"),
         ("lib", "root.omg", "public machine run() {}"),
     ];
     let stage = run(&files, &[edge]).unwrap();
-    assert_eq!(selected(&stage, "main.omg", source, "dep::run"), ["app::other::dep::run"]);
+    assert_eq!(selected(&stage, "main.omg", source, "dep\\run"), ["app\\other\\dep\\run"]);
 
     let mut conflicting = files.to_vec();
     conflicting.push(("app", "dep/marker.omg", "machine marker() {}"));
     let error = run(&conflicting, &[edge]).unwrap_err();
-    assert_eq!(error.message, "competing module paths dep: package lib and app::dep");
-    assert_eq!(error.span.slice(source.as_bytes()), Some(b"dep::run".as_slice()));
+    assert_eq!(error.message, "competing module paths dep: package lib and app\\dep");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"dep\\run".as_slice()));
 }

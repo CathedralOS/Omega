@@ -8,7 +8,9 @@ fn spec_fragments_have_reviewed_typing_outcomes() {
     let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
     let examples = spec_corpus::extract_omega_examples(&spec).unwrap();
     let mut outcomes = String::new();
-    assert_eq!(examples.len(), 132);
+    let resolved = include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt");
+    assert_eq!(examples.len(), resolved.lines().count());
+
     for example in examples {
         let label = example.get_label();
         let kind = match label.as_str() {
@@ -40,12 +42,7 @@ fn spec_fragments_have_reviewed_typing_outcomes() {
             },
             Err(error) => {
                 let row = format!("{label}  {}", error.message);
-                assert!(
-                    include_str!("../../02_syntax-trees-to-symbol-resolved-trees/fixtures/spec-outcomes.txt")
-                        .lines()
-                        .any(|l| l == row),
-                    "{row}"
-                );
+                assert!(resolved.lines().any(|line| line == row), "{row}");
                 continue;
             }
         };

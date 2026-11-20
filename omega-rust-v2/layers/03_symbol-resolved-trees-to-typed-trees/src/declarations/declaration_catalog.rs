@@ -22,7 +22,7 @@ impl<'a> RecordFields<'a> {
         ty: ValueType,
     ) {
         self.by_name
-            .entry(declaration.path.rsplit("::").next().unwrap())
+            .entry(declaration.path.rsplit([':', '\\']).next().unwrap())
             .and_modify(|slot| *slot = None)
             .or_insert(Some(self.ordered.len()));
         Arc::make_mut(&mut self.ordered).push(crate::TypedField {

@@ -160,7 +160,7 @@ fn unrelated_trait_operators_preserve_primitive_static_arithmetic() {
 }
 #[test]
 fn production_core_selects_the_policy_and_ranking_declarations() {
-    let source = "use omega::language::core; use omega::language::core::reflect; use omega::language::core::access; Rule satisfies AccessPolicy { machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {new_plan::<'t>(@schema, Issuance::Unrestricted{})} } data C{} domain C::Locked access Rule; machine visit(n:u64) terminates by n in 0..=9 {}";
+    let source = "use omega\\language\\core; use omega\\language\\core\\reflect; use omega\\language\\core\\access; Rule satisfies AccessPolicy { machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {new_plan::<'t>(@schema, Issuance::Unrestricted{})} } data C{} domain C::Locked access Rule; machine visit(n:u64) terminates by n in 0..=9 {}";
     let stage = check(source).unwrap();
     assert_eq!(stage.access_policies.len(), 1);
     assert_eq!(stage.ranking_witnesses[0].view.package, "@omega/toolchain");
@@ -168,7 +168,7 @@ fn production_core_selects_the_policy_and_ranking_declarations() {
         stage
             .calls
             .iter()
-            .any(|c| c.machine.path == "language::core::access::new_plan")
+            .any(|c| c.machine.path == "language\\core\\access\\new_plan")
     );
     assert!(
         check(&source.replace("0..=9", "0..=false"))
@@ -192,10 +192,10 @@ fn the_checked_core_uses_the_same_descending_rank_explicitly_and_by_default() {
     let source = "
         domain u64::Count requires self>0;
         machine implicit(n:u64) terminates by n in 0..=256 {}
-        machine explicit(n:u64) terminates by n -> omega::language::core::Nat::Descending in 0..=256 {}
+        machine explicit(n:u64) terminates by n -> omega\\language\\core\\Nat\\Descending in 0..=256 {}
         machine unqualified_default(n:u64 in Count) terminates by (n as -Count) {}
-        machine unqualified_explicit(n:u64 in Count) terminates by (n as -Count) -> omega::language::core::Nat::Descending {}
-        machine distance(lo:u64,hi:u64) terminates by (lo,hi) -> omega::language::core::Nat::BoundedDistance in 0..=256 {}";
+        machine unqualified_explicit(n:u64 in Count) terminates by (n as -Count) -> omega\\language\\core\\Nat\\Descending {}
+        machine distance(lo:u64,hi:u64) terminates by (lo,hi) -> omega\\language\\core\\Nat\\BoundedDistance in 0..=256 {}";
     let stage = check(source).unwrap();
     assert_eq!(stage.ranking_witnesses.len(), 5);
     let core = omega_toolchain::core_interface();
@@ -204,11 +204,11 @@ fn the_checked_core_uses_the_same_descending_rank_explicitly_and_by_default() {
         width: Some(64),
     };
     for (machine, view) in [
-        ("implicit", "Nat::Descending"),
-        ("explicit", "Nat::Descending"),
-        ("unqualified_default", "Nat::Descending"),
-        ("unqualified_explicit", "Nat::Descending"),
-        ("distance", "Nat::BoundedDistance"),
+        ("implicit", "Nat\\Descending"),
+        ("explicit", "Nat\\Descending"),
+        ("unqualified_default", "Nat\\Descending"),
+        ("unqualified_explicit", "Nat\\Descending"),
+        ("distance", "Nat\\BoundedDistance"),
     ] {
         let witness = stage
             .ranking_witnesses
@@ -219,7 +219,7 @@ fn the_checked_core_uses_the_same_descending_rank_explicitly_and_by_default() {
         assert_eq!(witness.rank, rank);
     }
 
-    let error = check(&source.replace(" -> omega::language::core::Nat::BoundedDistance", "")).unwrap_err();
+    let error = check(&source.replace(" -> omega\\language\\core\\Nat\\BoundedDistance", "")).unwrap_err();
     assert!(error.contains("carrier has no admitted canonical ranking view"), "{error}");
 }
 
@@ -360,7 +360,7 @@ fn core_interfaces_supply_checked_types_without_adding_source_bodies() {
     let machine = stage
         .signatures
         .iter()
-        .find(|s| &s.machine == core.id("access::new_plan"))
+        .find(|s| &s.machine == core.id("access\\new_plan"))
         .unwrap();
     let producer = library
         .signatures
@@ -751,7 +751,7 @@ fn each_collection_signature_carries_the_published_primitive_contract() {
 
 #[test]
 fn named_and_bracket_reads_use_the_same_library_signature_and_copy_bound() {
-    let source = "use omega::indexing; machine f(view:@[u8], i:u64)->u8{let n=indexing::read::<u8>(view,i); view[i]}";
+    let source = "use omega\\indexing; machine f(view:@[u8], i:u64)->u8{let n=indexing\\read::<u8>(view,i); view[i]}";
     let stage = check(source).unwrap();
     let [named] = stage.calls.as_slice() else { panic!("expected the named call") };
     let [bracket] = stage.collection_accesses.as_slice() else {
@@ -774,8 +774,8 @@ fn named_and_bracket_reads_use_the_same_library_signature_and_copy_bound() {
                 .any(|o| &o.site == site && matches!(&o.kind, omega_typer::ObligationKind::CallPrecondition(id) if id == &named.machine))
         );
     }
-    for expression in ["indexing::read::<Handle>(view,i)", "view[i]"] {
-        let source = format!("use omega::indexing; data Handle{{}} machine f(view:@[Handle],i:u64)->Handle{{{expression}}}");
+    for expression in ["indexing\\read::<Handle>(view,i)", "view[i]"] {
+        let source = format!("use omega\\indexing; data Handle{{}} machine f(view:@[Handle],i:u64)->Handle{{{expression}}}");
         assert!(check(&source).is_err(), "{source}");
     }
 }

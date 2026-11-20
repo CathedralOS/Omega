@@ -19,7 +19,7 @@ adding and updating dependencies.
 ## Modules
 
 Read the directories from the package root. Both files below belong to
-`combat::ai`, so `score` can call its sibling's `base_score` directly.
+`combat\ai`, so `score` can call its sibling's `base_score` directly.
 The filenames are yours to choose. Files directly beside the package's
 `build.omg` belong to its root namespace.
 
@@ -35,11 +35,11 @@ public machine score() -> i32 { base_score() }
 
 Another directory can expose a public operation of its own and delegate the
 work. If the scoring code moves to a new directory, update the import here.
-Callers keep using `combat::target_score`.
+Callers keep using `combat\target_score`.
 
 ```omega
 // combat/api.omg
-use combat::ai::score;
+use combat\ai\score;
 
 public machine target_score() -> i32 { score() }
 ```
@@ -49,16 +49,20 @@ name are an error; import order never picks a winner. A package you import
 from must be a dependency you declared directly. See
 [directory namespaces and imports](../spec/language/modules.md#directory-namespaces).
 
-If your parameter and a module are both named `audio`, `audio::play()` is
-ambiguous. You can call either one without renaming it.
+A module and a supplied player can both be named `audio`. Both calls take
+the same argument. The separator identifies which operation to invoke.
 
 ```omega
-use audio::play;
-trait Player { machine play(); }
+// audio/play.omg
+public machine play(track_id: u32) {}
 
-machine preview<const audio: Player>() {
-    play();        // Imported from the audio module.
-    audio.play();  // Callable field on the supplied Player.
+// preview.omg
+use audio;
+trait Player { machine play(track_id: u32); }
+
+machine preview<const audio: Player>(track_id: u32) {
+    audio\play(track_id);   // Module machine.
+    audio::play(track_id);  // Operation selected by the supplied player.
 }
 ```
 
@@ -96,9 +100,9 @@ fields. Code that names a field has chosen to depend on it.
 ## Types from a dependency's dependency
 
 ```omega
-let handle = filesystem::open(path);
-filesystem::read(@handle);
-filesystem::close(handle);
+let handle = filesystem\open(path);
+filesystem\read(@handle);
+filesystem\close(handle);
 ```
 
 If `filesystem` returns a type owned by a package you do not depend on, you
@@ -116,14 +120,14 @@ machine build(builder: @mut Build)
 suspends
 {
     Build::application(builder, "generated_tables");
-    let mut request = dependency::from_source(Source::Path {
+    let mut request = dependency\from_source(Source::Path {
         location: "../table-generator"
     });
-    dependency::with_alias(@mut request, "generator");
+    dependency\with_alias(@mut request, "generator");
     let registered = Build::build_dependency(builder, request);
 
     suspend Build::prepare_dependency(builder, registered);
-    generator::generate_tables(builder);
+    generator\generate_tables(builder);
 }
 ```
 

@@ -1,5 +1,5 @@
 //! Bind a machine's qualifier once. A module qualifies its name without choosing an operator home.
-use super::{Catalog, Context, Entry, NameError, NameRole, NameUse, OperatorDeclaration, Symbol, callable, qualify};
+use super::{Catalog, Context, Entry, NameError, NameRole, NameUse, OperatorDeclaration, Symbol, callable};
 use crate::syntax::File;
 use omega_parser::NodeKind;
 
@@ -20,8 +20,31 @@ impl Catalog<'_> {
             .map(|&i| &self.entries[i].id)
             .filter(|id| matches!(id.kind, Domain | Trait | Conformance))
             .map(|id| Symbol::Declaration(id.clone()));
-        if let Some(head) = file.child(node, Path)
-            && let Some((name, _)) = file.nodes[head].path().rsplit_once("::")
+        let head = file
+            .child(node, Path)
+            .map(|head| (head, file.nodes[head].path()));
+        if let Some((head, name)) = &head
+            && let Some((module, _)) = name.rsplit_once('\\')
+            && !name.contains("::")
+        {
+            let head = *head;
+            let path = super::module_child(&file.namespace, module);
+            if !self.modules.contains(&(file.package.into(), path.clone())) {
+                return Err(file.error(file.span(head), format!("unresolved module owner {module}")));
+            }
+            uses.push(super::usage(
+                file,
+                head,
+                NameRole::Qualifier,
+                file.nodes[head].qualifier_span().expect("module prefix"),
+                Symbol::Module {
+                    package: file.package.into(),
+                    path,
+                },
+            ));
+        }
+        if let Some((head, path)) = head
+            && let Some((name, _)) = path.rsplit_once("::")
         {
             let span = file.span(head);
             let mut slots = self.lookup(file, ctx, head, name)?;
@@ -35,12 +58,7 @@ impl Catalog<'_> {
             if slots.iter().any(|&i| callable(self.entries[i].id.kind)) {
                 return Err(file.error(span, format!("machine {name} cannot qualify a declaration outside its body")));
             }
-            let module = (file.package.to_owned(), qualify(&file.namespace, name));
             let symbol = match slots.as_slice() {
-                [] if self.modules.contains(&module) => Symbol::Module {
-                    package: module.0,
-                    path: module.1,
-                },
                 [] => return Err(file.error(span, format!("unresolved machine owner {name}"))),
                 [slot] if matches!(self.entries[*slot].id.kind, Domain | Trait | Conformance) => Symbol::Declaration(self.entries[*slot].id.clone()),
                 [_] => return Err(file.error(span, format!("{name} cannot qualify a machine declaration"))),
@@ -54,7 +72,7 @@ impl Catalog<'_> {
             let qualifier = file.nodes[head]
                 .qualifier_span()
                 .expect("qualified machine head");
-            owner = (!matches!(symbol, Symbol::Module { .. })).then(|| symbol.clone());
+            owner = Some(symbol.clone());
             uses.push(super::usage(file, head, NameRole::Qualifier, qualifier, symbol));
         }
         Ok(file

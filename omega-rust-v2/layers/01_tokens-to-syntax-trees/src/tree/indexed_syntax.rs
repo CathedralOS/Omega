@@ -139,10 +139,31 @@ impl<'a> Node<'a> {
     }
 
     pub fn path(&self) -> String {
-        self.words()
-            .map(|leaf| leaf.text)
-            .collect::<Vec<_>>()
-            .join("::")
+        self.path_before(usize::MAX)
+    }
+
+    fn path_before(
+        &self,
+        end: usize,
+    ) -> String {
+        let mut path = String::new();
+        let mut separator = "::";
+        for leaf in self
+            .leaves
+            .iter()
+            .take_while(|leaf| leaf.span.get_start_offset() < end)
+        {
+            if leaf.kind == TokenKind::Word {
+                if !path.is_empty() {
+                    path.push_str(separator);
+                }
+                path.push_str(leaf.text);
+                separator = "::";
+            } else if leaf.text == "\\" {
+                separator = "\\";
+            }
+        }
+        path
     }
 }
 
@@ -408,14 +429,11 @@ impl<'a> IndexedSyntax<'a> {
             .words()
             .take_while(|word| word.span.get_start_offset() < start);
         let first = words.next()?;
-        let mut prefix = first.text.to_owned();
-        let mut end = first.span;
-        for word in words {
-            prefix.push_str("::");
-            prefix.push_str(word.text);
-            end = word.span;
-        }
-        Some((prefix, SourceSpan::new(first.span.get_start_offset(), end.get_end_offset())))
+        let end = words.last().unwrap_or(first);
+        Some((
+            path.path_before(start),
+            SourceSpan::new(first.span.get_start_offset(), end.span.get_end_offset()),
+        ))
     }
 
     /// Argument lists on the referenced path. A domain head's final segment introduces its own indices.

@@ -84,7 +84,7 @@ fn typed_fixtures_match_handwritten_expectations() {
                             format!("<{}>", types(&call.type_arguments))
                         };
                         lines.push(format!(
-                            "call | {} | {}::{}{} | {}",
+                            "call | {} | {}\\{}{} | {}",
                             authored(call.site.span),
                             call.machine.package,
                             call.machine.path,

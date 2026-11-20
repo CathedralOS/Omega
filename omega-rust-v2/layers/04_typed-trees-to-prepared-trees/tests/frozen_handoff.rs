@@ -87,7 +87,7 @@ fn materialization_pairs_the_frozen_value_with_its_exact_selected_layout() {
 
 #[test]
 fn materializing_a_folded_size_requires_the_original_layout_selection() {
-    let source = package("use omega::language::core; const SIZE:u64=core::size_of::<u64>();");
+    let source = package("use omega\\language\\core; const SIZE:u64=core\\size_of::<u64>();");
     let word = ValueType::Integer {
         signed: false,
         width: Some(64),
@@ -210,7 +210,7 @@ fn generic_indexed_integer_operations_keep_their_selected_policy_and_width() {
 fn a_frozen_alias_retains_the_origin_of_its_target_observation() {
     use omega_preparation::PreparedValueOrigin;
     let source = package(
-        "use omega::language::core; const SIZE:u64=core::size_of::<u64>(); const COPY:u64=SIZE;
+        "use omega\\language\\core; const SIZE:u64=core\\size_of::<u64>(); const COPY:u64=SIZE;
                           machine consume(x:[u8;COPY]){}",
     );
     let word = ValueType::Integer {
@@ -256,9 +256,9 @@ fn a_frozen_alias_retains_the_origin_of_its_target_observation() {
 #[test]
 fn generic_bodies_read_the_closed_const_and_layout_arguments() {
     let source = package(
-        "use omega::language::core;
+        "use omega\\language\\core;
         machine value<const N:u64>()->u64{N}
-        machine bytes<T>()->u64{core::size_of::<T>()}
+        machine bytes<T>()->u64{core\\size_of::<T>()}
         const N:u64=value::<12>(); const WIDTH:u64=bytes::<u64>();",
     );
     let word = ValueType::Integer {

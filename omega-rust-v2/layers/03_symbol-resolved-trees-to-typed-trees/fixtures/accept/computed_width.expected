@@ -1,5 +1,5 @@
 operator | N + 1 | + | u8, u8 | u8
 operator | N + 1 | + | u8, u8 | u8
-call | make::<7>() | game::make<7> | game::Buffer<8>
+call | make::<7>() | game\make<7> | game\Buffer<8>
 landing | 1 | u8
 landing | 1 | u8

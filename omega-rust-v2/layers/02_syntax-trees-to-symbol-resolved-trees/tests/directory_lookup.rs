@@ -88,7 +88,7 @@ fn sibling_machine_resolves_to_its_package_identity_in_either_file_order() {
             assert_eq!(calls[0].file, "combat/main.omg");
             assert_eq!(calls[0].span, name_span(SIBLING_CALLER, "score"));
             assert_eq!(calls[0].target.package, "game");
-            assert_eq!(calls[0].target.path, "combat::score");
+            assert_eq!(calls[0].target.path, "combat\\score");
         },
     );
 }
@@ -148,7 +148,7 @@ fn same_leaf_in_distinct_namespaces_selects_the_callers_own_namespace() {
         |files| {
             let trees = resolve_stage(files, &[]).unwrap();
             let calls = direct_calls(&trees);
-            assert_eq!(calls[0].target.path, "p::q::score");
+            assert_eq!(calls[0].target.path, "p\\q\\score");
         },
     );
 }

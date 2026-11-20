@@ -68,7 +68,7 @@ fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
         stage
             .calls
             .iter()
-            .any(|call| call.machine.path == "buffer" && call.result.to_string() == "game::B<11>")
+            .any(|call| call.machine.path == "buffer" && call.result.to_string() == "game\\B<11>")
     );
     let overflow = program.replace("buffer::<4>()", "buffer::<128>()");
     assert!(
@@ -105,7 +105,7 @@ fn wrapping_and_saturating_indices_keep_their_arithmetic_policy() {
     ] {
         let source = format!("{head} machine value<const N:i8>()->B<{expr}>{{B::<{expr}>{{}}}} machine call()->B<{expected}>{{value::<{n}>()}}");
         let product = check(&[("index.omg", &source)]).unwrap();
-        assert_eq!(product.calls.last().unwrap().result.to_string(), format!("game::B<{expected}>"));
+        assert_eq!(product.calls.last().unwrap().result.to_string(), format!("game\\B<{expected}>"));
     }
 }
 
@@ -141,7 +141,7 @@ fn typed_generics_and_transparent_aliases() {
 fn normalized_static_arguments_and_binder_occurrences() {
     let code = "data Buffer<const N:u8>{} data Eight=Buffer<4+4>; machine f(x:Eight)->Buffer<8>{x} machine forward<const N:u8>(x:Buffer<N>)->Buffer<N>{x} machine g(x:Buffer<8>)->Eight{forward::<8>(x)}";
     let stage = check(&[("a.omg", code)]).unwrap();
-    assert_eq!(stage.calls[0].result.to_string(), "game::Buffer<8>");
+    assert_eq!(stage.calls[0].result.to_string(), "game\\Buffer<8>");
     for (s, msg) in [
         ("data B<const N:u8>{} machine f(x:B<256>){}", "does not land"),
         ("data B<const N:u8>{} machine f(x:B<8u16>){}", "does not land"),
@@ -469,7 +469,7 @@ fn domain_alias_indices_are_checked_after_substitution_at_each_use() {
 #[test]
 fn an_explicit_qualified_type_argument_selects_the_qualified_result_overload() {
     let defs = "domain u8::P; data Box<T> { v: T; } machine pick(x: u8) -> u8 { x } machine pick(x: u8) -> u8 in P { x as +P } machine id<T>(v: T) -> T { v }";
-    let qualified = "u8 in game::u8::P";
+    let qualified = "u8 in game\\u8::P";
     for (caller, id_site) in [
         ("machine c(x: u8) -> u8 in P { id::<u8 in P>(pick(x)) }", "id::<u8 in P>(pick(x))"),
         ("machine c(x: u8) -> u8 in P { let v: u8 in P = pick(x); id(v) }", "id(v)"),
@@ -515,7 +515,7 @@ fn an_explicit_qualified_type_argument_selects_the_qualified_result_overload() {
         ("use.omg", "machine c(b: Box<u8>) -> u8 in P { b.v }"),
     ])
     .unwrap_err();
-    assert_eq!(error.message, "expected u8 in game::u8::P, found u8");
+    assert_eq!(error.message, "expected u8 in game\\u8::P, found u8");
 }
 
 #[test]
@@ -650,9 +650,9 @@ fn specialized_results_require_a_deferred_index_of_the_same_carrier_and_arity() 
 
 #[test]
 fn qualified_argument_head_uses_the_receiving_parameter_of_its_application() {
-    let source = "data Sort=core::Type<0>; domain u8::Small; data X=u8; data Pair<A,B:Sort>{v:B;} data Alias<const X:u8> = Pair<bool,X in Small>; machine f(x:Alias<0>)->u8 in Small{x.v}";
+    let source = "data Sort=core\\Type<0>; domain u8::Small; data X=u8; data Pair<A,B:Sort>{v:B;} data Alias<const X:u8> = Pair<bool,X in Small>; machine f(x:Alias<0>)->u8 in Small{x.v}";
     let stage = check(&[("qualified.omg", source)]).unwrap();
-    assert_eq!(stage.signatures[0].result.to_string(), "u8 in game::u8::Small");
+    assert_eq!(stage.signatures[0].result.to_string(), "u8 in game\\u8::Small");
 }
 
 #[test]

@@ -186,7 +186,7 @@ impl SyntaxParser<'_> {
 
         ahead += 1;
 
-        while self.nth_at(ahead, Punctuation::ColonColon) && self.nth_at_word(ahead + 1) {
+        while matches!(self.nth_punctuation(ahead), Some(Punctuation::ColonColon | Punctuation::Backslash)) && self.nth_at_word(ahead + 1) {
             ahead += 2;
         }
 

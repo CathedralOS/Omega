@@ -90,7 +90,7 @@ fn ranked_member<'trees>(
                 record, NodeSemantics::RankingWitness(witness)
                     if witness.machine == signature.machine && witness.rank == WORD
                         && witness.view.package == "@omega/toolchain"
-                        && witness.view.path == "language::core::Nat::Descending"
+                        && witness.view.path == "language\\core\\Nat\\Descending"
             )
         })
     {

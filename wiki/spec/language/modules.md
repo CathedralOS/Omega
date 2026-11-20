@@ -10,9 +10,9 @@ participate in declaration and artifact identity.
 
 A source file's namespace is its parent directory relative to its owning
 package root. Read each directory component as one Omega identifier and join
-the components with `::`. A file directly under the root contributes to the
+the components with `\`. A file directly under the root contributes to the
 package's root namespace. For example, a machine named `score` in
-`combat/ai/targeting.omg` has the package-local name `combat::ai::score`.
+`combat/ai/targeting.omg` has the package-local name `combat\ai\score`.
 If a directory component cannot name a namespace, diagnose the offending
 component when admitting the source. The filename contributes no component.
 
@@ -33,12 +33,27 @@ declarations a caller can select.
 ## Names and imports
 
 ```text
-name_path   := IDENT ("::" IDENT)*
-import_decl := "use" name_path ";"
+module_prefix := (IDENT BACKSLASH)*
+name_path     := module_prefix IDENT ("::" IDENT)*
+import_decl   := "use" name_path ";"
 ```
 
-`::` selects a static name; `.` selects a field through a value. A field
-projection does not select a machine or insert a receiver argument.
+`BACKSLASH` is one `\` token in source. Each `\` selects a name from the
+package or module to its left, including the final step to a declaration.
+Each `::` selects a static member of the declaration or supplied operation
+record to its left. This applies to `use`, expressions, types and declaration
+selectors. Generic expression arguments keep their `::<...>` spelling.
+A dot selects a field through a value.
+
+| Source path | Declaration selected |
+| --- | --- |
+| `net\wire\Packet::Header` | The nested `Header` of the data type `Packet` declared in `net/wire/`. |
+| `net\wire\Packet\Header` | The top-level `Header` declared in `net/wire/Packet/`. |
+
+Both declarations can coexist. Module lookup requires `\` even when only
+one reading would succeed. The two paths retain distinct owners through
+imports and qualification.
+
 Imports select logical names, never filesystem paths, and do not execute code.
 External selection requires a requester-local direct dependency and the target
 declaration's visibility. Fully qualified spelling and explicit arguments obey
@@ -100,13 +115,13 @@ An exact foreign-domain address begins with its declaring package/module, not
 the carrier owner's namespace:
 
 ```omega
-use ui_policy::screen::Point::OnScreen;
+use ui_policy\screen\Point::OnScreen;
 ```
 
-Here `ui_policy::screen` declares `Point::OnScreen`. The attachment is resolved
+Here `ui_policy\screen` declares `Point::OnScreen`. The attachment is resolved
 in that declaration's context to the exact carrier, for example geometry's
 `Point`; a caller's same-spelled type cannot redirect it. The domain and carrier
-retain independent owners. A module import such as `use ui_policy::screen;`
+retain independent owners. A module import such as `use ui_policy\screen;`
 exposes the module's directly declared public domains instead of just this one.
 Short carrier-qualified selection must match both the resolved carrier and an
 exposed domain. Direct qualified selection names only the exact declaration and
@@ -179,14 +194,11 @@ Each use resolves by its role, determined before any operation is chosen:
   takes the value role and a type/value mixture rejects. With a parameter
   named `i32` in scope, `requires T == i32` rejects; the diagnostic names both
   meanings and suggests renaming the parameter or using a type alias.
-- Where syntax already requires a type or domain qualifier, as in
-  `domain u32::NonZero`, the prefix resolves in that role. Otherwise a `::`
-  prefix is ambiguous only when several visible roots are eligible for that
-  form of static qualification, such as a builtin type and a same-spelled
-  operation-record value. Constness alone does not make a scalar value
-  eligible, so `const u32: u64 = 3;` leaves `u32::NonZero` unaffected. When
-  several eligible roots remain, the prefix rejects without searching their
-  members to choose one.
+- A domain head such as `domain u32::NonZero` selects the carrier type.
+  A static machine call such as `u32::play()` can select a supplied
+  operation record named `u32`. A scalar type cannot own that machine.
+  [Static qualification](#module-and-operation-record-names) defines
+  how the syntactic role determines eligibility.
 
 ```omega
 machine scaled(i: u32, u8: u16) -> u32 {
@@ -202,15 +214,38 @@ machine i(value: u32) -> u32 { value } // Accepted: a callable value.
 
 ### Module and operation-record names
 
-A visible module and a compile-time parameter bound to an operation record can
-both qualify a static call. If both are named `audio`, the compiler rejects
-`audio::play()` as ambiguous at `audio`, even with `use audio;`. It resolves the
-prefix before looking up `play`. A scalar parameter cannot qualify such a call,
-so a same-named scalar leaves the module path available.
+A module and a supplied operation record may share the name `audio`.
+`audio\play()` calls the module machine and `audio::play()` calls the
+supplied operation. Writing `use audio;` preserves both selections.
 
-To select the parameter's callable field, write `audio.play()`. To select the
-module machine, import it with `use audio::play;` and call `play()` where that
-name is unambiguous.
+For `::`, determine which visible meanings of the prefix can serve the
+syntactic role before looking up the member. In a named machine call,
+only owners that can supply a machine are eligible. A data type cannot own
+a machine. In a domain test or qualification the carrier and domain are
+eligible in their respective positions.
+
+```omega
+data Audio { volume: u8; }
+domain Audio::Audible requires self.volume > 0;
+trait Player { machine play(volume: u8); }
+
+machine preview<const Audio: Player>(track: Audio)
+requires track in Audio::Audible
+{
+    Audio::play(track.volume);
+}
+```
+
+The parameter annotation selects the data type. The precondition selects its domain. The call
+selects the operation record. Declared [domain operators](domains.md#domain-composition-and-operators)
+remain selectable by name, such as `Small::greater`.
+
+With one eligible owner, look up the member on that owner and report a
+missing member there. With none, reject the use. With several, report the
+ambiguous prefix before inspecting member names, argument types or result
+types. Ordinary overload resolution applies to the selected owner's machines.
+[Cases, nested types and attached domains](data_and_literals.md#records-sums-and-nested-declarations)
+share their carrier's member namespace.
 
 ## Visibility
 

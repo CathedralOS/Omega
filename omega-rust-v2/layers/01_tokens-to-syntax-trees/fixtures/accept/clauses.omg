@@ -7,7 +7,7 @@ reaches Outcome<u32>
 crashes none
 blocks
 suspends false
-terminates by limit - n -> Nat::Descending in 0..=limit
+terminates by limit - n -> Nat\Descending in 0..=limit
 invokes Logger::write
 satisfies Pure
 {

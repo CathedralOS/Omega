@@ -22,8 +22,8 @@ fn boundary_mathematics_retains_assumption_closure_through_private_helpers() {
 
 #[test]
 fn witness_theorem_preserves_its_strict_goal_without_claiming_a_proof() {
-    let witness = "data Witness<u:core::Level,v:core::Level,A:core::Type<u>,P:A->core::Strict<v>> requires P(value){value:A;}";
-    let theorem = "machine follows<u:core::Level,v:core::Level,w:core::Level,A:core::Type<u>,machine Step>(P:A->core::Strict<v>,Q:A->core::Strict<w>,present:core::Squash<Witness<u,v,A,P>>) requires machine Step(value:A) requires P(value) ensures Q(value); ensures core::Squash::<Witness<u,w,A,Q>> {}";
+    let witness = "data Witness<u:core\\Level,v:core\\Level,A:core\\Type<u>,P:A->core\\Strict<v>> requires P(value){value:A;}";
+    let theorem = "machine follows<u:core\\Level,v:core\\Level,w:core\\Level,A:core\\Type<u>,machine Step>(P:A->core\\Strict<v>,Q:A->core\\Strict<w>,present:core\\Squash<Witness<u,v,A,P>>) requires machine Step(value:A) requires P(value) ensures Q(value); ensures core\\Squash::<Witness<u,w,A,Q>> {}";
     let code = format!("{witness} {theorem}");
     let stage = check(&[("theorem.omg", &code)]).unwrap();
     assert!(
@@ -43,11 +43,11 @@ fn witness_theorem_preserves_its_strict_goal_without_claiming_a_proof() {
 
 #[test]
 fn projected_evidence_keeps_the_conclusion_to_check() {
-    let code = "data Bundle<P:u8->core::Strict<0>> { evidence:(x:u8)->P(x); } machine theorem<machine Step>(x:u8) requires machine Step(y:u8) ensures y==y; {} machine forward<P:u8->core::Strict<0>>(p:Bundle<P>,v:u8){theorem::<p.evidence>(v)}";
+    let code = "data Bundle<P:u8->core\\Strict<0>> { evidence:(x:u8)->P(x); } machine theorem<machine Step>(x:u8) requires machine Step(y:u8) ensures y==y; {} machine forward<P:u8->core\\Strict<0>>(p:Bundle<P>,v:u8){theorem::<p.evidence>(v)}";
     let stage = check(&[("evidence.omg", code)]).unwrap();
     assert!(stage.obligations.iter().any(|o|matches!(&o.kind,omega_typer::ObligationKind::SupplyHypothesis{evidence:ValueType::ProofTerm(site),..} if site.span.slice(code.as_bytes())==Some(&b"p.evidence"[..]))));
     let initializer = format!(
-        "{code} machine lemma(y:u8) requires y>0 ensures y==y {{}} machine bundle<P:u8->core::Strict<0>>()->Bundle<P>{{Bundle::<P>{{evidence:lemma}}}}"
+        "{code} machine lemma(y:u8) requires y>0 ensures y==y {{}} machine bundle<P:u8->core\\Strict<0>>()->Bundle<P>{{Bundle::<P>{{evidence:lemma}}}}"
     );
     let supplied = check(&[("citation.omg", &initializer)]).unwrap();
     assert!(
@@ -68,7 +68,7 @@ fn projected_evidence_keeps_the_conclusion_to_check() {
 
 #[test]
 fn a_named_family_checks_nested_mathematical_subjects_in_declaration_order() {
-    let code = "let keep(x:u8,p:predicate(inc(x))):predicate(inc(x))=p; let inc(x:u8):u8=x+1; let predicate(x:u8):core::Strict<0> = x>0;";
+    let code = "let keep(x:u8,p:predicate(inc(x))):predicate(inc(x))=p; let inc(x:u8):u8=x+1; let predicate(x:u8):core\\Strict<0> = x>0;";
     check(&[("family.omg", code)]).unwrap();
     let wrong = code.replace("inc(x))=p", "inc(1u16))=p");
     assert!(
@@ -90,9 +90,9 @@ fn mathematical_signature_cycles_report_the_first_waiting_declaration() {
 
 #[test]
 fn dependent_arrows_apply_to_exact_subjects_and_ignore_binder_spelling() {
-    let source = "let apply<A,F:A->core::Type<0>>(f:(x:A)->F(x),y:A):F(y)=f(y); let rename<A,F:A->core::Type<0>>(f:(x:A)->F(x)):(z:A)->F(z)=f;";
+    let source = "let apply<A,F:A->core\\Type<0>>(f:(x:A)->F(x),y:A):F(y)=f(y); let rename<A,F:A->core\\Type<0>>(f:(x:A)->F(x)):(z:A)->F(z)=f;";
     check(&[("dependent.omg", source)]).unwrap();
-    let bad = "let wrong<A,F:A->core::Type<0>>(f:(x:A)->F(x),a:A,b:A):F(b)=f(a);";
+    let bad = "let wrong<A,F:A->core\\Type<0>>(f:(x:A)->F(x),a:A,b:A):F(b)=f(a);";
     assert!(
         check(&[("dependent.omg", bad)])
             .unwrap_err()
@@ -105,23 +105,23 @@ fn dependent_arrows_apply_to_exact_subjects_and_ignore_binder_spelling() {
 
 #[test]
 fn mathematical_telescope_preserves_distinct_levels_and_strict_propositions() {
-    let code = "let compose<u:core::Level,v:core::Level,w:core::Level,A:core::Type<u>,B:core::Type<v>,C:core::Type<w>>(f:B->C,g:A->B,value:A):C=f(g(value)); let positive(value:i32):core::Strict<0>=value>0; machine theorem(x:i32) requires positive(x) {}";
+    let code = "let compose<u:core\\Level,v:core\\Level,w:core\\Level,A:core\\Type<u>,B:core\\Type<v>,C:core\\Type<w>>(f:B->C,g:A->B,value:A):C=f(g(value)); let positive(value:i32):core\\Strict<0>=value>0; machine theorem(x:i32) requires positive(x) {}";
     let code = code.replace("<0>=", "<0> =");
     let stage = check(&[("math.omg", &code)]).unwrap();
     assert!(
         stage
             .obligations
             .iter()
-            .any(|o| matches!(&o.kind,omega_typer::ObligationKind::MathematicalFact{sort} if sort.to_string()=="core::Strict<0>"))
+            .any(|o| matches!(&o.kind,omega_typer::ObligationKind::MathematicalFact{sort} if sort.to_string()=="core\\Strict<0>"))
     );
     assert!(
-        check(&[("math.omg", "machine f(x:core::Level){}")])
+        check(&[("math.omg", "machine f(x:core\\Level){}")])
             .unwrap_err()
             .message
             .contains("binder kind")
     );
     assert!(
-        check(&[("math.omg", "let bad<const N:u64>(x:u8):core::Strict<N> = x == 0;")])
+        check(&[("math.omg", "let bad<const N:u64>(x:u8):core\\Strict<N> = x == 0;")])
             .unwrap_err()
             .message
             .contains("universe level")
@@ -201,25 +201,25 @@ fn named_function_types_and_explicit_universe_arguments_work_through_calls() {
     for source in [
         "data Box<T>{} machine f(x:Box<(n:u8)->bool>)->Box<u8->bool>{x}",
         "machine id<T>(x:T)->T{x} machine f(x:(n:u8)->bool)->u8->bool{id::<(n:u8)->bool>(x)}",
-        "machine id<A:core::Type<0>>(x:A)->A{x} machine f(x:u8)->u8{id::<u8>(x)}",
-        "data X{} machine id<A:core::Type<0>>(x:A)->A{x} machine f(x:X)->X{id::<X>(x)}",
-        "machine id<A:core::Type<0>>(x:A)->A{x} machine f<B:core::Type<0>>(x:B)->B{id::<B>(x)}",
+        "machine id<A:core\\Type<0>>(x:A)->A{x} machine f(x:u8)->u8{id::<u8>(x)}",
+        "data X{} machine id<A:core\\Type<0>>(x:A)->A{x} machine f(x:X)->X{id::<X>(x)}",
+        "machine id<A:core\\Type<0>>(x:A)->A{x} machine f<B:core\\Type<0>>(x:B)->B{id::<B>(x)}",
     ] {
         check(&[("types.omg", source)]).unwrap();
     }
     check(&[(
         "domain.omg",
-        "domain<A:core::Type<1>> u8::Tag<A>; machine member(x:u8)->bool{x in Tag::<core::Type<0>>}",
+        "domain<A:core\\Type<1>> u8::Tag<A>; machine member(x:u8)->bool{x in Tag::<core\\Type<0>>}",
     )])
     .unwrap();
     for source in [
-        "machine one<A:core::Type<0>>() requires A == u8 {}",
-        "machine two<A:core::Type<0>,B:core::Type<0>>() requires A == B {}",
+        "machine one<A:core\\Type<0>>() requires A == u8 {}",
+        "machine two<A:core\\Type<0>,B:core\\Type<0>>() requires A == B {}",
         "machine numeric<N:u8>() requires N == 0u8 {}",
     ] {
         check(&[("equality.omg", source)]).unwrap();
     }
-    let wrong = "data Box<T>{} machine f<A:core::Type<0>,F:A->core::Type<0>>(x:Box<(a:A)->(b:A)->F(a)>)->Box<(a:A)->(b:A)->F(b)>{x}";
+    let wrong = "data Box<T>{} machine f<A:core\\Type<0>,F:A->core\\Type<0>>(x:Box<(a:A)->(b:A)->F(a)>)->Box<(a:A)->(b:A)->F(b)>{x}";
     assert!(
         check(&[("types.omg", wrong)])
             .unwrap_err()
@@ -230,7 +230,7 @@ fn named_function_types_and_explicit_universe_arguments_work_through_calls() {
 
 #[test]
 fn type_applications_require_the_same_universe_membership_as_machine_calls() {
-    let prefix = "data Box<u:core::Level,A:core::Type<u>>{} data U=core::Type<0>;";
+    let prefix = "data Box<u:core\\Level,A:core\\Type<u>>{} data U=core\\Type<0>;";
     let valid = format!("{prefix} machine f(x:Box<1,U>){{}}");
     let stage = check(&[("universe.omg", &valid)]).unwrap();
     let rows = stage
@@ -238,7 +238,7 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
         .iter()
         .filter(|o| {
             matches!(&o.kind,omega_typer::ObligationKind::UniverseMembership {subject,sort}
-        if subject.to_string()=="core::Type<0>" && sort.to_string()=="core::Type<1>")
+        if subject.to_string()=="core\\Type<0>" && sort.to_string()=="core\\Type<1>")
         })
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 1);
@@ -247,8 +247,8 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
     // through each construct that accepts an explicit type argument.
     for subject_level in 0..=3 {
         for bound_level in 0..=3 {
-            let subject = format!("core::Type<{subject_level}>");
-            let sort = format!("core::Type<{bound_level}>");
+            let subject = format!("core\\Type<{subject_level}>");
+            let sort = format!("core\\Type<{bound_level}>");
             let domain = format!("domain<A:{sort}> u8::Tag<A>;");
             for source in [
                 format!("machine id<A:{sort}>(x:A)->A{{x}} machine f(x:{subject})->{subject}{{id::<{subject}>(x)}}"),
@@ -273,7 +273,7 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
             }
         }
     }
-    let strict = "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}";
+    let strict = "data StrictBox<A:core\\Strict<1>>{} machine f(x:StrictBox<core\\Type<0>>){}";
     assert_eq!(
         check(&[("universe.omg", strict)]).unwrap_err().message,
         "universe argument requires its exact successor universe"
@@ -282,8 +282,8 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
 
 #[test]
 fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
-    let aliases = "data Identity<T> = T; data Sort = Identity<core::Type<0>>; data High<L:core::Level> = core::Type<L>; data Byte = u8;";
-    for bound in ["core::Type<0>", "Sort", "High<0>", "Identity<Sort>"] {
+    let aliases = "data Identity<T> = T; data Sort = Identity<core\\Type<0>>; data High<L:core\\Level> = core\\Type<L>; data Byte = u8;";
+    for bound in ["core\\Type<0>", "Sort", "High<0>", "Identity<Sort>"] {
         for call in ["id(x)", "id::<u8>(x)"] {
             let machines = format!("machine id<A:{bound}>(x:A)->A{{x}} machine f(x:u8)->u8{{{call}}}");
             let ordered = [("a.omg", aliases), ("z.omg", machines.as_str())];
@@ -305,7 +305,7 @@ fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
             check(&[("a.omg", &machines), ("z.omg", aliases)]).unwrap();
         }
     }
-    let family = "data Family = u8::D::Child->core::Type<0>; domain u8::D; machine ready(x:u8 in D)->bool{true} domain u8::D::Child requires ready(self); machine f<F:Family>(){}";
+    let family = "data Family = u8::D::Child->core\\Type<0>; domain u8::D; machine ready(x:u8 in D)->bool{true} domain u8::D::Child requires ready(self); machine f<F:Family>(){}";
     check(&[("family.omg", family)]).unwrap();
     let wrong_carrier = format!("{family} machine wrong(x:u16)->bool{{x in u8::D::Child}}");
     assert_eq!(
@@ -321,7 +321,7 @@ fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
     );
     let nominal = "data Sort{} machine f<A:Sort>(){}";
     assert!(check(&[("nominal.omg", nominal)]).is_err());
-    let strict = "data S=core::Strict<1>; data Box<A:S>{} machine f(x:Box<core::Type<0>>){}";
+    let strict = "data S=core\\Strict<1>; data Box<A:S>{} machine f(x:Box<core\\Type<0>>){}";
     assert_eq!(
         check(&[("strict.omg", strict)]).unwrap_err().message,
         "universe argument requires its exact successor universe"
@@ -329,7 +329,7 @@ fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
     let indices = "data Buffer<N:Byte>{} machine f(x:Buffer<7>)->Buffer<7>{x}";
     check(&[("index.omg", indices), ("sort.omg", aliases)]).unwrap();
     for (level, accepted) in [(0, false), (1, true), (2, false)] {
-        let code = format!("data Box<A:High<{level}>>{{}} machine f(x:Box<core::Type<0>>){{}}");
+        let code = format!("data Box<A:High<{level}>>{{}} machine f(x:Box<core\\Type<0>>){{}}");
         let result = check(&[("box.omg", &code), ("sort.omg", aliases)]);
         if accepted {
             result.unwrap();
@@ -345,7 +345,7 @@ fn generated_alias_compositions_select_the_expected_binding() {
 
     // Both meanings of X are in scope. First and Last can nest, so two wrong
     // selections can cancel each other. Compare each tree to its selected leaf.
-    let leaves = [("core::Type<0>".to_owned(), true), ("u8".to_owned(), false)];
+    let leaves = [("core\\Type<0>".to_owned(), true), ("u8".to_owned(), false)];
     let mut kinds = leaves.to_vec();
     for _ in 0..2 {
         let children = kinds;
@@ -391,10 +391,10 @@ fn generated_alias_compositions_select_the_expected_binding() {
 fn each_overload_uses_its_own_normalized_bound_to_select_the_argument_name() {
     let caller = "data X{} machine f<X:u8>() { pick::<X>(true); pick::<X>(0u8); }";
     let files = [
-        ("type/kind.omg", "public data Sort=core::Type<0>;"),
+        ("type/kind.omg", "public data Sort=core\\Type<0>;"),
         ("value/kind.omg", "public data Sort=u8;"),
-        ("a.omg", "use type::Sort; machine pick<A:Sort>(x:u8){}"),
-        ("b.omg", "use value::Sort; machine pick<N:Sort>(x:bool){}"),
+        ("a.omg", "use type\\Sort; machine pick<A:Sort>(x:u8){}"),
+        ("b.omg", "use value\\Sort; machine pick<N:Sort>(x:bool){}"),
         ("caller.omg", caller),
     ];
     let stage = check(&files).unwrap();
@@ -407,16 +407,16 @@ fn each_overload_uses_its_own_normalized_bound_to_select_the_argument_name() {
     assert!(matches!(&calls[0].type_arguments[..], [ValueType::Parameter { owner, index: 0 }] if owner.path == "f"));
     assert!(matches!(&calls[1].type_arguments[..], [ValueType::Nominal(id)] if id.path == "X"));
     for (source, message) in [
-        ("data Sort=core::Type<0>; machine f<u8:Sort>(){}", "builtin type u8 cannot be redeclared"),
+        ("data Sort=core\\Type<0>; machine f<u8:Sort>(){}", "builtin type u8 cannot be redeclared"),
         (
-            "data Sort=core::Type<0>; machine f<A:Sort,N:u8>() requires (A) == N {}",
+            "data Sort=core\\Type<0>; machine f<A:Sort,N:u8>() requires (A) == N {}",
             "type equality mixes a type and a value",
         ),
     ] {
         assert_eq!(check(&[("f.omg", source)]).unwrap_err().message, message);
     }
     assert!(check(&[("f.omg", "data Byte=u8; machine f<N:Byte>(){} machine g(){f::<u8>()}")]).is_err());
-    let equal = "data Sort=core::Type<0>; machine f<A:Sort>() requires (A) == u8 {}";
+    let equal = "data Sort=core\\Type<0>; machine f<A:Sort>() requires (A) == u8 {}";
     assert!(
         check(&[("f.omg", equal)])
             .unwrap()
@@ -437,7 +437,7 @@ fn a_generic_argument_depends_only_on_the_name_its_bound_selects() {
             .message
             .contains("cyclic")
     );
-    let shadow = "data Sort=core::Type<0>; const X:u8=7; machine f<X:Sort>()->u8{X}";
+    let shadow = "data Sort=core\\Type<0>; const X:u8=7; machine f<X:Sort>()->u8{X}";
     check(&[("shadow.omg", shadow)]).unwrap();
 }
 
@@ -453,7 +453,7 @@ fn mixed_equality_is_a_typing_error_at_the_whole_expression() {
         assert_eq!(refusal.message, "type equality mixes a type and a value");
         assert_eq!(refusal.span.slice(source.as_bytes()), Some(predicate.as_bytes()));
     }
-    let source = "data Sort=core::Type<0>; machine f<T:Sort>()->u8{T}";
+    let source = "data Sort=core\\Type<0>; machine f<T:Sort>()->u8{T}";
     assert!(check(&[("role.omg", source)]).is_err());
 }
 

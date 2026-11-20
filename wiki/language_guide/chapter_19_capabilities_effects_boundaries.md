@@ -32,7 +32,7 @@ The build says what implements each boundary trait:
 
 ```omega
 machine build(builder: @mut Build) {
-    Build::select_provider::<selected_target::Console, TestConsole>(builder);
+    Build::select_provider::<selected_target\Console, TestConsole>(builder);
 }
 ```
 

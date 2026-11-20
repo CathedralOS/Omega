@@ -3,7 +3,7 @@ machine every_form<
     T,
     Element [copy],
     Count: u32,
-    u: core::Level,
+    u: core\Level,
     const N: u64,
     const F: machine(v: u32) -> u32,
     const G: machine,

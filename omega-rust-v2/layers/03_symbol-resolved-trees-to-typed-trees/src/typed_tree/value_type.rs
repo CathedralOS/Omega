@@ -118,7 +118,7 @@ impl fmt::Display for ValueType {
             Self::BoundSubject(index) => write!(f, "bound[{index}]"),
             Self::MathematicalValue { definition, subjects } => write!(
                 f,
-                "{}::{}({})",
+                "{}\\{}({})",
                 definition.package,
                 definition.path,
                 subjects
@@ -127,7 +127,7 @@ impl fmt::Display for ValueType {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::MathematicalDefinition(id) => write!(f, "{}::{}", id.package, id.path),
+            Self::MathematicalDefinition(id) => write!(f, "{}\\{}", id.package, id.path),
             Self::FamilyApplication { family, subjects } => write!(
                 f,
                 "{family}({})",
@@ -137,11 +137,11 @@ impl fmt::Display for ValueType {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::Squash(ty) => write!(f, "core::Squash<{ty}>"),
+            Self::Squash(ty) => write!(f, "core\\Squash<{ty}>"),
             Self::LevelOf(ty) => write!(f, "level({ty})"),
-            Self::LevelKind => write!(f, "core::Level"),
+            Self::LevelKind => write!(f, "core\\Level"),
             Self::Level(level) => write!(f, "{level}"),
-            Self::Universe { strict, level } => write!(f, "core::{}<{level}>", if *strict { "Strict" } else { "Type" }),
+            Self::Universe { strict, level } => write!(f, "core\\{}<{level}>", if *strict { "Strict" } else { "Type" }),
             Self::Float32 => write!(f, "f32"),
             Self::Tuple(items) => write!(
                 f,
@@ -161,7 +161,7 @@ impl fmt::Display for ValueType {
                 }
                 Ok(())
             }
-            Self::Nominal(id) => write!(f, "{}::{}", id.package, id.path),
+            Self::Nominal(id) => write!(f, "{}\\{}", id.package, id.path),
             Self::Exact { value, .. } => write!(f, "{value}"),
             Self::Reference(access, inner) => write!(f, "{}{inner}", access.prefix()),
             Self::IndexedArray(inner, size) => write!(f, "[{inner}; {size}]"),
@@ -169,7 +169,7 @@ impl fmt::Display for ValueType {
             Self::InferredLifetime { site, index } => write!(f, "lifetime {}@{}[{index}]", site.file, site.span.get_start_offset()),
             Self::AtLifetime(inner, region) => write!(f, "{inner} at {region}"),
             Self::Slice(inner) => write!(f, "[{inner}]"),
-            Self::Witness { owner, index, .. } => write!(f, "{}::{}<some {}>", owner.package, owner.path, index),
+            Self::Witness { owner, index, .. } => write!(f, "{}\\{}<some {}>", owner.package, owner.path, index),
             Self::Callable(c) => write!(
                 f,
                 "machine({}) -> {}",
@@ -180,13 +180,13 @@ impl fmt::Display for ValueType {
                     .join(", "),
                 c.result
             ),
-            Self::Evidence(slot) => write!(f, "evidence for {}::{}", slot.declaration.package, slot.declaration.path),
-            Self::Implementation(id) => write!(f, "{}::{}", id.package, id.path),
+            Self::Evidence(slot) => write!(f, "evidence for {}\\{}", slot.declaration.package, slot.declaration.path),
+            Self::Implementation(id) => write!(f, "{}\\{}", id.package, id.path),
             Self::LogicalRequirement(site) => write!(f, "hypothesis at {}:{}", site.file, site.span.get_start_offset()),
             Self::ProofTerm(site) => write!(f, "evidence at {}:{}", site.file, site.span.get_start_offset()),
-            Self::ProofCitation(id) => write!(f, "proof {}::{}", id.package, id.path),
+            Self::ProofCitation(id) => write!(f, "proof {}\\{}", id.package, id.path),
             Self::MachineSelection(id, arguments) => {
-                write!(f, "{}::{}", id.package, id.path)?;
+                write!(f, "{}\\{}", id.package, id.path)?;
                 if !arguments.is_empty() {
                     write!(f, "::<")?;
                     for (index, argument) in arguments.iter().enumerate() {
@@ -205,10 +205,10 @@ impl fmt::Display for ValueType {
             Self::PendingStatic(demand) => write!(f, "<pending {} value>", demand.request().carrier),
             Self::OpenStatic { template, .. } => write!(f, "static expression at {}", template.request().expression.span.get_start_offset()),
             Self::InvalidStatic(message) => write!(f, "{message}"),
-            Self::Parameter { owner, index } => write!(f, "{}::{}<parameter {}>", owner.package, owner.path, index),
+            Self::Parameter { owner, index } => write!(f, "{}\\{}<parameter {}>", owner.package, owner.path, index),
             Self::Applied(id, args) => write!(
                 f,
-                "{}::{}<{}>",
+                "{}\\{}<{}>",
                 id.package,
                 id.path,
                 args.iter()

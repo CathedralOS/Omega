@@ -125,7 +125,7 @@ impl Catalog<'_> {
             let qualified_argument_domain = parent.kind == QualifiedType
                 && parent.children.first() != Some(&n)
                 && argument_owner(parent_index).is_some_and(|owner| !matches!(owner, Symbol::Builtin(_)));
-            let ty = !matches!(owner, Some(Symbol::Builtin(name)) if matches!(name.as_str(), "u" | "i" | "core::Type" | "core::Strict"))
+            let ty = !matches!(owner, Some(Symbol::Builtin(name)) if matches!(name.as_str(), "u" | "i" | "core\\Type" | "core\\Strict"))
                 && (node.kind == PathType || applied_expression_argument)
                 && !matches!(parent.kind, Access | DroppedBy | Invokes | Reaches | Crashes | Satisfies | Selection);
             let ranking_term = node
@@ -181,9 +181,17 @@ impl Catalog<'_> {
                     let local = ctx.locals.get(root)?.iter().rev().find(in_scope)?;
                     (local.kind == ConstParam || member == "ensures" && matches!(local.kind, MachineParam | Hypothesis)).then_some((local, member))
                 });
+            let direct_call = node.kind == PathExpression && parent.kind == Call && parent.children.first() == Some(&n);
+            let has_static_owner = if direct_call && let Some((owner, _)) = path.rsplit_once("::") {
+                self.has_static_owner(file, ctx, n, owner, node.qualifier_span().expect("qualified call"), true)?
+            } else if static_member.is_some() {
+                self.has_static_owner(file, ctx, n, first.text, first.span, false)?
+            } else {
+                false
+            };
             let mut ordinary_member = false;
             if let Some((local, _)) = static_member
-                && self.has_static_root(file, ctx, n, first.text)?
+                && has_static_owner
             {
                 uses.push(usage(file, n, NameRole::CompetingStaticRoot, first.span, local.symbol()));
                 ordinary_member = !self.lookup(file, ctx, n, &path)?.is_empty();

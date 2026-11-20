@@ -223,16 +223,16 @@ public domain Cell::Controlled
     access CellAccess;
 
 CellAccess satisfies AccessPolicy {
-    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = access::new_plan(
+    machine plan(schema: reflect\TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = access\new_plan(
             @schema,
-            Issuance::Only { routes: [reflect::callable(create_cell)] }
+            Issuance::Only { routes: [reflect\callable(create_cell)] }
         );
-        access::allow_readers(
-            @mut plan, TypeSchema::root(@schema), [reflect::callable(read_cell)]
+        access\allow_readers(
+            @mut plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
         );
-        access::allow_writers(
-            @mut plan, TypeSchema::root(@schema), [reflect::callable(set_cell)]
+        access\allow_writers(
+            @mut plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
         );
         plan
     }
@@ -270,7 +270,7 @@ restrict, use the stock policy and skip writing one:
 
 ```omega
 domain Folder::Writable
-    access IssuedBy<reflect::callable(choose_folder)>;
+    access IssuedBy<reflect\callable(choose_folder)>;
 ```
 
 See the

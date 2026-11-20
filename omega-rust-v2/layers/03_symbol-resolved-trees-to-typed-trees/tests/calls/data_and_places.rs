@@ -228,7 +228,7 @@ fn core_bracket_contracts_retain_endpoints_access_and_origin() {
             .iter()
             .map(|a| a.machine.path.as_str())
             .collect::<Vec<_>>(),
-        ["indexing::range_mut", "indexing::element_mut", "indexing::read"]
+        ["indexing\\range_mut", "indexing\\element_mut", "indexing\\read"]
     );
     let syntax = resolved.trees().next().unwrap().file;
     let range = syntax.nodes[stage.collection_accesses[0].node.node].children[1];
@@ -342,7 +342,7 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
             let [access] = stage.collection_accesses.as_slice() else {
                 panic!("expected one mutable indexing selection")
             };
-            assert_eq!(access.machine.path, "indexing::element_mut");
+            assert_eq!(access.machine.path, "indexing\\element_mut");
         }
     }
     for place in ["array.len", "((array.len))"] {

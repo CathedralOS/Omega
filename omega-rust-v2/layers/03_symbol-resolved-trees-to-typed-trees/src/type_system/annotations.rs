@@ -252,7 +252,7 @@ impl<'a> ResolvedSourceFile<'a> {
             PathType | PathExpression => {
                 let symbol = self.name_in_role(node_index, true);
                 let sections = self.file.reference_sections(node_index);
-                if matches!(symbol,Some(Symbol::Builtin(name)) if name=="core::Squash") {
+                if matches!(symbol,Some(Symbol::Builtin(name)) if name=="core\\Squash") {
                     let [section] = *sections else {
                         return Err(TypeError::unsupported(source, node_index));
                     };
@@ -260,14 +260,14 @@ impl<'a> ResolvedSourceFile<'a> {
                     return Ok(ValueType::Squash(Box::new(self.raw_type(argument, types)?)));
                 }
                 if let Some(Symbol::Builtin(name)) = symbol
-                    && matches!(name.as_str(), "core::Type" | "core::Strict")
+                    && matches!(name.as_str(), "core\\Type" | "core\\Strict")
                 {
                     let [section] = *sections else {
                         return Err(TypeError::at(source, node_index, "universe requires one level"));
                     };
                     let level = self.universe_level(self.single_child(section)?, types)?;
                     return Ok(ValueType::Universe {
-                        strict: name == "core::Strict",
+                        strict: name == "core\\Strict",
                         level: Box::new(level),
                     });
                 }
@@ -329,8 +329,8 @@ impl<'a> ResolvedSourceFile<'a> {
                         .cloned()
                         .ok_or_else(|| TypeError::at(source, node_index, "unknown type parameter")),
                     Some(Symbol::Builtin(name)) => match name.as_str() {
-                        "core::Level" if node.parent.is_some_and(|p| source.nodes[p].kind == KindedParam) => Ok(ValueType::LevelKind),
-                        "core::Level" => Err(TypeError::at(source, node_index, "core::Level is a universe binder kind")),
+                        "core\\Level" if node.parent.is_some_and(|p| source.nodes[p].kind == KindedParam) => Ok(ValueType::LevelKind),
+                        "core\\Level" => Err(TypeError::at(source, node_index, "core\\Level is a universe binder kind")),
                         _ => ValueType::builtin_scalar(name).ok_or_else(|| {
                             if name.starts_with(['u', 'i']) {
                                 TypeError::at(source, node_index, format!("invalid integer carrier {name}"))

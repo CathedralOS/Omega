@@ -243,13 +243,13 @@ application and its exact named implementation:
 
 ```omega
 suspend Build::await_provider::<
-    topology_api::TopologyBuild,
-    topology_impl::DiagnosticTopology
+    topology_api\TopologyBuild,
+    topology_impl\DiagnosticTopology
 >(builder);
 ```
 
 Under `staged-build-capability-attenuation` (2026-10-28),
-`topology_api::TopologyBuild` must be available when its invoking continuation
+`topology_api\TopologyBuild` must be available when its invoking continuation
 is checked, not necessarily before the first Build stage. Explicit dependency
 preparation admits ordinary shared non-core interfaces before that continuation
 executes; unresolved names cannot execute or be substituted structurally.

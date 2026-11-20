@@ -41,11 +41,11 @@ machine apply(step: machine(value: u32) -> u32 reaches none, start: u32) -> u32 
 }
 
 // A hypothesis on a machine: the one clause that ends in a semicolon.
-machine existence_follows<A, machine Step>(P: A -> core::Strict<v>, present: A)
+machine existence_follows<A, machine Step>(P: A -> core\Strict<v>, present: A)
 requires machine Step(value: A)
     requires P(value)
     ensures Q(value);
-ensures core::Squash::<Witness<u, w, A, Q>>
+ensures core\Squash::<Witness<u, w, A, Q>>
 {
     present
 }

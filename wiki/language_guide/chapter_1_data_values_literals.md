@@ -6,7 +6,7 @@ the data half: records, sums, literals, locals and constants.
 ## Hello world
 
 ```omega
-use omega_language_std::console;
+use omega_language_std\console;
 
 machine start() {
     Console::write_line("Hello, Omega.");
@@ -19,7 +19,7 @@ entry:
 ```omega
 machine build(builder: @mut Build) {
     Build::application(builder, "hello");
-    Build::bind(builder, windows_x86_64::ProgramEntry, start);
+    Build::bind(builder, windows_x86_64\ProgramEntry, start);
 }
 ```
 

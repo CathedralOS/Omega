@@ -19,11 +19,11 @@ impl CollectionPrimitive {
 
     pub fn path(self) -> &'static str {
         match self {
-            Self::Read => "indexing::read",
-            Self::Element => "indexing::element",
-            Self::ElementMut => "indexing::element_mut",
-            Self::Range => "indexing::range",
-            Self::RangeMut => "indexing::range_mut",
+            Self::Read => "indexing\\read",
+            Self::Element => "indexing\\element",
+            Self::ElementMut => "indexing\\element_mut",
+            Self::Range => "indexing\\range",
+            Self::RangeMut => "indexing\\range_mut",
         }
     }
 }

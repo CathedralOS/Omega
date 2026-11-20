@@ -79,7 +79,7 @@ File
         TypeArgs
           '<'
           Call
-            PathExpression 'reflect' '::' 'callable'
+            PathExpression 'reflect' '\' 'callable'
             Args
               '('
               PathExpression 'choose_folder'
@@ -100,14 +100,14 @@ File
           ArrayLiteral
             '['
             Call
-              PathExpression 'reflect' '::' 'callable'
+              PathExpression 'reflect' '\' 'callable'
               Args
                 '('
                 PathExpression 'open_file'
                 ')'
             ','
             Call
-              PathExpression 'reflect' '::' 'callable'
+              PathExpression 'reflect' '\' 'callable'
               Args
                 '('
                 PathExpression 'open_dir'

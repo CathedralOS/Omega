@@ -12,7 +12,7 @@ File
       Param
         'b'
         ':'
-        PathType 'core' '::' 'Level'
+        PathType 'core' '\' 'Level'
       ','
       Param
         'c'

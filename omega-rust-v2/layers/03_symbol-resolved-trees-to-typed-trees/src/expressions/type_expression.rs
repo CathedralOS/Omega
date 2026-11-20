@@ -57,7 +57,7 @@ impl BodyTyper<'_, '_> {
                 let symbol = self.unit.name_in_role(node_index, false);
                 if !node.children.is_empty()
                     && !matches!(symbol, Some(Symbol::Declaration(id)) if matches!(id.kind, MathLet | Case))
-                    && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core::Squash")
+                    && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core\\Squash")
                 {
                     return Err(TypeError::unsupported(source_file, node_index));
                 }
@@ -101,7 +101,7 @@ impl BodyTyper<'_, '_> {
                         }
                         ty
                     }
-                    Some(Symbol::Builtin(name)) if name == "core::Squash" => {
+                    Some(Symbol::Builtin(name)) if name == "core\\Squash" => {
                         let ValueType::Squash(source) = self.unit.annotation(node_index, &self.catalog.types)? else {
                             return Err(TypeError::unsupported(source_file, node_index));
                         };
@@ -149,7 +149,7 @@ impl BodyTyper<'_, '_> {
                             .as_ref()
                             .and_then(ValueType::nominal_parts)
                             .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
-                        let field = id.path.rsplit("::").next().unwrap_or(&id.path);
+                        let field = id.path.rsplit([':', '\\']).next().unwrap_or(&id.path);
                         self.catalog
                             .fields
                             .get(owner)

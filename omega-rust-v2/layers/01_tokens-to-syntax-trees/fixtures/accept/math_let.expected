@@ -17,7 +17,7 @@ File
     ':'
     PathType
       'core'
-      '::'
+      '\'
       'Strict'
       TypeArgs
         '<'
@@ -38,14 +38,14 @@ File
       KindedParam
         'u'
         ':'
-        PathType 'core' '::' 'Level'
+        PathType 'core' '\' 'Level'
       ','
       KindedParam
         'A'
         ':'
         PathType
           'core'
-          '::'
+          '\'
           'Type'
           TypeArgs
             '<'
@@ -59,7 +59,7 @@ File
         ':'
         PathType
           'core'
-          '::'
+          '\'
           'Squash'
           TypeArgs
             '<'

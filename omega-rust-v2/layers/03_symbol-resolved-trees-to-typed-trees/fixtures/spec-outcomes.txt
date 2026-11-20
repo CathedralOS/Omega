@@ -24,6 +24,7 @@ language/generics.md:506  accepted
 language/generics.md:761  accepted
 language/lifetimes.md:20  accepted
 language/machines.md:33  accepted
+language/modules.md:227  accepted
 language/numeric_values.md:498  L3 fractional intermediate at bytes 21..26 yields 5; use an explicit cast to u32 | (5 / 2) * 2
 language/patterns.md:50  accepted
 language/some_packages.md:15  accepted

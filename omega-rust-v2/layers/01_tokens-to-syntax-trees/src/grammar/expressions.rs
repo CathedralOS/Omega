@@ -479,7 +479,7 @@ impl SyntaxParser<'_> {
     pub(crate) fn parse_path_expression(&mut self) -> Parsed<ClosedNode> {
         let path_expression = self.open();
 
-        self.expect_word("a name")?;
+        self.parse_module_name("a name")?;
 
         loop {
             if self.at(Punctuation::ColonColon) && self.nth_at(1, Punctuation::Less) {
@@ -591,7 +591,7 @@ impl SyntaxParser<'_> {
 
         let mut ahead = 1;
 
-        while self.nth_at(ahead, Punctuation::ColonColon) && self.nth_at_word(ahead + 1) {
+        while matches!(self.nth_punctuation(ahead), Some(Punctuation::ColonColon | Punctuation::Backslash)) && self.nth_at_word(ahead + 1) {
             ahead += 2;
         }
 

@@ -44,7 +44,7 @@ impl<'a> File<'a> {
         let namespace = source
             .logical_path
             .rsplit_once('/')
-            .map_or(String::new(), |(dir, _)| dir.replace('/', "::"));
+            .map_or(String::new(), |(dir, _)| dir.replace('/', "\\"));
         Ok(Self {
             ordinal: 0,
             package: input.package,

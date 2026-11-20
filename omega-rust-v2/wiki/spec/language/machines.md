@@ -26,8 +26,8 @@ and does not change this rule.
 Named decision: `no-data-code-attachment`, ratified 2026-10-22. A data declaration
 is not a machine owner or namespace. Declaring a machine under a data carrier,
 such as `machine Counter::increment`, is retired even with an explicit parameter.
-Machine qualification identifies an ordinary module, trait requirement, named
-implementation or lexically visible nested declaration; it never binds code to a data type. Package visibility and exact
+Use `\` to name a machine in a module. Use `::` for a trait requirement, named
+implementation member, domain operator or lexically visible nested declaration. Package visibility and exact
 declaration identity remain independent of the types of explicit arguments.
 
 ```omega
@@ -45,7 +45,7 @@ machine example() {
 
 Every argument, including context and capabilities, is ordinary and explicit.
 This includes the toolchain-authored build API: `Build::application(builder,
-"example")` and `Build::dependency(builder, dependency::from_source(source))` pass the build context explicitly.
+"example")` and `Build::dependency(builder, dependency\from_source(source))` pass the build context explicitly.
 Owned, shared, mutable and write-only access retain their normal contracts;
 removing receiver syntax removes no ownership, invariant, effect or proof check.
 Trait requirements and satisfiers use the same explicit parameter correspondence:

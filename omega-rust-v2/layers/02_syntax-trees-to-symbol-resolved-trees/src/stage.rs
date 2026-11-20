@@ -18,13 +18,20 @@ fn qualify(
 ) -> String {
     if owner.is_empty() { name.into() } else { format!("{owner}::{name}") }
 }
+fn module_child(
+    module: &str,
+    name: &str,
+) -> String {
+    if module.is_empty() { name.into() } else { format!("{module}\\{name}") }
+}
+
 pub fn builtin(name: &str) -> bool {
     matches!(
         name,
-        "core::Level"
-            | "core::Type"
-            | "core::Strict"
-            | "core::Squash"
+        "core\\Level"
+            | "core\\Type"
+            | "core\\Strict"
+            | "core\\Squash"
             | "bool"
             | "addr"
             | "f32"
@@ -160,7 +167,7 @@ pub fn resolve_stage_with_exports<'text>(
             return Err(file.error(SourceSpan::new(0, 0), format!("invalid package-relative logical path {}", file.path)));
         }
         for depth in 0..=parts.len() {
-            modules.insert((file.package.to_owned(), parts[..depth].join("::")));
+            modules.insert((file.package.to_owned(), parts[..depth].join("\\")));
         }
         contexts.push(index_file(file, &mut entries, &mut index)?);
     }
@@ -206,7 +213,7 @@ pub fn resolve_stage_with_exports<'text>(
         } else {
             id.path
                 .strip_prefix(&export.module)
-                .and_then(|rest| rest.strip_prefix("::"))
+                .and_then(|rest| rest.strip_prefix('\\'))
                 .ok_or_else(|| error("compiled export is outside its defining module"))?
         };
         if export.domain_carrier.is_some() != (id.kind == NodeKind::Domain && local_path.contains("::")) {
@@ -236,7 +243,7 @@ pub fn resolve_stage_with_exports<'text>(
                 "source package collides with a compiled interface",
             ));
         }
-        if !path.is_empty() && path.split("::").any(|part| !identifier(part) || builtin(part)) {
+        if !path.is_empty() && path.split('\\').any(|part| !identifier(part) || builtin(part)) {
             return Err(NameError::new(package, path, SourceSpan::new(0, 0), "invalid compiled module path"));
         }
         let mut module = path.as_str();
@@ -245,7 +252,7 @@ pub fn resolve_stage_with_exports<'text>(
             if module.is_empty() {
                 break;
             }
-            module = module.rsplit_once("::").map_or("", |(parent, _)| parent);
+            module = module.rsplit_once('\\').map_or("", |(parent, _)| parent);
         }
     }
     let mut edges = BTreeMap::new();

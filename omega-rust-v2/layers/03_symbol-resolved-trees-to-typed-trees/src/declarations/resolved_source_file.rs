@@ -36,7 +36,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 self.file,
                 node,
                 format!(
-                    "selecting {}::{} requires a direct dependency on {}",
+                    "selecting {}\\{} requires a direct dependency on {}",
                     declaration.package, declaration.path, declaration.package
                 ),
             ))

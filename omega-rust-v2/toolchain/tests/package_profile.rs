@@ -3,7 +3,7 @@ use omega_toolchain::{TOOLCHAIN_PACKAGE, core_interface, resolve_source_package}
 
 #[test]
 fn the_package_profile_binds_source_imports_to_its_published_declarations() {
-    let text = "use omega::language::core; machine f<'a>(x:core::AccessPlan<'a>){}";
+    let text = "use omega\\language\\core; machine f<'a>(x:core\\AccessPlan<'a>){}";
     let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
     let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
     let source = |package| StageSource {
@@ -30,7 +30,7 @@ fn the_package_profile_binds_source_imports_to_its_published_declarations() {
 #[test]
 fn constructor_guarantees_are_published_by_the_library() {
     let core = core_interface();
-    let constructor = core.id("access::new_plan");
+    let constructor = core.id("access\\new_plan");
     let (tree, node) = core
         .declarations
         .trees()
@@ -69,8 +69,8 @@ fn the_profile_identifies_the_default_ranking_view_and_the_access_requirement() 
     assert_eq!(
         core.ranking_views(),
         [
-            (core.id("Nat::Descending"), true),
-            (core.id("Nat::BoundedDistance"), false)
+            (core.id("Nat\\Descending"), true),
+            (core.id("Nat\\BoundedDistance"), false)
         ]
     );
     assert_eq!(core.access_plan_requirement(), core.id("AccessPolicy::plan"));

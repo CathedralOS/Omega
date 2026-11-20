@@ -17,7 +17,7 @@ build/validation_subjects.md:68  unresolved name Build
 language/assembly.md:61  unavailable target register ecx
 language/assembly.md:142  unresolved name context
 language/assembly.md:255  unavailable target instruction mov
-language/conformances.md:39  unresolved name integer::max
+language/conformances.md:39  unresolved name integer\max
 language/conformances.md:204  unresolved name Codec
 language/conformances.md:345  unresolved name NoState
 language/conformances.md:533  unresolved name A::clear
@@ -85,8 +85,9 @@ language/lifetimes.md:20  accepted
 language/lifetimes.md:96  unresolved name Value
 language/machine_values.md:17  unresolved name counter
 language/machines.md:33  accepted
-language/modules.md:102  unavailable import ui_policy::screen::Point::OnScreen
-language/modules.md:191  builtin type u7 cannot be redeclared
+language/modules.md:117  unavailable import ui_policy\screen\Point::OnScreen
+language/modules.md:203  builtin type u7 cannot be redeclared
+language/modules.md:227  accepted
 language/numeric_values.md:498  accepted
 language/numeric_values.md:643  unresolved name cursor
 language/ownership.md:201  unresolved name items
@@ -96,7 +97,7 @@ language/patterns.md:50  accepted
 language/patterns.md:86  unresolved name command
 language/patterns.md:162  unresolved name Command
 language/process_exit.md:17  unresolved name Never
-language/reflection.md:77  unresolved name reflect::field
+language/reflection.md:77  unresolved name reflect\field
 language/some_packages.md:15  accepted
 language/some_packages.md:39  unresolved name Reader
 language/some_packages.md:69  unresolved name Reader
@@ -113,7 +114,7 @@ layouts/plans.md:322  unresolved name LayoutStorage
 layouts/recasts.md:6  unresolved name GdtRaw
 layouts/recasts.md:18  accepted
 packages/review.md:136  unresolved name Build::audit_service
-packages/topology.md:113  unavailable import build_support::deployment
+packages/topology.md:113  unavailable import build_support\deployment
 proofs/contracts.md:54  unresolved name T
 proofs/contracts.md:406  unresolved name Valid
 proofs/contracts.md:826  accepted
@@ -123,10 +124,10 @@ proofs/mathematical_bindings.md:226  unresolved name Witness
 proofs/mathematical_bindings.md:263  accepted
 proofs/quotients.md:196  unresolved name ConvergenceEvidence
 resources/access.md:20  unresolved name Controller
-resources/access.md:54  unresolved name reflect::CallableInfo
+resources/access.md:54  unresolved name reflect\CallableInfo
 resources/access.md:83  unresolved name Folder
 resources/bounded_input.md:38  accepted
 resources/carry.md:6  accepted
-resources/content_custody.md:129  unresolved name core::Identity
+resources/content_custody.md:129  unresolved name core\Identity
 resources/content_custody.md:235  unresolved machine owner Installed
 resources/typed_runs.md:114  unresolved name RunParts

@@ -25,7 +25,7 @@ fn type_carried_point(
     let resolved = support::resolve_packages(
         &[
             ("app", "main.omg", source),
-            ("facade", "api.omg", "public machine point() -> geom::Point { geom::Point { x: 7, y: 8 } }"),
+            ("facade", "api.omg", "public machine point() -> geom\\Point { geom\\Point { x: 7, y: 8 } }"),
             (
                 "geometry",
                 "point.omg",
@@ -39,16 +39,16 @@ fn type_carried_point(
 
 #[test]
 fn carrying_a_value_does_not_grant_access_to_its_fields() {
-    type_carried_point("machine run() { let p = dep::point(); let q = p; }", false).unwrap();
+    type_carried_point("machine run() { let p = dep\\point(); let q = p; }", false).unwrap();
     for (source, selection) in [
-        ("machine run() -> u8 { let p = dep::point(); p.x }", "p.x"),
-        ("machine run() { let mut p = dep::point(); p.x = 1; }", "p.x"),
-        ("machine run() -> u8 { let p = dep::point(); let (value, _) = p; value }", "value"),
-        ("machine run() -> u8 { let p = dep::point(); let (value, ..) = p; value }", "value"),
+        ("machine run() -> u8 { let p = dep\\point(); p.x }", "p.x"),
+        ("machine run() { let mut p = dep\\point(); p.x = 1; }", "p.x"),
+        ("machine run() -> u8 { let p = dep\\point(); let (value, _) = p; value }", "value"),
+        ("machine run() -> u8 { let p = dep\\point(); let (value, ..) = p; value }", "value"),
     ] {
         let error = type_carried_point(source, false).unwrap_err();
         assert_eq!(error.package, "app");
-        assert_eq!(error.message, "selecting geometry::Point requires a direct dependency on geometry");
+        assert_eq!(error.message, "selecting geometry\\Point requires a direct dependency on geometry");
         assert_eq!(error.span.slice(source.as_bytes()), Some(selection.as_bytes()));
         type_carried_point(source, true).unwrap();
     }
@@ -56,7 +56,7 @@ fn carrying_a_value_does_not_grant_access_to_its_fields() {
 
 #[test]
 fn carrying_a_value_does_not_grant_access_to_its_operators() {
-    let source = "machine run() { let p = dep::point(); let q = dep::point(); let sum = p + q; }";
+    let source = "machine run() { let p = dep\\point(); let q = dep\\point(); let sum = p + q; }";
     let error = type_carried_point(source, false).unwrap_err();
     assert_eq!(error.package, "app");
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"p + q".as_slice()));

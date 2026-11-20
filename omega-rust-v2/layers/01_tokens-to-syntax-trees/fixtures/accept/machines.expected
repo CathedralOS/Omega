@@ -321,7 +321,7 @@ File
           '->'
           PathType
             'core'
-            '::'
+            '\'
             'Strict'
             TypeArgs
               '<'
@@ -365,7 +365,7 @@ File
       'ensures'
       PathExpression
         'core'
-        '::'
+        '\'
         'Squash'
         ExpressionArgs
           '::'

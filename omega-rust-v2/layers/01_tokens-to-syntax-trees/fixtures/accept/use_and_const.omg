@@ -1,6 +1,6 @@
 // GRAMMAR.md: use, const.
 use topology;
-use ui_policy::screen::Point::OnScreen;
+use ui_policy\screen\Point::OnScreen;
 
 const LIMIT: u32 = 64;
 const EfiStatus::SUCCESS: EfiStatus = 0;

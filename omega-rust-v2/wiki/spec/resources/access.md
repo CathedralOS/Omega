@@ -31,8 +31,8 @@ domain contributions keep their existing judgments. The source clauses
 are retired; their obligations belong to this one domain contract.
 
 An ordinary named implementation of `AccessPolicy` supplies
-`plan(schema: reflect::TypeSchema) -> AccessPlan`. This is the semantic schema,
-not the target-resolved `layout::Schema`. Its complete checked execution closure is
+`plan(schema: reflect\TypeSchema) -> AccessPlan`. This is the semantic schema,
+not the target-resolved `layout\Schema`. Its complete checked execution closure is
 effect-free and terminating under compile-time admission: no boundary services,
 suspension, blocking, or unadmitted linear carriers. It may call ordinary layout
 helpers; no layout argument or two-argument composition trait is required.
@@ -46,20 +46,20 @@ constructing a plan grants no reach and never edits a machine's reach row.
 Named decision: `required-issuance-choice`, settled 2026-11-10;
 [the design draft](../../drafts/designs/required_issuance_choice.md) records
 the migration. Every plan states who may introduce its domain qualification.
-`access::new_plan(@schema, issuance)` binds the semantic schema and that choice.
+`access\new_plan(@schema, issuance)` binds the semantic schema and that choice.
 The plan constructors and the view operations are ordinary machines of the
-core `access` module (`use omega::language::core::access;`); `AccessPlan` is
+core `access` module (`use omega\language\core\access;`); `AccessPlan` is
 data and owns none of them ([machines](../language/machines.md#static-declarations-and-explicit-state)).
 
 ```omega
 data Issuance {
-    case Only(routes: [reflect::CallableInfo]);
+    case Only(routes: [reflect\CallableInfo]);
     case Unrestricted;
 }
 
-let plan: AccessPlan = access::new_plan(
+let plan: AccessPlan = access\new_plan(
     @schema,
-    Issuance::Only { routes: [reflect::callable(choose_folder)] }
+    Issuance::Only { routes: [reflect\callable(choose_folder)] }
 );
 ```
 
@@ -82,14 +82,14 @@ else, so that its issuers appear on its declaration:
 
 ```omega
 domain Folder::Writable
-    access IssuedBy<reflect::callable(choose_folder)>;
+    access IssuedBy<reflect\callable(choose_folder)>;
 
 domain Handle::Open
-    access IssuedByAny<2, [reflect::callable(open_file), reflect::callable(open_dir)]>;
+    access IssuedByAny<2, [reflect\callable(open_file), reflect\callable(open_dir)]>;
 ```
 
-`IssuedBy<const R: reflect::CallableInfo>` and
-`IssuedByAny<const N: u64, const Routes: [reflect::CallableInfo; N]>` are
+`IssuedBy<const R: reflect\CallableInfo>` and
+`IssuedByAny<const N: u64, const Routes: [reflect\CallableInfo; N]>` are
 ordinary named implementations of `AccessPolicy`. Each places its descriptors
 in `Issuance::Only` and adds no reader or writer rule. A descriptor is
 [descriptive data](../language/reflection.md#typed-declaration-selectors): the
@@ -108,12 +108,12 @@ The policy-construction operations are ordinary core/library APIs, not keywords:
 
 | Operation | Meaning |
 | --- | --- |
-| `access::allow_readers(@mut plan, region, callers)` | Restrict readers of this semantic region. |
-| `access::allow_writers(@mut plan, region, callers)` | Restrict writers of this semantic region. |
+| `access\allow_readers(@mut plan, region, callers)` | Restrict readers of this semantic region. |
+| `access\allow_writers(@mut plan, region, callers)` | Restrict writers of this semantic region. |
 
 `TypeSchema::root(@schema)` denotes the whole semantic subject. A field region comes
-from `reflect::field(Type::field)`, not a string, field ordinal, address or layout
-offset. Caller lists contain `reflect::callable(...)` results for exact machines
+from `reflect\field(Type::field)`, not a string, field ordinal, address or layout
+offset. Caller lists contain `reflect\callable(...)` results for exact machines
 or exact trait machine requirements. These are homogeneous `CallableInfo`
 descriptors, not executable callback values; `FieldInfo` is a different type.
 See [typed declaration reflection](../language/reflection.md#typed-declaration-selectors).
@@ -129,7 +129,7 @@ qualification; whole-object replacement of governed storage is a write to its
 affected fields, not fresh establishment exempt from policy.
 
 The policy may carry per-region observation demands using the existing Stable,
-External and Atomic operation descriptions below. `access::observe(@mut plan,
+External and Atomic operation descriptions below. `access\observe(@mut plan,
 field, behavior)` denotes ordinary construction of such a demand, not authority
 to implement it. Caller authorization has no special atomic grammar or second
 atomic caller allowlist: load needs read permission, store needs write permission,

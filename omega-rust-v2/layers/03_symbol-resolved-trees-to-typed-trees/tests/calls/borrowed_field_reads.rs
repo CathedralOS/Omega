@@ -21,7 +21,7 @@ fn last_span(
 
 #[test]
 fn non_copy_fields_cannot_be_read_out_of_shared_storage() {
-    let refusal = "reading game::I out of borrowed storage requires a copy type; borrow it with @ instead";
+    let refusal = "reading game\\I out of borrowed storage requires a copy type; borrow it with @ instead";
     for (body, read) in [
         ("machine f(d:@D)->I { d.i }", "d.i"),
         ("machine f(d:@D)->I { match d { D { i, n as _ } -> i, } }", "i"),
@@ -79,7 +79,7 @@ fn copy_reads_of_borrowed_fields_record_the_read_where_it_happens() {
         stage
             .obligations
             .iter()
-            .any(|o| matches!(&o.kind, omega_typer::ObligationKind::CopyRead(ty) if ty.to_string() == "game::I")
+            .any(|o| matches!(&o.kind, omega_typer::ObligationKind::CopyRead(ty) if ty.to_string() == "game\\I")
                 && (o.site.span.get_start_offset(), o.site.span.get_end_offset()) == last_span(copy, "d.i"))
     );
 }

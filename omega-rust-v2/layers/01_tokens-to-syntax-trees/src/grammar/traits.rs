@@ -91,11 +91,11 @@ impl SyntaxParser<'_> {
         while !self.at(Punctuation::RightBrace) {
             if self.at_machine_declaration() {
                 self.parse_item()?;
-            } else if self.at_word() && self.nth_at(1, Punctuation::ColonColon) {
+            } else if self.at_word() && matches!(self.nth_punctuation(1), Some(Punctuation::ColonColon | Punctuation::Backslash)) {
                 let row = self.open();
                 let requirement = self.open();
-                self.bump();
-                self.bump();
+                self.parse_module_name("a trait name")?;
+                self.expect(Punctuation::ColonColon, "`::` before a trait member")?;
                 self.expect_word("a trait member name")?;
                 self.close(requirement, NodeKind::Path);
                 self.expect(Punctuation::Equal, "`=`")?;

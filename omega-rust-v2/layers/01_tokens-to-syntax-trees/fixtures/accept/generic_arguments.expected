@@ -198,7 +198,7 @@ File
             '<'
             Lifetime ''' 'a'
             ','
-            PathType 'core' '::' 'Level'
+            PathType 'core' '\' 'Level'
             '>'
       ','
       Param
@@ -272,7 +272,7 @@ File
               PathType 'B'
             ','
             QualifiedType
-              PathType 'core' '::' 'u8'
+              PathType 'core' '\' 'u8'
               'in'
               PathType 'P'
             '>'
@@ -323,7 +323,7 @@ File
         Call
           PathExpression
             'integer'
-            '::'
+            '\'
             'max'
             ExpressionArgs
               '::'
