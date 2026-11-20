@@ -45,6 +45,14 @@ def observations(profile="conformance"):
     for payload in (b"", b"\x00\xff"):
         yield f"nominal matches and mutual recursion {len(payload)} input bytes", frame(values, payload), (
             0, b"+" + payload[-1:] + b'\n\\"')
+    # Sibling scopes may reuse a spelling; equal-length and prefix-related
+    # names in one active scope still refer to their distinct bindings.
+    scopes = b"""(def main ((scope Bytes)) Bytes
+      (let scope_a Bytes "a" (let scope_b Bytes "b" (if (bytes_length scope)
+        (let result Bytes scope_b (bytes_concat result scope_a))
+        (let result Bytes scope_a (bytes_concat result scope_b))))))"""
+    yield "sibling scope left", frame(scopes, b"x"), (0, b"ba")
+    yield "sibling scope right", frame(scopes), (0, b"ab")
     strict = b"(def drop ((unused Int)) Bytes \"ok\")\n(def main ((x Bytes)) Bytes (drop (/ 1 0)))"
     yield "unused strict argument traps", frame(strict), (249, b"")
     for expression in (b"(+ 9223372036854775807 1)", b"(- -9223372036854775808 1)",
@@ -73,7 +81,11 @@ def observations(profile="conformance"):
     mismatch = b"(def bad () Bytes 42)\n" + DOUBLER
     missing = b"(data Bit (Zero) (One))\n(def main ((x Bytes)) Bytes (match One (One x)))"
     entry = b"(def main ((x Int)) Int x)"
+    duplicate = b'(def main ((input Bytes)) Bytes (let input Bytes "" input))'
+    unbound = b"(def main ((input Bytes)) Bytes (let bound Bytes input missing))"
     for label, source, code, offset in (
+        ("duplicate active binding", duplicate, 9, duplicate.index(b"input", duplicate.index(b"(let"))),
+        ("unbound local", unbound, 14, unbound.index(b"missing")),
         ("bad source byte", DOUBLER + b"\x00", 3, len(DOUBLER)),
         ("unused function result type", mismatch, 15, mismatch.index(b"42")),
         ("incomplete match", missing, 18, missing.index(b"(match")),
