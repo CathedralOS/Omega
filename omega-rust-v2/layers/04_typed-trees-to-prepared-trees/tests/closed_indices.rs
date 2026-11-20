@@ -1005,7 +1005,8 @@ fn a_pending_callback_body_does_not_supply_a_provisional_pause_summary() {
     let source = "data Flag<const B:bool> [copy]{}
         machine enabled()->bool{true}
         machine take(x:Flag<true>){}
-        machine apply<const F:machine()->bool suspends>()->bool suspends {
+        data Readiness=machine()->bool suspends;
+        machine apply<const F:Readiness>()->bool suspends {
             take(Flag::<enabled()>{});
             suspend F()
         }

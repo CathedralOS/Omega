@@ -339,7 +339,7 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
 fn a_static_callback_uses_the_selected_body_contract_at_its_indirect_occurrence() {
     use crate::{CheckedPreparationEvidence, PreparationAnswers, prepare_typing_pass};
     let source = "machine leaf(n:u64)->u64 requires true ensures result == 7u64 {7u64}
-                  machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+                  data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
                   const VALUE:u64=apply::<leaf>(3u64);";
     let progress = omega_typer::TypingProgress::Complete(typed(source));
     let omega_typer::TypingProgress::Complete(trees) = &progress else {

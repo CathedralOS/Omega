@@ -16,4 +16,4 @@ num-traits = "0.2"
 
 [dev-dependencies]
 golden = { path = "../../tools/golden" }
-spec-corpus = { path = "../../tools/spec-corpus" }
+spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }

@@ -603,7 +603,7 @@ pub(crate) fn countdown_evidence<'stage, 'text>(trees: &'stage TypedTrees<'text>
 fn a_ranked_static_callback_requires_the_exact_component() {
     let source = COUNTDOWN.replace(
         "const VALUE:u64=count(3u64);",
-        "machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+        "data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
          const VALUE:u64=apply::<count>(3u64);",
     );
     let progress = omega_typer::TypingProgress::Complete(typed(&source, "app"));
@@ -627,7 +627,7 @@ fn a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof() {
         machine relay<const Tag:u64>(n:u64)->u64 {
             match n == 0u64 {true -> 9u64, false -> count::<Tag>(n),}
         }
-        machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+        data NumberStep=machine(n:u64)->u64; machine apply<const F:NumberStep>(n:u64)->u64 {F(n)}
         const SKIP:u64=apply::<relay::<2>>(0u64);
         const RUN:u64=apply::<relay::<2>>(3u64);";
     let progress = omega_typer::TypingProgress::Complete(typed(source, "app"));

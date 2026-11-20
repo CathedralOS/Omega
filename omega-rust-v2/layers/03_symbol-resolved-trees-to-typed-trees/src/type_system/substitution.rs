@@ -2,6 +2,30 @@ use crate::{DomainApplication, ValueType};
 use omega_resolver::DeclarationId;
 
 impl ValueType {
+    pub(super) fn open_runtime_contract(&self) -> Option<(&crate::CallableType, &'static str)> {
+        self.components().find_map(|part| {
+            let ValueType::Callable(c) = part else { return None };
+            if c.requirement.is_some() || c.closed_runtime {
+                return None;
+            }
+            let reason = match (&c.reach, &c.crash_ceiling) {
+                (Some(_), None) => "runtime callable requires an explicit crash ceiling",
+                (None, Some(_)) => "runtime callable requires an explicit reach ceiling",
+                _ => "runtime callable requires explicit reach and crash ceilings",
+            };
+            Some((c.as_ref(), reason))
+        })
+    }
+
+    pub(super) fn machine_type_parameters(&self) -> impl Iterator<Item = (&DeclarationId, usize)> {
+        self.components().filter_map(|part| match part {
+            Self::Parameter { owner, index } if matches!(owner.kind, omega_parser::NodeKind::Machine | omega_parser::NodeKind::AsmMachine) => {
+                Some((owner.as_ref(), *index))
+            }
+            _ => None,
+        })
+    }
+
     pub(crate) fn validate_closed_indices(&self) -> Result<(), String> {
         self.components().try_for_each(Self::validate_index)
     }

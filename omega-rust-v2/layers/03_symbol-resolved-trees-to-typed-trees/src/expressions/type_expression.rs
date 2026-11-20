@@ -303,6 +303,10 @@ impl BodyTyper<'_, '_> {
             Index => self.index(node_index, None)?,
             _ => return Err(TypeError::unsupported(source_file, node_index)),
         };
+        if self.context == ExpressionContext::Execution && matches!(node.kind, Tuple | ArrayLiteral | RecordLiteral) {
+            self.unit
+                .check_runtime_type(node_index, &value, &self.catalog.types)?;
+        }
         // Carry the value's storage origin from the operands it is made of.
         // Dispatch, blocks, records, field selection and indexing record their
         // own; every other result is a fresh value.

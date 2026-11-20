@@ -141,6 +141,18 @@ pub(crate) fn index_type_definitions<'a>(
                         {
                             target = alias.clone();
                         }
+                        if unit.file.nodes[expression].kind == NodeKind::MachineType {
+                            // An alias can leave its own effects open. Its operands and
+                            // result are still carried at runtime on every invocation.
+                            for annotation in unit
+                                .file
+                                .parameters(expression)
+                                .map(|(_, ty)| ty)
+                                .chain(unit.file.result_annotation(expression))
+                            {
+                                unit.runtime_annotation(annotation, types)?;
+                            }
+                        }
                         types.aliases.insert(unit.declaration(node)?, target);
                     }
                     Domain => unit.index_domain(node, expression, types)?,

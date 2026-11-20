@@ -169,7 +169,7 @@ fn numeric_casts_and_domain_establishment_keep_distinct_subjects() {
 
 #[test]
 fn structural_callbacks_retain_the_actual_and_expected_contracts() {
-    let source = "machine local(n:u8)->u8 {n} machine invoke<const F:machine(v:u8)->u8>(n:u8)->u8 {F(n)} machine direct(n:u8)->u8 {invoke::<local>(n)} machine adapt(g:machine(actual:u8)->u8 reaches none crashes none) {let f:machine(formal:u8)->u8 reaches none crashes none=g;}";
+    let source = "machine local(n:u8)->u8 {n} data ByteStep=machine(v:u8)->u8; machine invoke<const F:ByteStep>(n:u8)->u8 {F(n)} machine direct(n:u8)->u8 {invoke::<local>(n)} data Actual=machine(actual:u8)->u8 reaches none crashes none; data Formal=machine(formal:u8)->u8 reaches none crashes none; machine adapt(g:Actual) {let f:Formal=g;}";
     let stage = support::check(&[("handoff.omg", source)]).unwrap();
     expect_at(&stage, source, "invoke::<local>(n)", |k| {
         matches!(k,ObligationKind::RefineCallable{contract,machine,..}
@@ -399,8 +399,9 @@ fn moving_from_a_dereferenced_place_keeps_the_loan_to_restore() {
 fn callback_guarantees_retain_the_static_binder_and_subjects_without_invoking_it() {
     let requirement = "trait Step{machine run(x:u8)->u8 ensures result==x;}";
     let alias = "data Callback=machine(x:u8)->u8 reaches none crashes none ensures result==x;";
-    for bound in ["Step::run", "Callback", "machine(x:u8)->u8 ensures result==x"] {
-        let code = format!("{requirement} {alias} machine wrap<const F:{bound}>(x:u8)->u8 ensures F::ensures(x,result) {{F(x)}}");
+    let open = "data OpenCallback=machine(x:u8)->u8 ensures result==x;";
+    for bound in ["Step::run", "Callback", "OpenCallback"] {
+        let code = format!("{requirement} {alias} {open} machine wrap<const F:{bound}>(x:u8)->u8 ensures F::ensures(x,result) {{F(x)}}");
         let checked = support::check(&[("handoff.omg", &code)]).unwrap();
         let [call] = checked.indirect_calls.as_slice() else {
             panic!("expected only the callback in the body")
@@ -417,11 +418,11 @@ fn callback_guarantees_retain_the_static_binder_and_subjects_without_invoking_it
     }
     for (bound, body, reason) in [
         ("u8", "ensures F::ensures(x,result) {x}", "static binder requires a callable contract"),
-        ("machine(x:u8)->u8", "ensures F::ensures(x,result) {x}", "no declared guarantee"),
+        ("Plain", "ensures F::ensures(x,result) {x}", "no declared guarantee"),
         ("Step::run", "{F::ensures(x,x)}", "logical evidence cannot be executed"),
         ("Step::run", "ensures F::ensures(x) {x}", "declared subjects"),
     ] {
-        let code = format!("{requirement} machine wrap<const F:{bound}>(x:u8)->u8 {body}");
+        let code = format!("{requirement} data Plain=machine(x:u8)->u8; machine wrap<const F:{bound}>(x:u8)->u8 {body}");
         let error = support::check(&[("handoff.omg", &code)]).unwrap_err();
         assert!(error.message.contains(reason), "{bound}: {error:?}");
     }

@@ -1,4 +1,42 @@
 File
+  Data
+    'data'
+    'Transform'
+    '='
+    MachineType
+      'machine'
+      Params
+        '('
+        Param
+          'value'
+          ':'
+          PathType 'u32'
+        ')'
+      Result
+        '->'
+        PathType 'u32'
+    ';'
+  Data
+    'data'
+    'Visitor'
+    '='
+    MachineType
+      'machine'
+      GenericParams
+        '<'
+        TypeParam 'T'
+        '>'
+      Params
+        '('
+        Param
+          'value'
+          ':'
+          PathType 'T'
+        ')'
+      Reaches
+        'reaches'
+        PathType 'none'
+    ';'
   Machine
     'machine'
     Path 'types'
@@ -111,38 +149,12 @@ File
       Param
         'k'
         ':'
-        MachineType
-          'machine'
-          Params
-            '('
-            Param
-              'value'
-              ':'
-              PathType 'u32'
-            ')'
-          Result
-            '->'
-            PathType 'u32'
+        PathType 'Transform'
       ','
       Param
         'l'
         ':'
-        MachineType
-          'machine'
-          GenericParams
-            '<'
-            TypeParam 'T'
-            '>'
-          Params
-            '('
-            Param
-              'value'
-              ':'
-              PathType 'T'
-            ')'
-          Reaches
-            'reaches'
-            PathType 'none'
+        PathType 'Visitor'
       ','
       Param
         'm'

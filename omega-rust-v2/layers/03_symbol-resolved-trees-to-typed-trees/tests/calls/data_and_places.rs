@@ -104,7 +104,11 @@ fn destructuring_and_projection_open_the_same_package_subject() {
 
 #[test]
 fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
-    let wrappers = "data Cell<T>{item:T;} data View<T>{ptr:@T;} data Phantom<T>{tag:u8;} data Choice<T>{case None;case Stored(item:T);} data Alias<T> = Cell<T>; data Link<T>{next:@Link<T>;item:@T;} data Unsized<T>{item:[T];} data Nested<T>{v:Cell<T>;}";
+    let wrappers = "data Cell<T>{item:T;} data View<T>{ptr:@T;} data Phantom<T>{tag:u8;} data Choice<T>{case None;case Stored(item:T);} data Alias<T> = Cell<T>; data Link<T>{next:@Link<T>;item:@T;} data Unsized<T>{item:[T];} data Nested<T>{v:Cell<T>;}
+        data TakeValue<T> = machine(x:T)->u8 reaches none crashes none;
+        data MakeCell<T> = machine()->Cell<T> reaches none crashes none;
+        data InspectView<T> = machine(x:View<T>)->Phantom<T> reaches none crashes none;
+        data InspectBuffer<T> = machine(x:@T,buffer:@[u8])->u8 reaches none crashes none;";
     for field in [
         "S",
         "[S;2]",
@@ -114,8 +118,8 @@ fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
         "@[S]",
         "@Unsized<S>",
         "Nested<S>",
-        "machine(x:S)->u8 reaches none crashes none",
-        "machine()->Cell<S> reaches none crashes none",
+        "TakeValue<S>",
+        "MakeCell<S>",
     ] {
         let source = format!("data Boxed<some S>{{value:{field};}} {wrappers}");
         let error = check(&[("layout.omg", &source)]).unwrap_err();
@@ -138,8 +142,8 @@ fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
         "Link<S>",
         "@Cell<S>",
         "Cell<Nested<Cell<@S>>>",
-        "machine(x:View<S>)->Phantom<S> reaches none crashes none",
-        "machine(x:@S,buffer:@[u8])->u8 reaches none crashes none",
+        "InspectView<S>",
+        "InspectBuffer<S>",
     ] {
         let source = format!("data Boxed<some S>{{value:{field};}} {wrappers}");
         check(&[("layout.omg", &source)]).unwrap_or_else(|error| panic!("{field}: {error:?}"));
@@ -156,7 +160,8 @@ fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
 #[test]
 fn library_carriers_can_keep_the_packaged_type_in_a_domain_index() {
     let carriers = "domain<T> u8::State<T>; data Handle<T> [linear]{tag:u8 in State<T>;} data File{}";
-    let package = "data Job<some S> [linear]{handle:Handle<S>;run:machine(h:Handle<S>)->u8 reaches none crashes none;}
+    let package = "data RunHandle<S> = machine(h:Handle<S>)->u8 reaches none crashes none;
+        data Job<some S> [linear]{handle:Handle<S>;run:RunHandle<S>;}
         machine run_file(h:Handle<File>)->u8 reaches none crashes none {0}
         machine pack(h:Handle<File>)->Job{Job{handle:h,run:run_file}}";
     let stage = check(&[("job.omg", package), ("handle.omg", carriers)]).unwrap();
@@ -354,33 +359,32 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
 #[test]
 fn nested_runtime_callables_require_both_effect_ceilings_at_their_own_type() {
     for context in [
-        "data Slot {callback:CALLBACK;}",
-        "machine f(cb:CALLBACK) {}",
-        "machine f() {let mut cb:CALLBACK;}",
-        "machine f(x:machine(x:u8)->u8 reaches none crashes none)->CALLBACK {x}",
-        "machine f<'a>(cb:@'a CALLBACK) {}",
-        "machine f(cb:[CALLBACK;2]) {}",
-        "machine f(cb:@CALLBACK) {}",
-        "data Box<T>{item:T;} machine f(cb:Box<CALLBACK>) {}",
-        "machine f(cb:machine(g:CALLBACK) reaches none crashes none) {}",
-        "machine f<const F:machine(g:CALLBACK)>() {}",
-        "machine f<const F:machine()->CALLBACK>() {}",
+        "data Slot {callback:Callback;}",
+        "machine f(cb:Callback) {}",
+        "machine f() {let mut cb:Callback;}",
+        "data Closed = machine(x:u8)->u8 reaches none crashes none; machine f(x:Closed)->Callback {x}",
+        "machine f<'a>(cb:@'a Callback) {}",
+        "machine f(cb:[Callback;2]) {}",
+        "machine f(cb:@Callback) {}",
+        "data Box<T>{item:T;} machine f(cb:Box<Callback>) {}",
+        "data Apply = machine(g:Callback) reaches none crashes none; machine f(cb:Apply) {}",
+        "data Apply = machine(g:Callback); machine f<const F:Apply>() {}",
+        "data Make = machine()->Callback; machine f<const F:Make>() {}",
     ] {
-        let closed = context.replace("CALLBACK", "machine(x:u8)->u8 reaches none crashes none");
+        let closed = format!("data Callback = machine(x:u8)->u8 reaches none crashes none; {context}");
         check(&[("callback.omg", &closed)]).unwrap();
         for (clause, missing) in [
             (" reaches none", "crash"),
             (" crashes none", "reach"),
             ("", "reach"),
         ] {
-            let callback = format!("machine(x:u8)->u8{clause}");
-            let source = context.replace("CALLBACK", &callback);
+            let source = format!("data Callback = machine(x:u8)->u8{clause}; {context}");
             let error = check(&[("callback.omg", &source)]).unwrap_err();
             assert!(error.message.contains(missing), "{error:?}");
-            assert_eq!(error.span.slice(source.as_bytes()), Some(callback.as_bytes()));
+            assert_eq!(error.span.slice(source.as_bytes()), Some(b"Callback".as_slice()));
         }
     }
-    check(&[("static.omg", "machine invoke<const F:machine(x:u8)->u8>(x:u8)->u8{F(x)}")]).unwrap();
+    check(&[("static.omg", "data Work = machine(x:u8)->u8; machine invoke<const F:Work>(x:u8)->u8{F(x)}")]).unwrap();
 }
 
 #[test]
@@ -438,21 +442,19 @@ fn composing_type_constructors_preserves_the_inner_callable_ceiling() {
     let containers = ["@TYPE", "[TYPE;2]", "[TYPE]", "Box<TYPE>"];
     for outer in containers {
         for inner in containers {
-            let annotation = outer.replace("TYPE", inner);
-            let program = format!("data Box<T>{{item:T;}} machine f(cb:{annotation}){{}}");
+            let annotation = outer.replace("TYPE", inner).replace("TYPE", "Callback");
             for (suffix, diagnostic) in [
                 (" reaches none crashes none", None),
                 (" reaches none", Some("runtime callable requires an explicit crash ceiling")),
                 (" crashes none", Some("runtime callable requires an explicit reach ceiling")),
                 ("", Some("runtime callable requires explicit reach and crash ceilings")),
             ] {
-                let callable = format!("machine(x:u8)->u8{suffix}");
-                let source = program.replace("TYPE", &callable);
+                let source = format!("data Callback = machine(x:u8)->u8{suffix}; data Box<T>{{item:T;}} machine f(cb:{annotation}){{}}");
                 let result = check(&[("rewrite.omg", &source)]);
                 if let Some(message) = diagnostic {
                     let error = result.unwrap_err();
                     assert_eq!(error.message, message, "{source}");
-                    assert_eq!(error.span.slice(source.as_bytes()), Some(callable.as_bytes()), "{source}");
+                    assert_eq!(error.span.slice(source.as_bytes()), Some(b"Callback".as_slice()), "{source}");
                 } else {
                     result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
                 }
@@ -463,7 +465,7 @@ fn composing_type_constructors_preserves_the_inner_callable_ceiling() {
 
 #[test]
 fn a_package_infers_one_witness_through_array_and_callable_fields() {
-    let schema = "data File {} data Socket {} data Reader<'a,some S> {views:[@'a S;2]; read:machine(state:@S)->u8 reaches none crashes none;} machine read_file(state:@File)->u8 reaches none crashes none {0}";
+    let schema = "data File {} data Socket {} data ReadState<S> = machine(state:@S)->u8 reaches none crashes none; data Reader<'a,some S> {views:[@'a S;2];read:ReadState<S>;} machine read_file(state:@File)->u8 reaches none crashes none {0}";
     for fields in [
         "views:[view,view],read:read_file",
         "read:read_file,views:[view,view]",

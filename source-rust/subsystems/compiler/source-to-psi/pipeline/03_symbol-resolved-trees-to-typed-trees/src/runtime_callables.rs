@@ -1350,7 +1350,8 @@ mod named_value_tests {
         impl TypedReferences for References {}
 
         let text = r#"
-            data Registry { store: machine(key: u64, value: u64) -> u64 reaches none crashes none terminates; }
+            data StoreOperation = machine(key: u64, value: u64) -> u64 reaches none crashes none terminates;
+            data Registry { store: StoreOperation; }
             machine take_value(key: u64, value: u64) -> u64 terminates { value }
             machine main() -> Registry { let registry: Registry = Registry { store: take_value }; registry }
         "#;
@@ -1407,8 +1408,9 @@ data Scale { unit: u8; }
 TrimOne satisfies Shrink<Scale> {
     machine shrink(scale: @Scale, value: u64) -> u64 { value }
 }
+data ScaleOperation = machine(scale: @Scale, value: u64) -> u64 reaches none crashes none;
 machine entry(scale: @Scale) -> u64 {
-    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none = TrimOne::shrink;
+    let one: ScaleOperation = TrimOne::shrink;
     one(scale, 7)
 }
 "#;
@@ -1420,8 +1422,9 @@ data Scale { unit: u8; }
 TrimOne satisfies Shrink<Scale> {
     machine shrink(scale: @Scale, value: u64) -> u64 { value }
 }
+data ScaleOperation = machine(scale: @Scale, value: u64) -> u64 reaches none crashes none;
 machine entry(scale: @Scale) -> u64 {
-    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none = kit\TrimOne::shrink;
+    let one: ScaleOperation = kit\TrimOne::shrink;
     one(scale, 7)
 }
 "#;

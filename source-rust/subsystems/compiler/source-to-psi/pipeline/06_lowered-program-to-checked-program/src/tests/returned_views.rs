@@ -300,22 +300,22 @@ machine second_view<'first, 'second>(first: @'first [u8], second: @'second [u8])
     second
 }
 machine see(bytes: @[u8]) {}
+data SelectFirst = machine<'left, 'right>(left: @'left [u8], right: @'right [u8]) -> @'left [u8]
+        reaches none crashes none;
 machine use_selected(
-    select: machine<'left, 'right>(left: @'left [u8], right: @'right [u8]) -> @'left [u8]
-        reaches none crashes none,
+    select: SelectFirst,
     first: @[u8], second: @[u8]
 ) {
     let view: @[u8] = select(first, second);
     see(view);
 }
 machine entry() {
-    let select: machine<'left, 'right>(left: @'left [u8], right: @'right [u8]) -> @'left [u8]
-        reaches none crashes none = first_view;
+    let select: SelectFirst = first_view;
     use_selected(select, "first", "second");
 }
 "#;
     assert_eq!(verdict(source), "accepted");
-    let wrong_input = source.replace("crashes none = first_view;", "crashes none = second_view;");
+    let wrong_input = source.replace("SelectFirst = first_view;", "SelectFirst = second_view;");
     assert_ne!(source, wrong_input);
     let refused = verdict(&wrong_input);
     assert_eq!(

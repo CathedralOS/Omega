@@ -83,6 +83,43 @@ impl<'a> ResolvedSourceFile<'a> {
             .normalize_at(raw, self, node_index)
             .map_err(|reason| TypeError::at(self.file, node_index, reason))
     }
+    /// Alias formation preserves omitted clauses. An erased callback needs a finite
+    /// envelope when its expanded type enters a runtime signature or storage.
+    pub(crate) fn runtime_annotation(
+        &self,
+        node: usize,
+        types: &TypeCatalog<'_>,
+    ) -> Result<ValueType, TypeError> {
+        let ty = self.annotation(node, types)?;
+        self.check_runtime_type(node, &ty, types)?;
+        Ok(ty)
+    }
+
+    pub(crate) fn check_runtime_type(
+        &self,
+        node: usize,
+        ty: &ValueType,
+        types: &TypeCatalog<'_>,
+    ) -> Result<(), TypeError> {
+        let Some((contract, message)) = ty.open_runtime_contract() else {
+            types.formations.runtime_parameters(self, node, ty);
+            return Ok(());
+        };
+        // The contract may have been authored in another file. On a written type,
+        // point to the innermost reference that introduced it here.
+        let mut site = node;
+        for i in node..self.file.nodes[node].end {
+            let syntax = &self.file.nodes[i];
+            if matches!(syntax.kind, NodeKind::PathType | NodeKind::PathExpression | NodeKind::MachineType)
+                && matches!(self.annotation(i, types), Ok(ValueType::Callable(c)) if c.contract == contract.contract)
+                && self.file.span(i).get_byte_count() <= self.file.span(site).get_byte_count()
+            {
+                site = i;
+            }
+        }
+        Err(TypeError::at(self.file, site, message))
+    }
+
     pub(crate) fn raw_type(
         &self,
         node_index: usize,
@@ -175,19 +212,6 @@ impl<'a> ResolvedSourceFile<'a> {
                         Terminates if source.nodes[part].termination_clause() == Some(TerminationClause::Bare) => {}
                         _ => return Err(TypeError::unsupported(source, part)),
                     }
-                }
-                // Only the bound on a static callable may leave these effects open.
-                // Its own runtime parameters and result still need closed contracts.
-                let binder_bound = node
-                    .parent
-                    .is_some_and(|p| matches!(source.nodes[p].kind, ConstParam | KindedParam));
-                if !binder_bound && closed != [true, true] {
-                    let missing = match closed {
-                        [true, false] => "an explicit crash ceiling",
-                        [false, true] => "an explicit reach ceiling",
-                        _ => "explicit reach and crash ceilings",
-                    };
-                    return Err(TypeError::at(source, node_index, format!("runtime callable requires {missing}")));
                 }
                 Ok(ValueType::Callable(Box::new(crate::CallableType {
                     requirement: None,

@@ -3,8 +3,8 @@
 /// What `parse_fragment` should expect to find.
 ///
 /// The compiler only ever parses files. Fragments exist because the spec teaches by example, and
-/// most of its examples are not files: a few statements, a header's clauses, one generic
-/// parameter. Parsing them as what they are lets all 132 examples serve as tests.
+/// its examples include statements and standalone header clauses. Selecting a fragment kind
+/// lets the corpus test parse each example in its published form.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FragmentKind {
     /// Declarations and statements in any order, as if a file and a body were one thing.

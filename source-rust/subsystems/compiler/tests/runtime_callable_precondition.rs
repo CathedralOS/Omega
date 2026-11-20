@@ -38,9 +38,10 @@ TrimOne satisfies Shrink<Scale> {
     }
 }
 
-machine probe(one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none
+data BoundedShrink = machine(scale: @Scale, value: u64) -> u64 reaches none crashes none
     requires value >= 3 && value <= 100
-    ensures result <= value, scale: @Scale) -> u64 {
+    ensures result <= value;
+machine probe(one: BoundedShrink, scale: @Scale) -> u64 {
     let first: u64 = one(scale, 200);
     transition {
         _ -> first
@@ -48,9 +49,7 @@ machine probe(one: machine(scale: @Scale, value: u64) -> u64 reaches none crashe
 }
 
 machine entry(scale: @Scale) -> u64 {
-    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none
-    requires value >= 3 && value <= 100
-    ensures result <= value = TrimOne::shrink;
+    let one: BoundedShrink = TrimOne::shrink;
     transition {
         _ -> probe(one, scale)
     }

@@ -300,9 +300,10 @@ trait Window {
 Direct satisfies Window {
     machine view<'input>(packet: @'input [u8] in Text) -> @'input [u8] in Text { packet }
 }
+data ViewPacket = machine(packet: @[u8] in Text) -> @[u8] in Text reaches none crashes none;
 machine build_entry() -> bool {
     let packet: @[u8] in Text = "é" as +Text;
-    let selected: machine(packet: @[u8] in Text) -> @[u8] in Text reaches none crashes none = Direct::view;
+    let selected: ViewPacket = Direct::view;
     let viewed: @[u8] in Text = selected(packet);
     (viewed as -Text) == "é"
 }

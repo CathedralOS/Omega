@@ -85,8 +85,12 @@ fn deep_nesting_is_refused_without_overflowing_the_stack() {
             format!("{}{}", "asm machine f { ".repeat(HOSTILE_DEPTH), "}".repeat(HOSTILE_DEPTH)),
         ),
         (
-            "machine types",
-            format!("machine f(a: {}u8{}) {{ }}", "machine(b: ".repeat(HOSTILE_DEPTH), ")".repeat(HOSTILE_DEPTH)),
+            "machine alias with a nested parameter type",
+            format!(
+                "data Callback = machine(value: {}u8{});",
+                "Box<".repeat(HOSTILE_DEPTH),
+                ">".repeat(HOSTILE_DEPTH)
+            ),
         ),
     ];
 

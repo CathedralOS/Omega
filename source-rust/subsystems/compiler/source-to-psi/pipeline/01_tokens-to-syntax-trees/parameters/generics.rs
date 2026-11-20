@@ -132,23 +132,17 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                     ));
                 }
                 let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
-                let (contract, input) = if input.at_punctuation(PunctuationKind::LeftParen)
+                if input.at_punctuation(PunctuationKind::LeftParen)
                     || input.at_punctuation(PunctuationKind::Less)
                 {
-                    let (signature, rest) =
-                        crate::parameters::requirements::parse_typed_machine_contract(
-                            syntax_trees,
-                            name.clone(),
-                            input,
-                        )?;
-                    (MachineParameterContract::Structural(signature), rest)
-                } else {
-                    (MachineParameterContract::Inferred, input)
-                };
+                    return Err(
+                        input.error_here(crate::types::references::INLINE_CALLABLE_TYPE_ERROR)
+                    );
+                }
                 (
                     name,
                     TypeParameterKind::Machine {
-                        contract: Some(contract),
+                        contract: Some(MachineParameterContract::Inferred),
                     },
                     input,
                 )

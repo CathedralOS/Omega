@@ -390,8 +390,10 @@ fn inline_nested_data_uses_its_data_owner_and_boolean_literals_bind() {
 
 #[test]
 fn static_callback_contracts_bind_to_the_parameter() {
-    for bound in ["machine(x:u32)->u32", "Step::run", "u32"] {
-        let code = format!("trait Step{{machine run(x:u32)->u32;}} machine f<const F:{bound}>(x:u32)->u32 ensures F::ensures(x,result) {{x}}");
+    for bound in ["Transform", "Step::run", "u32"] {
+        let code = format!(
+            "data Transform=machine(x:u32)->u32; trait Step{{machine run(x:u32)->u32;}} machine f<const F:{bound}>(x:u32)->u32 ensures F::ensures(x,result) {{x}}"
+        );
         let names = run(&[("app", "a.omg", &code)], &[]).unwrap();
         let projection = names
             .uses()
@@ -1362,8 +1364,23 @@ fn published_import_exposes_the_exact_remote_domain() {
 }
 
 #[test]
+fn published_reader_and_factory_bind_their_own_preconditions() {
+    let source = chapter_block(include_str!("../../../wiki/spec/language/machine_values.md"), 44);
+    run(&[("app", "reader.omg", &source)], &[]).unwrap();
+    for (original, misplaced, name) in [
+        ("requires offset < 256", "requires ready", "ready"),
+        ("requires ready", "requires offset < 256", "offset"),
+    ] {
+        let wrong = source.replace(original, misplaced);
+        let error = run(&[("app", "reader.omg", &wrong)], &[]).unwrap_err();
+        assert_eq!(error.message, format!("unresolved name {name}"));
+        assert_eq!(error.span.slice(wrong.as_bytes()), Some(name.as_bytes()));
+    }
+}
+
+#[test]
 fn published_equality_binds_a_shadowing_parameter() {
-    let clause = chapter_block(include_str!("../../../wiki/spec/language/generics.md"), 306);
+    let clause = chapter_block(include_str!("../../../wiki/spec/language/generics.md"), 310);
     let ok = format!("machine restrict<T>() {clause} {{}}");
     run(&[("app", "restrict.omg", &ok)], &[]).unwrap();
     let shadow = ok.replace("restrict<T>()", "restrict<T>(u32:u16)");

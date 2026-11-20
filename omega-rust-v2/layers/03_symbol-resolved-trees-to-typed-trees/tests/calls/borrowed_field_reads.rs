@@ -156,11 +156,8 @@ fn a_declared_index_machine_reads_a_borrowed_field_only_for_a_value_parameter() 
 
 #[test]
 fn named_and_indirect_parameters_decide_whether_to_read_a_borrowed_field() {
-    let defs = "data B{n:u8;} data Holder{item:B;} machine inspect(b:@B)->u8{b.n}";
-    for (parameter, expr) in [
-        ("", "inspect((h.item))"),
-        (",cb:machine(b:@B)->u8 reaches none crashes none", "cb((h.item))"),
-    ] {
+    let defs = "data B{n:u8;} data Holder{item:B;} data Inspector=machine(b:@B)->u8 reaches none crashes none; machine inspect(b:@B)->u8{b.n}";
+    for (parameter, expr) in [("", "inspect((h.item))"), (",cb:Inspector", "cb((h.item))")] {
         let source = format!("{defs} machine run(h:@Holder{parameter})->u8{{{expr}}}");
         let stage = check(&[("read.omg", &source)]).unwrap();
         let occurrence = |site: &omega_typer::Site| site.span.slice(source.as_bytes()) == Some(b"(h.item)".as_slice());

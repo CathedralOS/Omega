@@ -3,6 +3,10 @@ use omega\language\core\ProcessExit;
 
 use omega_language_std\Console;
 
+data KeyHash<K> = machine(key: @K) -> u64;
+
+data KeyEquality<K> = machine(left: @K, right: @K) -> bool;
+
 machine int_hash(key: @u64) -> u64 { $key }
 machine int_same(left: @u64, right: @u64) -> bool { $left == $right }
 
@@ -34,7 +38,7 @@ machine blank<K [copy], V [copy]>(table: @mut Table<K, V>, key: @K, value: @V) {
 // probe returns the slot in [0,16) holding `key`; for an absent key it
 // returns the first tombstone seen while scanning (for insertion reuse)
 // or the empty slot that ends the probe, or 16 when the table is full.
-machine probe<K, V, const H: machine(key: @K) -> u64, const E: machine(left: @K, right: @K) -> bool>(table: @Table<K, V>, key: @K) -> u64
+machine probe<K, V, const H: KeyHash<K>, const E: KeyEquality<K>>(table: @Table<K, V>, key: @K) -> u64
 {
     let home: u64 = H(key) % 16;
     transition { _ -> scan(table, key, home, 0, 16) }
@@ -106,7 +110,7 @@ machine probe<K, V, const H: machine(key: @K) -> u64, const E: machine(left: @K,
 
 // insert writes `key -> value`; an existing live key updates in place and
 // a tombstone or empty slot fills. A full table leaves the row unchanged.
-machine insert<K [copy], V [copy], const H: machine(key: @K) -> u64, const E: machine(left: @K, right: @K) -> bool>(table: @mut Table<K, V>, key: @K, value: @V)
+machine insert<K [copy], V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>(table: @mut Table<K, V>, key: @K, value: @V)
 {
     let slot: u64 = probe::<H, E>(table, key);
     transition slot < 16 { true -> place(table, key, value, slot), _ -> full() }
@@ -139,7 +143,7 @@ machine insert<K [copy], V [copy], const H: machine(key: @K) -> u64, const E: ma
 }
 
 // remove tombstones a live key; absent keys leave the table unchanged.
-machine remove<K, V, const H: machine(key: @K) -> u64, const E: machine(left: @K, right: @K) -> bool>(table: @mut Table<K, V>, key: @K)
+machine remove<K, V, const H: KeyHash<K>, const E: KeyEquality<K>>(table: @mut Table<K, V>, key: @K)
 {
     let slot: u64 = probe::<H, E>(table, key);
     transition slot < 16 { true -> kill(table, slot), _ -> {} }
@@ -159,7 +163,7 @@ machine remove<K, V, const H: machine(key: @K) -> u64, const E: machine(left: @K
 }
 
 // lookup reports the live value for `key`, or `miss` when absent.
-machine lookup<K, V [copy], const H: machine(key: @K) -> u64, const E: machine(left: @K, right: @K) -> bool>(table: @Table<K, V>, key: @K, miss: @V) -> V
+machine lookup<K, V [copy], const H: KeyHash<K>, const E: KeyEquality<K>>(table: @Table<K, V>, key: @K, miss: @V) -> V
 {
     let slot: u64 = probe::<H, E>(table, key);
     transition slot < 16 { true -> read(table, miss, slot), _ -> $miss }

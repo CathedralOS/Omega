@@ -359,8 +359,8 @@ fn published_operator_in_its_own_module_keeps_the_domain_home() {
 #[test]
 fn published_static_bound_is_inferred_from_the_operand_domain() {
     let generics = include_str!("../../../wiki/spec/language/generics.md");
-    let definitions = block(generics, 363);
-    let bound = block(generics, 406);
+    let definitions = block(generics, 367);
+    let bound = block(generics, 410);
     for capacity in [4, 8] {
         let caller = format!("machine bound(value:u64::AtMost<{capacity}>)->u64 {{upper_bound(value)}}");
         let stage = check(&[
@@ -520,7 +520,7 @@ fn published_inherited_call_contributes_its_declared_reach() {
 
 #[test]
 fn published_counter_fields_retain_their_callable_contracts() {
-    let fields = block(EFFECTS, 201);
+    let fields = block(EFFECTS, 203);
     let caller = "machine invoke(o:CounterOps,a:@mut Counter,b:@Counter)->u64 {(o.clear)(a);(o.value)(b)}";
     let defs = "data Counter {}";
     let stage = check(&[
@@ -551,7 +551,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
 #[test]
 fn published_pause_markers_cover_each_required_effect() {
     let defs = "machine ordinary_call() {} machine may_park() suspends {} machine may_wait() blocks {} machine may_do_either() suspends blocks {}";
-    let body = format!("machine caller() {{ {} }}", block(EFFECTS, 871));
+    let body = format!("machine caller() {{ {} }}", block(EFFECTS, 878));
     let stage = check(&[("defs.omg", defs), ("calls.omg", &body)]).unwrap();
     assert_eq!(
         stage
@@ -607,7 +607,7 @@ fn published_sort_requirement_binds_each_calls_element_and_ordering() {
 
 #[test]
 fn published_static_parameters_require_the_declared_argument_role() {
-    let binders = block(GENERICS, 636).replace("{ ... }", "{     }");
+    let binders = block(GENERICS, 640).replace("{ ... }", "{     }");
     let defs = "trait Ranked<T>{machine before(a:T,b:T)->bool;} trait HookProcedure {machine call(x:u32);} data HookSlot{} machine identity(v:u32)->u32{v} ByteRank satisfies Ranked<u8>{machine before(a:u8,b:u8)->bool{a<b}} machine handle(x:u32) satisfies HookProcedure::call {}";
     let caller = "machine examples(xs:@mut [u8],slot:@mut HookSlot)->u32{sort::<u8,ByteRank>(xs);install::<handle>(slot);apply::<identity>(1)}";
     let stage = check(&[
@@ -652,7 +652,7 @@ fn published_static_parameters_require_the_declared_argument_role() {
 
 #[test]
 fn published_record_call_selects_the_shared_counter_field() {
-    let text = block(include_str!("../../../wiki/spec/language/machine_values.md"), 17);
+    let text = block(include_str!("../../../wiki/spec/language/machine_values.md"), 22);
     let (decls, operations) = text.split_once("let operations").unwrap();
     let caller = format!("machine observe(counter:Counter) {{ let operations{operations} }}");
     let stage = check(&[("defs.omg", decls), ("observe.omg", &caller)]).unwrap();
@@ -670,7 +670,7 @@ fn published_record_call_selects_the_shared_counter_field() {
 
 #[test]
 fn published_static_type_disjunction_reaches_typing() {
-    let clause = block(GENERICS, 306);
+    let clause = block(GENERICS, 310);
     let source = format!("machine restrict<T>() {clause} {{}}");
     let stage = check(&[("clause.omg", &source)]).unwrap();
     let comparisons = stage

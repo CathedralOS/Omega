@@ -218,9 +218,12 @@ machines in a record:
 ```omega
 data Counter { value: u64; }
 
+data ClearCounter = machine(counter: @mut Counter) reaches none crashes none terminates;
+data CounterValue = machine(counter: @Counter) -> u64 reaches none crashes none terminates;
+
 data CounterOps {
-    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
-    value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
+    clear: ClearCounter;
+    value: CounterValue;
 }
 
 machine clear(counter: @mut Counter) terminates { counter.value = 0; }
@@ -233,8 +236,8 @@ machine inspect(operations: @CounterOps, counter: @Counter) -> u64 terminates {
 let ops: CounterOps = CounterOps { clear: clear, value: value };
 ```
 
-A machine-typed field always states `reaches` and `crashes`, so a stored
-machine cannot do more than its type says. There is still no receiver: the
+A runtime callable field uses an alias with finite `reaches` and `crashes`
+ceilings. A stored machine must meet that contract. There is still no receiver: the
 state is passed as an argument.
 
 A trait works both ways without being declared twice, provided its
@@ -260,12 +263,14 @@ machine save_dynamic<T>(format: @Codec<T>, value: @T, out: @mut [u8]) -> u64 {
 hold readers over different things:
 
 ```omega
+data ReadInto<S> = machine(state: @mut S, output: @mut [u8]) -> u64
+    requires output.len > 0
+    reaches none
+    crashes none;
+
 data Reader<'a, some S> {
     state: @'a mut S;
-    read: machine(state: @mut S, output: @mut [u8]) -> u64
-        requires output.len > 0
-        reaches none
-        crashes none;
+    read: ReadInto<S>;
 }
 
 machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64

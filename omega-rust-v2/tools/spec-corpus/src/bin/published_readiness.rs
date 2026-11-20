@@ -240,7 +240,7 @@ fn codec() -> bool {
 fn reader() -> bool {
     let chapter = include_str!("../../../../wiki/spec/language/some_packages.md");
     let schema = block(chapter, 15);
-    let init = block(chapter, 39);
+    let init = block(chapter, 41);
     let source = format!("machine pack() {{ let mut file:File;\n{init}\n}}");
     let defs =
         "data File {} data Socket {} machine read_file(state:@mut File,output:@mut [u8])->u64 ensures result <= output.len reaches none crashes none {0}";
@@ -254,11 +254,10 @@ fn reader() -> bool {
     };
     let valid = report(
         "one File witness supplies both record fields",
-        accept(
-            &[],
-            &files(defs),
-            |_, s| matches!(s.packages.as_slice(),[p] if p.site.file=="pack.omg" && p.witnesses.iter().map(ToString::to_string).eq(["example::File"])),
-        ),
+        accept(&[], &files(defs), |_, stage| {
+            let [package] = stage.packages.as_slice() else { return false };
+            package.site.file == "pack.omg" && matches!(package.witnesses.as_slice(), [ValueType::Nominal(id)] if id.package == "example" && id.path == "File")
+        }),
     );
     let invalid = report(
         "refuse a callable over Socket at the initializer",
@@ -343,7 +342,7 @@ fn main() {
     let mut failed = 0;
     for (name, check) in [
         ("language/conformances.md:204", codec as fn() -> bool),
-        ("language/some_packages.md:39", reader),
+        ("language/some_packages.md:41", reader),
         ("language/reflection.md:77", reflection),
     ] {
         println!("{name}");

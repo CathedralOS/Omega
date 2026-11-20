@@ -41,7 +41,7 @@ impl SyntaxParser<'_> {
             self.bump();
             self.bump();
             self.expect(Punctuation::Colon, "`:`")?;
-            self.parse_type(TypePosition::InsideAngles)?;
+            self.parse_type(TypePosition::Plain)?;
             NodeKind::ConstParam
         } else if self.at_keyword("machine") && self.nth_at_word(1) {
             self.bump();
@@ -59,7 +59,7 @@ impl SyntaxParser<'_> {
             }
 
             if self.eat(Punctuation::Colon) {
-                self.parse_type(TypePosition::InsideAngles)?;
+                self.parse_type(TypePosition::Plain)?;
                 NodeKind::KindedParam
             } else {
                 NodeKind::TypeParam
@@ -116,7 +116,7 @@ impl SyntaxParser<'_> {
         }
 
         if self.generic_arg_is_type() {
-            self.parse_type_in(TypePosition::InsideAngles)?;
+            self.parse_type_in(TypePosition::Plain)?;
         } else {
             self.parse_expression(ExpressionContext::INSIDE_ANGLES)?;
         }
@@ -134,7 +134,8 @@ impl SyntaxParser<'_> {
           - Skip any `[` the argument opens with. They belong to a slice or
             array type, or to an array literal, and what follows them settles
             which.
-          - `@`, `machine(`, or a named binder `(name: type) ->` begins a type.
+          - `@` or a named binder `(name: type) ->` begins a type. Route an inline
+            `machine(...)` to the type parser so it can suggest a named alias.
           - A name there, with any `::name` parts, begins a type if the token
             after it continues a type or ends the argument: `<`, `->`, and
             `in`, `,` or `>` at the top, `]` or `;` inside brackets. So `[u8]`

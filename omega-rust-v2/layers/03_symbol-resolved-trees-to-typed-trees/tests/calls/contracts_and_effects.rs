@@ -1,6 +1,6 @@
 #[test]
 fn specialized_callback_crash_retains_the_selected_guard_and_its_argument() {
-    let code = "machine guarded(x:u8)->u8 crashes Trap x == 0 {x} machine relay<const F:machine(x:u8)->u8>(v:u8)->u8{F(v)} machine forward<const H:machine(x:u8)->u8>(q:u8)->u8{relay::<H>(q)} machine outer(a:u8)->u8{forward::<guarded>(a)}";
+    let code = "machine guarded(x:u8)->u8 crashes Trap x == 0 {x} data ByteStep=machine(x:u8)->u8; machine relay<const F:ByteStep>(v:u8)->u8{F(v)} machine forward<const H:ByteStep>(q:u8)->u8{relay::<H>(q)} machine outer(a:u8)->u8{forward::<guarded>(a)}";
     let stage = check(&[("guarded.omg", code)]).unwrap();
     let (call, route, enclosing) = stage
         .guarded_calls
@@ -236,10 +236,10 @@ fn crash_causes_and_checked_arithmetic_keep_their_proof_sites() {
 #[test]
 fn a_runtime_callback_carries_its_reach_into_the_calling_machine() {
     let prefix = "boundary trait Sensor{} ";
-    let accepted = format!("{prefix} machine run(f:machine() reaches Sensor crashes none terminates) reaches Sensor {{f()}}");
+    let accepted = format!("{prefix} data ReadSensor=machine() reaches Sensor crashes none terminates; machine run(f:ReadSensor) reaches Sensor {{f()}}");
     let stage = check(&[("effects.omg", &accepted)]).unwrap();
     assert!(stage.indirect_calls[0].contract.terminates);
-    let refused = format!("{prefix} machine run(f:machine() reaches Sensor crashes none) reaches none {{f()}}");
+    let refused = format!("{prefix} data ReadSensor=machine() reaches Sensor crashes none; machine run(f:ReadSensor) reaches none {{f()}}");
     assert!(
         check(&[("effects.omg", &refused)])
             .unwrap_err()
@@ -449,10 +449,9 @@ fn a_parenthesized_crash_guard_stays_the_guard_of_its_cause() {
 
 #[test]
 fn synchronous_invocation_distinguishes_two_callbacks_with_the_same_type() {
-    let ty = "machine() reaches none crashes none";
-    let head = format!("machine run(f:{ty}) invokes f {{f()}}");
-    let source = format!("{head} machine wrap(left:{ty},right:{ty}) invokes right {{run(right)}}");
-    let stage = check(&[("invokes.omg", &source)]).unwrap();
+    let source = "data Action=machine() reaches none crashes none; machine run(f:Action) invokes f {f()}
+        machine wrap(left:Action,right:Action) invokes right {run(right)}";
+    let stage = check(&[("invokes.omg", source)]).unwrap();
     let effect = stage
         .machine_effects
         .iter()
@@ -470,8 +469,8 @@ fn synchronous_invocation_distinguishes_two_callbacks_with_the_same_type() {
 fn forwarded_callback_targets_survive_grouping_in_the_typed_call() {
     use omega_typer::InvocationTarget;
     let source = "machine action() reaches none crashes none {}
-        machine run(f:machine() reaches none crashes none) invokes f {f()}
-        machine wrap(g:machine() reaches none crashes none) invokes g {run((g))}
+        data Action=machine() reaches none crashes none; machine run(f:Action) invokes f {f()}
+        machine wrap(g:Action) invokes g {run((g))}
         machine start() invokes action {wrap((action))}";
     let stage = check(&[("invokes.omg", source)]).unwrap();
     let wrap = stage.calls.iter().find(|c| c.machine.path == "run").unwrap();
@@ -491,8 +490,8 @@ fn forwarded_callback_targets_survive_grouping_in_the_typed_call() {
 fn recursive_forwarding_propagates_each_reach_and_callback_once() {
     let defs = "boundary trait IO<T>{} machine action() reaches IO<u8> crashes none {}
         machine start(){first(action)}";
-    let cycle = "machine first(cb:machine() reaches IO<u8> crashes none){second(cb);second(cb)}
-        machine second(cb:machine() reaches IO<u8> crashes none){first(cb);cb()}";
+    let cycle = "data Operation=machine() reaches IO<u8> crashes none; machine first(cb:Operation){second(cb);second(cb)}
+        machine second(cb:Operation){first(cb);cb()}";
     for files in [
         [("defs.omg", defs), ("cycle.omg", cycle)],
         [("cycle.omg", cycle), ("defs.omg", defs)],
@@ -598,7 +597,11 @@ fn service_reach_uses_the_declared_boundary_trait_in_all_files() {
     }
     let error = run("boundary trait Sensor{}", "trait Local:Sensor{}").unwrap_err();
     assert_eq!(error.message, "ordinary trait inherits a boundary trait");
-    let error = run("trait Sensor{}", "machine f(cb:machine() reaches Sensor crashes none) {}").unwrap_err();
+    let error = run(
+        "trait Sensor{}",
+        "data ReadSensor=machine() reaches Sensor crashes none; machine f(cb:ReadSensor) {}",
+    )
+    .unwrap_err();
     assert_eq!(error.message, "reach requires a boundary trait");
 }
 
@@ -607,8 +610,9 @@ fn passing_a_stored_callable_preserves_its_crash_ceiling() {
     let bodies = ["none", "Trap", "Abort"];
     for actual in bodies {
         for allowed in bodies {
-            let code =
-                format!("machine take(f:machine() reaches none crashes {allowed}){{}} machine pass(cb:machine() reaches none crashes {actual}){{take(cb)}}");
+            let code = format!(
+                "data Allowed=machine() reaches none crashes {allowed}; data Actual=machine() reaches none crashes {actual}; machine take(f:Allowed){{}} machine pass(cb:Actual){{take(cb)}}"
+            );
             assert_eq!(check(&[("row.omg", &code)]).is_ok(), actual == "none" || actual == allowed, "{code}");
         }
     }
@@ -616,7 +620,8 @@ fn passing_a_stored_callable_preserves_its_crash_ceiling() {
 
 #[test]
 fn guards_reference_direct_and_indirect_executions_and_their_declared_routes() {
-    let code = "machine named(x:u8) crashes Trap x == 1 {} machine test(cb:machine(x:u8) reaches none crashes Abort x == 2) {named(3); cb(4);}";
+    let code =
+        "machine named(x:u8) crashes Trap x == 1 {} data Guarded=machine(x:u8) reaches none crashes Abort x == 2; machine test(cb:Guarded) {named(3); cb(4);}";
     let stage = check(&[("routes.omg", code)]).unwrap();
     let at = |site: &omega_typer::Site| site.span.slice(code.as_bytes()).unwrap();
     let routes: Vec<_> = stage
@@ -649,7 +654,7 @@ fn guards_reference_direct_and_indirect_executions_and_their_declared_routes() {
 fn calls_in_facts_require_effect_free_targets_even_without_a_crash_guard() {
     let schema = "boundary trait Sensor{}";
     let direct = "machine ready()->bool reaches Sensor {true} machine require_ready() requires ready() {}";
-    let indirect = "machine require_ready(cb:machine()->bool reaches Sensor crashes none) requires cb() {}";
+    let indirect = "data SensorReady=machine()->bool reaches Sensor crashes none; machine require_ready(cb:SensorReady) requires cb() {}";
     for (body, site, reason) in [
         (direct, "ready()", "effect-free computation"),
         (indirect, "cb()", "effect-free callable"),
@@ -664,7 +669,7 @@ fn calls_in_facts_require_effect_free_targets_even_without_a_crash_guard() {
 
 #[test]
 fn a_fact_uses_the_pause_effect_of_its_selected_callback() {
-    let declarations = "machine apply<const F:machine()->bool suspends>()->bool suspends {suspend F()}
+    let declarations = "data Readiness=machine()->bool suspends; machine apply<const F:Readiness>()->bool suspends {suspend F()}
                         machine local()->bool {true} machine parked()->bool suspends {true}";
     let check_fact = |selected: &str| {
         let source = format!("{declarations} machine verified() requires apply::<{selected}>() {{}}");
@@ -701,7 +706,8 @@ fn a_fact_uses_the_pause_effect_of_its_selected_callback() {
 
 #[test]
 fn structural_callable_clauses_use_the_normalized_parameter_and_result_types() {
-    let source = "data Byte=u8; data Handler { f:machine(x:Byte)->Byte requires x > 0 ensures result == x + 1 reaches none crashes none; }";
+    let source =
+        "data Byte=u8; data ByteStep=machine(x:Byte)->Byte requires x > 0 ensures result == x + 1 reaches none crashes none; data Handler { f:ByteStep; }";
     let stage = check(&[("callback.omg", source)]).unwrap();
     for token in [">", "+", "=="] {
         assert!(stage.operations.iter().any(|op| op.token == token), "{token}");
