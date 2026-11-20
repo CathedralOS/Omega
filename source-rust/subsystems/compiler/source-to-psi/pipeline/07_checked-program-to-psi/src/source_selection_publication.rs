@@ -50,10 +50,6 @@ impl<Value> SymbolRows<Value> {
         (retained == symbol).then_some(value)
     }
 
-    fn contains(&self, symbol: &SymbolHandle) -> bool {
-        self.get(symbol).is_some()
-    }
-
     fn insert(&mut self, symbol: SymbolHandle, value: Value) -> Result<(), Diagnostic> {
         let position = self
             .positions
@@ -1379,11 +1375,39 @@ fn intrinsic_identity(value: &impl Record, domain: &str) -> Result<String, Diagn
     Ok(identity)
 }
 
+struct DeclarationIdentity {
+    text: String,
+    emitted: bool,
+}
+
+impl SymbolRows<DeclarationIdentity> {
+    fn retain_identity(
+        &mut self,
+        symbol: SymbolHandle,
+        identity: &str,
+        emitted: bool,
+    ) -> Result<(), Diagnostic> {
+        let row = self.get_or_insert_with(symbol, || DeclarationIdentity {
+            text: identity.to_owned(),
+            emitted,
+        })?;
+        if row.text != identity {
+            return Err(refused("one source declaration has competing checked identities"));
+        }
+        row.emitted |= emitted;
+        Ok(())
+    }
+
+    fn is_emitted(&self, symbol: SymbolHandle) -> bool {
+        self.get(&symbol).is_some_and(|row| row.emitted)
+    }
+}
+
 struct Declarations<'source> {
     typed: &'source TypedTrees,
     build_entry_source: Option<&'source source_admission::SourceFile>,
     ids: SymbolRows<SelectionDeclarationId>,
-    identities: SymbolRows<String>,
+    identities: SymbolRows<DeclarationIdentity>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
@@ -1410,7 +1434,7 @@ impl<'source> Declarations<'source> {
                 .identities
                 .text(declaration.semantic_declaration)
                 .ok_or_else(|| refused("checked machine declaration lost its semantic identity"))?;
-            identities.insert(symbol, identity.to_owned())?;
+            identities.retain_identity(symbol, identity, true)?;
         }
         for (boundary, symbol) in elaboration.boundaries.iter() {
             let declaration = module
@@ -1421,7 +1445,7 @@ impl<'source> Declarations<'source> {
                 .identities
                 .text(declaration.source.semantic_declaration)
                 .ok_or_else(|| refused("checked boundary lost its semantic identity"))?;
-            identities.insert(*symbol, identity.to_owned())?;
+            identities.retain_identity(*symbol, identity, true)?;
         }
         // Anonymous Build records already have checked declaration identities.
         // Reuse their exact source associations, as for emitted machines; a
@@ -1438,15 +1462,7 @@ impl<'source> Declarations<'source> {
                     .ok_or_else(|| {
                         refused("checked source record lost its declaration identity")
                     })?;
-                if identities
-                    .get(&symbol)
-                    .is_some_and(|previous| previous != identity)
-                {
-                    return Err(refused(
-                        "one source record declaration has competing identities",
-                    ));
-                }
-                identities.insert(symbol, identity.to_owned())
+                identities.retain_identity(symbol, identity, true)
             };
             retain(source_record.declaration, record.declaration_identity)?;
             let mut fields = record.shape.fields().collect::<Vec<_>>();
@@ -1456,6 +1472,14 @@ impl<'source> Declarations<'source> {
                     .binary_search_by_key(&field.field, |field| field.id)
                     .map_err(|_| refused("source field has no checked structural declaration"))?;
                 retain(field.declaration, fields[position].declaration_identity)?;
+            }
+        }
+        for form in source.selection_forms().flatten() {
+            for (symbol, identity) in form.invocation_declarations() {
+                if module.identities.invocation_scope().is_none() {
+                    return Err(refused("portable selection contains an invocation declaration"));
+                }
+                identities.retain_identity(*symbol, identity, false)?;
             }
         }
         // Prepare this association once. Only an admitted contract's meaning
@@ -1567,7 +1591,7 @@ impl<'source> Declarations<'source> {
     fn dictionary_symbol(&self, symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
         self.valid(symbol, "declaration")?;
         if self.typed.symbols.get(symbol).kind != SymbolKind::State
-            || self.identities.contains(&symbol)
+            || self.identities.is_emitted(symbol)
         {
             return Ok(symbol);
         }
@@ -1591,7 +1615,7 @@ impl<'source> Declarations<'source> {
             return Ok(symbol);
         };
         self.valid(machine.symbol, "entry declaration")?;
-        if !self.identities.contains(&machine.symbol) {
+        if !self.identities.is_emitted(machine.symbol) {
             // Only an actual emitted declaration supplies an entry alias.
             // An un-emitted source description keeps its genuine identity.
             return Ok(symbol);
@@ -1610,13 +1634,13 @@ impl<'source> Declarations<'source> {
     fn identity(&mut self, symbol: SymbolHandle) -> Result<String, Diagnostic> {
         let symbol = self.dictionary_symbol(symbol)?;
         if let Some(identity) = self.identities.get(&symbol) {
-            return Ok(identity.clone());
+            return Ok(identity.text.clone());
         }
         let identity = self
             .typed
             .normalized_hermetic_symbol_identity(symbol)
             .map_err(refused)?;
-        self.identities.insert(symbol, identity.clone())?;
+        self.identities.retain_identity(symbol, &identity, false)?;
         Ok(identity)
     }
 

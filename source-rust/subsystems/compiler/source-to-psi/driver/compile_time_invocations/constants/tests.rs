@@ -16,16 +16,24 @@ use syntax_trees_to_symbol_resolved_trees::resolution;
 
 fn typed_source(text: &str) -> TypedTrees {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x52; 32]).unwrap();
+    typed_source_in(text, Some(package), DependencyScope::Product)
+}
+
+fn typed_source_in(
+    text: &str,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    purpose: DependencyScope,
+) -> TypedTrees {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source = sources
         .add_checked_instance(
             "constants/main.omg".into(),
             text,
             "constants".into(),
-            Some(package),
+            package,
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            DependencyScope::Product,
+            purpose,
         )
         .source_id;
     let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
@@ -126,6 +134,71 @@ fn only_a_reader_of_an_array_requests_its_extent() {
             ),
             computes_extent
         );
+    }
+}
+
+#[test]
+fn anonymous_const_argument_requires_the_build_capture_that_owns_the_call() {
+    use crate::compile_time_invocations::InvocationSourceConsent;
+    use crate::source_inputs::SourceMap;
+
+    struct Capture(Arc<SourceMap>);
+    impl InvocationSourceConsent for Capture {
+        fn allows_selection(
+            &self,
+            sources: &Arc<SourceMap>,
+            requester: source_text::SourceSpan,
+            selected: source_text::SourceSpan,
+            purpose: DependencyScope,
+        ) -> bool {
+            Arc::ptr_eq(&self.0, sources)
+                && purpose == DependencyScope::Build
+                && [requester, selected].into_iter().all(|span| {
+                    sources.get(span.source_id).is_some_and(|file| {
+                        file.package_identity.is_none()
+                            && file.dependency_scope == purpose
+                            && file.source.get(span.span.start..span.span.end).is_some()
+                    })
+                })
+        }
+    }
+
+    let source = "data Buffer<const N: u64> { bytes: [u8; N]; }
+        machine size() -> u64 { 4u64 }
+        machine build() { let held: Buffer<size()>; }";
+    let typed = typed_source_in(source, None, DependencyScope::Build);
+    let edited = typed_source_in(&source.replace("4u64", "5u64"), None, DependencyScope::Build);
+    let entry = typed.realized_machine_named("build").unwrap().symbol;
+    let sources = typed.symbols.source_map().unwrap();
+    let captures = [
+        (Some(sources), true),
+        (edited.symbols.source_map(), false),
+        (None, false),
+    ];
+    for (capture, allowed) in captures {
+        let mut candidate = typed.clone();
+        let mut accounting = SourceCompletionAccounting::default();
+        let result = evaluate_const_arguments(
+            &mut candidate,
+            production::TerminalSourceCompilation {
+                purpose: DependencyScope::Build,
+                ..request(&[entry])
+            },
+            None,
+            capture.map(|sources| Arc::new(Capture(sources)) as Arc<_>),
+            &mut accounting,
+        );
+        if allowed {
+            result.unwrap();
+            assert_eq!(accounting.receipts().len(), 1);
+        } else {
+            let errors = result.unwrap_err();
+            assert!(
+                errors.iter().any(|error| error.message.contains("without reconciled package custody")),
+                "{errors:?}"
+            );
+            assert!(accounting.receipts().is_empty());
+        }
     }
 }
 

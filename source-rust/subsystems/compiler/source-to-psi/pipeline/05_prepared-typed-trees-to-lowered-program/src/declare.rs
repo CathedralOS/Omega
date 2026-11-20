@@ -2331,7 +2331,7 @@ pub(crate) fn nominal(
 /// activation. A generated call over concrete arguments must not acquire a
 /// portable identity from its temporary name. Its exact retained derivation
 /// must still end at a captured source token before local identity is minted.
-fn invocation_local(
+pub(super) fn invocation_local(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     identities: &mut TerminalIdentityTableBuilder,

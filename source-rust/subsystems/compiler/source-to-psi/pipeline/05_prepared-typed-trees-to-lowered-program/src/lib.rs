@@ -1057,7 +1057,11 @@ fn finish_logical_witness<'source>(
     witness.program.value_arguments = program.value_arguments;
     witness.program.applications = program.applications;
     witness.program.selections = program.selections;
-    witness.source.selection_questions = Some(source_selection_questions);
+    witness.source.selection_questions = Some(
+        source_selection_questions
+            .bind_invocation_declarations(program.typed, &mut witness.program, &witness.source.records)
+            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?,
+    );
     Ok(witness)
 }
 
@@ -1281,7 +1285,13 @@ fn finish_reading_into<'source>(
     }
 
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
-    source.selection_questions = Some(source_selection_questions);
+    source.selection_questions = Some(
+        source_selection_questions
+            .bind_invocation_declarations(program.typed, &mut elaboration, &source.records)
+            .map_err(|reason| {
+                refuse(diagnostic, Construct::Machine, Unserved::Declaration(reason))
+            })?,
+    );
     crate::lowering::reach::publish(entry, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;

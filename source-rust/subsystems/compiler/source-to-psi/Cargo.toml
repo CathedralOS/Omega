@@ -23,6 +23,7 @@ evaluation-work = { path = "../build/evaluation/accounting/work" }
 build-invocation = { path = "../build/evaluation/invocations" }
 evaluation-accounting = { path = "../build/evaluation/accounting" }
 evaluation-admission = { path = "../build/evaluation/authority/admission" }
+psi-authorization = { path = "../psi-artifact/authorization" }
 psi-provider-selections = { path = "../psi-execution-inputs/providers" }
 psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
 psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
@@ -84,7 +85,6 @@ tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
 proof-admission = { path = "../psi-semantics/proofs/bounded" }
-psi-authorization = { path = "../psi-artifact/authorization" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }

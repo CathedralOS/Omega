@@ -133,14 +133,18 @@ machine below() -> i64 { 0i64 - 1i64 }",
 fn a_call_that_reaches_a_runtime_service_has_no_compile_time_value() {
     let (compiled, stderr) = check(
         "service",
-        "data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
-boundary trait Clock { machine now() -> u64 reaches none crashes none; }
-machine observed() -> u64 reaches Clock { Clock::now() }",
+        r"use omega\language\core\WaitWake;
+data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
+machine observed() -> u64 reaches WaitWake {
+    let word: u64 = 0;
+    WaitWake::wake_one(@word)
+}",
         "Buffer<observed()>",
     );
     assert!(!compiled);
     assert!(
-        stderr.contains("const argument for `Capacity` of `Buffer`"),
+        stderr.contains("const argument for `Capacity` of `Buffer`")
+            && stderr.contains("source invocation requires selected target, scalar or external authority that is not supplied"),
         "{stderr}"
     );
 }
