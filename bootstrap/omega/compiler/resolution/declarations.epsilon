@@ -21,7 +21,7 @@ machine OmegaScalarCompiler::declaration_name(
     }
     state record_name() {
         transition self.construction.active {
-            1 -> return self.construction.records[index].name
+            1 -> return self.construction.types[index].name
             _ -> return self.parser.data_items[index].name
         }
     }
@@ -43,7 +43,7 @@ machine OmegaScalarCompiler::declaration_public(
     }
     state record_visibility() {
         transition self.construction.active {
-            1 -> return self.construction.records[index].is_public
+            1 -> return self.construction.types[index].is_public
             _ -> return self.parser.data_items[index].is_public
         }
     }
@@ -653,7 +653,7 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
         }
     }
     state record_visibility(index: i32) {
-        transition self.select_construction_unit(source, self.construction.records[index].unit) {
+        transition self.select_construction_unit(source, self.construction.types[index].unit) {
             1 -> loaded_record(index)
             _ -> return 0
         }
@@ -667,12 +667,33 @@ machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -
     state field(index: i32, offset: i32) {
         transition offset < self.parser.data_items[index].field_count {
             true -> field_type(index, offset, self.parser.data_fields[self.parser.data_items[index].first_field + offset])
-            _ -> record(index + 1)
+            _ -> public_cases(index, 0)
         }
     }
     state field_type(index: i32, offset: i32, row: OmegaDataFieldSyntax) {
         transition self.public_type(source, row.type_reference) {
             1 -> field(index, offset + 1)
+            _ -> fail(row.start)
+        }
+    }
+    state public_cases(index: i32, offset: i32) {
+        transition offset < self.parser.data_items[index].case_count {
+            true -> public_case(index, offset, self.parser.data_cases[self.parser.data_items[index].first_case + offset])
+            _ -> record(index + 1)
+        }
+    }
+    state public_case(index: i32, offset: i32, row: OmegaDataCaseSyntax) {
+        transition true { true -> payloads(index, offset, row.first_payload_field, row.first_payload_field + row.payload_field_count) }
+    }
+    state payloads(index: i32, offset: i32, slot: i32, limit: i32) {
+        transition slot < limit {
+            true -> payload_type(index, offset, slot, limit, self.parser.data_payload_fields[slot])
+            _ -> public_cases(index, offset + 1)
+        }
+    }
+    state payload_type(index: i32, offset: i32, slot: i32, limit: i32, row: OmegaDataFieldSyntax) {
+        transition self.public_type(source, row.type_reference) {
+            1 -> payloads(index, offset, slot + 1, limit)
             _ -> fail(row.start)
         }
     }

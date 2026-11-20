@@ -123,16 +123,17 @@ def cases():
 
 
     yield from nominal_record_cases(encode)
+    yield from nominal_sum_cases(encode)
+
+
+def copy_declaration(definitions, name):
+    start = definitions.index(b"public data " + name + b" [copy] {")
+    return definitions[start:definitions.index(b"\n}", start) + 2]
 
 
 def nominal_record_cases(encode):
     # Keep the actual product declarations, including their integer domains.
     definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
-
-    def declaration(name):
-        start = definitions.index(b"public data " + name + b" [copy] {")
-        end = definitions.index(b"\n}", start) + 2
-        return definitions[start:end]
 
     caller = b"""use packets\\SourceSpan; use packets\\SourceId; use packets\\Span; use packets\\pass;
 machine main()->u8 {
@@ -146,8 +147,8 @@ machine main()->u8 {
     transition ((out.value as -Trapping)==42) && ((r.start as -Trapping)==7) {true->42,_->7}
 }"""
     relay = b"public machine pass(x:SourceSpan)->SourceSpan{x}"
-    units = [(0, caller), (1, relay), (1, declaration(b"SourceSpan")),
-             (1, declaration(b"Span")), (1, declaration(b"SourceId"))]
+    units = [(0, caller), (1, relay), (1, copy_declaration(definitions, b"SourceSpan")),
+             (1, copy_declaration(definitions, b"Span")), (1, copy_declaration(definitions, b"SourceId"))]
     names = ["main.omg", "pass.omg", "combined.omg", "span.omg", "source_id.omg"]
     packet, _, _, _ = encode([("app", 0), ("packets", 0)], [(0, 1, "packets")],
                              units, 0, b"main", paths=names)
@@ -188,6 +189,56 @@ machine main()->u8 {
         else:
             coordinate = rows[0][1] + caller.index(b"machine main")
             yield "different-nominal-field-owner", packet, struct.pack("<BII", 0, 1, coordinate)
+
+
+def nominal_sum_cases(encode):
+    def packet(sources, paths, library="numeric"):
+        units = [(0, sources[0])] + [(1, source) for source in sources[1:]]
+        result, _, _, rows = encode([("app", 0), (library, 0)], [(0, 1, library)],
+                                    units, 0, b"main", paths=paths)
+        return result, rows
+
+    numeric = (ROOT / "source/subsystems/compiler/source_to_psi/representations/tokens/numeric.omg").read_bytes()
+    main = (b"use numeric\\NumericBase;use numeric\\IntegerSuffix;use numeric\\classify;"
+            b"machine main()->u8{let b:NumericBase=NumericBase::Hexadecimal;"
+            b"let s:IntegerSuffix=IntegerSuffix::U8;classify(b,s)}")
+    classify = (b"public machine classify(base:NumericBase,suffix:IntegerSuffix)->u8{"
+                b"transition base{NumericBase::Hexadecimal->hex(suffix),_->0}"
+                b"machine hex(value:IntegerSuffix)->u8{transition value{IntegerSuffix::U8->42,_->0}}}")
+    data, _ = packet([main, classify, numeric], ["main.omg", "classify.omg", "numeric.omg"])
+    yield "forward-product-numeric-cases", data, 42
+
+    # Exercise the exact return alternatives that blocked the original
+    # resolver, retaining all of ValueBinding's other cases and payload types.
+    definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/symbol_resolved_trees/symbol_resolved_trees.omg").read_bytes()
+
+    main = (b"use psi\\ValueBinding;use psi\\select;use psi\\observe;machine main()->u8{"
+            b"let h:u64 in Trapping=42 as u64 +Trapping;let yes:ValueBinding=select(true,h);"
+            b"let no:ValueBinding=select(false,h);transition observe(yes)==42&&observe(no)==0{true->42,_->7}}")
+    select = (b"public machine select(flag:bool,handle:u64 in Trapping)->ValueBinding{transition flag{"
+              b"false->ValueBinding::Unresolved,_->ValueBinding::Machine{handle:handle}}}")
+    observe = (b"public machine observe(value:ValueBinding)->u8{transition value{"
+               b"ValueBinding::Machine{handle as h}->check(h),_->0}machine check(h:u64 in Trapping)->u8{"
+               b"transition (h as -Trapping)==42{true->42,_->7}}}")
+    names = (b"ValueBinding", b"VisibleOverloads", b"BytePredicate", b"LayoutQuery")
+    sources = [main, select, observe] + [copy_declaration(definitions, name) for name in names]
+    paths = ["main.omg", "select.omg", "observe.omg"] + [name.decode() + ".omg" for name in names]
+    data, _ = packet(sources, paths, "psi")
+    yield "forward-product-value-binding", data, 42
+
+    main = (b"use numeric\\Packet;use numeric\\Hit;use numeric\\score;machine main()->u8{"
+            b"let p:Packet=Packet{value:42};let h:Hit=Hit::One{item:p};score(h)}")
+    score = b"public machine score(h:Hit)->u8{transition h{Hit::One{item as answer}->answer.value,_->0}}"
+    hit = b"public data Hit [copy]{case Miss;case One(item:Packet);}"
+    record = b"public data Packet [copy]{value:u8;}"
+    paths = ["main.omg", "score.omg", "hit.omg", "packet.omg"]
+    data, _ = packet([main, score, hit, record], paths)
+    yield "forward-nominal-case-payload", data, 42
+
+    data, rows = packet([b"use numeric\\score;machine main()->u8{42}", score, hit,
+                         record.replace(b"public data", b"data")], paths)
+    coordinate = rows[2][1] + hit.index(b"item:Packet")
+    yield "private-type-in-case-payload", data, struct.pack("<BII", 0, 1, coordinate)
 
 
 def main():

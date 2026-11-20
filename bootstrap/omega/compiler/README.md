@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 25,116 lines / 954,399 bytes with SHA-256
-`b4638563fa3cf6c27fc05e77fcf35a55ddb0adccbd4ae87f35b259cbc543651d`.
+manifest materializes 25,194 lines / 958,282 bytes with SHA-256
+`187187766652adafce3677731883f9aa3cbad48469b028863434039c575553ec`.
 The manifest itself is 2,039 bytes, SHA-256
-`4f11dd3db660d589a72a00f7a040529aef6b779e7e2a2b0ec51d1e2a3436bce1`;
+`2b831a9944c40888f34536e353e844aa06356a34d6e3fd369a0b1e1ba13f16fe`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -92,13 +92,15 @@ their exact declaration identity across units. Source-order changes do not
 select a different imported declaration.
 
 For multi-unit construction the compiler parses each whole file in a fresh
-syntax arena. Free machines may take or return by-value scalars or records,
+syntax arena. Free machines may take or return by-value scalars, records or sums,
 and may contain nested states. A machine without a result completes with Unit.
 The declaration directory retains names, visibility, owner files and disjoint
-ranges for records, fields, machines, states and parameters.
+ranges for data declarations, fields, sum cases, payloads, machines, states
+and parameters.
 
-Each file's imports resolve before signature or body checking. A record field
-retains the scalar type or nominal declaration resolved in its own file. The
+Each file's imports resolve before signature or body checking. Every record or
+case payload field retains the scalar type or nominal declaration resolved in
+its own file. The
 layout checker can then follow forward and nested records across files and
 detect a by-value cycle. Public interfaces are checked against their owner's
 imports. The compiler gives parameters permanent addresses. Bodies reuse
@@ -106,7 +108,7 @@ local syntax rows and get fresh storage addresses, so a callee can use the
 same local row number while its caller's value remains live. Call cycles and
 effects are checked before publishing the tape.
 
-Sums, arrays, references, machine clauses and authored requirements still use
+Arrays, references, machine clauses and authored requirements still use
 the pooled checker after per-file parsing. The single-unit public resource
 limits remain in force.
 [Per-unit compilation](construction/units.epsilon)

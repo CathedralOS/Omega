@@ -2958,7 +2958,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state data_name(index: i32, name: OmegaRelativeSpan) {
-        transition self.select_construction_unit(source, self.construction.records[index].unit) {
+        transition self.select_construction_unit(source, self.construction.types[index].unit) {
             1 -> loaded_data_name(index, name)
             _ -> return
         }
@@ -2976,21 +2976,20 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
             (self.span_equals(source, name.start, name.end, "u64") == 0) &&
             (self.span_equals(source, name.start, name.end, "bool") == 0) &&
             (self.word_policy(source, name.start, name.end) == 0) {
-            true -> header_fields(index, 0)
+            true -> finish_data_name(index)
             _ -> incomplete(4, name.start)
         }
     }
-    // Resolve each field in its file's import scope. Layout may later visit a
-    // forward or nested record from any file, including a by-value cycle.
-    state header_fields(index: i32, offset: i32) {
-        transition (self.construction.active == 1) && (offset < self.parser.data_items[index].field_count) {
-            true -> header_field(index, offset, self.parser.data_items[index].first_field + offset)
+    state finish_data_name(index: i32) {
+        transition (self.construction.active == 1) &&
+            (index + 1 == self.construction.units[self.parser.unit_index + 1].data_count) {
+            true -> retain_field_types(index)
             _ -> data_names(index + 1)
         }
     }
-    state header_field(index: i32, offset: i32, field: i32) {
-        self.field_types[field] = self.scalar_type(source, self.parser.data_fields[field].type_reference);
-        transition true { true -> header_fields(index, offset + 1) }
+    state retain_field_types(index: i32) {
+        self.retain_construction_field_types(source, self.parser.unit_index);
+        transition true { true -> data_names(index + 1) }
     }
     state layouts(index: i32) {
         transition index < self.parser.data_count {
@@ -4853,8 +4852,14 @@ machine OmegaScalarCompiler::layout_case_payload(&mut self, source: &[u8], case_
     }
     state name(slot: i32, limit: i32, size: i32, item: OmegaDataFieldSyntax) {
         transition self.resolve_payload_field(source, case_slot, item.name.start, item.name.end) == 16384 + slot {
-            true -> kind(slot, limit, size, self.scalar_type(source, item.type_reference))
+            true -> payload_type(slot, limit, size, item.type_reference)
             _ -> duplicate(item.name.start)
+        }
+    }
+    state payload_type(slot: i32, limit: i32, size: i32, type_index: i32) {
+        transition self.construction.active {
+            1 -> kind(slot, limit, size, self.field_types[16384 + slot])
+            _ -> kind(slot, limit, size, self.scalar_type(source, type_index))
         }
     }
     state kind(slot: i32, limit: i32, size: i32, kind: i32) {
