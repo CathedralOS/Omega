@@ -676,8 +676,8 @@ fn a_borrowed_field_window_publishes_and_executes_the_original_storage() {
             "data Item { value: u32; }\ndata Box { item: Item; }",
         )
         .replace("owner: @mut Item", "owner: @mut Box")
-        .replace("move owner;", "move owner.item;")
-        .replace("owner = next;", "owner.item = next;")
+        .replace("move $owner;", "move owner.item;")
+        .replace("$owner = next;", "owner.item = next;")
         .replace("second: Item", "second: Box")
         .replace(
             "let mut owner: Item = Item { value: 3u32 };",
@@ -824,12 +824,12 @@ fn an_exclusive_reference_field_opens_the_same_captured_window() {
             "let local: @mut Item = @mut owner;",
             "let local: Loan = Loan { item: @mut owner };",
         )
-        .replace("move local;", "move local.item;")
+        .replace("move $local;", "move $local.item;")
         // Assigning the field replaces its descriptor. Transfer that same
         // permission to a local before repairing through its referent.
         .replace(
-            "local = next;",
-            "let repair: @mut Item = local.item;\n    repair = next;",
+            "$local = next;",
+            "let repair: @mut Item = local.item;\n    $repair = next;",
         );
     execute_restoration(&source);
 }
@@ -940,7 +940,7 @@ machine take(choice: Choice) -> u64 {
     }
 }
 machine repair(choice: @mut Choice) {
-    let old: Choice = move choice;
+    let old: Choice = move $choice;
     let value: u64 = take(old);
     $choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };
 }
@@ -1009,7 +1009,7 @@ machine build_entry() crashes Trap {
         "{status:?}"
     );
     let missing = source.replace(
-        "choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };",
+        "$choice = Choice::Right { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } };",
         "",
     );
     let rejected = super::build_purpose::judge_build(&missing).unwrap();

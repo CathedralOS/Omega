@@ -65,7 +65,7 @@ fn rejection(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8]::Text
 requires
-    byte_observation::{predicate}(@self[..]);
+    byte_observation\{predicate}(@self[..]);
 data Rejection<'reason> {{ reason: @'reason [u8] in Text; }}
 data Outcome<'reason> {{
     case Accepted(value: u64);
@@ -833,7 +833,7 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
 fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
     format!(
         r#"
-domain [u8]::Text requires byte_observation::{predicate}(@self[..]);
+domain [u8]::Text requires byte_observation\{predicate}(@self[..]);
 machine length(text: @[u8] in Text) -> u64 {{ text.len }}
 machine prefix_length(text: @[u8]{source_domain}, end: u64) -> u64
 requires end <= text.len {{
@@ -940,7 +940,7 @@ fn fixed_text(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8; 3]::Text
 requires
-    byte_observation::{predicate}(@self[..]);
+    byte_observation\{predicate}(@self[..]);
 data Holder {{ bytes: [u8; 3] in Text; }}
 machine first(bytes: @[u8; 3] in Text) -> u8 {{ (bytes as -Text)[0] }}
 machine build_entry() {{
