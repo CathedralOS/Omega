@@ -132,6 +132,29 @@ fn after(callee: &str) -> String {
 }
 
 #[test]
+fn an_anonymous_build_selects_its_own_constant() {
+    let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
+    let build = format!(
+        r#"const CHOSEN: bool = false;
+machine build(builder: @mut Build) {{
+    Build::application(builder, "constant_custody");
+    builder.tests.disabled = CHOSEN;
+    Build::bind(builder, {}\ProgramEntry, main);
+}}"#,
+        target.target_name(),
+    );
+    let (compiled, report) = check_project(
+        "anonymous-constant",
+        &build,
+        7,
+        "",
+        None,
+        &["--check", "main.omg"],
+    );
+    assert!(compiled, "{report}");
+}
+
+#[test]
 fn a_build_calls_the_dependency_it_prepared_and_keeps_what_it_did_before() {
     let (compiled, stderr) = check("called", "", &after("kit\\v"), 7);
     assert!(compiled, "{stderr}");

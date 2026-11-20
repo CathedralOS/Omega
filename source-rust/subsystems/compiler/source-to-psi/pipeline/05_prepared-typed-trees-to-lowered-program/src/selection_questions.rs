@@ -1133,6 +1133,14 @@ impl TypedReferences for Capture<'_> {
             .seen_questions
             .insert((self.owner, occurrence, role, designation, runtime_key))
         {
+            // A folded constant has no emitted row. Retain its checked source
+            // declaration so publication can authenticate the selected occurrence.
+            if role == RawSelectionRole::Execution
+                && let RawSelectionTarget::Declaration(symbol) = target
+                && self.typed.symbols.get(symbol).kind == SymbolKind::Const
+            {
+                self.output.declarations.push(symbol);
+            }
             self.output.questions.push(question);
         }
     }
