@@ -55,7 +55,7 @@ also prints the retained-role census — which proof rules, theory functions,
 and constructors the certificate actually uses — and still states diagnostic
 production only: the certificate has to be produced through the selected
 chain and checked under the exact profile. See
-[PROFILE.md](../../../../bootstrap/proofs/beta_encoding/PROFILE.md) for the
+[PROFILE.md](../beta_encoding/PROFILE.md) for the
 measured figures. The source and tape are fixed to `d19361fe4deae73e1b488a940a872fec1ed885cb`
 and independently hash-checked. These measurements are historical research,
 not admission of the current evaluator. Missing Git/history fails explicitly;
@@ -74,7 +74,7 @@ it grants no admission.
 native evaluator host. It rebuilds the complete full-subject certificate
 with the checked-in stepper, then requires the checker to publish exact
 owned rejections for corruptions across the
-[ACCEPTANCE.md](../../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+[ACCEPTANCE.md](../beta_encoding/ACCEPTANCE.md)
 taxonomy: a positive unmutated control, theory clause-body identity,
 source- and tape-side instance roots, an unknown rule tag, clause ordinal
 range and case errors, a swapped substitution environment, wrong and
@@ -82,7 +82,7 @@ self-referential premises, a term arity count, the owner/witness partition
 joint, claimed endpoints, both final-root selections, and two rows
 following a valid prefix. Expected diagnostics carry the coordinate and
 code conventions from
-[CHECKING.md](../../../../bootstrap/proofs/checker/CHECKING.md). On any host
+[CHECKING.md](../checker/CHECKING.md). On any host
 with python3, `python3 mutations.py --self-test` reproduces the
 certificate and verifies vector construction without asserting verdicts.
 
@@ -97,10 +97,10 @@ not reconstruct or replace the evaluator. Both entrypoints propagate failures.
 
 The bound [producer entry](main.gamma) — 211 bytes, SHA-256
 `35577d248b7745f3a6f4d2615e81bb8aae40cb8608d5fbda0be55978b544b373`, recorded
-in `tools/bootstrap/proofs/sources_env.sh` and checked by
+in `tests/bootstrap/proofs/sources_env.sh` and checked by
 `require_beta_encoding_producer_entry_identity` before it packs on the bound
 member bytes — calls ordinary Gamma
-[`beta_encoding_theory`](../../../../bootstrap/proofs/beta_encoding/theory/theory.gamma)
+[`beta_encoding_theory`](../beta_encoding/theory/theory.gamma)
 only for empty input. Its marked application result publishes bytes without a
 scalar terminator. Three nonempty inputs require status 1 and empty stdout and
 stderr. The exact producer composition is pinned in [source.tsv](source.tsv).
@@ -299,5 +299,5 @@ These still do not close the complete obligation: the full-subject
 evaluator measures 3,182,484 rows and 135,451,492 request bytes — 16.1 times
 the request provision — so it is produced and measured but not admissible.
 Accepted artifact custody remains outside this gate's claim. See the
-[complete encoding acceptance](../../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+[complete encoding acceptance](../beta_encoding/ACCEPTANCE.md)
 and the [cost review](../../../../wiki/drafts/reference/bootstrap_cost_review.md).

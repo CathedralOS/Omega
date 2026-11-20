@@ -16,7 +16,7 @@ state machines:
 - [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace.
 - `source/application/` and `source/subsystems/compiler/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
-- [`bootstrap/`](bootstrap/README.md) groups implementations by language. All routes share Alpha and Beta. For Gamma, Delta and Epsilon, compare interpretation, compilation to Alpha tape and compilation to native code. Host-side checks live in `tests/bootstrap/` and use `tools/bootstrap/paths.sh` to locate their inputs.
+- [`bootstrap/`](bootstrap/README.md) groups implementations by language. All routes share Alpha and Beta. For Gamma, Delta and Epsilon, compare interpretation, compilation to Alpha tape and compilation to native code. Host launchers, checks and optional proof research live in `tests/bootstrap/`. Record route experiments in [the development wiki](wiki/development/bootstrap/README.md).
 
 **Public naming:** Follow [public names](wiki/README.md#public-names): the portable
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
@@ -458,7 +458,7 @@ reads the allowed lanes from this table:
 
 | Lane | Responsibility and current path anchors |
 | --- | --- |
-| `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The matching language under `bootstrap/<language>/`, including its compilers, interpreters, Rust reference tooling and language-specific checks. |
+| `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The matching language under `bootstrap/<language>/`, its compilers and interpreters, plus the associated reference tooling and tests outside that directory. |
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/omega/compiler/` and its tests. Never shorten to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/`, and `tools/bootstrap/`. |
 | `psi` | Target-neutral source semantics and Psi publication in `source-rust/subsystems/compiler/source-to-psi/`, portable Psi in its sibling `psi/`, and Omega-written `source/subsystems/compiler/source_to_psi/`. |

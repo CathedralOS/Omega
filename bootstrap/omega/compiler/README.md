@@ -500,7 +500,7 @@ span is contiguous even when a nested call publishes argument rows first.
 Operands share precedence, grouping, casts, short-circuit expressions, ordinary
 calls, references, shallow struct literals and the existing indexed paths.
 An index may instead use any canonical bound-presence/inclusivity
-shape (`../../routes/interpreted.md`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
+shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
 optional trailing comma. A

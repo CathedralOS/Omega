@@ -8,11 +8,11 @@ EEREQ packet. [Construction input format](../../../source/application/constructi
 
 ## Reproduce the inputs
 
-Build the native Epsilon evaluator using the published Linux driver and canonical
+Build the native Epsilon evaluator using the Linux test launcher and canonical
 Delta request. The resulting directory contains the native Gamma compiler,
 the Delta compiler and its emitted Epsilon evaluator Gamma source in
 `producer.output`, and the native evaluator in `successor`.
-[Linux construction](../../../bootstrap/hosts/linux_x86_64/README.md#compile-gamma-source-emitted-by-the-supplied-program)
+[Linux construction](../linux_x86_64/README.md#compile-gamma-source-emitted-by-the-supplied-program)
 
 From the repository root, set `native` to that directory and choose a new
 output directory. The constructor writes `product.bin` and its source manifest.

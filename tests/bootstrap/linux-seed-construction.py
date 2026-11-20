@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP = ROOT / "bootstrap/hosts/linux_x86_64/bootstrap"
+BOOTSTRAP = ROOT / "tests/bootstrap/linux_x86_64/bootstrap"
 BETA = Path("bootstrap/beta/beta_compiler.beta")
 GAMMA = Path("bootstrap/gamma/interpreter/gamma_evaluator.beta")
 COMPILER = [Path("bootstrap/gamma/compiler/compiler.gamma"),

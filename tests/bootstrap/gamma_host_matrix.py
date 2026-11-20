@@ -75,8 +75,8 @@ def check_product_word(work, closure, seconds):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("alpha", type=Path, help="output of bootstrap/hosts/linux_x86_64/bootstrap --alpha")
-    parser.add_argument("linux", type=Path, help="output of bootstrap/hosts/linux_x86_64/bootstrap")
+    parser.add_argument("alpha", type=Path, help="output of tests/bootstrap/linux_x86_64/bootstrap --alpha")
+    parser.add_argument("linux", type=Path, help="output of tests/bootstrap/linux_x86_64/bootstrap")
     parser.add_argument("output", type=Path, help="new directory for all four rows")
     parser.add_argument("--epsilon", action="store_true", help="also construct and exercise the full Epsilon evaluator")
     parser.add_argument("--wire", action="store_true", help="also run the Omega product wire decoder on both evaluators")

@@ -3,7 +3,7 @@
 encoding theory.
 
 Reads the independent declarations in ``encoding.py`` and writes the Gamma
-sources under ``bootstrap/proofs/beta_encoding/theory/definitions/encoding/``
+sources under ``tests/bootstrap/proofs/beta_encoding/theory/definitions/encoding/``
 plus the ``encoding.gamma`` dispatcher. The generated text only calls the
 checked-in fixed emitters (``beta_theory_word``, ``beta_theory_fields3``,
 ``beta_theory_repeated_word``, and the template helpers in
@@ -32,7 +32,7 @@ sys.path.append(str(ROOT / "tests/bootstrap/proofs/beta-encoding-theory"))
 
 import encoding  # noqa: E402
 
-OUT_DIR = (ROOT / "bootstrap/proofs/beta_encoding/theory/definitions/encoding")
+OUT_DIR = (ROOT / "tests/bootstrap/proofs/beta_encoding/theory/definitions/encoding")
 
 GROUPS = (
     ("selectors", range(58, 69),
@@ -219,7 +219,7 @@ def main():
         "      ) 0))",
         "",
     ]
-    path = ROOT / "bootstrap/proofs/beta_encoding/theory/definitions/encoding.gamma"
+    path = ROOT / "tests/bootstrap/proofs/beta_encoding/theory/definitions/encoding.gamma"
     path.write_text("\n".join(dispatcher))
     print(f"wrote {path.relative_to(ROOT)}")
 

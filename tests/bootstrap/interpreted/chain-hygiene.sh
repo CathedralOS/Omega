@@ -75,6 +75,16 @@ expect_result() {
   fi
 }
 
+# Construction must verify in a checkout without proof experiments, the
+# Linux test launcher, or published route reports.
+for optional in tests/bootstrap/proofs tests/bootstrap/linux_x86_64 wiki/development/bootstrap
+do
+  if [ -d "$FIXTURE_ROOT/$optional" ]; then
+    mv "$FIXTURE_ROOT/$optional" "$FIXTURE_PARENT/${optional##*/}"
+  fi
+done
+expect_result accepted 'archive without bootstrap experiments'
+
 mkdir -p "$FIXTURE_ROOT/source/retired/empty" \
   "$FIXTURE_ROOT/bootstrap/retired/empty"
 expect_result accepted 'archive with empty owner directories'

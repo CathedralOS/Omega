@@ -16,7 +16,7 @@ AUDITOR=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
 if [ "$#" -eq 0 ]; then
     cd "$OMEGA_REPO_ROOT"
     manifests=$(find bootstrap/alpha bootstrap/beta bootstrap/gamma/interpreter bootstrap/gamma/compiler \
-        bootstrap/delta/to-gamma bootstrap/epsilon/interpreter bootstrap/epsilon/to-delta bootstrap/omega/compiler bootstrap/proofs \
+        bootstrap/delta/to-gamma bootstrap/epsilon/interpreter bootstrap/epsilon/to-delta bootstrap/omega/compiler \
         -type f -name '*.sources')
     manifests=$(printf '%s\n' "$manifests" | LC_ALL=C sort)
     steps=$(find tools/bootstrap -type f \( -name '*.sh' -o -name '*.py' \) \

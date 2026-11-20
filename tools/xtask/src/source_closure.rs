@@ -752,18 +752,6 @@ mod tests {
                 "cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255",
                 None,
             ),
-            (
-                "bootstrap/proofs/checker/implementation/implementation.gamma.sources",
-                62357,
-                "382531b910429c7111c2bc9e7dcce7e96394c45fa0a89b624debd061b69422b2",
-                None,
-            ),
-            (
-                "bootstrap/proofs/beta_encoding/theory/theory.gamma.sources",
-                130363,
-                "632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25be08840b41ddf",
-                None,
-            ),
         ];
         let fixture = Fixture::new();
         for (manifest, length, digest, prefix) in cases {

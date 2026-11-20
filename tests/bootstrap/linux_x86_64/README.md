@@ -1,11 +1,11 @@
-# Bootstrap on Linux x86-64
+# Cold bootstrap test launcher for Linux x86-64
 
 Run the checked-in binary with the source tree and a new output directory.
 The default `gamma-compiler` takes Gamma source on stdin and writes a
 standalone Linux x86-64 executable on stdout.
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap . /tmp/omega-gamma
+tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma
 ```
 
 The command runs offline with an empty `PATH`. It needs Linux x86-64, space
@@ -26,7 +26,7 @@ It comprises the canonical entry followed by every implementation member in
 the existing manifest order. To construct the native Delta compiler, run
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap . /tmp/omega-delta bootstrap/delta/to-gamma/distribution.gamma
+tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-delta bootstrap/delta/to-gamma/distribution.gamma
 ```
 
 The executable is `/tmp/omega-delta/program`. With a previously constructed
@@ -45,7 +45,7 @@ The Delta identity test reruns the existing materializer and compares its
 output with the distributed file byte for byte. This adds one readable copy of
 the compiler source to the checkout and keeps manifest parsing, inventory
 checks and hashing in distribution maintenance.
-[Delta source ownership](../../delta/to-gamma/README.md#selected-staged-delta-compiler)
+[Delta source ownership](../../../bootstrap/delta/to-gamma/README.md#selected-staged-delta-compiler)
 
 ### Compile Gamma source emitted by the supplied program
 
@@ -59,18 +59,18 @@ For example, the Delta compiler can emit the Gamma source for the Epsilon
 evaluator. This invocation takes its canonical Delta compilation request.
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap . /tmp/omega-epsilon \
+tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-epsilon \
     bootstrap/delta/to-gamma/distribution.gamma /path/to/epsilon-request.bin
 ```
 
 That request contains the 16-byte DCREQ header, the ordered Delta source of
 the Epsilon evaluator and its entry, and the Gamma support bytes. The
-[successor test](../../routes/native.md#native-successor-customers) writes
+[successor test](../../../wiki/development/bootstrap/native.md#native-successor-customers) writes
 this input to `build/independent-successors/epsilon-request.bin`. A source
 distribution can supply the same file alongside the checkout. The invocation
 uses those bytes directly and runs offline. The native `successor` already
 contains the Gamma program, so its stdin starts at the sealed `EEREQ` header.
-[Epsilon evaluation request](../../epsilon/interpreter/EVALUATOR_ENTRY.md)
+[Epsilon evaluation request](../../../bootstrap/epsilon/interpreter/EVALUATOR_ENTRY.md)
 
 ### Run the compiled Alpha tape route
 
@@ -79,7 +79,7 @@ the Gamma-to-Alpha backend. For example, build the Epsilon evaluator from
 the same distributed Gamma source and Delta request as above.
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap --alpha . /tmp/omega-epsilon-alpha \
+tests/bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-epsilon-alpha \
     bootstrap/delta/to-gamma/distribution.gamma /path/to/epsilon-request.bin
 ```
 
@@ -93,7 +93,7 @@ and `successor.tape`, together with the independently executable `program`
 and `successor`. For the illustrated inputs those are the Delta compiler and
 Epsilon evaluator. Run `successor` with the same sealed Epsilon request as
 the native route. Each output tape must fit the seed's 16 MiB field including
-its four-byte length. [Compiled VM](../../routes/compiled-alpha.md)
+its four-byte length. [Compiled VM](../../../wiki/development/bootstrap/compiled-alpha.md)
 
 ## Follow the construction
 
@@ -133,7 +133,7 @@ Beta bytes. The finite Beta audit and Alpha semantics explain what those
 bytes do. The driver source owns file I/O, process invocation, framing and
 comparison. A replacement driver can substitute stages, so its executable
 is also part of the native trust root.
-[Alpha](../../alpha/README.md) · [Beta audit](../../beta/AUDIT.md) · [Gamma compiler](../../routes/native.md)
+[Alpha](../../../bootstrap/alpha/README.md) · [Beta audit](../../../bootstrap/beta/AUDIT.md) · [Gamma compiler](../../../wiki/development/bootstrap/native.md)
 
 The driver is freestanding C with an assembly entry for Linux system calls.
 For a source-to-binary comparison, run this command from the repository root
@@ -144,8 +144,8 @@ during compiler construction.
 ```sh
 gcc -std=c11 -Os -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables \
     -fno-pie -no-pie -nostdlib -static -Wl,--build-id=none,-s -Wall -Wextra -Werror \
-    bootstrap/hosts/linux_x86_64/entry.s bootstrap/hosts/linux_x86_64/construct.c -o /tmp/omega-bootstrap
-cmp /tmp/omega-bootstrap bootstrap/hosts/linux_x86_64/bootstrap
+    tests/bootstrap/linux_x86_64/entry.s tests/bootstrap/linux_x86_64/construct.c -o /tmp/omega-bootstrap
+cmp /tmp/omega-bootstrap tests/bootstrap/linux_x86_64/bootstrap
 ```
 
 For a function-labeled disassembly, omit `,-s` from the linker option and run

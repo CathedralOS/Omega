@@ -4,22 +4,22 @@ This peer constructs standalone Linux x86-64 compiler executables from Gamma
 source. Generated successors execute their own native instructions and Linux
 system calls: they carry no Alpha interpreter, seed container, bytecode dispatch
 loop, or host compiler. The first customer is the actual Gamma compiler from
-[the shared Gamma compiler](../gamma/compiler/), compiled into a native executable
+[the shared Gamma compiler](../../../bootstrap/gamma/compiler/), compiled into a native executable
 that emits the ordinary Alpha compiler tape.
 
-`../gamma/compiler/linux_x86_64/native.gamma` supplies the assembler for the shared Gamma lowering. The
+`../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma` supplies the assembler for the shared Gamma lowering. The
 compiler source concatenates these three files in order.
 
-1. `../gamma/compiler/compiler.gamma` owns declaration validation, scoped expression
+1. `../../../bootstrap/gamma/compiler/compiler.gamma` owns declaration validation, scoped expression
    lowering, tagged values, call frames, runtime checks, and label resolution.
-2. `../gamma/compiler/frontend.gamma` owns the Gamma source grammar and parsing.
-3. `../gamma/compiler/linux_x86_64/native.gamma` emits ELF64 headers, startup, and native instruction sequences.
+2. `../../../bootstrap/gamma/compiler/frontend.gamma` owns the Gamma source grammar and parsing.
+3. `../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma` emits ELF64 headers, startup, and native instruction sequences.
 
 No source text is rewritten or recognized as a special customer. The same
 frontend and lowering serve the Alpha and native realizations. Each named
 operation appends its native fields, and labels identify positions in the code.
 The compiler validates all functions and branches before buffered publication.
-The public [Gamma semantics](../gamma/LANGUAGE.md) and existing
+The public [Gamma semantics](../../../bootstrap/gamma/LANGUAGE.md) and existing
 compiler's explicit accepted subset govern both realizations.
 
 ## Construction and acceptance
@@ -27,10 +27,10 @@ compiler's explicit accepted subset govern both realizations.
 On Linux x86-64, build the native Gamma compiler in a new output directory:
 
 ```sh
-bootstrap/hosts/linux_x86_64/bootstrap . /tmp/omega-gamma-native
+tests/bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma-native
 ```
 
-The checked-in driver takes the five source inputs described in the [Linux construction guide](../hosts/linux_x86_64/README.md).
+The checked-in driver takes the five source inputs described in the [Linux construction guide](../../../tests/bootstrap/linux_x86_64/README.md).
 
 ## Host checks
 
@@ -103,7 +103,7 @@ instruction. Positive and negative displacements select later and earlier
 addresses. The distance between any two positions in a 128 MiB image fits
 within the signed 32-bit range. Calls and unconditional jumps use the same
 calculation.
-[Native assembler](../gamma/compiler/linux_x86_64/native.gamma)
+[Native assembler](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma)
 
 ## Delivery continuation
 
@@ -168,7 +168,7 @@ malformed-envelope controls run unchanged. Both peers share these actual
 customers; the compiled VM peer retains Alpha stamping by default.
 
 This is a construction steppingstone: Epsilon remains the existing evaluator,
-including its explicitly documented [implementation profile](../epsilon/interpreter/README.md).
+including its explicitly documented [implementation profile](../../../bootstrap/epsilon/interpreter/README.md).
 The bootstrap compiler's Epsilon source still executes through that evaluator.
 These results do not establish a standalone compiled bootstrap compiler, the
 full normative Epsilon language, or an Omega compiler self-rebuild.
@@ -249,7 +249,7 @@ The default invocation repeats cold construction; `--reuse-constructed` retains
 the earlier explicitly checked reuse meaning.
 
 The compiler first applies the complete existing Epsilon body-checking boundary,
-including its [legacy arm-return admission profile](../epsilon/interpreter/README.md).
+including its [legacy arm-return admission profile](../../../bootstrap/epsilon/interpreter/README.md).
 It then lowers
 every machine and state body, including unreachable bodies. The current pure
 capability is scalar and payload-free enum parameters, literals, checked scalar
@@ -278,7 +278,7 @@ eager and short-circuit control.
 Extracting the shared binary operator and scalar outcome declarations preserved
 the 617,354-byte Epsilon source and the canonical Gamma and native evaluator
 artifacts measured for that experiment.
-The [test source packer](../../tests/bootstrap/independent/epsilon/composition.py)
+The [test source packer](../../../tests/bootstrap/independent/epsilon/composition.py)
 takes whole files from the verified Epsilon manifest in declaration order.
 The Epsilon-to-Delta compiler uses the source view, representations, lexer,
 parser and checker. Its literal emitter also uses the byte decoder in
@@ -545,7 +545,7 @@ stopped at byte 85,007. A control inserts one known unsupported constructor
 after the frozen lexer's last machine at byte 108,029. The new compiler reaches
 that constructor at byte 108,141. The lexer itself is unchanged. The complete
 numeric scanner also compiles and runs as a separate executable. [Scanner
-fixture](../../tests/bootstrap/independent/epsilon/lexer_digits_main.epsilon)
+fixture](../../../tests/bootstrap/independent/epsilon/lexer_digits_main.epsilon)
 
 ### Public Omega lexer observations
 
@@ -565,7 +565,7 @@ builds both its Linux x86-64 executable and its Alpha tape. Both and the
 source-built evaluator returned the expected 175 bytes across 17 positive
 and negative cases. Passing the diagnostic enum to the token classifier
 also makes both Epsilon frontends reject the same call offset before code
-publication. [Cases and exact output layout](../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
+publication. [Cases and exact output layout](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
 
 The measured run reused the source-built native Gamma and Delta executables.
 Recompiling the current Delta source and the bound evaluator request reproduced

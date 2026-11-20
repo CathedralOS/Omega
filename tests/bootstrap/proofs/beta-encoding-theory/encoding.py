@@ -74,7 +74,7 @@ def _emit_function(decl):
                     result=result)
 
 
-# Existing vocabulary identities (bootstrap/proofs/beta_encoding/README.md).
+# Existing vocabulary identities (tests/bootstrap/proofs/beta_encoding/README.md).
 BYTE, BOOL, NIBBLE, HEXRESULT, WORD, BYTELIST, WORDRESULT, ORDERING = range(1, 9)
 FALSE_, TRUE_ = 257, 258
 NO_HEX, HEX_ = 275, 276

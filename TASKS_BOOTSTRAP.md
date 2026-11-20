@@ -170,9 +170,9 @@ hold only once the checks below pass. Never schedule it as a prerequisite for a
 runnable bootstrap chain.
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
-  with the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md) and
-  [Beta definitions](bootstrap/proofs/beta_encoding/README.md). Follow the
-  [full acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
+  with the ordinary-Gamma [checker](tests/bootstrap/proofs/checker/CHECKING.md) and
+  [Beta definitions](tests/bootstrap/proofs/beta_encoding/README.md). Follow the
+  [full acceptance](tests/bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
   batch: the subject is the whole historical Gamma evaluator's raw Beta source
   and stored Alpha tape at
   `d19361fe4deae73e1b488a940a872fec1ed885cb`, with independently reconstructed proposition
@@ -187,8 +187,8 @@ runnable bootstrap chain.
   bound; `implementation/comparison/session.gamma` uses the selected 2^26
   shared work bound. Exercise these limits; they are not new blockers.
   Reuse the joint evaluator and storage limits in
-  [CHECKING.md](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
-  and [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md); do not revive the
+  [CHECKING.md](tests/bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
+  and [PROFILE.md](tests/bootstrap/proofs/beta_encoding/PROFILE.md); do not revive the
   retired small request limit or add a second work allowance.
 
   Remaining:
@@ -206,12 +206,12 @@ runnable bootstrap chain.
     the existing census, not a new inventory task.
 
   The chosen route to admission is more native backing, not a new composition
-  rule. The [encoder candidate continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
+  rule. The [encoder candidate continuation condition](tests/bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
   still governs that separate experiment. Use the provisioned macOS arm64
   seed's 128 GiB extent; other supported seeds are unaffected.
 
   Acceptance: full evidence checks under the exact
-  [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with measured
+  [result/resource profile](tests/bootstrap/proofs/checker/FORMAT.md), with measured
   bytes, storage, depth and time. Malformed, cyclic, missing-premise,
   wrong-subject, wrong-rule and exhausted requests must not be accepted. State
   the limit: encoding equality does not prove evaluator semantics.

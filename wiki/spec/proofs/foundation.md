@@ -249,7 +249,7 @@ measurement; no performance guarantee follows from the sort choice.
 
 Bootstrap construction evidence and application proof checking have distinct
 subjects. The bootstrap
-[encoding acceptance contract](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+[encoding acceptance contract](/tests/bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 fixes a concrete source-to-tape equation, not universal compiler correctness or
 application safety. Application proof checking neither enables nor waives
 required bootstrap evidence.

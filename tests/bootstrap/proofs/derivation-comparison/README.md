@@ -5,12 +5,12 @@ macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the select
 Alpha seed are required; macOS also requires `codesign`. Windows runtime
 validation is not implied by this portable entrypoint.
 
-The contract is [COMPARISON.md](../../../../bootstrap/proofs/checker/COMPARISON.md).
+The contract is [COMPARISON.md](../checker/COMPARISON.md).
 The gate materializes the complete canonical checker implementation once. Each
 source is the exact concatenation of `diagnostic.gamma`, one whole named file
 in `entries/`, and that implementation. `source.tsv` pins every composition in
 the explicit `fixtures.py` entry order. The gate-local prefix files are bound
-in `tools/bootstrap/proofs/sources_env.sh` and checked by
+in `tests/bootstrap/proofs/sources_env.sh` and checked by
 `require_derivation_comparison_prefixes_identity` before packing:
 
 | file | bytes | SHA-256 |
