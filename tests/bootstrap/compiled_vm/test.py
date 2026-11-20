@@ -2,7 +2,7 @@
 """Differential compiled-Gamma checks and the real Delta compiler customer.
 
 Uses the existing Alpha stamping and source-closure owners. No host evaluator
-stands in for Gamma or Delta execution. Each native process has a timeout.
+stands in for Gamma or Delta execution.
 """
 import argparse
 import subprocess
@@ -17,12 +17,12 @@ import gamma
 sys.setrecursionlimit(4096)
 
 
-def host_compiler_controls(work):
+def host_compiler_controls(work, seconds=None):
     (work / "invalid.gamma").write_bytes(compiled.INVALID_GAMMA[0])
     (work / "existing.tape").write_bytes(b"previous artifact")
     refused = subprocess.run([sys.executable, str(compiled.ROOT / "tests/bootstrap/compiled_vm/gamma.py"),
                               str(work / "invalid.gamma"), str(work / "existing.tape")],
-                             capture_output=True, timeout=60)
+                             capture_output=True, timeout=seconds)
     assert refused.returncode == 1 and not refused.stdout
     assert (work / "existing.tape").read_bytes() == b"previous artifact"
 
@@ -41,7 +41,7 @@ def host_compiler_controls(work):
         previous = getattr(gamma, field)
         try:
             setattr(gamma, field, limit)
-            actual = compiled.execute(compiled.compile_program(work, source, compiler=gamma.Compiler), payload)
+            actual = compiled.execute(compiled.compile_program(work, source, compiler=gamma.Compiler), payload, seconds)
         finally:
             setattr(gamma, field, previous)
         assert actual == expected, (field, actual, expected)
@@ -59,38 +59,38 @@ def main():
     parser.add_argument("--omega-control", action="store_true", help="run actual lexer predicates and typed runtime control checks")
     parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit append/read and checked storage controls")
     parser.add_argument("--omega-utf8", action="store_true", help="run the real UTF-8 decoder and checked arithmetic boundaries")
+    compiled.add_invocation_budget(parser)
     parser.add_argument("--omega-timeout", type=int,
-                        help="Omega observation seconds (default: 7200 for runtime/storage controls, otherwise 1800)")
+                        help="optional seconds per Omega observation (overrides --seconds)")
     args = parser.parse_args()
-    if args.omega_timeout is None:
-        args.omega_timeout = 7200 if args.omega_control or args.omega_storage or args.omega_utf8 else 1800
-    if args.omega_timeout <= 0:
+    if args.omega_timeout is not None and args.omega_timeout <= 0:
         parser.error("--omega-timeout must be positive")
+    omega_seconds = args.seconds if args.omega_timeout is None else args.omega_timeout
     work = compiled.ROOT / "build/compiled-vm"
     work.mkdir(parents=True, exist_ok=True)
     evaluator = work / "reference"
     compiled.shell('. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"; '
           '. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"; '
-          'materialize_gamma_evaluator "$1"', evaluator)
+          'materialize_gamma_evaluator "$1"', evaluator, seconds=args.seconds)
     if not args.customer_only:
-        compiled.controls(work, evaluator, gamma.Compiler, invalid=gamma.Invalid)
-        host_compiler_controls(work)
+        compiled.controls(work, evaluator, gamma.Compiler, invalid=gamma.Invalid, seconds=args.seconds)
+        host_compiler_controls(work, args.seconds)
     if not args.controls_only:
-        compiled.customer(work, evaluator, gamma.Compiler)
+        compiled.customer(work, evaluator, gamma.Compiler, seconds=args.seconds)
         if args.epsilon or args.omega or args.omega_controls or args.omega_values or args.omega_control or args.omega_storage or args.omega_utf8:
-            compiled.epsilon_customer(work, gamma.Compiler)
+            compiled.epsilon_customer(work, gamma.Compiler, seconds=args.seconds)
         if args.omega:
-            compiled.omega_customer(work, args.omega_timeout)
+            compiled.omega_customer(work, omega_seconds)
         if args.omega_controls:
-            compiled.omega_customer(work, args.omega_timeout, controls=True)
+            compiled.omega_customer(work, omega_seconds, controls=True)
         if args.omega_values:
-            compiled.omega_values_customer(work, args.omega_timeout)
+            compiled.omega_values_customer(work, omega_seconds)
         if args.omega_control:
-            compiled.omega_control_customer(work, args.omega_timeout)
+            compiled.omega_control_customer(work, omega_seconds)
         if args.omega_storage:
-            compiled.omega_storage_customer(work, args.omega_timeout)
+            compiled.omega_storage_customer(work, omega_seconds)
         if args.omega_utf8:
-            compiled.omega_utf8_customer(work, args.omega_timeout)
+            compiled.omega_utf8_customer(work, omega_seconds)
 
 
 if __name__ == "__main__":
