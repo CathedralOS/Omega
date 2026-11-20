@@ -212,6 +212,37 @@ The 465-byte result had SHA-256
 `7d7a561d217ec1ce599a203fb8290b907c2582883c98dc71541c5bd0633f31aa`.
 [Lexer source and cases](../../../tests/bootstrap/independent/epsilon/lexer_scan_test.py)
 
+### Compile the product wire decoder through Epsilon on Alpha
+
+The Alpha-hosted Epsilon evaluator interpreted the complete 873,205-byte
+Omega construction program and compiled a two-package Omega application.
+Its 323-byte `wire/codec.omg` decoded zero, mixed bytes and all bits set.
+The caller's 1,607-byte Alpha tape ran on the audited seed and exited 42
+with empty output. Removing the dependency edge preserved both source units
+and returned Exit 1 at byte 11, the caller’s import. [Product codec](../../../source/foundation/wire/codec.omg) · [Caller](../../../tests/bootstrap/conformance/omega/wire_word.omg)
+
+The constructor and Epsilon source list came from `d3a79047ce09` (#4542).
+The retained constructor SHA-256 was
+`8bdbb90999c6b62a04754a3d452966b4903af74179fbc113fdc910a628d27401`.
+Repacking that revision reproduced both EEREQs byte for byte, including
+the evaluator closure digest
+`7b214d058c086ffcf5e5481e5dd08e4e6f47275ae07a4cb2cb6b4d26764b1bae`.
+At `d00a570048e` (#4589), emitting the 2,267,080-byte evaluator tape
+from its Gamma source took 8.70 CPU seconds and 192,528 KiB peak RSS.
+The following measurements start at evaluator invocation.
+
+| Omega input | EEREQ bytes | EEREQ SHA-256 | CPU seconds | Peak KiB |
+| --- | ---: | --- | ---: | ---: |
+| Linked, 828 bytes | 874,085 | `83cdc63dfcecb7470adf783c2d4ddf6113ef0e17264d1b3f283626177de16fd8` | 866.64 | 1,576,788 |
+| Missing edge, 808 bytes | 874,065 | `c6bf88ab9e069e7275e5da6f21b075805ccf9183dfeb9a7c9f4b75ad13e6507a` | 705.31 | 1,195,000 |
+
+The linked tape had SHA-256
+`f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+The missing-edge observation was `00010000000b000000`. A separate replay
+through the frozen Linux-native constructor, SHA-256
+`ccc6eb867203f3250e9025e8f616d07e8b2253582b34499201ffe9e4ce4cb21b`,
+produced the same two observations byte for byte. [Wire test and earlier Linux results](../../../tests/bootstrap/independent/WHOLE_REQUEST.md#product-wire-package-through-the-construction-entry)
+
 ### Compare a production request operation across evaluator hosts
 
 The [Request.clear test](../../../tests/bootstrap/independent/request_clear.py)
