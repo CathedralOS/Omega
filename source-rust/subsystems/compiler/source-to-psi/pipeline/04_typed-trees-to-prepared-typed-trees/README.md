@@ -120,9 +120,9 @@ rebuilt: an assignment's receiving type and a local home for an assigned
 parameter. Structural elaboration types an assignment and homes a binding from
 its own slots.
 
-Requested work beside the program (deferred layout applications, opaque
-representation selections, wire compatibility demands) has no pass and is
-refused by name. [Product operand preparation](product_operands/mod.rs) builds the
+The caller supplies typed trees and any Build-selected wire compatibility demands.
+Preparation returns the frozen trees after the last pass. An outstanding wire
+compatibility demand refuses preparation until a pass can serve it. [Product operand preparation](product_operands/mod.rs) builds the
 application of a provider choice whose slot or provider takes static
 arguments ([applications](product_operands/applications.rs)): it closes the
 request's operand graph with the static arguments of the generic helper that

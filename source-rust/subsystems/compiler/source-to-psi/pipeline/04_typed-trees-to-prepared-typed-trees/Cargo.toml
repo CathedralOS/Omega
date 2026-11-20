@@ -24,9 +24,11 @@ source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
-record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
+
+[dev-dependencies]
+record-storage = { path = "../../../../../foundation/record-storage" }

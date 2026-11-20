@@ -143,11 +143,8 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/inferred_branch_inputs/main.omg"
     ));
-    let (typed, _) = crate::preparation::prepare_typed_trees(
-        super::boundary_calls::typed(source),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let typed =
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(source), &[]).unwrap();
     let entry = super::build_purpose::symbol(&typed, "main");
     let prepared = crate::lowering::prepare_compilation(
         &typed,

@@ -2121,11 +2121,7 @@ machine entry() -> u64 crashes none {
                     .map(|signature| signature.symbol),
             );
         }
-        let (frozen, _) = crate::preparation::prepare_typed_trees(
-            typed,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .unwrap();
+        let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
         crate::judge_fixture(
             frozen,
             crate::lowering::Compilation {
@@ -2274,11 +2270,7 @@ machine entry() -> u32 crashes none {{
                 .lexical_owner,
             author
         );
-        let (program, _) = crate::preparation::prepare_typed_trees(
-            program,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .unwrap();
+        let program = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
         (program, application)
     }
 
@@ -2359,11 +2351,7 @@ machine entry() -> u32 crashes none {{
                 .expression_table
                 .static_machine_application_mut(application)
                 .lexical_owner = owner;
-            let (prepared, _) = crate::preparation::prepare_typed_trees(
-                program,
-                &crate::preparation::PreparationRequest::settled(),
-            )
-            .unwrap();
+            let prepared = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
             let refusal = accept_formation_program(prepared).err().unwrap();
             assert!(
                 format!("{refusal:?}")

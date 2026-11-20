@@ -31,9 +31,14 @@ use diagnostics::Diagnostic;
 /// Prepare the typed program for stage 05 in the order declared in `PASSES`.
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
-    request: &PreparationRequest<'_>,
-) -> Result<(PreparedTypedTrees, PreparationAdmission), Vec<Diagnostic>> {
-    request.require_served()?;
+    wire_demands: &[WireCompatibilityDemand],
+) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
+    if !wire_demands.is_empty() {
+        return Err(vec![refusal(
+            "requested work",
+            "wire compatibility demands",
+        )]);
+    }
     for pass in PASSES {
         (pass.run)(&mut program).map_err(|refused| {
             refused
@@ -45,7 +50,7 @@ pub fn prepare_typed_trees(
                 .collect::<Vec<_>>()
         })?;
     }
-    Ok((PreparedTypedTrees(std::sync::Arc::new(program.into())), request.admission()))
+    Ok(PreparedTypedTrees(std::sync::Arc::new(program.into())))
 }
 
 /// One step of typed preparation and the name its refusals carry.
@@ -74,90 +79,6 @@ const PASSES: &[Pass] = &[
 
 pub use source_declarations::source_selections::WireCompatibilityDemand;
 
-/// Work the caller asks of this stage beside the program itself. It is a
-/// request, not evidence that preparation or checking occurred.
-#[derive(Clone, Copy)]
-pub struct PreparationRequest<'request> {
-    admits_pending_inputs: bool,
-    deferred_layout_applications: &'request [crate::source_state::types::TypeReferenceHandle],
-    wire_compatibility_demands: &'request [WireCompatibilityDemand],
-}
-
-impl<'request> PreparationRequest<'request> {
-    pub const fn settled() -> Self {
-        Self {
-            admits_pending_inputs: false,
-            deferred_layout_applications: &[],
-            wire_compatibility_demands: &[],
-        }
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn preliminary() -> Self {
-        Self {
-            admits_pending_inputs: true,
-            ..Self::settled()
-        }
-    }
-
-    pub const fn with_wire_compatibility_demands(
-        mut self,
-        demands: &'request [WireCompatibilityDemand],
-    ) -> Self {
-        self.wire_compatibility_demands = demands;
-        self
-    }
-
-    pub fn admission(&self) -> PreparationAdmission {
-        PreparationAdmission {
-            admits_pending_inputs: self.admits_pending_inputs,
-            deferred_layout_applications: self.deferred_layout_applications.to_vec(),
-            wire_compatibility_demands: self.wire_compatibility_demands.to_vec(),
-        }
-    }
-
-    /// Deferred layouts and wire compatibility still need dedicated passes.
-    /// Dropping either request would publish an incompletely prepared product.
-    fn require_served(&self) -> Result<(), Vec<Diagnostic>> {
-        let unserved = [
-            (
-                !self.deferred_layout_applications.is_empty(),
-                "deferred layout applications",
-            ),
-            (
-                !self.wire_compatibility_demands.is_empty(),
-                "wire compatibility demands",
-            ),
-        ]
-        .into_iter()
-        .filter(|(requested, _)| *requested)
-        .map(|(_, request)| refusal("requested work", request))
-        .collect::<Vec<_>>();
-        if unserved.is_empty() {
-            Ok(())
-        } else {
-            Err(unserved)
-        }
-    }
-}
-
-/// An owned copy of the requested policy only; it carries no checked receipt.
-#[derive(Debug, Clone, PartialEq, record_storage::Record)]
-pub struct PreparationAdmission {
-    admits_pending_inputs: bool,
-    deferred_layout_applications: Vec<crate::source_state::types::TypeReferenceHandle>,
-    wire_compatibility_demands: Vec<WireCompatibilityDemand>,
-}
-
-impl PreparationAdmission {
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn deferred_layout_applications(
-        &self,
-    ) -> &[crate::source_state::types::TypeReferenceHandle] {
-        &self.deferred_layout_applications
-    }
-}
-
 /// The one wording of a refusal from this stage, so a reader can tell which
 /// pass declined which request.
 fn refusal(pass: &str, request: &str) -> Diagnostic {
@@ -172,8 +93,8 @@ fn refusal(pass: &str, request: &str) -> Diagnostic {
 ///
 /// ```
 /// use typed_trees::source_state::TypedTrees;
-/// use typed_trees_to_prepared_typed_trees::{PreparationRequest, prepare_typed_trees};
-/// let (prepared, _) = prepare_typed_trees(TypedTrees::default(), &PreparationRequest::settled()).unwrap();
+/// use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
+/// let prepared = prepare_typed_trees(TypedTrees::default(), &[]).unwrap();
 /// assert!(std::sync::Arc::ptr_eq(&prepared, &prepared.clone()));
 /// ```
 ///
@@ -294,7 +215,7 @@ mod tests {
             retained.push((carrier, identity));
         }
         assert_ne!(retained[0].1, retained[1].1);
-        let (prepared, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
+        let prepared = prepare_typed_trees(program, &[]).unwrap();
         let prepared = &*prepared;
         for (carrier, identity) in retained {
             let theory = prepared
@@ -321,15 +242,11 @@ mod tests {
     }
 
     #[test]
-    fn the_program_keeps_its_identity_and_the_request_its_policy() {
+    fn preparation_preserves_the_program_identity() {
         let program = TypedTrees::default();
         let identity = program.identity;
-        let request = PreparationRequest::preliminary();
-        let expected = request.admission();
-        let (frozen, metadata) = prepare_typed_trees(program, &request).unwrap();
+        let frozen = prepare_typed_trees(program, &[]).unwrap();
         assert_eq!(frozen.identity.get(), identity.get());
-        assert!(metadata.admits_pending_inputs);
-        assert_eq!(metadata, expected);
     }
 
     #[test]
@@ -341,23 +258,27 @@ mod tests {
             .mathematical_definitions
             .insert(crate::source_state::mathematical::MathematicalDefinition::default());
         let before = program.clone();
-        let (frozen, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
+        let frozen = prepare_typed_trees(program, &[]).unwrap();
         assert_eq!(frozen.into_inner(), before);
     }
 
     #[test]
-    fn requested_work_without_a_pass_is_refused_by_name() {
-        let deferred = [crate::source_state::types::TypeReferenceHandle::invalid()];
-        let request = PreparationRequest {
-            deferred_layout_applications: &deferred,
-            ..PreparationRequest::settled()
+    fn an_unserved_wire_schema_edge_is_refused_before_freezing() {
+        let demand = WireCompatibilityDemand {
+            edge: "request".into(),
+            lineage: "protocol".into(),
+            local_schema: "v2".into(),
+            peer_schema: "v1".into(),
+            require_readable: true,
+            require_writable: false,
+            require_unknown_preservation: false,
+            require_canonical: false,
+            require_complete_migration: false,
         };
-        let Err(refused) = prepare_typed_trees(TypedTrees::default(), &request) else {
-            panic!("requested layout work must not be dropped");
-        };
+        let refused = prepare_typed_trees(TypedTrees::default(), &[demand]).unwrap_err();
         assert_eq!(
             refused[0].message,
-            "no product route yet: typed preparation: requested work: deferred layout applications"
+            "no product route yet: typed preparation: requested work: wire compatibility demands"
         );
     }
 }

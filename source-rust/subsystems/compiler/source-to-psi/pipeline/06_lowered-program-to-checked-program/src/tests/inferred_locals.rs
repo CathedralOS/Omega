@@ -1,19 +1,14 @@
 //! An inferred binding keeps the initializer's actual type and ownership.
 use super::*;
 
-const SOURCE: &str = include_str!(
-    "../../tests/fixtures/ownership/run/inferred_generic_record/main.omg"
-);
-const REPEATED: &str = include_str!(
-    "../../tests/fixtures/ownership/fail/inferred_generic_record_reuse/main.omg"
-);
+const SOURCE: &str =
+    include_str!("../../tests/fixtures/ownership/run/inferred_generic_record/main.omg");
+const REPEATED: &str =
+    include_str!("../../tests/fixtures/ownership/fail/inferred_generic_record_reuse/main.omg");
 
 fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let (typed, _) = crate::preparation::prepare_typed_trees(
-        super::boundary_calls::typed(text),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .expect("the actual initializer must reach checked preparation");
+    let typed = crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
+        .expect("the actual initializer must reach checked preparation");
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

@@ -572,11 +572,7 @@ boundary machine + Operations::write(left: @mut Host, right: @mut Host) reaches 
 machine entry() {}
 "#,
     );
-    let (program, _) = crate::preparation::prepare_typed_trees(
-        program,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let program = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
     let requirement = program
         .machines()
         .iter()
@@ -704,11 +700,7 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    let (frozen, _) = crate::preparation::prepare_typed_trees(
-        typed,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
     frozen
 }
 
@@ -895,12 +887,7 @@ machine entry() -> u32 crashes none {
 }
 "#,
     );
-    let prepared = crate::preparation::prepare_typed_trees(
-        source,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap()
-    .0;
+    let prepared = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
     let elaboration = read_applied_boundary(&prepared).unwrap();
     let module = &elaboration.module;
     let [first, second] = module.interfaces.boundary_machines.as_slice() else {
@@ -981,13 +968,9 @@ boundary trait Pair {
 machine entry() -> u32 crashes none { 3 }
 "#,
     );
-    let mut program = crate::preparation::prepare_typed_trees(
-        source,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap()
-    .0
-    .into_inner();
+    let mut program = crate::preparation::prepare_typed_trees(source, &[])
+        .unwrap()
+        .into_inner();
     let pair = program
         .traits()
         .iter()
@@ -1115,12 +1098,7 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    crate::preparation::prepare_typed_trees(
-        typed,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap()
-    .0
+    crate::preparation::prepare_typed_trees(typed, &[]).unwrap()
 }
 
 /// What a native binding of `Sink::take` claims: the generic requirement,
@@ -1261,12 +1239,7 @@ machine entry() -> u32 crashes none {
 }
 "#,
     );
-    let prepared = crate::preparation::prepare_typed_trees(
-        program,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap()
-    .0;
+    let prepared = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
     let elaboration = read_applied_boundary(&prepared).unwrap();
     let module = &elaboration.module;
     assert_eq!(module.interfaces.boundary_machines.len(), 2);
@@ -2442,11 +2415,7 @@ machine entry() -> u32 crashes none {{ relay::<Inline>() }}
     );
     // Use the actual specialization pass, retaining the exact source
     // parameter dispatch and selected realization it produces.
-    let (prepared, _) = crate::preparation::prepare_typed_trees(
-        read(&text),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let prepared = crate::preparation::prepare_typed_trees(read(&text), &[]).unwrap();
     prepared
 }
 
@@ -3436,11 +3405,8 @@ fn generic_named_map_source_refuses_missing_foreign_or_rebound_applications() {
 
 #[test]
 fn generic_named_map_invokes_its_closed_own_telescope() {
-    let (prepared, _) = crate::preparation::prepare_typed_trees(
-        typed(generic_named_map_source()),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap();
+    let prepared =
+        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[]).unwrap();
     let verdicts = compilation_verdicts_of(&prepared);
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
 }
@@ -3741,12 +3707,7 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
 }
 
 fn prepare_named_map(text: &str) -> crate::preparation::PreparedTypedTrees {
-    crate::preparation::prepare_typed_trees(
-        typed(text),
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .unwrap()
-    .0
+    crate::preparation::prepare_typed_trees(typed(text), &[]).unwrap()
 }
 
 fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {

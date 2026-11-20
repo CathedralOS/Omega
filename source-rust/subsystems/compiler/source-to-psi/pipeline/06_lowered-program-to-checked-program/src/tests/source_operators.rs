@@ -230,11 +230,8 @@ machine policy_kind<Kind>() -> bool {{
 machine entry() -> bool {{ policy_kind::<{kind}>() }}
 "#
         ));
-        let (typed, _) = crate::preparation::prepare_typed_trees(
-            typed,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .expect("the actual closed application retains its complete nominal tuple");
+        let typed = crate::preparation::prepare_typed_trees(typed, &[])
+            .expect("the actual closed application retains its complete nominal tuple");
         assert_operator_value(operator_program(&typed), expected);
     }
 }
@@ -306,11 +303,8 @@ machine entry() -> bool {
 }
 "#,
     );
-    let (typed, _) = crate::preparation::prepare_typed_trees(
-        typed,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .expect("the nested writer retains its actual enclosing application");
+    let typed = crate::preparation::prepare_typed_trees(typed, &[])
+        .expect("the nested writer retains its actual enclosing application");
     assert_operator_value(operator_program(&typed), true);
 }
 
@@ -325,11 +319,8 @@ fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes
         let typed = super::boundary_calls::typed(&format!(
             "{declarations}\nmachine entry() -> bool {{ {body} }}"
         ));
-        let (typed, _) = crate::preparation::prepare_typed_trees(
-            typed,
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .expect("the ordinary preparation path retains the indexed expression");
+        let typed = crate::preparation::prepare_typed_trees(typed, &[])
+            .expect("the ordinary preparation path retains the indexed expression");
         let refusal = operator_program(&typed)
             .expect_err("an unselected value index cannot silently acquire builtin semantics");
         let (reason, completion) = refusal
@@ -543,12 +534,8 @@ requires value <= 10u32 && (Kind == u32 || Kind == u64)
 machine entry() -> bool { bounded::<u32>(7u32) == 7u32 }
 "#;
     let prepared = |text: &str| {
-        crate::preparation::prepare_typed_trees(
-            super::boundary_calls::typed(text),
-            &crate::preparation::PreparationRequest::settled(),
-        )
-        .expect("ordinary specialization must retain the mixed contract")
-        .0
+        crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
+            .expect("ordinary specialization must retain the mixed contract")
     };
     assert_operator_value(operator_program(&prepared(source)), true);
     let rejected = operator_program(&prepared(
@@ -736,11 +723,8 @@ fn copied_static_pattern() -> (
         panic!("one authored choose template");
     };
     let template = *template;
-    let (typed, _) = crate::preparation::prepare_typed_trees(
-        typed,
-        &crate::preparation::PreparationRequest::settled(),
-    )
-    .expect("ordinary preparation copies the actual finite-family body");
+    let typed = crate::preparation::prepare_typed_trees(typed, &[])
+        .expect("ordinary preparation copies the actual finite-family body");
     let applications = typed
         .machine_specializations
         .iter()
