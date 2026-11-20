@@ -369,5 +369,22 @@ pub(crate) fn index_type_definitions<'a>(
             prepare(id, units, types)?;
         }
     }
+    // Different written widths can normalize to the same carrier. Member names are
+    // unique within the declaring module even when no program references the domain.
+    let mut members = std::collections::HashSet::new();
+    for definition in &definitions {
+        let unit = &units[definition.file];
+        if unit.file.nodes[definition.node].kind != Domain || !matches!(unit.symbol(definition.expression), Some(Symbol::Builtin(_))) {
+            continue;
+        }
+        let id = unit.declaration(definition.node)?;
+        let Some(carrier @ crate::ValueType::Integer { signed, width: Some(width) }) = types.domains.known_carrier(id) else {
+            continue;
+        };
+        let Some((_, member)) = id.path.rsplit_once("::") else { continue };
+        if !members.insert((unit.file.package, unit.file.namespace.as_str(), &id.enclosing_machine, member, *signed, *width)) {
+            return Err(TypeError::at(unit.file, definition.expression, format!("duplicate domain {carrier}::{member}")));
+        }
+    }
     Ok(())
 }

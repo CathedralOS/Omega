@@ -203,7 +203,11 @@ pub fn resolve_stage_with_exports<'text>(
                 .and_then(|rest| rest.strip_prefix('\\'))
                 .ok_or_else(|| error(NameErrorKind::CompiledExportOutsideModule, "compiled export is outside its defining module"))?
         };
-        if export.domain_carrier.is_some() != (id.kind == NodeKind::Domain && local_path.contains("::")) {
+        if export.domain_carrier.is_some() != (id.kind == NodeKind::Domain && local_path.contains("::"))
+            || (!id.domain_carrier_arguments.is_empty()
+                && !matches!(&export.domain_carrier, Some(DomainCarrier::Builtin(name))
+                    if builtin(name) && local_path.rsplit_once("::").is_some_and(|(carrier, _)| carrier == name)))
+        {
             return Err(error(
                 NameErrorKind::CompiledDomainAttachmentMismatch,
                 "compiled domain attachment does not match its declaration",
@@ -360,12 +364,7 @@ pub fn resolve_stage_with_exports<'text>(
             .carrier_binders(carrier, head)
             .find(|local| local.owner == node);
         let key = if builtin(carrier) {
-            DomainCarrier::Builtin {
-                name: carrier.into(),
-                applied: file.nodes[head].children.iter().any(|&section| {
-                    file.application_prefix(section).is_some_and(|(prefix, _)| prefix == carrier)
-                }),
-            }
+            DomainCarrier::Builtin(carrier.into())
         } else if binder.is_some_and(|local| local.kind == NodeKind::TypeParam) {
             DomainCarrier::Generic
         } else {
@@ -378,7 +377,7 @@ pub fn resolve_stage_with_exports<'text>(
                 return Err(file.error(NameErrorKind::AmbiguousCarrier, file.span(head), format!("ambiguous carrier {carrier}")));
             }
             if let Some(owner) = first
-                && entries[owner].lexical_owner.is_some()
+                && (entries[owner].lexical_owner.is_some() || entries[owner].id.kind == NodeKind::Domain)
             {
                 nested_carriers.push((slot, owner));
             }
@@ -417,20 +416,39 @@ pub fn resolve_stage_with_exports<'text>(
     for (slot, entry) in catalog.entries[..source_count].iter().enumerate() {
         let (file_number, node) = entry.source.expect("source declaration");
         let file = &files[file_number];
-        if callable(entry.id.kind) {
-            match catalog.resolve_signature(file, &contexts[file_number], node) {
-                Ok((operands, signature)) => signatures.push((slot, operands, signature)),
-                Err(error) => {
-                    signature_error.get_or_insert(error);
-                }
+        let (operands, result) = if callable(entry.id.kind) {
+            let params = file.parameters(node).map(|(_, ty)| ty).collect::<Vec<_>>();
+            let result = file
+                .result_annotation(node)
+                .filter(|&ty| file.nodes[ty].kind == NodeKind::QualifiedType && file.child(node, NodeKind::OperatorToken).is_none());
+            (params, result)
+        } else if !entry.id.domain_carrier_arguments.is_empty() {
+            let head = file
+                .child(node, NodeKind::PathType)
+                .expect("attached domain head");
+            let sections = declarations::builtin_carrier_sections(file, head).collect();
+            (sections, None)
+        } else {
+            continue;
+        };
+        match catalog.resolve_signature(file, &contexts[file_number], node, &operands, result) {
+            Ok((operands, signature)) => signatures.push((slot, operands, signature)),
+            Err(error) if entry.id.kind == NodeKind::Domain => return Err(error),
+            Err(error) => {
+                signature_error.get_or_insert(error);
             }
         }
     }
     let entries = &mut catalog.entries;
     for (slot, operands, signature) in signatures {
-        let name = std::sync::Arc::make_mut(&mut entries[slot].id.name);
-        name.operands = operands;
-        name.resolved_signature = Some(signature);
+        let id = &mut entries[slot].id;
+        let name = std::sync::Arc::make_mut(&mut id.name);
+        if id.kind == NodeKind::Domain {
+            name.domain_carrier_arguments = signature.operands.into_boxed_slice();
+        } else {
+            name.operands = operands;
+            name.resolved_signature = Some(signature);
+        }
     }
     for i in 0..source_count {
         if let Some(owner) = entries[i].lexical_owner {
@@ -448,6 +466,21 @@ pub fn resolve_stage_with_exports<'text>(
         {
             let (file_number, node) = entry.source.expect("source declaration");
             let file = &files[file_number];
+            if !entry.id.domain_carrier_arguments.is_empty() {
+                let head = file
+                    .child(node, NodeKind::PathType)
+                    .expect("attached domain head");
+                let member = file.nodes[head]
+                    .words()
+                    .next_back()
+                    .expect("domain member")
+                    .text;
+                return Err(file.error(
+                    NameErrorKind::DuplicateDeclaration,
+                    file.span(head),
+                    format!("domain {member} is declared twice on this carrier"),
+                ));
+            }
             let name = file.child(node, NodeKind::Path).unwrap_or(node);
             return Err(file.error(
                 NameErrorKind::DuplicateDeclaration,
@@ -456,8 +489,8 @@ pub fn resolve_stage_with_exports<'text>(
             ));
         }
     }
-    // An attached domain can name data nested in a generic machine. Keep the
-    // carrier tied to that declaration when its enclosing identity is finalized.
+    // Attachments retain their owner's final identity after binding its enclosing
+    // machine and any arguments on its own domain carrier.
     for (domain, owner) in nested_carriers {
         match catalog
             .carriers

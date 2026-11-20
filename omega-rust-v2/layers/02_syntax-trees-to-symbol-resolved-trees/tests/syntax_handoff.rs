@@ -233,7 +233,7 @@ fn domain_heads_compositions_and_indices_bind_their_written_parts() {
         .map(|export| {
             let carrier = match &export.domain_carrier {
                 Some(DomainCarrier::Named(id)) => format!("named {}", id.path),
-                Some(DomainCarrier::Builtin { name, applied: false }) => format!("builtin {name}"),
+                Some(DomainCarrier::Builtin(name)) => format!("builtin {name}"),
                 Some(DomainCarrier::Generic) => "generic".to_owned(),
                 other => format!("{other:?}"),
             };

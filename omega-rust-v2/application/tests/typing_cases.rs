@@ -238,6 +238,22 @@ fn a_known_builtin_domain_carrier_refuses_arguments_during_typing() {
 }
 
 #[test]
+fn domain_declarations_collide_only_after_their_integer_carriers_match() {
+    let good = "domain u<8>::Ready; domain u<16>::Ready; machine f(x:u16 in u16::Ready){}";
+    let bad = "domain u<8>::Ready; domain u<4 + 4>::Ready; machine f(x:u16 in u16::Ready){}";
+    check(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("domains.omg", good)],
+        bad: &[("domains.omg", bad)],
+        file: "domains.omg",
+        occurrence: "u<4 + 4>::Ready",
+        reason: "duplicate domain u8::Ready",
+        rule: "Domains",
+    });
+}
+
+#[test]
 fn a_compact_domain_reference_uses_the_declared_integer_width() {
     let declarations = ("domains.omg", "domain u<8>::Ready;");
     check(Case {

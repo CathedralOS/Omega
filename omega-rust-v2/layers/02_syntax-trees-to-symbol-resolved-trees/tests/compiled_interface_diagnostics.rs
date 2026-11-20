@@ -218,9 +218,44 @@ fn a_compiled_export_path_must_lie_inside_its_listed_module() {
 }
 
 #[test]
+fn a_compiled_module_keeps_both_applied_widths_visible_to_its_importer() {
+    let interface = parsed(
+        &[("wire", "numbers/domains.omg", "public domain u<8>::Ready; public domain u<16>::Ready;")],
+        |sources| resolve_stage(sources, &[]).unwrap().compiled_interface(),
+    );
+    let importer = "use dep\\numbers; machine f(x:u8 in u8::Ready){}";
+    let edge = omega_resolver::Dependency {
+        requester: "app",
+        alias: "dep",
+        package: "wire",
+    };
+    parsed(&[("app", "main.omg", importer)], |sources| {
+        let result = resolve_stage_with_exports(sources, &[edge], &Default::default(), &interface).unwrap();
+        let usage = result
+            .uses()
+            .find(|u| u.span.slice(importer.as_bytes()) == Some(b"u8::Ready"))
+            .unwrap();
+        let omega_resolver::Symbol::DomainCandidates { candidates, .. } = &usage.target else {
+            panic!("{usage:?}")
+        };
+        assert_eq!(candidates.len(), 2);
+        assert!(interface.declarations.iter().all(|export| {
+            candidates
+                .iter()
+                .any(|c| c.carrier_deferred && c.declaration == export.id)
+        }));
+    });
+}
+
+#[test]
 fn a_compiled_domain_carrier_appears_exactly_on_attached_domains() {
     let reason = "compiled domain attachment does not match its declaration";
     let refusal_kind = NameErrorKind::CompiledDomainAttachmentMismatch;
+
+    let (mut interface, _) = library();
+    let ready = export(&mut interface, "proto\\Packet::Ready", NodeKind::Domain);
+    ready.id = renamed(&ready.id, |name| name.domain_carrier_arguments = vec!["< 8 >".into()].into());
+    assert_refusal(&reject(&[], &mut interface), refusal_kind, "wire", "proto\\Packet::Ready", reason);
 
     let (mut interface, _) = library();
     export(&mut interface, "proto\\Packet::Ready", NodeKind::Domain).domain_carrier = None;

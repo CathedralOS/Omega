@@ -39,6 +39,28 @@ fn run<'text>(
 mod support;
 
 #[test]
+fn equal_domain_width_spellings_keep_distinct_imported_constant_origins() {
+    let stage = run(
+        &[
+            ("app", "east/limits.omg", "public const Width: u64 = 8;"),
+            ("app", "west/limits.omg", "public const Width: u64 = 16;"),
+            ("app", "one.omg", "use east\\Width; public domain u<Width>::Ready;"),
+            ("app", "two.omg", "use west\\Width; public domain u<Width>::Ready;"),
+        ],
+        &[],
+    )
+    .unwrap();
+    let interface = stage.compiled_interface();
+    let domains: Vec<_> = interface
+        .declarations
+        .iter()
+        .filter(|e| e.id.path == "u::Ready")
+        .collect();
+    assert_eq!(domains.len(), 2);
+    assert_ne!(domains[0].id.domain_carrier_arguments, domains[1].id.domain_carrier_arguments);
+}
+
+#[test]
 fn equal_operand_spellings_keep_distinct_imported_constant_origins() {
     let east = ("app", "east/limits.omg", "public const Limit: u8 = 4;");
     let west = ("app", "west/limits.omg", "public const Limit: u8 = 8;");

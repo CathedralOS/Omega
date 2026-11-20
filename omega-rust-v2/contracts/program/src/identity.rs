@@ -33,6 +33,8 @@ pub struct DeclarationName<K: Ord> {
     pub operands: Vec<String>,
     pub result_domains: Vec<String>,
     pub signature_owners: Vec<(String, String)>,
+    /// Bound argument lists of the builtin carrier in an attached domain head.
+    pub domain_carrier_arguments: Box<[String]>,
     /// Source shapes with bound names substituted, before typing or evaluation.
     pub resolved_signature: Option<ResolvedSignature>,
     pub enclosing_machine: Option<DeclarationId<K>>,
@@ -49,6 +51,7 @@ type DeclarationKey<'a, K> = (
     &'a str,
     &'a str,
     &'a Option<DeclarationId<K>>,
+    &'a [String],
     &'a Option<ResolvedSignature>,
     Option<AuthoredSignature<'a>>,
 );
@@ -59,6 +62,7 @@ impl<K: Ord> DeclarationName<K> {
             &self.package,
             &self.path,
             &self.enclosing_machine,
+            &self.domain_carrier_arguments,
             &self.resolved_signature,
             self.resolved_signature
                 .is_none()
@@ -131,6 +135,7 @@ impl<K: Ord> DeclarationId<K> {
                 operands: self.operands.clone(),
                 result_domains: self.result_domains.clone(),
                 signature_owners: self.signature_owners.clone(),
+                domain_carrier_arguments: self.domain_carrier_arguments.clone(),
                 resolved_signature: self.resolved_signature.clone(),
                 enclosing_machine,
             }),

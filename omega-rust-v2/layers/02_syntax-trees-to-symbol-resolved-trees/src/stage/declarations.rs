@@ -5,6 +5,25 @@ use omega_syntax::NodeKind;
 use omega_syntax::SyntaxLeaf as Leaf;
 use std::collections::{HashMap, HashSet};
 
+pub(super) fn builtin_carrier_sections<'a>(
+    file: &'a File<'_>,
+    head: usize,
+) -> impl Iterator<Item = usize> + 'a {
+    let path = file.nodes[head].path();
+    file.nodes[head]
+        .children
+        .iter()
+        .copied()
+        .filter(move |&section| {
+            file.application_prefix(section).is_some_and(|(prefix, _)| {
+                builtin(&prefix)
+                    && path
+                        .rsplit_once("::")
+                        .is_some_and(|(carrier, _)| prefix == carrier)
+            })
+        })
+}
+
 fn check_local_binding(
     file: &File<'_>,
     name: &str,
@@ -209,6 +228,21 @@ pub(super) fn index_file<'a>(
                 operands,
                 result_domains,
                 signature_owners: vec![],
+                domain_carrier_arguments: if node.kind == Domain {
+                    head.into_iter()
+                        .flat_map(|head| builtin_carrier_sections(file, head))
+                        .map(|part| {
+                            let syntax = &file.nodes[part];
+                            file.tokens[syntax.first_token..syntax.end_token]
+                                .iter()
+                                .map(|token| token.text)
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        })
+                        .collect()
+                } else {
+                    Box::default()
+                },
                 resolved_signature: None,
                 enclosing_machine: None,
             }),
@@ -306,12 +340,10 @@ impl super::Catalog<'_> {
         &self,
         file: &File<'_>,
         context: &Context<'_>,
-        machine: usize,
+        declaration: usize,
+        operands: &[usize],
+        result: Option<usize>,
     ) -> Result<(Vec<String>, ResolvedSignature), NameError> {
-        let operands: Vec<_> = file.parameters(machine).map(|(_, ty)| ty).collect();
-        let result = file
-            .result_annotation(machine)
-            .filter(|&node| file.nodes[node].kind == NodeKind::QualifiedType && file.child(machine, NodeKind::OperatorToken).is_none());
         let result_domains = result.map_or(&[][..], |node| &file.nodes[node].children[1..]);
         let mut bindings = TreeBindings::default();
         let signature_nodes = operands
@@ -319,11 +351,15 @@ impl super::Catalog<'_> {
             .copied()
             .chain(result)
             .flat_map(|node| node..file.nodes[node].end);
-        self.bind_nodes(file, context, signature_nodes, &mut bindings, &mut Vec::new())?;
+        // Binding the head first assigns an argument list to its carrier. In
+        // u<Width>::Ready that makes Width a value reference in the declaring file.
+        let carrier_head = (file.nodes[declaration].kind == NodeKind::Domain)
+            .then(|| file.child(declaration, NodeKind::PathType).expect("attached domain head"));
+        self.bind_nodes(file, context, carrier_head.into_iter().chain(signature_nodes), &mut bindings, &mut Vec::new())?;
 
-        let parameters: Vec<_> = file.generic_parameters(machine).collect();
+        let parameters: Vec<_> = file.generic_parameters(declaration).collect();
         let runtime_parameters = file
-            .child(machine, NodeKind::Params)
+            .child(declaration, NodeKind::Params)
             .map_or(&[][..], |node| file.nodes[node].children.as_slice());
         let mut binders = HashMap::new();
         let mut bound_names = HashMap::new();

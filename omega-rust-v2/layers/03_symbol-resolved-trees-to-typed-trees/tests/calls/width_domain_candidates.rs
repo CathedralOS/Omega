@@ -23,6 +23,28 @@ fn width_domain_atoms(
 }
 
 #[test]
+fn compact_paths_select_the_same_domain_id_when_another_applied_width_is_visible() {
+    let narrow = "domain u<8>::Ready;";
+    let wide = "domain u<16>::Ready;";
+    let pair = format!("{wide} {narrow}");
+    let selected = |declarations: &str, usage: &str| {
+        let stage = check(&[("domains.omg", declarations), ("use.omg", usage)]).unwrap();
+        let signature = stage.signatures.iter().find(|s| s.machine.path == "f").unwrap();
+        let [domain] = signature.parameters[0].1.domains() else {
+            panic!("expected one domain")
+        };
+        domain.declaration.clone()
+    };
+    let narrow_use = "machine f(x:u8 in u8::Ready){}";
+    let wide_use = "machine f(x:u16 in u16::Ready){}";
+    let narrow_id = selected(narrow, narrow_use);
+    let wide_id = selected(wide, wide_use);
+    assert_ne!(narrow_id, wide_id);
+    assert_eq!(selected(&pair, narrow_use), narrow_id);
+    assert_eq!(selected(&pair, wide_use), wide_id);
+}
+
+#[test]
 fn an_applied_integer_root_selects_the_domain_on_its_normalized_width() {
     // The reported case: a single domain on u8 named through u<8>.
     let stage = check(&[("domains.omg", "domain u8::Ready;"), ("use.omg", "machine f(x:u8 in u<8>::Ready){}")]).unwrap();

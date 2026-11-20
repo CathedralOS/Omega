@@ -530,6 +530,7 @@ impl Catalog<'_> {
                 .flat_map(|sites| sites.keys())
                 .filter_map(|&slot| {
                     let carrier = &self.carriers[&slot];
+                    let applied = !self.entries[slot].id.domain_carrier_arguments.is_empty();
                     let named = match carrier {
                         DomainCarrier::Named(owner) | DomainCarrier::Bound { alternative: owner, .. } => owners
                             .iter()
@@ -539,11 +540,11 @@ impl Catalog<'_> {
                     let (type_binder, carrier_deferred) = match (qualifier, carrier, named) {
                         (None, _, _) => (None, false),
                         (_, _, Some(parent)) => (parent.type_binder, parent.carrier_deferred),
-                        (Some(_), DomainCarrier::Builtin { name, applied }, _)
+                        (Some(_), DomainCarrier::Builtin(name), _)
                             if root.is_some_and(|(family, used_arguments)| {
-                                (used_arguments || *applied) && fixed_integer_family(name, *applied) == Some(family)
+                                (used_arguments || applied) && fixed_integer_family(name, applied) == Some(family)
                             }) => (None, true),
-                        (Some(written), DomainCarrier::Builtin { name, applied: false }, _) if written == name => (None, false),
+                        (Some(written), DomainCarrier::Builtin(name), _) if !applied && written == name => (None, false),
                         (_, DomainCarrier::Generic, _) if generic => (None, false),
                         (_, DomainCarrier::Bound { position, .. }, _) if generic => (Some((slot, *position)), false),
                         _ => return None,
@@ -599,7 +600,11 @@ impl Catalog<'_> {
         candidates: &[usize],
     ) -> Result<Option<NameUse>, NameError> {
         let Some((prefix, _)) = path.rsplit_once("::") else { return Ok(None) };
-        if super::builtin(prefix) && candidates.iter().any(|slot| matches!(self.carriers.get(slot), Some(DomainCarrier::Builtin { applied: true, .. }))) {
+        if super::builtin(prefix)
+            && candidates
+                .iter()
+                .any(|&slot| !self.entries[slot].id.domain_carrier_arguments.is_empty())
+        {
             let span = file.nodes[n].qualifier_span().expect("qualified path");
             return Ok(Some(usage(file, n, super::NameRole::Qualifier, span, Symbol::Builtin(prefix.into()))));
         }
@@ -663,7 +668,7 @@ impl Catalog<'_> {
                 let owner = &self.entries[slot].id;
                 let carrier = match carrier {
                     DomainCarrier::Named(id) => format!("{}\\{}", id.package, id.path),
-                    DomainCarrier::Builtin { name, .. } => name.clone(),
+                    DomainCarrier::Builtin(name) => name.clone(),
                     DomainCarrier::Generic | DomainCarrier::Bound { .. } => "generic carrier".into(),
                 };
                 error

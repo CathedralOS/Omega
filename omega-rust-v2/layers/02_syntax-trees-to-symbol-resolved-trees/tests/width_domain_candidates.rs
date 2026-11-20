@@ -82,7 +82,35 @@ fn a_compact_integer_use_retains_an_applied_declaration_for_typing() {
     assert_eq!(bound_domains(&stage, text, "u8::Ready"), owned(&[("app\\u::Ready", false)]));
     let interface = stage.compiled_interface();
     let domain = interface.declarations.iter().find(|d| d.id.path == "u::Ready").unwrap();
-    assert!(matches!(&domain.domain_carrier, Some(omega_resolver::DomainCarrier::Builtin { name, applied: true }) if name == "u"));
+    assert!(matches!(&domain.domain_carrier, Some(omega_resolver::DomainCarrier::Builtin(name)) if name == "u"));
+    assert!(!domain.id.domain_carrier_arguments.is_empty());
+}
+
+#[test]
+fn two_applied_declarations_keep_distinct_width_arguments_in_the_public_interface() {
+    let text = "public domain u<8>::Ready; public domain u<16>::Ready; machine f(x:u8 in u8::Ready){}";
+    let stage = resolve(&[("app", "main.omg", text)], &[]).unwrap();
+    let interface = stage.compiled_interface();
+    let domains: Vec<_> = interface
+        .declarations
+        .iter()
+        .filter(|d| d.id.path == "u::Ready")
+        .collect();
+    assert_eq!(domains.len(), 2);
+    assert_ne!(domains[0].id, domains[1].id);
+    let usage = stage
+        .uses()
+        .find(|u| u.role == NameRole::Reference && u.span.slice(text.as_bytes()) == Some(b"u8::Ready"))
+        .unwrap();
+    let Symbol::DomainCandidates { candidates, .. } = &usage.target else {
+        panic!("{usage:?}")
+    };
+    assert_eq!(candidates.len(), 2);
+    assert!(domains.iter().all(|d| {
+        candidates
+            .iter()
+            .any(|c| c.carrier_deferred && c.declaration == d.id)
+    }));
 }
 
 #[test]

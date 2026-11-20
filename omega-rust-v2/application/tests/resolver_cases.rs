@@ -274,6 +274,23 @@ fn a_domain_head_index_names_its_own_binder() {
 const DRAW_PREFIX: &str = "machine draw(x: u32) -> u32 { x }\nmachine render(flag: bool) -> bool { draw(flag) }\n";
 
 #[test]
+fn a_repeated_domain_head_identifies_the_complete_written_carrier() {
+    check_resolver(
+        NameErrorKind::DuplicateDeclaration,
+        Case {
+            layer: "L2",
+            producer: "resolver",
+            good: &[("domains.omg", "domain u<8>::Ready; domain u<16>::Ready;")],
+            bad: &[("domains.omg", "domain u<8>::Ready; domain u<8>::Ready;")],
+            file: "domains.omg",
+            occurrence: "u<8>::Ready",
+            reason: "domain Ready is declared twice on this carrier",
+            rule: "Domains",
+        },
+    );
+}
+
+#[test]
 fn renaming_a_parameter_does_not_make_a_distinct_overload() {
     check_resolver(
         NameErrorKind::DuplicateDeclaration,

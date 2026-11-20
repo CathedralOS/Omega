@@ -19,6 +19,7 @@ fn declaration<K: Ord>(
             result_domains: vec!["Tag".into()],
             signature_owners: vec![("provider".into(), "Tag".into())],
             resolved_signature: None,
+            domain_carrier_arguments: Box::default(),
             enclosing_machine: None,
         }),
     }

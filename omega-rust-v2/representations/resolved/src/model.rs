@@ -202,11 +202,7 @@ impl NameError {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DomainCarrier {
-    Builtin {
-        name: String,
-        /// The declaration applies arguments to the carrier itself, as in `u<8>::Ready`.
-        applied: bool,
-    },
+    Builtin(String),
     Named(DeclarationId),
     /// A bound decides whether an annotated binder or its visible named alternative supplies the carrier.
     Bound {
