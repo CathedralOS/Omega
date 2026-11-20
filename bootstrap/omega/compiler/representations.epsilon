@@ -809,6 +809,8 @@ data OmegaExpressionSyntax {
 data OmegaMachineStateSyntax {
     // An explicit nested ceiling is independent of the enclosing machine.
     block_bound: i32;
+    // 0 = omitted, 1 = crashes none, 2 = crashes Trap.
+    crash_bound: i32;
     name_kind: OmegaMachineStateNameKind;
     name: OmegaRelativeSpan;
     first_parameter: i32;
@@ -1162,6 +1164,7 @@ data OmegaParser {
     state_first_parameter: i32;
     state_first_requirement: i32;
     state_block_bound: i32;
+    state_crash_bound: i32;
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
     machine_is_public: i32;

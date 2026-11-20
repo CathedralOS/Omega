@@ -230,7 +230,9 @@ valid/invalid UTF-8 boundaries and an absent large index. The companion
 [controls_arithmetic.epsilon](../../conformance/omega/controls_arithmetic.epsilon) checks arithmetic
 limits, six abnormal overflow/underflow traps, left-value capture across a
 mutating right operand, short-circuit suppression, reference forwarding and
-sixty-five refusal/reset checks. The terminal-call cases exercise precedence,
+seventy-four refusal/reset checks. The nested crash controls cover declared
+and inferred routes, disconnected helpers, cyclic transfers, contract order
+and refusal recovery. The terminal-call cases exercise precedence,
 grouping, nested calls, left-to-right argument evaluation, skipped and selected
 crashes, loans, blocking markers and entry preconditions. An unsupported
 indexed carrier returns a coverage refusal. An unknown name in a checked
