@@ -824,6 +824,9 @@ data OmegaMachineStateSyntax {
     statement_count: i32;
     first_requirement: i32;
     requirement_count: i32;
+    // States are retained in preorder. The entry has no lexical parent.
+    lexical_parent: i32;
+    subtree_end: i32;
 }
 
 data OmegaMachineSyntax {
@@ -1179,6 +1182,7 @@ data OmegaParser {
     state_first_statement: i32;
     state_has_body_syntax: i32;
     state_is_explicit: i32;
+    machine_member_scope: i32;
     state_name_start: i32;
     state_name_end: i32;
     machine_clause_first_member: i32;

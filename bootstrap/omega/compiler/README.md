@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,671 lines / 888,824 bytes with SHA-256
-`55aed32e6f8a828649d9f01aba27cafffccab975859aef91bb3e7add720fc218`.
+manifest materializes 23,702 lines / 890,200 bytes with SHA-256
+`5da6d255c1453392983118bffa6ee5a8af3194c50418316fe7bf07f61f087c3c`.
 The manifest itself is 1,698 bytes, SHA-256
-`c66e91821fa0bd8f0c4e762c7aee2a94da47fbdd48c504d007abb78143fddf01`;
+`3f7a09a5c0ea1e8a10a1a110a846493856ba045ff64732458983a2b230076215`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -157,12 +157,19 @@ overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
 unreachable from the selected entry. Machine clauses beyond the requirements
 and the crash and blocking ceilings described below, receivers,
-other runtime carriers/policies, arithmetic beyond the checked unsigned families below, other dynamic
-subjects, and ordinary calls to nested declarations remain explicit coverage
-boundaries. Nested declarations use canonical `machine`; the retired `state`
+other runtime carriers/policies, arithmetic beyond the checked unsigned families below,
+and other dynamic subjects remain explicit coverage boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
-Callable-name hiding refuses until lexical resolution can support it completely;
-a nested declaration never silently falls through to a same-named global.
+An ordinary call to a visible nested declaration remains outside this compiler subset,
+including when a free machine has the same name.
+
+Each machine owns the helpers declared after its executable body. Terminal
+transfers search the caller's children and then each enclosing declaration
+scope. Sibling branches may define different helpers with the same name.
+Parameters and locals belong to the individual invocation. A child receives
+an enclosing value through an explicit argument. The existing 4,096-state
+bound covers all declarations in a request.
+
 A terminal transfer naming a visible global is `Incomplete` in this same-owner
 subset; only an absent target is reported as missing.
 
