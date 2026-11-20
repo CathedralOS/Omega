@@ -1,0 +1,20 @@
+// Compiler-owned required-output obligation marker. `builder.output.require`
+// is the only route to one: the evaluator issues an opaque marker whose row
+// lives in its private obligation table; an authored `RequiredOutput {}` has
+// the same static shape but carries no obligation. Obligations are linear at
+// the settlement boundary: `complete` or `fail` consumes them exactly once.
+public data RequiredOutput {
+}
+// Compiler-owned output-completion receipt. `builder.output.complete` issues
+// it when the obligation's sealed file is accepted; evaluated code may
+// retain or copy it, but only the compiler-issued marker names a completed
+// output.
+public data OutputReceipt [copy] {
+}
+// Result of `builder.output.complete`. `Sealed` carries the compiler-issued
+// completion receipt; `Retry` returns the obligation and file custody when
+// the named output was not yet sealed, so an explicit retry stays possible.
+public data OutputCompletion {
+    case Sealed(receipt: OutputReceipt);
+    case Retry(obligation: RequiredOutput, file: BuildPath);
+}

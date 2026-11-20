@@ -1,0 +1,57 @@
+// Build-owned ELF loader selection
+// (wiki/spec/build/configuration.md#elf-executable-loader-selection): the
+// exact `PT_INTERP` pathname one Linux target's dynamically linked output asks
+// its runtime environment to load, one row per canonical target name. Empty
+// keeps the selected target environment's declared default. A selection never
+// requests dynamic linking; static output emits no `PT_INTERP`.
+public data ElfInterpreterSelection<'storage> {
+    linux_arm64: @'storage [u8];
+    linux_x86_64: @'storage [u8];
+}
+// Compiler-owned test registration facet (wiki/spec/build/testing.md).
+// `builder.tests.group::<Requirement>()` registers one exact ordinary trait
+// machine requirement as a test group; its operand is a designated product
+// reference, never an executed call. `disabled` defaults to false, so a
+// zero-initialized Build never silently disables its registered groups.
+public data BuildTests {
+    disabled: bool;
+}
+// What makes `Build` a value only the toolchain issues. The seal holds no
+// settings; it is here for its type. `BuildSeal` is not `[copy]`, and
+// `Issued` is governed by an access policy that names no source issuer
+// (wiki/spec/resources/access.md: a zeroed plan admits nobody), so source can
+// neither make a seal nor take the one in the `Build` it was lent, and a
+// record with a field it cannot supply cannot be constructed or
+// zero-established. The toolchain establishes the seal when it hands the
+// Build entry its `Build`.
+public data BuildSeal {
+}
+BuildSealAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access\new_plan(@schema, Issuance::Only { routes: [] })
+    }
+}
+public domain BuildSeal::Issued
+    access BuildSealAccess;
+// Stored views share an explicit backing lifetime. Opaque mutable boundaries
+// must promise output safety; an unnamed relation cannot imply preservation.
+public data Build<'storage> {
+    seal: BuildSeal in Issued;
+    x86_deployment_features: X86DeploymentFeatures;
+    subsystem: Subsystem;
+    freestanding: bool;
+    // Authored application identifier (wiki/spec/build/macos_application.md):
+    // supplies the GUI CodeDirectory signing identity and CFBundleIdentifier.
+    // Empty means no authored identifier; console output falls back to the
+    // validated executable leaf. It is validated separately from the
+    // application name and is never inferred from the PE subsystem word.
+    identifier: @'storage [u8];
+    elf_interpreter: ElfInterpreterSelection<'storage>;
+    optimizations: Optimizations;
+    source: BuildSource;
+    inputs: BuildInputs;
+    output: BuildOutput;
+    log: BuildLog;
+    product: BuildProduct;
+    tests: BuildTests;
+}

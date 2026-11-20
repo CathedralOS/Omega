@@ -1,0 +1,49 @@
+// Toolchain-provided build vocabulary.
+use omega\language\core\AccessPolicy;
+use omega\language\core\AccessPlan;
+use omega\language\core\reflect\TypeSchema;
+use omega\language\core\Issuance;
+use omega\language\core\access;
+public data Subsystem {
+    case Console;
+    case Gui;
+    case EfiApplication;
+    case Unspecified(value: u16);
+}
+// Compiler-owned composition choice for one exact provider selection. The
+// omitted `select_provider` composition argument means Fused; Independent is never
+// inferred from provider source.
+public data CompositionMode [copy] {
+    case Fused;
+    case Independent;
+}
+// Compiler-owned crash-cause vocabulary for build behavior exclusions
+// (wiki/spec/build/behavior_exclusions.md). `Build::exclude_crash(builder, case)`
+// selects a product-admission requirement over the exact selected executable
+// composition; it never masks effects on ordinary callable contracts.
+public data CrashCause [copy] {
+    case Trap;
+    case Abort;
+}
+// The closed physical-authority vocabulary selected by Build exclusions.
+// These are admission requirements, not grants to use the named authority.
+public data PhysicalAuthorityClass [copy] {
+    case FilesystemContentRead;
+    case FilesystemContentWrite;
+    case FilesystemMetadataQuery;
+    case DirectoryEnumeration;
+    case FilesystemNamespaceMutation;
+    case FilesystemMetadataMutation;
+    case ProcessOutput;
+    case ProcessTermination;
+    case MachineControl;
+    case PortIo;
+    case InterruptControl;
+    case InterruptEntry;
+    case RootMemoryAccess;
+    case ProcessInput;
+}
+public data X86DeploymentFeatures {
+    case Baseline;
+    case AvxFma3;
+}

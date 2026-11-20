@@ -1,0 +1,3 @@
+public machine get(inputs: @BuildInputs, name: @[u8]) -> BuildSource reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::named_input(inputs, name)
+}

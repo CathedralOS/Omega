@@ -1,0 +1,5 @@
+// Inspection authenticates the issued schema and returns a stable read-only
+// snapshot of its canonical path, without reopening Product source.
+public machine path(schema: @ProductTypeSchema) -> @[u8] reaches BuildProductOperations invokes BuildProductOperations {
+    BuildProductOperations::schema_path(schema)
+}

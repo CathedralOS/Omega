@@ -1,0 +1,15 @@
+public machine resolve(source: @BuildSource, relative: @[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::resolve_source(source, relative)
+}
+
+public machine open(source: @BuildSource, path: BuildPath, flags: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::open(source, path, flags)
+}
+
+public machine read(source: @BuildSource, descriptor: i32, buffer: @mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::read(source, descriptor, buffer, count)
+}
+
+public machine close(source: @BuildSource, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    BuildFilesystemOperations::close_source(source, descriptor)
+}

@@ -5,7 +5,7 @@
 use semantic_vocabulary::source_selections::ProductTarget;
 use std::fmt::Write;
 
-pub(super) fn install(prelude: &str) -> String {
+pub(super) fn declarations() -> String {
     let mut declarations = String::from("public data BuildTarget [copy] {\n");
     for target in ProductTarget::ALL {
         writeln!(declarations, "    case {};", target.source_case()).unwrap();
@@ -33,5 +33,5 @@ pub(super) fn install(prelude: &str) -> String {
         .unwrap();
     }
     declarations.push_str("    }\n}\n");
-    prelude.replace("// compiler-owned target declarations", &declarations)
+    declarations
 }

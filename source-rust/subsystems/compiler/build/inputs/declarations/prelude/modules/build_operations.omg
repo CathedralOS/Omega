@@ -1,0 +1,67 @@
+public machine dependency(builder: @mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source)
+}
+
+public machine build_dependency(builder: @mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source)
+}
+
+// The readiness boundary for one exact registration: the Build parks here
+// until the evaluator has acquired that dependency, run its Build and
+// prepared it, then resumes. Earlier statements never run again.
+public machine prepare_dependency(builder: @mut Build, registered: DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations suspends {
+    suspend BuildRequestOperations::prepare_dependency(builder, registered);
+}
+
+machine request_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source) -> DependencyRegistration reaches BuildRequestOperations {
+    transition source {
+        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location),
+        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection),
+    }
+}
+
+machine request_path(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8]) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location)
+}
+
+machine request_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection) -> DependencyRegistration reaches BuildRequestOperations {
+    transition selection {
+        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, ""),
+        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package),
+    }
+}
+
+machine request_selected_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8]) -> DependencyRegistration reaches BuildRequestOperations {
+    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package)
+}
+
+public machine package(builder: @mut Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::package(builder, name);
+}
+
+public machine application(builder: @mut Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::application(builder, name);
+}
+
+public machine member(builder: @mut Build, path: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::member(builder, path);
+}
+
+// The executed request is joined with the application role and required outputs.
+public machine artifact_only(builder: @mut Build) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::artifact_only(builder);
+}
+
+// Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
+// product-admission requirement that the selected executable composition
+// contains no reachable site of the named crash cause. The selection is
+// recorded when this call executes against the original Build value;
+// typing normalizes the declaration to the authenticated selection protocol. A
+// declaration that permits Trap cannot override it.
+public machine exclude_crash(builder: @mut Build, cause: CrashCause) {
+}
+
+// Native realization checks this executed selection using the shared
+// physical mechanism classifier, independently of receiver permissions.
+public machine exclude_physical_authority(builder: @mut Build, authority: PhysicalAuthorityClass) {
+}

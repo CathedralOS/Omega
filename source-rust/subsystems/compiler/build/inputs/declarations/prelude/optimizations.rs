@@ -8,25 +8,13 @@
 
 use optimization_selections::Optimization;
 
-const DECLARATIONS_SLOT: &str = "// compiler-owned optimization declarations\n";
-
-pub(super) fn install(base: &str) -> String {
-    assert_eq!(
-        base.matches(DECLARATIONS_SLOT).count(),
-        1,
-        "build prelude must contain exactly one optimization declaration slot"
-    );
-    let declarations = declarations();
-    base.replacen(DECLARATIONS_SLOT, &declarations, 1)
-}
-
 pub(super) fn module_source() -> String {
     let mut text = enable_machine();
-    text.push_str(REPORT_MACHINE);
+    text.push_str(include_str!("modules/optimizations.omg"));
     text
 }
 
-fn declarations() -> String {
+pub(super) fn declarations() -> String {
     let mut text = String::from("public data Optimization {\n");
     for optimization in Optimization::ALL {
         text.push_str(&format!("    case {};\n", optimization.build_case_name()));
@@ -54,8 +42,3 @@ fn enable_machine() -> String {
     );
     text
 }
-
-const REPORT_MACHINE: &str = r#"public machine emit_report(optimizations: @mut Optimizations) {
-    optimizations.human_report = optimizations.human_report + 1;
-}
-"#;
