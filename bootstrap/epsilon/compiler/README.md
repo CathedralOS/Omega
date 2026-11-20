@@ -22,7 +22,15 @@ The two program lists specify the declarations, implementation and entry for
 each calling convention. A materializer inserts the emitted Delta module at
 `@module` and appends the standard entry files following `@entry`. A diagnostic
 test may replace that final section to probe a particular machine directly.
+Replay a saved module with the runtime from its compiler revision.
 [Pure program](runtime/pure.parts) · [Stored program](runtime/storage.parts)
+
+A machine keeps its mutable parameter storage across state transfers. The
+compiler records the next root identifier after allocating those parameters.
+A state with ordinary value arguments can release every root allocated since
+that point. A view argument can borrow a local array, so transfers into a state
+with view parameters also preserve any roots referenced by its arguments.
+Returning from the machine releases its parameter storage as well.
 
 On Linux x86-64, run this from the repository root with a complete Epsilon
 program in `program.epsilon`. It builds both native tools from the seed. The

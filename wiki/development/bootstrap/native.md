@@ -743,3 +743,32 @@ The public lexer emitted the same 1,104,979-byte compiled observation as
 before. The grouped receiver control checks a call and its projections with
 a shared start and an enclosing expression with a different start.
 [Stored receiver test](../../../tests/bootstrap/independent/epsilon/storage_main.epsilon)
+
+### Allocation before the parser's first declaration
+
+The Omega parser calls `validate_lexical` on each source unit before parsing
+its declarations. A small Epsilon caller passed `self.console.remaining_input`
+to that production method and returned `self.scan.accepted`. Another called
+only the production UTF-8 validator and returned its `valid` field. Both read
+the sealed input directly. [Parser](../../../bootstrap/omega/compiler/parser.epsilon) · [Scanner](../../../bootstrap/omega/compiler/source-to-tokens/scan.epsilon)
+
+These are Linux peak RSS measurements from native Gamma and Delta and compiled
+Epsilon. Both versions ran the same Epsilon bytes, first with the compiler from
+`e82b9824a5e`, then with machine parameter homes allocated before the
+state-local root floor. Each input was ASCII space except for the marked
+substitutions. The UTF-8 caller was 5,125 bytes (`babc79def616…`), and the
+lexical caller was 54,857 bytes (`1371b7a16bc8…`).
+
+| Caller and input | Earlier peak KiB | Revised peak KiB | Guest exit |
+| --- | ---: | ---: | ---: |
+| UTF-8, 16,384 spaces | 166,912 | 141,824 | 1 |
+| Full lexical validation, 8,192 spaces | 182,424 | 157,016 | 1 |
+| Full lexical validation, 16,384 spaces | 361,368 | 310,616 | 1 |
+| Full lexical validation, 8,192 bytes with first byte FF | 32,308 | 31,320 | 0 |
+| Full lexical validation, 8,192 bytes with last byte FF | 86,424 | 73,240 | 0 |
+
+The last two inputs have identical lengths and fail in the UTF-8 pass. Moving
+the invalid byte to the end exercises more state transfers before returning.
+Live Epsilon bindings are released during those transfers, while the generated
+Gamma program advances its pair allocation pointer on every allocation.
+[State storage](../../../bootstrap/epsilon/compiler/runtime/storage.delta) · [Gamma pair allocation](../../../bootstrap/gamma/compiler/compiler.gamma)

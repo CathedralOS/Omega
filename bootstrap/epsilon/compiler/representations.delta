@@ -41,7 +41,7 @@
 
 (data EpsilonDeltaStoredCallTarget
   (EpsilonDeltaStoredMachineCall Bytes Bytes)
-  (EpsilonDeltaStoredStateCall Bytes Bytes Bytes Bytes)
+  (EpsilonDeltaStoredStateCall Bytes Bytes Bytes)
   (EpsilonDeltaStoredReadByte)
   (EpsilonDeltaStoredWriteByte)
   (EpsilonDeltaStoredConsoleValue Int)

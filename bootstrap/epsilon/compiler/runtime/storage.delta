@@ -47,46 +47,25 @@
       (if (epsilon_runtime_value_uses_root value identifier) 1
         (epsilon_compiled_arguments_use_root rest identifier)))))
 
-(def epsilon_compiled_homes_use_root ((homes EpsilonCompiledHomes)
-  (identifier Int) (roots EpsilonRuntimeRoots)) Int
-  (match homes
-    (NoEpsilonCompiledHomes 0)
-    ((MoreEpsilonCompiledHomes home rest)
-      (if (eq home identifier) 1
-        (let referenced Int
-          (match (epsilon_runtime_find_root home roots)
-            (NoEpsilonRuntimeValue 0)
-            ((SomeEpsilonRuntimeValue value)
-              (epsilon_runtime_value_uses_root value identifier)))
-          (if referenced 1 (epsilon_compiled_homes_use_root rest identifier roots)))))))
-
-; These are the shared state-liveness predicates over direct compiled homes
-; and argument values. The newest-first filter preserves IDs and the fixed
-; invocation floor, including an old local array still borrowed by a view.
-(def epsilon_compiled_retain_rows ((floor Int)
-  (values EpsilonCompiledArguments) (homes EpsilonCompiledHomes)
-  (receiver EpsilonRuntimeOptionalPlace) (roots EpsilonRuntimeRoots)
+; Machine parameter homes and the receiver precede the state floor. Among
+; newer roots only a local array borrowed by an outgoing view can survive.
+(def epsilon_compiled_retain_rows ((floor Int) (values EpsilonCompiledArguments)
   (remaining EpsilonRuntimeRoots) (retained EpsilonRuntimeRoots)) EpsilonRuntimeRoots
   (match remaining
     (NoEpsilonRuntimeRoots (epsilon_runtime_reverse_roots retained NoEpsilonRuntimeRoots))
     ((MoreEpsilonRuntimeRoots identifier value rest)
       (if (lt identifier floor)
         (epsilon_runtime_reverse_roots retained remaining)
-        (let keep Int
-          (if (epsilon_compiled_arguments_use_root values identifier) 1
-            (if (epsilon_compiled_homes_use_root homes identifier roots) 1
-              (epsilon_runtime_receiver_uses_root receiver identifier)))
-          (epsilon_compiled_retain_rows floor values homes receiver roots rest
-            (if keep (MoreEpsilonRuntimeRoots identifier value retained) retained)))))))
+        (epsilon_compiled_retain_rows floor values rest
+          (if (epsilon_compiled_arguments_use_root values identifier)
+            (MoreEpsilonRuntimeRoots identifier value retained) retained))))))
 
-(def epsilon_compiled_retain_state ((floor Int)
-  (values EpsilonCompiledArguments) (homes EpsilonCompiledHomes)
-  (receiver EpsilonRuntimeOptionalPlace) (store EpsilonRuntimeStore)) EpsilonRuntimeStore
+(def epsilon_compiled_retain_state ((floor Int) (values EpsilonCompiledArguments)
+  (store EpsilonRuntimeStore)) EpsilonRuntimeStore
   (match store
     ((EpsilonRuntimeStoreState next roots input)
       (EpsilonRuntimeStoreState next
-        (epsilon_compiled_retain_rows floor values homes receiver roots roots
-          NoEpsilonRuntimeRoots) input))))
+        (epsilon_compiled_retain_rows floor values roots NoEpsilonRuntimeRoots) input))))
 
 ; A string view owns immutable bytes and has no assignable place.
 (def epsilon_compiled_string ((text Bytes) (element EpsilonType)
