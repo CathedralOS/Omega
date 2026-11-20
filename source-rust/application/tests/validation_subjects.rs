@@ -28,9 +28,9 @@ const APP_BUILD: &str = "machine build(builder: @mut Build) {
     Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 }
 ";
-const APP_MAIN: &str = "use vendor\\main;
+const APP_MAIN: &str = "use vendor;
 machine main() {
-    let value: u64 = count(3u64);
+    let value: u64 = vendor\\count(3u64);
 }
 ";
 const VENDOR_BUILD: &str =
@@ -150,7 +150,9 @@ fn an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_su
 #[test]
 fn an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails() {
     let project = Project {
-        app_main: format!("{APP_MAIN}machine unused(value: u64) -> u64 {{ bump(value) }}\n"),
+        app_main: format!(
+            "{APP_MAIN}machine unused(value: u64) -> u64 {{ vendor\\bump(value) }}\n"
+        ),
         vendor_main: format!(
             "{VENDOR_MAIN}public machine bump(count: u64) -> u64 {{ count + 1u64 }}\n"
         ),
