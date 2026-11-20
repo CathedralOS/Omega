@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from compiled import ROOT, execute, stamp
+from compiled import ROOT, add_invocation_budget, execute, stamp
 
 
 def cases():
@@ -17,12 +17,22 @@ def cases():
     constant = b"machine main() -> u8 { 42 }"
     score = b"public machine score() -> u8 { 42 }"
     other = b"public machine score() -> u8 { 7 }"
+    array_caller = b"use later\\read; machine main()->u8{let x:[u8;2]=[1,42];read(@x)}"
+    array_reader = b"public machine read(x:@[u8;2])->u8{x[1]}"
     cases_source = (ROOT / "tests/bootstrap/conformance/omega/payload_bindings.omg").read_bytes()
 
     def packet(sources, paths=None):
         data, _, _, rows = encode([("app", 0)], [], [(0, src) for src in sources],
                                   0, b"main", paths=paths)
         return data, rows
+
+    # A callee in another file owns its parameter's element type and count.
+    paths = ["main.omg", "later/api.omg"]
+    wire, _ = packet([array_caller, array_reader], paths)
+    yield "shared-array-forward", wire, 42
+    wire, rows = packet([array_caller, array_reader.replace(b"[u8;2]", b"[u8;3]")], paths)
+    borrow = rows[0][1] + array_caller.index(b"@x")
+    yield "shared-array-wrong-extent", wire, struct.pack("<BII", 0, 1, borrow)
 
     for name, sources, paths in [
         ("directory-import", [select, score, other], ["main.omg", "first/x.omg", "second/x.omg"]),
@@ -123,11 +133,17 @@ def cases():
 
 
     yield from nominal_record_cases(encode)
+    yield from record_bound_cases(encode)
     yield from nominal_sum_cases(encode)
+    yield from nominal_array_cases(encode)
 
 
 def copy_declaration(definitions, name):
-    start = definitions.index(b"public data " + name + b" [copy] {")
+    return declaration(definitions, b"public data " + name + b" [copy] {")
+
+
+def declaration(definitions, header):
+    start = definitions.index(header)
     return definitions[start:definitions.index(b"\n}", start) + 2]
 
 
@@ -191,6 +207,81 @@ machine main()->u8 {
             yield "different-nominal-field-owner", packet, struct.pack("<BII", 0, 1, coordinate)
 
 
+def record_bound_cases(encode):
+    # Each length belongs to a different declaration. The enclosing record's
+    # own bound must survive laying out both of its forward-declared fields.
+    source = (ROOT / "source/subsystems/compiler/source_to_psi/representations/source_files/source.omg").read_bytes()
+    source_unit = declaration(source, b"public data SourceUnit\n")
+    module_path = declaration(source, b"public data ModulePath\n")
+    source_id = declaration(source, b"public data SourceId ")
+    buffers = b"""public data Buffers
+requires marker <= 7,
+{
+    unit:SourceUnit;
+    path:ModulePath;
+    marker:u64;
+}"""
+    caller = b"""use types\\Buffers;
+machine main()->u8{
+    let mut pair:Buffers;
+    pair.unit.length=131072;
+    pair.path.length=256;
+    pair.marker=7;
+    let remaining:u64=131072-pair.unit.length;
+    let free_path:u64=256-pair.path.length;
+    let room:u64=7-pair.marker;
+    transition remaining==0 && free_path==0 && room==0 {true->42,_->1}
+}"""
+
+    def packet(main=caller, record=buffers, unit=source_unit):
+        files = [(0, main), (1, record), (1, module_path), (1, unit), (1, source_id)]
+        return encode([("app", 0), ("types", 0)], [(0, 1, "types")], files, 0, b"main",
+                      paths=["main.omg", "buffers.omg", "path.omg", "unit.omg", "id.omg"])
+
+    wire, _, _, _ = packet()
+    yield "product-record-bound-owners", wire, 42
+    for label, store, excess in [
+        ("source-unit", b"length=131072", b"length=131073"),
+        ("module-path", b"length=256", b"length=257"),
+        ("enclosing-record", b"marker=7", b"marker=8"),
+    ]:
+        wire, _, _, rows = packet(main=caller.replace(store, excess))
+        yield f"{label}-bound-exceeded", wire, struct.pack("<BII", 0, 2, rows[0][1] + caller.index(b"machine main"))
+
+    wire, _, _, rows = packet(record=buffers.replace(b"marker <= 7", b"length <= 7"))
+    yield "field-bound-names-another-record", wire, struct.pack("<BII", 0, 2, rows[1][1])
+    wire, _, _, rows = packet(unit=source_unit.replace(b"length <= 131072", b"length >= 131072"))
+    yield "unsupported-later-record-predicate", wire, struct.pack("<BII", 0, 2, rows[3][1])
+
+
+    # SourceSet carries five independent field bounds, including its four-MiB
+    # arena. A valid full byte arena cannot establish capacity in the path arena.
+    files = [declaration(source, b"public data SourceSet\n")]
+    files.extend(copy_declaration(source, name) for name in [b"DependencyRow", b"PackageRow", b"SourceRange", b"DependencyScope"])
+    reader = b"""use inputs\\SourceSet;
+machine main()->u8{
+ let mut sources:SourceSet;
+ sources.unit_count=512;
+ sources.byte_count=4194304;
+ sources.path_byte_count=16384;
+ sources.package_count=64;
+ sources.dependency_count=256;
+ sources.bytes[4194303]=42;
+ transition 512-sources.unit_count==0 && 4194304-sources.byte_count==0 &&
+   16384-sources.path_byte_count==0 && 64-sources.package_count==0 && 256-sources.dependency_count==0 {
+   true->sources.bytes[4194303],_->1
+ }}"""
+    for label, program in [("source-set-field-bounds", reader),
+                           ("source-set-path-bound-exceeded", reader.replace(b"path_byte_count=16384", b"path_byte_count=16385"))]:
+        wire, _, _, rows = encode([("app", 0), ("inputs", 0)], [(0, 1, "inputs")],
+                                  [(0, program)] + [(1, data) for data in files], 0, b"main",
+                                  paths=["main.omg", "sources.omg", "dep.omg", "pack.omg", "range.omg", "scope.omg"])
+        if program == reader:
+            yield label, wire, 42
+        else:
+            yield label, wire, struct.pack("<BII", 0, 2, rows[0][1] + reader.index(b"machine main"))
+
+
 def nominal_sum_cases(encode):
     def packet(sources, paths, library="numeric"):
         units = [(0, sources[0])] + [(1, source) for source in sources[1:]]
@@ -241,11 +332,86 @@ def nominal_sum_cases(encode):
     yield "private-type-in-case-payload", data, struct.pack("<BII", 0, 1, coordinate)
 
 
+
+def nominal_array_cases(encode):
+    def packet(sources, paths, library=None):
+        packages = [("app", 0)]
+        dependencies = []
+        if library:
+            packages.append((library, 0))
+            dependencies.append((0, 1, library))
+        return encode(packages, dependencies, sources, 0, b"main", paths=paths)
+
+    # Compile the unedited declaration and reach both ends of its four-MiB field.
+    definitions = (ROOT / "source/application/construction/main.omg").read_bytes()
+    storage = declaration(definitions, b"data ConstructionInput {")
+    caller = b"""machine main()->u8{
+    let mut a:ConstructionInput;
+    a.unit_count=305;
+    a.bytes[4194303]=255;
+    a.bytes[4194302]=41;
+    a.bytes[0]=42;
+    transition a.unit_count==305 && a.bytes[0]==42 && a.bytes[4194302]==41 && a.bytes[4194303]==255 {true->42,_->7}
+}"""
+    data, _, _, _ = packet([(0, caller), (0, storage)], ["caller.omg", "input.omg"])
+    yield "forward-product-construction-array", data, 42
+
+    definitions = (ROOT / "source/subsystems/compiler/alpha/emit.omg").read_bytes()
+    emitter = declaration(definitions, b"public data AlphaEmitter {")
+    caller = b"""use alpha\\AlphaEmitter;machine main()->u8{
+    let mut a:AlphaEmitter;
+    a.bytes[2097151]=42;
+    a.labels[10239]=73;
+    a.marks[65535]=99;
+    transition a.labels[10239]==73 && a.marks[65535]==99 {true->a.bytes[2097151],_->7}
+}"""
+    data, _, _, _ = packet([(0, caller), (1, emitter)], ["caller.omg", "emit.omg"], "alpha")
+    yield "forward-product-emitter-arrays", data, 42
+
+    storage = b"public data Packet{bytes:[u8;9];tail:u64;}"
+    length = b"public machine length(bytes:@[u8])->u64{bytes.len}"
+    for name, end in [("borrow-retained-byte-array", b"9"), ("borrow-past-retained-byte-array", b"10")]:
+        main = (b"use wire\\Packet;use wire\\length;machine main()->u8{let mut p:Packet;p.bytes[8]=42;p.tail=77;"
+                b"let n:u64=length(@p.bytes[7.." + end + b"]);"
+                b"transition n==2&&p.tail==77{true->p.bytes[8],_->7}}")
+        data, _, _, rows = packet([(0, main), (1, length), (1, storage)], ["main.omg", "length.omg", "packet.omg"], "wire")
+        expected = 42 if end == b"9" else struct.pack("<BII", 0, 1, rows[0][1] + main.index(b".."))
+        yield name, data, expected
+
+    # Two directories expose the same spelling and layout. The field's owner
+    # file chooses the element identity and declares the indexable extent.
+    caller = b"""use types\\Shelf;use left\\Part;machine main()->u8{
+    let mut s:Shelf;
+    let p:Part=Part{byte:42};
+    s.parts[2]=p;
+    let saved:Part=s.parts[2];
+    saved.byte
+}"""
+    paths = ["main.omg", "types/shelf.omg", "left/part.omg", "right/part.omg"]
+    part = b"public data Part [copy]{byte:u8;}"
+    for name, module, length in [
+        ("array-field-declaring-scope", b"left", b"3"),
+        ("different-nominal-array-owner", b"right", b"3"),
+        ("wrong-array-extent", b"left", b"2"),
+    ]:
+        shelf = b"use " + module + b"\\Part;public data Shelf{parts:[Part;" + length + b"];}"
+        data, _, _, rows = packet([(0, caller), (0, shelf), (0, part), (0, part)], paths)
+        if name == "array-field-declaring-scope":
+            yield name, data, 42
+        else:
+            yield name, data, struct.pack("<BII", 0, 1, rows[0][1] + caller.index(b"machine main"))
+
+    caller = b"use types\\Shelf;machine main()->u8{42}"
+    shelf = b"use left\\Part;public data Shelf{parts:[Part;3];}"
+    data, _, _, rows = packet([(0, caller), (0, shelf), (0, part.replace(b"public ", b"")), (0, part)], paths)
+    yield "private-array-element", data, struct.pack("<BII", 0, 1, rows[1][1] + shelf.index(b"parts"))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("constructor", type=Path)
     parser.add_argument("--case", action="append", choices=[name for name, _, _ in cases()])
-    parser.add_argument("--seconds", type=int, default=900)
+    add_invocation_budget(parser)
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
         work = Path(directory)

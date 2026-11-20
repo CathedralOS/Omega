@@ -727,6 +727,9 @@ impl TerminalBuildActivation {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("a Build stage is continued only after its normal return".into());
         }
+        if !self.host.machine.has_next_stage() {
+            return Err("the final Build stage has no continuation".into());
+        }
         if !self.host.requests.completed_preparation()? {
             return Err(
                 "a Build stage before the last must complete its dependency preparation"
@@ -805,6 +808,9 @@ impl TerminalBuildActivation {
     pub fn complete(mut self) -> Result<ReturnedBuild, String> {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("Build completion requires its normal interpreter return".into());
+        }
+        if self.host.machine.has_next_stage() {
+            return Err("Build completion requires the final checked stage".into());
         }
         let (settings, optimization_report) =
             build_settings::extract(&self.instance, &self.host.machine)?;

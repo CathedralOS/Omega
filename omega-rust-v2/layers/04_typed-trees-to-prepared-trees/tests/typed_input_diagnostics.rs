@@ -142,6 +142,40 @@ fn a_library_body_needs_its_effect_row() {
 }
 
 #[test]
+fn a_reachable_service_in_the_selected_body_prevents_static_execution() {
+    let program = Program {
+        library: "boundary trait Sensor{} machine sense() reaches Sensor {} public machine increment(n:u8)->u8 reaches none crashes none terminates {n +% 1u8}",
+        ..CALL
+    };
+    spec_corpus::observe_handoff!(
+        "boundary-service-reach/consumer",
+        program.check(
+            PreparationReason::InvocationNotEffectFree,
+            "the selected invocation is not effect-free during preparation",
+            |facts| {
+                let sensor = facts
+                    .machine_effects
+                    .iter()
+                    .find(|row| row.machine.path == "sense")
+                    .unwrap();
+                let [service] = sensor.reach.as_slice() else {
+                    panic!("expected one reachable service")
+                };
+                assert_eq!(service.service.path, "Sensor");
+                let reach = sensor.reach.clone();
+                let increment = facts
+                    .machine_effects
+                    .iter_mut()
+                    .find(|row| row.machine.path == "increment")
+                    .unwrap();
+                assert!(increment.reach.is_empty());
+                std::sync::Arc::get_mut(increment).unwrap().reach = reach;
+            }
+        ),
+    );
+}
+
+#[test]
 fn a_blocking_library_body_cannot_execute_during_preparation() {
     CALL.check(PreparationReason::InvocationNotEffectFree, "the selected invocation is not effect-free during preparation", |facts| {
         let [effects] = facts.machine_effects.as_mut_slice() else { panic!("expected one effect row") };
@@ -302,6 +336,29 @@ fn static_callbacks_require_the_selected_signature_and_its_effects() {
         let signature = facts.signatures.iter_mut().find(|s| s.machine.path == "identity").unwrap();
         std::sync::Arc::make_mut(signature).parameters[0].1 = ValueType::Bool;
     });
+}
+
+#[test]
+fn a_skipped_callback_cannot_have_a_fixed_suspension_effect() {
+    let program = Program {
+        library: "",
+        client: "data Step=machine()->u8 suspends; machine ready()->u8{0u8}
+                 machine choose<const F:Step>(run:bool)->u8 suspends {transition run {true -> suspend F(), false -> 42u8,}}
+                 const ANSWER:u8=choose::<ready>(false);",
+        occurrence: "choose::<ready>(false)",
+    };
+    // Both passes start at L4 with a complete typed input. The acknowledged
+    // branch is skipped in both; only the selected body's fixed effect changes.
+    spec_corpus::observe_handoff!(
+        "selected-callback-effects/consumer",
+        program.check(PreparationReason::CallbackEffectsNotEmpty, "the exact static callback has unresolved or nonempty operational effects", |facts| {
+            let [call] = facts.indirect_calls.as_slice() else { panic!("expected the template invocation") };
+            assert!(call.acknowledgements.suspend && call.contract.pause.suspend);
+            let row = facts.machine_effects.iter_mut().find(|row| row.machine.path == "ready").unwrap();
+            assert!(!row.fixed_pause.suspend);
+            std::sync::Arc::get_mut(row).unwrap().fixed_pause.suspend = true;
+        })
+    );
 }
 
 #[test]

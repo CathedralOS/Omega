@@ -113,6 +113,7 @@ machine Main::main(&mut self) {
         self.positive("data Index [copy]{value:u32 in Trapping;} machine main()->u8{let mut s:Index;s.value=42 as +Trapping;let w:u64 in Trapping=s.value as -Trapping as u64 +Trapping;transition (w as -Trapping)==42{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}", 42, 212);
         self.positive("machine main()->u8{let w:u64=42 as u8 as u64;transition w==42{true->yes(),_->no()} machine yes()->u8{42} machine no()->u8{1}}", 42, 213);
         self.refusal("machine main()->u8{let v:u32 in Trapping=42 as +Trapping;let w:u64 in Trapping=v as u64 +Trapping;42}", 1, 214);
+        self.integer_patterns();
     }
 }
 
@@ -165,7 +166,7 @@ machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
 // Removing that edge must refuse, even after the successful lookup; restoring
 // it must rebuild rather than inheriting a partial failed invocation.
 machine Main::source_sets(&mut self) {
-    let source: &[u8] = "appdepuse dep\\answer; machine main()->u8 {answer()}public machine answer()->u8 {42}";
+    let source: &[u8] = "appdepuse dep\\answer; machine main()->u8 {answer()}public machine answer()->u8 {let mut s:Score;s.points=42;s.points}data Score requires points<=42,{points:u8;}";
     self.compiler.parser.sources.package_count = 2;
     self.compiler.parser.sources.packages[0].name.start = 0;
     self.compiler.parser.sources.packages[0].name.end = 3;
@@ -186,6 +187,8 @@ machine Main::source_sets(&mut self) {
     self.compiler.parser.sources.units[1].start = 51;
     self.compiler.parser.sources.units[1].end = source.len;
     self.compiler.compile_set(source, 0, "main");
+    // The bounded record must use the per-file compiler on this two-file input.
+    assert self.compiler.construction.active == 1;
     self.publish(42, 141);
     self.compiler.parser.sources.dependency_count = 0;
     self.compiler.compile_set(source, 0, "main");
@@ -282,4 +285,17 @@ machine Main::nested_machines(&mut self) {
     self.positive("machine leaf()->u8{42}machine main()->u8{transition{_->sibling()}machine outer()->u8{transition{_->leaf()}machine leaf()->u8{7}}machine sibling()->u8{leaf()}}", 42, 212);
     self.refusal("machine leaf()->u8{7}machine main()->u8{transition{_->outer()}machine outer()->u8{let answer:u8=leaf();transition{_->answer}machine leaf()->u8{42}}}", 2, 213);
     assert self.compiler.outcome_coordinate == 96;
+}
+
+// The first and second labels have the same low word. A truncated comparison
+// selects the first arm. The last label also sets every bit of the high word.
+machine Main::integer_patterns(&mut self) {
+    self.positive("machine which(n:u64)->u8{transition n{1->7,0x1_0000_0001->42,_->0}} machine main()->u8{which(4294967297)}", 42, 222);
+    self.positive("machine which(n:u64)->u8{transition n{4294967295->7,18_446_744_073_709_551_615->42,_->0}} machine main()->u8{which(0xffff_ffff_ffff_ffff)}", 42, 223);
+    self.refusal("machine which(n:u8)->u8{transition n{0x100->7,_->42}} machine main()->u8{which(0)}", 1, 224);
+    self.refusal("machine which(n:u32)->u8{transition n{0x1_0000_0000->7,_->42}} machine main()->u8{which(0)}", 1, 225);
+    self.refusal("machine which(n:u64)->u8{transition n{0x1_0000_0000_0000_0000->7,_->42}} machine main()->u8{which(0)}", 1, 226);
+    self.refusal("machine which(n:u8)->u8{transition n{true->7,_->42}} machine main()->u8{which(0)}", 1, 227);
+    self.refusal("machine which(n:bool)->u8{transition n{1->7,_->42}} machine main()->u8{which(true)}", 1, 228);
+    self.refusal("machine which(n:u64)->u8{transition n{0->1,1->42}} machine main()->u8{which(1)}", 1, 229);
 }

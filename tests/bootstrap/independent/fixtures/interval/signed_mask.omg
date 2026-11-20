@@ -1,0 +1,25 @@
+machine bounded(result: Value, maximum: u64 in Wrapping) -> bool {
+    result.floor.finite && !result.floor.value.negative && result.floor.value.magnitude == 0
+        && result.ceiling.finite && !result.ceiling.value.negative && result.ceiling.value.magnitude == maximum
+}
+machine main() -> u8 {
+    let unknown: Value = value_unknown();
+    let negative: Value = value_constant(ExactInteger { negative: true, magnitude: 1 as +Wrapping });
+    let mask: Value = value_constant(ExactInteger { negative: false, magnitude: 255 as +Wrapping });
+    let small: Value = value_constant(ExactInteger { negative: false, magnitude: 15 as +Wrapping });
+    let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 as +Wrapping });
+    let unknown_result: Value = value_conjunction(negative, unknown);
+    transition bounded(value_conjunction(unknown, mask), 255 as +Wrapping)
+        && bounded(value_conjunction(mask, unknown), 255 as +Wrapping)
+        && bounded(value_conjunction(negative, mask), 255 as +Wrapping)
+        && bounded(value_conjunction(mask, negative), 255 as +Wrapping)
+        && bounded(value_conjunction(mask, small), 15 as +Wrapping)
+        && bounded(value_conjunction(small, mask), 15 as +Wrapping)
+        && bounded(value_conjunction(zero, unknown), 0 as +Wrapping)
+        && !unknown_result.floor.finite && !unknown_result.ceiling.finite {
+        true -> yes(),
+        _ -> no()
+    }
+    machine yes() -> u8 { 42 }
+    machine no() -> u8 { 1 }
+}

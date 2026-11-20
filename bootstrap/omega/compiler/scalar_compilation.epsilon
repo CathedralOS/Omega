@@ -11,6 +11,7 @@ data OmegaCheckedValueKind {
     case Place;
     case Borrow;
     case RecordLiteral;
+    case ArrayLiteral;
     case IndexedRead;
     case ForwardedReference;
     case ExactAddition;
@@ -23,6 +24,7 @@ data OmegaCheckedValueKind {
     case WideLiteral;
     case NegativeI32Literal;
     case SignedComparison;
+    case ProcessTerminal;
     case LowBits;
     case SharedByteRange;
     case SharedByteRead;
@@ -51,6 +53,7 @@ data OmegaEntryBound {
     root: i32;
     offset: i32;
     field: i32;
+    // -1 leaves a signed lower endpoint open.
     minimum: i32;
     // -1 leaves the upper end open.
     maximum: i32;
@@ -63,6 +66,13 @@ data OmegaScalarCompilationStatus {
     case Incomplete;
     case ResourceFailure;
     case InternalFailure;
+}
+
+data OmegaIndexBoundKind {
+    case Unproved;
+    case Literal;
+    case ValueInterval;
+    case BooleanArm;
 }
 
 // The closed core catalog selects a by-copy read (schema 1) or an exclusive
@@ -94,12 +104,25 @@ data OmegaFixedIndexPlan {
     parent_extent: i32;
     access: i32;
     removed_trapping: i32;
-    bound_kind: i32;
+    bound_kind: OmegaIndexBoundKind;
+    // A branch cites its transition row (predicate and truth). Other bounds
+    // cite the checked selector expression.
     bound_source: i32;
     bound_limit: i32;
 }
 
+// The Alpha tape stores each checked scalar value as two little-endian words.
+data OmegaIntegerGuard {
+    low: i32;
+    high: i32;
+}
+
 data OmegaScalarCompiler {
+    build: ConstructionBuildResult;
+    // A nonempty site belongs to the independently supplied standalone
+    // deployment. It is scoped to this compilation and cleared on return.
+    process_entry: OmegaRelativeSpan;
+    terminal_calls: [i32; 4096];
     byte_ranges: [OmegaByteRange; 16384];
     construction: OmegaConstructionDirectory;
     import_bindings: [OmegaImportBinding; 4096];
@@ -172,11 +195,14 @@ data OmegaScalarCompiler {
     case_name_buckets: [i32; 16384];
     case_name_count: i32;
     case_guard_ordinals: [i32; 16384];
+    integer_guards: [OmegaIntegerGuard; 16384];
     case_coverage: [i32; 16384];
     // Each pattern field retains its case-owned slot. Only the current
     // arm's target can resolve its binding names (zero means no arm).
     pattern_field_slots: [i32; 16384];
     pattern_scope: i32;
+    // Set only while checking one target of a checked Boolean transition.
+    active_boolean_arm: i32;
     // Compound identities are canonical within this single-source adapter:
     // nominal records/sums 100000+declaration, arrays 200000+type-row, qualified arrays
     // 300000+type-row, shared/mutable record refs 400000/500000+declaration.
@@ -1015,9 +1041,23 @@ machine OmegaScalarCompiler::parameter_type(
     // Referent authority comes from the Reference type, not carrier mutability;
     // rebinding a reference carrier remains unsupported by place checking.
     transition (parameter.is_const == 0) && (parameter.is_self == 0) &&
-        ((parameter.is_mutable == 0) || ((kind >= 400000) && (kind < 504096))) {
-        true -> return kind
+        ((parameter.is_mutable == 0) || ((kind >= 400000) && (kind < 504096)) ||
+            (omega_array_reference_row(kind) >= 0)) {
+        true -> retain(kind)
         _ -> return 0
+    }
+    state retain(kind: i32) {
+        let array: i32 = omega_array_reference_row(kind);
+        transition (array >= 0) && (self.construction.active == 1) {
+            true -> parameter_array(kind, array)
+            _ -> return kind
+        }
+    }
+    state parameter_array(kind: i32, array: i32) {
+        let slot: i32 = 32768 + parameter_index;
+        self.construction.arrays[slot].count = self.array_count(source, array);
+        self.construction.arrays[slot].element = self.array_element_kind(source, array);
+        return omega_array_reference(16384 + slot, kind / 100000 - 4);
     }
 }
 
@@ -1418,6 +1458,7 @@ machine OmegaScalarCompiler::check_value(
         OmegaExpressionKind::Indexed -> indexed()
         OmegaExpressionKind::Projection -> member(row, self.expression_type(source, owner, state_index, before, row.payload0))
         OmegaExpressionKind::Borrow -> borrow(row)
+        OmegaExpressionKind::ArrayLiteral -> return self.check_array_literal(source, owner, state_index, before, expression, expected)
         OmegaExpressionKind::StructLiteral -> return self.check_record_literal(source, owner, state_index, before, expression, expected)
         OmegaExpressionKind::Call -> call(self.parser.call_expressions[row.payload0])
         OmegaExpressionKind::Integer -> integer(row)
@@ -1473,8 +1514,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state fixed_element() {
-        transition (expected == 8) || (expected == 64) ||
-            ((expected >= 100000) && (expected < 104096)) {
+        transition self.copy_index_element(source, expected) > 0 {
             true -> indexed_place()
             _ -> unsupported(self.diagnostic_offset)
         }
@@ -1584,8 +1624,11 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state bare_call(call: OmegaCallExpressionSyntax) {
-        return self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
-            call.argument_count, self.terminal_declaration_coordinate(source, 0, 0, call.target), call.start, call.target);
+        transition self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
+            call.argument_count, self.terminal_declaration_coordinate(source, 0, 0, call.target), call.start, call.target) {
+            1 -> physical(call)
+            _ -> return 0
+        }
     }
     state unresolved_receiver(call: OmegaCallExpressionSyntax, receiver: OmegaExpressionSyntax) {
         transition receiver.kind {
@@ -1594,9 +1637,18 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state named_receiver(call: OmegaCallExpressionSyntax, receiver: OmegaExpressionSyntax) {
-        return self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
+        transition self.check_terminal_invocation(source, owner, state_index, before, call.first_argument,
             call.argument_count, self.terminal_declaration_coordinate(source, receiver.payload0, receiver.payload1, call.target),
-            call.start, call.target);
+            call.start, call.target) {
+            1 -> physical(call)
+            _ -> return 0
+        }
+    }
+    state physical(call: OmegaCallExpressionSyntax) {
+        transition call.acknowledgements == 0 {
+            true -> retain(OmegaCheckedValueKind::ProcessTerminal, self.parser.call_arguments[call.first_argument])
+            _ -> unsupported(call.start)
+        }
     }
     state arity(call: OmegaCallExpressionSyntax, callee: i32) {
         transition call.argument_count == self.parser.machine_states[
@@ -2571,12 +2623,14 @@ machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
         OmegaCheckedValueKind::Call -> call(self.parser.call_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::BooleanBinary -> return self.emit_boolean_binary(expression,
             self.parser.binary_expressions[self.value_payloads[expression]], 0)
+        OmegaCheckedValueKind::ProcessTerminal -> return self.emit_process_terminal(self.value_payloads[expression])
         OmegaCheckedValueKind::SignedComparison -> return self.emit_boolean_binary(expression,
             self.parser.binary_expressions[self.value_payloads[expression]], 1)
         OmegaCheckedValueKind::LogicalNot -> logical_not()
         OmegaCheckedValueKind::RepresentationCast -> return self.emit_value(self.value_payloads[expression])
         OmegaCheckedValueKind::Place -> return self.emit_place_value(expression)
         OmegaCheckedValueKind::Borrow -> return self.emit_place_address(self.value_payloads[expression])
+        OmegaCheckedValueKind::ArrayLiteral -> return self.emit_array_literal(expression)
         OmegaCheckedValueKind::RecordLiteral -> return self.emit_record_literal(expression)
         OmegaCheckedValueKind::IndexedRead -> return self.emit_place_value(expression)
         OmegaCheckedValueKind::ProjectedRead -> member(self.value_payloads[expression])
@@ -2903,7 +2957,7 @@ machine OmegaScalarCompiler::check_case_transition(
 ) -> i32 {
     let subject: i32 = self.parser.transition_statements[self.parser.statements[
         self.parser.machine_states[state_index].first_statement + first].item_index].subject;
-    transition self.check_value(source, owner, state_index, first, subject, 100000 + declaration) {
+    transition self.check_case_subject(source, owner, state_index, first, subject, 100000 + declaration) {
         1 -> clear(0)
         _ -> return 0
     }
@@ -3011,6 +3065,32 @@ machine OmegaScalarCompiler::check_case_transition(
     state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
 }
 
+// A bare literal guard takes its magnitude from the same scanner and carrier
+// as an expression. Preserve the complete word for ordered comparisons.
+machine OmegaScalarCompiler::check_integer_guard(&mut self, source: &[u8], index: i32,
+    row: OmegaTransitionStatementSyntax, kind: i32) -> i32 {
+    transition kind == 1 {
+        true -> rejected()
+        _ -> scan()
+    }
+    state scan() {
+        self.scan_scalar_literal(source, row.guard_start, row.guard_end, kind);
+        transition self.literal_status {
+            1 -> checked()
+            5 -> checked()
+            3 -> rejected()
+            _ -> incomplete()
+        }
+    }
+    state checked() {
+        self.integer_guards[index].low = self.literal_value;
+        self.integer_guards[index].high = self.literal_high;
+        return 1;
+    }
+    state rejected() { self.record_reject(-1, 4, row.guard_start); return 0; }
+    state incomplete() { self.record_incomplete(4, row.guard_start); return 0; }
+}
+
 // Evaluate a dynamic subject once. Every target terminates the current
 // activation; later guards are reached only by the preceding failed guard.
 machine OmegaScalarCompiler::emit_dynamic_transition(
@@ -3057,10 +3137,19 @@ machine OmegaScalarCompiler::emit_dynamic_transition(
         }
     }
     state subject_kind(cursor: i32, subject: i32, row_index: i32, next: i32) {
-        transition self.cell_types[49152 + subject] >= 100000 {
-            true -> case_guard(cursor, subject, row_index, next)
-            _ -> branch(cursor, subject, row_index, next,
+        transition self.parser.transition_statements[row_index].guard_kind {
+            OmegaTransitionGuardKind::Boolean -> branch(cursor, subject, row_index, next,
                 self.parser.transition_statements[row_index].guard_boolean)
+            OmegaTransitionGuardKind::Integer -> integer_guard(cursor, subject, row_index, next,
+                self.integer_guards[row_index])
+            _ -> case_guard(cursor, subject, row_index, next)
+        }
+    }
+    state integer_guard(cursor: i32, subject: i32, row_index: i32, next: i32, value: OmegaIntegerGuard) {
+        transition (self.tape.emit_imm(2, value.low, value.high) == 1) &&
+            (self.emit_comparison_result(16, 0, 2, 1) == 1) {
+            true -> branch(cursor, subject, row_index, next, 1)
+            _ -> return 0
         }
     }
     state case_guard(cursor: i32, subject: i32, row_index: i32, next: i32) {
@@ -3107,7 +3196,7 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
     }
     state explicit_result(index: i32, kind: i32) {
         transition (kind > 0) && (kind < 200000) &&
-            ((self.type_copy(source, kind) == 1) || (self.uninhabited_type(kind) == 1)) {
+            ((self.type_copy(source, kind) == 1) || (self.uninhabited_type(kind) == 1) || (self.inhabited_sum(kind) == 1)) {
             true -> retain_result(index, kind)
             _ -> unsupported(self.parser.machine_items[owner].start)
         }
@@ -3128,13 +3217,14 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
         transition ((kind > 0) && (kind != 2) && (kind < 200000) &&
             (self.type_copy(source, kind) == 1)) ||
             ((kind >= 400000) && (kind < 404096)) ||
-            ((kind >= 500000) && (kind < 504096)) || (kind == omega_shared_byte_slice()) {
+            ((kind >= 500000) && (kind < 504096)) || (omega_array_reference_row(kind) >= 0) ||
+            (kind == omega_shared_byte_slice()) {
             true -> parameter_storage(index, offset, slot, kind)
             _ -> unsupported(self.parser.machine_parameters[slot].name.start)
         }
     }
     state parameter_storage(index: i32, offset: i32, slot: i32, kind: i32) {
-        transition self.reference_signature(owner, index, kind) {
+        transition self.reference_signature(source, owner, index, kind) {
             1 -> allocate_parameter(index, offset, slot, kind)
             _ -> unsupported(self.parser.machine_parameters[slot].name.start)
         }
@@ -3200,8 +3290,9 @@ machine OmegaScalarCompiler::check_signatures(&mut self, source: &[u8], owner: i
         }
     }
     state same_parameter(index: i32, previous: i32, coordinate: i32, offset: i32) {
-        transition self.parameter_types[self.parser.machine_states[index].first_parameter + offset] ==
-            self.parameter_types[self.parser.machine_states[previous].first_parameter + offset] {
+        transition self.same_reference_type(source,
+            self.parameter_types[self.parser.machine_states[index].first_parameter + offset],
+            self.parameter_types[self.parser.machine_states[previous].first_parameter + offset]) {
             true -> same_parameters(index, previous, coordinate, offset + 1)
             _ -> unsupported(coordinate)
         }
@@ -3219,6 +3310,21 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 // Parsing and declaration selection remain inside the compiler. This internal
 // construction entry does not claim full OCREQ admission.
 machine OmegaScalarCompiler::compile_set(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
+    self.process_entry.end = 0;
+    self.compile_prepared_set(source, entry_unit, entry);
+}
+
+// The host has already compared the whole invocation with its own exact
+// deployment; the complete source-owned Build rejoined this root on this call.
+// A selected provider can justify lowering only inside that standalone process.
+machine OmegaScalarCompiler::compile_process_entry(&mut self, source: &[u8], entry_unit: i32) {
+    let entry: OmegaRelativeSpan = self.build.entry_definition;
+    self.process_entry = entry;
+    self.compile_prepared_set(source, entry_unit, source[entry.start..entry.end]);
+    self.process_entry.end = 0;
+}
+
+machine OmegaScalarCompiler::compile_prepared_set(&mut self, source: &[u8], entry_unit: i32, entry: &[u8]) {
     self.compile_closed_units(source, entry_unit, entry);
     transition self.status {
         OmegaScalarCompilationStatus::Complete -> return
@@ -3244,6 +3350,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     self.diagnostic_offset = 0;
     self.literal_offset = 0;
     self.transition_anchor = 0;
+    self.active_boolean_arm = -1;
     self.pattern_scope = 0;
     self.selected_machine = -1;
     self.outcome_tag = 0;
@@ -3433,6 +3540,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         self.call_colors[index] = 0;
         self.block_bounds[index] = -1;
         self.reach_clauses[index] = -1;
+        self.terminal_calls[index] = -1;
         transition true { true -> reset_call_graph(index + 1) }
     }
 
@@ -3473,6 +3581,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
                 self.parser.owned_machines[self.parser.boundary_machines[self.parser.roots[index].item_index]].start)
             OmegaRootKind::Data -> non_machine_root(index + 1)
             OmegaRootKind::Domain -> incomplete(4, self.parser.domains[self.parser.roots[index].item_index].keyword_start)
+            OmegaRootKind::Trait -> incomplete(4, self.parser.ordinary_traits[self.parser.roots[index].item_index].keyword.start)
             OmegaRootKind::BoundaryTrait -> incomplete(4, self.parser.boundary_traits[self.parser.roots[index].item_index].boundary_keyword.start)
             OmegaRootKind::Use -> incomplete(4, self.parser.uses[
                 self.parser.roots[index].item_index].start)
@@ -3785,9 +3894,9 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         local: OmegaLocalDataStatementSyntax) {
         let kind: i32 = self.scalar_type(source, local.type_reference);
         let array_row: i32 = self.indexable_array_row(kind, 0);
-        let default_word_array: i32 = (local.has_initial_value == 0) && (array_row >= 0) &&
-            (self.scalar_type(source, self.parser.type_references[array_row].payload0) == 64);
-        transition ((kind > 0) && (kind != 2) && (kind < 200000)) || default_word_array {
+        let array_local: i32 = (array_row >= 0) && ((local.has_initial_value == 1) ||
+            (self.array_element_kind(source, array_row) == 64));
+        transition ((kind > 0) && (kind != 2) && (kind < 200000)) || array_local {
             true -> local_name(index, state_index, statement_offset, local)
             _ -> incomplete(4, local.start)
         }
@@ -3964,10 +4073,25 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state unresolved_call(index: i32, state_index: i32, statement: i32, call: OmegaCallStatementSyntax,
         name: OmegaRelativeSpan) {
-        self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[state_index].first_statement,
+        transition self.check_terminal_invocation(source, index, state_index, statement - self.parser.machine_states[state_index].first_statement,
             call.first_argument, call.argument_count, self.terminal_declaration_coordinate(source, call.first_receiver_member,
-                call.receiver_member_count, name), call.start, name);
-        return;
+                call.receiver_member_count, name), call.start, name) {
+            1 -> process_tail(index, state_index, statement, call)
+            _ -> return
+        }
+    }
+
+    state process_tail(index: i32, state_index: i32, statement: i32, call: OmegaCallStatementSyntax) {
+        let state_row: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
+        transition (call.acknowledgements == 0) && (statement + 1 == state_row.first_statement + state_row.statement_count) {
+            true -> process_terminal(index, state_index, self.parser.call_arguments[call.first_argument])
+            _ -> incomplete(4, call.start)
+        }
+    }
+    state process_terminal(index: i32, state_index: i32, argument: i32) {
+        self.state_terminal_kind[state_index] = 9;
+        self.state_targets[state_index] = argument;
+        transition true { true -> check_states(index, state_index + 1) }
     }
 
     // Every ordinary argument must match the callee's declared scalar parameter
@@ -4175,7 +4299,10 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
     state dynamic_type(index: i32, state_index: i32, first: i32, last: i32, subject: i32, kind: i32) {
         transition kind {
-            1 -> dynamic_value(index, state_index, first, last, subject)
+            1 -> dynamic_value(index, state_index, first, last, subject, kind)
+            8 -> dynamic_value(index, state_index, first, last, subject, kind)
+            32 -> dynamic_value(index, state_index, first, last, subject, kind)
+            64 -> dynamic_value(index, state_index, first, last, subject, kind)
             _ -> dynamic_sum(index, state_index, first, last, kind)
         }
     }
@@ -4199,8 +4326,8 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
     }
 
     state dynamic_value(index: i32, state_index: i32, statement_offset: i32,
-        run_end: i32, subject: i32) {
-        transition self.check_value(source, index, state_index, statement_offset, subject, 1) {
+        run_end: i32, subject: i32, kind: i32) {
+        transition self.check_value(source, index, state_index, statement_offset, subject, kind) {
             1 -> dynamic_arm(index, state_index, statement_offset, run_end, statement_offset, 0)
             _ -> return
         }
@@ -4218,8 +4345,24 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         arm: i32, covered: i32, row: OmegaTransitionStatementSyntax) {
         transition row.guard_kind {
             OmegaTransitionGuardKind::Always -> dynamic_target(index, state_index, first, last, arm, 3)
-            OmegaTransitionGuardKind::Boolean -> dynamic_boolean(index, state_index, first, last, arm, covered, row.guard_boolean)
+            OmegaTransitionGuardKind::Boolean -> dynamic_boolean_type(index, state_index, first, last, arm, covered, row)
+            OmegaTransitionGuardKind::Integer -> dynamic_integer(index, state_index, first, last, arm, covered, row)
             _ -> incomplete(4, row.guard_start)
+        }
+    }
+    state dynamic_boolean_type(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row: OmegaTransitionStatementSyntax) {
+        transition self.cell_types[49152 + row.subject] == 1 {
+            true -> dynamic_boolean(index, state_index, first, last, arm, covered, row.guard_boolean)
+            _ -> reject(-1, 4, row.guard_start)
+        }
+    }
+    state dynamic_integer(index: i32, state_index: i32, first: i32, last: i32,
+        arm: i32, covered: i32, row: OmegaTransitionStatementSyntax) {
+        let row_index: i32 = self.parser.statements[self.parser.machine_states[state_index].first_statement + arm].item_index;
+        transition self.check_integer_guard(source, row_index, row, self.cell_types[49152 + row.subject]) {
+            1 -> dynamic_target(index, state_index, first, last, arm, covered)
+            _ -> return
         }
     }
     state dynamic_boolean(index: i32, state_index: i32, first: i32, last: i32,
@@ -4230,8 +4373,11 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state dynamic_target(index: i32, state_index: i32, first: i32, last: i32, arm: i32, covered: i32) {
-        transition self.check_transition_target(source, index, state_index, first,
-            self.parser.statements[self.parser.machine_states[state_index].first_statement + arm].item_index) {
+        let statement: i32 = self.parser.machine_states[state_index].first_statement + arm;
+        self.active_boolean_arm = self.parser.statements[statement].item_index;
+        let checked: i32 = self.check_transition_target(source, index, state_index, first, self.active_boolean_arm);
+        self.active_boolean_arm = -1;
+        transition checked {
             1 -> dynamic_arm(index, state_index, first, last, arm + 1, covered)
             _ -> return
         }
@@ -4412,8 +4558,14 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
 
     state check_entry() {
         transition self.selected_machine >= 0 {
-            true -> entry_arity()
+            true -> chosen_entry(self.declaration_name(OmegaDeclarationKind::Machine, self.selected_machine))
             _ -> reject(11, 0, 0)
+        }
+    }
+    state chosen_entry(name: OmegaRelativeSpan) {
+        transition (self.process_entry.end == 0) || ((self.process_entry.start == name.start) && (self.process_entry.end == name.end)) {
+            true -> entry_arity()
+            _ -> reject(11, 4, name.start)
         }
     }
 
@@ -4773,9 +4925,17 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
             5 -> emit_dynamic_terminal(index, state_index)
             6 -> emit_unit_terminal(index, state_index)
             7 -> emit_trap_terminal(index, state_index)
+            // A selected process terminal consumes its one signed status.
+            9 -> emit_process_terminal(index, state_index)
             // The last statement already transferred to its no-return callee.
             8 -> emit_state(index, state_index + 1)
             _ -> internal()
+        }
+    }
+    state emit_process_terminal(index: i32, state_index: i32) {
+        transition self.emit_process_terminal(self.state_targets[state_index]) {
+            1 -> emit_state(index, state_index + 1)
+            _ -> emission_failure()
         }
     }
     state emit_trap_terminal(index: i32, state_index: i32) {
@@ -4925,11 +5085,95 @@ machine omega_fixed_array_type(row: i32, trapping: i32) -> i32 {
     }
 }
 
-machine OmegaScalarCompiler::fixed_array_row(&mut self, kind: i32) -> i32 {
-    let row: i32 = kind % 100000;
-    transition (kind >= 200000) && (kind < 400000) && (row < self.parser.type_reference_count) {
+// Fixed-array reference parameters use the ordinary shared/exclusive bands.
+// The first 4096 indices in each band belong to records and 4096 to a slice.
+// Adding 10000 leaves room for every local, field and parameter array row.
+machine omega_array_reference(array: i32, access: i32) -> i32 { return 410000 + access * 100000 + array; }
+machine omega_array_reference_row(kind: i32) -> i32 {
+    let row: i32 = kind % 100000 - 10000;
+    transition (kind >= 400000) && (kind < 600000) && (row >= 0) && (row < 65536) {
         true -> return row
         _ -> return -1
+    }
+}
+machine omega_reference_target(kind: i32) -> i32 {
+    let array: i32 = omega_array_reference_row(kind);
+    transition array >= 0 {
+        true -> return omega_fixed_array_type(array, 0)
+        _ -> record()
+    }
+    state record() {
+        transition ((kind >= 400000) && (kind < 404096)) || ((kind >= 500000) && (kind < 504096)) {
+            true -> return 100000 + kind % 100000
+            _ -> return -1
+        }
+    }
+}
+
+// Separately authored array types agree on extent, element and outer policy.
+// Cross-file parameters carry these facts independently of the caller's syntax.
+machine OmegaScalarCompiler::matches_array_or_value(&mut self, source: &[u8], left: i32, right: i32) -> i32 {
+    transition left == right {
+        true -> return 1
+        _ -> arrays(self.fixed_array_row(left), self.fixed_array_row(right))
+    }
+    state arrays(a: i32, b: i32) {
+        transition (a >= 0) && (b >= 0) && (left / 100000 == right / 100000) {
+            true -> return (self.array_count(source, a) == self.array_count(source, b)) &&
+                (self.array_element_kind(source, a) == self.array_element_kind(source, b))
+            _ -> return 0
+        }
+    }
+}
+machine OmegaScalarCompiler::same_reference_type(&mut self, source: &[u8], left: i32, right: i32) -> i32 {
+    transition left == right {
+        true -> return 1
+        _ -> arrays()
+    }
+    state arrays() {
+        transition (omega_array_reference_row(left) >= 0) && (omega_array_reference_row(right) >= 0) &&
+            (left / 100000 == right / 100000) {
+            true -> return self.matches_array_or_value(source, omega_reference_target(left), omega_reference_target(right))
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::fixed_array_row(&mut self, kind: i32) -> i32 {
+    let row: i32 = kind % 100000;
+    transition (kind >= 200000) && (kind < 400000) {
+        true -> local_or_retained(row)
+        _ -> return -1
+    }
+    state local_or_retained(row: i32) {
+        transition (row < self.parser.type_reference_count) || ((self.construction.active == 1) &&
+            (row >= 16384) && (row < 65536)) {
+            true -> return row
+            _ -> return -1
+        }
+    }
+}
+
+// Rows below 16384 refer to local array syntax. A field declared in another
+// unit uses its checked metadata, with no name lookup in the caller.
+machine OmegaScalarCompiler::array_element_kind(&mut self, source: &[u8], array: i32) -> i32 {
+    transition array >= 16384 {
+        true -> return self.construction.arrays[array - 16384].element
+        _ -> return self.scalar_type(source, self.parser.type_references[array].payload0)
+    }
+}
+
+machine OmegaScalarCompiler::array_count(&mut self, source: &[u8], array: i32) -> i32 {
+    transition array >= 16384 {
+        true -> return self.construction.arrays[array - 16384].count
+        _ -> literal(self.parser.type_references[array])
+    }
+    state literal(row: OmegaTypeReferenceSyntax) {
+        self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
+        transition (self.literal_status == 1) && (self.literal_value > 0) {
+            true -> return self.literal_value
+            _ -> return -1
+        }
     }
 }
 
@@ -4976,7 +5220,15 @@ machine OmegaScalarCompiler::scalar_type(
     state referent(row: OmegaTypeReferenceSyntax, target: OmegaTypeReferenceSyntax) {
         transition target.kind {
             OmegaTypeReferenceKind::Named -> reference_name(row, target)
+            OmegaTypeReferenceKind::FixedArray -> array_reference(row, target)
             OmegaTypeReferenceKind::Slice -> slice(row, target)
+            _ -> return 0
+        }
+    }
+    state array_reference(row: OmegaTypeReferenceSyntax, target: OmegaTypeReferenceSyntax) {
+        let element: i32 = self.primitive_type(source, target.payload0);
+        transition (element > 0) && (element != 2) && (self.array_count(source, row.payload0) > 0) {
+            true -> return omega_array_reference(row.payload0, row.payload1)
             _ -> return 0
         }
     }
@@ -5045,7 +5297,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
     state array() {
         let row: i32 = self.fixed_array_row(kind);
         transition row >= 0 {
-            true -> array_row(self.parser.type_references[row])
+            true -> element(self.array_element_kind(source, row), self.array_count(source, row))
             _ -> reference()
         }
     }
@@ -5057,21 +5309,13 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
     }
     state record_reference() {
         transition ((kind >= 400000) && (kind < 404096)) ||
-            ((kind >= 500000) && (kind < 504096)) {
+            ((kind >= 500000) && (kind < 504096)) || (omega_array_reference_row(kind) >= 0) {
             true -> return 8
             _ -> return 0
         }
     }
-    state array_row(row: OmegaTypeReferenceSyntax) {
-        self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
-        transition (self.literal_status == 1) && (self.literal_value >= 0) {
-            true -> element(row, self.literal_value)
-            _ -> return 0
-        }
-    }
-    state element(row: OmegaTypeReferenceSyntax, count: i32) {
-        let element_kind: i32 = self.scalar_type(source, row.payload0);
-        transition (element_kind > 0) && (element_kind < 400000) && (element_kind != 2) {
+    state element(element_kind: i32, count: i32) {
+        transition (count > 0) && (element_kind > 0) && (element_kind < 400000) && (element_kind != 2) {
             true -> extent(count, self.array_element_stride(source, element_kind))
             _ -> return 0
         }
@@ -5124,12 +5368,9 @@ machine OmegaScalarCompiler::type_copy(&mut self, source: &[u8], kind: i32) -> i
     state array() {
         let row: i32 = self.fixed_array_row(kind);
         transition row >= 0 {
-            true -> element(self.parser.type_references[row].payload0)
+            true -> return self.type_copy(source, self.array_element_kind(source, row))
             _ -> return 0
         }
-    }
-    state element(index: i32) {
-        return self.type_copy(source, self.scalar_type(source, index));
     }
 }
 
@@ -5367,25 +5608,13 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state sum_shape() {
         // Ratified Omega data is a record or a sum; mixed bodies are invalid.
         transition self.parser.data_items[index].field_count == 0 {
-            true -> sum_requirements()
+            true -> sum_begin()
             _ -> invalid_sum()
         }
     }
     state invalid_sum() {
         self.record_reject(-1, 4, self.parser.data_items[index].start);
         return 0;
-    }
-    state sum_requirements() {
-        transition self.parser.data_items[index].requirement_count == 0 {
-            true -> sum_copy()
-            _ -> unsupported()
-        }
-    }
-    state sum_copy() {
-        transition self.parser.data_items[index].multiplicity {
-            OmegaDataMultiplicity::Unrestricted -> sum_begin()
-            _ -> unsupported()
-        }
     }
     state sum_begin() {
         self.data_colors[index] = 1;
@@ -5432,7 +5661,20 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state sum_finish() {
         // Zero names the first declared case. Nominal identity remains the
         // declaration ID; this private word never becomes a source integer.
-        self.data_copy[index] = 1;
+        transition self.check_case_requirement(source, index) {
+            1 -> sum_multiplicity()
+            _ -> unsupported()
+        }
+    }
+    state sum_multiplicity() {
+        transition self.parser.data_items[index].multiplicity {
+            OmegaDataMultiplicity::Unrestricted -> complete_sum(1)
+            OmegaDataMultiplicity::Affine -> complete_sum(0)
+            _ -> unsupported()
+        }
+    }
+    state complete_sum(copyable: i32) {
+        self.data_copy[index] = copyable;
         self.data_colors[index] = 2;
         return 1;
     }
@@ -5445,7 +5687,22 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
     state field(offset: i32, size: i32) {
         transition offset < self.parser.data_items[index].field_count {
             true -> field_type(offset, size, self.parser.data_items[index].first_field + offset)
-            _ -> requirements(0, size)
+            _ -> field_bounds(size)
+        }
+    }
+    // Laying out a nested record can load another file. A requirement's
+    // expression index belongs to this record's file even when the nested
+    // record has a field with the same name.
+    state field_bounds(size: i32) {
+        transition self.parser.data_items[index].requirement_count > 0 {
+            true -> load_bounds(size)
+            _ -> finish(size)
+        }
+    }
+    state load_bounds(size: i32) {
+        transition self.select_construction_unit(source, self.construction.types[index].unit) {
+            1 -> requirements(0, size)
+            _ -> return 0
         }
     }
     state field_type(offset: i32, size: i32, slot: i32) {
@@ -5902,8 +6159,7 @@ machine OmegaScalarCompiler::check_borrow(
     &mut self, source: &[u8], state_index: i32, before: i32, expression: i32, expected: i32
 ) -> i32 {
     let row: OmegaExpressionSyntax = self.parser.expressions[expression];
-    transition ((expected >= 400000) && (expected < 404096) && (row.payload1 == 0)) ||
-        ((expected >= 500000) && (expected < 504096) && (row.payload1 == 1)) {
+    transition (omega_reference_target(expected) > 0) && (row.payload1 == expected / 100000 - 4) {
         true -> place(row)
         _ -> unsupported(row)
     }
@@ -5914,7 +6170,7 @@ machine OmegaScalarCompiler::check_borrow(
         }
     }
     state type(row: OmegaExpressionSyntax) {
-        transition self.place_types[row.payload0] == 100000 + expected % 100000 {
+        transition self.matches_array_or_value(source, self.place_types[row.payload0], omega_reference_target(expected)) {
             true -> access(row)
             _ -> rejected(row)
         }
@@ -5958,13 +6214,102 @@ machine OmegaScalarCompiler::check_borrow(
 machine OmegaScalarCompiler::check_field_bound(
     &mut self, source: &[u8], field: i32, expression: i32
 ) -> i32 {
-    transition (self.field_upper_bounds[field] < 0) ||
-        (self.prove_ceiling(source, self.value_states[expression], self.value_befores[expression],
-            expression, self.field_upper_bounds[field]) == 1) {
+    transition self.field_upper_bounds[field] < 0 {
         true -> return 1
-        _ -> unsupported()
+        _ -> prove()
     }
+    state prove() {
+        transition self.prove_ceiling(source, self.value_states[expression], self.value_befores[expression],
+            expression, self.field_upper_bounds[field]) {
+            1 -> return 1
+            _ -> failed(self.parser.expressions[expression])
+        }
+    }
+    state failed(row: OmegaExpressionSyntax) {
+        transition (field >= 16384) && (self.field_types[field] == 33) {
+            true -> signed_literal(row)
+            _ -> unsupported()
+        }
+    }
+    state signed_literal(row: OmegaExpressionSyntax) {
+        transition self.value_kinds[expression] {
+            OmegaCheckedValueKind::NegativeI32Literal -> rejected(self.parser.unary_expressions[row.payload0].operator_start)
+            OmegaCheckedValueKind::Literal -> positive_literal(row)
+            _ -> unsupported()
+        }
+    }
+    state positive_literal(row: OmegaExpressionSyntax) {
+        transition row.kind {
+            OmegaExpressionKind::Integer -> rejected(row.payload0)
+            _ -> unsupported()
+        }
+    }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
     state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
+}
+
+// An expected array supplies each element's exact type and the required count.
+// Domain qualification on the element still requires an authored cast.
+machine OmegaScalarCompiler::check_array_literal(
+    &mut self, source: &[u8], owner: i32, state_index: i32, before: i32,
+    expression: i32, expected: i32
+) -> i32 {
+    let literal: OmegaExpressionSyntax = self.parser.expressions[expression];
+    let array: i32 = self.fixed_array_row(expected);
+    transition (array >= 0) && (expected == omega_fixed_array_type(array, 0)) {
+        true -> count(literal, array)
+        _ -> rejected(literal.payload2)
+    }
+    state count(literal: OmegaExpressionSyntax, array: i32) {
+        transition self.array_count(source, array) == literal.payload1 {
+            true -> layout(literal, self.array_element_kind(source, array))
+            _ -> rejected(literal.payload2)
+        }
+    }
+    state layout(literal: OmegaExpressionSyntax, element: i32) {
+        self.value_payloads[expression] = element;
+        self.index_plans[expression].stride = self.array_element_stride(source, element);
+        transition (self.index_plans[expression].stride > 0) && (self.type_copy(source, element) == 1) {
+            true -> values(literal, element, 0)
+            _ -> unsupported(literal.payload2)
+        }
+    }
+    state values(literal: OmegaExpressionSyntax, element: i32, index: i32) {
+        transition index < literal.payload1 {
+            true -> value(literal, element, index)
+            _ -> complete()
+        }
+    }
+    state value(literal: OmegaExpressionSyntax, element: i32, index: i32) {
+        transition self.check_value(source, owner, state_index, before,
+            self.parser.call_arguments[literal.payload0 + index], element) {
+            1 -> values(literal, element, index + 1)
+            _ -> return 0
+        }
+    }
+    state complete() { self.value_kinds[expression] = OmegaCheckedValueKind::ArrayLiteral; return 1; }
+    state rejected(at: i32) { self.record_reject(-1, 4, at); return 0; }
+    state unsupported(at: i32) { self.record_incomplete(4, at); return 0; }
+}
+
+machine OmegaScalarCompiler::emit_array_literal(&mut self, expression: i32) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    let home: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    transition true { true -> elements(row, home, self.index_plans[expression].stride, 0) }
+    state elements(row: OmegaExpressionSyntax, home: i32, stride: i32, index: i32) {
+        transition index < row.payload1 {
+            true -> value(row, home, stride, index)
+            _ -> return self.tape.emit_imm(0, home, 0)
+        }
+    }
+    state value(row: OmegaExpressionSyntax, home: i32, stride: i32, index: i32) {
+        transition (self.emit_value(self.parser.call_arguments[row.payload0 + index]) == 1) &&
+            (self.tape.emit_imm(1, home + index * stride, 0) == 1) &&
+            (self.emit_store_at(self.value_payloads[expression], stride) == 1) {
+            true -> elements(row, home, stride, index + 1)
+            _ -> return 0
+        }
+    }
 }
 
 machine OmegaScalarCompiler::check_record_literal(
@@ -5973,7 +6318,7 @@ machine OmegaScalarCompiler::check_record_literal(
 ) -> i32 {
     let row: OmegaStructLiteralSyntax = self.parser.struct_literals[self.parser.expressions[expression].payload0];
     transition (expected >= 100000) && (expected < 104096) && (row.type_member_count > 0) &&
-        (self.type_copy(source, expected) == 1) {
+        ((self.type_copy(source, expected) == 1) || (self.inhabited_sum(expected) == 1)) {
         true -> record_shape(row)
         _ -> unsupported()
     }
@@ -6327,7 +6672,7 @@ machine OmegaScalarCompiler::index_result_type(
         }
     }
     state resolve(base: i32, removed: i32) {
-        transition self.check_place(source, state_index, before, base) {
+        transition self.check_index_base(source, state_index, before, base) {
             1 -> array(self.place_types[base], removed)
             _ -> return -1
         }
@@ -6335,38 +6680,79 @@ machine OmegaScalarCompiler::index_result_type(
     state array(kind: i32, removed: i32) {
         let row: i32 = self.indexable_array_row(kind, removed);
         transition row >= 0 {
-            true -> element(self.parser.type_references[row])
+            true -> return self.copy_index_element(source, self.array_element_kind(source, row))
             _ -> return -1
         }
-    }
-    state element(row: OmegaTypeReferenceSyntax) {
-        return self.copy_index_element(source, row.payload0);
     }
 }
 
 // Use the existing checked record layout and multiplicity for both read and
 // whole-element assignment. A sum, reference or other array element remains
 // outside the fixed-array index families this compiler realizes.
-machine OmegaScalarCompiler::copy_index_element(&mut self, source: &[u8], reference: i32) -> i32 {
-    let kind: i32 = self.scalar_type(source, reference);
-    transition kind {
-        8 -> return 8
-        64 -> return 64
-        _ -> record(kind)
+machine OmegaScalarCompiler::copy_index_element(&mut self, source: &[u8], kind: i32) -> i32 {
+    transition (kind > 0) && (kind < 100000) && (kind != 2) && (self.type_copy(source, kind) == 1) {
+        true -> return kind
+        _ -> record()
     }
-    state record(kind: i32) {
+    state record() {
         transition (kind >= 100000) && (kind < 104096) {
-            true -> shape(kind, kind - 100000)
+            true -> shape(kind - 100000)
             _ -> return -1
         }
     }
-    state shape(kind: i32, declaration: i32) {
+    state shape(declaration: i32) {
         transition (self.parser.data_items[declaration].case_count == 0) &&
             (self.type_size(source, kind) > 0) && (self.type_copy(source, kind) == 1) {
             true -> return kind
             _ -> return -1
         }
     }
+}
+
+// Indexing a reference parameter addresses its pointee. A bare reference in
+// an ordinary value position still uses the call's existing loan carrier.
+machine OmegaScalarCompiler::check_index_base(&mut self, source: &[u8], state_index: i32,
+    before: i32, base: i32) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[base];
+    transition row.kind {
+        OmegaExpressionKind::Path -> path(row)
+        _ -> ordinary()
+    }
+    state path(row: OmegaExpressionSyntax) {
+        transition (row.payload1 == 1) && (row.payload2 == 0) && (row.payload3 == 1) {
+            true -> name(self.parser.members[row.payload0])
+            _ -> ordinary()
+        }
+    }
+    state name(name: OmegaRelativeSpan) {
+        transition self.pattern_binding(source, name) < 0 {
+            true -> cell(self.value_cell(source, state_index, before, name.start, name.end))
+            _ -> ordinary()
+        }
+    }
+    state cell(slot: i32) {
+        transition (slot >= 0) && (slot < 16384) {
+            true -> parameter(slot, self.parameter_types[slot])
+            _ -> ordinary()
+        }
+    }
+    state parameter(slot: i32, kind: i32) {
+        transition omega_array_reference_row(kind) >= 0 {
+            true -> referent(slot, kind, omega_reference_target(kind))
+            _ -> ordinary()
+        }
+    }
+    state referent(slot: i32, kind: i32, target: i32) {
+        self.place_roots[base] = slot;
+        self.place_offsets[base] = 0;
+        self.place_fields[base] = -1;
+        self.place_indirect[base] = 1;
+        self.place_writable[base] = kind / 100000 - 4;
+        self.place_types[base] = target;
+        self.place_extent[base] = self.type_size(source, target);
+        return 1;
+    }
+    state ordinary() { return self.check_place(source, state_index, before, base); }
 }
 
 machine OmegaScalarCompiler::check_index(
@@ -6440,7 +6826,7 @@ machine OmegaScalarCompiler::check_index(
         }
     }
     state resolve(base: i32, removed: i32) {
-        transition self.check_place(source, state_index, before, base) {
+        transition self.check_index_base(source, state_index, before, base) {
             1 -> collection_type(base, removed, self.place_types[base])
             _ -> return 0
         }
@@ -6448,30 +6834,28 @@ machine OmegaScalarCompiler::check_index(
     state collection_type(base: i32, removed: i32, kind: i32) {
         let row: i32 = self.indexable_array_row(kind, removed);
         transition row >= 0 {
-            true -> array(base, removed, kind, self.parser.type_references[row])
+            true -> array(base, removed, kind, row)
             _ -> unsupported()
         }
     }
-    state array(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax) {
-        let element: i32 = self.copy_index_element(source, row.payload0);
+    state array(base: i32, removed: i32, kind: i32, row: i32) {
+        let element: i32 = self.copy_index_element(source, self.array_element_kind(source, row));
         transition element > 0 {
             true -> element_stride(base, removed, kind, row, element)
             _ -> unsupported()
         }
     }
-    state element_stride(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax, element: i32) {
+    state element_stride(base: i32, removed: i32, kind: i32, row: i32, element: i32) {
         self.index_plans[expression].element_type = element;
         self.index_plans[expression].stride = self.array_element_stride(source, element);
         transition self.index_plans[expression].stride > 0 {
-            true -> count(base, removed, kind, row)
+            true -> count(base, removed, kind, self.array_count(source, row))
             _ -> unsupported()
         }
     }
-    state count(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax) {
-        self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
-        transition (self.literal_status == 1) && (self.literal_value > 0) &&
-            (self.literal_value <= 16777216 / self.index_plans[expression].stride) {
-            true -> authority(base, removed, kind, self.literal_value)
+    state count(base: i32, removed: i32, kind: i32, size: i32) {
+        transition (size > 0) && (size <= 16777216 / self.index_plans[expression].stride) {
+            true -> authority(base, removed, kind, size)
             _ -> unsupported()
         }
     }
@@ -6533,10 +6917,8 @@ machine OmegaScalarCompiler::check_index(
     state rejected() { self.record_reject(-1, 4, self.diagnostic_offset); return 0; }
 }
 
-// This first bounds realization uses only immutable literal meaning or a
-// declared scalar-field predicate preserved by every admitted write. No stale
-// flow fact or caller-specific assumption survives a mutation here. Richer
-// inferred private requirements remain a separate, explicit coverage boundary.
+// A fixed index must fit on every path that evaluates it. Keep the branch
+// proof inside the selected arm and match the index by its parameter identity.
 machine OmegaScalarCompiler::check_index_bound(
     &mut self, source: &[u8], expression: i32, selector: i32
 ) -> i32 {
@@ -6547,18 +6929,40 @@ machine OmegaScalarCompiler::check_index_bound(
     }
     state literal(value: i32) {
         transition (value >= 0) && (value < self.index_plans[expression].extent) {
-            true -> retain(1, selector, value)
+            true -> retain(OmegaIndexBoundKind::Literal, selector, value)
             _ -> rejected()
         }
     }
     state contextual() {
         let plan: OmegaFixedIndexPlan = self.index_plans[expression];
         transition self.prove_ceiling(source, plan.owner_state, plan.before, selector, plan.extent - 1) {
-            1 -> retain(3, selector, plan.extent - 1)
+            1 -> retain(OmegaIndexBoundKind::ValueInterval, selector, plan.extent - 1)
+            _ -> branch(plan)
+        }
+    }
+    state branch(plan: OmegaFixedIndexPlan) {
+        transition self.active_boolean_arm >= 0 {
+            true -> guarded(plan, self.parser.transition_statements[self.active_boolean_arm],
+                self.u64_index_parameter(source, plan.owner_state, plan.before, plan.selector))
             _ -> unsupported()
         }
     }
-    state retain(kind: i32, origin: i32, bound: i32) {
+    state guarded(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32) {
+        transition row.guard_kind {
+            OmegaTransitionGuardKind::Boolean -> target(plan, row, index)
+            _ -> unsupported()
+        }
+    }
+    state target(plan: OmegaFixedIndexPlan, row: OmegaTransitionStatementSyntax, index: i32) {
+        transition (index >= 0) && (self.pure_value(row.subject) == 1) &&
+            (self.pure_transition_target(row) == 1) &&
+            (self.guard_bound(index, 0, 0, plan.extent - 1,
+                row.subject, row.guard_boolean) == 1) {
+            true -> retain(OmegaIndexBoundKind::BooleanArm, self.active_boolean_arm, plan.extent - 1)
+            _ -> unsupported()
+        }
+    }
+    state retain(kind: OmegaIndexBoundKind, origin: i32, bound: i32) {
         self.index_plans[expression].bound_kind = kind;
         self.index_plans[expression].bound_source = origin;
         self.index_plans[expression].bound_limit = bound;
@@ -6591,16 +6995,21 @@ machine OmegaScalarCompiler::retain_index_loan(&mut self, expression: i32) -> i3
 // selector-field mutation cannot redirect the pending store.
 machine OmegaScalarCompiler::emit_index_address(&mut self, expression: i32) -> i32 {
     let plan: OmegaFixedIndexPlan = self.index_plans[expression];
-    transition ((plan.schema == 1) || (plan.schema == 2)) &&
-        (plan.element_type == self.place_types[expression]) && (plan.stride > 0) &&
-        (plan.extent > 0) && (plan.extent <= 16777216 / plan.stride) &&
-        ((plan.bound_kind == 1) || (plan.bound_kind == 2) || (plan.bound_kind == 3)) &&
-        (plan.bound_limit >= 0) && (plan.bound_limit < plan.extent) &&
-        (plan.parent_root == self.place_roots[plan.collection]) &&
-        (plan.parent_offset == self.place_offsets[plan.collection]) &&
-        (plan.parent_extent == self.place_extent[plan.collection]) {
-        true -> capture(plan)
-        _ -> return self.tape.fail_internal(expression)
+    transition plan.bound_kind {
+        OmegaIndexBoundKind::Unproved -> return self.tape.fail_internal(expression)
+        _ -> layout(plan)
+    }
+    state layout(plan: OmegaFixedIndexPlan) {
+        transition ((plan.schema == 1) || (plan.schema == 2)) &&
+            (plan.element_type == self.place_types[expression]) && (plan.stride > 0) &&
+            (plan.extent > 0) && (plan.extent <= 16777216 / plan.stride) &&
+            (plan.bound_limit >= 0) && (plan.bound_limit < plan.extent) &&
+            (plan.parent_root == self.place_roots[plan.collection]) &&
+            (plan.parent_offset == self.place_offsets[plan.collection]) &&
+            (plan.parent_extent == self.place_extent[plan.collection]) {
+            true -> capture(plan)
+            _ -> return self.tape.fail_internal(expression)
+        }
     }
     state capture(plan: OmegaFixedIndexPlan) {
         transition (self.emit_place_address(plan.collection) == 1) &&
@@ -6620,7 +7029,7 @@ machine OmegaScalarCompiler::emit_index_address(&mut self, expression: i32) -> i
 // Nested transfers may carry only the enclosing invocation's original reference.
 // No nested reference can begin from an owned local whose static cell a later
 // transfer reuses. Kinds retain the exact referent declaration and access mode.
-machine OmegaScalarCompiler::reference_signature(&mut self, owner: i32, state_index: i32, kind: i32) -> i32 {
+machine OmegaScalarCompiler::reference_signature(&mut self, source: &[u8], owner: i32, state_index: i32, kind: i32) -> i32 {
     transition (kind < 400000) || (state_index == self.parser.machine_items[owner].first_state) {
         true -> return 1
         _ -> original(self.parser.machine_items[owner].first_state, 0)
@@ -6632,7 +7041,7 @@ machine OmegaScalarCompiler::reference_signature(&mut self, owner: i32, state_in
         }
     }
     state parameter(entry: i32, offset: i32, incoming: i32) {
-        transition incoming == kind {
+        transition self.same_reference_type(source, incoming, kind) {
             true -> return 1
             _ -> original(entry, offset + 1)
         }
@@ -6670,16 +7079,24 @@ machine OmegaScalarCompiler::check_forward_reference(
         let slot: i32 = self.value_cell(source, state_index, before, name.start, name.end);
         let entry: OmegaMachineStateSyntax = self.parser.machine_states[state_index];
         transition (slot >= entry.first_parameter) && (slot < entry.first_parameter + entry.parameter_count) {
-            true -> type(slot)
+            true -> type(slot, name.start)
             _ -> unsupported()
         }
     }
-    state type(slot: i32) {
-        transition self.parameter_types[slot] == expected {
+    state type(slot: i32, at: i32) {
+        transition self.same_reference_type(source, self.parameter_types[slot], expected) {
             true -> place(slot)
+            _ -> mismatch(self.parameter_types[slot], at)
+        }
+    }
+    state mismatch(actual: i32, at: i32) {
+        transition (omega_array_reference_row(actual) >= 0) && (omega_array_reference_row(expected) >= 0) &&
+            (actual / 100000 == expected / 100000) {
+            true -> rejected(at)
             _ -> unsupported()
         }
     }
+    state rejected(at: i32) { self.record_reject(-1, 4, at); return 0; }
     state place(slot: i32) {
         self.place_roots[expression] = slot;
         self.place_offsets[expression] = 0;
@@ -6697,8 +7114,9 @@ machine OmegaScalarCompiler::check_forward_reference(
         transition true { true -> capacity(slot) }
     }
     state record(slot: i32) {
-        self.place_extent[expression] = self.data_sizes[expected % 100000];
-        self.place_types[expression] = 100000 + expected % 100000;
+        let target: i32 = omega_reference_target(expected);
+        self.place_extent[expression] = self.type_size(source, target);
+        self.place_types[expression] = target;
         self.place_indirect[expression] = 1;
         self.place_writable[expression] = expected / 100000 - 4;
         self.place_fields[expression] = -1;
@@ -6802,7 +7220,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state carrier(row: OmegaBinaryExpressionSyntax, kind: i32) {
-        transition (kind == 8) || (kind == 32) || (kind == 64) || (self.is_policy_word(kind) == 1) {
+        transition (kind == 8) || (kind == 32) || (kind == 33) || (kind == 64) || (self.is_policy_word(kind) == 1) {
             true -> literal(row, kind % 256, self.parser.expressions[row.right])
             _ -> unsupported()
         }
@@ -6821,7 +7239,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
         }
     }
     state slice_parameters(row: OmegaBinaryExpressionSyntax) {
-        let index: i32 = self.slice_index_parameter(source, state_index, 0, row.left);
+        let index: i32 = self.u64_index_parameter(source, state_index, 0, row.left);
         let slice: i32 = self.slice_length_parameter(source, state_index, 0, row.right);
         transition (index >= 0) && (slice >= 0) && (self.bound_total < 16384) {
             true -> retain_slice(index, slice)
@@ -6844,7 +7262,7 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     state relation(row: OmegaBinaryExpressionSyntax, value: i32) {
         transition row.operator {
             OmegaBinaryOperatorKind::Less -> strict_ceiling(row, value)
-            OmegaBinaryOperatorKind::LessEqual -> retain(row, 0, value)
+            OmegaBinaryOperatorKind::LessEqual -> ceiling(row, value)
             OmegaBinaryOperatorKind::Greater -> strict_floor(row, value)
             OmegaBinaryOperatorKind::GreaterEqual -> retain(row, value, -1)
             _ -> unsupported()
@@ -6858,8 +7276,14 @@ machine OmegaScalarCompiler::decode_entry_predicate(
     }
     state strict_ceiling(row: OmegaBinaryExpressionSyntax, value: i32) {
         transition value > 0 {
-            true -> retain(row, 0, value - 1)
+            true -> ceiling(row, value - 1)
             _ -> unsupported()
+        }
+    }
+    state ceiling(row: OmegaBinaryExpressionSyntax, maximum: i32) {
+        transition self.place_types[row.left] == 33 {
+            true -> retain(row, -1, maximum)
+            _ -> retain(row, 0, maximum)
         }
     }
     state retain(row: OmegaBinaryExpressionSyntax, minimum: i32, maximum: i32) {
@@ -6900,22 +7324,26 @@ machine OmegaScalarCompiler::prove_bound(
     &mut self, source: &[u8], state_index: i32, before: i32,
     expression: i32, minimum: i32, maximum: i32, guard: i32, truth: i32
 ) -> i32 {
-    transition (minimum >= 0) && ((maximum == -1) || (minimum <= maximum)) {
+    transition (minimum >= -1) && ((minimum >= 0) || (maximum >= 0)) &&
+        ((maximum == -1) || (minimum <= maximum)) {
         true -> value()
         _ -> return 0
     }
     state value() {
         transition self.value_kinds[expression] {
             OmegaCheckedValueKind::Literal -> literal(self.value_payloads[expression])
+            OmegaCheckedValueKind::NegativeI32Literal -> negative(self.value_payloads[expression])
             OmegaCheckedValueKind::RepresentationCast -> return self.prove_bound(source, state_index, before, self.value_payloads[expression], minimum, maximum, guard, truth)
             OmegaCheckedValueKind::Place -> place()
             OmegaCheckedValueKind::ExactAddition -> addition(self.parser.binary_expressions[self.value_payloads[expression]])
+            OmegaCheckedValueKind::TrappingArithmetic -> trapping(self.parser.binary_expressions[self.value_payloads[expression]])
             _ -> return 0
         }
     }
     state literal(value: i32) {
-        transition (value >= minimum) && ((maximum < 0) || (value <= maximum)) { true -> return 1 _ -> return 0 }
+        return (value >= 0) && (value >= minimum) && ((maximum < 0) || (value <= maximum));
     }
+    state negative(value: i32) { return (minimum < 0) && (maximum >= 0) && (value <= maximum); }
     state place() {
         transition self.prove_place_bound(source, state_index, before,
             self.place_roots[expression], self.place_offsets[expression],
@@ -6934,6 +7362,14 @@ machine OmegaScalarCompiler::prove_bound(
     state initializer(index: i32, row: OmegaLocalDataStatementSyntax) {
         transition (row.is_mutable == 0) && (row.has_initial_value == 1) {
             true -> return self.prove_bound(source, state_index, self.local_befores[index], row.initial_value, minimum, maximum, -1, 0)
+            _ -> return 0
+        }
+    }
+    // A successful unsigned Trapping addition has the same mathematical sum
+    // as an exact addition. Keep the runtime trap and its checked effect.
+    state trapping(row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Add -> addition(row)
             _ -> return 0
         }
     }
@@ -6956,12 +7392,34 @@ machine OmegaScalarCompiler::prove_place_bound(
     root: i32, offset: i32, field: i32, kind: i32,
     minimum: i32, maximum: i32, guard: i32, truth: i32
 ) -> i32 {
-    transition (minimum == 0) && ((maximum < 0) || ((kind == 8) && (maximum >= 255))) {
-        true -> return 1
-        _ -> declared()
+    transition (kind == 33) && (minimum >= 0) && (maximum >= 0) {
+        true -> signed_interval()
+        _ -> carrier()
+    }
+    state signed_interval() {
+        return (self.prove_place_bound(source, state_index, before, root, offset, field, kind,
+            minimum, -1, guard, truth) == 1) &&
+            (self.prove_place_bound(source, state_index, before, root, offset, field, kind,
+                -1, maximum, guard, truth) == 1);
+    }
+    state carrier() {
+        transition (kind != 33) && (minimum == 0) && ((maximum < 0) || ((kind == 8) && (maximum >= 255))) {
+            true -> return 1
+            _ -> declared()
+        }
     }
     state declared() {
-        transition (minimum == 0) && (field >= 0) {
+        // Only the current case's checked payload field confers this floor.
+        transition (kind == 33) && (field >= 16384) && (minimum == 0) && (maximum < 0) {
+            true -> signed_payload()
+            _ -> upper_bound()
+        }
+    }
+    state signed_payload() {
+        transition self.field_upper_bounds[field] >= 0 { true -> return 1 _ -> guarded() }
+    }
+    state upper_bound() {
+        transition (minimum <= 0) && (maximum >= 0) && (field >= 0) {
             true -> field_bound(self.field_upper_bounds[field])
             _ -> guarded()
         }
@@ -7030,6 +7488,31 @@ machine OmegaScalarCompiler::pure_value(&mut self, expression: i32) -> i32 {
     }
 }
 
+// Reusing the guard requires every expression evaluated in this target
+// to preserve it, including arguments evaluated before the indexed read.
+machine OmegaScalarCompiler::pure_transition_target(&mut self, row: OmegaTransitionStatementSyntax) -> i32 {
+    transition row.target_kind {
+        OmegaTransitionTargetKind::Result -> return self.pure_value(row.result_expression)
+        OmegaTransitionTargetKind::Machine -> return self.pure_arguments(row.first_argument, row.argument_count)
+        OmegaTransitionTargetKind::Terminal -> return 1
+    }
+}
+machine OmegaScalarCompiler::pure_arguments(&mut self, first: i32, count: i32) -> i32 {
+    transition true { true -> next(0) }
+    state next(offset: i32) {
+        transition offset < count {
+            true -> argument(offset)
+            _ -> return 1
+        }
+    }
+    state argument(offset: i32) {
+        transition self.pure_value(self.parser.call_arguments[first + offset]) {
+            1 -> next(offset + 1)
+            _ -> return 0
+        }
+    }
+}
+
 machine OmegaScalarCompiler::preserve_entry_place(&mut self, state_index: i32, before: i32, root: i32, offset: i32) -> i32 {
     transition self.entry_effects_preserve(state_index, before, root, offset) {
         1 -> next(0)
@@ -7082,6 +7565,7 @@ machine OmegaScalarCompiler::guard_bound(&mut self, root: i32, offset: i32, mini
     state value() {
         transition self.value_kinds[expression] {
             OmegaCheckedValueKind::LogicalNot -> return self.guard_bound(root, offset, minimum, maximum, self.value_payloads[expression], 1 - truth)
+            OmegaCheckedValueKind::SignedComparison -> binary(self.parser.binary_expressions[self.value_payloads[expression]])
             OmegaCheckedValueKind::BooleanBinary -> binary(self.parser.binary_expressions[self.value_payloads[expression]])
             _ -> return 0
         }
@@ -7155,7 +7639,7 @@ machine OmegaScalarCompiler::guard_bound_pair(&mut self, root: i32, offset: i32,
         }
     }
     state ceiling_literal(value: i32) {
-        transition (minimum == 0) && (maximum >= 0) && (value >= strict) &&
+        transition (minimum <= 0) && (maximum >= 0) && (value >= strict) &&
             (value - strict <= maximum) { true -> return 1 _ -> return 0 }
     }
     state right_place() {
@@ -7191,20 +7675,9 @@ machine OmegaScalarCompiler::check_call_bounds(
         _ -> guarded()
     }
     state guarded() {
-        transition (guard < 0) || (self.pure_value(guard) == 1) {
-            true -> pure_argument(0)
-            _ -> unsupported()
-        }
-    }
-    state pure_argument(index: i32) {
-        transition index < count {
-            true -> pure(index, self.parser.call_arguments[first_argument + index])
-            _ -> requirement(0)
-        }
-    }
-    state pure(index: i32, argument: i32) {
-        transition self.pure_value(argument) {
-            1 -> pure_argument(index + 1)
+        transition ((guard < 0) || (self.pure_value(guard) == 1)) &&
+            (self.pure_arguments(first_argument, count) == 1) {
+            true -> requirement(0)
             _ -> unsupported()
         }
     }
@@ -7489,4 +7962,10 @@ machine OmegaScalarCompiler::emit_unsigned_less_to(
         true -> return 1
         _ -> return 0
     }
+}
+
+// Alpha HALT ends this one simulated process with the low 32 bits of its signed
+// status. Its operand is evaluated once and has no normal successor.
+machine OmegaScalarCompiler::emit_process_terminal(&mut self, argument: i32) -> i32 {
+    return (self.emit_value(argument) == 1) && (self.tape.emit_r(0, 0) == 1);
 }

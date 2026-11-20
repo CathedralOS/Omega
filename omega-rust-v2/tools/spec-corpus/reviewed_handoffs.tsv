@@ -1,6 +1,11 @@
 owner	rule	side	suite	target	test	comparison
 L0	R1	direct	L0	tests/byte_cases.rs	non_ascii_is_allowed_in_comments_and_quoted_literals	valid-utf-8/producer
 L0	R1	refusals	L0	tests/byte_cases.rs	every_two_byte_input_with_a_non_ascii_byte_obeys_utf8_error_precedence	valid-utf-8/refusal
+L0	R1	refusals	L0	tests/byte_cases.rs	invalid_utf8_rejects	invalid-utf8/file
+L0	R3	direct	L0	tests/byte_cases.rs	crlf_line_endings_lex	whitespace/crlf
+L0	R3	refusals	L0	tests/byte_cases.rs	form_feed_rejects	whitespace/form-feed
+L0	R3	refusals	L0	tests/byte_cases.rs	no_break_space_rejects	whitespace/no-break-space
+L0	R3	refusals	L0	tests/byte_cases.rs	byte_order_mark_rejects	whitespace/byte-order-mark
 L0	R2	direct	L0	tests/golden_fixtures.rs	accept_fixtures_lex_to_their_expected_tokens	token-coverage-of-all-source-bytes/producer
 L0	R2	consumer	L1	tests/golden_fixtures.rs	accept_fixtures_parse_to_their_expected_trees	token-coverage-of-all-source-bytes/consumer
 L0	R13	refusals	L0	tests/byte_cases.rs	carriage_return_in_quoted_rejects	forbidden-quoted-escapes-and-line-breaks/refusal
@@ -136,7 +141,7 @@ L3	L2 supplies the packages each requester may select from.	consumer	L4	tests/st
 L3	Calls	consumer	L4	tests/closed_indices.rs	a_computed_result_domain_selects_the_exact_overload	result-domain-call-selection/consumer
 L3	Numbers and operators	consumer	L4	tests/frozen_handoff.rs	generic_indexed_integer_operations_keep_their_selected_policy_and_width	selected-operator-policy-and-width/consumer
 L3	Data and bindings	consumer	L4	tests/frozen_handoff.rs	generic_returns_discharge_possible_loans_only_for_complete_owned_results	declared-field-order/consumer
-L3	Evidence and effects	consumer	L4	tests/static_callbacks.rs	a_skipped_callback_still_requires_non_suspending_selected_effects	selected-callback-effects/consumer
+L3	Evidence and effects	consumer	L4	tests/typed_input_diagnostics.rs	a_skipped_callback_cannot_have_a_fixed_suspension_effect	selected-callback-effects/consumer
 L3	Collection access	consumer	L4	tests/frozen_handoff.rs	fixed_array_reads_use_the_selected_bounds_and_can_project_an_element_field	selected-element-read-precondition/consumer
 L3	Domains	consumer	L5	tests/domains.rs	qualification_edges_preserve_each_source_and_deliver_the_exact_destination_set	checked-domain-casts/consumer
 L3	Access plans and progress	consumer	L5	tests/ranking.rs	a_self_countdown_claims_strict_descent_only_on_its_exact_internal_edge	canonical-ranking-view/consumer
@@ -149,6 +154,7 @@ L1	file, items	consumer	L2	tests/syntax_handoff.rs	each_item_of_a_file_becomes_o
 L1	data	consumer	L2	tests/syntax_handoff.rs	data_members_nest_under_their_authored_owner_and_its_clauses_bind	syntax-data/consumer
 L1	domain	consumer	L2	tests/syntax_handoff.rs	domain_heads_compositions_and_indices_bind_their_written_parts	syntax-domain/consumer
 L1	trait, conformance	consumer	L2	tests/syntax_handoff.rs	trait_parents_and_selection_rows_bind_each_written_path	syntax-trait-conformance/consumer
+L1	trait, conformance	refusals	L1	tests/golden_fixtures.rs	dangling_selection_path_reports_the_first_fixable_occurrence	syntax-trait-conformance/first-malformed-selection
 L1	machine	consumer	L2	tests/syntax_handoff.rs	machine_signatures_supply_operator_tokens_ordered_operands_and_nested_owners	syntax-machine/consumer
 L1	mathematical let	consumer	L2	tests/syntax_handoff.rs	a_mathematical_let_body_reads_its_own_parameters	syntax-mathematical-let/consumer
 L1	generic parameters	consumer	L2	tests/syntax_handoff.rs	each_generic_binder_form_binds_its_uses_and_numbers_the_operand_identity	syntax-generic-parameters/consumer
@@ -188,3 +194,22 @@ L4	When preparation stops, its diagnosed entry point identifies the pass	refusal
 L4	When a public type depends on an unselected target,	direct	L4	tests/preparation_failure_phases.rs	an_open_target_recipe_prepares_and_the_open_entry_point_retains_its_demand	preparation-refusal/open-target-retained
 L4	When a public type depends on an unselected target,	refusals	L4	tests/preparation_failure_phases.rs	a_selected_target_without_the_layout_refuses_evaluation_at_the_query	preparation-refusal/selected-target-evaluation
 L3	A static value evaluation request identifies the exact expression node and its carrier.	refusals	L3	tests/specialization_receipts.rs	specialization_receipt_preparation_entry_point_applies_the_same_boundary	specialized-evaluation-input/refusal
+L3	The resolver supplies the operator-token node,	direct	L3	tests/calls.rs	inferred_operator_home_distinguishes_inherited_and_independent_domains	overloads-and-operators/consumer
+L3	The resolver supplies the operator-token node,	consumer	L5	tests/operators.rs	unused_operators_retain_the_home_and_the_exact_forwarded_operand	lowered-operator-home/consumer
+L4	Every refusal L4 renders carries its typed cause.	direct	L4	tests/preparation_reasons.rs	a_target_contract_layout_refusal_is_forwarded_unchanged	target-layout-cause/producer
+L4	Every refusal L4 renders carries its typed cause.	direct	L4	tests/preparation_reasons.rs	an_integer_primitive_refusal_is_forwarded_unchanged	integer-primitive-cause/producer
+L4	Preparation indexes each named constant by its declaration.	direct	L4	tests/owned_records.rs	static_values::aliased_constant_records_cannot_freeze_another_initializers_value	named-constant-initializers/producer
+L4	A specialized initializer may invoke the exact machine	direct	L4	tests/static_callbacks.rs	closure::a_literal_callback_computes_the_field_type_but_cannot_supply_its_own_refinement	specialized-callback-field/producer
+L4	An evaluation request identifies its expression	direct	L4	tests/owned_records.rs	prepared_consumer_reads_declaration_order_and_the_exact_case	frozen-scalar-and-aggregate-values/producer
+L4	An evaluation request identifies its expression	refusals	L4	tests/owned_records.rs	field_initializers_evaluate_in_authored_order	authored-field-evaluation-order/refusal
+L3	L3 checks that each named service in a reach ceiling	direct	L3	tests/calls.rs	service_reach_uses_the_declared_boundary_trait_in_all_files	boundary-service-reach/producer
+L3	L3 checks that each named service in a reach ceiling	consumer	L4	tests/typed_input_diagnostics.rs	a_reachable_service_in_the_selected_body_prevents_static_execution	boundary-service-reach/consumer
+L3	Readiness is per closed demand,	direct	L3	tests/closed_demand.rs	a_pending_width_depends_on_the_called_slot_of_each_closed_tuple	closed-callback-readiness/producer
+L3	Readiness is per closed demand,	direct	L3	tests/calls.rs	private_route_free_bodies_publish_an_effect_row_not_an_authored_clause	closed-callback-crash-bound/producer
+L3	Readiness is per closed demand,	consumer	L4	tests/static_callbacks.rs	closure::the_same_field_recipe_can_run_for_one_nested_selection_while_another_waits	closed-callback-readiness/consumer
+L3	Readiness is per closed demand,	consumer	L4	tests/static_callbacks.rs	closure::a_specialized_request_waits_for_its_selected_overload	closed-callback-crash-bound/consumer
+L3	Readiness is per closed demand,	refusals	L4	tests/static_callbacks.rs	closure::the_same_field_recipe_can_run_for_one_nested_selection_while_another_waits	closed-callback-readiness/captured-refusal
+L4	When preparation reads a closed aggregate argument,	direct	L4	tests/owned_records.rs	value_witness::an_invalid_closed_argument_cannot_freeze_a_scalar_or_a_whole_record	closed-argument-fields/producer
+L4	When preparation reads a closed aggregate argument,	refusals	L4	tests/owned_records.rs	value_witness::an_invalid_closed_argument_is_refused_before_direct_or_nested_named_reads	closed-argument-fields/refusal
+L0	R16	consumer	L1	tests/golden_fixtures.rs	accept_fixtures_parse_to_their_expected_trees	fixture/accept/right_shift.omg
+L3	Patterns and places	consumer	L5	tests/ownership.rs	a_grouped_call_argument_transfers_the_selected_field_to_the_callee	grouped-call-field/consumer

@@ -1,6 +1,7 @@
 """Relate observed handoffs to the rules listed in V2's layer documents."""
 from pathlib import Path
 import re
+import callable_alias_evidence
 import reviewed_comparisons
 
 
@@ -59,6 +60,7 @@ GOLDEN_TESTS = {
 # Witnesses with precise product assertions outside the fixture comparisons.
 # Several variants may be necessary to distinguish two legal products.
 ASSERTIONS = {
+    "structural-callable/alias-rhs": ("L1", "callable_aliases", "structural_callable_signatures_have_one_declaration_site", "types", "parse_file accepts structural signatures declared on an alias RHS and uses of their names"),
     "lexical-scope/binder-offsets": ("L2", "stage", "lexical_binding_uses_its_declaration_and_begins_after_its_initializer", "Lexical scope", "both references point to their distinct binder offsets"),
     "static-call/selected-machine": ("L3", "exposure", "constant_initializers_publish_references_calls_and_suffixed_values", "Calls", "initializer selects width at its call node"),
     "field-recipe/false": ("L4", "frozen_handoff", "lowering_can_distinguish_two_applications_of_the_same_field_recipe", "L3 publishes the operations", "field recipe under false returns true"),
@@ -98,6 +100,9 @@ def record(report, suite, target, current_test, line):
             return
         group, key, value = observations["identity"], f"{stage}/{twin}", actual
     elif fields[0] == "OMEGA_HANDOFF_ASSERT":
+        if len(fields) >= 2 and fields[1].startswith(callable_alias_evidence.PREFIX):
+            callable_alias_evidence.record(report, observations, suite, target, current_test[1] if current_test else None, fields)
+            return
         key = fields[1] if len(fields) == 2 else ""
         witness = ASSERTIONS.get(key)
         if not witness or suite != witness[0] or target != f"tests/{witness[1]}.rs" or not current_test or current_test[1] != witness[2]:
@@ -107,6 +112,8 @@ def record(report, suite, target, current_test, line):
     elif suite in GOLDEN_TESTS:
         binary, positive, negative = GOLDEN_TESTS[suite]
         if target != f"tests/{binary}.rs":
+            if suite == "L0":
+                report["measurement_errors"].append(f"misplaced L0 fixture observation: {line}")
             return
         if len(fields) != 2:
             report["measurement_errors"].append(f"malformed fixture observation: {line}")
@@ -125,8 +132,28 @@ def record(report, suite, target, current_test, line):
         return
     if key in group:
         report["measurement_errors"].append(f"duplicate handoff observation: {key}")
+        if suite == "L0" and group is observations["goldens"]:
+            group[key] = None
     else:
         group[key] = value
+
+
+def named_lexer_requirements(cells, line):
+    named = []
+    for group, cell in zip(("accept", "reject"), cells):
+        if cell in {"—", "every fixture", "tiling check on every fixture and spec example"}:
+            continue  # Not a named case.
+        for ref in cell.split(","):
+            match = re.fullmatch(r"`(byte_cases::)?([a-z][a-z0-9_]*)`", ref.strip())
+            if not match:
+                raise ValueError(f"L0 line {line}: invalid evidence reference {ref!r}")
+            unit, name = match.groups()
+            item = {"kind": "unit test" if unit else "fixture", "name": unit + name if unit else f"{group}/{name}.omg",
+                    "side": "direct" if group == "accept" else "refusals", "verified": False}
+            if item in named:
+                raise ValueError(f"L0 line {line}: duplicate {ref}")
+            named.append(item)
+    return named
 
 
 def document_rules(stage, source):
@@ -165,12 +192,14 @@ def document_rules(stage, source):
             rule = cells[0]
             description = cells[1] if stage != "L1" else rule
             fixtures = []
-            if stage in {"L0", "L1"}:
+            if stage == "L1":
                 for kind, cell in zip(("accept", "reject"), cells[-2:]):
                     fixtures.extend(f"{kind}/{name}.omg" for name in re.findall(r"`([a-z][a-z0-9_]*)`", cell))
             if stage == "L3":
                 fixtures.extend(f"accept/{name}.omg" for name in TYPED_FIXTURES.get(rule, ()))
             rows.append({"line": number, "section": section, "rule": rule, "description": description, "fixtures": fixtures})
+            if stage == "L0":
+                rows[-1]["named_requirements"] = named_lexer_requirements(cells[-2:], number)
         elif stage in {"L2", "L3", "L4"} and line.strip():
             if not paragraph:
                 first = number
@@ -184,12 +213,38 @@ def document_rules(stage, source):
     return rows
 
 
+def passing_fixture(stage, fixture, evidence, results):
+    binary, accept, reject = GOLDEN_TESTS[stage]
+    emitter = accept if "accept" in Path(fixture).parts else reject
+    return (evidence["goldens"].get(f"{stage}/{fixture}") == emitter
+            and results.get((stage, f"tests/{binary}.rs", emitter)) == "ok")
+
+
+def check_lexer_fixtures(row, fixture_dir, evidence, results, errors):
+    unconfirmed = set()
+    for item in row["named_requirements"]:
+        if item["kind"] != "fixture":
+            continue
+        fixture = item["name"]
+        source = fixture_dir / fixture
+        key = f"L0/{fixture}"
+        missing = [p.name for p in (source, source.with_suffix(".expected")) if not p.is_file()]
+        if missing:
+            errors.append(f"L0 {row['rule']}: missing fixture pair member in {source.parent}: {', '.join(missing)}")
+        item["verified"] = not missing and passing_fixture("L0", fixture, evidence, results)
+        if item["verified"]:
+            row.setdefault(item["side"], []).append(fixture)
+        else:
+            unconfirmed.add(key)
+    return unconfirmed
+
+
 def finish(report, directory):
     evidence = report.get("handoff_observations", {"identity": {}, "goldens": {}, "assertions": {}})
     errors = report["measurement_errors"]
     measured = dict.fromkeys(DOCUMENTS, True)
-    results = {(stage, test["target"].replace("\\", "/"), test["test"]): test["status"]
-               for stage, suite in report["suites"].items() for test in suite["tests"]}
+    results = reviewed_comparisons.test_results(report)
+    unconfirmed_fixtures = set()
     control = results.get(("L4", "tests/constant_identity_handoff.rs", IDENTITY_CONTROL))
     substitutions = evidence.get("controls", {})
     report["verified_identity_substitutions"] = [s for s in DOCUMENTS if control == "ok" and substitutions.get(s) == "OTHER"]
@@ -237,12 +292,14 @@ def finish(report, directory):
             row["consumer"] = []
             row["refusal_only_rule"] = ((stage == "L0" and row["rule"] in {"R13", "R17"})
                                         or (stage == "L4" and row["rule"].startswith("When preparation stops, its diagnosed entry point")))
-            if stage == "L0" and row["rule"] == "R16" and "L1/accept/right_shift.omg" in evidence["goldens"]:
-                row["consumer"].append("L1 · right_shift.omg checks shift grouping and nested generic closers")
+            if stage == "L0":
+                unconfirmed_fixtures.update(check_lexer_fixtures(row, path.parent / "fixtures", evidence, results, errors))
             for fixture in row.pop("fixtures"):
-                if stage in {"L1", "L3"} and not (path.parent / "fixtures" / fixture).is_file():
-                    errors.append(f"{stage} line {row['line']}: mapped fixture missing: {fixture}")
-                if (path.parent / "fixtures" / fixture).is_file() and f"{stage}/{fixture}" in evidence["goldens"]:
+                source = path.parent / "fixtures" / fixture
+                if not source.is_file() or not source.with_suffix(".expected").is_file():
+                    errors.append(f"{stage} line {row['line']}: mapped fixture missing its input or expectation: {fixture}")
+                    unconfirmed_fixtures.add(f"{stage}/{fixture}")
+                elif passing_fixture(stage, fixture, evidence, results):
                     if fixture.startswith("accept/"):
                         row["direct"].append(fixture)
                     else:
@@ -271,9 +328,23 @@ def finish(report, directory):
             for group in (("accept", "reject", "prepared/accept", "prepared/reject") if stage == "L3" else ("accept", "reject")):
                 for source in sorted((fixture_dir / group).glob("*.omg")):
                     key = f"{stage}/{source.relative_to(fixture_dir).as_posix()}"
-                    if key not in evidence["goldens"]:
+                    fixture = source.relative_to(fixture_dir).as_posix()
+                    if not source.with_suffix(".expected").is_file() or not passing_fixture(stage, fixture, evidence, results):
+                        unconfirmed_fixtures.add(key)
                         errors.append(f"fixture output comparison unconfirmed: {key}")
-    reviewed_comparisons.apply(report, outlines)
+    observed = reviewed_comparisons.apply(report, outlines, unconfirmed_fixtures)
+    byte_tests = {(w.rule, w.side, f"byte_cases::{w.test}") for w in observed
+                  if w.owner == w.suite == "L0" and w.target == "tests/byte_cases.rs"}
+    for row in outlines["L0"]:
+        for requirement in row["named_requirements"]:
+            if requirement["kind"] == "unit test":
+                requirement["verified"] = (row["rule"], requirement["side"], requirement["name"]) in byte_tests
+    callable_alias_evidence.requirements(outlines["L1"], evidence, results, errors)
+    for stage in ("L0", "L1"):
+        for row in outlines[stage]:
+            for item in row.get("named_requirements", []):
+                if not item["verified"]:
+                    errors.append(f"{stage} {row['rule']}: unconfirmed named {item['kind']}: {item['name']}")
     classify_consumers(report, outlines, results)
     report["handoff_rules"] = outlines
     report["unverified_contracts"] = unverified_contracts(outlines, report.get("last_layer", "L4"))
@@ -366,6 +437,9 @@ def write_details(directory, outlines, evidence):
             lines.append(f"- Line {row['line']} · {label}")
             if row["refusal_only_rule"]:
                 lines.append("  - This rule specifies the diagnostic for a refused input.")
+            for item in row.get("named_requirements", []):
+                status = "verified" if item["verified"] else "unconfirmed"
+                lines.append(f"  - Named {item['kind']} ({item['side']}): {item['name']} · {status}")
             if row.get("consumer_scope"):
                 lines.append("  - Consumer status: " + CONSUMER_SCOPES[row["consumer_scope"]] + ".")
             if row.get("consumer_context"):
@@ -397,6 +471,10 @@ def summary(report):
              "| --- | ---: | ---: | ---: | ---: | ---: |"]
     for stage, rows in report["handoff_rules"].items():
         lines.append(f"| {stage} | {len(rows)} | {sum(bool(r['direct']) for r in rows)} | {sum(bool(r['consumer']) for r in rows)} | {sum(not r['direct'] and not r['consumer'] and not r['refusal_only_rule'] for r in rows)} | {sum(r['refusal_only_rule'] for r in rows)} |")
+    lines += ["", "Named requirements in the two scoped front-end inventories (rule references, not distinct language rules):", ""]
+    for stage, kind in (("L0", "fixture"), ("L0", "unit test"), ("L1", "parse_file comparison")):
+        items = [i for r in report["handoff_rules"][stage] for i in r.get("named_requirements", ()) if i["kind"] == kind]
+        lines.append(f"- {stage} · {kind}: {sum(i['verified'] for i in items)}/{len(items)} confirmed.")
     lines += consumer_scope_summary(report)
     return lines
 

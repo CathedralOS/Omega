@@ -26,14 +26,14 @@ know what any word means.
 
 "Spec" names the section the rule comes from. "Gap" means the spec is silent
 and the rule is taken from the evidence listed under [Gap decisions](#gap-decisions).
-Fixtures are under `fixtures/`; byte-level cases that cannot be written as
-readable files are tests in `tests/byte_cases.rs`.
+Bare case names are fixtures under `fixtures/`; `byte_cases::name` denotes a
+comparison in `tests/byte_cases.rs`, not a fixture.
 
 | # | Rule | Source | Accepts | Rejects |
 | --- | --- | --- | --- | --- |
-| R1 | Source is valid UTF-8. | Spec: [Lexical profile](../../../wiki/spec/language/data_and_literals.md#lexical-profile) | every fixture | `invalid_utf8_rejects` |
+| R1 | Source is valid UTF-8. | Spec: [Lexical profile](../../../wiki/spec/language/data_and_literals.md#lexical-profile) | every fixture | `byte_cases::invalid_utf8_rejects` |
 | R2 | Every source byte belongs to exactly one token, and tokens are in source order with no gaps. Whitespace and comments are tokens. | Design (makes the round-trip check possible) | tiling check on every fixture and spec example | — |
-| R3 | Whitespace is space, tab, CR and LF only. | Spec: Lexical profile | `whitespace_and_comments`, `crlf_line_endings_lex` | `form_feed_rejects`, `no_break_space_rejects`, `byte_order_mark_rejects` |
+| R3 | Whitespace is space, tab, CR and LF only. | Spec: Lexical profile | `whitespace_and_comments`, `byte_cases::crlf_line_endings_lex` | `byte_cases::form_feed_rejects`, `byte_cases::no_break_space_rejects`, `byte_cases::byte_order_mark_rejects` |
 | R4 | A word matches `[A-Za-z_][A-Za-z0-9_]*`. The lexer has no keyword list: `machine`, `true` and `foo` are all words. | Spec: Lexical profile for the shape; *gap G1* for keywords | `words` | `non_ascii_identifier` |
 | R5 | Bytes outside ASCII appear only inside comments and quoted literals. | Spec: Lexical profile | `whitespace_and_comments`, `quoted` | `non_ascii_identifier` |
 | R6 | `//` starts a comment that runs to the end of the line. | *Gap G2* | `whitespace_and_comments` | — |
@@ -43,11 +43,18 @@ readable files are tests in `tests/byte_cases.rs`.
 | R10 | A float is decimal digits, then `.` and at least one digit, then optionally `e`, an optional sign and at least one digit. Either the fraction or the exponent may be absent, not both. | *Gap G3* | `floats` | `missing_exponent_digits`, `invalid_suffix_uppercase_exponent` |
 | R11 | A number may end in a suffix: `i`, `u`, `i` or `u` followed by a positive decimal width with no leading zero, `f32`, or `f64`. Any other letters directly after a number reject. | Spec: Integer radix spellings ("`17u13` or `41u257`", "bare `i`/`u`"); [modules](../../../wiki/spec/language/modules.md) ("a literal suffix such as `7u32` is lexical"); `f32` and `f64` are the only float formats the spec names | `integers`, `floats` | `invalid_suffix_usize`, `invalid_suffix_letters`, `invalid_suffix_zero_width`, `invalid_suffix_leading_zero_width`, `invalid_suffix_f16` |
 | R12 | A quoted literal is `"`, bytes, `"`. Its escapes are `\n \r \t \0 \\ \"` and `\xNN` with two hex digits. | Spec: [Quoted bytes](../../../wiki/spec/language/data_and_literals.md#quoted-bytes) | `quoted` | `unknown_escape`, `invalid_hex_escape`, `short_hex_escape`, `unterminated_quoted` |
-| R13 | A codepoint escape (`\u`) rejects, and a raw CR or LF inside quotes rejects. | Spec: Quoted bytes | — | `codepoint_escape`, `newline_in_quoted`, `carriage_return_in_quoted_rejects` |
-| R14 | There is no raw literal form: `r"` and `r#"` reject. | Spec: Lexical profile ("no … raw-payload literal form") | `words` (a lone `r` is a word) | `raw_literal_prefix`, `raw_literal_prefix_hashes` |
+| R13 | A codepoint escape (`\u`) rejects, and a raw CR or LF inside quotes rejects. | Spec: Quoted bytes | — | `codepoint_escape`, `newline_in_quoted`, `byte_cases::carriage_return_in_quoted_rejects` |
+| R14 | There is no raw literal form: `r"` and `r#"` reject. A lone `r` is a word. | Spec: Lexical profile ("no … raw-payload literal form") | `words` | `raw_literal_prefix`, `raw_literal_prefix_hashes` |
 | R15 | Punctuation is a closed set, listed below. The lexer always takes the longest spelling that matches. | Spec: [expressions](../../../wiki/spec/language/expressions.md#operator-declarations) ("the token vocabulary is closed", "lexing takes the longest operator"); the list itself is *gap G5* | `punctuation` | — |
 | R16 | There is no `>>` token. Two adjacent `>` are two tokens. | Spec: expressions ("no `>>` token is added") | `punctuation` | — |
-| R17 | Any other ASCII character rejects. | Implied by R3, R4, R15 | — | `unknown_character_vertical_tab`, `unknown_character_question`, `unknown_character_backtick`, `nul_byte_rejects` |
+| R17 | Any other ASCII character rejects. | Implied by R3, R4, R15 | — | `unknown_character_vertical_tab`, `unknown_character_question`, `unknown_character_backtick`, `byte_cases::nul_byte_rejects` |
+
+For R12–R13, report raw CR or LF at that byte (CR first in CRLF), including
+when it interrupts an escape whose prefix is still valid. An already invalid
+escape is reported before a later break. Without an earlier error, EOF in the
+body or immediately after a backslash reports an unterminated literal from its
+opening quote through EOF; incomplete `\x` at EOF is an invalid hex escape at
+`\x`, just as when a closing quote interrupts its digits.
 
 ### Punctuation vocabulary (R15)
 

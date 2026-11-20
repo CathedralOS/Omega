@@ -67,6 +67,17 @@ pub struct StaticDataShape {
     pub requires_establishment: bool,
 }
 
+impl StaticDataShape {
+    /// Declaration-order payload of precisely this record or selected sum case.
+    pub fn active_fields(&self, case: Option<&DeclarationId>) -> Option<&[ValueType]> {
+        match case {
+            None if self.cases.is_empty() => Some(&self.fields),
+            Some(case) => self.cases.iter().find(|(id, _)| id == case).map(|(_, fields)| fields.as_slice()),
+            None => None,
+        }
+    }
+}
+
 /// A local constant and the typed occurrence that initializes it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypedConstant {

@@ -76,12 +76,21 @@ class RouteTests(unittest.TestCase):
             r = Route(args, source)
             r.host = Program(Path(sys.executable))
             script = b'print("stage")'
+
+            def check_start():
+                checkpoint = json.loads((source / "result.json").read_text())
+                self.assertEqual(checkpoint["stages"], [{"stage": "first", "completed": False}])
+                self.assertEqual(prior_invocations([source.parent]), {})
+
+            r.stage("first", check_start)
             r.run("module.out", "build", r.host, lambda: script)
 
             # A killed process cannot replace its last durable intermediate receipt.
             def interrupt():
                 checkpoint = json.loads((source / "result.json").read_text())
                 self.assertEqual(checkpoint["result"], "running")
+                self.assertEqual(checkpoint["stages"][-1], {"stage": "interrupted", "completed": False})
+                self.assertTrue(all(stage["completed"] for stage in checkpoint["stages"][:-1]))
                 self.assertEqual(list(checkpoint["artifacts"]), ["module.out"])
                 raise KeyboardInterrupt
 
@@ -107,29 +116,57 @@ class RouteTests(unittest.TestCase):
             (work / "result.json").write_text(json.dumps({"artifacts": replay.artifacts}))
             self.assertEqual(prior_invocations([source, work]), cache)
 
-    def test_whole_constructor_requires_the_emitted_omega_tape_to_exit_42(self):
+    def test_omega_construction_requires_the_emitted_tape_to_exit_as_expected(self):
         # Call main, halt, then return the unsigned byte literal from main.
-        tape = bytes.fromhex("13 0b00000000000000 00 00 01 00 2a00000000000000 14")
-        cases = {"returns-42": bytes(5) + tape, "returns-41": bytes(5) + tape.replace(b"*", b")"),
-                 "no-tape": bytes(5), "constructor-refused": bytes.fromhex("0002000000")}
+        def result(exit_code):
+            main = bytes.fromhex("13 0b00000000000000 00 00 01 00")
+            return bytes(5) + main + struct.pack("<Q", exit_code) + b"\x14"
+
+        cases = (("named-42", None, result(42), True), ("named-wrong-exit", None, result(41), False),
+                 ("no-tape", None, bytes(5), False), ("constructor-refused", None, bytes.fromhex("0002000000"), False),
+                 ("custom-zero", 0, result(0), True), ("custom-255", 255, result(255), True),
+                 ("custom-wrong-exit", 37, result(42), False))
         with tempfile.TemporaryDirectory() as temp:
-            for name, output in cases.items():
+            for name, requested_exit, output, matched in cases:
                 with self.subTest(name=name):
                     work = Path(temp) / name
+                    case = "omega-constructor" if requested_exit is None else None
                     args = argparse.Namespace(gamma="native", delta="native", epsilon="native",
-                                              profile="construction", seconds=None, case="omega-constructor")
+                                              profile="construction", seconds=None, case=case,
+                                              expect_omega_exit=requested_exit)
                     route = Route(args, work)
                     route.host = Program(Path(sys.executable))
                     route.file("guest.eeout", "Omega constructor output", lambda: output)
                     route.stage("check the emitted Omega program", route.check_omega_program)
                     status, report = execute_route(route, b"compiler", b"input", None, verbose=False)
-                    if name == "returns-42":
+                    expected = 42 if requested_exit is None else requested_exit
+                    self.assertEqual(report["expected_omega_exit"], expected)
+                    if matched:
                         self.assertEqual((status, report["result"]), (0, "matched"))
+                        tape = output[5:]
                         self.assertEqual(report["artifacts"]["omega-program.tape"],
-                                         {"bytes": len(tape), "sha256": sha256(tape).hexdigest(), "guest_exit": 42})
+                                         {"bytes": len(tape), "sha256": sha256(tape).hexdigest(), "guest_exit": expected})
                     else:
                         self.assertEqual((status, report["result"]), (1, "failed"))
                         self.assertNotIn("omega-program.tape", report["artifacts"])
+
+    def test_custom_omega_plan_checks_the_expected_host_status_and_constructor_observation(self):
+        plan = [sys.executable, str(ROOT / "tests/bootstrap/route.py"), "--plan",
+                "--gamma", "alpha", "--delta", "native", "--epsilon", "interpret"]
+        with tempfile.TemporaryDirectory() as temp:
+            source = ["--source", str(Path(temp) / "compiler.epsilon")]
+            registered = subprocess.run([*plan, *source, "--expect-omega-exit", "37"], check=True,
+                                        capture_output=True, text=True)
+            self.assertTrue(registered.stdout.rstrip().endswith("on the Alpha seed and require exit 37"))
+            oracle = Path(temp) / "expected"
+            oracle.write_bytes(bytes((1, 5)))
+            for args in (["--expect-omega-exit", "42"], [*source, "--expect-omega-exit", "256"],
+                         [*source, "--expect-omega-exit", "-1"],
+                         [*source, "--expect-omega-exit", "37", "--expect-observation", str(oracle)]):
+                with self.subTest(args=args):
+                    refused = subprocess.run([*plan, *args], capture_output=True, text=True)
+                    self.assertEqual(refused.returncode, 2)
+                    self.assertIn("--expect-omega-exit requires", refused.stderr)
 
     def test_each_plan_executes_the_selected_epsilon_target(self):
         for gamma, delta, epsilon in product(MODES, repeat=3):

@@ -6,6 +6,9 @@ pub(crate) enum QuotedEscapeError {
     /// The source ended right after the backslash.
     EndOfSource,
 
+    /// A raw CR or LF interrupts an otherwise valid escape prefix. The offset is from the backslash.
+    LineBreak { offset: usize },
+
     /// `\u`: quoted literals are bytes, and the spec rejects codepoint escapes.
     Codepoint,
 

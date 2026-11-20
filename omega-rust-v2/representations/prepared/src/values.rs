@@ -3,7 +3,7 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 use omega_resolved::DeclarationId;
 use omega_target_contract::FloatFormat;
-use omega_typed::{Site, StaticValue};
+use omega_typed::{Site, StaticDataShape, StaticValue, ValueType};
 
 /// The exact IEEE representation when the computation determines one.
 /// An arithmetic NaN still has semantic meaning when its bits are unspecified.
@@ -114,20 +114,58 @@ pub enum MaterializationComponent {
     },
 }
 
-impl From<&StaticValue> for PreparedValue {
-    fn from(value: &StaticValue) -> Self {
+impl PreparedValue {
+    /// Import a supplied snapshot using the concrete shapes published by typing.
+    /// Visit only active data, checking and converting in the same traversal.
+    pub fn from_static_argument<'a>(
+        mut value: &'a StaticValue,
+        mut carrier: &'a ValueType,
+        shapes: &'a std::collections::HashMap<ValueType, StaticDataShape>,
+    ) -> Option<Self> {
+        let mut parents = Vec::new();
+        'visit: loop {
+            let mut children = value.children_at(carrier, std::convert::identity, |_, _, case| {
+                Some(shapes.get(carrier)?.active_fields(case)?.iter())
+            })?;
+            if let Some(first) = children.next() {
+                // The upper bound is the remaining *supplied* slice, not a
+                // potentially forged length from the carrier. Keep one cursor
+                // per ancestor rather than enqueueing a work item per sibling.
+                let output = Vec::with_capacity(1 + children.size_hint().1.unwrap_or(0));
+                parents.push((value, children, output));
+                (value, carrier) = first;
+                continue;
+            }
+            let mut result = Self::with_static_fields(value, Vec::new());
+            while let Some((_, children, output)) = parents.last_mut() {
+                output.push(result);
+                if let Some(next) = children.next() {
+                    (value, carrier) = next;
+                    continue 'visit;
+                }
+                let (parent, _, output) = parents.pop()?;
+                result = Self::with_static_fields(parent, output);
+            }
+            return Some(result);
+        }
+    }
+
+    fn with_static_fields(
+        value: &StaticValue,
+        fields: Vec<Self>,
+    ) -> Self {
         match value {
             StaticValue::Integer(value) => Self::Integer(value.clone()),
             StaticValue::Bool(value) => Self::Bool(*value),
-            StaticValue::Array(values) => Self::Array(values.iter().map(Self::from).collect()),
-            StaticValue::Record { owner, fields } => Self::Record {
+            StaticValue::Array(_) => Self::Array(fields.into()),
+            StaticValue::Record { owner, .. } => Self::Record {
                 owner: owner.clone(),
-                fields: fields.iter().map(Self::from).collect(),
+                fields: fields.into(),
             },
-            StaticValue::Sum { owner, case, fields } => Self::Sum {
+            StaticValue::Sum { owner, case, .. } => Self::Sum {
                 owner: owner.clone(),
                 case: case.clone(),
-                fields: fields.iter().map(Self::from).collect(),
+                fields: fields.into(),
             },
         }
     }

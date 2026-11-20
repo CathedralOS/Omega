@@ -46,14 +46,22 @@ impl IntegerOperand {
         }
         Err(format!("static operand {} does not land in {ty}", self.ty))
     }
+    fn land_at(
+        &self,
+        file: &omega_resolved::IndexedSource<'_>,
+        node: usize,
+        ty: &ValueType,
+    ) -> Result<IntegerIndex, TypeError> {
+        self.land(ty).map_err(|message| TypeError::at(file, node, message))
+    }
 }
 enum FormationError {
     RequiresEvaluation,
-    Invalid(String),
+    Invalid(TypeError),
 }
-impl From<String> for FormationError {
-    fn from(message: String) -> Self {
-        Self::Invalid(message)
+impl From<TypeError> for FormationError {
+    fn from(error: TypeError) -> Self {
+        Self::Invalid(error)
     }
 }
 impl LiteralConstants {
@@ -93,11 +101,9 @@ impl ResolvedSourceFile<'_> {
     ) -> Result<Option<IntegerIndex>, TypeError> {
         let mut intermediate = Vec::new();
         let term = match self.form(n, types, &mut intermediate, 0) {
-            Ok(operand) => operand
-                .land(carrier)
-                .map_err(|m| TypeError::at(self.file, n, m))?,
+            Ok(operand) => operand.land_at(self.file, n, carrier)?,
             Err(FormationError::RequiresEvaluation) => return Ok(None),
-            Err(FormationError::Invalid(message)) => return Err(TypeError::at(self.file, n, message)),
+            Err(FormationError::Invalid(error)) => return Err(error),
         };
         for (node, operation, ty) in intermediate {
             let value = operation.typed(ty);
@@ -121,17 +127,17 @@ impl ResolvedSourceFile<'_> {
         let f = self.file;
         let node = &f.nodes[n];
         if depth >= 192 {
-            return Err(FormationError::Invalid("static expression exceeds the normalization nesting budget".into()));
+            return Err(TypeError::at(f, n, "static expression exceeds the normalization nesting budget").into());
         }
         let child = |i, intermediate: &mut Vec<(usize, IntegerIndex, ValueType)>| self.form(i, types, intermediate, depth + 1);
         let unresolved = || FormationError::RequiresEvaluation;
         match node.kind {
             Literal => {
-                let (value, suffix) = numeric_literals::literal(f, n).map_err(|e| e.message)?;
+                let (value, suffix) = numeric_literals::literal(f, n)?;
                 let operand = IntegerOperand { ty: value, term: None };
                 match suffix {
                     None => Ok(operand),
-                    Some(ty) => Ok(IntegerOperand::typed(ty.clone(), operand.land(&ty)?)),
+                    Some(ty) => Ok(IntegerOperand::typed(ty.clone(), operand.land_at(f, n, &ty)?)),
                 }
             }
             PathExpression | PathType => match self.name_in_role(n, false) {
@@ -156,9 +162,9 @@ impl ResolvedSourceFile<'_> {
                     .ok_or_else(unresolved),
                 _ => Err(unresolved()),
             },
-            Paren => child(self.single_child(n).map_err(|e| e.message)?, intermediate),
+            Paren => child(self.single_child(n)?, intermediate),
             Unary if self.file.operator(n).is_some_and(|op| op.token == "-") => {
-                let mut value = child(self.single_child(n).map_err(|e| e.message)?, intermediate)?;
+                let mut value = child(self.single_child(n)?, intermediate)?;
                 match &mut value.ty {
                     ValueType::Exact { value, .. } => *value = -value.clone(),
                     ty => {
@@ -193,7 +199,7 @@ impl ResolvedSourceFile<'_> {
                 ) = (&left.ty, &right.ty)
                 {
                     return Ok(IntegerOperand {
-                        ty: numeric_literals::exact_binary(token, a, b, af.or(*bf), f.span(n)).map_err(str::to_owned)?,
+                        ty: numeric_literals::exact_binary(token, a, b, af.or(*bf), f.span(n)).map_err(|message| TypeError::at(f, n, message))?,
                         term: None,
                     });
                 }
@@ -234,7 +240,7 @@ impl ResolvedSourceFile<'_> {
                 } else {
                     &ty
                 };
-                let term = IntegerIndex::primitive(token, &ty, vec![left.land(&ty)?, right.land(count_type)?]);
+                let term = IntegerIndex::primitive(token, &ty, vec![left.land_at(f, a, &ty)?, right.land_at(f, b, count_type)?]);
                 intermediate.push((n, term.clone(), ty.clone()));
                 Ok(IntegerOperand::typed(ty, term))
             }

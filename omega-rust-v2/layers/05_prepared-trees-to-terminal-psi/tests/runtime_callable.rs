@@ -500,3 +500,47 @@ fn unsupported_runtime_contracts_and_descriptor_construction_refuse() {
     assert_eq!(error.site.span.slice(construction.as_bytes()), Some(b"(action)".as_slice()));
     known_gap::report("construct a runtime descriptor", "The descriptor needs the selected named machine", &construction, &error);
 }
+
+#[test]
+fn redundant_call_markers_keep_their_operation_or_edge_without_parking() {
+    use omega_lowering::{BlockTerminator, CallAcknowledgement, CallSite, PauseEffects};
+
+    for (marker, effects) in [
+        ("", PauseEffects::default()),
+        ("block ", PauseEffects { block: true, suspend: false }),
+        ("suspend ", PauseEffects { block: false, suspend: true }),
+    ] {
+        for name in ["plain", "f"] {
+            let invocation = format!("{marker}{name}()");
+            for (terminal, expression) in [
+                (false, format!("let x:u8 = {invocation}; x")),
+                (true, format!("transition flag {{true -> {invocation}, false -> 0u8,}}")),
+            ] {
+                let source = format!("data Step=machine()->u8 reaches none crashes none; machine plain()->u8{{1u8}} machine apply(f:Step,flag:bool)->u8 {{{expression}}}");
+                let package = lower(&source);
+                let owner = machine(&package, "apply");
+                let body = &owner.body;
+                let target = if name == "plain" {
+                    CallTarget::Machine(machine(&package, name).id)
+                } else {
+                    CallTarget::Runtime { descriptor: scalar_parameter(owner, 0), contract: contract_of(&package, owner.parameter_types[0]) }
+                };
+                let site = if terminal {
+                    body.blocks.iter().find_map(|block| match block.terminator {
+                        BlockTerminator::TerminalCall { id, callee, .. } if callee == target => Some(CallSite::Edge(id)),
+                        _ => None,
+                    })
+                } else {
+                    body.operations.iter().find_map(|op| match op.kind {
+                        OperationKind::Call { callee, .. } if callee == target => Some(CallSite::Operation(op.id)),
+                        _ => None,
+                    })
+                }.expect("the selected target must be called at the requested operation or edge");
+                let expected = (effects != PauseEffects::default()).then_some(CallAcknowledgement { call: site, effects });
+                assert_eq!(body.call_acknowledgements.as_slice(), expected.as_slice(), "{source}");
+                assert_eq!(owner.contract.realized_pause, PauseEffects::default(), "{source}");
+                assert!(body.suspension_sites.is_empty(), "{source}");
+            }
+        }
+    }
+}

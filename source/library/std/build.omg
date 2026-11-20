@@ -655,6 +655,7 @@ machine configure_console(builder: @mut Build) {
             library: "msvcrt.dll", export: "_setmode"
         } });
 
+    Build::select_provider::<Console, AlphaConsole>(builder, alpha_bootstrap);
     Build::select_provider::<Console, WindowsConsole>(builder, windows_x86_64);
     Build::select_provider::<Console, LinuxX86Console>(builder, linux_x86_64);
     Build::bind::<LinuxX86ConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
@@ -824,4 +825,5 @@ machine configure_process_exit(builder: @mut Build) {
     Build::select_provider::<ProcessExit, NativeProcessExit>(builder, linux_arm64);
     Build::select_provider::<ProcessExit, NativeProcessExit>(builder, macos_arm64);
     Build::select_provider::<ProcessExit, NativeProcessExit>(builder, macos_x86_64);
+    Build::select_provider::<ProcessExit, NativeProcessExit>(builder, alpha_bootstrap);
 }

@@ -25,6 +25,75 @@ def check_tape(work, data, seconds, name="wire", expected=42):
     print(f"{name} exited {expected}. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
 
 
+def declarations(file, signatures):
+    source = file.read_bytes()
+    for signature in signatures:
+        start = source.index(signature.encode())
+        end = source.index(b"\n}", start) + 2
+        yield source[start:end]
+
+
+def byte_writer_input(encode):
+    emitter = ROOT / "source/subsystems/compiler/alpha/emit.omg"
+    cases = ROOT / "tests/bootstrap/independent/fixtures/alpha/byte_writer.omg"
+    parts = declarations(emitter, ("public data AlphaEmitter ", "machine alpha_byte("))
+    source = b"\n\n".join([*parts, cases.read_bytes()])
+    return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
+
+
+def signed_mask_checker_input(encode):
+    compiler = ROOT / "source/subsystems/compiler/source_to_psi"
+    checker = compiler / "pipeline/typed_trees_to_checked_trees"
+    files = [
+        (compiler / "foundation/integers.omg",
+         ("public data ExactInteger ", "public machine exact_integer_negate(", "public machine exact_integer_at_most(")),
+        (checker / "zone.omg", ("public data Bound ", "public machine bound_at_most(")),
+        (checker / "evaluation.omg",
+         ("public data Value ", "public machine value_unknown(", "public machine value_constant(",
+          "public machine value_nonnegative(", "machine pick(", "public machine value_conjunction(")),
+    ]
+    units = [unit for file, signatures in files for unit in declarations(file, signatures)]
+    cases = ROOT / "tests/bootstrap/independent/fixtures/interval/signed_mask.omg"
+    source = b"\n".join(units) + b"\n\n" + cases.read_bytes()
+    return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
+
+
+def check_build_source_ownership(encode, runner, work, seconds):
+    packages = [("app", 0), ("core", 1), ("library", 0)]
+    entries = [(0, 0), (1, 1), (2, 1)]
+    default = (ROOT / "source/library/core/defaults/build.omg").read_bytes()
+    files = [(0, "build.omg", b"machine build(builder: @mut Build) {}"), (1, "defaults/build.omg", default)]
+    wire, _, _, _ = encode(packages, [], [(0, b"machine main() -> u8 {42}")], 0, b"main",
+                            paths=["main.omg"], build_sources=files, build_entries=entries)
+    # Mutate already encoded words to reach the Omega reader past the host's
+    # own ownership checks. Offsets here count u32 words from the header.
+    selections = 10 + 3 * len(packages) + 5
+    sources = selections + 2 * len(entries)
+
+    def replace_words(changes):
+        changed = bytearray(wire)
+        for word, value in changes.items():
+            struct.pack_into("<I", changed, 4 * word, value)
+        return changed
+
+    first_path = struct.unpack_from("<2I", wire, 4 * (sources + 3))
+    cases = {
+        "build-replay-pending": (246, wire),
+        "build-missing-unit": (253, replace_words({selections + 1: len(files)})),
+        "build-duplicate-requester": (253, replace_words({selections + 2: 0})),
+        "build-other-owner": (253, replace_words({selections + 5: 0})),
+        "build-shadowed-default": (253, replace_words({selections + 1: 1})),
+        "build-duplicate-file": (253, replace_words(
+            {sources + 5: 0, sources + 8: first_path[0], sources + 9: first_path[1]})),
+        "build-wrong-default-owner": (253, replace_words({sources + 5: 2})),
+        "build-truncated-arena": (253, wire[:-1]),
+    }
+    for name, (status, request) in cases.items():
+        (work / f"{name}.stdin").write_bytes(request)
+        if execute(runner, request, seconds) != (status, b""):
+            raise SystemExit(f"{name}: expected exit {status} with empty stdout")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="new directory for the construction inputs")
@@ -47,6 +116,9 @@ def main():
     unlinked, _, _, unit_rows = encode(packages, [], units, 0, b"main")
 
     inputs = {"linked": linked, "missing-edge": unlinked, "trailing-byte": linked + b"\0"}
+    if args.constructor or args.evaluator:
+        inputs["alpha-byte-writer"] = byte_writer_input(encode)
+        inputs["signed-mask-fact"] = signed_mask_checker_input(encode)
     # Each truncated packet keeps the declared arena length. Sweep through
     # the partial final group and a preceding full group in the native entry.
     truncations = {}
@@ -57,6 +129,7 @@ def main():
         (work / f"{name}.stdin").write_bytes(stdin)
     if args.omega_constructor:
         runner = args.omega_constructor.resolve(strict=True)
+        check_build_source_ownership(encode, runner, work, args.seconds)
         status, output = execute(runner, linked, args.seconds)
         if status:
             raise SystemExit(f"Omega constructor refused linked wire package with exit {status}")
@@ -144,6 +217,12 @@ def main():
     if linked_output[:5] != bytes(5) or len(linked_output) <= 5:
         raise SystemExit(f"wire compilation failed: {linked_output[:40].hex()}")
     check_tape(work, linked_output[5:], args.seconds)
+
+    for name in ("signed-mask-fact", "alpha-byte-writer"):
+        output = evaluate(name)
+        if output[:5] != bytes(5) or len(output) <= 5:
+            raise SystemExit(f"{name} compilation failed: {output[:40].hex()}")
+        check_tape(work, output[5:], args.seconds, name)
 
     # The first source unit starts with the unresolved import. A compiler
     # refusal publishes its coordinate; malformed transport publishes none.

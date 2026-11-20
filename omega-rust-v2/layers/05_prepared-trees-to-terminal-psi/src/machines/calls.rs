@@ -115,8 +115,8 @@ pub(crate) fn select_direct_call<'a>(
     if call.node != file.node_id(node) || call.site != site || call.caller.as_ref() != Some(&caller.machine) {
         return Err(error("selected call disagrees with its owning occurrence"));
     }
-    if call.layout_query.is_some() || call.acknowledgements.block {
-        return Err(error("selected call requires specialization, target, or effect lowering"));
+    if call.layout_query.is_some() {
+        return Err(error("selected layout query requires target lowering"));
     }
 
     let (target, signature, requirement_count, callbacks, possible) = if let Some(key) = crate::declarations::members::Key::from_call(call) {
@@ -200,8 +200,11 @@ pub(crate) fn select_direct_call<'a>(
         }
     }
 
-    if possible.block || (possible.suspend && !call.acknowledgements.suspend) {
+    if (possible.block && !call.acknowledgements.block) || (possible.suspend && !call.acknowledgements.suspend) {
         return Err(error("call lacks the acknowledgement for its selected operational effect"));
+    }
+    if possible.block {
+        return Err(error("selected blocking call requires effect lowering"));
     }
     Ok(DirectCall {
         acknowledgements: call.acknowledgements,

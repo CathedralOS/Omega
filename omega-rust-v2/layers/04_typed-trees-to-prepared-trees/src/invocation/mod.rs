@@ -126,7 +126,7 @@ impl Scope<'_> {
         }
     }
 
-    fn instantiate(
+    pub(super) fn instantiate(
         &self,
         carrier: &ValueType,
     ) -> ValueType {
@@ -253,7 +253,7 @@ enum Step<'a> {
         carrier: ValueType,
     },
     ProjectFields { receiver: ValueType, fields: Vec<OwnedFieldRead> },
-    ReadArray,
+    ReadArray { initializer_site: Option<TreeNodeId> },
     ArrayLength,
     ProduceZero {
         site: TreeNodeId,
@@ -440,7 +440,9 @@ impl ConstantEvaluation<'_, '_> {
                     return self.schedule_static_callback(&tree, site, &scope, &carrier, execution);
                 };
                 if let Some(query) = call.layout_query {
-                    if scope.instantiate(&call.result) != carrier
+                    if omega_toolchain::core_interface().layout_query(&call.machine) != Some(query)
+                        || carrier != collection_reads::COUNT_CARRIER
+                        || scope.instantiate(&call.result) != carrier
                         || !call.operands.is_empty()
                         || !call.enclosing_arguments.is_empty()
                         || call.evidence.is_some()
@@ -600,7 +602,7 @@ impl ConstantEvaluation<'_, '_> {
             }
             Step::ApplyFloat { site, format, operation } => self.apply_float(site, format, operation, execution)?,
             Step::CoerceFloat { site, carrier } => self.coerce_float(site, &carrier, execution)?,
-            Step::ReadArray => {
+            Step::ReadArray { initializer_site } => {
                 let index = execution.pop_integer();
                 let Some(PreparedValue::Array(elements)) = execution.values.pop() else {
                     return Err(UNSUPPORTED_BODY.into());
@@ -608,7 +610,13 @@ impl ConstantEvaluation<'_, '_> {
                 let element = usize::try_from(index)
                     .ok()
                     .and_then(|position| elements.get(position))
-                    .ok_or(PreparationReason::ArrayIndexOutOfBounds)?;
+                    .ok_or_else(|| {
+                        let error = EvaluationError::from(PreparationReason::ArrayIndexOutOfBounds);
+                        match initializer_site {
+                            Some(site) => error.at_node(site),
+                            None => error,
+                        }
+                    })?;
                 execution.values.push(element.clone());
             }
             Step::ArrayLength => {

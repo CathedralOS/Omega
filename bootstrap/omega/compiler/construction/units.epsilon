@@ -16,7 +16,16 @@ data OmegaConstructionDeclaration {
     is_public: i32;
 }
 
+// Header arrays outlive the declaring file. Store a resolved element kind and
+// the logical count, indexed by the same field ID used by layout.
+data OmegaConstructionArray {
+    element: i32;
+    count: i32;
+}
+
 data OmegaConstructionDirectory {
+    // The field, payload field and parameter each own a disjoint range of 16384 rows.
+    arrays: [OmegaConstructionArray; 49152];
     machines: [OmegaConstructionDeclaration; 4096];
     types: [OmegaConstructionDeclaration; 4096];
     units: [OmegaConstructionUnit; 513];
@@ -84,7 +93,8 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state data_shape(unit: i32, index: i32, row: OmegaDataSyntax) {
-        transition row.requirement_count == 0 {
+        // A record checks its field bounds in the file that declared them.
+        transition (row.requirement_count == 0) || ((row.field_count > 0) && (row.case_count == 0)) {
             true -> retain_data(unit, index, self.construction.total.data_count + index, row)
             _ -> units(unit + 1, 0)
         }
@@ -102,7 +112,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state field_type(unit: i32, index: i32, type_index: i32) {
-        transition self.construction_value_type(source, type_index) == 1 {
+        transition self.construction_field_type_supported(source, type_index) == 1 {
             true -> field(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
@@ -114,7 +124,7 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state payload_type(unit: i32, index: i32, type_index: i32) {
-        transition self.construction_value_type(source, type_index) == 1 {
+        transition self.construction_field_type_supported(source, type_index) == 1 {
             true -> payload(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
@@ -126,7 +136,14 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
         }
     }
     state parameter_type(unit: i32, index: i32) {
-        transition self.construction_value_type(source, self.parser.machine_parameters[index].type_reference) == 1 {
+        let type_index: i32 = self.parser.machine_parameters[index].type_reference;
+        transition self.construction_value_type(source, type_index) {
+            1 -> parameter(unit, index + 1)
+            _ -> reference_parameter(unit, index, self.scalar_type(source, type_index))
+        }
+    }
+    state reference_parameter(unit: i32, index: i32, kind: i32) {
+        transition (kind == omega_shared_byte_slice()) || (omega_array_reference_row(kind) >= 0) {
             true -> parameter(unit, index + 1)
             _ -> units(unit + 1, 0)
         }
@@ -256,7 +273,7 @@ machine OmegaScalarCompiler::retain_construction_field_types(&mut self, source: 
         }
     }
     state field(index: i32, limit: i32) {
-        self.field_types[index] = self.scalar_type(source, self.parser.data_fields[index].type_reference);
+        self.retain_construction_field(source, index, self.parser.data_fields[index].type_reference);
         transition true { true -> fields(index + 1, limit) }
     }
     state payloads(index: i32, limit: i32) {
@@ -266,9 +283,55 @@ machine OmegaScalarCompiler::retain_construction_field_types(&mut self, source: 
         }
     }
     state payload(index: i32, limit: i32) {
-        self.field_types[16384 + index] = self.scalar_type(source, self.parser.data_payload_fields[index].type_reference);
+        self.retain_construction_field(source, 16384 + index, self.parser.data_payload_fields[index].type_reference);
         transition true { true -> payloads(index + 1, limit) }
     }
+}
+
+// An array stored in a nominal field receives a persistent row. Local
+// arrays still use the current file's type references. Nested array headers
+// require a further retained row and continue through the pooled checker.
+machine OmegaScalarCompiler::construction_field_array(&mut self, source: &[u8], index: i32) -> i32 {
+    let row: OmegaTypeReferenceSyntax = self.parser.type_references[index];
+    transition row.kind {
+        OmegaTypeReferenceKind::FixedArray -> return index
+        OmegaTypeReferenceKind::Constrained -> qualification(row)
+        _ -> return -1
+    }
+    state qualification(row: OmegaTypeReferenceSyntax) {
+        transition self.span_equals(source, row.payload1, row.payload2, "Trapping") {
+            1 -> base(row.payload0)
+            _ -> return -1
+        }
+    }
+    state base(array: i32) {
+        transition self.parser.type_references[array].kind {
+            OmegaTypeReferenceKind::FixedArray -> return array
+            _ -> return -1
+        }
+    }
+}
+
+machine OmegaScalarCompiler::construction_field_type_supported(&mut self, source: &[u8], index: i32) -> i32 {
+    let array: i32 = self.construction_field_array(source, index);
+    transition array >= 0 {
+        true -> return self.construction_value_type(source, self.parser.type_references[array].payload0)
+        _ -> return self.construction_value_type(source, index)
+    }
+}
+
+machine OmegaScalarCompiler::retain_construction_field(&mut self, source: &[u8], slot: i32, index: i32) {
+    let array: i32 = self.construction_field_array(source, index);
+    transition array >= 0 {
+        true -> retain(array)
+        _ -> ordinary()
+    }
+    state retain(array: i32) {
+        self.construction.arrays[slot].element = self.array_element_kind(source, array);
+        self.construction.arrays[slot].count = self.array_count(source, array);
+        self.field_types[slot] = omega_fixed_array_type(16384 + slot, index != array);
+    }
+    state ordinary() { self.field_types[slot] = self.scalar_type(source, index); }
 }
 
 // Named data types are resolved by their declaring package and imports during

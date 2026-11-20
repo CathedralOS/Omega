@@ -58,14 +58,47 @@ under [the hosted application](../../../source/application/ocreq) does not decla
 list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 
+The v2 construction entry interprets a ground application Build and the
+empty activated core default. It checks the application role, the authored
+`alpha_bootstrap\ProgramEntry` binding, and ProcessExit selections for the
+six supported targets. Local Build helpers receive the caller's mutable Build
+handle. Every helper body is checked. Only executed calls contribute a
+selection, and each target retains its own provider. The file's own imports resolve each designated Product operand.
+An incomplete activation stops before code publication. A completed pure
+application compiles from its resolved entry declaration. The selected
+terminal provider remains separate from the runtime's process-domain grant.
+
+The default construction entry has no process domain. A standalone Alpha
+embedding can pass its independently approved, immutable deployment to
+`Main::construct_standalone`. The entire guest frame must match. The
+constructor then executes the scoped Build, resolves its entry and selected
+provider, checks each call's reach and emits Alpha HALT with the evaluated
+signed i32 status. A different deployment refuses before publication.
+The independent process-domain test builds an embedding with a fixed
+deployment and checks the full status alongside the Linux seed observation.
+[Standalone test](../../../tests/bootstrap/independent/process_domain.py)
+
+A standalone deployment can also supply the distinct package roots of a
+verified immutable Git snapshot. The covered application registers one Product
+dependency with `Build::dependency(builder, dependency\from_source(Source::Path { location: "…" }))`.
+The canonical location is relative to the application's root. Its target must
+own the supplied dependency package, default alias and source bytes. The
+dependency's own `Build::package` activation can select its provider. The
+remaining package supplies the trusted core default. Build-only dependencies,
+additional graph edges and overlapping package selections require further
+coverage. To prepare this embedding, pass the snapshot, immutable commit,
+request, output path and package roots in ordinal order to the origin verifier
+with `--embedding FILE`. It checks every Product and Build file against Git.
+[Origin verifier](../../../tests/bootstrap/independent/deployment_origins.py)
+
 The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,736 lines / 1,029,470 bytes with SHA-256
-`d3c881968a26a84e2e5c7188851856379817dae5bdc3b84c4fa5f6638bef1298`.
-The manifest itself is 2,381 bytes, SHA-256
-`c9c35831cdf459751c2c5b46d9a738df77076447fb1f11acf293b5e1cf7b54df`;
+The manifest materializes 28,144 lines / 1,097,998 bytes with SHA-256
+`0ba7e5a638eb79e0a31d17c055243dda75d08d45da510b994240f7bd96e0da71`.
+The manifest itself is 2,905 bytes, SHA-256
+`98cb6c5b38f65d1d8a5743c9fca778bf5bc33bb9e948e846616ca00784167441`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -97,17 +130,31 @@ The declaration directory retains names, visibility, owner files and disjoint
 ranges for data declarations, fields, sum cases, payloads, machines, states
 and parameters.
 
-Each file's imports resolve before signature or body checking. Every record or
-case payload field retains the scalar type or nominal declaration resolved in
-its own file. The layout checker can then follow forward and nested records across files and
+A fixed-array literal uses the declared element type and count. Each initializer
+runs once in increasing index order. Byte elements occupy one byte, while word
+and copy-record elements use their checked stride. A policy-qualified element
+needs a value with that policy. The product loan checker uses one explicitly
+qualified zero to initialize both nine-element traversal arrays. An ordinary
+call can lend a local fixed array to a shared or exclusive scalar-array
+parameter. The callee indexes the caller's storage. Separately written types
+must agree on element type and extent, including across source files. Calls
+can forward an incoming loan, and a terminal state transfer can carry one of
+its owner's incoming loans. A fresh loan of a local at that transfer still
+receives an incomplete outcome.
+
+Each file's imports resolve before signature or body checking. Record and case
+payload fields retain the scalar type or nominal declaration resolved in their
+own file. A fixed-array field also retains its logical count and resolved element
+type, including a nominal element declared in a later file. The layout checker can then follow forward and nested records across files and
 detect a by-value cycle. Public interfaces are checked against their owner's
 imports. The compiler gives parameters permanent addresses. Bodies reuse
 local syntax rows and get fresh storage addresses, so a callee can use the
 same local row number while its caller's value remains live. Call cycles and
 effects are checked before publishing the tape.
 
-Arrays, references, machine clauses and authored requirements still use
-the pooled checker after per-file parsing. The single-unit public resource
+Shared byte-slice parameters carry a borrowed range and its live length across
+a file boundary. Nested array fields, array-valued parameters and results,
+other references, machine clauses and authored requirements still use the pooled checker. The single-unit public resource
 limits remain in force.
 [Per-unit compilation](construction/units.epsilon)
 
@@ -168,8 +215,19 @@ Case transitions evaluate the subject once. A braced arm can bind a field by
 its own name, rename it with `field as name`, or waive it with `field as _`.
 An explicit `..` waives remaining fields. The checker resolves the source
 field within the selected case, checks duplicate fields and binding names, and
-exposes each binding only in that arm's target. Non-copy sums, custom sum
-requirements and payload equality guards remain outside this backend.
+exposes each binding only in that arm's target. A fresh affine sum can be
+returned or held in a local. A terminal transition can inspect its tag and
+bind copyable payloads. Passing an existing affine local by value and
+payload equality guards still need broader checking.
+
+The standard `ByteRead` declaration permits `Eof` and requires the signed
+payload of `Byte` to lie between 0 and 255. The checker resolves each
+case against its owning declaration and checks both endpoints on the same
+payload field. Every declared case must occur exactly once in the predicate.
+Each construction establishes the selected case’s range. Pattern matching
+carries this range into the selected arm. A machine guard or an explicit
+entry requirement can establish a signed bound. A signed upper bound gives
+no evidence for the lower bound. [Case requirements](checking/case_requirements.epsilon)
 [Payload binding rules](../../../wiki/spec/language/patterns.md) and
 [runnable selection](../../../tests/bootstrap/conformance/omega/payload_bindings.omg)
 and [zero omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)
@@ -320,11 +378,13 @@ and [terminal calls](../../../wiki/spec/language/state_contracts.md#terminal-cal
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
 
-A fixed-array type names the parser row that holds its element type and length.
-`omega_fixed_array_type` places plain arrays in `[200000, 300000)` and Trapping
-arrays in `[300000, 400000)`. `fixed_array_row` checks the decoded row against
-the parser's live count before a consumer reads it. The public parser admits
-at most 16,384 type rows.
+A fixed-array type identifies its element and declared length. Plain arrays
+occupy type IDs in `[200000, 300000)` and Trapping arrays in `[300000, 400000)`.
+Within either band, rows below 16,384 refer to live parser type syntax.
+For an array in a retained nominal declaration, the row is 16,384 plus its
+field ID. That field retains the resolved element type and logical count after
+the compiler releases the declaring file's syntax. Layout, indexed access and
+borrowed byte ranges all consult those same two values.
 
 Records retain declaration identity, field qualification and copy/affine
 multiplicity. In the private Alpha layout, a scalar cell occupies one
@@ -387,13 +447,17 @@ The storage test runs the production `path_length` on two nonzero `SourceRange`
 elements of the production `SourceSet`. It checks a copy taken before a write,
 a keyword-spelled field and the field beside the last element. It evaluates
 both capacity differences from `source_set_add` at the boundary and with an
-extra source byte or path byte. The complete
+extra source byte or path byte. The unit-count store from `source_set_add`
+uses the proved upper bound of its Trapping sum, including 511 + 1 at the
+capacity of 512. Alpha still performs the checked addition. The complete
 23,348-byte `source.omg` passes the layout of the real `SourceSet`. It
 also accepts the three record references of `source_set_add`.
 It reads `path` as a parameter in the nested helper even though a sibling
 machine has that name. The compiler recognizes the shared slice parameter of `span_spells`.
-It checks the nested reader's `index < spelling.len` requirement and then
-reaches body checking in the earlier `source_set_add` machine. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
+It checks the nested reader's `index < spelling.len` requirement. The full
+file passes the bodies of `source_set_add`, `add_package`, `add_dependency`
+and `store_name`. Its next coverage refusal identifies `source_set_byte_or_nul`
+at file byte 14,466. [Storage test](../../../tests/bootstrap/conformance/omega/indexed_record_fields.omg)
 
 Index bounds come from literals, immutable snapshots, declared scalar-field
 upper bounds, or explicit checked machine entry requirements. The requirement
@@ -547,7 +611,7 @@ assignments.
 The explicit slow [complete-D parser customer](../../../_recycling/tests/bootstrap/omega-parser/README.md)
 checks this manifested implementation through the lower chain. Sum-valued
 parser guards use Epsilon case transitions; scalar equality is not a sum test.
-One root table preserves source order for imports, data, machines, domains and boundary traits. Optionally
+One root table preserves source order for imports, data, machines, domains, ordinary traits and boundary traits. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from
 the retained statement slice. An optional leading target selector is
@@ -562,6 +626,12 @@ its borrowed subject. A declaration ending directly in `;` has zero predicates.
 The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
 proof obligations.
+
+A nongeneric ordinary `trait` retains each bodyless machine signature in
+its declaring trait's range. `ConsoleByteOperations` and
+`PosixConsoleRawOperations` in std use this form. The parser keeps ordinary
+traits in a separate table from boundary services. Executable construction
+reports incomplete coverage at an ordinary trait until its conformance is checked.
 
 A nongeneric `[public] boundary trait`
 can declare bodyless machine requirements. Each trait owns its name, visibility,

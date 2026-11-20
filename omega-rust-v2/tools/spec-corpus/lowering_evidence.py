@@ -186,6 +186,7 @@ def scan(log):
 
 def observe(log, errors):
     receipts = {}
+    invalid = set()
     probe = {"inventory": None, "count": None, "examples": {}}
     for target, test, line in scan(log):
         fields = line.split("\t")
@@ -196,6 +197,11 @@ def observe(log, errors):
             if (not assertion or (target, test) != (assertion.target, assertion.test)
                     or needs_comparison and not re.match(r"assert(?:_eq|_ne)?!\s*\(", comparison or "")):
                 errors.append(f"unregistered or misplaced L5 assertion receipt: {line} ({target}::{test})")
+                if len(fields) > 1 and fields[1] in ASSERTIONS:
+                    invalid.add(fields[1])
+            elif fields[1] in receipts:
+                errors.append(f"duplicate L5 assertion receipt: {fields[1]} ({target}::{test})")
+                invalid.add(fields[1])
             else:
                 receipts[fields[1]] = comparison
             continue
@@ -226,6 +232,8 @@ def observe(log, errors):
                 errors.append(f"malformed L5 output observation: {line}")
         else:
             errors.append(f"malformed or duplicate L5 output observation: {line}")
+    for label in invalid:
+        receipts.pop(label, None)
     return receipts, probe
 
 
@@ -342,7 +350,11 @@ def test_key(target, test):
 
 def test_results(report):
     suite = report.get("suites", {}).get("L5", {})
-    return {test_key(row["target"], row["test"]): row["status"] for row in suite.get("tests", [])}
+    results = {}
+    for row in suite.get("tests", []):
+        key = test_key(row["target"], row["test"])
+        results[key] = "ambiguous" if key in results else row["status"]
+    return results
 
 
 def credit_assertions(receipts, tests, errors):
@@ -598,7 +610,8 @@ def earlier_consumers(report, tests):
         status = tests.get((row.target, row.test))
         rows.append({"owner": row.owner, "rule": row.rule, "side": row.side, "site": f"{row.target}::{row.test}",
                      "comparison": row.comparison, "test": status or "absent",
-                     "credited": status == "ok" and row.comparison in receipts})
+                     "credited": status == "ok" and bool(receipts.get(row.comparison))
+                                 and row.comparison not in report.get("failed_comparisons", {})})
     return rows
 
 

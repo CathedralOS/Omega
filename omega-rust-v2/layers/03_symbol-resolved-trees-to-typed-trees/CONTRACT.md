@@ -46,7 +46,9 @@ A downstream pass can walk `TypedTrees::trees` in file order, visit a node's chi
 
 L3 records source-level obligations for call preconditions, exact conversions, width positivity, domain establishment, cleanup, reference lifetime, copy and move, crash coverage and contract refinement. The later verifier owns their proofs. Execution and publication depend on those later judgments. [Layer plan](../../PLAN.md#layers)
 
-L3 checks that each named service in a reach ceiling is a boundary trait. Its resolved parent and modifier determine whether the inheritance is legal. The resolver supplies the operator-token node, machine visibility and any explicitly named home. L3 checks package ownership of the explicit or inferred home and reports invalid bindings at the token.
+L3 checks that each named service in a reach ceiling is a boundary trait. Its resolved parent and modifier determine whether the inheritance is legal.
+
+The resolver supplies the operator-token node, machine visibility and any explicitly named home. L3 checks package ownership of the explicit or inferred home and reports invalid bindings at the token.
 
 ## Verification
 

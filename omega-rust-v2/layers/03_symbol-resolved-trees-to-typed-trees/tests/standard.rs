@@ -22,6 +22,24 @@ fn check(source: &str) -> Result<TypedStage, String> {
         .map(|trees| trees.into_facts())
         .map_err(|e| format!("{}: {}", e.file, e.message))
 }
+/// Negative typing cases must reach the typer with their original source intact.
+fn assert_typing_refusal(source: &str, file: &str, expression: &str, site: &str, message: &str) {
+    let tokens = omega_lexer::lex(source.as_bytes()).expect("the negative package must lex");
+    let tree = omega_parser::parse_file(source.as_bytes(), &tokens).expect("the negative package must parse");
+    let names = resolve_source_package(&[StageSource {
+        package: "app",
+        source: ParsedSource { logical_path: file, text: source, tokens: &tokens, tree: &tree },
+    }]).expect("the negative package must resolve");
+    let error = type_source_package(&names).expect_err("the typer must refuse this expression");
+    let start = source.rfind(expression).unwrap() + expression.find(site).unwrap();
+    let end = start + site.len();
+    assert!(!error.waiting_for_static_value());
+    assert_eq!((&*error.package, &*error.file, &*error.message), ("app", file, message));
+    assert_eq!((error.span.get_start_offset(), error.span.get_end_offset()), (start, end));
+    #[cfg(feature = "diagnostic-origins")]
+    diagnostic_origin::report_return(&error, "", Some(("app", file, start, end, message)));
+}
+
 #[test]
 fn specialized_call_results_match_the_owning_expression_and_arguments() {
     use omega_typer::{Site, SpecializedIndexValue, TypingEnvironment, ValueType, type_stage_in_environment};
@@ -168,7 +186,8 @@ fn specialization_uses_the_selected_trait_operation() {
 fn unrelated_trait_operators_preserve_primitive_static_arithmetic() {
     let source = "trait Other{machine + combine(x:u8,y:u8)->u8;} trait Marker{} Selected satisfies Marker{} data B<const K:u8>{} machine buffer<const N:u8,const E:Marker>()->B<N+1>{B::<N+1>{}} machine use_it()->B<8>{buffer::<7,Selected>()}";
     check(source).unwrap();
-    assert!(check(&source.replace("->B<8>", "->B<7>")).is_err());
+    let call = "buffer::<7,Selected>()";
+    assert_typing_refusal(&source.replace("->B<8>", "->B<7>"), "app.omg", call, call, r"expected app\B<7>, found app\B<8>");
 }
 #[test]
 fn production_core_selects_the_policy_and_ranking_declarations() {
@@ -827,9 +846,13 @@ fn named_and_bracket_reads_use_the_same_library_signature_and_copy_bound() {
                 .any(|o| &o.site == site && matches!(&o.kind, omega_typer::ObligationKind::CallPrecondition(id) if id == &named.machine))
         );
     }
-    for expression in ["indexing\\read::<Handle>(view,i)", "view[i]"] {
+    for (expression, site, message) in [
+        (r"indexing\read::<Handle>(view,i)", r"indexing\read::<Handle>", r"type argument app\Handle does not satisfy Copy for indexing\read"),
+        ("view[i]", "view[i]", "indexed read requires a copy element"),
+    ] {
         let source = format!("use omega\\indexing; data Handle{{}} machine f(view:@[Handle],i:u64)->Handle{{{expression}}}");
-        assert!(check(&source).is_err(), "{source}");
+        check(&source.replace("data Handle{}", "data Handle [copy]{}")).expect("the copyable element must type");
+        assert_typing_refusal(&source, "app.omg", expression, site, message);
     }
 }
 
@@ -849,30 +872,7 @@ fn symbolic_queries_check_the_operand_and_cannot_escape_as_callbacks() {
         (r"reflect\field", r"reflect\field", "a declaration query cannot be used as a value"),
     ] {
         let text = format!(r"use omega\language\core\reflect; data R{{x:u8;}} machine read()->u8{{1}} machine f(){{let d={expression};}}");
-        let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
-        let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
-        let names = resolve_source_package(&[StageSource {
-            package: "app",
-            source: ParsedSource {
-                logical_path: "selector.omg",
-                text: &text,
-                tokens: &tokens,
-                tree: &tree,
-            },
-        }])
-        .unwrap();
-        let error = type_source_package(&names)
-            .expect_err("invalid selector must fail typing");
-        #[cfg(feature = "diagnostic-origins")]
-        diagnostic_origin::report_return(&error, "", None);
-        assert_eq!(error.package, "app");
-        assert_eq!((&*error.file, &*error.message), ("selector.omg", message), "{expression}");
-        assert_eq!(
-            error.span.get_start_offset(),
-            text.rfind(expression).unwrap() + expression.find(site).unwrap(),
-            "{expression}"
-        );
-        assert_eq!(error.span.slice(text.as_bytes()), Some(site.as_bytes()), "{expression}");
+        assert_typing_refusal(&text, "selector.omg", expression, site, message);
     }
     check(r"machine field(n:u8)->u8{n} machine use_field()->u8{field(1)}").unwrap();
     check(r"use omega\language\core\reflect; machine shadow(field:u8)->u8{field}").unwrap();

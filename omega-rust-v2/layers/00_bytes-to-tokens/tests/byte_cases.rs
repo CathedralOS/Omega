@@ -38,7 +38,7 @@ fn expect_kinds(
 
 #[test]
 fn invalid_utf8_rejects() {
-    expect_error(b"let a\xFF = 1;", LexErrorKind::InvalidUtf8, SourceSpan::new(5, 6));
+    spec_corpus::observe_handoff!("invalid-utf8/file", expect_error(b"let a\xFF = 1;", LexErrorKind::InvalidUtf8, SourceSpan::new(5, 6)));
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn all_four_whitespace_bytes_form_one_token() {
 
 #[test]
 fn crlf_line_endings_lex() {
-    expect_kinds(
+    spec_corpus::observe_handoff!("whitespace/crlf", expect_kinds(
         b"a\r\nb\r\n",
         &[
             TokenKind::Word,
@@ -106,12 +106,12 @@ fn crlf_line_endings_lex() {
             TokenKind::Word,
             TokenKind::Whitespace,
         ],
-    );
+    ));
 }
 
 #[test]
 fn form_feed_rejects() {
-    expect_error(b"a\x0Cb", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2));
+    spec_corpus::observe_handoff!("whitespace/form-feed", expect_error(b"a\x0Cb", LexErrorKind::UnknownCharacter, SourceSpan::new(1, 2)));
 }
 
 #[test]
@@ -122,13 +122,13 @@ fn vertical_tab_rejects() {
 #[test]
 fn no_break_space_rejects() {
     // U+00A0 is two bytes, C2 A0. The spec says Unicode whitespace other than the four ASCII bytes rejects.
-    expect_error("a\u{A0}b".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(1, 3));
+    spec_corpus::observe_handoff!("whitespace/no-break-space", expect_error("a\u{A0}b".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(1, 3)));
 }
 
 #[test]
 fn byte_order_mark_rejects() {
     // U+FEFF is three bytes. It is non-ASCII outside a comment or literal, so no special rule is needed.
-    expect_error("\u{FEFF}let".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(0, 3));
+    spec_corpus::observe_handoff!("whitespace/byte-order-mark", expect_error("\u{FEFF}let".as_bytes(), LexErrorKind::NonAsciiOutsideCommentOrQuoted, SourceSpan::new(0, 3)));
 }
 
 // R5
@@ -174,11 +174,31 @@ fn line_comment_at_end_of_file_needs_no_line_feed() {
 
 #[test]
 fn line_comment_with_crlf_keeps_the_carriage_return() {
-    // The comment runs to the line feed, so a CRLF file's carriage return is part of the comment.
-    let source_bytes = b"// note\r\nx";
-    let tokens = lex(source_bytes).expect("Expected the source to lex.");
+    // UTF-8 text before the line break makes byte positions differ from character counts.
+    let crlf = "// \u{1F600}\r\nx".as_bytes();
+    let lf = "// \u{1F600}\nx".as_bytes();
+    let extents = |source_bytes: &[u8]| {
+        lex(source_bytes)
+            .expect("Expected the source to lex.")
+            .into_iter()
+            .map(|token| (token.get_kind(), token.get_span()))
+            .collect::<Vec<_>>()
+    };
+    let observed = (extents(crlf), extents(lf));
+    let expected = (
+        vec![
+            (TokenKind::LineComment, SourceSpan::new(0, 8)),
+            (TokenKind::Whitespace, SourceSpan::new(8, 9)),
+            (TokenKind::Word, SourceSpan::new(9, 10)),
+        ],
+        vec![
+            (TokenKind::LineComment, SourceSpan::new(0, 7)),
+            (TokenKind::Whitespace, SourceSpan::new(7, 8)),
+            (TokenKind::Word, SourceSpan::new(8, 9)),
+        ],
+    );
 
-    assert_eq!(tokens[0].get_span(), SourceSpan::new(0, 8));
+    spec_corpus::observe_handoff!("line-comments/crlf-product", assert_eq!(observed, expected));
 }
 
 // R12 and R13
@@ -186,6 +206,43 @@ fn line_comment_with_crlf_keeps_the_carriage_return() {
 #[test]
 fn carriage_return_in_quoted_rejects() {
     spec_corpus::observe_handoff!("forbidden-quoted-escapes-and-line-breaks/refusal", expect_error(b"\"a\rb\"", LexErrorKind::NewlineInQuoted, SourceSpan::new(2, 3)));
+}
+
+#[test]
+fn raw_line_break_points_at_the_break_even_inside_an_escape() {
+    let body_prefix = b"name \"\xc3\xa9";
+    let escape_prefixes: [&[u8]; 4] = [b"", b"\\", br"\x", br"\x4"];
+    let line_breaks: [&[u8]; 3] = [b"\n", b"\r", b"\r\n"];
+    let tails: [&[u8]; 2] = [b"", b"\";"];
+
+    for escape_prefix in escape_prefixes {
+        let break_offset = body_prefix.len() + escape_prefix.len();
+        for line_break in line_breaks {
+            for tail in tails {
+                let source = [body_prefix.as_slice(), escape_prefix, line_break, tail].concat();
+                expect_error(&source, LexErrorKind::NewlineInQuoted, SourceSpan::new(break_offset, break_offset + 1));
+            }
+        }
+    }
+}
+
+#[test]
+fn a_bad_escape_before_a_line_break_still_wins() {
+    expect_error(b"\"\\q\n", LexErrorKind::UnknownEscape, SourceSpan::new(1, 3));
+    expect_error(b"\"\\xZ\n", LexErrorKind::InvalidHexEscape, SourceSpan::new(1, 3));
+}
+
+#[test]
+fn escaped_line_breaks_decode_and_raw_crlf_after_the_quote_is_trivia() {
+    let source = b"\"\xc3\xa9\\n\\x0D\"\r\n";
+    let tokens = lex(source).expect("escaped breaks and a CRLF outside the literal must lex");
+    assert_eq!(tokens.len(), 2);
+    assert_eq!(tokens[0].get_kind(), TokenKind::Quoted);
+    assert_eq!(tokens[0].get_span(), SourceSpan::new(0, 10));
+    assert_eq!(tokens[1].get_kind(), TokenKind::Whitespace);
+    assert_eq!(tokens[1].get_span(), SourceSpan::new(10, 12));
+    let spelling = tokens[0].get_span().slice(source).unwrap();
+    assert_eq!(decode_quoted_bytes(spelling), Some(vec![0xc3, 0xa9, b'\n', b'\r']));
 }
 
 #[test]
@@ -214,6 +271,8 @@ fn hex_escape_cut_off_by_the_closing_quote_rejects() {
 #[test]
 fn hex_escape_at_end_of_file_rejects() {
     expect_error(b"\"\\x", LexErrorKind::InvalidHexEscape, SourceSpan::new(1, 3));
+    expect_error(br#"head "\x4"#, LexErrorKind::InvalidHexEscape, SourceSpan::new(6, 8));
+    expect_error(br#"head "\x41"#, LexErrorKind::UnterminatedQuoted, SourceSpan::new(5, 10));
 }
 
 // Cases taken from Omega V1's own lexer tests, to confirm the two lexers agree where the contract does.

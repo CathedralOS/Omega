@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tests/bootstrap'))
 from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
+from independent.byte_input_cases import byte_input_cases
 
 
 def cases():
@@ -262,6 +263,121 @@ def byte_output_cases():
     yield trial('overflow-wide-hex', b'machine main()->u8{let x:u64=0x1_0000_0000_0000_0000u64;42}', (1, b'0x1'))
     yield trial('hex-carrier', b'machine main()->u8{0x2Au32}', (1, b'0x2A'))
 
+def build_scope_cases():
+    encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
+    packages = [('application', 0), ('library', 0), ('toolchain', 1)]
+    product = [(0, b'machine main()->u8{42}'), (1, b'public machine value()->u8{9}')]
+    paths = ['main.omg', 'nested/value.omg']
+    default = (ROOT / 'source/library/core/defaults/build.omg').read_bytes()
+    authored = b'machine build(builder:@mut Build){Build::application(builder,"application");}'
+    builds = [(2, 'defaults/build.omg', default), (0, 'build.omg', authored), (0, 'm/extra.omg', b'')]
+    selected = [(0, 1), (1, 0), (2, 0)]
+    wire, _, _, _ = encode(packages, [], product, 0, b'main', paths=paths,
+                          build_sources=builds, build_entries=selected)
+    buffer_length, = struct.unpack_from('<I', wire, 32)
+    arena = wire[-buffer_length:]
+    entries = 10 + 3 * len(packages) + 5 * len(product)
+    units = entries + 2 * len(packages)
+    malformed = b'\0' + struct.pack('<I', 3)
+
+    def word(index, new):
+        changed = bytearray(wire)
+        struct.pack_into('<I', changed, 4 * index, new)
+        return bytes(changed)
+
+    def pending(start):
+        return b'\0' + struct.pack('<II', 2, start)
+
+    yield 'scoped-authored-build', wire, pending(arena.index(authored))
+    for name, index, value in [
+        ('scoped-foreign-requester', entries, 1), ('scoped-dangling-entry', entries + 1, len(builds)),
+        ('scoped-foreign-build', units + 5, 1), ('scoped-shadowed-default', entries + 1, 0),
+        ('scoped-untrusted-default', 10 + 2 * 3 + 2, 0),
+        ('scoped-source-outside', units + 1, buffer_length + 1),
+        ('scoped-path-outside', units + 4, buffer_length + 1),
+    ]:
+        yield name, word(index, value), malformed
+    for name, replacement in [('scoped-traversal', b'./extra.omg'), ('scoped-nul', b'm/extra.om\0'),
+                              ('scoped-backslash', b'm\\extra.omg')]:
+        yield name, wire.replace(b'm/extra.omg', replacement), malformed
+    changed = bytearray(wire)
+    changed[4 * (units + 13):4 * (units + 15)] = wire[4 * (units + 8):4 * (units + 10)]
+    yield 'scoped-duplicate-path', bytes(changed), malformed
+    yield 'scoped-truncated', wire[:-1], malformed
+    yield 'scoped-trailing', wire + b'\0', malformed
+    fallback, _, _, _ = encode(packages, [], product, 0, b'main', paths=paths,
+                               build_sources=builds[:1], build_entries=[(requester, 0) for requester in range(3)])
+    size, = struct.unpack_from('<I', fallback, 32)
+    yield 'scoped-selected-default', fallback, pending(fallback[-size:].index(default))
+
+
+def rooted_application_cases():
+    encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
+    core = ROOT / 'source/library/core'
+    service = (core / 'process_exit.omg').read_bytes()
+    wrapper = (ROOT / 'source/library/std/process_exit.omg').read_bytes()
+    default = (core / 'defaults/build.omg').read_bytes()
+    packages = [('app', 0), ('core', 1)]
+    product_core = [(1, service), (1, (core / 'never.omg').read_bytes()),
+                    (1, (core / 'process_exit_native.omg').read_bytes())]
+    paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg']
+    bind = b'Build::bind(builder, alpha_bootstrap\\ProgramEntry, entry_start);'
+    selection = b'Build::select_provider::<ProcessExit,NativeProcessExit>(builder,alpha_bootstrap);'
+    config = (b'use omega\\language\\core\\ProcessExit; machine build(builder:@mut Build){'
+              b'Build::application(builder,"app");' + bind + selection + b'}')
+    pure = b'public machine entry_start()->u8 {42}'
+    effect = b'public machine entry_start() reaches ProcessExit {ProcessExit::exit_process(-257i32);}'
+
+    def trial(name, build=config, entry=pure, outcome='root', *, fallback=default, extra=(), entry_unit=0):
+        product = [(0, wrapper + b'\n' + entry), *product_core]
+        builds = [(0, 'build.omg', build), (1, 'defaults/build.omg', fallback), *extra]
+        wire, _, _, units = encode(packages, [], product, entry_unit, b'entry_start', paths=paths,
+                                  build_sources=builds, build_entries=[(0, 0), (1, 1)])
+        if outcome == 42:
+            return name, wire, 42
+        if outcome == 'service':
+            position = units[1][1] + service.index(b'boundary trait ProcessExit')
+        else:
+            length, = struct.unpack_from('<I', wire, 32)
+            position = wire[-length:].index(fallback if entry_unit else build)
+        return name, wire, b'\0' + struct.pack('<II', 2, position)
+
+    yield trial('build-bound-entry', outcome=42)
+    yield trial('build-entry-without-selection', config.replace(selection, b''), outcome=42)
+    yield trial('build-selection-grants-no-domain', entry=effect, outcome='service')
+    yield trial('build-missing-provider-no-domain', config.replace(selection, b''), effect, 'service')
+    yield trial('build-unknown-provider', config.replace(b'NativeProcessExit>', b'NoSuchProvider>'))
+    yield trial('build-handle-shadows-entry', config.replace(b'builder', b'entry_start'))
+    yield trial('build-handle-shadows-target', config.replace(b'builder', b'alpha_bootstrap'))
+    yield trial('build-other-receiver', config.replace(b'Build::application', b'Other::application'))
+    yield trial('build-bare-operation', config.replace(b'Build::application', b'application'))
+    yield trial('build-wrong-entry-file', entry_unit=1)
+    yield trial('build-wrong-role-name', config.replace(b'"app"', b'"other"'))
+    yield trial('build-other-target', config.replace(b'alpha_bootstrap\\ProgramEntry', b'other\\ProgramEntry'))
+    yield trial('build-unresolved-entry', config.replace(b', entry_start)', b', absent)'))
+    yield trial('build-unresolved-import', config.replace(b'use omega\\language\\core\\ProcessExit;', b''))
+    yield trial('build-unfinished', config[:-1] + b'Build::unknown(builder);}')
+    # The same local helper and declaration can appear in three deployments.
+    # Only execution of its Alpha selection supplies this target's provider.
+    helper = b'machine configure(handle: @mut Build){' + selection.replace(b'builder', b'handle') + b'}'
+    hosted = selection.replace(b'alpha_bootstrap', b'linux_x86_64').replace(b'builder', b'handle')
+    called = config.replace(selection, b'configure(builder);') + helper[:-1] + hosted + b'}'
+    yield trial('build-called-helper', called, effect, 'service')
+    yield trial('build-hosted-helper', called.replace(selection.replace(b'builder', b'handle'), b''), effect, 'service')
+    yield trial('build-unreached-helper', called.replace(b'configure(builder);', b''), effect, 'service')
+    yield trial('build-pure-through-helper', called, outcome=42)
+    yield trial('build-recursive-helper', called[:-1] + b'configure(handle);}')
+    yield trial('build-wrong-helper-argument', called.replace(b'configure(builder);', b'configure(other);'))
+    yield trial('build-duplicate-target', called[:-1] + hosted + b'}')
+    yield trial('build-unknown-target', called.replace(b'linux_x86_64', b'unknown_target'))
+    yield trial('build-unresolved-hosted-provider', called.replace(hosted, hosted.replace(b'NativeProcessExit', b'Missing')))
+    yield trial('build-ill-typed-unreached-helper', called.replace(b'configure(builder);', b'').replace(
+        hosted, hosted.replace(b'NativeProcessExit', b'Missing')))
+
+    yield trial('build-nonempty-default', fallback=b'machine build(builder:@mut Build){Build::unknown(builder);}')
+    yield trial('build-additional-unit', extra=[(0, 'helper.omg', b'machine helper(){}')])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path, help='new directory for input, results and Alpha tapes')
@@ -277,7 +393,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *byte_input_cases(ROOT), *build_scope_cases(), *rooted_application_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")
@@ -317,7 +433,10 @@ def main():
         elif observed != expected:
             raise SystemExit(f'{name}: expected {expected.hex()}, got {observed[:32].hex()}')
         else:
-            print(f'{name}: refusal at byte {int.from_bytes(observed[5:], "little")}', flush=True)
+            if len(observed) == 5:
+                print(f'{name}: malformed framing', flush=True)
+            else:
+                print(f'{name}: refusal at byte {int.from_bytes(observed[5:], "little")}', flush=True)
 
 
 if __name__ == '__main__':
