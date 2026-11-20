@@ -2,9 +2,9 @@
 //! Every demanded generic and conformance module is present before judgment.
 
 use crate::{Checked, program::Elaboration};
+pub use crate::{PreparedCompilation, TerminalCompilation};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::CallableShapeMismatch;
-use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone)]
@@ -49,32 +49,6 @@ pub struct CallableFormationDefect {
 pub trait CompilationForPublication {
     type Source;
     fn into_program_and_source(self) -> (TerminalCompilation, Self::Source);
-}
-
-#[derive(Debug)]
-pub enum TerminalCompilation {
-    FormationFailures(Vec<CallableFormationFailure>),
-    FormationDefect(CallableFormationDefect),
-    Prepared(PreparedCompilation),
-}
-
-#[derive(Debug)]
-pub struct PreparedCompilation {
-    pub closure: Checked<Elaboration>,
-    /// Every refusal reading met after the one `closure` holds, in the order
-    /// it met them: declarations first, then bodies by `MachineId`. Each is
-    /// a verdict of its own, so one compilation names every machine the
-    /// checker cannot read yet. Empty whenever `closure` is `Ok`.
-    pub further: Vec<crate::Refusal>,
-    /// Proof-only calls from each installed source arrival to its continuation.
-    /// These never become executable or publishable closures.
-    pub arrivals: Vec<Checked<CallableArrivalWitness>>,
-    pub forms: Vec<GenericForms>,
-    pub witnesses: Vec<Checked<Elaboration>>,
-    /// Exact generated machine to template correspondence, fixed by preparation.
-    pub specializations: arena::IdTable<MachineId, Option<SymbolHandle>>,
-    /// Root selection position to its independently judged conformance module.
-    pub selection_witnesses: Vec<(usize, usize)>,
 }
 
 #[derive(Debug)]

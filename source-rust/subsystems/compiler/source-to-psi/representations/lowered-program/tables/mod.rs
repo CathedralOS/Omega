@@ -1,7 +1,5 @@
-#![forbid(unsafe_code)]
-
 /*
-The shared tables of the checker that runs on the lowered form: the explicit,
+The checker tables for the lowered form: the explicit,
 unsealed Terminal Psi module that structure-only elaboration produces
 (`wiki/drafts/designs/check_on_lowered_form.md`). They hold what the checker
 knows about one machine, as tables over dense identities: values with
@@ -28,12 +26,9 @@ has no identity for the concept.
 */
 
 pub mod bindings;
-pub mod compilation;
 pub mod contracts;
 pub mod edges;
-pub mod names;
 pub mod obligations;
-pub mod program;
 pub mod values;
 
 use std::num::NonZeroU64;

@@ -113,7 +113,7 @@ pub use verdict::{
 #[cfg(not(any(test, feature = "test-support")))]
 pub use verdict::{
     AcceptedClosure, CheckedPublicationModule, CompilationRefusal, RouteVerdict,
-    UnprovedObligation, judge_compilation,
+    UnprovedObligation,
 };
 
 #[cfg(test)]

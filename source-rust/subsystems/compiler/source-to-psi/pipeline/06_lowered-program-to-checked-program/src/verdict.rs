@@ -113,9 +113,7 @@ pub enum RouteVerdict {
     FallBack(Refusal),
 }
 
-#[path = "../../../representations/lowered-program/checked.rs"]
-mod checked_program;
-pub use checked_program::AcceptedClosure;
+pub use super::publication::AcceptedClosure;
 
 impl AcceptedClosure {
     /// The advisory diagnostics of this accepted closure, in machine order.

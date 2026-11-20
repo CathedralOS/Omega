@@ -6,7 +6,7 @@ version.workspace = true
 
 [lib]
 name = "terminal_check_tables"
-path = "src/lib.rs"
+path = "lowered_program.rs"
 
 # Retained representations. This crate must never depend on pipeline stages:
 # it is the contract the checker on the lowered form is built against.

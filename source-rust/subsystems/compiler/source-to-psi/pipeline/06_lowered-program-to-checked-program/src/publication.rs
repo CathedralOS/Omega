@@ -1,5 +1,8 @@
 //! Only a completely accepted compilation can issue its source for publication.
-use super::verdict::{AcceptedClosure, CompilationRefusal, RouteVerdict, judge_compilation};
+mod accepted_closure;
+pub use accepted_closure::AcceptedClosure;
+
+use super::verdict::{CompilationRefusal, RouteVerdict, judge_compilation};
 use diagnostics::Diagnostic;
 use terminal_check_tables::compilation::CompilationForPublication;
 

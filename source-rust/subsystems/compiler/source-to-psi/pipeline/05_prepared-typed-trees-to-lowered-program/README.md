@@ -1409,7 +1409,7 @@ An origin is the authored span, or `Unpositioned` with the reason
 `LoweredSourceCustody` was not used: it records call occurrences only and
 depended on a removed representation.
 
-`Elaboration::names` ([names.rs](../../representations/lowered-program/src/names.rs)) is what diagnostics call
+`Elaboration::names` ([names.rs](../../representations/lowered-program/names.rs)) is what diagnostics call
 those constructs, because the lowered form carries identities and spans but
 no binder names. The reader records, per machine, its name (a template's for
 a generated specialization) and its state's, its formals' names, the
