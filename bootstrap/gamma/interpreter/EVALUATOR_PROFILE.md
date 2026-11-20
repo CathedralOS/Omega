@@ -207,14 +207,19 @@ exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or work
 bound; a nonterminating program diverges.
 
 The selected implementation is
-[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,660-line,
-48,043-byte addressed Beta program assembling to an 8,447-byte Alpha tape. Its
+[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,657-line,
+48,008-byte addressed Beta program assembling to an 8,447-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  3a41a36bb5af68454a92fda0e3c5dd6b78784cb62aa9bc2eb10e2cc6ddc53f71
-Alpha tape   d6265bba615fab3bd7d3fd3432f416e28c5668e17119d1970e9d3960b315fe4b
+Beta source  7730e0e4f075d55a55e032b83da04d2a62a16a987f52198b7283ff74f62067d8
+Alpha tape   11905b825000be79e78548a47e3016516eefac5bb5a9f696114349dbda99aaf2
 ```
+
+The tokenizer and expression parser share one character reader. It accepts one
+printable ASCII byte or one of the two escapes, `\n` and `\s`. Function,
+parameter and let names must be symbols. These checks also run inside unused
+functions before the program executes.
 
 The list-head classifier reads at most eight bytes from the token and compares
 the packed word with the 15 intrinsic spellings in class order. Gamma rejects

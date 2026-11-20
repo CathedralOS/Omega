@@ -16,10 +16,10 @@
 # check that the bytes being stamped are the selected evaluator; it is not a
 # proof that the evaluator implements Gamma. Changing the source or tape
 # invalidates the dependent evidence and must update every record.
-GAMMA_EVALUATOR_SOURCE_SIZE=48043
-GAMMA_EVALUATOR_SOURCE_SHA256=3a41a36bb5af68454a92fda0e3c5dd6b78784cb62aa9bc2eb10e2cc6ddc53f71
+GAMMA_EVALUATOR_SOURCE_SIZE=48008
+GAMMA_EVALUATOR_SOURCE_SHA256=7730e0e4f075d55a55e032b83da04d2a62a16a987f52198b7283ff74f62067d8
 GAMMA_EVALUATOR_TAPE_SIZE=8447
-GAMMA_EVALUATOR_TAPE_SHA256=d6265bba615fab3bd7d3fd3432f416e28c5668e17119d1970e9d3960b315fe4b
+GAMMA_EVALUATOR_TAPE_SHA256=11905b825000be79e78548a47e3016516eefac5bb5a9f696114349dbda99aaf2
 
 # require_gamma_evaluator_identity : the canonical source and tape are exactly
 # the selected pair. Every materialization runs it; tests may call it

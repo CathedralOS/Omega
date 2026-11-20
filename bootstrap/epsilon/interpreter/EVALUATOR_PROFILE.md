@@ -22,7 +22,7 @@ bound, or restores an Epsilon Alpha backend.
 
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
-| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,447 | `d6265bba615fab3bd7d3fd3432f416e28c5668e17119d1970e9d3960b315fe4b` |
+| Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,447 | `11905b825000be79e78548a47e3016516eefac5bb5a9f696114349dbda99aaf2` |
 | packed Epsilon evaluator closure | 613,769 | `c5392b0a71cbe58de5090fb888b379fa5cb3b4b598ba38d6f1a568e326ffa0ff` |
 | execution driver `execution_driver.delta` | 2,150 | `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa` |
 | Delta support section | 4,301 | `439fef90e10007baec81920e84b89f50ad815a27af80499e4240e1dcd55f9243` |
