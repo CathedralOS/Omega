@@ -1,5 +1,8 @@
 //! Each lexical refusal uses the offending bytes from its golden fixture and a repaired package that prepares.
 //! Invalid UTF-8 uses a raw byte. Both package commands must repeat the lexer's exact location and reason.
+#[path = "support/diagnostic_occurrence.rs"]
+mod diagnostic_occurrence;
+
 use omega_lexer::{LexErrorKind, lex};
 use std::{
     fs,
@@ -154,6 +157,9 @@ fn measure(
             occurrence.to_vec()
         }
     };
+    if occurrence.is_empty() {
+        return Err("expected a nonempty offending spelling".into());
+    }
     let found: Vec<_> = twin
         .bad
         .windows(occurrence.len())
@@ -207,7 +213,12 @@ fn measure(
     }
 
     let field = spec_corpus::diagnostic_field;
-    Ok(format!("OMEGA_DIAGNOSTIC_KIND\tL0\t{kind:?}\t{observed_kind:?}\t{}\t{}", field(&expected), field(observed)))
+    let witness = diagnostic_occurrence::fields("case.omg", twin.bad, start, &occurrence);
+    Ok(format!(
+        "OMEGA_DIAGNOSTIC_KIND\tL0\t{kind:?}\t{observed_kind:?}\t{}\t{}\t{witness}",
+        field(&expected),
+        field(observed)
+    ))
 }
 
 #[test]

@@ -12,6 +12,7 @@ use omega_typed::{CallUse, InvocationTarget, NodeSemantics, ObligationKind, Paus
 /// An indirect call through the current descriptor of a callable formal.
 pub(super) struct RuntimeCall<'a> {
     pub callee: CallTarget,
+    pub acknowledgements: PauseEffects,
     /// Argument nodes in evaluation order with their contract formals.
     pub operands: Vec<(usize, &'a ValueType)>,
 }
@@ -167,7 +168,7 @@ pub(super) fn select_runtime_call<'a>(
     if call.use_site != CallUse::Execution || call.node != file.node_id(node) || call.site != site || call.caller.as_ref() != Some(&caller.machine) {
         return Err(error("indirect call disagrees with its owning occurrence"));
     }
-    if call.acknowledgements != PauseEffects::default() || call.contract.pause != PauseEffects::default() {
+    if call.contract.pause != PauseEffects::default() {
         return Err(error("runtime call requires pause lowering"));
     }
     if !typed || call.contract.result != *expected {
@@ -230,6 +231,7 @@ pub(super) fn select_runtime_call<'a>(
     }
     Ok(Some(RuntimeCall {
         callee: CallTarget::Runtime { descriptor, contract },
+        acknowledgements: call.acknowledgements,
         operands,
     }))
 }

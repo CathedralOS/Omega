@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'tests/bootstrap'))
 from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
+from independent.byte_input_cases import byte_input_cases
 
 
 def cases():
@@ -356,6 +357,23 @@ def rooted_application_cases():
     yield trial('build-unresolved-entry', config.replace(b', entry_start)', b', absent)'))
     yield trial('build-unresolved-import', config.replace(b'use omega\\language\\core\\ProcessExit;', b''))
     yield trial('build-unfinished', config[:-1] + b'Build::unknown(builder);}')
+    # The same local helper and declaration can appear in three deployments.
+    # Only execution of its Alpha selection supplies this target's provider.
+    helper = b'machine configure(handle: @mut Build){' + selection.replace(b'builder', b'handle') + b'}'
+    hosted = selection.replace(b'alpha_bootstrap', b'linux_x86_64').replace(b'builder', b'handle')
+    called = config.replace(selection, b'configure(builder);') + helper[:-1] + hosted + b'}'
+    yield trial('build-called-helper', called, effect, 'service')
+    yield trial('build-hosted-helper', called.replace(selection.replace(b'builder', b'handle'), b''), effect, 'service')
+    yield trial('build-unreached-helper', called.replace(b'configure(builder);', b''), effect, 'service')
+    yield trial('build-pure-through-helper', called, outcome=42)
+    yield trial('build-recursive-helper', called[:-1] + b'configure(handle);}')
+    yield trial('build-wrong-helper-argument', called.replace(b'configure(builder);', b'configure(other);'))
+    yield trial('build-duplicate-target', called[:-1] + hosted + b'}')
+    yield trial('build-unknown-target', called.replace(b'linux_x86_64', b'unknown_target'))
+    yield trial('build-unresolved-hosted-provider', called.replace(hosted, hosted.replace(b'NativeProcessExit', b'Missing')))
+    yield trial('build-ill-typed-unreached-helper', called.replace(b'configure(builder);', b'').replace(
+        hosted, hosted.replace(b'NativeProcessExit', b'Missing')))
+
     yield trial('build-nonempty-default', fallback=b'machine build(builder:@mut Build){Build::unknown(builder);}')
     yield trial('build-additional-unit', extra=[(0, 'helper.omg', b'machine helper(){}')])
 
@@ -375,7 +393,7 @@ def main():
         evaluator = pack('bootstrap/epsilon/interpreter/epsilon_compiler.delta.sources', work / 'evaluator.delta')
         compiler = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega.epsilon')
         compiler += (ROOT / 'bootstrap/omega/construct_omega.epsilon').read_bytes()
-    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *build_scope_cases(), *rooted_application_cases()]
+    subjects = [*cases(), *terminal_cases(), *provider_cases(), *byte_output_cases(), *byte_input_cases(ROOT), *build_scope_cases(), *rooted_application_cases()]
     unknown = set(args.case or ()) - {name for name, _, _ in subjects}
     if unknown:
         parser.error(f"unknown cases {sorted(unknown)}")

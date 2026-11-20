@@ -60,8 +60,10 @@ multi-target requests fan out into independently checked child compilations.
 
 The v2 construction entry interprets a ground application Build and the
 empty activated core default. It checks the application role, the authored
-`alpha_bootstrap\ProgramEntry` binding, and one optional ProcessExit provider
-selection. The file's own imports resolve each designated Product operand.
+`alpha_bootstrap\ProgramEntry` binding, and ProcessExit selections for the
+six supported targets. Local Build helpers receive the caller's mutable Build
+handle. Every helper body is checked. Only executed calls contribute a
+selection, and each target retains its own provider. The file's own imports resolve each designated Product operand.
 An incomplete activation stops before code publication. A completed pure
 application compiles from its resolved entry declaration. The selected
 terminal provider remains separate from the runtime's process-domain grant.
@@ -80,10 +82,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,653 lines / 1,072,074 bytes with SHA-256
-`2a8941410b29b2e0b275630063f9af57f1898529c4abe39a368998996341520e`.
-The manifest itself is 2,551 bytes, SHA-256
-`14482ee441777ae4aec54586681d53cc0559011d228b56594827d562460aa89d`;
+The manifest materializes 27,995 lines / 1,089,848 bytes with SHA-256
+`c6dcdb1e678bd9bb79f04c2fb4c69f4bfbef3d32aad9f5475af9d29df39377b8`.
+The manifest itself is 2,729 bytes, SHA-256
+`7c0f52a19e63aec099a20180746c7de1960db3f7acaf862e020767149bab3484`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -200,8 +202,19 @@ Case transitions evaluate the subject once. A braced arm can bind a field by
 its own name, rename it with `field as name`, or waive it with `field as _`.
 An explicit `..` waives remaining fields. The checker resolves the source
 field within the selected case, checks duplicate fields and binding names, and
-exposes each binding only in that arm's target. Non-copy sums, custom sum
-requirements and payload equality guards remain outside this backend.
+exposes each binding only in that arm's target. A fresh affine sum can be
+returned or held in a local. A terminal transition can inspect its tag and
+bind copyable payloads. Passing an existing affine local by value and
+payload equality guards still need broader checking.
+
+The standard `ByteRead` declaration permits `Eof` and requires the signed
+payload of `Byte` to lie between 0 and 255. The checker resolves each
+case against its owning declaration and checks both endpoints on the same
+payload field. Every declared case must occur exactly once in the predicate.
+Each construction establishes the selected case’s range. Pattern matching
+carries this range into the selected arm. A machine guard or an explicit
+entry requirement can establish a signed bound. A signed upper bound gives
+no evidence for the lower bound. [Case requirements](checking/case_requirements.epsilon)
 [Payload binding rules](../../../wiki/spec/language/patterns.md) and
 [runnable selection](../../../tests/bootstrap/conformance/omega/payload_bindings.omg)
 and [zero omission](../../../tests/bootstrap/conformance/omega/payload_omission.omg)

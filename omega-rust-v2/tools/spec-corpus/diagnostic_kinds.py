@@ -34,6 +34,26 @@ def kinds(path, enum, *, payload=None):
     return members
 
 
+def source_bytes(field):
+    # The producer uses printable ASCII and %XX, including for non-UTF-8 input.
+    if not re.fullmatch(r"[ -~]*", field):
+        raise ValueError("unescaped source byte")
+    return unescape(field)
+
+
+def check_occurrence(witness, file, row, column, start, end):
+    name, source_field, offset, spelling_field = witness
+    source, spelling = source_bytes(source_field), source_bytes(spelling_field)
+    if unescape(name).decode("utf-8") != file:
+        raise ValueError("diagnostic names a different source file")
+    if not 0 <= start <= end <= len(source) or (start == end and end != len(source)):
+        raise ValueError("diagnostic range outside source or empty before EOF")
+    if offset != str(start) or source[start:end] != spelling:
+        raise ValueError("diagnostic misses the selected source occurrence")
+    if (row, column) != (1 + source.count(b"\n", 0, start), start - source.rfind(b"\n", 0, start)):
+        raise ValueError("line or byte column differs from the source position")
+
+
 def measure(report, log):
     errors = report["measurement_errors"]
     inventory = {}
@@ -47,7 +67,10 @@ def measure(report, log):
     statuses = {}
     observations = {}
     invalid = set()
-    for line in log.splitlines():
+    # Only LF/CRLF frame records. A raw vertical tab, for example, must not
+    # truncate a malformed final spelling field into a valid one.
+    for line in log.split("\n"):
+        line = line.removesuffix("\r")
         if header := re.match(r"^\s*Running (.+?) \(", line):
             target, current = header[1].replace("\\", "/"), ""
         elif outcome := re.fullmatch(r"test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?", line):
@@ -58,12 +81,15 @@ def measure(report, log):
             current = ""
         elif line.startswith("OMEGA_DIAGNOSTIC_KIND"):
             fields = line.split("\t")
-            if len(fields) != 6 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
-                errors.append(f"malformed diagnostic kind: {line}")
+            if len(fields) != 10 or fields[0] != "OMEGA_DIAGNOSTIC_KIND":
+                if len(fields) == 6 and fields[0] == "OMEGA_DIAGNOSTIC_KIND":
+                    errors.append(f"{fields[1]} {fields[2]}: historical diagnostic kind lacks source occurrence evidence")
+                else:
+                    errors.append(f"malformed diagnostic kind: {line}")
                 if len(fields) >= 3:
                     invalid.add((fields[1], fields[2]))
                 continue
-            _, stage, kind, actual_kind, expected_text, actual_text = fields
+            _, stage, kind, actual_kind, expected_text, actual_text, *witness = fields
             if kind not in inventory.get(stage, {}):
                 errors.append(f"unknown diagnostic kind: {stage} {kind}")
                 continue
@@ -83,8 +109,7 @@ def measure(report, log):
                     raise ValueError("invalid CLI diagnostic")
                 file, row, column, reason, start, end = match.groups()
                 row, column, start, end = map(int, (row, column, start, end))
-                if min(row, column) < 1 or end < start:
-                    raise ValueError("invalid diagnostic location")
+                check_occurrence(witness, file, row, column, start, end)
             except ValueError as exc:
                 errors.append(f"{target}::{current}: {stage} {kind}: {exc}")
                 invalid.add((stage, kind))
