@@ -19,8 +19,8 @@ python3 tests/bootstrap/interpreted/epsilon/portable.py /tmp/omega-interpreted \
 ```
 
 The default `language` profile checks the language's accepted Console spelling,
-exit, stdin, trap and framing behavior. `syntax-controls` checks refusal of
-each invalid `@` spelling. `--profile envelope` checks all eight EEREQ header
+exit, stdin, trap and framing behavior. `syntax-controls` checks longest
+operator matching, character and string escapes, and each invalid `@` spelling. `--profile envelope` checks all eight EEREQ header
 identity bytes and all 32 closure digest bytes, plus the first reported failure
 when one request has multiple faults. `historical-at` compares the original
 inputs with their original expectations, including the three Console examples

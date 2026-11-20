@@ -185,10 +185,10 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_EVALUATOR_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 12,135 lines / 618,016 bytes, SHA-256
-`02be715b60938be45bd89984df6bfb197e1b46310435feae77b9b6271c4a0cd0`.
+The packed evaluator is 12,074 lines / 613,769 bytes, SHA-256
+`c5392b0a71cbe58de5090fb888b379fa5cb3b4b598ba38d6f1a568e326ffa0ff`.
 The manifest itself is 16,779 bytes, SHA-256
-`91aafd6662fe5a386be7381ed5902ffbb52be0ffb9ad99c4fc302e1bc2cc7d6d`;
+`afde50965fcd4799bb7a363e25d2012c3017e5d76cf3dd0d34d04c513e71b3c6`;
 `tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
 materialization. The [portable envelope profile](../../../tests/bootstrap/interpreted/epsilon/README.md)
 checks refusals for each byte of the claimed closure digest.
@@ -196,7 +196,7 @@ A digest is an identity check on the bytes being evaluated, not a proof that
 the evaluator implements Epsilon.
 
 The public entry appends [interpreter.delta](../interpreter.delta) to the
-packed evaluator. The Delta compiler produces a 729,482-byte Gamma program
+packed evaluator. The Delta compiler produces a 717,930-byte Gamma program
 from that source. The [entry contract](EVALUATOR_ENTRY.md) gives its identity
 and request format. One [executable test](../../../tests/bootstrap/interpreted/omega-executable/README.md)
 appends its own diagnostic driver to exercise a private frame instead.

@@ -84,6 +84,21 @@ def epsilon_syntax_controls(closure):
         invalid_token = b"\x02\x02" + struct.pack("<I", source.index(b"@"))
         yield name, epsilon_request(closure, source, b""), (0, invalid_token)
 
+    console = _epsilon_console(b"&[u8]", b"&mut self")
+    body = br'''self.console.write_byte(('\x42' >> 1) << 1); // ! outside a token
+    self.console.write_line("\x41");
+    self.console.exit_process(('a' != 'b') && (2 <= 3)); }'''
+    yield "longest operators and both literal escapes", epsilon_request(closure, console + body, b""), (
+        0, b"\x00" + struct.pack("<i", 1) + b"BA\n")
+    for label, old, new, reason, anchor in (
+        ("lone exclamation", b"!=", b"!", 2, b"! 'b'"),
+        ("bad character escape", br"'\x42'", br"'\x4G'", 5, br"\x4G"),
+        ("bad string escape", br'"\x41"', br'"\xG1"', 5, br"\xG1"),
+    ):
+        source = console + body.replace(old, new)
+        rejection = struct.pack("<BBI", 2, reason, source.index(anchor))
+        yield label, epsilon_request(closure, source, b""), (0, rejection)
+
 
 def epsilon_envelope_observations(closure):
     """Exact EEREQ v1 identity bytes and first-error coordinates."""
