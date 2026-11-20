@@ -184,13 +184,46 @@ It produced 729,482 bytes of Gamma, SHA-256
 `3d0f600184534c82ff03bb1eb9197648ba7420656a915bfc04c7e4f49598c9bf`.
 The compiled Gamma host produced the identical evaluator source.
 
+On the default `interpret / native / interpret` route the Delta translation
+took 4,935.209 wall seconds. The same seed-built Gamma interpreter then ran
+the 40,367-byte Linux backend, SHA-256
+`bd78a58f9187a770293bbb04466942b05dde50ea57b0e234d4d691c6d26971a4`, on
+the freshly emitted Gamma. Its 769,853-byte request had SHA-256
+`b4ad50ae3989a08962ececce948817b842efe861e8663e8e2e980beb05d95fee`.
+In 6,972.424 seconds it produced a 2,004,942-byte Epsilon evaluator, SHA-256
+`023d970589e30d0806ddd7f38041a7e81660224e46fc8700b363a4d13d96721a`.
+That executable matched the separately compiled host's image byte for byte.
+
+Each request bound the 618,016-byte Epsilon closure, SHA-256
+`02be715b60938be45bd89984df6bfb197e1b46310435feae77b9b6271c4a0cd0`,
+the respective classifier source and all 256 input bytes. The same newly
+built evaluator returned process status zero for each observation.
+
+| Named customer | Sealed request SHA-256 | Complete observation | Wall time |
+| --- | --- | --- | ---: |
+| Classifier | `9bc8b494413bb8799c8b838510aada78ea6e96a296eaa7fa0e8a4b54654c13b7` | 3,077 bytes, SHA-256 `9e66d3ae8c042ba3c425a4f559e85c4850608fda04d0640110eaf20599f5e225` | 49.450 s |
+| Wrong-base twin | `03e491438f40f36242717cdd85cbf2e7ec0ce86695ec9fc175a39968f52ae53d` | `02 12 f0 07 00 00` | 0.611 s |
+
+The independent direct-Delta compiler attempt on this customer used the
+101,068-byte checked interpreter and the 630,512-byte Epsilon compiler. The
+complete 735,336-byte input to the Gamma interpreter had SHA-256
+`d5a737caa4cd89e0caf77d3b4d4681b99b66c93afed2895031c340dea6fce9b3`.
+It reached its 10,800-second wall limit in the Epsilon-to-Delta compilation
+stage before publishing a module. The process had accumulated 850.36 CPU
+seconds at the last sample. This leaves the direct-Delta compiled routes open.
+
 The original Gamma interpreter then executed that evaluator directly on the
 classifier in which one `omega_digit_in_base` call passes `value` in place
 of `selected`. This is the selectable `--delta-interpreter gamma` route.
 The 733,539-byte input to the reference executable had SHA-256
 `81abb880306f9bbdbbc22262cc46f0826d718e12f0dda46a3467e28dd557517f`.
 The interpreter returned process status zero and `02 12 f0 07 00 00` in
-200.586 seconds, locating the type error at byte 2,032.
+200.586 seconds, locating the type error at byte 2,032. On positive stdin
+`09 30 32 38 41 5f 66 ff` the same route returned the expected 101 bytes,
+SHA-256 `d83a48cc949b3bf8309b5b6e38df5d9640b08f259aa2329458e8aa42f375f666`,
+in 393.973 seconds. These cover guest exit 42 and twelve classifications for
+each of the eight supplied bytes. On the full 256-byte stdin this route
+reached its 6,600-second wall bound before publishing an observation.
 
 ## Omega lexical byte classes on the original Gamma route
 
