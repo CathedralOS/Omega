@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current twelve-member
-manifest materializes 24,509 lines / 926,397 bytes with SHA-256
-`e333c6cbf037dd403f8e495c86d94f11adb7801bce9f683f60389946834d7643`.
+manifest materializes 24,499 lines / 927,004 bytes with SHA-256
+`fb8e664b1b810d86db40e2040b112fe6de949005ebcae0c850d7f71343afb598`.
 The manifest itself is 2,037 bytes, SHA-256
-`8f5f765146c1c4bd52fb60cdea1c1cce0c4095cd0db741c6b151628a97124f3e`;
+`58f920814301e8cee333ba26fceeb0206a3ae91d639007a280eb51c2183530cf`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -144,7 +144,9 @@ resolved ordinary free calls, nested argument calls, scalar comparisons,
 short-circuit Boolean operations, and parameterized same-owner tail transfers.
 Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards, a comma between arms and an optional trailing comma. An arm
-can transfer to a machine or return a Boolean literal or a named value.
+can transfer to a machine or produce a value. Booleans, integers, local names
+and qualified sum cases with or without named payloads use the ordinary result
+checker and Alpha emitter.
 An operand of a transition subject may use a local with a keyword spelling,
 including `target`. The ordinary name resolver checks that binding.
 Boolean literals and `self` retain their expression roles. Match expressions
