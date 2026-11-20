@@ -675,7 +675,7 @@ domain [u16; 8]::Terminated requires self[{element}] == 0;
 machine entry(path: @[u16; 8] in Terminated) -> u16
 ensures result == 0
 {{
-    path[7]
+    (path as -Terminated)[7]
 }}
 "#
         )
@@ -896,7 +896,7 @@ data Named<'s> {{ buffer: @'s [u16; 4] in Terminated; }}
 machine entry(named: @Named) -> u16
 ensures result == 0
 {{
-    named.buffer[3]
+    (named.buffer as -Terminated)[3]
 }}
 "#
         )
