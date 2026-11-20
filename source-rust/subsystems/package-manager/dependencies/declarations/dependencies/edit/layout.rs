@@ -2,12 +2,10 @@
 // `discover_build_layout` returns `Ok(None)` when no `build` machine exists and `Ok(Some(None))` when a valid `build` machine has a noncanonical signature or body layout requiring manual editing.
 // Dependency declarations belong to the implicit entry before its first transition or nested state; `entry_insertion_start` locates the last top-level semicolon preceding that boundary so adding a dependency never splits a transition or makes the row conditional.
 
-use crate::declarations::dependencies::edit::{
-    BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
-};
+use crate::declarations::dependencies::edit::{BUILD_MACHINE_NAME, BuildDependencyEditError};
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
-use crate::declarations::editable_build::{DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, FROM_SOURCE_HELPER_NAME};
+use crate::declarations::editable_build::{project_build_entry_syntax, project_dependency_rows};
+use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use tokens::{PunctuationKind, TokenKind, TokenStream};
@@ -148,7 +146,9 @@ pub(super) fn discover_build_layout(
     let machine_indent = line_indent(source, tokens[machine_token].span.start)
         .unwrap_or_default()
         .to_owned();
-    let dependency_rows = dependency_rows(&tokens, body_open, body_close);
+    let Some(dependency_rows) = dependency_rows(&syntax, &tokens, body_open, body_close) else {
+        return Ok(Some(None));
+    };
     let states = syntax.items.state_handles(build.states);
     let Some(entry) = states.first().map(|handle| syntax.items.state(*handle)) else {
         return Ok(Some(None));
@@ -248,64 +248,62 @@ fn matching_brace(tokens: &TokenStream<'_>, open: usize) -> Option<usize> {
     None
 }
 
-// Rows are the canonical top-level registration spellings the shared row
-// grammar projects: one bound or discarded `Build::<operation>(...)` statement, or the
-// three-statement aliased description journey starting at its `let mut`.
+// The projector owns row membership. The tokens supply byte and comment ranges for the edit.
 fn dependency_rows(
+    syntax: &SyntaxTrees,
     tokens: &TokenStream<'_>,
     body_open: usize,
     body_close: usize,
-) -> Vec<DependencyRow> {
+) -> Option<Vec<DependencyRow>> {
+    let build = project_build_entry_syntax(syntax).ok()?;
+    let rows = project_dependency_rows(syntax, &build).ok()?;
     let statements = top_level_statements(tokens, body_open, body_close);
-    let discarded = DependencyOperation::ALL.map(|operation| {
-        format!(
-            "_={BUILD_TYPE_NAME}::{}({BUILDER_PARAMETER_NAME},",
-            operation.name()
-        )
-    });
-    let bound = DependencyOperation::ALL.map(|operation| {
-        format!(
-            ":DependencyRegistration={BUILD_TYPE_NAME}::{}({BUILDER_PARAMETER_NAME},",
-            operation.name()
-        )
-    });
-    let description_marker = format!(
-        ":{DEPENDENCY_DESCRIPTION_TYPE_NAME}={DEPENDENCY_HELPER_OWNER}\\{FROM_SOURCE_HELPER_NAME}("
-    );
-    let is_registration = |text: &str| {
-        discarded
-            .iter()
-            .any(|prefix| text.starts_with(prefix.as_str()))
-            || (text.starts_with("let")
-                && !text.starts_with("letmut")
-                && bound.iter().any(|marker| text.contains(marker.as_str())))
+    let token_range = |handle| {
+        let anchor = match syntax.statements.statement(handle) {
+            StatementNode::LocalData(local) => local.name.source_span().span,
+            StatementNode::Call(call) => call.target.source_span().span,
+            _ => return None,
+        };
+        statements.iter().position(|&(first, last)| {
+            tokens[first].span.start <= anchor.start && anchor.end <= tokens[last].span.end
+        })
     };
-    let mut rows = Vec::new();
-    let mut position = 0;
-    while position < statements.len() {
-        let (first, _) = statements[position];
-        let text = compact_text(tokens, statements[position]);
-        let length = if is_registration(&text) {
-            1
-        } else if text.starts_with("letmut") && text.contains(description_marker.as_str()) {
-            3
-        } else {
-            position += 1;
-            continue;
-        };
-        let Some(&(_, last)) = statements.get(position + length - 1) else {
-            break;
-        };
-        rows.push(DependencyRow {
-            start: tokens[first].span.start,
-            end: tokens[last].span.end,
-            contains_comment: tokens[first..=last]
-                .iter()
-                .any(|token| token.comment().is_some()),
-        });
-        position += length;
-    }
-    rows
+    rows.iter()
+        .map(|row| {
+            let handles = row.statements();
+            let start = token_range(*handles.first()?)?;
+            // An editable group covers adjacent, complete statements.
+            for (offset, handle) in handles.iter().enumerate() {
+                if token_range(*handle)? != start + offset {
+                    return None;
+                }
+            }
+            let first = statements[start].0;
+            let last = statements[start + handles.len() - 1].1;
+            // A preceding block may not end with a semicolon. Refuse to include its text in an edit.
+            let anchor = match syntax.statements.statement(handles[0]) {
+                StatementNode::LocalData(local) => (local.name.source_span().span.start, "let"),
+                StatementNode::Call(call) if call.discards_result => {
+                    (call.target.source_span().span.start, "_")
+                }
+                _ => return None,
+            };
+            let actual_start = (first..=last)
+                .take_while(|&index| tokens[index].span.start < anchor.0)
+                .filter(|&index| tokens.spelling(&tokens[index]) == anchor.1)
+                .last()?;
+            if actual_start != first {
+                return None;
+            }
+            Some(DependencyRow {
+                start: tokens[first].span.start,
+                end: tokens[last].span.end,
+                contains_comment: tokens[first..=last]
+                    .iter()
+                    .any(|token| token.comment().is_some()),
+            })
+        })
+        .collect()
 }
 
 // Inclusive token ranges of the body's depth-0 statements, each ending at its
@@ -345,13 +343,6 @@ fn top_level_statements(
         }
     }
     statements
-}
-
-fn compact_text(tokens: &TokenStream<'_>, (first, last): (usize, usize)) -> String {
-    (first..=last)
-        .filter(|index| !tokens[*index].is_trivia())
-        .map(|index| tokens.spelling(&tokens[index]))
-        .collect()
 }
 
 fn line_indent(source: &str, offset: usize) -> Option<&str> {
