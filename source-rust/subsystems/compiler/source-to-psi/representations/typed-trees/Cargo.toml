@@ -8,12 +8,12 @@ version.workspace = true
 path = "lib.rs"
 
 [dependencies]
-service-surface = { path = "../../../psi/service-surface" }
+service-surface = { path = "../../../psi/interfaces/service-surface" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 artifacts = { path = "../../../foundation/measurements" }
-access-vocabulary = { path = "../../../psi/access" }
-schema-reflection = { path = "../../../psi/schema" }
-application-identity = { path = "../../../psi/application-identity" }
+access-vocabulary = { path = "../../../psi/access/policies" }
+schema-reflection = { path = "../../../psi/types/reflection" }
+application-identity = { path = "../../../psi/identities/applications" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 source-admission = { path = "../source-files/custody" }
@@ -23,13 +23,13 @@ sha2 = "0.10.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 wire = { path = "../../../../../foundation/wire" }
-access-admission = { path = "../../../psi/access/admission" }
+access-admission = { path = "../../../psi/access/validated-placements" }
 arena = { path = "../../../../../foundation/arena" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
-layout-plans = { path = "../../../psi/layout" }
-numerics = { path = "../../../psi/semantics/numeric" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
+numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 source-declarations = { path = "../symbol-resolved-trees/declarations" }

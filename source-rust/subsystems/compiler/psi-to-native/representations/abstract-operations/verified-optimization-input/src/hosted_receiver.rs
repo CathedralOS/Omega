@@ -6,7 +6,7 @@ use program_entry_contracts::{ProgramEntryPhysicalContractPlan, SelectedProgramE
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedHostedReceiver {
     source: SelectedProgramEntrySignature,
-    checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
+    checked_entry: psi_publication_records::CheckedProgramEntryTerminalReceipt,
     physical: ProgramEntryPhysicalContractPlan,
     private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
 }
@@ -55,7 +55,7 @@ impl AdmittedHostedReceiver {
     pub fn source(&self) -> &SelectedProgramEntrySignature {
         &self.source
     }
-    pub fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
+    pub fn checked_entry(&self) -> &psi_publication_records::CheckedProgramEntryTerminalReceipt {
         &self.checked_entry
     }
     pub fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
@@ -70,7 +70,7 @@ impl HostedReceiverCustody for AdmittedHostedReceiver {
     fn source(&self) -> &SelectedProgramEntrySignature {
         self.source()
     }
-    fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
+    fn checked_entry(&self) -> &psi_publication_records::CheckedProgramEntryTerminalReceipt {
         self.checked_entry()
     }
     fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
@@ -185,7 +185,7 @@ pub struct ReceiverArgumentInput<'a> {
 pub fn validate_entry_arguments(
     input: ReceiverArgumentInput<'_>,
     source: &SelectedProgramEntrySignature,
-    checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
+    checked_entry: &psi_publication_records::CheckedProgramEntryTerminalReceipt,
     private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     let ReceiverArgumentInput {

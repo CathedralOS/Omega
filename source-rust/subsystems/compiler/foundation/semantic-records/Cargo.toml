@@ -13,5 +13,5 @@ language-core = { path = "../language-core" }
 bignum = { path = "../../../../foundation/bignum" }
 wire = { path = "../../../../foundation/wire" }
 record-storage = { path = "../../../../foundation/record-storage" }
-numerics = { path = "../../psi/semantics/numeric" }
+numerics = { path = "../numerics" }
 arena = { path = "../../../../foundation/arena" }

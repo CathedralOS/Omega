@@ -16,12 +16,12 @@ normalized-build-settings = { path = "../settings/normalized" }
 behavior-exclusion-requests = { path = "../settings/behavior-exclusions" }
 numeric-intrinsic-admission = { path = "../../psi-to-native/verification/numeric-intrinsics" }
 selected-provider-plans = { path = "../providers/selections" }
-psi-authorization = { path = "../../psi/authorization" }
+psi-authorization = { path = "../../psi-artifact/authorization" }
 evaluation-admission = { path = "authority/admission" }
-psi-provider-selections = { path = "../../psi/providers" }
+psi-provider-selections = { path = "../../psi-execution-inputs/providers" }
 build-scalar-evaluation = { path = "scalars" }
 build-time-values = { path = "values" }
-psi-target-layouts = { path = "../../psi/layout/admission" }
+psi-target-layouts = { path = "../../psi-execution-inputs/target-layouts" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../settings/optimizations" }
@@ -30,8 +30,8 @@ source-admission = { path = "../../source-to-psi/representations/source-files/cu
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "receipts" }
 terminal-interpreter = { path = "../../../interpreter" }
-terminal-work = { path = "../../psi/work" }
-terminal-codec = { path = "../../psi/codec" }
+terminal-work = { path = "../../psi-semantics/work" }
+terminal-codec = { path = "../../psi-artifact/codec" }
 syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }
 source-compiler = { path = "../../source-to-psi" }
 evaluation-accounting = { path = "accounting" }

@@ -1,0 +1,14 @@
+[package]
+name = "psi-target-layouts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "admission.rs"
+
+[dependencies]
+layout-plans = { path = "../../psi/layouts/geometry" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-psi = { path = "../../psi" }

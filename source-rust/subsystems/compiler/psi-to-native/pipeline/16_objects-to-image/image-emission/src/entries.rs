@@ -1899,7 +1899,7 @@ pub(crate) mod hosted_receiver {
     fn validate_entry_arguments(
         artifact: &crate::ObjectArtifact,
         source: &SelectedProgramEntrySignature,
-        checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
+        checked_entry: &psi_publication_records::CheckedProgramEntryTerminalReceipt,
         private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
     ) -> Result<(), Diagnostic> {
         let (function, abi) = artifact.entry_facts()?;

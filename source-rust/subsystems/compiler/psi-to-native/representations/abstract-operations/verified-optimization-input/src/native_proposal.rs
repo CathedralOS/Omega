@@ -189,7 +189,7 @@ mod proposal {
 
     pub fn project_terminal_native_realization_proposal(
         artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-        checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
+        checked_program_entry: psi_publication_records::CheckedProgramEntryTerminalReceipt,
         request: TerminalNativeProposalRequest<'_>,
     ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
         let target_profile = request.target_profile;

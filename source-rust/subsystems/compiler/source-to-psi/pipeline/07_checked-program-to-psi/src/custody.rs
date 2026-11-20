@@ -74,7 +74,7 @@ pub struct ProducedTerminalProgram {
     pub(crate) build_requests: TerminalBuildRequests,
     pub(crate) build_filesystem: TerminalBuildFilesystem,
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
-    pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
+    pub(crate) provenance: psi_publication_records::TerminalMachineProvenance,
     pub(crate) source_records: Vec<crate::source_state::SourceRecordCorrespondence>,
     pub(crate) source_selections: Option<Arc<crate::production::TerminalSourceSelections>>,
 }
@@ -286,15 +286,15 @@ pub struct PortableTerminalProgram {
     artifact: Arc<CanonicalTerminalArtifact>,
     evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
-    entry_metadata: Arc<terminal_psi::PublishedEntryMetadata>,
+    entry_metadata: Arc<psi_publication_records::PublishedEntryMetadata>,
 }
 
 impl PortableTerminalProgram {
-    pub fn entry_metadata(&self) -> &Arc<terminal_psi::PublishedEntryMetadata> {
+    pub fn entry_metadata(&self) -> &Arc<psi_publication_records::PublishedEntryMetadata> {
         &self.entry_metadata
     }
 
-    pub fn machine_provenance(&self) -> &terminal_psi::TerminalMachineProvenance {
+    pub fn machine_provenance(&self) -> &psi_publication_records::TerminalMachineProvenance {
         self.entry_metadata.machine_provenance()
     }
 

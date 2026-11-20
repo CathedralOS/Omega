@@ -12,7 +12,8 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
-psi-entry-memory = { path = "../../../../psi/access/entry-memory" }
+psi-publication-records = { path = "../../../../psi-artifact/publication" }
+psi-entry-memory = { path = "../../../../psi-execution-inputs/entry-memory" }
 sha2 = "0.10.9"
 physical-recipes = { path = "../../../representations/selected-instructions/physical-recipes" }
 physical-program = { path = "../../../representations/post-allocation-machine/body-facts" }
@@ -36,7 +37,7 @@ abstract-operations = { path = "../../../representations/abstract-operations" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-layout-plans = { path = "../../../../psi/layout" }
+layout-plans = { path = "../../../../psi/layouts/geometry" }
 image = { path = "../image" }
 image-elf = { path = "../image-elf" }
 image-macho = { path = "../image-macho" }
@@ -51,7 +52,7 @@ target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
-terminal-semantics = { path = "../../../../psi/semantics" }
+terminal-semantics = { path = "../../../../psi-semantics" }
 
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
@@ -61,6 +62,6 @@ native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encod
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 image-emission = { path = ".", features = ["test-support"] }
-layout-plans = { path = "../../../../psi/layout" }
+layout-plans = { path = "../../../../psi/layouts/geometry" }
 optimization-core = { path = "../../../representations/optimization-records" }
 extents = { path = "../../../../../interpreter/memory/extents" }

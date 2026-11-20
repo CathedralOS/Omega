@@ -18,10 +18,10 @@ shows which records its operations produce and what the next operation reads.
 | [Published target providers](published-target-providers/publication.rs) | [Stage 07](../pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs) binds the checked provider demand and completed Build bindings to a Psi manifest and deployment. | [Native stage 00](../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs) receives them for that manifest and target. |
 
 The [Terminal interpreter](../../../interpreter/README.md) runs the published
-program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi/optimization-selections/src/lib.rs)
+program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi-artifact/optimization-selections/src/lib.rs)
 defines pass selections and their identities.
 
-The shared Psi representation has companion packages for [canonical encoding](../../psi/codec/), [operation semantics](../../psi/semantics/) and [logical work bounds](../../psi/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
+The shared Psi representation has companion packages for [canonical encoding](../../psi-artifact/codec/), [operation semantics](../../psi-semantics/) and [logical work bounds](../../psi-semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
 
 ## Records and facts
 

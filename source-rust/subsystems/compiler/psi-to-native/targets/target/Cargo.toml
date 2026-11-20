@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 wire = { path = "../../../../../foundation/wire" }
 language-core = { path = "../../../foundation/language-core" }
-layout-plans = { path = "../../../psi/layout" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }

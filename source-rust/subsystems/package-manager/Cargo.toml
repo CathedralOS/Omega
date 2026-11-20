@@ -16,7 +16,7 @@ provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 provider-plans = { path = "../compiler/build/providers/plans" }
 language-core = { path = "../compiler/foundation/language-core" }
 host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
-service-surface = { path = "../compiler/psi/service-surface" }
+service-surface = { path = "../compiler/psi/interfaces/service-surface" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
@@ -26,9 +26,9 @@ source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
-terminal-codec = { path = "../compiler/psi/codec" }
+terminal-codec = { path = "../compiler/psi-artifact/codec" }
 evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
-terminal-work = { path = "../compiler/psi/work" }
+terminal-work = { path = "../compiler/psi-semantics/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/inputs/declarations" }
 build-execution = { path = "../compiler/build/evaluation" }

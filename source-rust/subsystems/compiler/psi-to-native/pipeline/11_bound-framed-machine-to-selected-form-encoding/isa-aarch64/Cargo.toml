@@ -20,7 +20,7 @@ target = { path = "../../../targets/target" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-layout-plans = { path = "../../../../psi/layout" }
+layout-plans = { path = "../../../../psi/layouts/geometry" }
 
 [dev-dependencies]
 selected-instructions = { path = "../../../representations/selected-instructions", features = ["test-support"] }

@@ -3,9 +3,9 @@
 pub(super) fn issue(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     owners: Option<&Result<psi_authorization::selection_questions::ProductSchemaCustody, String>>,
-    provenance: terminal_psi::TerminalMachineProvenance,
+    provenance: psi_publication_records::TerminalMachineProvenance,
     has_bound_applications: bool,
-) -> terminal_psi::PublishedEntryMetadata {
+) -> psi_publication_records::PublishedEntryMetadata {
     let module = artifact.semantic_module();
     let mut entry_custody = Vec::new();
     for entry in &module.interfaces.program_entry_contracts {
@@ -39,7 +39,7 @@ pub(super) fn issue(
             .map(|id| (id, owners.requester(artifact.view().into(), id)))
             .collect()),
     };
-    terminal_psi::PublishedEntryMetadata::new(
+    psi_publication_records::PublishedEntryMetadata::new(
         provenance,
         has_bound_applications,
         entry_custody,

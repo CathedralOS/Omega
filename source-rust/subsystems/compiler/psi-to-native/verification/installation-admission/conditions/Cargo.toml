@@ -9,4 +9,4 @@ record-storage = { path = "../../../../../../foundation/record-storage" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
-psi-program-identity = { path = "../../../../psi/program-identity" }
+psi-program-identity = { path = "../../../../psi/identities/program" }

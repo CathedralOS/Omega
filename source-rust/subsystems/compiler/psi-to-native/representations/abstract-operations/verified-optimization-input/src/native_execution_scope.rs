@@ -185,7 +185,7 @@ pub struct NativeExecutionScope {
     selected_provider_closure: [u8; 32],
     source_native_bindings: Option<[u8; 32]>,
     source_provider_selection: selected_provider_plans::SelectedProviderPlanFacts,
-    source_checked_entry: Option<terminal_psi::CheckedProgramEntryTerminalReceipt>,
+    source_checked_entry: Option<psi_publication_records::CheckedProgramEntryTerminalReceipt>,
     local_adapters: Vec<SelectedProviderAdapter>,
     entry_call: Option<crate::SelectedProgramEntryCall>,
     callbacks: Vec<provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal>,
@@ -330,7 +330,7 @@ impl NativeExecutionScope {
         &self.target_context
     }
 
-    pub(crate) fn checked_entry(&self) -> Option<&terminal_psi::CheckedProgramEntryTerminalReceipt> {
+    pub(crate) fn checked_entry(&self) -> Option<&psi_publication_records::CheckedProgramEntryTerminalReceipt> {
         self.source_checked_entry.as_ref()
     }
 

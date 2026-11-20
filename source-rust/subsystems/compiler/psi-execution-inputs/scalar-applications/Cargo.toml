@@ -1,0 +1,22 @@
+[package]
+name = "psi-scalar-applications"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "scalar_applications.rs"
+
+[dependencies]
+arena = { path = "../../../../foundation/arena" }
+bignum = { path = "../../../../foundation/bignum" }
+numerics = { path = "../../foundation/numerics" }
+psi-provider-selections = { path = "../providers" }
+psi-target-layouts = { path = "../target-layouts" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-codec = { path = "../../psi-artifact/codec" }
+terminal-psi = { path = "../../psi" }
+terminal-semantics = { path = "../../psi-semantics" }
+
+[dev-dependencies]
+proof-applications = { path = "../../psi/proofs/applications" }

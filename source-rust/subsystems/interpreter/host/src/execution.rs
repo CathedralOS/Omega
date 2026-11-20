@@ -71,7 +71,7 @@ use terminal_interpreter::{
 /// }
 /// ```
 pub struct TerminalRuntimeRequest<'program> {
-    pub entry: Option<&'program terminal_psi::CheckedProgramEntryTerminalReceipt>, // Optional retained entry from the Build companion.
+    pub entry: Option<&'program psi_publication_records::CheckedProgramEntryTerminalReceipt>, // Optional retained entry from the Build companion.
     pub native_provider: Option<native_provider_runtime::NativeProviderCommand>, // Optional isolated native sponsor worker command.
     pub native_services: TerminalNativeServiceDelegation,
     pub filesystem: TerminalFilesystemDelegation,

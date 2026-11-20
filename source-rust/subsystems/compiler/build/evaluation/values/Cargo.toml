@@ -9,5 +9,5 @@ path = "value.rs"
 
 [dependencies]
 record-storage = { path = "../../../../../foundation/record-storage" }
-numerics = { path = "../../../psi/semantics/numeric" }
-layout-plans = { path = "../../../psi/layout" }
+numerics = { path = "../../../foundation/numerics" }
+layout-plans = { path = "../../../psi/layouts/geometry" }

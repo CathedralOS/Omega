@@ -9,7 +9,7 @@ path = "intrinsics.rs"
 
 [dependencies]
 language-core = { path = "../../../foundation/language-core" }
-numerics = { path = "../../../psi/semantics/numeric" }
+numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 sha2 = "0.10.9"

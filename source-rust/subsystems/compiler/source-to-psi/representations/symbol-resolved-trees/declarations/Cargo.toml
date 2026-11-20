@@ -8,11 +8,11 @@ version.workspace = true
 path = "declarations.rs"
 
 [dependencies]
-application-identity = { path = "../../../../psi/application-identity" }
+application-identity = { path = "../../../../psi/identities/applications" }
 arena = { path = "../../../../../../foundation/arena" }
 language-core = { path = "../../../../foundation/language-core" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
-numerics = { path = "../../../../psi/semantics/numeric" }
+numerics = { path = "../../../../foundation/numerics" }
 record-storage = { path = "../../../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 source-admission = { path = "../../source-files/custody" }

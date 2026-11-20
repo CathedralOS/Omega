@@ -8,10 +8,10 @@ version.workspace = true
 path = "provider_plan.rs"
 
 [dependencies]
-application-identity = { path = "../../../psi/application-identity" }
+application-identity = { path = "../../../psi/identities/applications" }
 language-core = { path = "../../../foundation/language-core" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-service-surface = { path = "../../../psi/service-surface" }
+service-surface = { path = "../../../psi/interfaces/service-surface" }
 target = { path = "../../../psi-to-native/targets/target" }
 terminal-psi = { path = "../../../psi" }
 wire = { path = "../../../../../foundation/wire" }

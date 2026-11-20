@@ -26,7 +26,7 @@ pub struct PreparedTerminalPublication {
     kind: terminal_codec::TerminalPublication,
     module: crate::checking::CheckedPublicationModule,
     selections: crate::production::source_selection_publication::PreparedSelections,
-    provenance: terminal_psi::TerminalMachineProvenance,
+    provenance: psi_publication_records::TerminalMachineProvenance,
     companions: crate::production::build_companions::BuildCompanions,
     source_records: Vec<crate::source_state::SourceRecordCorrespondence>,
 }
@@ -262,7 +262,7 @@ impl AcceptedTerminalSource {
             invocation_sources,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        let mut provenance = terminal_psi::TerminalMachineProvenance::default();
+        let mut provenance = psi_publication_records::TerminalMachineProvenance::default();
         for (machine, symbol) in elaboration.machines.iter() {
             let name = elaboration.names.get(machine).ok_or_else(|| {
                 vec![Diagnostic::error(

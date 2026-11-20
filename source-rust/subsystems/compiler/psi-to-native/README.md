@@ -1,6 +1,6 @@
 # Psi to native code
 
-The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](driver/inputs/published_application.rs) · [Psi authorization](../psi/authorization/authorization.rs)
+The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](driver/inputs/published_application.rs) · [Psi authorization](../psi-artifact/authorization/authorization.rs)
 
 ## Follow a compilation
 

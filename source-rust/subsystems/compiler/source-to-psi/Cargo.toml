@@ -23,17 +23,17 @@ evaluation-work = { path = "../build/evaluation/accounting/work" }
 build-invocation = { path = "../build/evaluation/invocations" }
 evaluation-accounting = { path = "../build/evaluation/accounting" }
 evaluation-admission = { path = "../build/evaluation/authority/admission" }
-psi-provider-selections = { path = "../psi/providers" }
-psi-scalar-applications = { path = "../psi/scalar-applications" }
-psi-target-layouts = { path = "../psi/layout/admission" }
-access-admission = { path = "../psi/access/admission" }
-access-vocabulary = { path = "../psi/access" }
-schema-reflection = { path = "../psi/schema" }
+psi-provider-selections = { path = "../psi-execution-inputs/providers" }
+psi-scalar-applications = { path = "../psi-execution-inputs/scalar-applications" }
+psi-target-layouts = { path = "../psi-execution-inputs/target-layouts" }
+access-admission = { path = "../psi/access/validated-placements" }
+access-vocabulary = { path = "../psi/access/policies" }
+schema-reflection = { path = "../psi/types/reflection" }
 source-completion-accounting = { path = "product/accounting" }
 build-scalar-evaluation = { path = "../build/evaluation/scalars" }
 build-time-values = { path = "../build/evaluation/values" }
 build-value-projection = { path = "../build/evaluation/values/projection" }
-service-surface = { path = "../psi/service-surface" }
+service-surface = { path = "../psi/interfaces/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 source-files = { path = "representations/source-files" }
@@ -51,8 +51,8 @@ source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
 behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
-application-identity = { path = "../psi/application-identity" }
-layout-planning = { path = "../psi/layout/integer-defaults" }
+application-identity = { path = "../psi/identities/applications" }
+layout-planning = { path = "../psi-semantics/default-integer-layouts" }
 numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "../build/evaluation/accounting/contracts" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
@@ -68,24 +68,24 @@ record-storage = { path = "../../../foundation/record-storage" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 worker-budget = { path = "../foundation/worker-budget" }
 language-core = { path = "../foundation/language-core" }
-layout-plans = { path = "../psi/layout" }
-numerics = { path = "../psi/semantics/numeric" }
-optimization = { path = "../psi/optimization-selections" }
+layout-plans = { path = "../psi/layouts/geometry" }
+numerics = { path = "../foundation/numerics" }
+optimization = { path = "../psi-artifact/optimization-selections" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 symbols = { path = "../foundation/declaration-identity" }
 syntax-trees = { path = "representations/syntax-trees" }
 terminal-check-tables = { path = "representations/lowered-program" }
-terminal-codec = { path = "../psi/codec" }
+terminal-codec = { path = "../psi-artifact/codec" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-psi = { path = "../psi" }
-terminal-semantics = { path = "../psi/semantics" }
-terminal-work = { path = "../psi/work" }
+terminal-semantics = { path = "../psi-semantics" }
+terminal-work = { path = "../psi-semantics/work" }
 tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
-proof-admission = { path = "../psi/proofs/bounded" }
-psi-authorization = { path = "../psi/authorization" }
+proof-admission = { path = "../psi-semantics/proofs/bounded" }
+psi-authorization = { path = "../psi-artifact/authorization" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
