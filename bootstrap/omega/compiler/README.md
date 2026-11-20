@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,688 lines / 889,434 bytes with SHA-256
-`414e55404566f962b3f043155e521670b41367ca4857e77c43d73dc8fd0ad9ff`.
+manifest materializes 23,952 lines / 901,961 bytes with SHA-256
+`8c1001e306554226b2d4b7b924c9c69a9390849a3a625c6f362bb5d3350e0c69`.
 The manifest itself is 1,698 bytes, SHA-256
-`34506b6ab2374f5f4cdd92f6ce4dfd033b74c9a8dc446a1a0763469e113a9ce0`;
+`af1fb7ca2d960aef37d3cc9633adbe8e916825a9dcd4f3a6db2b5ddd4f898922`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -474,12 +474,26 @@ assignments.
 The explicit slow [complete-D parser customer](../../../_recycling/tests/bootstrap/omega-parser/README.md)
 checks this manifested implementation through the lower chain. Sum-valued
 parser guards use Epsilon case transitions; scalar equality is not a sum test.
-One mixed root table preserves authored use/data/machine order. Optionally
+One root table preserves source order for imports, data, machines and boundary traits. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from
 the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
-remain later phases. A source-ordered machine-clause ledger retains exact
+remain later phases.
+
+A nongeneric `[public] boundary trait`
+can declare bodyless machine requirements. Each trait owns its name, visibility,
+source span and ordered requirements. A requirement's name, parameters, return
+type, predicates and effect clauses retain their original spans and handles.
+Requirement names may repeat across overloads. Reaches, crash and blocking
+clauses use the ordinary machine-header parser. Bare `terminates` on a
+requirement retains the public eventual-termination guarantee. The scalar
+compiler returns `Incomplete` at the first retained boundary until it can
+resolve the requirements and check provider selection and authority.
+[Core ProcessExit](../../../source/library/core/process_exit.omg) ·
+[Process-exit contract](../../../wiki/spec/language/process_exit.md)
+
+A source-ordered machine-clause ledger retains exact
 non-generic `satisfies Trait::requirement` bindings and nonempty `reaches`
 ceilings over comma- or plus-separated service identifiers. It also retains
 the cause or empty spelling of each unguarded crash clause. A satisfying clause
@@ -490,8 +504,8 @@ retains the private ranking witness `terminates by <path> -> <View::Path>;` as
 separate source-ordered subject and view paths plus exact `by` and arrow spans;
 it does not confuse that form with bare `terminates;`, which authors the public
 eventual-terminal guarantee. Tuple or non-path subjects, an omitted or
-argumented view, ranking ranges, the bare guarantee, generic satisfies
-arguments, aliases, other external binding cases, and empty or
+argumented view, ranking ranges, the bare guarantee on ordinary machines,
+generic satisfies arguments, aliases, other external binding cases, and empty or
 installation-bound reach rows remain incomplete. The parameter list
 retains canonical optional `const` and leading
 `mut`, consuming or borrowed `self`, and shared/mutable/write-only
