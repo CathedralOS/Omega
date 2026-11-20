@@ -154,6 +154,7 @@ L1	file, items	consumer	L2	tests/syntax_handoff.rs	each_item_of_a_file_becomes_o
 L1	data	consumer	L2	tests/syntax_handoff.rs	data_members_nest_under_their_authored_owner_and_its_clauses_bind	syntax-data/consumer
 L1	domain	consumer	L2	tests/syntax_handoff.rs	domain_heads_compositions_and_indices_bind_their_written_parts	syntax-domain/consumer
 L1	trait, conformance	consumer	L2	tests/syntax_handoff.rs	trait_parents_and_selection_rows_bind_each_written_path	syntax-trait-conformance/consumer
+L1	trait, conformance	refusals	L1	tests/golden_fixtures.rs	dangling_selection_path_reports_the_first_fixable_occurrence	syntax-trait-conformance/first-malformed-selection
 L1	machine	consumer	L2	tests/syntax_handoff.rs	machine_signatures_supply_operator_tokens_ordered_operands_and_nested_owners	syntax-machine/consumer
 L1	mathematical let	consumer	L2	tests/syntax_handoff.rs	a_mathematical_let_body_reads_its_own_parameters	syntax-mathematical-let/consumer
 L1	generic parameters	consumer	L2	tests/syntax_handoff.rs	each_generic_binder_form_binds_its_uses_and_numbers_the_operand_identity	syntax-generic-parameters/consumer
