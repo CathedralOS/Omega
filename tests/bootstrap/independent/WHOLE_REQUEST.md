@@ -151,3 +151,41 @@ header and returned exit 3 for malformed framing.
 | Native Gamma compiler | `32c681f83f4ceafb775de7ce5e24a4fa00df8417daaf0f50ca5905ae9f760394` |
 | Published native Epsilon evaluator | `80226b25de03c6608638a1c6a35f4d0fcbc23a3dd1445aa474fb9a34194907f8` |
 | Private native Epsilon evaluator | `36c91efef706b00107a5f2127d5c6a698ffd850f9826f0b0dd18e7d11e0ed7b8` |
+
+## Product wire package through the construction entry
+
+The ordinary constructor compiled the 323-byte product wire decoder as a separate
+package. Its caller imports `wire::u32_from_le_bytes` and checks zero, mixed
+bytes and all bits set. The two source units and the dependency edge go through
+the same row encoder as the full compiler product.
+[Wire decoder](../../../source/foundation/wire/codec.omg) and [caller checks](../conformance/omega/wire_word.omg)
+
+```sh
+python3 tests/bootstrap/independent/product_wire.py /tmp/omega-product-wire --evaluator "$native/successor"
+```
+
+Omitting `--evaluator` writes `linked.stdin`, `missing-edge.stdin` and
+`trailing-byte.stdin` for direct replay by a compiled constructor.
+
+At `e45acdff0a9` the stock Linux-native Epsilon evaluator produced 1,607 bytes
+of Alpha tape. The Alpha seed ran it to exit 42 with empty output. The tape's
+SHA-256 was `f5ac1bf6ddc9158a4164a644c9342f73cc6c6698c93773e32dfe035176e3a371`.
+Removing the dependency from the same two source units returned Exit 1 and
+coordinate 11, the start of the caller's import. An extra byte after the
+linked input returned Exit 3 with empty guest output.
+
+## Source staging for the entry-unit control
+
+Delete the final byte of `entry-unit.eereq` and subtract one from the
+four-byte little-endian stdin length at packet offset 16. This preserves
+all seven packages, seven dependencies, the unit row and the declared
+14,678-byte arena. The stock evaluator reached the missing byte after
+staging 14,677 bytes and returned the constructor's framing failure
+(`0003000000`) in 95.4 seconds, with 552,376 KiB peak RSS. The exact packet
+SHA-256 was `581349db3ec656406f4e85fab26a2fc21e38091aa0a36c9df5ea33e6c7b70436`.
+
+The independent Epsilon model from `8092cfd9c0a5` ran the complete, unchanged
+entry-unit packet and returned `0001000000a9000000`. This is Exit 1 at packed
+byte 169, the first `use` in the unit. Only the construction package supplies
+a source unit in this control. The earlier 8 MiB evaluator run on that packet
+stopped at its 480-second deadline.
