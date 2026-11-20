@@ -137,6 +137,16 @@ last admitted frame and checks the adjacent refusal on both compiled targets.
 [Shared operations](../../../bootstrap/gamma/compiler/compiler.gamma) ·
 [Native helpers](../../../bootstrap/gamma/compiler/linux_x86_64/native.gamma)
 
+The shared Gamma compiler indexes declarations with the same balanced tree it
+uses for assembler labels. Function keys compare identifier length, then their
+exact source bytes. Duplicate names reject on insertion. The compiler still
+checks and emits each body in source order, including unused bodies and forward
+calls. The 26,398,215-byte constructor source has 7,597 functions and 103,173
+calls. Scanning the old declaration list required 733,309,253 name comparisons
+at those calls. Each unsuccessful comparison allocated a new list tail, consuming
+more than 23 GB on the native host. The indexed lookup traverses the tree
+without allocating list tails. [Gamma source](../../../bootstrap/gamma/compiler/compiler.gamma)
+
 The native assembler uses x86-64 direct branches and calls. For `i_jz`,
 `test rax,rax` sets the flags and `0f 84` jumps on zero. The next four
 bytes hold a signed displacement from the end of that instruction. To
