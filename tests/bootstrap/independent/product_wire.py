@@ -4,6 +4,7 @@ import argparse
 from hashlib import sha256
 from pathlib import Path
 import runpy
+import signal
 import struct
 import sys
 
@@ -13,15 +14,15 @@ from compiled import add_invocation_budget, execute, pack, stamp
 from conformance.vectors import epsilon_request
 
 
-def check_tape(work, data, seconds):
+def check_tape(work, data, seconds, name="wire", expected=42):
     if not data:
-        raise SystemExit("wire compilation produced no tape")
-    tape = work / "wire.tape"
+        raise SystemExit(f"{name} compilation produced no tape")
+    tape = work / f"{name}.tape"
     tape.write_bytes(data)
-    stamp(tape, work / "wire")
-    if execute(work / "wire", timeout=seconds) != (42, b""):
-        raise SystemExit("wire program did not exit 42 with empty stdout")
-    print(f"Wire exited 42. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
+    stamp(tape, work / name)
+    if execute(work / name, timeout=seconds) != (expected, b""):
+        raise SystemExit(f"{name} did not exit {expected} with empty stdout")
+    print(f"{name} exited {expected}. Alpha tape has {len(data)} bytes, sha256={sha256(data).hexdigest()}", flush=True)
 
 
 def main():
@@ -60,6 +61,33 @@ def main():
         if status:
             raise SystemExit(f"Omega constructor refused linked wire package with exit {status}")
         check_tape(work, output, args.seconds)
+        # Run the same imported decoder from a resultless application entry.
+        # One changed input must take its checked Trap branch through Alpha.
+        case = ROOT / "tests/bootstrap/independent/fixtures/wire/resultless.omg"
+        unit_caller = case.read_bytes()
+        trapped = unit_caller.replace(b"bytes(42", b"bytes(43")
+        for name, source, expected in (
+            ("unit", unit_caller, 0),
+            ("trap", trapped, -signal.SIGILL),
+            ("quiet", b"machine main() crashes none {}", 0),
+        ):
+            request, _, _, _ = encode(packages, [(0, 1, "wire")], [(0, source), (1, codec)], 0, b"main")
+            (work / f"{name}.stdin").write_bytes(request)
+            status, tape = execute(runner, request, args.seconds)
+            if status:
+                raise SystemExit(f"Omega constructor refused {name} with exit {status}")
+            check_tape(work, tape, args.seconds, name, expected)
+        for name, source, expected in (
+            ("forbidden-trap", trapped.replace(b"failed() crashes Trap", b"failed() crashes none"), 247),
+            ("unsupported-abort", trapped.replace(b"Trap", b"Abort"), 246),
+            ("unsupported-result", b"machine main() -> u32 { 42 }", 246),
+            ("mixed-none-first", unit_caller.replace(b"main() crashes Trap", b"main() crashes none crashes Trap"), 250),
+            ("mixed-none-last", unit_caller.replace(b"main() crashes Trap", b"main() crashes Trap crashes none"), 250),
+        ):
+            request, _, _, _ = encode(packages, [(0, 1, "wire")], [(0, source), (1, codec)], 0, b"main")
+            (work / f"{name}.stdin").write_bytes(request)
+            if execute(runner, request, args.seconds) != (expected, b""):
+                raise SystemExit(f"{name}: expected exit {expected} with empty stdout")
         for name, expected in (("missing-edge", 248), ("trailing-byte", 253)):
             if execute(runner, inputs[name], args.seconds) != (expected, b""):
                 raise SystemExit(f"{name}: expected exit {expected} with empty stdout")

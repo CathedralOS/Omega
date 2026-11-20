@@ -622,9 +622,8 @@ crashes Trap
         transition { _ -> store(parser, input, owner, clause) }
     }
 
-    // `crashes none` promises no route: consume the word and store no clause,
-    // which is the empty cause set an omitted clause denotes on a published
-    // surface.
+    // A private body may infer an omitted crash ceiling. Retain an authored
+    // empty ceiling so checking can enforce the stronger promise.
     machine crashes_cause(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let empty_word: bool = at_word(parser, input, "none");
         transition empty_word {
@@ -635,7 +634,7 @@ crashes Trap
 
     machine crashes_none(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         take_current(parser, input);
-        transition { _ -> next(parser, input, owner) }
+        transition { _ -> member_clause(parser, input, owner, ClauseKind::CrashesNone, parser.token_end) }
     }
 
     machine crashes_trap(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {

@@ -59,9 +59,13 @@ itself reproducibly. Neither self-compilation nor a source-only bootstrap of
 it works yet. The backend handles a limited subset of checked integer and
 storage code, and the compiler's own source still goes beyond it. For example,
 the [scalar lowerer](../../subsystems/compiler/source_to_psi/pipeline/checked_trees_to_scalar_operations/scalar.omg)
-requires a clause-free entry with a byte return type. This application's
-`entry_start` has no explicit return type, reads stdin and calls Console and
-ProcessExit. Lowering this entry requires those behaviors on Alpha.
+admits a parameterless entry returning ordinary `u8` or Unit, with an
+optional checked `crashes Trap` or `crashes none` ceiling. An explicit
+`crash Trap;` emits Alpha’s trap instruction. A matching crash in a private
+body with `crashes none` fails checking.
+On normal return the Alpha tape exits with the byte result or zero for Unit.
+This application’s resultless `entry_start` reads stdin and calls Console
+and ProcessExit. Lowering those calls requires their checked service bindings.
 
 ## Closed source-set input
 

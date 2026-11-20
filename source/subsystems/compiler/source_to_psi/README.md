@@ -21,9 +21,8 @@ lengths. `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
 The compiler's own source still uses retired whole-type domain casts and
 implicit domain qualification. Current Rust comparator diagnostics include
 missing explicit domain casts and overlapping call-argument borrows. The scalar
-execution gate accepts only unqualified `u8` machines, refusing other root
-kinds and erased bindings; it shows neither full frontend conformance nor
-self-compilation.
+lowerer admits parameterless entries returning Unit or unqualified `u8`.
+Compiling its own effectful entry also requires checked service bindings on Alpha.
 
 Implemented so far: source/span and token representations, a UTF-8-framed
 lexer that stores only semantic tokens, and a fail-closed whole-file parser
@@ -814,7 +813,9 @@ remain portable. Unsupported forms and recursive call
 cycles refuse before publication. The [Alpha execution gate](../../../../_recycling/tests/product/alpha/README.md)
 runs the whole frontend, lowers the program and executes the resulting tape.
 The [wire package check](../../../../tests/bootstrap/independent/product_wire.py)
-accepts `--omega-constructor EXECUTABLE` to compile a caller and its imported
-decoder, run the tape and check the missing dependency's resolution error.
+accepts `--omega-constructor EXECUTABLE` to compile callers of the imported
+decoder. The byte entry must exit 42. A resultless entry must exit zero or
+trap when one input byte changes. The gate also checks rejected crash
+ceilings, unsupported results and the missing dependency's resolution error.
 Full portable publication still needs canonical declaration, contract and
 obligation identities; the checker currently records only verdicts and counts.
