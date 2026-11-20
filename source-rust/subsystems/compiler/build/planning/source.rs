@@ -184,6 +184,7 @@ pub fn prepare(
             execution_purpose: BuildExecutionPurpose::Source,
             root_path: request.root,
             typed: source.typed(),
+            stage: &stage,
             build_source: assembled.build_source,
             sources: &assembled.parsed.files,
             package_inputs: inputs,
@@ -306,6 +307,7 @@ impl PlanningSource {
                 BuildStageRequest {
                     source_acquisition: assembled.build_source_acquisition.as_ref(),
                     typed: source.typed(),
+                    stage: &stage,
                     build_source: assembled.build_source,
                     package_inputs: authority.as_ref(),
                     anonymous_source: assembled.anonymous_owner.as_ref(),

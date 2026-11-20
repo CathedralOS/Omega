@@ -1,7 +1,8 @@
 //! Project the selected Build entry onto the statements checked at one preparation boundary.
-//! A preparation parks the live interpreter. End the checked program there only
-//! when the remaining statements can start without its locals.
+//! At a straight-line wait the next program receives the live storage described
+//! by its frame. Other bindings keep the current program running through their last use.
 
+mod frame;
 mod lexical_uses;
 #[cfg(test)]
 mod tests;
@@ -20,7 +21,8 @@ use syntax_trees::statement::{StatementHandle, StatementNode};
 pub struct BuildStage {
     index: usize,
     preparations: Vec<Span>,
-    program_ends: Vec<usize>,
+    program_ends: Vec<frame::Cut>,
+    homes: Vec<Span>,
 }
 
 impl BuildStage {
@@ -28,12 +30,23 @@ impl BuildStage {
         (self.index < self.program_ends.len()).then(|| self.index + 1)
     }
 
+    /// Source declarations of the compiler-supplied storage arguments, in entry order.
+    pub fn frame_homes(&self) -> &[Span] {
+        &self.homes
+    }
+
+    pub fn frame_parameter_name(home: Span) -> String {
+        format!("$build.home.{}", home.start)
+    }
+
     pub fn preparations(&self) -> &[Span] {
         &self.preparations
     }
 
     pub fn same_entry_plan(&self, other: &Self) -> bool {
-        self.preparations == other.preparations && self.program_ends == other.program_ends
+        self.preparations == other.preparations
+            && self.program_ends == other.program_ends
+            && self.homes == other.homes
     }
 }
 
@@ -41,63 +54,169 @@ const BUILD_ENTRY: &str = "build";
 const BUILD_TYPE: &str = "Build";
 const PREPARATION: &str = "prepare_dependency";
 
-/// Keeps, in the selected Build entry, the statements of stage
-/// `stage` only, and reports how many stages the entry has. An entry with no
-/// top-level preparation is left as it is.
-pub(crate) fn select_build_stage(
+/// Keep already-resolved uses with the locals and facts they read. When typing
+/// reports a missing declaration beyond a wait, the checked prefix ends at that
+/// wait and materializes its live homes for the newly authorized scope.
+pub(super) struct EntryPlan {
+    item: ItemHandle,
+    machine: Machine,
+    state: StateHandle,
+    statements: Vec<StatementHandle>,
+    homes: Vec<usize>,
+    stage: BuildStage,
+    nested_calls: Vec<(usize, syntax_trees::identifier::Identifier)>,
+    incoming: Option<usize>,
+    first_statement: usize,
+    earliest: usize,
+    preferred: usize,
+}
+
+impl EntryPlan {
+    pub(super) fn new(
+        syntax: &SyntaxTrees,
+        selected_entry: SourceSpan,
+        start: usize,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let (item, machine, state) = entry(syntax, selected_entry).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected Build entry is missing from the parsed stage",
+            )]
+        })?;
+        let statements = syntax
+            .items
+            .statements(syntax.items.state(state).statements)
+            .to_vec();
+        let (positions, preparations): (Vec<_>, Vec<_>) = statements
+            .iter()
+            .enumerate()
+            .filter_map(|(position, &statement)| {
+                preparation(syntax, statement).map(|site| (position, site))
+            })
+            .unzip();
+        let lexical_uses::LexicalPlan { cuts, nested_calls } = if positions.is_empty() {
+            Default::default()
+        } else {
+            lexical_uses::program_ends(syntax, &machine, &statements, &positions)?
+        };
+        if start > cuts.len() {
+            return Err(vec![Diagnostic::error(
+                "Build entry has no stage after its last dependency preparation",
+            )]);
+        }
+        let incoming = start.checked_sub(1);
+        let first_statement = incoming.map_or(0, |i| cuts[i].end + 1);
+        // A later empty-frame boundary may belong to the same preparation we
+        // just serviced. Only a wait in this program can authorize another cut.
+        let mut eligible = (start..cuts.len()).filter(|&i| cuts[i].wait >= first_statement);
+        let earliest = eligible.clone().next().unwrap_or(cuts.len());
+        let preferred = eligible
+            .find(|&i| cuts[i].bindings.is_empty())
+            .unwrap_or(cuts.len());
+        let mut homes = cuts
+            .iter()
+            .flat_map(|cut| cut.bindings.iter().map(|binding| binding.home))
+            .collect::<Vec<_>>();
+        homes.sort_unstable();
+        homes.dedup();
+        let stage = BuildStage {
+            index: preferred,
+            preparations,
+            homes: homes
+                .iter()
+                .map(|&pos| {
+                    frame::local(syntax, statements[pos])
+                        .name
+                        .source_span()
+                        .span
+                })
+                .collect(),
+            program_ends: cuts,
+        };
+        Ok(Self {
+            item,
+            machine,
+            state,
+            statements,
+            homes,
+            stage,
+            nested_calls,
+            incoming,
+            first_statement,
+            earliest,
+            preferred,
+        })
+    }
+
+    pub(super) fn optional_wait(&self, syntax: &SyntaxTrees) -> Option<Span> {
+        (self.earliest < self.preferred).then(|| {
+            let wait = self.stage.program_ends[self.earliest].wait;
+            preparation(syntax, self.statements[wait])
+                .expect("a planned wait has an authored operation")
+        })
+    }
+
+    pub(super) fn project(
+        &self,
+        syntax: &mut SyntaxTrees,
+        use_frame: bool,
+    ) -> Result<BuildStage, Vec<Diagnostic>> {
+        let mut stage = self.stage.clone();
+        stage.index = if use_frame {
+            self.earliest
+        } else {
+            self.preferred
+        };
+        if stage.program_ends.is_empty() {
+            return Ok(stage);
+        }
+        let end = stage
+            .program_ends
+            .get(stage.index)
+            .map_or(self.statements.len(), |cut| cut.end + 1);
+        if stage.next_index().is_some() {
+            let diagnostics: Vec<_> = self.nested_calls.iter()
+                .filter(|(pos, _)| (self.first_statement..end).contains(pos))
+                .map(|(_, name)| Diagnostic::error(format!(
+                    "not supported yet: a Build statement before `Build::prepare_dependency` that names `{}`, a nested machine checked with the final Build stage", name.as_str(syntax)
+                )).with_source_span(name.source_span())).collect();
+            if !diagnostics.is_empty() {
+                return Err(diagnostics);
+            }
+        }
+        let span = syntax.items.state(self.state).statements;
+        let offset = u32::try_from(self.first_statement).expect("statement offset fits its span");
+        let count =
+            u32::try_from(end - self.first_statement).expect("statement count fits its span");
+        syntax.items.state_mut(self.state).statements =
+            arena::HandleSpan::from_parts_or_empty(span.handle_at(offset), count);
+        if !self.homes.is_empty() {
+            frame::project(
+                syntax,
+                self.state,
+                &self.statements,
+                &self.homes,
+                self.incoming.map(|i| &stage.program_ends[i]),
+                stage.program_ends.get(stage.index),
+            )?;
+        }
+        if stage.next_index().is_some() {
+            let mut declaration = self.machine.clone();
+            declaration.nested_machines = arena::HandleSpan::empty();
+            syntax
+                .items
+                .replace_item(self.item, Item::Machine(declaration));
+        }
+        Ok(stage)
+    }
+}
+
+#[cfg(test)]
+fn select_build_stage(
     syntax: &mut SyntaxTrees,
     selected_entry: SourceSpan,
     stage: usize,
 ) -> Result<BuildStage, Vec<Diagnostic>> {
-    let (item, machine, state) = entry(syntax, selected_entry).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected Build entry is missing from the parsed stage",
-        )]
-    })?;
-    let span = syntax.items.state(state).statements;
-    let statements = syntax.items.statements(span).to_vec();
-    let (positions, preparations): (Vec<_>, Vec<_>) = statements
-        .iter()
-        .enumerate()
-        .filter_map(|(position, &statement)| {
-            preparation(syntax, statement).map(|site| (position, site))
-        })
-        .unzip();
-    let program_ends = if positions.is_empty() {
-        Vec::new()
-    } else {
-        lexical_uses::program_ends(syntax, &machine, &statements, &positions)?
-    };
-    let selected = BuildStage {
-        index: stage,
-        preparations,
-        program_ends,
-    };
-    if stage > selected.program_ends.len() {
-        return Err(vec![Diagnostic::error(
-            "Build entry has no stage after its last dependency preparation",
-        )]);
-    }
-    if selected.program_ends.is_empty() {
-        return Ok(selected);
-    }
-    let first = stage
-        .checked_sub(1)
-        .map_or(0, |previous| selected.program_ends[previous] + 1);
-    let end = selected
-        .program_ends
-        .get(stage)
-        .map_or(statements.len(), |end| end + 1);
-    let offset = u32::try_from(first).expect("a statement span is indexed by u32");
-    let count = u32::try_from(end - first).expect("a statement span is counted by u32");
-    syntax.items.state_mut(state).statements =
-        arena::HandleSpan::from_parts_or_empty(span.handle_at(offset), count);
-    if selected.next_index().is_some() {
-        let mut declaration = machine;
-        declaration.nested_machines = arena::HandleSpan::empty();
-        syntax.items.replace_item(item, Item::Machine(declaration));
-    }
-    Ok(selected)
+    EntryPlan::new(syntax, selected_entry, stage)?.project(syntax, true)
 }
 
 /// The selected Build declaration with the state that holds its

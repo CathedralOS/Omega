@@ -54,6 +54,13 @@ machine register(builder: @mut Build, request: DependencyDescription) -> Depende
     Build::application(builder, \"staged\");
     Build::build_dependency(builder, request)
 }}
+machine needs_seven(value: i32)
+requires value == 7
+{{ }}
+machine initial_amount(builder: @mut Build) -> i32 {{
+    builder.tests.disabled = !builder.tests.disabled;
+    3
+}}
 "
         ),
     )
@@ -172,6 +179,91 @@ fn the_build_uses_a_loan_then_calls_the_newly_visible_dependency_after_one_wait(
         7,
     );
     assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn a_wait_preserves_the_proof_for_an_already_resolved_call() {
+    let (compiled, report) = check(
+        "retained-proof",
+        "    let amount: i32 = 7;",
+        &format!("    needs_seven(amount);\n{}", after("kit\\v")),
+        7,
+    );
+    assert!(compiled, "{report}");
+}
+
+#[test]
+fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
+    let (ran, report) = check_with_dependency_build(
+        "live-loan-and-package",
+        r#"    let mut amount: i32 = initial_amount(builder);
+    amount = 7;
+    let held: @i32 = @amount;"#,
+        r#"    let seven: i32 = kit\v();
+    transition seven == $held && !builder.tests.disabled {
+        true -> carried(builder),
+        _ -> wrong(builder)
+    }"#,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+}
+
+#[test]
+fn the_prepared_package_cannot_change_a_home_while_its_shared_loan_is_live() {
+    let (compiled, report) = check(
+        "live-loan-conflict-in-extended-scope",
+        "    let mut amount: i32 = 3;\n    let held: @i32 = @amount;",
+        r#"    amount = kit\v();
+    transition $held == 3 { true -> carried(builder), _ -> wrong(builder) }"#,
+        7,
+    );
+    assert!(
+        !compiled
+            && report.contains("storage is changed while a conflicting reference remains live"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_live_loan_also_prevents_writes_before_preparation() {
+    let (compiled, report) = check(
+        "live-loan-conflict-in-prefix",
+        "    let mut amount: i32 = 3;\n    let held: @i32 = @amount;\n    amount = 7;",
+        r#"    let seven: i32 = kit\v();
+    transition $held == seven { true -> carried(builder), _ -> wrong(builder) }"#,
+        7,
+    );
+    assert!(
+        !compiled
+            && report.contains("storage is changed while a conflicting reference remains live"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_resumed_mutable_loan_updates_its_own_home() {
+    let (ran, report) = check_with_dependency_build(
+        "two-live-homes",
+        r#"    let other: i32 = 3;
+    let mut amount: i32 = 1;
+    let held: @mut i32 = @mut amount;"#,
+        r#"    let seven: i32 = kit\v();
+    $held = seven;
+    transition amount == 7 && other == 3 { true -> carried(builder), _ -> wrong(builder) }"#,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
 }
 
 #[test]

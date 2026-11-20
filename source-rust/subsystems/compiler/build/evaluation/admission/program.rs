@@ -44,6 +44,7 @@ pub(crate) fn admit_build_program(
     invocation: source_compiler::CheckedBuildInvocation,
     providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
+    stage: &source_compiler::BuildStage,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     execution_profile: Option<target::TargetProfile>,
@@ -63,7 +64,7 @@ pub(crate) fn admit_build_program(
         )]);
     }
     let mut filesystem_scope = filesystem_scope.clone();
-    let machine = admit_build_machine(prepared, machine_symbol, &mut filesystem_scope)?;
+    let machine = admit_build_machine(prepared, machine_symbol, stage, &mut filesystem_scope)?;
     let (prepared, produced) = invocation.publish()?;
     let build_authority = package_inputs
         .map(|inputs| inputs.declaration_selection_authority(DependencyPurpose::Build));

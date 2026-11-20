@@ -25,7 +25,18 @@ impl SelectedBuildMachine {
         &self,
         module: &'module terminal_psi::TerminalModule,
     ) -> Result<&'module terminal_psi::StructuralParameterDeclaration, String> {
-        self.receiver.parameter_for(module)
+        self.entry_storage_for(module).map(|parameters| &parameters[0])
+    }
+
+    pub fn entry_storage_for<'module>(
+        &self,
+        module: &'module terminal_psi::TerminalModule,
+    ) -> Result<&'module [terminal_psi::StructuralParameterDeclaration], String> {
+        self.receiver.parameters_for(module)
+    }
+
+    pub fn has_same_frame(&self, previous: &Self) -> bool {
+        self.receiver.has_same_frame(&previous.receiver)
     }
 }
 
@@ -49,6 +60,7 @@ pub fn select_build_machine(
 pub fn admit_build_machine(
     prepared: &source_compiler::AcceptedTerminalSource,
     machine_symbol: SymbolHandle,
+    stage: &source_compiler::BuildStage,
     filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
     let typed = prepared.source();
@@ -69,7 +81,7 @@ pub fn admit_build_machine(
         )]
     })?;
     let machine_name = machine.name.as_str().to_owned();
-    let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine)
+    let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine, stage)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let normalized_callable_identity =
         typed
