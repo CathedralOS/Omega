@@ -709,9 +709,7 @@ pub(crate) mod statement {
                     };
                     lower_type_reference_into_table(lowerer, &parameter.type_reference)?
                 };
-            lowerer
-                .typed_trees
-                .prepare_data_application_view(root_type)
+            crate::data_applications::prepare(&mut lowerer.typed_trees, root_type)
                 .map_err(Diagnostic::error)?;
             let mut current = root_type;
             for step in steps.into_iter().rev() {

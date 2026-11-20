@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Several source stages perform generic data preparation in the typed-tree representation
-
-- Category: Knowledge crossing a boundary.
-- Where: [Generic data preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/data_applications.rs#L60), [typing](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1892), [specialization](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization.rs#L189) and [compile-time argument evaluation](source-rust/subsystems/compiler/source-to-psi/compile_time/calls/arguments.rs#L58).
-- Saw: Typing, specialization and compile-time argument evaluation ask the representation to substitute constants and rebuild generic member payloads. The operation also invalidates applications affected by the substitutions.
-- Cost: Changing the timing or meaning of these substitutions requires tracing three callers through a file presented as data storage. Give the shared transformation an explicit owner and keep the stored rows with the representation.
-- Reported: 2026-11-19, Codex, while moving domain preparation into stage 04.
-
 ### Instruction encoding reaches earlier forms through the installation binder
 
 - Category: Knowledge crossing a boundary.

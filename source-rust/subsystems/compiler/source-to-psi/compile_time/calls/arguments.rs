@@ -13,6 +13,7 @@ use crate::source_state::machine::Machine;
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableTransition, TransitionTargetNode};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use symbol_resolved_trees_to_typed_trees::data_applications;
 use symbols::{SymbolHandle, SymbolKind};
 
 fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
@@ -55,7 +56,7 @@ fn data_argument<'value>(
         TypeReferenceNode::Generic { .. }
     ) && program.data_application_definition(destination).is_none()
     {
-        program.prepare_data_application_view(destination)?;
+        data_applications::prepare(program, destination)?;
     }
     let definition = program
         .closed_data_definition(destination)

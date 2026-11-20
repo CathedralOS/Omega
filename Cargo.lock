@@ -3773,6 +3773,7 @@ dependencies = [
  "source-declarations",
  "source-symbol-table",
  "source-text",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "typed-trees",
  "wire",

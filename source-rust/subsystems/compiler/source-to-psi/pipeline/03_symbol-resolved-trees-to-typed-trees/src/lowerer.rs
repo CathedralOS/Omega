@@ -1887,9 +1887,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
-    lowerer
-        .typed_trees
-        .prepare_data_application_views(cohort.typed_type_references)
+    crate::data_applications::prepare_from(&mut lowerer.typed_trees, cohort.typed_type_references)
         .map_err(Diagnostic::error)?;
     let cast_destinations = crate::typing::expressions::construction_destinations::prepare(
         lowerer.source_trees,
