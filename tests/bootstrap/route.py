@@ -17,7 +17,7 @@ from compiled import (ROOT, delta_request, executable, gamma_backend_source, gam
                       invoke, pack, pack_delta_compiler, reconstruct)
 from conformance.vectors import epsilon_program_cases, epsilon_request
 from independent.epsilon.composition import CompileRefusal, compiler_source, linked_program
-from independent.epsilon.enum_test import byte_class_case
+from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
 from interpreted.delta.interpreter import materialize
 
 MODES = ("interpret", "alpha", "native")
@@ -50,13 +50,14 @@ def observation_kind(data):
 
 
 class Route:
-    def __init__(self, args, work, shared=None):
+    def __init__(self, args, work, shared=None, *, expect_rejection=False):
         self.args = args
         self.work = work
         self.steps = []
         self.backends = {}
         self.artifacts = {}
         self.shared = shared
+        self.expect_rejection = expect_rejection
 
     def stage(self, description, action):
         self.steps.append((description, action))
@@ -72,7 +73,7 @@ class Route:
         self.stage(f"{description} -> {name}", lambda: self.publish(path, produce()))
         return path
 
-    def run(self, name, description, program, payload, *, guest=False):
+    def run(self, name, description, program, payload, *, terminal=False):
         chain = " -> ".join(path.name for path in (program.image, *program.sources))
         path = self.work / name
 
@@ -82,7 +83,7 @@ class Route:
                 self.publish(path, invoke([program.image], request, self.args.seconds))
                 return
             key = sha256(program.image.read_bytes()).hexdigest(), sha256(request).hexdigest()
-            previous = None if guest else self.shared.get(key)
+            previous = None if terminal else self.shared.get(key)
             if previous is None:
                 data = invoke([program.image], request, self.args.seconds)
             else:
@@ -94,7 +95,7 @@ class Route:
             record.update(producer_sha256=key[0], request_sha256=key[1])
             if previous is not None:
                 record["reused_from"] = str(original.relative_to(self.work.parent))
-            elif not guest:
+            elif not terminal:
                 self.shared[key] = path, record["sha256"]
 
         self.stage(f"{description} [{chain}] -> {name}", run)
@@ -194,17 +195,49 @@ class Route:
             evaluator = self.on_delta("evaluator", source, self.args.delta)
             self.run("guest.eeout", "interpret subject.epsilon with stdin.bin", evaluator,
                      lambda: epsilon_request(closure.read_bytes(), guest.read_bytes(), stdin.read_bytes()),
-                     guest=True)
+                     terminal=True)
         else:
             source = self.file("epsilon-compiler.delta", "select the Epsilon compiler",
                                lambda: compiler_source(closure.read_bytes()))
             compiler = self.on_delta("epsilon-compiler", source, self.args.delta)
+            if self.expect_rejection:
+                self.run("compiler.response", "check subject.epsilon for the expected rejection", compiler,
+                         guest.read_bytes, terminal=True)
+                return
             module = self.run("module.out", "compile subject.epsilon to Delta", compiler, guest.read_bytes)
             delta = self.file("subject.delta", "read compiler result and attach the runtime",
                               lambda: linked_program(module.read_bytes()))
             program = self.on_delta("subject", delta, self.args.epsilon)
             self.run("guest.eeout", "run the compiled Epsilon program with stdin.bin", program,
-                     stdin.read_bytes, guest=True)
+                     stdin.read_bytes, terminal=True)
+
+
+def check_observation(route, expected, report):
+    compiler_response = route.expect_rejection and route.args.epsilon != "interpret"
+    name = "compiler.response" if compiler_response else "guest.eeout"
+    output = (route.work / name).read_bytes()
+    if route.expect_rejection:
+        code, offset = expected[1], int.from_bytes(expected[2:], "little")
+    if compiler_response:
+        expected = f"rejected {code} {offset}".encode("ascii")
+    else:
+        report["observation"] = observation_kind(output)
+        if report["observation"] == "exit":
+            report["guest_exit"] = int.from_bytes(output[1:5], "little", signed=True)
+    report["observation_sha256"] = sha256(output).hexdigest()
+    if expected is not None and output != expected:
+        first = next((i for i, (a, b) in enumerate(zip(expected, output)) if a != b),
+                     min(len(expected), len(output)))
+        raise ValueError(f"wrong observation at byte {first}: "
+                         f"expected {expected[first:first+1]!r} ({len(expected)} bytes), "
+                         f"observed {output[first:first+1]!r} ({len(output)} bytes)")
+    if route.expect_rejection:
+        report.update(observation="reject", rejection_code=code, source_offset=offset,
+                      observation_artifact=name, guest_executed=False)
+    if compiler_response:
+        report["result"] = "expected-rejection"
+    else:
+        report["result"] = "matched" if expected is not None else "observed"
 
 
 def execute_route(route, guest, stdin, expected, verbose):
@@ -231,18 +264,7 @@ def execute_route(route, guest, stdin, expected, verbose):
                     stage["completed"] = True
                 finally:
                     stage["elapsed_seconds"] = round(time.monotonic() - start, 3)
-        output = (work / "guest.eeout").read_bytes()
-        report["observation"] = observation_kind(output)
-        if report["observation"] == "exit":
-            report["guest_exit"] = int.from_bytes(output[1:5], "little", signed=True)
-        report["observation_sha256"] = sha256(output).hexdigest()
-        if expected is not None and expected != output:
-            offset = next((i for i, (a, b) in enumerate(zip(expected, output)) if a != b),
-                          min(len(expected), len(output)))
-            raise ValueError(f"wrong observation at byte {offset}: "
-                             f"expected {expected[offset:offset+1]!r} ({len(expected)} bytes), "
-                             f"observed {output[offset:offset+1]!r} ({len(output)} bytes)")
-        report["result"] = "matched" if expected is not None else "observed"
+        check_observation(route, expected, report)
     except CompileRefusal as error:
         status = 1
         report.update(result="compiler-refusal", detail=str(error))
@@ -265,7 +287,7 @@ def main():
         parser.add_argument("--" + rung, choices=(*MODES, "all"), required=True)
     program = parser.add_mutually_exclusive_group()
     program.add_argument("--source", type=Path, help="complete Epsilon program with its entry")
-    program.add_argument("--case", choices=("stdin", "exit", "trap", "omega-byte-classes"),
+    program.add_argument("--case", choices=("stdin", "exit", "trap", "omega-byte-classes", "omega-wrong-base"),
                          help="program with a known observation (default: stdin)")
     parser.add_argument("--stdin", type=Path, help="raw guest input for --source (default: empty)")
     parser.add_argument("--delta-interpreter", choices=("direct", "gamma"), default="direct",
@@ -292,6 +314,7 @@ def main():
     matrix = "all" in choices
     if args.reuse_stages and not matrix:
         parser.error("--reuse-stages requires at least one selector set to all")
+    expect_rejection = args.case == "omega-wrong-base"
     if not args.plan:
         if root.exists():
             parser.error(f"output already exists: {root}")
@@ -300,6 +323,8 @@ def main():
                 guest = args.source.read_bytes()
                 stdin = args.stdin.read_bytes() if args.stdin else b""
                 expected = None
+            elif expect_rejection:
+                guest, stdin, expected = byte_class_wrong_base_case(ROOT)
             elif args.case == "omega-byte-classes":
                 guest, stdin, expected = byte_class_case(ROOT)
             else:
@@ -324,7 +349,7 @@ def main():
         row.gamma, row.delta, row.epsilon = gamma, delta, epsilon
         row.gamma_build = builds.get(gamma)
         work = root / label if matrix else root
-        route = Route(row, work, shared)
+        route = Route(row, work, shared, expect_rejection=expect_rejection)
         route.select()
         if args.plan:
             print(label)
@@ -343,24 +368,33 @@ def main():
             detail = report.get("detail", "")
             if status and report["stages"]:
                 detail = f"{report['stages'][-1]['stage']} {detail}"
+            elif "rejection_code" in report:
+                detail = f"rejection {report['rejection_code']} at source byte {report['source_offset']}"
             elif "guest_exit" in report:
                 detail = f"guest exit {report['guest_exit']}"
             print(f"{label}  {report['result']}  {detail}".rstrip(), flush=True)
         if status and exit_status != 1:
             exit_status = status
         if not status:
-            observations.setdefault(report["observation_sha256"], []).append(label)
+            key = ((report["rejection_code"], report["source_offset"]) if expect_rejection
+                   else report["observation_sha256"])
+            observations.setdefault(key, []).append(label)
         # The cold launcher publishes gamma-compiler after the fixed-point check.
         if report["stages"][0].get("completed") and (work / "cold/gamma-compiler").is_file():
             builds[gamma] = work / "cold"
     if len(observations) > 1:
         for digest, rows in observations.items():
             print(f"{digest}  {', '.join(rows)}")
-        print("Completed routes disagree on guest.eeout.", file=sys.stderr)
+        comparison = "rejection code and source offset" if expect_rejection else "guest.eeout"
+        print(f"Completed routes disagree on {comparison}.", file=sys.stderr)
         return 1
     if matrix and observations:
         digest, rows = next(iter(observations.items()))
-        print(f"{len(rows)} completed with observation {digest}.")
+        if expect_rejection:
+            code, offset = digest
+            print(f"{len(rows)} matched rejection {code} at source byte {offset}.")
+        else:
+            print(f"{len(rows)} completed with observation {digest}.")
     return exit_status
 
 

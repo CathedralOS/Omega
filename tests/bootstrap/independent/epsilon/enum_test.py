@@ -48,6 +48,17 @@ def byte_class_case(root):
     return common + main, payload, b'\0' + struct.pack('<i', 42) + byte_class_output(payload)
 
 
+def byte_class_wrong_base_case(root):
+    source, payload, _ = byte_class_case(root)
+    call = b'omega_digit_in_base(value, selected)'
+    if source.count(call) != 1:
+        raise ValueError('expected exactly one forwarding call in the byte classifier')
+    offset = source.index(call)
+    source = source.replace(call, b'omega_digit_in_base(value, value)')
+    # A wrong argument type contributes TypeMismatch at the call head.
+    return source, payload, struct.pack('<BBI', 2, 18, offset)
+
+
 def _run(work, vm, producer, realize, seconds, composition, compiler):
     root = composition.ROOT
     fixtures = root / 'tests/bootstrap/independent/epsilon'

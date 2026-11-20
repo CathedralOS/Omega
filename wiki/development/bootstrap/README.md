@@ -31,10 +31,17 @@ three Epsilon routes.
 python3 tests/bootstrap/route.py /tmp/omega-bytes --gamma native --delta native --epsilon all --case omega-byte-classes --reuse-stages
 ```
 
+Use `--case omega-wrong-base` with the same command and a fresh output directory
+to change the forwarding call from `omega_digit_in_base(value, selected)` to
+`omega_digit_in_base(value, value)`. The second argument is now an `i32`.
+The interpreter records the six-byte `TypeMismatch` in `guest.eeout`. Each
+compiler records its complete ASCII response in `compiler.response` and reports
+`expected-rejection` before building a guest. The batch compares error code 18
+and the byte offset of the call head across all three choices.
+
 Each run needs a new output directory and the repository's built `xtask` for
 source manifests. Each row retains its source, input, intermediate artifacts,
-and `result.json` with the stages, times, input hashes, generated artifact hashes and outcome. In a batch, each row logs live progress in `stages.log`. Completed
-rows also retain `guest.eeout` for byte comparison. A timeout records the
+and `result.json` with the stages, times, input hashes, generated artifact hashes and outcome. In a batch, each row logs live progress in `stages.log`. Rows that receive a binary Epsilon observation retain `guest.eeout` for byte comparison. A timeout records the
 stage in the row report and exits 124. Other failures exit 1. Batch runs finish the other rows
 and display the Epsilon choices side by side. Completed custom runs must agree on the observation hash.
 
@@ -43,8 +50,9 @@ invocation once. Two rows can share an intermediate artifact when both the
 executable and its complete framed input have the same SHA-256. The runner
 checks the saved output digest on reuse. Each row's `result.json` records
 the two input digests and names the original artifact in `reused_from`.
-Every row still executes its own guest. Omit the flag to rebuild each row's
-intermediate artifacts independently.
+Every row runs its final invocation, including calls that check the expected
+compiler rejection. Omit the flag to rebuild each row’s intermediate artifacts
+independently.
 
 Compiled Gamma hosts start from the cold launcher. To reuse a previous build,
 supply `--gamma-build DIR` with the corresponding `--gamma alpha` or

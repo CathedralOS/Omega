@@ -1,13 +1,18 @@
 """Check mixed route handoffs and the distinction between observations and refusals."""
 import argparse
+from hashlib import sha256
 from itertools import product
 from pathlib import Path
 import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from route import MODES, Program, Route, observation_kind
+from independent.epsilon.composition import linked_program
+from independent.epsilon.enum_test import byte_class_case, byte_class_wrong_base_case
+from route import MODES, ROOT, Program, Route, execute_route, observation_kind
 
 
 class RouteTests(unittest.TestCase):
@@ -23,7 +28,7 @@ class RouteTests(unittest.TestCase):
                 executable.write_bytes(image)
                 subject.write_bytes(source)
                 route = Route(argparse.Namespace(seconds=1), work, shared)
-                route.run("result", "run", Program(executable).bind(subject), lambda: payload, guest=guest)
+                route.run("result", "run", Program(executable).bind(subject), lambda: payload, terminal=guest)
                 route.steps[0][1]()
                 return route.artifacts["result"]
 
@@ -59,6 +64,72 @@ class RouteTests(unittest.TestCase):
                 self.assertEqual("assemble the direct Delta interpreter" in stages, delta == "interpret")
                 self.assertEqual("rebuild Beta and the Gamma interpreter on Alpha" in stages,
                                  gamma == "interpret")
+
+    def test_wrong_base_changes_one_argument_and_stops_at_the_frontend(self):
+        original, payload, _ = byte_class_case(ROOT)
+        source, stdin, expected = byte_class_wrong_base_case(ROOT)
+        call = b'omega_digit_in_base(value, selected)'
+        self.assertEqual(source, original.replace(call, b'omega_digit_in_base(value, value)'))
+        self.assertEqual(stdin, payload)
+        self.assertEqual(expected, struct.pack('<BBI', 2, 18, original.index(call)))
+        for mode in MODES:
+            args = argparse.Namespace(gamma="native", delta="native", epsilon=mode,
+                                      gamma_build=None, profile="conformance", seconds=1)
+            route = Route(args, Path("/unused"), expect_rejection=True)
+            route.select()
+            stages = [name for name, _ in route.steps]
+            artifact = "guest.eeout" if mode == "interpret" else "compiler.response"
+            self.assertTrue(stages[-1].endswith(" -> " + artifact))
+            self.assertFalse(any("subject.delta" in stage for stage in stages))
+
+    def test_rejection_matches_only_the_exact_successful_frontend_response(self):
+        expected = struct.pack('<BBI', 2, 18, 123)
+        for mode, output, exit_code, result in (
+            ("interpret", expected, 0, "matched"),
+            ("native", b"rejected 18 123", 0, "expected-rejection"),
+            ("native", b"rejected 18 123", 1, "failed"),
+            ("native", b"rejected 18 124", 0, "failed"),
+            ("native", b"rejected 17 123", 0, "failed"),
+            ("native", b"rejected 18 123\n", 0, "failed"),
+            ("native", b"unsupported 123", 0, "failed"),
+            ("native", b"compiled-storage\n(def example () Int 42)", 0, "failed"),
+            ("interpret", struct.pack('<BBI', 2, 18, 124), 0, "failed"),
+            ("interpret", expected + b'X', 0, "failed"),
+        ):
+            with self.subTest(mode=mode, output=output, exit_code=exit_code), tempfile.TemporaryDirectory() as temp:
+                args = argparse.Namespace(gamma="native", delta="native", epsilon=mode,
+                                          profile="conformance", seconds=30)
+                work = Path(temp) / "row"
+                route = Route(args, work, expect_rejection=True)
+                route.host = Program(Path(sys.executable))
+                artifact = "guest.eeout" if mode == "interpret" else "compiler.response"
+                # A standalone producer lets the normal invocation check its status and stdout.
+                script = f'import sys\nsys.stdout.buffer.write({output!r})\nsys.exit({exit_code})'.encode()
+                route.run(artifact, "run test producer", route.host, lambda: script, terminal=True)
+                status, report = execute_route(route, b"subject", b"", expected, verbose=False)
+                self.assertEqual((status, report["result"]), (int(result == "failed"), result))
+                if exit_code == 0:
+                    self.assertEqual((work / artifact).read_bytes(), output)
+                    self.assertEqual(report["artifacts"][artifact]["sha256"], sha256(output).hexdigest())
+                if status == 0:
+                    self.assertEqual((report["rejection_code"], report["source_offset"]), (18, 123))
+                    self.assertFalse(report["guest_executed"])
+
+    def test_custom_refusal_and_timed_out_named_rejection_remain_failures(self):
+        args = argparse.Namespace(gamma="native", delta="native", epsilon="alpha",
+                                  profile="conformance", seconds=1)
+        with tempfile.TemporaryDirectory() as temp:
+            custom = Route(args, Path(temp) / "custom")
+            custom.stage("attach runtime", lambda: linked_program(b"rejected 18 123"))
+            status, report = execute_route(custom, b"subject", b"", None, verbose=False)
+            self.assertEqual((status, report["result"]), (1, "compiler-refusal"))
+
+            negative = Route(args, Path(temp) / "timeout", expect_rejection=True)
+            negative.run("compiler.response", "check source", Program(Path(sys.executable)), bytes, terminal=True)
+            with patch("route.invoke", side_effect=subprocess.TimeoutExpired("producer", 1)):
+                status, report = execute_route(negative, b"subject", b"", b"\2\x12" + bytes(4), verbose=False)
+            self.assertEqual((status, report["result"]), (124, "timeout"))
+            self.assertNotIn("compiler.response", report["artifacts"])
 
     def test_delta_can_interpret_the_translators_actual_gamma_output(self):
         args = argparse.Namespace(gamma="native", delta="interpret", epsilon="interpret",
