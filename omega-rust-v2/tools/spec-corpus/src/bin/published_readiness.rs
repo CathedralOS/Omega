@@ -327,11 +327,23 @@ fn reflection() -> bool {
     let interface = omega_toolchain::core_interface().exports();
     for member in ["field", "callable", "FieldInfo", "CallableInfo"] {
         let path = format!("language\\core\\reflect\\{member}");
-        let kinds: Vec<_> = interface.declarations.iter()
+        let mut kinds: Vec<_> = interface
+            .declarations
+            .iter()
             .filter(|export| export.id.package == omega_toolchain::TOOLCHAIN_PACKAGE && export.id.path == path)
-            .map(|export| format!("{:?}", export.id.kind)).collect();
+            .map(|export| format!("{:?}", export.id.kind))
+            .collect();
+        if interface
+            .declaration_queries
+            .contains(&(omega_toolchain::TOOLCHAIN_PACKAGE.into(), path.clone()))
+        {
+            kinds.push("DeclarationQuery".into());
+        }
         let result = if kinds.is_empty() { "absent".to_owned() } else { kinds.join(",") };
-        println!("OMEGA_CONTEXT_EXPORT\tlanguage/reflection.md:77\t{}\t{path}\t{result}", omega_toolchain::TOOLCHAIN_PACKAGE);
+        println!(
+            "OMEGA_CONTEXT_EXPORT\tlanguage/reflection.md:77\t{}\t{path}\t{result}",
+            omega_toolchain::TOOLCHAIN_PACKAGE
+        );
     }
     ok
 }

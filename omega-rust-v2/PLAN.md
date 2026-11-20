@@ -166,9 +166,10 @@ Its effect checks follow the execution calls. Preparation supplies evaluated val
 selects both codec machines across package boundaries and refuses each swapped
 selection at its binding expression. The existential package example infers one
 `File` witness for the stored reference and callback and rejects a callback over
-`Socket`. The bundled reflection module lacks the `field` and `callable` query declarations,
-so those examples stop at name lookup. With query declarations supplied, L2 binds all four
-published selector operands and retains the type argument in `Buffer::<u32>::used`.
+`Socket`. The bundled reflection module exports the symbolic queries `field` and `callable`.
+L2 binds all four published selector operands and retains the type argument in
+`Buffer::<u32>::used`. L3 rejects all four swapped queries at their operands. The four
+valid examples still stop in L3 because it cannot yet construct their descriptors.
 [L2 contract](layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) · [L3 contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md)
 
 ### The `omega` application

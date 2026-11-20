@@ -6,6 +6,7 @@ pub(crate) mod callable_values;
 pub(crate) mod calls;
 pub(crate) mod check_bodies;
 pub(crate) mod declaration_bodies;
+mod declaration_queries;
 mod destination;
 pub(crate) mod existential_records;
 mod fixed_array_moves;

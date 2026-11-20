@@ -1,3 +1,6 @@
+#[cfg(feature = "diagnostic-origins")]
+#[path = "support/diagnostic_origin.rs"]
+mod diagnostic_origin;
 #[path = "support/evaluation.rs"]
 mod evaluation;
 use omega_resolver::{ParsedSource, StageSource};
@@ -828,4 +831,49 @@ fn named_and_bracket_reads_use_the_same_library_signature_and_copy_bound() {
         let source = format!("use omega\\indexing; data Handle{{}} machine f(view:@[Handle],i:u64)->Handle{{{expression}}}");
         assert!(check(&source).is_err(), "{source}");
     }
+}
+
+#[test]
+fn symbolic_queries_check_the_operand_and_cannot_escape_as_callbacks() {
+    for (expression, site, message) in [
+        (r"reflect\field(read)", "read", "expected a field declaration"),
+        (r"reflect\callable(R::x)", "R::x", "expected a callable declaration"),
+        (r"reflect\callable(read())", "read()", "expected a callable declaration"),
+        (r"reflect\field(1)", "1", "expected a field declaration"),
+        (r"reflect\field()", r"reflect\field()", "a declaration query requires one declaration path"),
+        (
+            r"reflect\callable(read, read)",
+            r"reflect\callable(read, read)",
+            "a declaration query requires one declaration path",
+        ),
+        (r"reflect\field", r"reflect\field", "a declaration query cannot be used as a value"),
+    ] {
+        let text = format!(r"use omega\language\core\reflect; data R{{x:u8;}} machine read()->u8{{1}} machine f(){{let d={expression};}}");
+        let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+        let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+        let names = resolve_source_package(&[StageSource {
+            package: "app",
+            source: ParsedSource {
+                logical_path: "selector.omg",
+                text: &text,
+                tokens: &tokens,
+                tree: &tree,
+            },
+        }])
+        .unwrap();
+        let error = type_source_package(&names)
+            .expect_err("invalid selector must fail typing");
+        #[cfg(feature = "diagnostic-origins")]
+        diagnostic_origin::report_return(&error, "");
+        assert_eq!(error.package, "app");
+        assert_eq!((&*error.file, &*error.message), ("selector.omg", message), "{expression}");
+        assert_eq!(
+            error.span.get_start_offset(),
+            text.rfind(expression).unwrap() + expression.find(site).unwrap(),
+            "{expression}"
+        );
+        assert_eq!(error.span.slice(text.as_bytes()), Some(site.as_bytes()), "{expression}");
+    }
+    check(r"machine field(n:u8)->u8{n} machine use_field()->u8{field(1)}").unwrap();
+    check(r"use omega\language\core\reflect; machine shadow(field:u8)->u8{field}").unwrap();
 }

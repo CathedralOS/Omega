@@ -307,6 +307,9 @@ impl BodyTyper<'_, '_> {
         let expected = || destination.when_known(indices, source_file, node_index).map(Destination::exact);
         let node = &source_file.nodes[node_index];
         let symbol = self.unit.name_in_role(node_index, false);
+        if matches!(symbol, Some(Symbol::DeclarationQuery { .. })) {
+            return Err(TypeError::at(source_file, node_index, "a declaration query cannot be used as a value"));
+        }
         if !node.children.is_empty()
             && !matches!(symbol, Some(Symbol::Declaration(id)) if matches!(id.kind, MathLet | Case))
             && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core\\Squash")

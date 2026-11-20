@@ -5,6 +5,34 @@ use std::sync::OnceLock;
 
 pub use omega_target_contract::LayoutQuery;
 
+/// The argument names a declaration. Neither query has an executable call signature.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeclarationQuery {
+    Field,
+    Callable,
+}
+
+impl DeclarationQuery {
+    pub fn identify(
+        package: &str,
+        path: &str,
+    ) -> Option<Self> {
+        if package != TOOLCHAIN_PACKAGE {
+            return None;
+        }
+        [Self::Field, Self::Callable]
+            .into_iter()
+            .find(|query| query.path() == path)
+    }
+
+    fn path(self) -> &'static str {
+        match self {
+            Self::Field => r"language\core\reflect\field",
+            Self::Callable => r"language\core\reflect\callable",
+        }
+    }
+}
+
 pub struct CoreInterface {
     pub declarations: SymbolResolvedTrees<'static>,
     exports: CompiledInterface,
@@ -110,7 +138,12 @@ pub fn core_interface() -> &'static CoreInterface {
             },
         });
         let declarations = omega_resolver::resolve_stage(&sources, &[]).expect("bundled core declarations");
-        let exports = declarations.compiled_interface();
+        let mut exports = declarations.compiled_interface();
+        for query in [DeclarationQuery::Field, DeclarationQuery::Callable] {
+            exports
+                .declaration_queries
+                .insert((TOOLCHAIN_PACKAGE.into(), query.path().into()));
+        }
         CoreInterface { declarations, exports }
     })
 }

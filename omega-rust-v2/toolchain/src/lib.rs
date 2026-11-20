@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 pub use omega_program_contracts::CollectionPrimitive;
 mod core_interface;
-pub use core_interface::{CoreInterface, LayoutQuery, core_interface};
+pub use core_interface::{CoreInterface, DeclarationQuery, LayoutQuery, core_interface};
 use omega_lexer::SourceSpan;
 use omega_resolver::{Dependency, NameError, NameErrorKind, StageSource, SymbolResolvedTrees};
 

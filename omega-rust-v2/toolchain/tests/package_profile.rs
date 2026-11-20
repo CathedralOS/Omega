@@ -89,3 +89,56 @@ fn the_profile_owns_the_canonical_process_exit_requirement() {
     assert_eq!(requirement.kind, omega_parser::NodeKind::Machine);
     assert_eq!(core.id("Never").kind, omega_parser::NodeKind::Data);
 }
+
+#[test]
+fn reflection_queries_resolve_through_the_package_interface() {
+    use omega_toolchain::DeclarationQuery;
+
+    for (imports, expression) in [
+        (r"use omega\language\core\reflect;", r"reflect\field"),
+        (r"use omega\language\core\reflect;", "field"),
+        (r"use omega\language\core\reflect\field;", "field"),
+        ("", r"omega\language\core\reflect\field"),
+    ] {
+        let text = format!("{imports} data R{{x:u8;}} machine f(){{let d={expression}(R::x);}}");
+        let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+        let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+        let resolved = resolve_source_package(&[StageSource {
+            package: "app",
+            source: ParsedSource {
+                logical_path: "app.omg",
+                text: &text,
+                tokens: &tokens,
+                tree: &tree,
+            },
+        }])
+        .unwrap();
+        let start = text.rfind(expression).unwrap();
+        assert!(
+            resolved.uses().any(|name| name.span.get_start_offset() == start
+                && matches!(&name.target, Symbol::DeclarationQuery { package, path }
+                    if DeclarationQuery::identify(package, path) == Some(DeclarationQuery::Field))),
+            "{text}"
+        );
+        assert!(
+            resolved.uses().any(|name| matches!(&name.target,
+            Symbol::Declaration(id) if id.package == "app" && id.path == "R::x")),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn equally_visible_query_and_machine_report_both_identities() {
+    let text = r"use omega\language\core\reflect; machine field(){} machine f(){field();}";
+    let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+    let refusal = resolve_source_package(&[StageSource {
+        package: "app",
+        source: ParsedSource { logical_path: "app.omg", text, tokens: &tokens, tree: &tree },
+    }]).unwrap_err();
+    assert_eq!(refusal.kind, omega_resolver::NameErrorKind::CompetingDeclarations);
+    assert_eq!(refusal.message, r"competing declarations: @omega/toolchain\language\core\reflect\field, app\field");
+    assert_eq!(refusal.span.get_start_offset(), text.rfind("field").unwrap());
+    assert_eq!(refusal.span.slice(text.as_bytes()), Some(b"field".as_slice()));
+}
