@@ -379,6 +379,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     self.cast_start = 0;
     self.cast_type_reference = 0;
     self.cast_kind = OmegaCastKind::Carrier;
+    self.cast_first_entry = 0;
+    self.cast_after_carrier = 0;
     self.cast_domain_start = 0;
     self.cast_domain_end = 0;
     self.cast_end = 0;
@@ -3681,6 +3683,8 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_value_expression = self.expression_result;
         self.cast_start = self.expression_result_start;
         self.cast_kind = OmegaCastKind::Carrier;
+        self.cast_first_entry = self.cast_expression_count;
+        self.cast_after_carrier = 0;
         self.cast_type_reference = 0;
         self.cast_domain_start = 0;
         self.cast_domain_end = 0;
@@ -9449,7 +9453,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state type_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Equal -> cast_retention_boundary()
+            OmegaPunctuationKind::Equal -> cast_domain_marker(OmegaCastKind::KeepDomain)
             OmegaPunctuationKind::Plus -> cast_domain_marker(OmegaCastKind::AddDomain)
             OmegaPunctuationKind::Minus -> cast_domain_marker(OmegaCastKind::RemoveDomain)
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
@@ -9460,13 +9464,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
                 self.scan.token_start,
                 self.scan.token_end
             )
-        }
-    }
-
-    state cast_retention_boundary() {
-        transition self.type_consumer {
-            OmegaTypeConsumer::Cast -> incomplete_root()
-            _ -> type_end_failure(self.scan.token_start, self.scan.token_end)
         }
     }
 
@@ -10209,21 +10206,14 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     }
 
     state cast_type_end() {
+        self.cast_after_carrier = 1;
         self.cast_kind = OmegaCastKind::Carrier;
         self.cast_type_reference = 0;
         transition self.scan.punctuation {
             OmegaPunctuationKind::Plus -> retain_cast_after_end(0)
-            _ -> validate_cast_end_punctuation(0)
-        }
-    }
-
-    state validate_cast_end_punctuation(after_domain: i32) {
-        // After a domain entry, another sign begins a second entry.
-        // Arithmetic on the resulting value requires a parenthesized cast.
-        transition self.scan.punctuation {
-            OmegaPunctuationKind::Plus -> incomplete_root()
             OmegaPunctuationKind::Minus -> incomplete_root()
-            _ -> cast_expression_end(after_domain)
+            OmegaPunctuationKind::Equal -> incomplete_root()
+            _ -> cast_expression_end(0)
         }
     }
     state cast_expression_end(after_domain: i32) {
@@ -10251,7 +10241,6 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::PipePipe -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::LeftBracket -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::RightBracket -> retain_cast_after_end(after_domain)
-            OmegaPunctuationKind::Equal -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::DotDot -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::DotDotEqual -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
@@ -10322,7 +10311,16 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Backslash -> next_cast_domain_member()
             OmegaPunctuationKind::ColonColon -> next_cast_domain_member()
-            _ -> validate_cast_end_punctuation(1)
+            OmegaPunctuationKind::Plus -> retain_cast_expression()
+            OmegaPunctuationKind::Minus -> finish_domain_only_entry()
+            OmegaPunctuationKind::Equal -> finish_domain_only_entry()
+            _ -> cast_expression_end(1)
+        }
+    }
+    state finish_domain_only_entry() {
+        transition self.cast_after_carrier {
+            0 -> retain_cast_expression()
+            _ -> incomplete_root()
         }
     }
     state next_cast_domain_member() {
@@ -10361,6 +10359,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_expressions[self.cast_expression_count].target_type =
             self.cast_type_reference;
         self.cast_expressions[self.cast_expression_count].kind = self.cast_kind;
+        self.cast_expressions[self.cast_expression_count].first_entry = self.cast_first_entry;
         self.cast_expressions[self.cast_expression_count].domain.start =
             self.cast_domain_start;
         self.cast_expressions[self.cast_expression_count].domain.end =
@@ -10391,16 +10390,22 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state finish_cast_at_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Plus -> add_domain_to_carrier_result()
+            OmegaPunctuationKind::Plus -> next_domain_entry(OmegaCastKind::AddDomain)
+            OmegaPunctuationKind::Minus -> next_domain_entry(OmegaCastKind::RemoveDomain)
+            OmegaPunctuationKind::Equal -> next_domain_entry(OmegaCastKind::KeepDomain)
             _ -> primary_expression_end_punctuation()
         }
     }
-
-    state add_domain_to_carrier_result() {
-        // The carrier conversion owns the original operand. Adding one domain
-        // views the result exactly as an explicit second cast would.
+    state next_domain_entry(kind: OmegaCastKind) {
         self.cast_value_expression = self.expression_result;
-        transition true { true -> begin_domain_cast(OmegaCastKind::AddDomain) }
+        transition self.cast_kind {
+            OmegaCastKind::Carrier -> first_carrier_addition(kind)
+            _ -> begin_domain_cast(kind)
+        }
+    }
+    state first_carrier_addition(kind: OmegaCastKind) {
+        self.cast_first_entry = self.cast_expression_count;
+        transition true { true -> begin_domain_cast(kind) }
     }
 
     state local_data_type_end() {

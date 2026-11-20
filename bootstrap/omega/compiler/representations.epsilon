@@ -598,12 +598,15 @@ data OmegaCastKind {
     case Carrier;
     case AddDomain;
     case RemoveDomain;
+    case KeepDomain;
 }
 
 // Carrier owns target_type; domain additions/removals own the domain span.
 // A scalar cast entry never implicitly adds a destination's domain.
 data OmegaCastExpressionSyntax {
     kind: OmegaCastKind;
+    // Entries from one 'as' occupy consecutive cast rows in source order.
+    first_entry: i32;
     value: i32;
     target_type: i32;
     domain: OmegaRelativeSpan;
@@ -1370,6 +1373,8 @@ data OmegaParser {
     cast_start: i32;
     cast_type_reference: i32;
     cast_kind: OmegaCastKind;
+    cast_first_entry: i32;
+    cast_after_carrier: i32;
     cast_domain_start: i32;
     cast_domain_end: i32;
     cast_end: i32;
