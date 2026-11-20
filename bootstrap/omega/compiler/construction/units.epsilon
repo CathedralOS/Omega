@@ -24,7 +24,8 @@ data OmegaConstructionArray {
 }
 
 data OmegaConstructionDirectory {
-    arrays: [OmegaConstructionArray; 32768];
+    // The field, payload field and parameter each own a disjoint range of 16384 rows.
+    arrays: [OmegaConstructionArray; 49152];
     machines: [OmegaConstructionDeclaration; 4096];
     types: [OmegaConstructionDeclaration; 4096];
     units: [OmegaConstructionUnit; 513];
@@ -135,8 +136,13 @@ machine OmegaScalarCompiler::prepare_construction(&mut self, source: &[u8], entr
     }
     state parameter_type(unit: i32, index: i32) {
         let type_index: i32 = self.parser.machine_parameters[index].type_reference;
-        transition (self.construction_value_type(source, type_index) == 1) ||
-            (self.scalar_type(source, type_index) == omega_shared_byte_slice()) {
+        transition self.construction_value_type(source, type_index) {
+            1 -> parameter(unit, index + 1)
+            _ -> reference_parameter(unit, index, self.scalar_type(source, type_index))
+        }
+    }
+    state reference_parameter(unit: i32, index: i32, kind: i32) {
+        transition (kind == omega_shared_byte_slice()) || (omega_array_reference_row(kind) >= 0) {
             true -> parameter(unit, index + 1)
             _ -> units(unit + 1, 0)
         }

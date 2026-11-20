@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 27,016 lines / 1,041,786 bytes with SHA-256
-`9d231c46d1366d59cc8231ede287d4fd32858854f0ca844c89fba498f4965d14`.
+The manifest materializes 27,154 lines / 1,047,970 bytes with SHA-256
+`2c03069f2b710ed7f8f3cc0e7ad0889417aa9ebc968e0eee58058fadaf04b68f`.
 The manifest itself is 2,381 bytes, SHA-256
-`e6c9204fb27ba790d80a70ad20d35efd1bb947d849e051c2ebb385816ca74885`;
+`b28a600613c2d77c24aa654053cbc83b387591d718acc864267d8d7d871c5af5`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -101,7 +101,13 @@ A fixed-array literal uses the declared element type and count. Each initializer
 runs once in increasing index order. Byte elements occupy one byte, while word
 and copy-record elements use their checked stride. A policy-qualified element
 needs a value with that policy. The product loan checker uses one explicitly
-qualified zero to initialize both nine-element traversal arrays.
+qualified zero to initialize both nine-element traversal arrays. An ordinary
+call can lend a local fixed array to a shared or exclusive scalar-array
+parameter. The callee indexes the caller's storage. Separately written types
+must agree on element type and extent, including across source files. Calls
+can forward an incoming loan, and a terminal state transfer can carry one of
+its owner's incoming loans. A fresh loan of a local at that transfer still
+receives an incomplete outcome.
 
 Each file's imports resolve before signature or body checking. Record and case
 payload fields retain the scalar type or nominal declaration resolved in their

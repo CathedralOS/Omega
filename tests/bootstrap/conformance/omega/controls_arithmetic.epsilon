@@ -40,6 +40,7 @@ machine Main::main(&mut self) {
             12 -> batch_12()
             13 -> batch_13()
             14 -> array_literals()
+            15 -> array_loans()
             _ -> self.console.exit_process(99)
         }
     }
@@ -322,6 +323,20 @@ machine Main::main(&mut self) {
         self.refusal("machine f(a:u8)->u8{a} machine main()->u8{f(42]}",2,41);
         self.positive("machine main()->u8 {let a:[[u8;2];2]=[[1,2],[3,42]];42}",42,42);
         self.positive("data B [copy] { x:[u8;2];} machine main()->u8 {let b:B=B{x:[1,42]};b.x[1]}",42,43);
+    }
+    state array_loans() {
+        self.positive(self.source.as_slice[0..self.length],42,40);
+        self.positive("machine read(value: @[u8; 2])->u8{value[1]} machine main()->u8{let x:[u8;2]=[1,42];read(@x)}",42,41);
+        self.positive("machine put(x:@mut [u8;2]){x[1]=42;} machine via(x:@mut [u8;2]){put(x);} machine main()->u8{let mut x:[u8;2]=[1,2];via(@mut x);x[1]}",42,42);
+        self.positive("machine via(x:@[u8;2])->u8{transition {_ -> second(x)} machine second(x:@[u8;2])->u8{x[1]}} machine main()->u8{let x:[u8;2]=[1,42];via(@x)}",42,43);
+        self.refusal("machine read(x:@[u8;3])->u8{x[1]} machine via(x:@[u8;2])->u8{read(x)} machine main()->u8{let x:[u8;2]=[1,42];via(@x)}",1,44);
+        self.refusal("machine both(x:@mut [u8;2],y:@[u8;2]) { x[0]=y[1]; } machine main()->u8 {let mut x:[u8;2]=[1,42]; both(@mut x,@x);x[0]}",1,45);
+        self.refusal("machine main()->u8{let x:[u8;2]=[1,42];transition {_ -> second(@x)} machine second(x:@[u8;2])->u8{x[1]}}",2,46);
+        self.refusal("machine put(values: @mut [u64 in Trapping; 2], value: u64 in Trapping) { values[1] = value; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,47);
+        self.refusal("machine put(values: @mut [u64 in Trapping; 3], value: u64 in Trapping) { values[1] = value; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mut values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,48);
+        self.refusal("machine put(values: @mut [u64 in Wrapping; 2], value: u64 in Trapping) { let keep:u64 in Wrapping=values[1]; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mut values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,49);
+        self.refusal("machine put(values: @mut [u32; 2], value: u64 in Trapping) { let keep:u32=values[1]; } machine main() -> u8 { let zero: u64 in Trapping = 0 as +Trapping; let mut values: [u64 in Trapping; 2] = [zero, zero]; put(@mut values, 42 as +Trapping); let word: u64 in Trapping = values[1]; transition (word as -Trapping) == 42 { true -> 42, _ -> 1 } }",1,50);
+        self.positive("machine read(x:@[u8;2])->u8{x[1]} machine via(x:@[u8;2])->u8{read(x)} machine main()->u8{let x:[u8;2]=[1,42];via(@x)}",42,51);
     }
 }
 machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
