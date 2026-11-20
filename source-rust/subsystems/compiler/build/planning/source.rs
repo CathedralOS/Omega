@@ -288,14 +288,16 @@ impl PlanningSource {
             .1;
         let (source, stage) = resolve(
             &mut assembled,
-            self.stage.index + 1,
+            self.stage
+                .next_index()
+                .ok_or_else(|| refusal("the selected Build stage has already finished".into()))?,
             &self.preparation,
             self.profile,
             authority.as_ref(),
         )?;
-        if stage.count != self.stage.count {
+        if stage.preparations() != self.stage.preparations() {
             return Err(vec![Diagnostic::error(
-                "the captured Build changed its number of stages",
+                "the captured Build changed its dependency preparation sites",
             )]
             .into());
         }

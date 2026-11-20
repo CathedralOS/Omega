@@ -33,7 +33,7 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
-        let entry = self.entry.source_id;
+        let entry = self.entry;
         self.request(preparation, host, authority, Some((entry, index)))?
             .prepare(&mut UnmeasuredProduction)
     }
@@ -55,7 +55,7 @@ impl BuildStageSource {
         preparation: &SourcePreparation,
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-        build_stage: Option<(SourceId, usize)>,
+        build_stage: Option<(source_text::SourceSpan, usize)>,
     ) -> Result<ResolveAndTypeRequest, Vec<Diagnostic>> {
         let entry = self.parsed.files.get(self.entry.source_id).map(|file| {
             source_admission::RetainedDeclaration::from_source_occurrence(

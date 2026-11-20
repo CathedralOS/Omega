@@ -211,7 +211,7 @@ pub fn interpret(
             );
             let spent = activation.helper_evaluation_accounting().clone();
             ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
-            if source.stage.is_last() {
+            if source.stage.next_index().is_none() {
                 return activation
                     .complete()
                     .map_err(refusal)
