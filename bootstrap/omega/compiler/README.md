@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,384 lines / 875,411 bytes with SHA-256
-`407c59807e63abc5e28b5ea5748753bcc1fcdcaf4f474b6949eb380a7e0c2a00`.
+manifest materializes 23,419 lines / 876,834 bytes with SHA-256
+`b5a8801d7d9f17b6efff1ba0bd644a8a25a789ba9d9396d531352e66423da639`.
 The manifest itself is 1,698 bytes, SHA-256
-`446bee61e15836cda23f583d1ed1a257dc5ba42ac035aeeab3dd97fa65cf1c2f`;
+`837ace243bb55c617d650fd4fe9130514ad4306e9d289fa61a2c35c2fa40c501`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -94,9 +94,10 @@ select a different imported declaration.
 Imports are file-local. Exact imports select declarations; namespace imports
 bind a namespace without importing its ordinary machines as bare names.
 Repeated imports of one identity are allowed, while competing imported names
-refuse. Qualified names require the requester's own package or a direct
-requester-local dependency alias, with public visibility across packages.
-Public field and call-interface types cannot expose private records. The
+refuse. Ordinary package-qualified names use the requester's own package or
+a direct requester-local dependency alias. The reserved `omega\language\core` mount
+selects the package with the invocation's core role. Both routes enforce public
+visibility across packages. Public field and call-interface types cannot expose private records. The
 current subset handles directory namespaces, free machines and named
 records; it does not add attached declarations, reexports, overload selection,
 or full build/request admission. The single-view API is the one-unit case.

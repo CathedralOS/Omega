@@ -147,15 +147,43 @@ machine OmegaScalarCompiler::address_package(&mut self, source: &[u8], requester
     }
 }
 
+// This reserved path is selected before ordinary package or file-local aliases.
+machine OmegaScalarCompiler::language_mount_prefix(
+    &mut self, source: &[u8], first: OmegaRelativeSpan, second: OmegaRelativeSpan
+) -> i32 {
+    return (self.span_equals(source, first.start, first.end, "omega") == 1) &&
+        (self.span_equals(source, second.start, second.end, "language") == 1);
+}
+
 // terminal=1 selects a declaration within a module; terminal=0 selects the
 // module itself. Only the latter can justify a namespace import.
 machine OmegaScalarCompiler::address_matches_module(
     &mut self, source: &[u8], requester: i32, unit: i32, terminal: i32
 ) -> i32 {
-    let package: i32 = self.address_package(source, requester);
-    transition package >= 0 {
-        true -> target(package, 1)
-        _ -> target(requester, 0)
+    transition (self.address_path.count >= 2) && (self.language_mount_prefix(source,
+        self.address_path.members[0], self.address_path.members[1]) == 1) {
+        true -> bundled()
+        _ -> ordinary()
+    }
+    state bundled() {
+        transition self.address_path.count >= 3 {
+            true -> core(self.address_path.members[2], self.parser.sources.units[unit].package)
+            _ -> return 0
+        }
+    }
+    state core(name: OmegaRelativeSpan, package: i32) {
+        transition (self.span_equals(source, name.start, name.end, "core") == 1) &&
+            (self.parser.sources.packages[package].role == 1) {
+            true -> target(package, 3)
+            _ -> return 0
+        }
+    }
+    state ordinary() {
+        let package: i32 = self.address_package(source, requester);
+        transition package >= 0 {
+            true -> target(package, 1)
+            _ -> target(requester, 0)
+        }
     }
     state target(package: i32, first: i32) {
         let row: OmegaSourceUnit = self.parser.sources.units[unit];
@@ -275,8 +303,15 @@ machine OmegaScalarCompiler::resolve_declaration(
 ) -> i32 {
     let unit: i32 = self.parser.sources.unit_at(start);
     transition (unit >= 0) && (self.read_query(source, start, end) == 1) {
-        true -> local(0, unit, -1)
+        true -> lookup(unit)
         _ -> return -1
+    }
+    state lookup(unit: i32) {
+        transition (self.query_path.count >= 2) && (self.language_mount_prefix(source,
+            self.query_path.members[0], self.query_path.members[1]) == 1) {
+            true -> qualified(unit)
+            _ -> local(0, unit, -1)
+        }
     }
     state local(index: i32, unit: i32, selected: i32) {
         transition (self.query_path.count == 1) && (index < self.declaration_count(kind)) {
