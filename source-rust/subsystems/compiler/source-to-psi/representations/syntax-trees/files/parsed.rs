@@ -45,7 +45,7 @@ pub struct ParsedSources {
 
 /// One source parsed into its own standalone page under private
 /// coordinates, retained so a later admission of the same bytes can adopt
-/// it instead of parsing again (`SyntaxTrees::adopt_unit`).
+/// it instead of parsing again.
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct ParsedUnit {
     pub syntax: crate::SyntaxTrees,
@@ -55,6 +55,22 @@ pub struct ParsedUnit {
 }
 
 impl ParsedUnit {
+    /// Copy this file's standalone tree and roots to their admitted coordinates.
+    pub fn at_coordinates(
+        &self,
+        source_id: SourceId,
+        generation: u32,
+    ) -> Result<(crate::SyntaxTrees, Vec<ItemHandle>), &'static str> {
+        use crate::SyntaxRelocate;
+        if generation == 0 {
+            return Err("syntax page identity must be nonzero");
+        }
+        let mut syntax = self.syntax.clone();
+        let mut roots = self.root_items.clone();
+        roots.relocate(&syntax.relocate_unit(source_id, generation)?);
+        Ok((syntax, roots))
+    }
+
     pub fn root_items(&self) -> &[ItemHandle] {
         &self.root_items
     }

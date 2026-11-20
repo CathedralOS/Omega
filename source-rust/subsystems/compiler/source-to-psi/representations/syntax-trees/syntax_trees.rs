@@ -194,28 +194,6 @@ impl SyntaxTrees {
         self.tables.begin_page(generation);
     }
 
-    /// Joins a copy of `unit` as a new page of this forest under the
-    /// admitted `source_id`, returning the unit's root items in this forest.
-    /// The copy is the parse of the same bytes this forest would have made:
-    /// only its page generation and source identity differ from the
-    /// retained unit, and both are moved before the page joins.
-    pub fn adopt_unit(
-        &mut self,
-        unit: &crate::source_files::ParsedUnit,
-        source_id: SourceId,
-    ) -> Result<Vec<ItemHandle>, &'static str> {
-        let generation = u32::try_from(self.page_count())
-            .ok()
-            .and_then(|count| count.checked_add(1))
-            .ok_or("syntax page identity overflow")?;
-        let mut page = unit.syntax.clone();
-        let mut root_items = unit.root_items.clone();
-        let relocation = page.relocate_unit(source_id, generation)?;
-        root_items.relocate(&relocation);
-        self.adopt_page(page);
-        Ok(root_items)
-    }
-
     /// Moves a standalone single-page forest, parsed under private source
     /// coordinates, to the admitted `source_id` and to `generation`, a page
     /// the receiving forest has not used. A forest with more than one page,

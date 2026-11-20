@@ -51,15 +51,6 @@ pub use prepared_typed_trees_to_lowered_program::lowering::source_roster::{
     SourceProgramEntryInput,
 };
 
-#[path = "pipeline/01_tokens-to-syntax-trees/parsed_files.rs"]
-pub(crate) mod source_syntax;
-pub use source_syntax::{
-    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
-    SourceInput, SourceItems, SourceSyntax,
-};
-#[path = "pipeline/01_tokens-to-syntax-trees/streaming.rs"]
-pub(crate) mod source_parsing;
-
 pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
 pub use crate::source_preparation::{ProductRepresentationInput, SourcePreparationFailure};
 #[cfg(not(any(test, feature = "test-support")))]

@@ -4,7 +4,7 @@ Start with [source_to_psi.rs](source_to_psi.rs). It takes the selected source fi
 
 | Steps | What happens |
 | --- | --- |
-| 00-01 | [Lex and parse](pipeline/01_tokens-to-syntax-trees/streaming.rs) each file while its tokens are available. |
+| 00-01 | [Lex and parse](parse_files.rs) each file while its tokens are available. |
 | 02-03 | [Resolve names and type the program](source_continuation.rs). |
 | 04 | [Prepare the typed trees](pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) after the driver [settles the source inputs](source_preparation.rs). |
 | 05-06 | [Lower the prepared trees](pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) and [check the lowered program](source_judgment.rs). |
