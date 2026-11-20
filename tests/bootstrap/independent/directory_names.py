@@ -171,6 +171,25 @@ machine main()->u8 {
     yield "cross-file-record-cycle", packet, struct.pack("<BII", 0, 2, coordinate)
 
 
+    # Both Part declarations have the same fields. Only the owner selected
+    # by Outer's own import can initialize its field.
+    caller = (b"use types\\Outer;use types\\pass;use left\\Part;machine main()->u8{"
+              b"let p:Part=Part{value:42};let x:Outer=Outer{part:p};let y:Outer=pass(x);"
+              b"let saved:Part=y.part;saved.value}")
+    relay = b"public machine pass(x:Outer)->Outer{x}"
+    part = b"public data Part [copy]{value:u8;}"
+    paths = ["main.omg", "types/pass.omg", "types/outer.omg", "left/part.omg", "right/part.omg"]
+    for module in (b"left", b"right"):
+        owner = b"use " + module + b"\\Part;public data Outer [copy]{part:Part;}"
+        units = [(0, source) for source in (caller, relay, owner, part, part)]
+        packet, _, _, rows = encode([("app", 0)], [], units, 0, b"main", paths=paths)
+        if module == b"left":
+            yield "field-declaring-scope", packet, 42
+        else:
+            coordinate = rows[0][1] + caller.index(b"machine main")
+            yield "different-nominal-field-owner", packet, struct.pack("<BII", 0, 1, coordinate)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("constructor", type=Path)
