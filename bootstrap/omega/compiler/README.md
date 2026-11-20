@@ -63,10 +63,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 23,665 lines / 888,791 bytes with SHA-256
-`0b0d7b7775f21742a2ca9b5d7c074dee3bda9667cdc69c5ea3ec175d9f1827b4`.
+manifest materializes 23,688 lines / 889,434 bytes with SHA-256
+`414e55404566f962b3f043155e521670b41367ca4857e77c43d73dc8fd0ad9ff`.
 The manifest itself is 1,698 bytes, SHA-256
-`1e1dd90c5342f1d3246d27849db0dcf4df0a86aa76c0243eceab48e38763d73b`;
+`34506b6ab2374f5f4cdd92f6ce4dfd033b74c9a8dc446a1a0763469e113a9ce0`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -275,6 +275,12 @@ and [terminal calls](../../../wiki/spec/language/state_contracts.md#terminal-cal
 
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
+
+A fixed-array type names the parser row that holds its element type and length.
+`omega_fixed_array_type` places plain arrays in `[200000, 300000)` and Trapping
+arrays in `[300000, 400000)`. `fixed_array_row` checks the decoded row against
+the parser's live count before a consumer reads it. The public parser admits
+at most 16,384 type rows.
 
 Records retain declaration identity, field qualification and copy/affine
 multiplicity. The current layout gives every scalar an eight-byte word and
