@@ -958,8 +958,8 @@ contributes nothing to this key: adding a comparison to `Degrees` changes
 neither its key nor which result overload a caller selects.
 
 The expected result-domain set must equal one declared set; without an
-expected result, lookup selects the empty set. There is no search for a
-provable predicate, most-specific refinement or nearest domain subset.
+expected result, lookup selects the empty set. [Generic calls](generics.md#inferring-operand-types-from-a-generic-result) can supply this expectation.
+Lookup never searches for a provable predicate, most-specific refinement or nearest domain subset.
 A flow fact or a result `ensures` clause adds no qualification to the key.
 Only afterward check predicates and ordinary compatibility.
 

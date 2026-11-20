@@ -51,15 +51,15 @@ impl IntegerIndex {
     pub(crate) fn depends_on_unsupplied_parameter(
         &self,
         declaration: &DeclarationId,
-        supplied: usize,
+        bindings: &[Option<ValueType>],
     ) -> bool {
         let mut terms = vec![self];
         while let Some(term) = terms.pop() {
             match term {
-                Self::Binder { owner, index } if owner.as_ref() == declaration && *index >= supplied => return true,
+                Self::Binder { owner, index } if owner.as_ref() == declaration && bindings[*index].is_none() => return true,
                 Self::Add(children) | Self::Multiply(children) => terms.extend(children),
                 Self::Primitive { carrier, operands, .. } => {
-                    if carrier.depends_on_unsupplied_parameter(declaration, supplied) {
+                    if carrier.depends_on_unsupplied_parameter(declaration, bindings) {
                         return true;
                     }
                     terms.extend(operands);
@@ -67,7 +67,7 @@ impl IntegerIndex {
                 Self::Deferred { arguments, .. }
                     if arguments
                         .iter()
-                        .any(|argument| argument.depends_on_unsupplied_parameter(declaration, supplied)) =>
+                        .any(|argument| argument.depends_on_unsupplied_parameter(declaration, bindings)) =>
                 {
                     return true;
                 }

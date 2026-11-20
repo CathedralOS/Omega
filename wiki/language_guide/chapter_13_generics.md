@@ -37,6 +37,12 @@ machine identity<T>(value: T) -> T {
 let number: u32 = identity::<u32>(42);
 ```
 
+The destination can also fix `T`. Suppose `encode(value)` has two overloads
+returning `u8` and `u8 in WireByte`. In
+`let byte: u8 in WireByte = identity(encode(value));`, the annotation fixes
+`T` to `u8 in WireByte`, so the inner call selects the second overload.
+Writing `identity::<u8 in WireByte>(encode(value))` makes that choice explicit.
+
 A body can only do with a `T` what its header says is possible. Copying
 needs `[copy]`:
 

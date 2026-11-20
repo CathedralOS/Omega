@@ -5,10 +5,62 @@ use crate::{TypeError, TypedSignature, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
 
+struct CallBindings {
+    arguments: Vec<ValueType>,
+    known: Vec<Option<ValueType>>,
+}
+
+impl CallBindings {
+    fn from_explicit(
+        arguments: Vec<ValueType>,
+        explicit: usize,
+    ) -> Self {
+        let mut known: Vec<_> = arguments[..explicit].iter().cloned().map(Some).collect();
+        known.resize(arguments.len(), None);
+        Self { arguments, known }
+    }
+
+    /// Commit only bindings recovered by a successful structural match.
+    fn with_result(
+        &self,
+        result: &ValueType,
+        destination: &ValueType,
+        owner: &DeclarationId,
+    ) -> Option<Self> {
+        if self.known.iter().all(Option::is_some) {
+            return None;
+        }
+        let mut known = self.known.clone();
+        if !result.infer(destination, owner, &mut known) || known == self.known {
+            return None;
+        }
+        let arguments = known
+            .iter()
+            .zip(&self.arguments)
+            .map(|(bound, formal)| bound.as_ref().unwrap_or(formal).clone())
+            .collect();
+        Some(Self { arguments, known })
+    }
+
+    fn operand_type(
+        &self,
+        formal: &ValueType,
+        owner: &DeclarationId,
+    ) -> Option<ValueType> {
+        // In a recursive call a supplied argument can name a binder of this same
+        // declaration. Check availability before substituting caller types.
+        if !self.known.is_empty() && formal.depends_on_unsupplied_parameter(owner, &self.known) {
+            return None;
+        }
+        Some(formal.substitute(owner, &self.arguments))
+    }
+}
+
 struct CallCandidate<'signature, 'expected> {
     declaration: &'signature DeclarationId,
     signature: &'signature TypedSignature,
-    formals: Vec<ValueType>,
+    bindings: CallBindings,
+    possible_bindings: Vec<CallBindings>,
     result_destination: Option<&'expected ValueType>,
     ordinary_lookup: bool,
     prospective_lookup: bool,
@@ -19,27 +71,17 @@ impl CallCandidate<'_, '_> {
         &self,
         position: usize,
         capture: impl Fn(&ValueType) -> ValueType,
-        explicit: usize,
         subjects: &[ValueType],
     ) -> Option<ValueType> {
-        // An explicit argument can name a binder in the caller even when
-        // the caller and callee are the same generic declaration.
-        let formal = capture(&self.signature.parameters[position].1);
-        if explicit != self.formals.len() && formal.depends_on_unsupplied_parameter(self.declaration, explicit) {
-            return None;
-        }
-        Some(
-            formal
-                .substitute(self.declaration, &self.formals)
-                .instantiate_subjects(self.signature, subjects),
-        )
+        self.bindings
+            .operand_type(&capture(&self.signature.parameters[position].1), self.declaration)
+            .map(|ty| ty.instantiate_subjects(self.signature, subjects))
     }
 
     fn prospective_subjects(
         &self,
         body: &BodyTyper<'_, '_>,
         capture: impl Fn(&ValueType) -> ValueType + Copy,
-        explicit: usize,
         operands: &[CallOperand],
     ) -> Vec<ValueType> {
         // A possible context can give an anonymous operand its carrier.
@@ -47,7 +89,7 @@ impl CallCandidate<'_, '_> {
         // Only the ordinary match can publish subjects or select a declaration.
         let mut subjects = Vec::with_capacity(operands.len());
         for (position, operand) in operands.iter().enumerate() {
-            let formal = self.available_operand_type(position, capture, explicit, &subjects);
+            let formal = self.available_operand_type(position, capture, &subjects);
             subjects.push(operand.subject(body.unit, formal.as_ref().unwrap_or(&operand.value)));
         }
         subjects
@@ -57,19 +99,15 @@ impl CallCandidate<'_, '_> {
         &self,
         body: &BodyTyper<'_, '_>,
         capture: impl Fn(&ValueType) -> ValueType,
-        explicit: usize,
         operands: &[CallOperand],
         subjects: &[ValueType],
     ) -> Option<(Vec<Option<ValueType>>, PendingComparisons)> {
-        let mut bindings = vec![None; self.formals.len()];
-        for (i, ty) in self.formals[..explicit].iter().enumerate() {
-            bindings[i] = Some(ty.clone());
-        }
+        let mut bindings = self.bindings.known.clone();
         let indices = &body.catalog.types.indices;
         let mut pending = PendingComparisons::default();
         for (position, ((_, parameter), operand)) in self.signature.parameters.iter().zip(operands).enumerate() {
             let formal = capture(parameter)
-                .substitute(self.declaration, &self.formals)
+                .substitute(self.declaration, &self.bindings.arguments)
                 .instantiate_subjects(self.signature, subjects);
             if !body.infer_operand_with(NodeKind::Call, position, operand, &formal, self.declaration, &mut bindings, &mut |a, b| {
                 pending.compare(indices, a, b)
@@ -220,7 +258,8 @@ impl BodyTyper<'_, '_> {
                     continue;
                 }
             };
-            let result = capture(&signature.result).substitute(id, &formals);
+            let declared_result = capture(&signature.result);
+            let result = declared_result.substitute(id, &formals);
             let wanted = expected.map_or(&[][..], ValueType::domains);
             // An operand can determine the entire return type or an index in a
             // declared result domain. Keep that candidate until its operands bind.
@@ -232,10 +271,23 @@ impl BodyTyper<'_, '_> {
                 })
             });
             if ordinary_lookup || prospective_lookup {
+                let mut bindings = CallBindings::from_explicit(formals, explicit.len());
+                if let Some(inferred) = expected.and_then(|ty| bindings.with_result(&declared_result, ty, id)) {
+                    bindings = inferred;
+                }
+                // A pending index can change which result type is expected. These
+                // alternatives only carry that dependency to nested calls.
+                let possible_bindings = pending_destination
+                    .into_iter()
+                    .filter(|_| prospective_lookup)
+                    .flat_map(|pending| pending.types())
+                    .filter_map(|ty| bindings.with_result(&declared_result, ty, id))
+                    .collect();
                 prepared.push(CallCandidate {
                     declaration: id,
                     signature,
-                    formals,
+                    bindings,
+                    possible_bindings,
                     result_destination: domain_destination,
                     ordinary_lookup,
                     prospective_lookup,
@@ -252,18 +304,24 @@ impl BodyTyper<'_, '_> {
         let mut subjects = Vec::new();
         let mut available_types = Vec::new();
         for (position, &arg) in source.nodes[args].children.iter().enumerate() {
-            let parameters = prepared
-                .iter()
-                .map(|candidate| candidate.available_operand_type(position, capture, explicit.len(), &subjects));
             available_types.clear();
             let mut all_parameters_available = true;
-            for parameter in parameters {
-                match parameter {
-                    Some(ty) => available_types.push(ty),
-                    None => all_parameters_available = false,
+            let mut pending_inputs = conditional_inputs;
+            for candidate in &prepared {
+                if let Some(ty) = candidate.available_operand_type(position, capture, &subjects) {
+                    available_types.push(ty);
+                } else {
+                    all_parameters_available = false;
+                    let formal = capture(&candidate.signature.parameters[position].1);
+                    for bindings in &candidate.possible_bindings {
+                        if let Some(ty) = bindings.operand_type(&formal, candidate.declaration) {
+                            available_types.push(ty.instantiate_subjects(candidate.signature, &subjects));
+                            pending_inputs = pending_destination;
+                        }
+                    }
                 }
             }
-            let argument_destination = if let Some(pending) = conditional_inputs {
+            let argument_destination = if let Some(pending) = pending_inputs {
                 pending.conditional(&available_types)
             } else if all_parameters_available {
                 Destination::common(&available_types, indices)
@@ -274,12 +332,12 @@ impl BodyTyper<'_, '_> {
                 && !operands.is_empty()
                 && prepared.iter().all(|candidate| {
                     candidate
-                        .match_operands(self, capture, explicit.len(), &operands, &subjects)
+                        .match_operands(self, capture, &operands, &subjects)
                         .is_none()
                         && !(conditional_inputs.is_some() && candidate.prospective_lookup && {
-                            let possible_subjects = candidate.prospective_subjects(self, capture, explicit.len(), &operands);
+                            let possible_subjects = candidate.prospective_subjects(self, capture, &operands);
                             candidate
-                                .match_operands(self, capture, explicit.len(), &operands, &possible_subjects)
+                                .match_operands(self, capture, &operands, &possible_subjects)
                                 .is_some()
                         })
                 })
@@ -303,7 +361,7 @@ impl BodyTyper<'_, '_> {
         let mut matches = Vec::new();
         let mut waiting = false;
         for candidate in prepared {
-            let matched = candidate.match_operands(self, capture, explicit.len(), &operands, &subjects);
+            let matched = candidate.match_operands(self, capture, &operands, &subjects);
             if let Some(destination) = pending_destination {
                 if destination.has_domains()
                     && candidate.ordinary_lookup
@@ -318,8 +376,8 @@ impl BodyTyper<'_, '_> {
                     let possible_subjects;
                     let possible_match;
                     let (result_subjects, possible_operands) = if conditional_inputs.is_some() {
-                        possible_subjects = candidate.prospective_subjects(self, capture, explicit.len(), &operands);
-                        possible_match = candidate.match_operands(self, capture, explicit.len(), &operands, &possible_subjects);
+                        possible_subjects = candidate.prospective_subjects(self, capture, &operands);
+                        possible_match = candidate.match_operands(self, capture, &operands, &possible_subjects);
                         (&possible_subjects, possible_match.as_ref())
                     } else {
                         (&subjects, matched.as_ref())
@@ -330,7 +388,7 @@ impl BodyTyper<'_, '_> {
                         let result = capture(&candidate.signature.result).instantiate_subjects(candidate.signature, result_subjects);
                         if destination.permits(|ty| {
                             let mut hypothetical_bindings = bindings.clone();
-                            let inferred = infer_result(&result, ty, candidate.declaration, &candidate.formals, &mut hypothetical_bindings);
+                            let inferred = infer_result(&result, ty, candidate.declaration, &candidate.bindings.arguments, &mut hypothetical_bindings);
                             (inferred.domains() == ty.domains() || indices.can_wait_for_result_domains(&inferred, ty))
                                 && (destination.has_domains() || hypothetical_bindings.iter().all(Option::is_some))
                         }) {
@@ -345,7 +403,7 @@ impl BodyTyper<'_, '_> {
             let CallCandidate {
                 declaration: id,
                 signature,
-                formals,
+                bindings: CallBindings { arguments: formals, .. },
                 result_destination: domain_destination,
                 ordinary_lookup,
                 ..

@@ -1,4 +1,4 @@
-use crate::ValueType;
+use crate::{DomainApplication, ValueType};
 use omega_resolver::DeclarationId;
 
 impl ValueType {
@@ -69,11 +69,11 @@ impl ValueType {
     pub(crate) fn depends_on_unsupplied_parameter(
         &self,
         declaration: &DeclarationId,
-        supplied: usize,
+        bindings: &[Option<ValueType>],
     ) -> bool {
         self.components().any(|part| match part {
-            Self::Parameter { owner, index } => owner.as_ref() == declaration && *index >= supplied,
-            Self::StaticFormula { term, .. } => term.depends_on_unsupplied_parameter(declaration, supplied),
+            Self::Parameter { owner, index } => owner.as_ref() == declaration && bindings[*index].is_none(),
+            Self::StaticFormula { term, .. } => term.depends_on_unsupplied_parameter(declaration, bindings),
             _ => false,
         })
     }
@@ -346,14 +346,22 @@ impl ValueType {
             (Qualified(t, a), Qualified(v, b)) => {
                 a.len() == b.len()
                     && t.infer_with(v, owner, args, compare_pending)
-                    && a.iter().zip(b).all(|(x, y)| {
-                        x.declaration == y.declaration
-                            && x.arguments.len() == y.arguments.len()
-                            && x.arguments
-                                .iter()
-                                .zip(&y.arguments)
-                                .all(|(i, j)| i.infer_with(j, owner, args, compare_pending))
-                    })
+                    && a.chunk_by(|x, y| x.declaration == y.declaration)
+                        .zip(b.chunk_by(|x, y| x.declaration == y.declaration))
+                        .all(|(left, right)| {
+                            if left.len() != right.len() || left[0].declaration != right[0].declaration {
+                                return false;
+                            }
+                            if left.len() > 1 {
+                                return infer_repeated_domains(left, right, owner, args) || compare_pending(self, actual);
+                            }
+                            let (left, right) = (&left[0].arguments, &right[0].arguments);
+                            left.len() == right.len()
+                                && left
+                                    .iter()
+                                    .zip(right)
+                                    .all(|(i, j)| i.infer_with(j, owner, args, compare_pending))
+                        })
             }
             (Applied(id, a), Applied(id2, b)) => {
                 id == id2
@@ -368,6 +376,43 @@ impl ValueType {
             _ => self.admits(actual) || compare_pending(self, actual),
         }
     }
+}
+
+/// Multiple applications of one domain form an unordered set. Only a unique
+/// partner can supply bindings; canonical display order cannot pair indices.
+fn infer_repeated_domains(
+    formals: &[DomainApplication],
+    actuals: &[DomainApplication],
+    owner: &DeclarationId,
+    bindings: &mut [Option<ValueType>],
+) -> bool {
+    let mut remaining: Vec<_> = formals.iter().collect();
+    let mut available: Vec<_> = actuals.iter().collect();
+    while !remaining.is_empty() {
+        let mut selected = None;
+        for (position, formal) in remaining.iter().enumerate() {
+            let mut matches = available.iter().enumerate().filter_map(|(index, actual)| {
+                let mut inferred = bindings.to_vec();
+                let compatible = formal.arguments.len() == actual.arguments.len()
+                    && formal
+                        .arguments
+                        .iter()
+                        .zip(&actual.arguments)
+                        .all(|(pattern, ty)| pattern.infer(ty, owner, &mut inferred));
+                compatible.then_some((index, inferred))
+            });
+            let Some((index, inferred)) = matches.next() else { return false };
+            if matches.next().is_none() {
+                selected = Some((position, index, inferred));
+                break;
+            }
+        }
+        let Some((position, index, inferred)) = selected else { return false };
+        bindings.clone_from_slice(&inferred);
+        remaining.swap_remove(position);
+        available.swap_remove(index);
+    }
+    true
 }
 
 /// Pair each field component with the value that supplies its type.

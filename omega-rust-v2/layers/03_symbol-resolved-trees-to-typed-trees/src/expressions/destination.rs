@@ -107,6 +107,10 @@ pub(super) struct PendingDestination<'a> {
 }
 
 impl<'a> PendingDestination<'a> {
+    pub(super) fn types(self) -> &'a [ValueType] {
+        self.types
+    }
+
     pub(super) fn permits(
         self,
         mut accepts: impl FnMut(&ValueType) -> bool,
