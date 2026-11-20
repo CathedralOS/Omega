@@ -220,7 +220,6 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `BuildInputs`/`BuildSource`/`BuildOutput`.
   - Extend the [checked Build frame](source-rust/subsystems/compiler/source-to-psi/build_invocation/stages/frame.rs) to carry aggregate homes beyond dependency registrations, projected and reassigned loans, and proof bindings into the newly mounted scope. These bindings currently keep their original program alive until their last use. Carry predicates on floating-point values and arithmetic expressions such as `next == start + 1` across a change of scope.
-  - Stage top-level helpers in the package's Build sources. The first stage still demands them all, so a helper in another Build file that only uses a dependency after preparation fails on the unknown name.
   - A preparation that is not a top-level statement of the entry (in a helper, a nested machine or a `transition` arm) prepares its dependency and gives no stage any name.
   - A provider installed by `Build::await_provider` in one stage is not installed in a later one.
   - Preparing a registration made with `Build::dependency` is refused; a Product dependency used from a Build stage is an unknown name there, and the scope diagnostic is only given for an unused Build import once the Build has run.

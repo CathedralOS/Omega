@@ -12,6 +12,7 @@ use symbols::SymbolHandle;
 pub struct SelectedBuildMachine {
     receiver: super::build_receiver::BuildReceiver,
     returned_scalars: Box<[source_compiler::ReturnedScalarFact]>,
+    has_next_stage: bool,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -39,6 +40,10 @@ impl SelectedBuildMachine {
     /// Only these admitted frame homes can carry a toolchain dependency-registration marker.
     pub fn registration_frame_positions(&self) -> impl Iterator<Item = u32> + '_ {
         self.receiver.registration_frame_positions()
+    }
+
+    pub fn has_next_stage(&self) -> bool {
+        self.has_next_stage
     }
 
     pub fn returned_scalars(&self) -> &[source_compiler::ReturnedScalarFact] {
@@ -90,6 +95,12 @@ pub fn admit_build_machine(
             "prepared Build program lost its selected entry",
         )]
     })?;
+    let has_next_stage = typed.roots.partial_build_entry.is_some();
+    if has_next_stage != stage.next_index().is_some() {
+        return Err(vec![Diagnostic::error(
+            "Build stage plan disagrees with its checked source about whether the entry continues",
+        )]);
+    }
     let machine_name = machine.name.as_str().to_owned();
     let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine, stage)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -127,6 +138,7 @@ pub fn admit_build_machine(
     };
     Ok(SelectedBuildMachine {
         receiver,
+        has_next_stage,
         returned_scalars: prepared.closure().returned_scalars().into(),
         symbol: machine_symbol,
         name: machine_name,

@@ -627,6 +627,23 @@ pub mod type_system {
                 self.nodes.type_references.get(handle)
             }
 
+            pub fn unresolved_source_names(
+                &self,
+            ) -> impl Iterator<Item = source_text::SourceSpan> + '_ {
+                self.nodes.type_references.iter().filter_map(|(_, node)| {
+                    let (symbol, name) = match node {
+                        TypeReferenceNode::Named { symbol, name } => (symbol, name),
+                        TypeReferenceNode::Generic {
+                            base_symbol,
+                            base_name,
+                            ..
+                        } => (base_symbol, base_name),
+                        _ => return None,
+                    };
+                    (!symbol.is_valid() && name.is_source_backed()).then(|| name.source_span())
+                })
+            }
+
             pub fn type_reference_handles(
                 &self,
                 span: HandleSpan<TypeReferenceHandle>,
