@@ -8,6 +8,19 @@ use std::process::Command;
 /// dependency `kit`. `before` runs before the Build waits for `kit`, `after`
 /// runs after it, and `value` is what the dependency's `v()` returns.
 fn check(name: &str, before: &str, after: &str, value: i32) -> (bool, String) {
+    check_with_dependency_build(name, before, after, value, "", &["--check", "main.omg"])
+}
+
+fn check_with_dependency_build(
+    name: &str,
+    before: &str,
+    after: &str,
+    value: i32,
+    dependency_body: &str,
+    arguments: &[&str],
+) -> (bool, String) {
+    let target = target::TargetProfile::host_if_supported().expect("a hosted test target");
+    let target = target.target_name();
     let root = std::env::temp_dir().join(format!(
         "omega-build-staged-dependency-calls-{}-{name}",
         std::process::id()
@@ -31,7 +44,7 @@ suspends
     suspend Build::prepare_dependency(builder, kit_registered);
 {after}
     machine carried(builder: @mut Build) {{
-        Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+        Build::bind(builder, {target}\\ProgramEntry, main);
     }}
     machine wrong(builder: @mut Build) {{
         Build::application(builder, \"second_role\");
@@ -47,10 +60,13 @@ machine register(builder: @mut Build, request: DependencyDescription) -> Depende
     .expect("staged Build");
     std::fs::write(
         root.join("dep/build.omg"),
-        "machine build(builder: @mut Build) {
+        format!(
+            "machine build(builder: @mut Build) {{
     Build::package(builder, \"kit_package\");
-}
-",
+{dependency_body}
+}}
+"
+        ),
     )
     .expect("staged dependency Build");
     std::fs::write(
@@ -63,8 +79,7 @@ machine hidden() -> i32 {{ 7 }}
     )
     .expect("staged dependency source");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
+        .args(arguments)
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()
@@ -72,7 +87,11 @@ machine hidden() -> i32 {{ 7 }}
     let _ = std::fs::remove_dir_all(&root);
     (
         output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ),
     )
 }
 
@@ -99,6 +118,10 @@ fn the_value_after_the_wait_is_the_one_the_dependency_returns() {
     let (compiled, stderr) = check("other-value", "", &after("kit\\v"), 8);
     assert!(!compiled);
     assert!(stderr.contains("project role"), "{stderr}");
+    assert!(
+        stderr.contains("while resuming the Build after dependency preparation"),
+        "{stderr}"
+    );
 }
 
 #[test]
@@ -149,6 +172,26 @@ fn the_build_uses_a_loan_then_calls_the_newly_visible_dependency_after_one_wait(
         7,
     );
     assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn registration_and_a_mutable_local_survive_the_same_preparation() {
+    let after_wait = format!(
+        "    $held = 7;\n    builder.tests.disabled = amount == 7;\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
+        after("kit\\v")
+    );
+    let (ran, report) = check_with_dependency_build(
+        "registration-and-mutable-local",
+        "    let mut amount: i32 = 3;\n    let held: @mut i32 = @mut amount;",
+        &after_wait,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
 }
 
 #[test]
@@ -254,6 +297,12 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
         )),
         "{stderr}"
     );
+    assert!(
+        stderr.contains(
+            "during lowered-form checking while resuming the Build after dependency preparation"
+        ),
+        "{stderr}"
+    );
     let location = stderr.lines().map(str::trim).find_map(|line| {
         line.strip_prefix("in package `staged`, ")
             .and_then(|position| position.strip_suffix(":14:22"))
@@ -266,6 +315,42 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     assert!(
         location.is_some_and(|path| std::path::Path::new(path).ends_with(&expected_path)),
         "the refusal identifies the call through a Product-only dependency: {stderr}"
+    );
+}
+
+#[test]
+fn a_dependency_build_error_reports_the_childs_source() {
+    let (compiled, stderr) = check_with_dependency_build(
+        "invalid-dependency-build",
+        "",
+        &after("kit\\v"),
+        7,
+        "    unknown();",
+        &["--check", "main.omg"],
+    );
+    assert!(!compiled);
+    assert!(
+        stderr.contains("this call has no visible declaration in its source scope"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("during lowered-form checking while preparing the dependency"),
+        "{stderr}"
+    );
+    let prefix =
+        "machine build(builder: @mut Build) {\n    Build::package(builder, \"kit_package\");\n    ";
+    assert!(
+        stderr.contains(&format!(
+            "source bytes {}..{}",
+            prefix.len(),
+            prefix.len() + "unknown".len()
+        )),
+        "{stderr}"
+    );
+    let expected = std::path::Path::new("dep").join("build.omg");
+    assert!(
+        stderr.contains(&format!("{}:3:5", expected.display())),
+        "{stderr}"
     );
 }
 

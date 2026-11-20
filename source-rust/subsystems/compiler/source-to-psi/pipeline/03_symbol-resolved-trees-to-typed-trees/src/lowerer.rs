@@ -760,6 +760,9 @@ pub(crate) mod seeded_continuation {
             resolved
                 .evidence_forwardings
                 .retain(|row| selection.contains(row.machine_symbol));
+            resolved
+                .generic_binding_overlaps
+                .retain(|row| selection.contains(row.machine));
             let symbols = typed
                 .symbols
                 .clone()
@@ -1821,10 +1824,46 @@ fn complete_retained_machine_body(
     Ok(())
 }
 
+fn check_generic_binding_overlaps(
+    source: &SymbolResolvedTrees,
+    typed: &TypedTrees,
+) -> Result<(), Diagnostic> {
+    use crate::source_state::data::TypeParameterKind;
+    use crate::source_state::types::TypeReferenceNode;
+
+    for overlap in &source.generic_binding_overlaps {
+        let parameter = typed
+            .data_type_parameter_by_symbol(overlap.parameter)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "a binding overlaps a generic parameter with no typed declaration",
+                )
+                .with_source_span(overlap.binding)
+            })?;
+        let (TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference }) = parameter.kind
+        else {
+            continue;
+        };
+        let bound = typed.type_reference_table.type_reference(type_reference);
+        if matches!(bound, TypeReferenceNode::Generic { base_symbol, .. }
+            if typed.symbols.universe_sort_for_symbol(*base_symbol).is_some())
+        {
+            continue;
+        }
+        let name = typed.symbols.name(overlap.parameter);
+        return Err(Diagnostic::error(format!(
+            "binding `{name}` conflicts with an existing name: a static value with this name is still visible"
+        )).with_source_span(overlap.binding));
+    }
+    Ok(())
+}
+
 pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
+    check_generic_binding_overlaps(lowerer.source_trees, &lowerer.typed_trees)?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::typing::runtime_callables::bind_calls(

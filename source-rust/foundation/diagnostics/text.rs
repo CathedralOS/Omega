@@ -46,6 +46,18 @@ pub fn write_one_diagnostic(
 }
 
 pub(crate) fn write_location(writer: &mut impl fmt::Write, diagnostic: &Diagnostic) -> fmt::Result {
+    if let Some(context) = diagnostic.build_context {
+        if let Some(stage) = diagnostic.stage {
+            write!(
+                writer,
+                "\n    during {} while {}",
+                stage.label(),
+                context.label()
+            )?;
+        } else {
+            write!(writer, "\n    while {}", context.label())?;
+        }
+    }
     if let Some(location) = &diagnostic.resolved_location {
         match &location.package {
             Some(package) => write!(
@@ -62,7 +74,17 @@ pub(crate) fn write_location(writer: &mut impl fmt::Write, diagnostic: &Diagnost
                 location.line,
                 location.column
             ),
+        }?;
+        if diagnostic.build_context.is_some()
+            && let Some(source) = diagnostic.source_span
+        {
+            write!(
+                writer,
+                "\n    source bytes {}..{}",
+                source.span.start, source.span.end
+            )?;
         }
+        Ok(())
     } else if let Some(location) = diagnostic.source_span {
         write!(
             writer,

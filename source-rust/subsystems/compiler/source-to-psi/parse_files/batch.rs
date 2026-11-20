@@ -99,17 +99,17 @@ pub(super) fn parse(
     });
     for page in single_page_sources.iter_mut().chain(&mut pages) {
         if let Some(error) = page.lexical_error.take() {
-            return Err(vec![error]);
+            return Err(diagnostics::DiagnosticStage::Lexing.attribute(vec![error]));
         }
     }
     for page in single_page_sources.iter_mut().chain(&mut pages) {
         if let Some(error) = page.parse_error.take() {
-            return Err(vec![error]);
+            return Err(diagnostics::DiagnosticStage::Parsing.attribute(vec![error]));
         }
     }
     for page in single_page_sources.iter_mut().chain(&mut pages) {
         if let Some(error) = page.reuse_error.take() {
-            return Err(vec![error]);
+            return Err(diagnostics::DiagnosticStage::Parsing.attribute(vec![error]));
         }
     }
     let mut parsed = Arena::with_capacity(count);

@@ -538,6 +538,7 @@ impl Lowerer {
             semantic_domains,
             external_bindings,
             evidence_forwardings,
+            generic_binding_overlaps,
             pending_token_shape_comparisons,
             resolution_indexes: _,
         } = self.symbol_resolved_trees;
@@ -548,6 +549,7 @@ impl Lowerer {
         trees.semantic_domains = semantic_domains;
         trees.external_bindings = external_bindings;
         trees.evidence_forwardings = evidence_forwardings;
+        trees.generic_binding_overlaps = generic_binding_overlaps;
         trees.pending_token_shape_comparisons = pending_token_shape_comparisons;
         trees
     }

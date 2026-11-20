@@ -358,10 +358,11 @@ fn crossings_are_stated(
         semantic_vocabulary::OperationId,
     )],
 ) -> Checked<()> {
-    use terminal_semantics::suspension_frontier::{call_plan, call_site};
+    use terminal_semantics::suspension_frontier::{MachineFrontiers, call_site};
     let module = &elaboration.module;
     let mut stated = 0usize;
     for machine in &module.machines {
+        let mut frontiers = None;
         for operation in machine.operations() {
             let site = Construct::Operation(operation.id);
             let owed = expected.contains(&(machine.id, operation.id));
@@ -383,7 +384,9 @@ fn crossings_are_stated(
                 ));
             }
             stated += 1;
-            let plan = call_plan(module, machine, operation.id, crossing)
+            let plan = frontiers
+                .get_or_insert_with(|| MachineFrontiers::new(module, machine))
+                .call_plan(operation.id, crossing)
                 .map_err(|reason| fault(machine.id, site, reason))?;
             let mut plans = module
                 .execution.suspension_call_plans

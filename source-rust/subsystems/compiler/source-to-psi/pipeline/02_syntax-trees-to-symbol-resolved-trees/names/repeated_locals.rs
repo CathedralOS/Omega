@@ -7,24 +7,23 @@
 //! the patterns retain the authored names and their diagnostic spans.
 
 use super::scopes::DeclarationTypeScopes;
-use crate::source_resolved::SymbolResolvedTrees;
-use crate::source_resolved::data::TypeParameterKind;
 use crate::source_resolved::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, MatchFieldAction, MatchPattern,
     TableDestructurePattern,
 };
 use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::statement::{Statement, TransitionGuard, TransitionTarget};
-use crate::source_resolved::types::TypeReference;
+use crate::source_resolved::{GenericBindingOverlap, SymbolResolvedTrees};
 use diagnostics::Diagnostic;
 
-pub(super) fn reject_repeated_local_names(
+pub(super) fn check_bindings(
     program: &SymbolResolvedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<GenericBindingOverlap>, Vec<Diagnostic>> {
     let symbols = &program.symbols;
     let declarations = &program.tables.declarations;
     let expressions = &program.tables.bodies.expressions;
     let mut diagnostics = Vec::new();
+    let mut overlaps = Vec::new();
     let inherited = DeclarationTypeScopes::of(program)?;
     for definition in program.machines.iter() {
         if !definition.symbol.is_valid() {
@@ -46,36 +45,25 @@ pub(super) fn reject_repeated_local_names(
                 program.data_type_parameters(data.type_parameters),
             );
         }
-        let static_values: Vec<_> = visible
-            .iter()
-            .filter_map(|binder| {
-                let (TypeParameterKind::Const { type_reference }
-                | TypeParameterKind::Value { type_reference }) = &binder.kind
-                else {
-                    return None;
-                };
-                let mut reference = type_reference;
-                while let TypeReference::AliasUse { expansion, .. } = reference {
-                    reference = expansion;
-                }
-                if let TypeReference::Generic(generic) = reference
-                    && generic.base_symbol.is_valid()
-                    && symbols
-                        .universe_sort_for_symbol(generic.base_symbol)
-                        .is_some()
-                {
-                    return None;
-                }
-                Some(binder.name.as_str().to_owned())
-            })
-            .collect();
+        let mut record_overlap = |name: &DiagnosticName| {
+            if let Some(parameter) = visible
+                .iter()
+                .find(|binder| binder.name.as_str() == name.as_str())
+            {
+                overlaps.push(GenericBindingOverlap {
+                    machine: definition.symbol,
+                    parameter: parameter.symbol,
+                    binding: name.source_span(),
+                });
+            }
+        };
         for &state_handle in program.machine_state_handles(definition.states) {
             let state = program.machine_state(state_handle);
             if !state.symbol.is_valid() {
                 continue;
             }
             let state_name = symbols.name(state.symbol);
-            let mut declared = static_values.clone();
+            let mut declared = Vec::new();
             for parameter in declarations
                 .state_parameters
                 .span_or_empty(state.parameters)
@@ -84,19 +72,13 @@ pub(super) fn reject_repeated_local_names(
                     continue;
                 }
                 let name = symbols.name(parameter.symbol);
-                if static_values.iter().any(|earlier| earlier == name) {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "parameter `{name}` conflicts with an existing name: a static value with this name is still visible"
-                        ))
-                        .with_source_span(parameter.name.source_span()),
-                    );
-                }
+                record_overlap(&parameter.name);
                 declared.push(name.to_owned());
             }
             let parameter_count = declared.len();
             let mut arms = ArmBindings {
                 expressions,
+                record_overlap: &mut record_overlap,
                 declared,
                 machine,
                 state_name,
@@ -114,6 +96,7 @@ pub(super) fn reject_repeated_local_names(
                     continue;
                 }
                 let name = symbols.name(local.symbol);
+                (arms.record_overlap)(&local.name);
                 let shadowed = arms.declared.iter().position(|earlier| earlier == name);
                 arms.declared.push(name.to_owned());
                 if let Some(position) = shadowed {
@@ -136,7 +119,7 @@ pub(super) fn reject_repeated_local_names(
         }
     }
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(overlaps)
     } else {
         Err(diagnostics)
     }
@@ -147,6 +130,7 @@ pub(super) fn reject_repeated_local_names(
 /// arm, pushed on entry to the arm and popped on exit.
 struct ArmBindings<'walk> {
     expressions: &'walk ExpressionTable,
+    record_overlap: &'walk mut dyn FnMut(&DiagnosticName),
     declared: Vec<String>,
     machine: &'walk str,
     state_name: &'walk str,
@@ -311,6 +295,7 @@ impl ArmBindings<'_> {
     /// arm were refused by the parser.
     fn bind(&mut self, names: Vec<DiagnosticName>) {
         for binding in names {
+            (self.record_overlap)(&binding);
             let name = binding.as_str();
             if self.declared.iter().any(|bound| bound == name) {
                 let (machine, state_name) = (self.machine, self.state_name);

@@ -15,7 +15,7 @@
 
 use semantic_vocabulary::SuspensionCrossingId;
 use terminal_psi::TerminalModule;
-use terminal_semantics::suspension_frontier::{call_may_suspend, call_plan, call_site};
+use terminal_semantics::suspension_frontier::{MachineFrontiers, call_may_suspend, call_site};
 
 /// Marks every possibly suspending call operation of `module` with a
 /// crossing, in machine, block and operation order, and publishes its site
@@ -44,13 +44,16 @@ pub(crate) fn publish_crossings(module: &mut TerminalModule) -> Result<(), &'sta
             Some(crossing);
     }
     let mut plans = Vec::with_capacity(crossings.len());
-    for (machine, block, position) in &crossings {
-        let machine = &module.machines[*machine];
-        let operation = &machine.blocks[*block].operations[*position];
-        let crossing = operation
-            .suspension_crossing
-            .ok_or("a suspension crossing was not recorded on its operation")?;
-        plans.push(call_plan(module, machine, operation.id, crossing)?);
+    for group in crossings.chunk_by(|left, right| left.0 == right.0) {
+        let machine = &module.machines[group[0].0];
+        let frontiers = MachineFrontiers::new(module, machine);
+        for &(_, block, position) in group {
+            let operation = &machine.blocks[block].operations[position];
+            let crossing = operation
+                .suspension_crossing
+                .ok_or("a suspension crossing was not recorded on its operation")?;
+            plans.push(frontiers.call_plan(operation.id, crossing)?);
+        }
     }
     plans.sort_by_key(|plan| (plan.operation, plan.crossing));
     let sites = plans.iter().map(|plan| call_site(module, plan)).collect();

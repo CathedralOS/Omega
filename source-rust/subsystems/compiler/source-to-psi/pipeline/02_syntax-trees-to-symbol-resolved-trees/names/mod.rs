@@ -549,7 +549,9 @@ pub(crate) fn assign_body_symbols(
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     private_nested_calls::reject_private_nested_calls(&lowerer.symbol_resolved_trees)?;
-    repeated_locals::reject_repeated_local_names(&lowerer.symbol_resolved_trees)
+    lowerer.symbol_resolved_trees.generic_binding_overlaps =
+        repeated_locals::check_bindings(&lowerer.symbol_resolved_trees)?;
+    Ok(())
 }
 
 #[cfg(any(test, feature = "test-support"))]

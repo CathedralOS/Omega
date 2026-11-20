@@ -1,13 +1,15 @@
 //! The source driver lowers the frozen program, checks that exact input, then
 //! gives the publisher the resulting source-bound judgment.
 use crate::{AcceptedTerminalSource, SourceCompilationRoster, TerminalSourceCompilation};
-use diagnostics::Diagnostic;
+use diagnostics::{Diagnostic, DiagnosticStage};
 use lowered_program_to_checked_program::checking::judge_publication;
 use optimization::PsiOptimizationSelections;
+use prepared_typed_trees_to_lowered_program::lowering::{
+    LoweredSourcePublication, PreparedTypedTrees,
+};
 #[cfg(any(test, feature = "test-support"))]
 use std::sync::Arc;
 use typed_trees::source_state::FrozenTypedTrees;
-use prepared_typed_trees_to_lowered_program::lowering::{LoweredSourcePublication, PreparedTypedTrees};
 
 /// Typed source with its constant inputs materialized. An authored Build settles those
 /// inputs using its source consent and sponsorship. A nested call arrives with its
@@ -31,8 +33,10 @@ impl SettledSource<'_> {
 
     pub(crate) fn freeze(self) -> Result<FrozenSource, crate::SourcePreparationFailure> {
         let result = (|| {
-            let program = crate::preparation::prepare_typed_trees(self.program, self.wire_demands)?;
-            let constants = constant_reads(&program, self.demanded_constants)?;
+            let program = crate::preparation::prepare_typed_trees(self.program, self.wire_demands)
+                .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
+            let constants = constant_reads(&program, self.demanded_constants)
+                .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
             Ok((program, constants))
         })();
         match result {
@@ -123,8 +127,11 @@ pub fn judge_terminal_source(
     compilation: TerminalSourceCompilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-    let input = LoweredSourcePublication::prepare(source, compilation, publication)?;
-    AcceptedTerminalSource::from_judgment(judge_publication(input)?)
+    let input = LoweredSourcePublication::prepare(source, compilation, publication)
+        .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
+    let judgment =
+        judge_publication(input).map_err(|rows| DiagnosticStage::Checking.attribute(rows))?;
+    AcceptedTerminalSource::from_judgment(judgment)
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -132,8 +139,12 @@ pub fn judge_source_roster(
     roster: SourceCompilationRoster,
     source: PreparedTypedTrees,
 ) -> Result<Arc<AcceptedTerminalSource>, Vec<Diagnostic>> {
-    let input = roster.lower_for_publication(source)?;
-    AcceptedTerminalSource::from_judgment(judge_publication(input)?).map(Arc::new)
+    let input = roster
+        .lower_for_publication(source)
+        .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
+    let judgment =
+        judge_publication(input).map_err(|rows| DiagnosticStage::Checking.attribute(rows))?;
+    AcceptedTerminalSource::from_judgment(judgment).map(Arc::new)
 }
 
 /// Source preparation may judge a new roster before the fixed product is published.
@@ -159,9 +170,11 @@ impl SourcePublication {
         roster: SourceCompilationRoster,
         optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let input = roster.lower_for_publication(source)?;
+        let input = roster
+            .lower_for_publication(source)
+            .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
         checked_program_to_psi::SourcePublication::from_judgment(
-            judge_publication(input)?,
+            judge_publication(input).map_err(|rows| DiagnosticStage::Checking.attribute(rows))?,
             optimizations,
         )
         .map(Self)

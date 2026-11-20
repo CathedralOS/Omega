@@ -70,6 +70,19 @@ impl CompileFailure {
         }
     }
 
+    pub fn in_build_context(mut self, context: diagnostics::BuildDiagnosticContext) -> Self {
+        if let Self::Diagnostics(rows)
+        | Self::SourceCompletion {
+            diagnostics: rows, ..
+        } = &mut self
+        {
+            for row in rows {
+                row.build_context.get_or_insert(context);
+            }
+        }
+        self
+    }
+
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::Diagnostics(diagnostics) | Self::SourceCompletion { diagnostics, .. } => diagnostics,

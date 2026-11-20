@@ -91,19 +91,36 @@ fn visible_value_binders_reject_local_shadowing() {
     for source in [
         "machine pick(current: u32, sample: u32) -> u32 { match sample { current -> current, _ -> 0u32 } }",
         "machine pick(sample: u32) -> u32 { let current: u32 = 1u32; match sample { current -> current, _ -> 0u32 } }",
-        "machine pick<const current: u32>(sample: u32) -> u32 { match sample { current -> current, _ -> 0u32 } }",
-        "machine pick<const current: u32>(sample: u32) -> u32 { let current: u32 = sample; current }",
-        "machine pick<const current: u32>(current: u32) -> u32 { current }",
         "machine pick(current: u32, sample: u32) -> u32 { transition sample { current -> current, _ -> 0u32 } }",
-        "machine pick<const current: u32>(sample: u32) -> u32 { transition (sample, sample) { (current, _) -> current, _ -> 0u32 } }",
         "machine pick(sample: u32) -> u32 { match sample { current -> match sample { current -> current } } }",
-        "data Reading { value: u32; } machine pick<const current: u32>(reading: Reading) -> u32 { match reading { Reading { value as current } -> current } }",
     ] {
         let errors = resolve_result(source).expect_err(source);
         assert!(
             errors.iter().any(|error| error.message.contains("current")
                 && error.message.contains("conflicts with an existing name")),
             "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_name_overlaps_reach_typing_with_the_binding_span() {
+    for source in [
+        "machine pick<const current: u32>(sample: u32) -> u32 { match sample { current -> current, _ -> 0u32 } }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { let current: u32 = sample; current }",
+        "machine pick<const current: u32>(current: u32) -> u32 { current }",
+        "machine pick<const current: u32>(sample: u32) -> u32 { transition (sample, sample) { (current, _) -> current, _ -> 0u32 } }",
+        "data Reading { value: u32; } machine pick<const current: u32>(reading: Reading) -> u32 { match reading { Reading { value as current } -> current } }",
+    ] {
+        let program =
+            resolve_result(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+        let [overlap] = program.generic_binding_overlaps.as_slice() else {
+            panic!("expected one generic overlap in {source}");
+        };
+        assert_eq!(program.symbols.name(overlap.parameter), "current");
+        assert_eq!(
+            &source[overlap.binding.span.start..overlap.binding.span.end],
+            "current"
         );
     }
 }

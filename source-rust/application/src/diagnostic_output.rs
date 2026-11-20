@@ -33,9 +33,13 @@ fn write_grouped_diagnostics(
 ) -> fmt::Result {
     // Few causes, many diagnostics: a linear search over the causes seen so
     // far keeps one small vector instead of a map.
-    let mut causes: Vec<(String, Vec<usize>)> = Vec::new();
+    let mut causes: Vec<(_, Vec<usize>)> = Vec::new();
     for (position, diagnostic) in diagnostics.iter().enumerate() {
-        let cause = cause_of(&diagnostic.message);
+        let cause = (
+            diagnostic.stage,
+            diagnostic.build_context,
+            cause_of(&diagnostic.message),
+        );
         match causes.iter_mut().find(|(seen, _)| *seen == cause) {
             Some((_, members)) => members.push(position),
             None => causes.push((cause, vec![position])),
