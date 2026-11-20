@@ -79,20 +79,19 @@ machine OmegaScalarCompiler::check_byte_range(
     }
     state array(collection: i32, range: OmegaRangeExpressionSyntax, array: i32) {
         transition array >= 0 {
-            true -> element(collection, range, self.parser.type_references[array])
+            true -> element(collection, range, array)
             _ -> unsupported()
         }
     }
-    state element(collection: i32, range: OmegaRangeExpressionSyntax, array: OmegaTypeReferenceSyntax) {
-        transition (self.primitive_type(source, array.payload0) == 8) && (range.end_inclusive == 0) {
-            true -> count(collection, range, array)
+    state element(collection: i32, range: OmegaRangeExpressionSyntax, array: i32) {
+        transition (self.array_element_kind(source, array) == 8) && (range.end_inclusive == 0) {
+            true -> count(collection, range, self.array_count(source, array))
             _ -> unsupported()
         }
     }
-    state count(collection: i32, range: OmegaRangeExpressionSyntax, array: OmegaTypeReferenceSyntax) {
-        self.scan_scalar_literal(source, array.payload1, array.payload2, 32);
-        transition (self.literal_status == 1) && (self.literal_value > 0) {
-            true -> bounds(collection, range, self.literal_value)
+    state count(collection: i32, range: OmegaRangeExpressionSyntax, length: i32) {
+        transition length > 0 {
+            true -> bounds(collection, range, length)
             _ -> unsupported()
         }
     }

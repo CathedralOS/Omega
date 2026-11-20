@@ -3600,7 +3600,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         let kind: i32 = self.scalar_type(source, local.type_reference);
         let array_row: i32 = self.indexable_array_row(kind, 0);
         let default_word_array: i32 = (local.has_initial_value == 0) && (array_row >= 0) &&
-            (self.scalar_type(source, self.parser.type_references[array_row].payload0) == 64);
+            (self.array_element_kind(source, array_row) == 64);
         transition ((kind > 0) && (kind != 2) && (kind < 200000)) || default_word_array {
             true -> local_name(index, state_index, statement_offset, local)
             _ -> incomplete(4, local.start)
@@ -4741,9 +4741,39 @@ machine omega_fixed_array_type(row: i32, trapping: i32) -> i32 {
 
 machine OmegaScalarCompiler::fixed_array_row(&mut self, kind: i32) -> i32 {
     let row: i32 = kind % 100000;
-    transition (kind >= 200000) && (kind < 400000) && (row < self.parser.type_reference_count) {
-        true -> return row
+    transition (kind >= 200000) && (kind < 400000) {
+        true -> local_or_retained(row)
         _ -> return -1
+    }
+    state local_or_retained(row: i32) {
+        transition (row < self.parser.type_reference_count) || ((self.construction.active == 1) &&
+            (row >= 16384) && (row < 49152)) {
+            true -> return row
+            _ -> return -1
+        }
+    }
+}
+
+// Rows below 16384 refer to local array syntax. A field declared in another
+// unit uses its checked metadata, with no name lookup in the caller.
+machine OmegaScalarCompiler::array_element_kind(&mut self, source: &[u8], array: i32) -> i32 {
+    transition array >= 16384 {
+        true -> return self.construction.arrays[array - 16384].element
+        _ -> return self.scalar_type(source, self.parser.type_references[array].payload0)
+    }
+}
+
+machine OmegaScalarCompiler::array_count(&mut self, source: &[u8], array: i32) -> i32 {
+    transition array >= 16384 {
+        true -> return self.construction.arrays[array - 16384].count
+        _ -> literal(self.parser.type_references[array])
+    }
+    state literal(row: OmegaTypeReferenceSyntax) {
+        self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
+        transition (self.literal_status == 1) && (self.literal_value > 0) {
+            true -> return self.literal_value
+            _ -> return -1
+        }
     }
 }
 
@@ -4859,7 +4889,7 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
     state array() {
         let row: i32 = self.fixed_array_row(kind);
         transition row >= 0 {
-            true -> array_row(self.parser.type_references[row])
+            true -> element(self.array_element_kind(source, row), self.array_count(source, row))
             _ -> reference()
         }
     }
@@ -4876,16 +4906,8 @@ machine OmegaScalarCompiler::type_size_inner(&mut self, source: &[u8], kind: i32
             _ -> return 0
         }
     }
-    state array_row(row: OmegaTypeReferenceSyntax) {
-        self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
-        transition (self.literal_status == 1) && (self.literal_value >= 0) {
-            true -> element(row, self.literal_value)
-            _ -> return 0
-        }
-    }
-    state element(row: OmegaTypeReferenceSyntax, count: i32) {
-        let element_kind: i32 = self.scalar_type(source, row.payload0);
-        transition (element_kind > 0) && (element_kind < 400000) && (element_kind != 2) {
+    state element(element_kind: i32, count: i32) {
+        transition (count > 0) && (element_kind > 0) && (element_kind < 400000) && (element_kind != 2) {
             true -> extent(count, self.array_element_stride(source, element_kind))
             _ -> return 0
         }
@@ -4938,12 +4960,9 @@ machine OmegaScalarCompiler::type_copy(&mut self, source: &[u8], kind: i32) -> i
     state array() {
         let row: i32 = self.fixed_array_row(kind);
         transition row >= 0 {
-            true -> element(self.parser.type_references[row].payload0)
+            true -> return self.type_copy(source, self.array_element_kind(source, row))
             _ -> return 0
         }
-    }
-    state element(index: i32) {
-        return self.type_copy(source, self.scalar_type(source, index));
     }
 }
 
@@ -6149,32 +6168,28 @@ machine OmegaScalarCompiler::index_result_type(
     state array(kind: i32, removed: i32) {
         let row: i32 = self.indexable_array_row(kind, removed);
         transition row >= 0 {
-            true -> element(self.parser.type_references[row])
+            true -> return self.copy_index_element(source, self.array_element_kind(source, row))
             _ -> return -1
         }
-    }
-    state element(row: OmegaTypeReferenceSyntax) {
-        return self.copy_index_element(source, row.payload0);
     }
 }
 
 // Use the existing checked record layout and multiplicity for both read and
 // whole-element assignment. A sum, reference or other array element remains
 // outside the fixed-array index families this compiler realizes.
-machine OmegaScalarCompiler::copy_index_element(&mut self, source: &[u8], reference: i32) -> i32 {
-    let kind: i32 = self.scalar_type(source, reference);
+machine OmegaScalarCompiler::copy_index_element(&mut self, source: &[u8], kind: i32) -> i32 {
     transition kind {
         8 -> return 8
         64 -> return 64
-        _ -> record(kind)
+        _ -> record()
     }
-    state record(kind: i32) {
+    state record() {
         transition (kind >= 100000) && (kind < 104096) {
-            true -> shape(kind, kind - 100000)
+            true -> shape(kind - 100000)
             _ -> return -1
         }
     }
-    state shape(kind: i32, declaration: i32) {
+    state shape(declaration: i32) {
         transition (self.parser.data_items[declaration].case_count == 0) &&
             (self.type_size(source, kind) > 0) && (self.type_copy(source, kind) == 1) {
             true -> return kind
@@ -6262,30 +6277,28 @@ machine OmegaScalarCompiler::check_index(
     state collection_type(base: i32, removed: i32, kind: i32) {
         let row: i32 = self.indexable_array_row(kind, removed);
         transition row >= 0 {
-            true -> array(base, removed, kind, self.parser.type_references[row])
+            true -> array(base, removed, kind, row)
             _ -> unsupported()
         }
     }
-    state array(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax) {
-        let element: i32 = self.copy_index_element(source, row.payload0);
+    state array(base: i32, removed: i32, kind: i32, row: i32) {
+        let element: i32 = self.copy_index_element(source, self.array_element_kind(source, row));
         transition element > 0 {
             true -> element_stride(base, removed, kind, row, element)
             _ -> unsupported()
         }
     }
-    state element_stride(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax, element: i32) {
+    state element_stride(base: i32, removed: i32, kind: i32, row: i32, element: i32) {
         self.index_plans[expression].element_type = element;
         self.index_plans[expression].stride = self.array_element_stride(source, element);
         transition self.index_plans[expression].stride > 0 {
-            true -> count(base, removed, kind, row)
+            true -> count(base, removed, kind, self.array_count(source, row))
             _ -> unsupported()
         }
     }
-    state count(base: i32, removed: i32, kind: i32, row: OmegaTypeReferenceSyntax) {
-        self.scan_scalar_literal(source, row.payload1, row.payload2, 32);
-        transition (self.literal_status == 1) && (self.literal_value > 0) &&
-            (self.literal_value <= 16777216 / self.index_plans[expression].stride) {
-            true -> authority(base, removed, kind, self.literal_value)
+    state count(base: i32, removed: i32, kind: i32, size: i32) {
+        transition (size > 0) && (size <= 16777216 / self.index_plans[expression].stride) {
+            true -> authority(base, removed, kind, size)
             _ -> unsupported()
         }
     }
