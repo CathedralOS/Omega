@@ -245,14 +245,14 @@ fn preparation_makes_a_product_dependency_ready_only_for_its_product() {
     )
     .unwrap();
     let root = project.path();
-    std::fs::create_dir(root.join("kit")).unwrap();
+    std::fs::create_dir(root.join("vendor")).unwrap();
     std::fs::write(
-        root.join("kit/build.omg"),
+        root.join("vendor/build.omg"),
         r#"machine build(builder: @mut Build) { Build::package(builder, "kit"); }"#,
     )
     .unwrap();
     std::fs::write(
-        root.join("kit/main.omg"),
+        root.join("vendor/main.omg"),
         "public machine value() -> i32 { 7 }",
     )
     .unwrap();
@@ -270,23 +270,26 @@ machine wrong() crashes Trap { crash Trap; }
 "#,
     )
     .unwrap();
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
     let build = r#"machine build(builder: @mut Build) suspends {
     Build::application(builder, "prepared_product");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
+    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, HOST_TARGET\ProgramEntry, main);
 }
-"#;
+"#.replace("HOST_TARGET", host.target_name());
     let invoke = |contents: &str| {
         std::fs::write(root.join("build.omg"), contents).unwrap();
         Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--both", "--target", "linux_x86_64", "build.omg"])
+            .args(["run", "--both", "build.omg"])
             .current_dir(root)
             .stdin(std::process::Stdio::null())
             .output()
             .unwrap()
     };
-    let output = invoke(build);
+    let output = invoke(&build);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

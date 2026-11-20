@@ -79,6 +79,30 @@ mod tests {
     }
 
     #[test]
+    fn a_product_query_selects_the_alias_in_the_requesting_sources_scope() {
+        use source_provenance::DependencyScope::{Build, Product};
+        let product = graph(
+            1,
+            package(1, "product_library", "public machine value() {}"),
+        );
+        let build = graph(2, package(2, "build_library", "public machine value() {}"));
+        let product_only =
+            ProductQueryInputs::new(None, vec![dependency("kit", product.clone())]).unwrap();
+        assert!(product_only.mounted_for(Build, "kit").is_none());
+        let both = product_only
+            .with_prepared_build_dependencies(vec![dependency("kit", build.clone())])
+            .unwrap();
+        assert_eq!(
+            both.mounted_for(Build, "kit").unwrap().inputs.root(),
+            build.root()
+        );
+        assert_eq!(
+            both.mounted_for(Product, "kit").unwrap().inputs.root(),
+            product.root()
+        );
+    }
+
+    #[test]
     fn query_graphs_require_consistent_shared_source_custody() {
         let original = graph(1, package(1, "query_library", "original"));
         ProductQueryInputs::new(
@@ -306,21 +330,12 @@ impl ProductQueryInputs {
         self.with_consistent_sources()
     }
 
-    /// The same routing with `build_dependencies` also mounted for the
-    /// root's Build sources. A query asked by a later stage of a staged
-    /// Build is answered on such a frontier: its author may be a source of a
-    /// package that stage calls, and must be found there. A build dependency
-    /// the query already mounts under the same alias is mounted once.
+    /// Build sources in a query keep the dependencies prepared by their own
+    /// activation. A Product registration may use the same alias for another package.
     pub fn with_prepared_build_dependencies(
         mut self,
-        mut build_dependencies: Vec<ProductQueryDependency>,
+        build_dependencies: Vec<ProductQueryDependency>,
     ) -> Result<Self, String> {
-        build_dependencies.retain(|prepared| {
-            !self
-                .dependencies
-                .iter()
-                .any(|mounted| mounted.alias == prepared.alias)
-        });
         let original = &self.original;
         for (position, dependency) in build_dependencies.iter().enumerate() {
             if dependency.alias.is_empty()
@@ -366,28 +381,17 @@ impl ProductQueryInputs {
         &self.build_dependencies
     }
 
-    /// The mounted dependency a source of the unbound root selects by
-    /// `alias`. A query's dependencies are selectable from every source of
-    /// the root, as they were before stages: a Build names the provider it
-    /// waits for through one. What a stage mounts is selectable from Build
-    /// sources only, so a Product source loaded with the stage gains nothing
-    /// from the Build's preparations: "Product dependencies supply no
-    /// callable Build authority", and the reverse
-    /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts").
     fn mounted_for(
         &self,
         scope: source_provenance::DependencyScope,
         alias: &str,
     ) -> Option<&ProductQueryDependency> {
-        let staged: &[ProductQueryDependency] = match scope {
-            source_provenance::DependencyScope::Product => &[],
-            source_provenance::DependencyScope::Build => {
-                &self.build_dependencies
-            }
+        let dependencies = match scope {
+            source_provenance::DependencyScope::Build => &self.build_dependencies,
+            source_provenance::DependencyScope::Product => &self.dependencies,
         };
-        self.dependencies
+        dependencies
             .iter()
-            .chain(staged)
             .find(|dependency| dependency.alias == alias)
     }
 
