@@ -44,7 +44,7 @@ The bootstrap compiler's job is to build the **Omega compiler** (C in older
 records), the product written in Omega.
 Construction of the full product and its reproducible self-build remain open.
 The product uses a deliberate subset of Omega while preserving the language's
-semantics and explicit refusals. [Product Psi](../source/psi) · [Product Omega](../source/omega)
+semantics and explicit refusals. [Omega compiler and libraries](../source)
 
 A host Rust toolchain builds the Rust comparator, which can compile Omega
 sources during development. Record that dependency when reporting a

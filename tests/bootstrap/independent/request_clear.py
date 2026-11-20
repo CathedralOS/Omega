@@ -36,7 +36,7 @@ def main() -> None:
     args = argparse.ArgumentParser(description=__doc__)
     args.add_argument("evaluator", type=Path)
     evaluator = args.parse_args().evaluator.resolve()
-    product = (ROOT / "source/omega/application/ocreq/request.omg").read_bytes()
+    product = (ROOT / "source/subsystems/compiler/request/request.omg").read_bytes()
     # Stop after the complete clear declaration. Staging and decoding have
     # their own product gate and require a larger bootstrap language subset.
     clear_start = product.index(b"public machine clear(")

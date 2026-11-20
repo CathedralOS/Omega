@@ -1,0 +1,60 @@
+// Read one sealed OCREQ V1 request and publish its OCOUT frame and exit tag.
+use omega::language::core::ProcessExit;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use compiler_request::Outcome;
+use compiler_request::Request;
+use compiler_request::clear;
+use compiler_request::compile_request;
+use compiler_request::frame_byte;
+use compiler_request::frame_length;
+use compiler_request::outcome_tag_value;
+use compiler_request::request_stage;
+
+machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
+    let mut request: Request;
+    clear(@mut request);
+    transition { _ -> block read(@mut request) }
+
+    machine read(request: @mut Request) {
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Byte { value } -> block stage(request, value),
+            _ -> publish(request)
+        }
+    }
+
+    machine stage(request: @mut Request, value: i32)
+    requires value >= 0 && value <= 255
+    {
+        request_stage(request, value as u8);
+        transition { _ -> block read(request) }
+    }
+
+    machine publish(request: @Request) {
+        let outcome: Outcome = compile_request(request);
+        write_frame(outcome);
+        let tag: u8 = outcome_tag_value(outcome.tag);
+        ProcessExit::exit_process(tag as i32);
+    }
+}
+
+machine write_frame(outcome: Outcome) reaches Console crashes Trap {
+    transition { _ -> next(outcome, 0 as +Trapping) }
+
+    machine next(outcome: Outcome, index: u64 in Trapping) {
+        let length: u64 in Trapping = frame_length(outcome);
+        transition index < length {
+            true -> write(outcome, index),
+            _ -> done()
+        }
+    }
+
+    machine write(outcome: Outcome, index: u64 in Trapping) {
+        let value: u8 = frame_byte(outcome, index);
+        Console::write_byte(value as i32);
+        transition { _ -> next(outcome, index + 1) }
+    }
+
+    machine done() {}
+}

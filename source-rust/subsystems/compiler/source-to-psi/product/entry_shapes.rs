@@ -6,16 +6,13 @@ use crate::source_state::product_operand::core_arrival_requirement;
 use crate::RootBinding;
 use diagnostics::Diagnostic;
 
-/// Retain every executed binding's visible calling shape, including rows for
-/// targets this invocation does not realize. Source custody names the core
-/// semantic arrival requirement; physical admission stays with the selected
-/// target, so an inactive row does not demand its package acceptance. The physical schema,
-/// accepted package digest, backing and effect/resource checks still belong to
-/// their existing admission paths; a shape receipt grants none of those.
+/// Resolve every bound slot's owner and name. Only deployed entries project
+/// their calling shape and address model onto the semantic arrival requirement.
 pub fn bound_program_entry_shapes(
     typed: &TypedTrees,
     bindings: &[RootBinding],
     targets: &[crate::product::source_targets::SourceTarget],
+    calling_targets: &[&str],
 ) -> Result<Vec<BoundCallableShape>, Vec<Diagnostic>> {
     let mut shapes = Vec::with_capacity(bindings.len());
     for binding in bindings {
@@ -33,6 +30,9 @@ pub fn bound_program_entry_shapes(
                     binding.slot
                 )));
             }
+            if !calling_targets.contains(&profile.name) {
+                return Ok(None);
+            }
             let (requirement_owner, requirement) =
                 core_arrival_requirement(typed, slot.semantic_arrival_requirement)
                     .map_err(Diagnostic::error)?;
@@ -49,7 +49,7 @@ pub fn bound_program_entry_shapes(
                     .collect(),
             };
             let implementation = binding.implementation_symbol;
-            Ok(BoundCallableShape {
+            Ok(Some(BoundCallableShape {
                 slot: binding.slot.clone(),
                 arrival_description: match slot.visible_parameters {
                     semantic_vocabulary::ProgramEntryVisibleParameters::None => {
@@ -75,10 +75,11 @@ pub fn bound_program_entry_shapes(
                 .map_err(Diagnostic::error)?,
                 visible_parameters,
                 address_model: profile.address_model.clone(),
-            })
+            }))
         })();
         match resolved {
-            Ok(shape) => shapes.push(shape),
+            Ok(Some(shape)) => shapes.push(shape),
+            Ok(None) => {}
             Err(mut diagnostic) => {
                 if let Some(span) = binding.source_span {
                     diagnostic = diagnostic.with_source_span(span);

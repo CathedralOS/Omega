@@ -1,0 +1,424 @@
+use representations::checks::CheckDiagnosticCode;
+use representations::checks::checks_reject;
+use representations::source_files::SourceSpan;
+use representations::symbol_resolved_trees::BinderContract;
+use representations::symbol_resolved_trees::NameResolution;
+use representations::symbol_resolved_trees::binder_contract;
+use representations::syntax_trees::Clause;
+use representations::syntax_trees::ClauseKind;
+use representations::syntax_trees::Contract;
+use representations::syntax_trees::DataItem;
+use representations::syntax_trees::Expression;
+use representations::syntax_trees::MachineItem;
+use representations::syntax_trees::SyntaxTrees;
+use representations::syntax_trees::machine_item;
+use representations::syntax_trees::syntax_trees_clause;
+use representations::syntax_trees::syntax_trees_contract;
+use representations::syntax_trees::syntax_trees_data_item;
+use representations::typed_trees::Selection;
+use representations::typed_trees::TypeKind;
+use representations::typed_trees::TypeRow;
+use representations::typed_trees::Typing;
+use representations::typed_trees::typing_expression_type;
+
+// Contract facts (wiki/spec/language/state_contracts.md). A body assumes
+// its `requires` facts: its callers and predecessors established them. A
+// call or state jump owes its target's `requires` facts, decided with each
+// target parameter standing for its argument's value. Every normal return
+// owes its machine's `ensures` facts with `result` standing for the
+// returned value, and after a call its callee's `ensures` facts hold of the
+// call's result and arguments (wiki/spec/language/state_contracts.md
+// #returns-and-proof-use). Only a typed fact
+// carries its meaning, so an untyped one is neither assumed nor proved.
+
+// The clauses and parameters a call's callee declares: a machine's own, or
+// a machine binder's `requires machine` contract's (wiki/spec/language/
+// generics.md#static-machine-binder-categories). A binder without a contract
+// and every other selection declare none.
+public data CallClauses [copy] {
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    has_return_type: bool;
+    return_type: u64 in Trapping;
+}
+
+public machine call_clauses(syntax: @SyntaxTrees, resolution: @NameResolution, selection: Selection) -> CallClauses
+crashes Trap
+{
+    transition selection {
+        Selection::Machine { handle } -> declared(syntax, handle),
+        Selection::Binder { parameter } -> bound(syntax, resolution, parameter),
+        _ -> none()
+    }
+
+    machine declared(syntax: @SyntaxTrees, handle: u64 in Trapping) -> CallClauses {
+        let item: MachineItem = machine_item(syntax, handle);
+        CallClauses { first_clause: item.first_clause, clause_count: item.clause_count, first_parameter: item.first_parameter, parameter_count: item.parameter_count, has_return_type: item.has_return_type, return_type: item.return_type }
+    }
+
+    machine bound(syntax: @SyntaxTrees, resolution: @NameResolution, parameter: u64 in Trapping) -> CallClauses {
+        let contract: BinderContract = binder_contract(resolution, parameter);
+        transition contract.present {
+            true -> contracted(syntax, contract.contract),
+            _ -> none()
+        }
+    }
+
+    machine contracted(syntax: @SyntaxTrees, handle: u64 in Trapping) -> CallClauses {
+        let written: Contract = syntax_trees_contract(syntax, handle);
+        CallClauses { first_clause: written.first_clause, clause_count: written.clause_count, first_parameter: written.first_parameter, parameter_count: written.parameter_count, has_return_type: written.has_return_type, return_type: written.return_type }
+    }
+
+    machine none() -> CallClauses {
+        CallClauses { first_clause: 0, clause_count: 0, first_parameter: 0, parameter_count: 0, has_return_type: false, return_type: 0 }
+    }
+}
+
+// Whether a clause run holds a clause of `kind`.
+public machine declares(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, kind: ClauseKind) -> bool
+crashes Trap
+{
+    transition { _ -> next(syntax, first, first + count, kind) }
+
+    machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> bool {
+        transition index < end {
+            true -> clause(syntax, index, end, kind),
+            _ -> absent()
+        }
+    }
+
+    machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> bool {
+        let clause: Clause = syntax_trees_clause(syntax, index);
+        transition clause.kind == kind {
+            true -> present(),
+            _ -> next(syntax, index + 1, end, kind)
+        }
+    }
+
+    machine present() -> bool {
+        true
+    }
+
+    machine absent() -> bool {
+        false
+    }
+}
+
+// Whether a type, through references, is data whose declaration carries
+// `requires` facts.
+public machine checker_constrained(syntax: @SyntaxTrees, typing: @Typing, type_handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = referent_row(typing, type_handle);
+    transition row.kind == TypeKind::Data {
+        true -> data(syntax, row.item),
+        _ -> unconstrained()
+    }
+
+    machine data(syntax: @SyntaxTrees, item_handle: u64 in Trapping) -> bool {
+        let item: DataItem = syntax_trees_data_item(syntax, item_handle);
+        let required: bool = declares(syntax, item.first_clause, item.clause_count, ClauseKind::Requires);
+        transition required {
+            true -> carries(),
+            _ -> unconstrained()
+        }
+    }
+
+    machine carries() -> bool {
+        true
+    }
+
+    machine unconstrained() -> bool {
+        false
+    }
+}
+
+// Whether a clause's fact has been typed: only a typed fact's literals and
+// names carry their meaning, so an untyped one is neither assumed nor
+// proved.
+machine typed_fact(typing: @Typing, clause: Clause) -> bool
+crashes Trap
+{
+    transition clause.has_expression {
+        true -> typed(typing, clause.expression),
+        _ -> untyped()
+    }
+
+    machine typed(typing: @Typing, root: u64 in Trapping) -> bool {
+        let fact_type: u64 in Trapping = typing_expression_type(typing, root);
+        fact_type == typing.boolean
+    }
+
+    machine untyped() -> bool {
+        false
+    }
+}
+
+// Assume a body's `requires` facts as it opens: its callers and
+// predecessors established them.
+public machine assume_requirements(
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping
+)
+crashes Trap
+{
+    let assumed: bool = decide_facts(checker, syntax, resolution, typing, first_clause, clause_count, ClauseKind::Requires, false);
+}
+
+// A normal return owes its machine's `ensures` facts, `result` standing for
+// the returned value.
+public machine require_guarantees(
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
+    returned: Value,
+    source_span: SourceSpan
+)
+crashes Trap
+{
+    let item: MachineItem = machine_item(syntax, checker.machine);
+    let returning: bool = checker.returning;
+    let previous: Value = checker.returned;
+    checker.returning = true;
+    checker.returned = returned;
+    let held: bool = decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Ensures, true);
+    checker.returning = returning;
+    checker.returned = previous;
+    transition held {
+        true -> done(),
+        _ -> unproven(checker, source_span)
+    }
+
+    machine unproven(checker: @mut Checker, source_span: SourceSpan) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::GuaranteeUnproven, source_span);
+    }
+
+    machine done() {}
+}
+
+// After a call its callee's `ensures` facts hold, `result` standing for the
+// call's result and each parameter for its argument's value. An exclusive
+// argument's place was released by the call, so a fact about it describes
+// what the callee left there.
+public machine assume_guarantees(
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
+    clauses: CallClauses,
+    call: Expression,
+    result: Value
+)
+crashes Trap
+{
+    let returning: bool = checker.returning;
+    let previous: Value = checker.returned;
+    checker.returning = true;
+    checker.returned = result;
+    let assumed: bool = decide_call_facts(checker, syntax, resolution, typing, clauses, call, ClauseKind::Ensures, false);
+    checker.returning = returning;
+    checker.returned = previous;
+}
+
+// Decide a call's or jump's target facts of `kind`: while they are decided,
+// each target parameter stands for its argument's value at the call.
+public machine decide_call_facts(
+    checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution,
+    typing: @Typing, clauses: CallClauses, call: Expression, kind: ClauseKind,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    let mut arguments: ArgumentValues;
+    capture_call_arguments(checker, syntax, call, @mut arguments);
+    decide_bound_facts(checker, syntax, resolution, typing, clauses, @arguments, kind, proving)
+}
+
+// The next fact clause of `kind` at or after `index` in a clause run ending
+// at `end` (`index` is `end` when none is left), and whether it typed.
+public data FactClause [copy] {
+    index: u64 in Trapping;
+    fact: u64 in Trapping;
+    typed: bool;
+}
+
+machine fact_clause(syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause
+crashes Trap
+{
+    transition { _ -> next(syntax, typing, index, end, kind) }
+
+    machine next(syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause {
+        transition index < end {
+            true -> clause(syntax, typing, index, end, kind),
+            _ -> found(end, 0, false)
+        }
+    }
+
+    machine clause(syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause {
+        let clause: Clause = syntax_trees_clause(syntax, index);
+        let typed: bool = typed_fact(typing, clause);
+        transition clause.kind == kind && clause.has_expression {
+            true -> found(index, clause.expression, typed),
+            _ -> next(syntax, typing, index + 1, end, kind)
+        }
+    }
+
+    machine found(index: u64 in Trapping, fact: u64 in Trapping, typed: bool) -> FactClause {
+        FactClause { index: index, fact: fact, typed: typed }
+    }
+}
+
+// Decide each fact of `kind` in a clause run: assume it, or, when
+// `proving`, report whether every one is proved. An untyped fact is not
+// assumed and is never proved.
+public machine decide_facts(
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping,
+    kind: ClauseKind,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, kind, proving) }
+
+    machine next(
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        kind: ClauseKind,
+        proving: bool
+    ) -> bool {
+        let clause: FactClause = fact_clause(syntax, typing, index, end, kind);
+        transition clause.index < end {
+            true -> fact(checker, syntax, resolution, typing, clause, end, kind, proving),
+            _ -> answer(true)
+        }
+    }
+
+    machine fact(
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
+        clause: FactClause,
+        end: u64 in Trapping,
+        kind: ClauseKind,
+        proving: bool
+    ) -> bool {
+        let holds: bool = clause.typed && decide_fact(checker, syntax, resolution, typing, clause.fact, proving);
+        transition holds || !proving {
+            true -> next(checker, syntax, resolution, typing, clause.index + 1, end, kind, proving),
+            _ -> answer(false)
+        }
+    }
+
+    machine answer(held: bool) -> bool {
+        held
+    }
+}
+
+// Decide a declared domain's predicates, its `requires` facts, as trees: a
+// membership inside them is an unknown Boolean, so deciding a membership
+// through its domain never recurs.
+public machine decide_predicates(
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, proving) }
+
+    machine next(
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        proving: bool
+    ) -> bool {
+        let clause: FactClause = fact_clause(syntax, typing, index, end, ClauseKind::Requires);
+        transition clause.index < end {
+            true -> fact(checker, syntax, resolution, typing, clause, end, proving),
+            _ -> answer(true)
+        }
+    }
+
+    machine fact(
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
+        clause: FactClause,
+        end: u64 in Trapping,
+        proving: bool
+    ) -> bool {
+        let holds: bool = clause.typed && decide_tree(checker, syntax, resolution, typing, clause.fact, proving);
+        transition holds || !proving {
+            true -> next(checker, syntax, resolution, typing, clause.index + 1, end, proving),
+            _ -> answer(false)
+        }
+    }
+
+    machine answer(held: bool) -> bool {
+        held
+    }
+}
+
+machine set_argument(checker: @mut Checker, offset: u64 in Trapping, value: Value)
+crashes Trap
+{
+    transition offset < 64 {
+        true -> write(checker, offset, value),
+        _ -> invalid()
+    }
+
+    machine write(checker: @mut Checker, offset: u64 in Trapping, value: Value)
+    requires offset < 64
+    {
+        checker.arguments[offset] = value;
+    }
+
+    machine invalid() {
+        crash Trap;
+    }
+}
+
+// The value a substituted parameter stands for.
+public machine argument_value(checker: @Checker, offset: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition offset < checker.argument_count && offset < 64 {
+        true -> read(checker, offset),
+        _ -> invalid()
+    }
+
+    machine read(checker: @Checker, offset: u64 in Trapping) -> Value
+    requires offset < 64
+    {
+        checker.arguments[offset]
+    }
+
+    machine invalid() -> Value {
+        crash Trap;
+    }
+}

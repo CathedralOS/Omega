@@ -1,0 +1,21 @@
+public data NumericBase [copy] {
+    case Binary;
+    case Octal;
+    case Decimal;
+    case Hexadecimal;
+}
+
+// The fixed-integer carrier an integer literal's suffix names. `None` is no
+// suffix; `Unknown` is a suffix that names no carrier, which typing rejects.
+public data IntegerSuffix [copy] {
+    case None;
+    case U8;
+    case U16;
+    case U32;
+    case U64;
+    case I8;
+    case I16;
+    case I32;
+    case I64;
+    case Unknown;
+}

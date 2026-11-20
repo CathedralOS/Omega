@@ -55,7 +55,7 @@ for required in \
   "$OMEGA_PATH_OMEGA_COMPILER" \
   "$OMEGA_PATH_PROOFS" \
   "$OMEGA_REPO_ROOT/source/library" \
-  "$OMEGA_REPO_ROOT/source/psi"
+  "$OMEGA_REPO_ROOT/source/subsystems/compiler/source_to_psi"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done
@@ -145,11 +145,12 @@ do
 done
 
 tracked_source_roots=$(owner_roots source)
-expected_source_roots='library
-omega
-psi'
+expected_source_roots='application
+foundation
+library
+subsystems'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
-  fail "tracked final-source owners differ from library, Psi, and Omega"
+  fail "unexpected product source owners: $tracked_source_roots"
 
 # Numbered owners belong to the interpreted variant. Other bootstrap roots
 # are independent peers and establish their own inventories and trust boundary.

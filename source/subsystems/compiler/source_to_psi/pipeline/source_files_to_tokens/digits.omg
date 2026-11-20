@@ -1,0 +1,81 @@
+use representations::tokens::NumericBase;
+
+// The value of a hexadecimal digit; 4294967295 when `byte` is not one.
+machine hex_digit_value(byte: u32 in Trapping) -> u32 in Trapping crashes none {
+    transition byte >= 48 && byte <= 57 {
+        true -> decimal(byte),
+        _ -> lower(byte)
+    }
+    machine decimal(byte: u32 in Trapping) -> u32 in Trapping
+    crashes none
+    requires byte >= 48
+    { byte - 48 }
+
+    machine lower(byte: u32 in Trapping) -> u32 in Trapping crashes none {
+        transition byte >= 97 && byte <= 102 {
+            true -> lower_yes(byte),
+            _ -> upper(byte)
+        }
+    }
+
+    machine lower_yes(byte: u32 in Trapping) -> u32 in Trapping
+    crashes none
+    requires byte >= 97
+    { byte - 87 }
+
+    machine upper(byte: u32 in Trapping) -> u32 in Trapping crashes none {
+        transition byte >= 65 && byte <= 70 {
+            true -> upper_yes(byte),
+            _ -> none()
+        }
+    }
+
+    machine upper_yes(byte: u32 in Trapping) -> u32 in Trapping
+    crashes none
+    requires byte >= 65
+    { byte - 55 }
+
+    machine none() -> u32 in Trapping crashes none { 4294967295 as +Trapping }
+}
+
+// Whether `byte` is a digit of `base`.
+machine lexer_digit_in_base(byte: u32 in Trapping, base: NumericBase) -> bool {
+    transition base {
+        NumericBase::Binary -> binary(byte),
+        NumericBase::Octal -> octal(byte),
+        NumericBase::Decimal -> decimal(byte),
+        NumericBase::Hexadecimal -> hex(byte)
+    }
+    machine binary(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 49 { true -> true, _ -> false } }
+    machine octal(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 55 { true -> true, _ -> false } }
+    machine decimal(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 57 { true -> true, _ -> false } }
+    machine hex(byte: u32 in Trapping) -> bool {
+        transition byte >= 48 && byte <= 57 {
+            true -> true,
+            _ -> hex_alpha(byte)
+        }
+    }
+    machine hex_alpha(byte: u32 in Trapping) -> bool {
+        transition byte >= 65 && byte <= 70 {
+            true -> true,
+            _ -> hex_lower(byte)
+        }
+    }
+    machine hex_lower(byte: u32 in Trapping) -> bool { transition byte >= 97 && byte <= 102 { true -> true, _ -> false } }
+}
+
+// A digit byte's value; the caller has checked it is a digit of its base.
+machine lexer_digit_value(byte: u32 in Trapping) -> u64 in Wrapping {
+    let value: u64 in Wrapping = ((byte as -Trapping) as u64) as +Wrapping;
+    transition byte <= 57 {
+        true -> answer(value - 48),
+        _ -> letter(value, byte)
+    }
+    machine letter(value: u64 in Wrapping, byte: u32 in Trapping) -> u64 in Wrapping {
+        transition byte >= 97 {
+            true -> answer(value - 87),
+            _ -> answer(value - 55)
+        }
+    }
+    machine answer(value: u64 in Wrapping) -> u64 in Wrapping { value }
+}

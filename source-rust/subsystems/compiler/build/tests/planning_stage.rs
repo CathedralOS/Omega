@@ -111,7 +111,13 @@ fn authored_build_returns_its_application_and_target_bindings() {
     assert_eq!(source.selections.policy.native_bindings.len(), 4);
     assert!(source.selections.native_bindings.evaluation.is_some());
     let computed = &product.evaluated().configuration;
-    assert_eq!(computed.root_binding_requests.len(), 4);
+    assert_eq!(computed.root_binding_requests.len(), 5);
+    assert!(
+        computed
+            .root_binding_requests
+            .iter()
+            .any(|binding| binding.slot == "alpha_bootstrap::ProgramEntry")
+    );
     assert_eq!(computed.native_binding_requests.len(), 4);
     for (target, syscall) in [("linux_x86_64", 39), ("linux_arm64", 172)] {
         let binding = computed
@@ -134,6 +140,10 @@ fn authored_build_returns_its_application_and_target_bindings() {
     let artifact = output.retained_native_artifact().unwrap();
     assert!(artifact.image().output().bytes.starts_with(b"\x7fELF"));
     let module = artifact.psi_artifact().semantic_module();
+    let [entry] = module.interfaces.program_entry_contracts.as_slice() else {
+        panic!("the selected Linux entry must be the only published physical entry");
+    };
+    assert_eq!(entry.target, "linux_x86_64");
     let [boundary] = module.interfaces.boundary_machines.as_slice() else {
         panic!("getpid must be the only reached native requirement");
     };

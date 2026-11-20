@@ -1,0 +1,6 @@
+machine build(builder: @mut Build) {
+    Build::package(builder, "compiler_alpha");
+    let psi: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../source_to_psi"
+    }));
+}

@@ -1,0 +1,31 @@
+// One packed internal memory layout for every retained monomorphic type.
+// This is an Alpha execution representation, not a foreign ABI or a new
+// serialized artifact. Byte arrays stay byte arrays; loads and stores must
+// use their exact layout width, including at allocation boundaries.
+public data ScalarLayoutKind [copy] {
+    case Absent;
+    case Unit;
+    case Scalar;
+    case Reference;
+    case Record;
+    case Array;
+}
+
+public data ScalarLayout [copy] {
+    kind: ScalarLayoutKind;
+    size: u64 in Trapping;
+    // Array element or reference referent type handle; zero otherwise.
+    inner: u64 in Trapping;
+    length: u64 in Trapping;
+}
+
+public machine scalar_layout_at(program: @ScalarProgram, handle: u64 in Trapping) -> ScalarLayout
+crashes Trap
+{
+    transition handle < program.layout_count && handle < 8192 {
+        true -> read(program, handle),
+        _ -> invalid()
+    }
+    machine read(program: @ScalarProgram, handle: u64 in Trapping) -> ScalarLayout { program.layouts[(handle) as -Trapping] }
+    machine invalid() -> ScalarLayout { crash Trap; }
+}

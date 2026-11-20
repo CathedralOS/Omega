@@ -34,7 +34,7 @@ closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRA
 | `*.epsilon` | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
-under [`../../source/omega/`](../../../source/omega) does not declare a support
+under [the hosted application](../../../source/application/ocreq) does not declare a support
 list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 
@@ -287,7 +287,7 @@ any executable bytes are published.
 
 The `--omega-storage` customer takes exact SourceId, SourceUnit, ModulePath,
 `source_unit_clear`, `source_unit_append`, `source_unit_byte_or_nul` and
-`module_path_append` declarations from `source/psi/foundation/source.omg`, adds
+`module_path_append` declarations from `source/subsystems/compiler/source_to_psi/representations/source_files/source.omg`, adds
 `storage_controls.omg`, and executes the emitted result. The real private
 helpers now state their existing guarded bounds explicitly and remove the
 array-shell policy through checked shared/mutable views. The customer checks
@@ -304,7 +304,7 @@ python3 tests/bootstrap/compiled_vm/source_test.py --omega-storage
 
 The `--omega-control` source-built customer extracts the exact canonical
 `is_identifier_start` and `is_identifier_continue` declarations from
-`source/psi/pipeline/00_source_files_to_tokens.omg`, adds the checked-in boundary-calling wrapper, compiles
+`source/subsystems/compiler/source_to_psi/pipeline/source_files_to_tokens/lexer.omg`, adds the checked-in boundary-calling wrapper, compiles
 them with this bootstrap compiler, and executes the emitted tape. Its companion
 source-owned controls exercise parallel transfers, skipped looping operands,
 nested comparisons, type/arity/range/grammar refusals and reset behavior:

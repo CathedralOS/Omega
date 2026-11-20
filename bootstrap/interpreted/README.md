@@ -26,7 +26,7 @@ preserves their bytes.
 
 The executable upper edge constructs exercised Omega programs. Full construction
 of the product compiler and its self-rebuild remain unfinished. The product is
-[`source/{psi,omega}`](../../source/omega), rather than another implementation
+[the Omega product sources](../../source), rather than another implementation
 owned by this variant. Its implementation subset should keep bootstrap demands
 small without changing the semantics of supported Omega facilities.
 
