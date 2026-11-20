@@ -1,0 +1,13 @@
+use m\B;
+use m\A;
+
+machine result() -> i32 {
+    let item: B = B { value: A { value: 7 } };
+    item.value.value
+}
+
+data Main {}
+
+machine main(main: @mut Main) {
+    let made: i32 = result();
+}
