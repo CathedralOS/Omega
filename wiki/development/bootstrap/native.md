@@ -662,3 +662,31 @@ wall-clock budget. Neither had published a Delta module or diagnostic when
 stopped. The unequal budgets leave their relative speed unmeasured. This step
 compiles the Epsilon implementation of the bootstrap compiler. Supplying Omega
 product source to the resulting compiler would be a subsequent step.
+
+### Finding checked references while compiling the whole application
+
+The compiled Epsilon frontend reached the stock Delta byte publisher on
+the complete 852,096-byte Omega compiler and construction entry described
+above. Ordinary publication returned status 254, with empty stdout and
+stderr, after 56.45 CPU seconds, 64.86 wall seconds and 3,035,040 KiB peak RSS.
+This status identifies a result over the 4 MiB publication limit. It gives
+no exact module length.
+
+On the preceding compiler from `e45acdff0a9`, half-second instruction-pointer
+samples on that input located the cost in lowering. The 741 native function
+prologues were matched to the 741 function declarations in order in the
+source-built Gamma receipt. Between elapsed seconds 50.72 and 150.73,
+191 of 200 samples were in reference-list searches or the expression and
+pattern identity functions those searches call. The profiler stopped the
+original process at 157.84 wall seconds with no output.
+
+The compiler now builds the interpreter's source-coordinate index once after
+checking and queries it for local, field, callable and control references.
+The index limits each search to the applicable start coordinate and retains
+the original exact identity and lookup order within the bucket. The native
+compiler built by the stock predecessors was 28,537,595 bytes, SHA-256
+`414290b92745283ba88be370a5e4342a9aae1e1766734e058da220ef249d72ab`.
+The public lexer emitted the same 1,104,979-byte compiled observation as
+before. The grouped receiver control checks a call and its projections with
+a shared start and an enclosing expression with a different start.
+[Stored receiver test](../../../tests/bootstrap/independent/epsilon/storage_main.epsilon)

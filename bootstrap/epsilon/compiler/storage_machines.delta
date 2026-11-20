@@ -2,7 +2,7 @@
 ; method. Only a receiver declaration takes and retains an actual receiver.
 (def epsilon_delta_receiver_text ((context EpsilonDeltaContext) (present Bytes) (absent Bytes)) Bytes
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog references declaration)
       (match declaration
         ((EpsilonDataDeclaration start end name members) absent)
         ((EpsilonBoundaryDeclaration start end name members) absent)

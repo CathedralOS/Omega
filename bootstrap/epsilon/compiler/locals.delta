@@ -31,8 +31,8 @@
 (def epsilon_delta_local ((context EpsilonDeltaContext)
   (expression EpsilonExpression)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_local_reference expression locals)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_local_reference expression references)
         (NoEpsilonResolvedLocalReference
           (EpsilonDeltaInternal (epsilon_expression_start expression)))
         ((OneEpsilonResolvedLocalReference binding)

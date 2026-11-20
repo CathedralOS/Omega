@@ -49,6 +49,12 @@ representations.delta
 ../interpreter/checking/control/blocks.delta
 ../interpreter/checking/check.delta
 ../interpreter/execution/views/strings.delta
+../interpreter/execution/references.delta
+../interpreter/execution/references/construction.delta
+../interpreter/execution/references/lookup.delta
+../interpreter/execution/references/buckets.delta
+../interpreter/execution/references/rows.delta
+../interpreter/execution/references/control_rows.delta
 ../interpreter/checking/expressions/value_uses.delta
 ../interpreter/source.delta
 

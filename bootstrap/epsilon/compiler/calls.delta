@@ -92,8 +92,8 @@
 (def epsilon_delta_resolved_call ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (arguments EpsilonExpressionList)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_callable_reference_normalized expression callables)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_callable_reference_normalized expression references)
         (NoEpsilonResolvedCallableReference
           (EpsilonDeltaInternal (epsilon_expression_start expression)))
         ((OneEpsilonResolvedCallableReference callable)
@@ -116,8 +116,8 @@
 (def epsilon_delta_call ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (arguments EpsilonExpressionList)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_control_find_state_application expression control)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_state_application expression references)
         (NoEpsilonStateApplicationReference
           (epsilon_delta_resolved_call context expression arguments))
         ((OneEpsilonStateApplicationReference targetMachine state progress)

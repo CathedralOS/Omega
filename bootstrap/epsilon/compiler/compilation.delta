@@ -43,7 +43,8 @@
                                   (EpsilonDeltaPureRuntime (epsilon_delta_type_declarations source declarations))
                                   (EpsilonDeltaStoredRuntime (EpsilonDeltaCompiled "")))
                                 (epsilon_delta_append
-                                  (epsilon_delta_declarations source catalog declarations locals fields callables control runtime)
+                                  (epsilon_delta_declarations source catalog declarations
+                                    (epsilon_runtime_index_references (epsilon_source_length source) locals fields callables control) runtime)
                                   (match runtime
                                     (EpsilonDeltaPureRuntime (EpsilonDeltaCompiled ""))
                                     (EpsilonDeltaStoredRuntime (epsilon_delta_program_entry source catalog declarations))))))))))))))))))))
@@ -51,19 +52,16 @@
 (def epsilon_delta_declarations
   ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog)
    (declarations EpsilonDeclarationList)
-   (locals EpsilonResolvedLocalReferenceList)
-   (fields EpsilonResolvedFieldReferenceList)
-   (callables EpsilonResolvedCallableReferenceList)
-   (control EpsilonControlReferenceLedger) (runtime EpsilonDeltaRuntime)) EpsilonDeltaCompilation
+   (references EpsilonRuntimeReferences) (runtime EpsilonDeltaRuntime)) EpsilonDeltaCompilation
   (match declarations
     (NoEpsilonDeclarations (EpsilonDeltaCompiled ""))
     ((MoreEpsilonDeclarations declaration rest)
       (match (epsilon_delta_declaration
-        (EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+        (EpsilonDeltaContextAt source catalog references declaration)
         declaration runtime)
         ((EpsilonDeltaCompiled text)
           (epsilon_delta_append (EpsilonDeltaCompiled text)
-            (epsilon_delta_declarations source catalog rest locals fields callables control runtime)))
+            (epsilon_delta_declarations source catalog rest references runtime)))
         ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
         ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
         ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
@@ -81,7 +79,7 @@
 
 (def epsilon_delta_context_source ((context EpsilonDeltaContext)) EpsilonSourceView
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration) source)))
+    ((EpsilonDeltaContextAt source catalog references declaration) source)))
 
 (def epsilon_delta_program_result ((runtime EpsilonDeltaRuntime)
   (compilation EpsilonDeltaCompilation)) EpsilonDeltaProgramCompilation

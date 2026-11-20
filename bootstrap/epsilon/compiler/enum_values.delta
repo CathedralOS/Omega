@@ -22,8 +22,8 @@
 (def epsilon_delta_enum_local ((context EpsilonDeltaContext)
   (expression EpsilonExpression)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_local_reference expression locals)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_local_reference expression references)
         (NoEpsilonResolvedLocalReference (EpsilonDeltaInternal (epsilon_expression_start expression)))
         ((OneEpsilonResolvedLocalReference binding)
           (match binding
@@ -52,8 +52,8 @@
 (def epsilon_delta_enum_constructor ((context EpsilonDeltaContext)
   (expression EpsilonExpression)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_callable_reference_normalized expression callables)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_callable_reference_normalized expression references)
         (NoEpsilonResolvedCallableReference (EpsilonDeltaInternal (epsilon_expression_start expression)))
         ((OneEpsilonResolvedCallableReference callable)
           (match callable

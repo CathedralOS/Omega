@@ -50,8 +50,8 @@
 (def epsilon_delta_stored_local_place ((context EpsilonDeltaContext)
   (expression EpsilonExpression)) EpsilonDeltaPlaceCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_local_reference expression locals)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_local_reference expression references)
         (NoEpsilonResolvedLocalReference
           (EpsilonDeltaPlaceInternal (epsilon_expression_start expression)))
         ((OneEpsilonResolvedLocalReference binding)
@@ -106,8 +106,8 @@
 (def epsilon_delta_stored_field_place ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (base EpsilonExpression)) EpsilonDeltaPlaceCompilation
   (match context
-    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-      (match (epsilon_find_resolved_field_reference expression fields)
+    ((EpsilonDeltaContextAt source catalog references declaration)
+      (match (epsilon_runtime_find_field_reference expression references)
         (NoEpsilonResolvedFieldReference
           (EpsilonDeltaPlaceUnsupported (epsilon_expression_start expression)))
         ((OneEpsilonResolvedFieldReference owner field)
