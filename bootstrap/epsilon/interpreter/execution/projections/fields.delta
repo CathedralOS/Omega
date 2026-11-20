@@ -15,7 +15,9 @@
               (epsilon_evaluator_array_length value store output)
               (if (epsilon_name_is_as_slice source member)
                 (epsilon_evaluator_as_slice value place store output)
-                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+                (if (epsilon_name_is_remaining_input source member)
+                  (epsilon_evaluator_remaining_input store output)
+                  (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue))))))
           ((OneEpsilonResolvedFieldReference owner fieldValue)
             (match fieldValue
               ((EpsilonFieldMember start end name typeValue)

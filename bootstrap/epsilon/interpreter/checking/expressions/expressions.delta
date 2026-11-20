@@ -93,7 +93,7 @@
         (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))
     ((EpsilonStringExpression start end literal)
       (epsilon_local_scan_add_value expressionValue
-        (epsilon_expression_string_type expressionValue) NoEpsilonPlaceType scan))
+        (epsilon_expression_byte_view_type expressionValue) NoEpsilonPlaceType scan))
     ((EpsilonTrueExpression start end)
       (epsilon_local_scan_add_value expressionValue
         (epsilon_expression_i32_type expressionValue) NoEpsilonPlaceType scan))

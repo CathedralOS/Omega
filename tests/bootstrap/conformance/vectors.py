@@ -100,6 +100,42 @@ def epsilon_historical_at_observations(closure):
     return _epsilon_observations(closure, _epsilon_console(b"@[u8]", b"@mut self"))
 
 
+def epsilon_input_view_cases():
+    console = _epsilon_console(b"&[u8]", b"&mut self")
+    source = console + b"""let original: &[u8] = self.console.remaining_input;
+let first: i32 = self.console.read_byte();
+let tail: &[u8] = self.console.remaining_input;
+transition original.len { 0 -> empty(first, tail) _ -> report(original, first, tail) }
+state empty(first: i32, tail: &[u8]) {
+    transition (first == -1) && (tail.len == 0) {
+        true -> self.console.exit_process(42) _ -> self.console.exit_process(9)
+    }
+}
+state report(original: &[u8], first: i32, tail: &[u8]) {
+    self.console.write_byte(original[0]);
+    self.console.write_byte(first);
+    self.console.write_line(tail);
+    self.console.exit_process(42);
+} }"""
+    exited = struct.pack("<Bi", 0, 42)
+    yield "empty input", source, b"", exited
+    yield "view at EOF", source, b"\xff", exited + b"\xff\xff\n"
+    yield "retained and advanced views", source, b"\0Z\xff", exited + b"\0\0Z\xff\n"
+
+    source = console + b"self.console.exit_process(self.console.remaining_input[0]); }"
+    yield "index empty view", source, b"", bytes((1, 6))
+    source = console + b"self.console.remaining_input[0] = 42; }"
+    yield "write to input view", source, b"Z", struct.pack("<BBI", 2, 20, source.index(b"self.console"))
+    source = console.replace(b"console: Console;", b"console: Console; remaining_input: i32;")
+    source += b"self.remaining_input = 42; self.console.exit_process(self.remaining_input); }"
+    yield "authored field with same name", source, b"", exited
+
+
+def epsilon_input_view_observations(closure):
+    for name, source, stdin, expected in epsilon_input_view_cases():
+        yield name, epsilon_request(closure, source, stdin), (0, expected)
+
+
 def epsilon_syntax_controls(closure):
     for name, view, receiver in [
         ("invalid @ in view type", b"@[u8]", b"&mut self"),

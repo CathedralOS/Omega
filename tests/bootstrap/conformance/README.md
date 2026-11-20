@@ -6,6 +6,7 @@ Copy this directory with the winning chain. Run the checks from any working dire
 | --- | --- | --- |
 | Gamma evaluator | `python3 check.py gamma /path/to/evaluator` | Framed source and stdin, exit status, output bytes, traps and malformed-source refusals. |
 | Epsilon evaluator | `python3 check.py epsilon /path/to/evaluator /path/to/packed-evaluator.delta` | Exit, stdin, trap, refusal and malformed-envelope bytes. The request includes the digest of the supplied closure. |
+| Epsilon input views | `python3 check.py epsilon --profile input-view /path/to/evaluator /path/to/packed-evaluator.delta` | Cursor snapshots, EOF, bounds, immutability and ordinary field lookup. |
 | Omega program | `python3 check.py omega /path/to/compile-and-run` | The command receives the source path as its last argument and executes it. The program must exit 42 with empty stdout and stderr. |
 
 A route supplies the adapter for the interface it implements. The compiled routes also use these vectors in their differential checks. The sources in `omega/` exercise the bootstrap compiler through its existing entries. The Epsilon evaluator entry binds its packed source digest. The portable Omega `program.omg` retains its published bytes. The executable-gate controls use comma-separated Omega transition arms.
