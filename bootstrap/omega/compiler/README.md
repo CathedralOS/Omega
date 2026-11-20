@@ -62,10 +62,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 26,553 lines / 1,019,242 bytes with SHA-256
-`f120584bded56f5a2070e6c6f693695996d242d88a8c002d9cf6b6386077cbbd`.
+The manifest materializes 26,487 lines / 1,017,272 bytes with SHA-256
+`9bf3ab714ece462978dbf744b85f79cb91f3abfd6c8094f2240ac3e08d5de67b`.
 The manifest itself is 2,381 bytes, SHA-256
-`daf83dbbbeb74f844a68eb9e96510d841f41aedd554fb12b660655fd628f68ed`;
+`27dc4a6023bf8c3c8674ba2b86be410a42246d9d8270c0c70892eaed502f53f6`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
@@ -635,7 +635,9 @@ value arguments are exact name/self paths, booleans, nonnegative
 decimal integers, or string tokens represented by tagged expression nodes;
 the same lane accepts shallow named struct literals over those primary field
 values. Zero arguments and trailing commas are supported. Calls may also own a
-separate nonempty `<...>` lane of path-only static machine arguments. Qualified
+separate nonempty `::<...>` list of path-only static operands. Each call keeps
+its own list even when a value argument is another generic call. A plain
+`<` enters the comparison grammar. Qualified
 paths are retained exactly; const arguments, evidence projections, nested
 static applications, lifetime arguments, and empty or trailing-comma static
 lanes remain incomplete. Ordinary assignments retain
