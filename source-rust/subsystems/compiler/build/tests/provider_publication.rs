@@ -547,7 +547,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
 }
 
 #[test]
-fn root_and_private_callable_require_the_same_fma_deployment() {
+fn root_and_private_callable_enforce_the_selected_process_exit() {
     use artifact_lowering::{
         RetainedNativeProviderInputs, admit_prepared_native_realization, lower_native_callable,
         lower_native_execution, prepare_native_providers,
@@ -555,15 +555,14 @@ fn root_and_private_callable_require_the_same_fma_deployment() {
     use provider_realization::native_execution::{BoundNativeCallable, prepare_program};
 
     let workspace =
-        platform_custody::temporary_directory::TemporaryDirectory::create("fma-scope", false)
+        platform_custody::temporary_directory::TemporaryDirectory::create("exit-scope", false)
             .unwrap();
     let source = workspace.path().join("main.omg");
     std::fs::write(
         workspace.path().join("build.omg"),
         r#"machine build(builder: @mut Build) {
-    Build::application(builder, "fma_scope");
+    Build::application(builder, "exit_scope");
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }"#,
     )
     .unwrap();
@@ -572,10 +571,12 @@ fn root_and_private_callable_require_the_same_fma_deployment() {
         std::fs::write(
             &source,
             format!(
-                r"use omega\language\core\F32::fused_multiply_add;
-machine fused(value: f32) -> f32 {{ F32::fused_multiply_add(value, value, value) }}
-machine passthrough(value: f32) -> f32 {{ value }}
-machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
+                r"use omega\language\core\Never;
+use omega\language\core\ProcessExit;
+use omega\language\core\ProcessExitPrimitive;
+machine exit_helper(code: i32) reaches ProcessExit crashes none terminates {{ ProcessExitPrimitive(code); }}
+machine passthrough(value: i32) -> i32 {{ value }}
+machine main() reaches ProcessExit crashes none terminates {{ exit_helper(passthrough({literal})); }}"
             ),
         )
         .unwrap();
@@ -595,7 +596,7 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
         };
         product.into_retained_terminal_artifact().unwrap()
     };
-    let retained = publish("1.0f32");
+    let retained = publish("1i32");
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal();
     let execution = prepare_program(proposal, retained.authorization()).unwrap();
@@ -603,34 +604,34 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
     let selected = execution
         .compiler_builtins()
         .iter()
-        .find(|row| row.requirement().contains("fused_multiply_add"))
-        .expect("the FMA requirement retains its selected builtin");
+        .find(|row| {
+            row.identity()
+                == Some(
+                    provider_realization::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+                )
+        })
+        .expect("the process exit requirement retains its selected builtin");
     let boundary = selected.boundary();
     assert_eq!(selected.artifact(), artifact.view().identity());
-    let fused = module
-        .machines
-        .iter()
-        .find(|machine| {
-            machine.operations().any(|op| {
-                matches!(op.kind, terminal_psi::OperationKind::BoundaryCall { boundary: called, .. } if called == boundary)
+    let helper = |name: &str| {
+        let machine = module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                let identity = machine.declaration.as_ref()?.machine.identity();
+                module
+                    .identities
+                    .text(identity)?
+                    .contains(name)
+                    .then_some(machine.id)
             })
-        })
-        .expect("the fused helper calls the selected FMA boundary")
-        .id;
-    assert_ne!(execution.scope().reach().entry(), fused);
-    let passthrough = module
-        .machines
-        .iter()
-        .find_map(|machine| {
-            let identity = machine.declaration.as_ref()?.machine.identity();
-            module
-                .identities
-                .text(identity)?
-                .contains("passthrough")
-                .then_some(machine.id)
-        })
-        .expect("the program has a separate passthrough helper");
-    assert!(execution.scope().reach().contains_machine(passthrough));
+            .expect(name);
+        assert!(execution.scope().reach().contains_machine(machine));
+        assert_ne!(execution.scope().reach().entry(), machine);
+        terminal_psi::TargetMachineCallable::Machine(machine)
+    };
+    let exit = helper("exit_helper");
+    let passthrough = helper("passthrough");
 
     let selection = execution.selection();
     assert!(selected.belongs_to(selection));
@@ -640,7 +641,7 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
         .position(|plan| std::ptr::eq(plan, selected.plan()))
         .expect("the builtin retains the exact selected plan");
     let mut changed = selection.recovery_candidate();
-    changed.plans[index].provider_declaration = Some("OtherFmaDeclaration".into());
+    changed.plans[index].provider_declaration = Some("OtherExitDeclaration".into());
     let changed = changed.validate().unwrap();
     let other = &changed.plans()[index];
     assert_eq!(other.identity_digest(), selected.plan().identity_digest());
@@ -667,7 +668,7 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
     let settlements = providers.program_settlements();
     let policy = provider_admission::current_terminal_authority_policy();
     let base = providers.admission_request(&settlements, &policy, &None, &[]);
-    let second = publish("2.0f32");
+    let second = publish("2i32");
     let second_proposal = second.native_realization_proposal();
     let second_execution = prepare_program(second_proposal, second.authorization()).unwrap();
     assert_ne!(selected.artifact(), second.artifact().view().identity());
@@ -682,7 +683,7 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
         lower_native_execution(second_proposal, &second_execution, &[], None).unwrap();
     let errors = admit_prepared_native_realization(second_input, second.artifact(), &base)
         .err()
-        .expect("the same local FMA boundary cannot be replayed across Psi artifacts");
+        .expect("the same local process exit boundary cannot be replayed across Psi artifacts");
     assert!(
         errors
             .iter()
@@ -694,32 +695,21 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
     let root = lower_native_execution(proposal, &execution, &[], None).unwrap();
     let errors = admit_prepared_native_realization(root, artifact, &other_owner)
         .err()
-        .expect("the selected FMA cannot be admitted for another owner");
+        .expect("the selected process exit cannot be admitted for another owner");
     assert!(
         errors
             .iter()
             .any(|error| error.message.contains("different provider selection")),
         "{errors:?}"
     );
-    let features = base
-        .providers
-        .x86_scalar_fma_provider
-        .expect("Build selected AVX and FMA3");
+    let missing = Some(provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions(vec![], Default::default(), "no process-exit permission").unwrap());
     let mut root_context = None;
-    for (entry, needs_fma) in [
-        (None, true),
-        (
-            Some(terminal_psi::TargetMachineCallable::Machine(fused)),
-            true,
-        ),
-        (
-            Some(terminal_psi::TargetMachineCallable::Machine(passthrough)),
-            false,
-        ),
-    ] {
-        for deployment in [None, Some(features)] {
+    for (entry, needs_exit) in [(None, true), (Some(exit), true), (Some(passthrough), false)] {
+        for restricted in [false, true] {
             let mut request = base;
-            request.providers.x86_scalar_fma_provider = deployment;
+            if restricted {
+                request.providers.terminal_authority_permission_policy = &missing;
+            }
             let coverage;
             let input = if let Some(entry) = entry {
                 let callable =
@@ -734,26 +724,26 @@ machine main() {{ let result: f32 = fused(passthrough({literal})); }}"
                 lower_native_execution(proposal, &execution, &[], None).unwrap()
             };
             let result = admit_prepared_native_realization(input, artifact, &request);
-            if needs_fma && deployment.is_none() {
+            if needs_exit && restricted {
                 let errors = result
                     .err()
-                    .expect("an FMA call needs an admitted deployment");
+                    .expect("a process-exit call needs receiving permission");
                 assert!(
-                    errors.iter().any(|error| error
-                        .message
-                        .contains("requires explicit AVX+FMA3 admission")),
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("permission policy has no exact row")),
                     "{errors:?}"
                 );
             } else {
                 let admitted = result.unwrap();
-                let settled_fma = admitted.providers.settlements.iter().any(|row| {
+                let settled_exit = admitted.providers.settlements.iter().any(|row| {
                     row.boundary == boundary
                         && matches!(
                             row.execution,
                             provider_admission::AdmittedBoundaryExecution::CompilerBuiltin(_)
                         )
                 });
-                assert_eq!(settled_fma, needs_fma);
+                assert_eq!(settled_exit, needs_exit);
                 if entry.is_none() {
                     root_context = Some(Arc::clone(admitted.providers.program_provider_context()));
                 }
