@@ -154,7 +154,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             &settled.build,
             request.purpose,
             self.host.profile,
-            &mut HandoffCache::default(),
+            &mut DependencyProducts::default(),
         )?;
         Ok(ProductQueryDependency {
             alias,
@@ -227,7 +227,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             &settled.build,
             purpose,
             profile,
-            &mut HandoffCache::default(),
+            &mut DependencyProducts::default(),
         )?;
         let provider = product
             .product_stage(&[profile])?
@@ -259,13 +259,29 @@ impl SourceHost<'_, '_> {
     }
 }
 
+/// The completed Build handoffs for one dependency traversal. A supplier Product stays
+/// with the exact occurrence that produced its handoff.
 #[derive(Default)]
-pub(super) struct HandoffCache {
-    handoffs: Vec<PackageBuildHandoff>,
-    pub(super) components: Option<(
-        target::TargetProfile,
-        BTreeMap<semantic_vocabulary::PackageKeyIdentity, project_build::PlannedProduct>,
-    )>,
+pub(super) struct DependencyProducts {
+    by_package: BTreeMap<semantic_vocabulary::PackageKeyIdentity, Vec<CompletedDependency>>,
+    pub(super) independent_target: Option<target::TargetProfile>,
+}
+
+struct CompletedDependency {
+    handoff: PackageBuildHandoff,
+    supplier: Option<project_build::PlannedProduct>,
+}
+
+impl DependencyProducts {
+    pub(super) fn into_suppliers(
+        self,
+    ) -> BTreeMap<semantic_vocabulary::PackageKeyIdentity, project_build::PlannedProduct> {
+        self.by_package
+            .into_values()
+            .flatten()
+            .filter_map(|row| row.supplier.map(|product| (row.handoff.package(), product)))
+            .collect()
+    }
 }
 
 impl HandoffSources<'_> {
@@ -276,7 +292,7 @@ impl HandoffSources<'_> {
         settled: &project_build::SettledDependency,
         purpose: DependencyPurpose,
         target: target::TargetProfile,
-        cache: &mut HandoffCache,
+        products: &mut DependencyProducts,
     ) -> Result<project_build::PlannedProduct, CompileFailure> {
         let inputs = settled
             .inputs()
@@ -299,12 +315,12 @@ impl HandoffSources<'_> {
                 DependencyPurpose::Product => target,
                 DependencyPurpose::Build => self.profile,
             };
-            if let Some(handoff) = cache.handoffs.iter().find(|bundle| {
-                bundle.package() == package
-                    && bundle.purpose() == purpose
-                    && bundle.target() == deployment
+            if let Some(row) = products.by_package.get(&package).and_then(|rows| {
+                rows.iter().find(|row| {
+                    row.handoff.purpose() == purpose && row.handoff.target() == deployment
+                })
             }) {
-                bundles.push(handoff.clone());
+                bundles.push(row.handoff.clone());
                 continue;
             }
             let child = self
@@ -312,15 +328,19 @@ impl HandoffSources<'_> {
                 .iter()
                 .find(|child| child.declaration.identity() == package)
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
-            let product = self.dependency_product(&child.build, purpose, deployment, cache)?;
+            let product = self.dependency_product(&child.build, purpose, deployment, products)?;
             let bundle = product.build_handoff(deployment)?;
-            if purpose == DependencyPurpose::Product
-                && let Some((selected, products)) = &mut cache.components
-                && *selected == deployment
-            {
-                products.insert(package, product);
-            }
-            cache.handoffs.push(bundle.clone());
+            let supplier = (purpose == DependencyPurpose::Product
+                && products.independent_target == Some(deployment))
+            .then_some(product);
+            products
+                .by_package
+                .entry(package)
+                .or_default()
+                .push(CompletedDependency {
+                    handoff: bundle.clone(),
+                    supplier,
+                });
             bundles.push(bundle);
         }
         let inputs = inputs
