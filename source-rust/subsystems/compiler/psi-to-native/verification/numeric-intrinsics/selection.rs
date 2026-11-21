@@ -75,25 +75,35 @@ pub(crate) fn validate_retained_provider_owners(
             }
             let sealed = match realization.as_deref() {
                 Some(realization) => selected_sealed_native_provider(
-                    external_providers, identities, realization, Some(realization), selected, row,
+                    external_providers,
+                    identities,
+                    realization,
+                    Some(realization),
+                    selected,
+                    row,
                 )?,
                 None => None,
             };
             if let Some(supply) = sealed
                 && (identities.text(supply.requirement_identity)
                     != Some(selected.identities.text(row.requirement_identity))
-                    || supply.requirement_package != selected.schema.declaration.trait_package_identity)
+                    || supply.requirement_package
+                        != selected.schema.declaration.trait_package_identity)
             {
                 return Err("selected sealed realization has another public requirement".into());
             }
             let mut found = false;
-            for candidate in external_providers.iter().filter(|candidate| {
-                matches_external_selection(candidate, identities, selected, row, machine)
-                    && realization.as_ref().is_none_or(|realization| {
-                        identities.text(candidate.realization.machine.identity())
-                            == Some(realization.as_str())
-                    })
-            }).chain(sealed) {
+            for candidate in external_providers
+                .iter()
+                .filter(|candidate| {
+                    matches_external_selection(candidate, identities, selected, row, machine)
+                        && realization.as_ref().is_none_or(|realization| {
+                            identities.text(candidate.realization.machine.identity())
+                                == Some(realization.as_str())
+                        })
+                })
+                .chain(sealed)
+            {
                 found = true;
                 let owner = candidate
                     .provider

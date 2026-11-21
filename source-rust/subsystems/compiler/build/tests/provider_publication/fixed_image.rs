@@ -260,8 +260,10 @@ reaches Probe + ExternalState invokes Probe invokes ExternalState crashes none {
 #[test]
 fn storage_transport_requires_a_grant_on_each_owned_argument() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "firmware-storage-transport", false,
-    ).unwrap();
+        "firmware-storage-transport",
+        false,
+    )
+    .unwrap();
     let path = temporary.path().join("build.omg");
     std::fs::write(&path, r#"use omega\language\core\ProgramStorageEntry;
 use omega\language\core\ProgramStorageEntryNativeProvider;
@@ -269,34 +271,60 @@ machine build(b: @mut Build) {
     Build::package(b, "transport");
     Build::select_provider::<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(b, uefi_x86_64);
 }"#).unwrap();
-    std::fs::write(temporary.path().join("main.omg"), r"use omega\language\core\Extent;
+    std::fs::write(
+        temporary.path().join("main.omg"),
+        r"use omega\language\core\Extent;
 use omega\language\core\Extent\Granted;
 use omega\language\core\ProgramStorageEntry;
 public machine forward(first: Extent in Granted, second: Extent in Granted)
 reaches ProgramStorageEntry invokes ProgramStorageEntry crashes Trap crashes Abort {
     ProgramStorageEntry::enter(first, second);
-}").unwrap();
+}",
+    )
+    .unwrap();
     let target = TargetProfile::UefiX64;
     let (returned, inputs) = super::run_project_build(&path, &[target]);
-    let product = returned.settle_dependency(inputs.clone()).unwrap().open_product(inputs).unwrap();
+    let product = returned
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
     let stage = product.product_stage(&[target]).unwrap();
     let published = source_compiler::compile_for_target(stage.source(), target.target_name(), None)
-        .unwrap().into_parts().0;
+        .unwrap()
+        .into_parts()
+        .0;
     let artifact = CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap();
     let module = artifact.semantic_module();
-    let [supply] = module.interfaces.external_providers.as_slice() else { panic!("selected external transport") };
-    let boundary = module.interfaces.boundary_machines.iter().find(|row| row.identity == supply.requirement_identity).unwrap();
-    let [image, storage] = boundary.requires.as_slice() else { panic!("two grant obligations") };
+    let [supply] = module.interfaces.external_providers.as_slice() else {
+        panic!("selected external transport")
+    };
+    let boundary = module
+        .interfaces
+        .boundary_machines
+        .iter()
+        .find(|row| row.identity == supply.requirement_identity)
+        .unwrap();
+    let [image, storage] = boundary.requires.as_slice() else {
+        panic!("two grant obligations")
+    };
     assert_eq!((image.argument_index, storage.argument_index), (0, 1));
     assert!(image.path.is_empty() && storage.path.is_empty());
     assert_eq!(image.domain, storage.domain);
     assert!(boundary.program_local_root_introductions.is_empty());
     let select = |module: &terminal_psi::TerminalModule| {
-        ClosedLogicalProviders::select(module, artifact.view().identity(), target.target_name(), &[boundary.id])
+        ClosedLogicalProviders::select(
+            module,
+            artifact.view().identity(),
+            target.target_name(),
+            &[boundary.id],
+        )
     };
     let logical = select(module).unwrap();
     let realized = realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
-        module, &logical, TargetSupplyExecutionInputs {
+        module,
+        &logical,
+        TargetSupplyExecutionInputs {
             components: None,
             calling_applications: vec![],
             external_bindings: vec![],
@@ -305,16 +333,32 @@ reaches ProgramStorageEntry invokes ProgramStorageEntry crashes Trap crashes Abo
             terminal_authority_permissions: vec![],
             terminal_authority_permission_identities: Default::default(),
         },
-    )).unwrap();
-    assert_eq!(realized.row_executions().next().unwrap(), [Some(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry)]);
+    ))
+    .unwrap();
+    assert_eq!(
+        realized.row_executions().next().unwrap(),
+        [Some(
+            CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
+        )]
+    );
     for substitute in [false, true] {
         let mut changed = module.clone();
-        let required = changed.interfaces.boundary_machines.iter_mut().find(|row| row.id == boundary.id).unwrap();
+        let required = changed
+            .interfaces
+            .boundary_machines
+            .iter_mut()
+            .find(|row| row.id == boundary.id)
+            .unwrap();
         if substitute {
             required.requires[1].argument_index = 0;
         } else {
             required.requires.pop();
         }
-        assert!(select(&changed).unwrap_err().diagnostic(&changed).contains("differs from its checked Core member"));
+        assert!(
+            select(&changed)
+                .unwrap_err()
+                .diagnostic(&changed)
+                .contains("differs from its checked Core member")
+        );
     }
 }
