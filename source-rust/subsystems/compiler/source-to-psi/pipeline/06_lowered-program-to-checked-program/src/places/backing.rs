@@ -687,18 +687,7 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Backing> {
-        let borrowed_arrival =
-            matches!(
-                self.root_kind(place.root, concerns)?,
-                StructuralPlaceKind::BlockParameter { .. }
-            ) && terminal_semantics::structural_argument_source(self.lowered, place.root, 0)
-                .is_some_and(|parameter| {
-                    parameter.access != StructuralAccess::Owned
-                        && !terminal_semantics::descriptor_results::is_descriptor(
-                            self.types.iter(),
-                            parameter.structural_type,
-                        )
-                });
+        let borrowed_arrival = self.is_borrowed_arrival(place.root, concerns)?;
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             return Ok(Backing::direct(place.clone()));
         }

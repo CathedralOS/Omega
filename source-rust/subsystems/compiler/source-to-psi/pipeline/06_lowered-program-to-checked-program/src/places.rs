@@ -95,6 +95,7 @@ use terminal_psi::{
 use crate::checking::graph::Graph;
 use crate::checking::{StorageUse, refusal};
 
+mod arrivals;
 mod backing;
 use backing::Backing;
 
@@ -1052,6 +1053,7 @@ pub(crate) struct Storage<'a> {
     reaching_budget: usize,
     log: Vec<Logged>,
     writes_by_root: BTreeMap<(BlockId, PlaceId), Vec<usize>>,
+    arrivals: Vec<Vec<arrivals::Arrival>>,
     cleanup_writes: Vec<crate::checking::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// The `requires` clauses of each data type, by its identity
@@ -1153,6 +1155,17 @@ impl<'a> Storage<'a> {
             reaching_budget,
             log: Vec::new(),
             writes_by_root: BTreeMap::new(),
+            arrivals: lowered
+                .blocks
+                .iter()
+                .map(|block| {
+                    block
+                        .structural_parameters
+                        .iter()
+                        .map(|_| arrivals::Arrival::default())
+                        .collect()
+                })
+                .collect(),
             cleanup_writes: Vec::new(),
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             domains,
@@ -3970,49 +3983,12 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     budget.crossed_entries[index(block.get())] = true;
-                    let mut predecessors = self.graph.predecessors(block)?.to_vec();
-                    predecessors.sort_unstable();
-                    predecessors.dedup();
-                    let mut found = false;
-                    for predecessor in predecessors {
-                        let terminator = &self.block(predecessor)?.terminator;
-                        let successors = terminator.successor_edges();
-                        let bindings = terminator.successor_block_arguments();
-                        if successors.len() != bindings.len() {
-                            return Err(
-                                self.foreign(concerns, "an edge has no complete binding roster")
-                            );
-                        }
-                        for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
-                            if into != block {
-                                continue;
-                            }
-                            found = true;
-                            if arguments.len() != target.structural_parameters.len() {
-                                return Err(self.foreign(
-                                    Construct::Edge(edge),
-                                    "structural edge arguments differ from the target telescope",
-                                ));
-                            }
-                            let argument = &arguments[position];
-                            if !terminal_psi::structural_access_covers(
-                                argument.access,
-                                parameter.access,
-                            ) {
-                                return Err(self.foreign(
-                                    Construct::Edge(edge),
-                                    "a structural edge argument has insufficient access",
-                                ));
-                            }
-                            let mut source = self.argument(argument, Construct::Edge(edge))?;
-                            if !matches!(self.shape(&source, Construct::Edge(edge))?,
-                            Shape::Typed(actual) if actual == parameter.structural_type)
-                            {
-                                return Err(self.foreign(
-                                    Construct::Edge(edge),
-                                    "a structural edge argument has another type",
-                                ));
-                            }
+                    self.visit_incoming_storage(
+                        target,
+                        position,
+                        concerns,
+                        |predecessor, actual| {
+                            let mut source = actual.clone();
                             let beneath = &asked.place().segments;
                             source.segments.extend_from_slice(beneath);
                             let asked = match asked {
@@ -4034,13 +4010,9 @@ impl<'a> Storage<'a> {
                                 )?
                                 .within(beneath.len());
                             budget.add_supply(destination, supply);
-                        }
-                    }
-                    if !found {
-                        return Err(
-                            self.foreign(concerns, "a block formal has no incoming binding")
-                        );
-                    }
+                            Ok(())
+                        },
+                    )?;
                     continue;
                 }
                 if block == self.graph.entry() {
@@ -8943,10 +8915,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             })
             .expect("a branch copies its formal");
         let destination = storage.log[row_index].backing.clone();
-        let source = match &storage.log[row_index].stored {
-            Stored::Moved(source) => source.clone(),
-            _ => unreachable!(),
-        };
         // One arrival transfers just the leaf. Its initial contents are the
         // same, but it carries no evidence for a newly enclosing record.
         let mut projected = destination.place.clone();
@@ -8997,7 +8965,6 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
                 Reached::Unestablished
             );
         }
-        storage.log[row_index].stored = Stored::Moved(source);
 
         // Disconnect the invocation's incoming edges from the equation graph.
         // Keep their identities so each cleanup still names its actual source.
@@ -9014,7 +8981,17 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
-        storage.graph = &cyclic_graph;
+        let storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &cyclic_graph,
+            &unseeded,
+            &types,
+            &mut references,
+        )
+        .expect("the unseeded graph has its own incoming bindings");
         for mut cycle in [storage.budget(), storage.initialization_budget()] {
             assert_eq!(
                 storage
