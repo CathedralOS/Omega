@@ -153,7 +153,7 @@ struct GroundRange<'a, 'machine> {
     index: &'a MachineScalarIndex<'machine>,
     storage: &'a OnceCell<Option<storage::StorageValues>>,
     dominators: &'a OnceCell<Option<crate::control_graph::DominatorTree>>,
-    active: std::collections::BTreeSet<ValueId>,
+    active: Vec<ValueId>,
     steps: Vec<Step>,
     remaining: usize,
 }
@@ -212,11 +212,12 @@ impl GroundRange<'_, '_> {
 
     fn value(&mut self, id: ValueId, ty: ScalarType, before: Point, depth: usize) -> Option<()> {
         self.visit(depth)?;
-        if !self.active.insert(id) {
+        if self.active.contains(&id) {
             return None;
         }
+        self.active.push(id);
         let result = self.value_origin(id, ty, before, depth);
-        self.active.remove(&id);
+        self.active.pop();
         result
     }
 
