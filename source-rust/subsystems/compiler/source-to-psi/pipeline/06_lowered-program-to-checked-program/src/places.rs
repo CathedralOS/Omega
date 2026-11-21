@@ -8383,7 +8383,7 @@ mod observation_tests {
     #[test]
     fn whole_array_initialization_preserves_partial_vacancies_and_aliasing() {
         let input = storage_fixture(
-            "machine entry(cells: @mut [u64; 4], index: u64) -> u64 requires index < 4 {
+            "machine entry(cells: @mut [u64; 4], spare: @mut [u64; 4], index: u64) -> u64 requires index < 4 {
                 cells[1] = 5;
                 cells[index] = 7;
                 cells[2]
@@ -8486,6 +8486,48 @@ mod observation_tests {
         storage.log[*second].backing = Backing::direct(moved.clone());
         storage.log[*second].destination = moved;
         assert!(available(&storage, &mut references, tables, &array, point).is_ok());
+
+        // A write through a captured reference can reach either lender. The
+        // two single-root inquiries and the unresolved family must see the
+        // same ordered writes as the independently derived operation log.
+        let spare = Lineage {
+            root: machine.structural_parameters[1].place,
+            segments: Vec::new(),
+        };
+        let origins = [array.root, spare.root]
+            .map(
+                |source| terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+                    source,
+                    projection: terminal_semantics::borrowed_storage::Projection::new(&[]),
+                },
+            )
+            .to_vec();
+        let captured = storage
+            .captured_backing(&array, &[], origins, None, Construct::Machine)
+            .unwrap();
+        storage.log[*second].backing = captured.clone();
+        storage.index_reaching_writes();
+        let row = &storage.log[*second];
+        for watched in [Backing::direct(array), Backing::direct(spare), captured] {
+            for at in [row.position - 1, row.position] {
+                let expected: Vec<_> = storage
+                    .log
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(id, write)| {
+                        (write.block == row.block
+                            && write.position <= at
+                            && overlap(&watched, &write.backing))
+                        .then_some(id)
+                    })
+                    .collect();
+                let actual: Vec<_> = storage
+                    .reaching_writes(row.block, at, &watched)
+                    .filter_map(|(id, write)| overlap(&watched, &write.backing).then_some(id))
+                    .collect();
+                assert_eq!(actual, expected);
+            }
+        }
     }
 
     #[test]
