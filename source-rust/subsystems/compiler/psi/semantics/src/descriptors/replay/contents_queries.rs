@@ -302,11 +302,12 @@ impl Replay<'_> {
         depth: &DescriptorReadDepth<'_>,
     ) -> Value {
         let _read = depth.enter()?;
-        if let Some(location) = query.exact_location()
-            && location.path.last() == Some(&DescriptorPathSegment::UnknownContents)
+        if query.steps.last()
+            == Some(&DescriptorContentsStep::Address(
+                DescriptorPathSegment::UnknownContents,
+            ))
         {
-            self.unknown_contents_type(machine, &location)?;
-            return self.read_with_depth(machine, state, &location, depth);
+            return self.read_value_packet(machine, state, query, depth);
         }
         self.validate_query(machine, state, query, depth)?;
         if self.slot_kind == DescriptorSlotKind::AccessOrigins {
@@ -368,6 +369,45 @@ impl Replay<'_> {
             }
         }
         Some(origins)
+    }
+
+    fn read_value_packet(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        query: &DescriptorContentsQuery,
+        depth: &DescriptorReadDepth<'_>,
+    ) -> Value {
+        if let Some(location) = query.exact_location() {
+            self.unknown_contents_type(machine, &location)?;
+            return self.read_with_depth(machine, state, &location, depth);
+        }
+        if state.contents_path_invalidated(query) {
+            return None;
+        }
+        self.validate_query(machine, state, query, depth)?;
+        let mut carrier = query.clone();
+        carrier.steps.pop()?;
+        let mut origins = BTreeSet::new();
+        for target in self.contents_targets_with_depth(machine, state, &carrier, depth)? {
+            match target {
+                DescriptorPayloadTarget::Storage {
+                    mut location,
+                    completed,
+                } => {
+                    location.path.push(DescriptorPathSegment::UnknownContents);
+                    let captured = self.target_state(machine, state, completed, depth)?;
+                    origins.extend(self.read_with_depth(machine, captured, &location, depth)?);
+                }
+                DescriptorPayloadTarget::Incoming(mut incoming) => {
+                    incoming.steps.push(DescriptorContentsStep::Address(
+                        DescriptorPathSegment::UnknownContents,
+                    ));
+                    origins.extend(self.read_incoming_contents(machine, state, &incoming, depth)?);
+                }
+            }
+        }
+        (!origins.is_empty()).then_some(origins)
     }
 
     fn known_current_contents<'state>(
@@ -490,17 +530,30 @@ impl Replay<'_> {
         if self.contents_address_hidden(machine, state, query) {
             return None;
         }
-        if query.is_symbolic_location()
-            && self
-                .parameter(machine, query.root)
-                .is_some_and(|(_, access, _)| {
-                    matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
-                })
-            && self
-                .inline_steps(machine, query)?
-                .iter()
-                .all(|inline| *inline)
-        {
+        // A shared array with an open extent supplies its elements at the call.
+        // An exact index into an exclusive input also identifies the caller's
+        // element. Preserve the selector in both cases.
+        let prefix = query.observation();
+        let supplied_by_caller = query.steps.len() > prefix.path.len()
+            && match self.parameter(machine, query.root) {
+                Some((_, StructuralAccess::SharedBorrow, root_type)) => {
+                    crate::descriptor_lifetimes::descriptor_location_type(
+                        self.types,
+                        root_type,
+                        &prefix.path,
+                    )
+                    .and_then(|ty| find_structural_type(self.types, ty))
+                    .is_some_and(|declaration| {
+                        matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. }
+                            if length.literal().is_none())
+                    })
+                }
+                Some((_, terminal_psi::exclusive_borrow_pair_pattern!(), _)) => {
+                    query.is_symbolic_location()
+                }
+                _ => false,
+            };
+        if supplied_by_caller && self.inline_steps(machine, query)?.iter().all(|inline| *inline) {
             return Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
                 query.clone(),
             )]));

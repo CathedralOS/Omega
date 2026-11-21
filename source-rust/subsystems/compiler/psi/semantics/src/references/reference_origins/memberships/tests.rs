@@ -89,6 +89,61 @@ fn unresolved_views_keep_loans_without_becoming_reference_authority() {
     );
 }
 
+#[test]
+fn returning_an_indexed_generic_value_requires_read_access_to_its_array() {
+    use crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents;
+    use crate::descriptor_results::{
+        DescriptorContentsStep, DescriptorResultContents, DescriptorResultSlot,
+        DescriptorStoredOrigin,
+    };
+    use crate::storage::borrowed_storage::Projection;
+
+    let (mut types, _, mut result) = declarations(StructuralAccess::SharedBorrow);
+    let element = types[0].id;
+    types[0].shape = StructuralTypeShape::TypeParameter;
+    types[0].multiplicity = StructuralMultiplicity::Unrestricted;
+    types[1].shape = StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(3),
+    };
+    result.structural_type = element;
+    let mut input = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(1).unwrap(),
+        position: 0,
+        structural_type: types[1].id,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
+    };
+    let contents = DescriptorResultContents {
+        slots: Vec::new(),
+        unknown_contents: vec![DescriptorResultSlot {
+            path: vec![UnknownContents],
+            origins: vec![DescriptorStoredOrigin::IncomingContents {
+                position: 0,
+                steps: vec![
+                    DescriptorContentsStep::any_element(element),
+                    DescriptorContentsStep::Address(UnknownContents),
+                ],
+                projection: Projection::new(&[]),
+            }],
+        }],
+        unresolved_slots: Vec::new(),
+        case_facts: Default::default(),
+    };
+    let check = |input: &terminal_psi::StructuralParameterDeclaration| {
+        crate::reference_result_contents(&types, std::slice::from_ref(input), &result, &contents)
+    };
+    assert_eq!(check(&input), Ok(Vec::new()));
+    input.access = StructuralAccess::WriteOnlyBorrow;
+    assert_eq!(
+        check(&input),
+        Err("unknown contents were transferred without owned access")
+    );
+}
+
 fn mapping(extent: ReferenceOriginExtent) -> ReferenceCallResult {
     ReferenceCallResult {
         path: Vec::new(),
