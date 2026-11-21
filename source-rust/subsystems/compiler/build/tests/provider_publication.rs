@@ -595,27 +595,22 @@ machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
     let proposal = retained.native_realization_proposal();
     let execution = prepare_program(proposal, retained.authorization()).unwrap();
     let module = artifact.semantic_module();
-    let (fused, boundary) = module
+    let selected = execution
+        .compiler_builtins()
+        .iter()
+        .find(|row| row.requirement().contains("fused_multiply_add"))
+        .expect("the FMA requirement retains its selected builtin");
+    let boundary = selected.boundary();
+    let fused = module
         .machines
         .iter()
-        .flat_map(|machine| {
-            machine.operations().filter_map(move |op| {
-                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = op.kind else {
-                    return None;
-                };
-                let declaration = terminal_psi::find_boundary_machine(
-                    &module.interfaces.boundary_machines,
-                    boundary,
-                )?;
-                module
-                    .identities
-                    .text(declaration.identity)?
-                    .contains("fused_multiply_add")
-                    .then_some((machine.id, boundary))
+        .find(|machine| {
+            machine.operations().any(|op| {
+                matches!(op.kind, terminal_psi::OperationKind::BoundaryCall { boundary: called, .. } if called == boundary)
             })
         })
-        .next()
-        .expect("the fused helper calls the selected FMA boundary");
+        .expect("the fused helper calls the selected FMA boundary")
+        .id;
     assert_ne!(execution.scope().reach().entry(), fused);
     let passthrough = module
         .machines
@@ -631,18 +626,23 @@ machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
         .expect("the program has a separate passthrough helper");
     assert!(execution.scope().reach().contains_machine(passthrough));
 
-    let selected = execution
-        .compiler_builtins()
+    let selection = execution.selection();
+    assert!(selected.belongs_to(selection));
+    let index = selection
+        .plans()
         .iter()
-        .find(|row| row.boundary() == boundary)
-        .expect("the FMA boundary retains its selected builtin");
-    assert!(
-        execution
-            .selection()
-            .plans()
-            .iter()
-            .any(|plan| std::ptr::eq(plan, selected.plan()))
+        .position(|plan| std::ptr::eq(plan, selected.plan()))
+        .expect("the builtin retains the exact selected plan");
+    let mut changed = selection.recovery_candidate();
+    changed.plans[index].provider_declaration = Some("OtherFmaDeclaration".into());
+    let changed = changed.validate().unwrap();
+    let other = &changed.plans()[index];
+    assert_eq!(other.identity_digest(), selected.plan().identity_digest());
+    assert_ne!(
+        other.provider_declaration,
+        selected.plan().provider_declaration
     );
+    assert!(!selected.belongs_to(&changed));
 
     let permissions = provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions(
         proposal.package_terminal_authority_permissions().to_vec(),
@@ -661,6 +661,18 @@ machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
     let settlements = providers.program_settlements();
     let policy = provider_admission::current_terminal_authority_policy();
     let base = providers.admission_request(&settlements, &policy, &None, &[]);
+    let mut other_owner = base;
+    other_owner.providers.selected_provider_plans = &changed;
+    let root = lower_native_execution(proposal, &execution, &[], None).unwrap();
+    let errors = admit_prepared_native_realization(root, artifact, &other_owner)
+        .err()
+        .expect("the selected FMA cannot be admitted for another owner");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("different provider selection")),
+        "{errors:?}"
+    );
     let features = base
         .providers
         .x86_scalar_fma_provider
