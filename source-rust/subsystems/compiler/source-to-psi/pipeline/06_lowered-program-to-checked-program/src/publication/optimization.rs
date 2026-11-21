@@ -2,9 +2,10 @@
 //! Only the executable closure is transformed. Its proof tables, the generic
 //! forms and every conformance witness go through the ordinary checker again.
 use ::optimization::{PsiOptimization, PsiOptimizationSelections};
+use arena::{IdSet, IdTable};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{BlockId, IntegerValue, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::VecDeque;
 use terminal_check_tables::compilation::TerminalCompilation;
 use terminal_psi::{Block, OperationKind, TerminalMachine, Terminator};
 
@@ -26,7 +27,12 @@ pub(super) fn apply(
         match pass {
             PsiOptimization::SparseConditionalConstantPropagation => {
                 for machine in &mut closure.module.machines {
-                    propagate_constants(machine);
+                    let tables = closure.tables.machines.get(machine.id).ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "compiler defect: checked machine lost its value table",
+                        )]
+                    })?;
+                    propagate_constants(machine, tables);
                 }
             }
             other => {
@@ -64,40 +70,76 @@ impl Fact {
 /// can invalidate an earlier constant. Its readers must run again before
 /// any operation is rewritten.
 #[derive(Default)]
-struct Propagation<'a> {
-    blocks: BTreeMap<BlockId, &'a Block>,
-    reached: BTreeSet<BlockId>,
-    pending: BTreeSet<BlockId>,
-    values: BTreeMap<ValueId, Fact>,
-    readers: BTreeMap<ValueId, BTreeSet<BlockId>>,
+struct ValueState {
+    fact: Fact,
+    readers: Vec<BlockId>,
 }
 
-impl Propagation<'_> {
+#[derive(Default)]
+struct Worklist {
+    queue: VecDeque<BlockId>,
+    queued: IdSet<BlockId>,
+}
+
+impl Worklist {
+    fn push(&mut self, block: BlockId) {
+        if self.queued.insert(block) {
+            self.queue.push_back(block);
+        }
+    }
+
+    fn pop(&mut self) -> Option<BlockId> {
+        let block = self.queue.pop_front()?;
+        self.queued.remove(block);
+        Some(block)
+    }
+}
+
+struct Propagation<'a> {
+    blocks: &'a [Block],
+    reached: IdSet<BlockId>,
+    pending: Worklist,
+    values: IdTable<ValueId, ValueState>,
+}
+
+impl<'a> Propagation<'a> {
+    fn block(&self, id: BlockId) -> &'a Block {
+        // The first judgment checked the dense ordinal order of each block.
+        &self.blocks[usize::try_from(id.get() - 1).expect("checked block ordinal")]
+    }
+
     fn read(&mut self, block: BlockId, value: ValueId) -> Fact {
-        self.readers.entry(value).or_default().insert(block);
-        self.values.get(&value).copied().unwrap_or(Fact::Varying)
+        let state = self.values.get_mut(value).expect("checked scalar use");
+        // Keep one reader per block even across repeated visits to a loop.
+        if let Err(position) = state.readers.binary_search(&block) {
+            state.readers.insert(position, block);
+        }
+        state.fact
     }
 
     fn merge(&mut self, value: ValueId, incoming: Fact) {
-        let old = self.values.entry(value).or_default();
-        let joined = old.join(incoming);
-        if joined != *old {
-            *old = joined;
-            if let Some(readers) = self.readers.get(&value) {
-                self.pending.extend(readers);
+        let state = self
+            .values
+            .get_mut(value)
+            .expect("checked scalar definition");
+        let joined = state.fact.join(incoming);
+        if joined != state.fact {
+            state.fact = joined;
+            for &reader in &state.readers {
+                self.pending.push(reader);
             }
         }
     }
 
     fn reach(&mut self, target: BlockId) {
         if self.reached.insert(target) {
-            self.pending.insert(target);
+            self.pending.push(target);
         }
     }
 
     fn arrive(&mut self, from: BlockId, target: BlockId, arguments: Option<&[ValueId]>) {
         self.reach(target);
-        let destination = self.blocks[&target];
+        let destination = self.block(target);
         for (position, formal) in destination.parameters.iter().enumerate() {
             let incoming = arguments
                 .and_then(|args| args.get(position))
@@ -146,7 +188,7 @@ impl Propagation<'_> {
     }
 
     fn visit(&mut self, id: BlockId) {
-        let block = self.blocks[&id];
+        let block = self.block(id);
         for operation in &block.operations {
             if let Some(result) = operation.result.scalar() {
                 let value = self.evaluate(id, &operation.kind);
@@ -179,31 +221,26 @@ impl Propagation<'_> {
     }
 }
 
-fn propagate_constants(machine: &mut TerminalMachine) {
+fn propagate_constants(
+    machine: &mut TerminalMachine,
+    tables: &terminal_check_tables::MachineTables,
+) {
     if machine.blocks.is_empty() {
         return;
     }
     let values = {
         let mut propagation = Propagation {
-            blocks: machine
-                .blocks
-                .iter()
-                .map(|block| (block.id, block))
-                .collect(),
-            values: machine
-                .operations()
-                .filter_map(|op| op.result.scalar())
-                .chain(machine.block_parameters().copied())
-                .map(|value| (value.id, Fact::Unseen))
-                .collect(),
-            ..Default::default()
+            blocks: &machine.blocks,
+            values: tables.values.map(|_, _| ValueState::default()),
+            reached: IdSet::default(),
+            pending: Worklist::default(),
         };
         propagation.reach(machine.entry);
-        let entry = propagation.blocks[&machine.entry];
+        let entry = propagation.block(machine.entry);
         for value in machine.parameters.iter().chain(&entry.parameters) {
             propagation.merge(value.id, Fact::Varying);
         }
-        while let Some(block) = propagation.pending.pop_first() {
+        while let Some(block) = propagation.pending.pop() {
             propagation.visit(block);
         }
         propagation.values
@@ -213,7 +250,7 @@ fn propagate_constants(machine: &mut TerminalMachine) {
             let Some(result) = operation.result.scalar() else {
                 continue;
             };
-            if let Some(&Fact::Boolean(value)) = values.get(&result.id) {
+            if let Some(Fact::Boolean(value)) = values.get(result.id).map(|state| state.fact) {
                 // Only a pure comparison or negation can infer a new Boolean.
                 // Keep operation and result identities so all uses, source
                 // correspondences and operation-local check rows retain their site.
