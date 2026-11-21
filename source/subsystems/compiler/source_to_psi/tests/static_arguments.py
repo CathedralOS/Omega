@@ -20,10 +20,11 @@ DECLARATIONS = {
         "BuiltinType", "TypeBinding", "MachineArgument", "DomainBinding", "TypeScope",
         "name_resolution_machine_argument",
     ],
-    RESOLVER + "generic_scopes.omg": ["GenericCoordinate", "generic_coordinate", "same_generic_coordinate"],
+    RESOLVER + "generic_scopes.omg": ["GenericCoordinate", "generic_coordinate", "same_generic_coordinate", "generic_annotation_role"],
     RESOLVER + "machine_signatures.omg": ["same_type_row"],
     RESOLVER + "domains.omg": ["same_head", "same_bound_rows"],
-    TYPER + "references.omg": ["slot_accepts"],
+    RESOLVER + "type_names.omg": ["TypeRole", "trait_name_admitted"],
+    TYPER + "references.omg": ["slot_accepts", "static_parameter_annotation", "trait_slot_accepts", "plain_static_name"],
     TYPER + "calls.omg": ["StaticArguments", "bind_static_argument", "bind_static_arguments"],
 }
 

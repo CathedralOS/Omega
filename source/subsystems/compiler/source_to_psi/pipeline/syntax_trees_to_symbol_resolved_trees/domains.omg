@@ -53,7 +53,7 @@ crashes Trap
     machine carrier(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope);
+        bind_generic_annotations(resolver, sources, syntax, scope, false);
         bind_type_reference(resolver, sources, syntax, scope, item.carrier, TypeRole::Type);
         transition { _ -> argument(resolver, sources, syntax, index, item, scope, 0) }
     }

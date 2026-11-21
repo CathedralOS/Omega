@@ -60,7 +60,7 @@ crashes Trap
     machine data_references(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping) {
         let item: DataItem = syntax_trees_data_item(syntax, data_index);
         let scope: TypeScope = data_scope(item);
-        bind_generic_annotations(resolver, sources, syntax, scope);
+        bind_generic_annotations(resolver, sources, syntax, scope, false);
         transition resolver.output.accepted {
             true -> member(resolver, sources, syntax, data_index, item, 0),
             _ -> done()
@@ -137,7 +137,7 @@ crashes Trap
     machine trait_annotations(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = trait_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope);
+        bind_generic_annotations(resolver, sources, syntax, scope, !item.is_boundary);
         transition { _ -> parents(resolver, sources, syntax, index, item, scope, 0) }
     }
 
@@ -164,7 +164,7 @@ crashes Trap
     machine conformance(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = conformance_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope);
+        bind_generic_annotations(resolver, sources, syntax, scope, false);
         bind_type_reference(resolver, sources, syntax, scope, item.trait_type, TypeRole::Trait);
         transition { _ -> conformances(resolver, sources, syntax, index + 1) }
     }
@@ -193,7 +193,7 @@ crashes Trap
     machine proposition(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: PropositionItem = proposition_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
-        bind_generic_annotations(resolver, sources, syntax, scope);
+        bind_generic_annotations(resolver, sources, syntax, scope, false);
         transition resolver.output.accepted {
             true -> proposition_signature(resolver, sources, syntax, index, item, scope),
             _ -> done()
@@ -235,7 +235,7 @@ crashes Trap
     machine machine_signature(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         let scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, index);
-        bind_generic_annotations(resolver, sources, syntax, scope);
+        bind_generic_annotations(resolver, sources, syntax, scope, false);
         transition resolver.output.accepted {
             true -> entry_signature(resolver, sources, syntax, index, item, scope),
             _ -> done()
