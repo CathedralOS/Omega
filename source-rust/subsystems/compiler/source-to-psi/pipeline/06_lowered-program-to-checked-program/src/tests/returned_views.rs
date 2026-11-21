@@ -85,9 +85,14 @@ machine entry() -> u64 reaches Reader invokes Reader {
     packet.count
 }
 "#;
-    let RouteVerdict::Accepted(accepted) = crate::checking::judge(elaborate(source)).unwrap()
-    else {
-        panic!("the declared result field must be available after the call");
+    let prepared = super::calling_policies::prepared(
+        super::boundary_calls::typed(source),
+        &["entry"],
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let verdicts = crate::checking::judge_compilation(prepared);
+    let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+        panic!("{verdicts:?}");
     };
     let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
     let mut module = terminal_codec::decode_module(&bytes).unwrap();
