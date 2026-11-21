@@ -4966,8 +4966,6 @@ pub(crate) mod scalar_applications {
             .iter()
             .map(|(_, owner)| *owner)
             .collect::<std::collections::BTreeSet<_>>();
-        let application_sized_storage = terminal_semantics::application_sized_storage(module)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
         for machine in &module.machines {
             for (_, expected) in module
                 .layout_call_conditions(machine)
@@ -5002,7 +5000,6 @@ pub(crate) mod scalar_applications {
                     module,
                     machine,
                     &types,
-                    &application_sized_storage,
                 )
                 .map_err(CodecError::MalformedStructuralFoundation)?
                 {
@@ -5317,7 +5314,7 @@ pub(crate) mod scalar_applications {
             )
             .unwrap();
             let [range]: [terminal_semantics::TargetScalarRange; 1] =
-                terminal_semantics::target_scalar_ranges(&module, &module.machines[0], &types, &[])
+                terminal_semantics::target_scalar_ranges(&module, &module.machines[0], &types)
                     .unwrap()
                     .try_into()
                     .unwrap();

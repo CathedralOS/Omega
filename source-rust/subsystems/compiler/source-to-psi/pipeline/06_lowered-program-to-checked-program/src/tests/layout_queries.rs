@@ -156,3 +156,38 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
         "the changed size-8 requirement refuses the size-4 observation"
     );
 }
+
+#[test]
+fn exact_arithmetic_keeps_the_selected_layout_as_a_target_prerequisite() {
+    let source = "data Row { tag: u8; count: u64; }
+        machine extent() -> u64 { size_of::<Row>() + align_of::<Row>() }";
+    let typed = super::boundary_calls::typed(source);
+    let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
+    let RouteVerdict::Accepted(closure) = verdict else {
+        panic!("portable arithmetic should retain a range for the selected layout: {verdict:?}");
+    };
+    let conditions = &closure
+        .elaboration
+        .module
+        .scalars
+        .scalar_applications
+        .conditions;
+    let [range] = conditions.ranges() else {
+        panic!("expected a single pending arithmetic condition");
+    };
+    use numerics::integer_bounds::IntegerBoundStep::{Add, Observation};
+    use terminal_psi::ScalarRangeObservation::Application;
+    assert!(matches!(conditions.steps(range).unwrap(),
+        [Observation(Application(size)), Observation(Application(align)), Add] if size != align));
+}
+
+#[test]
+fn record_geometry_carries_layout_values_through_copies_calls_and_arrivals() {
+    let source =
+        include_str!("../../../../../../../../samples/cli/probes/record_geometry/main.omg");
+    let typed = super::boundary_calls::typed(source);
+    let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let result = super::entryless::judged_typed_result(&typed, false).unwrap();
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+}
