@@ -47,18 +47,40 @@ pub fn snapshot_fields(
         || checked.source.contract == [0; 32]
         || checked.service_declaration != checked.source.contract
         || boundary.identity != checked.source.callable
+        || checked.source.specialization.is_some()
+        || !checked.method_arguments.is_empty()
+        || checked.source.parameter_types.len() != 1
+        || boundary.attachment.is_some()
+        || boundary.numeric_intrinsic.is_some()
         || boundary.kind != BoundaryRequirementKind::Machine
         || boundary.completion != BoundaryCompletion::NormalReturn
+    {
+        return Err("layout target snapshot differs from its sealed core declaration");
+    }
+    if checked.source.published_may_suspend
+        || checked.source.published_may_block
         || !boundary.unconditional_termination
         || !boundary.crash_routes.is_empty()
         || !boundary.fixed_service_reach.is_empty()
         || !boundary.published_service_ceiling.is_empty()
         || !boundary.published_synchronous_entries.is_empty()
         || boundary.owning_service.is_some()
-        || !boundary.scalar_parameters.is_empty()
+        || boundary.service_reach_is_installation_bound
+        || !boundary.requires.is_empty()
+        || !boundary.scalar_requires.is_empty()
+        || !boundary.scalar_ensures.is_empty()
+        || !boundary.scalar_domain_requirements.is_empty()
+        || !boundary.normal_qualifications.is_empty()
+        || !boundary.membership_ensures.is_empty()
+        || !boundary.program_local_root_introductions.is_empty()
+        || !boundary.content_guarantees.is_empty()
+    {
+        return Err("layout target snapshot changed its pure callable contract");
+    }
+    if !boundary.scalar_parameters.is_empty()
         || boundary.parameter_order != [BoundaryParameterKind::Structural]
     {
-        return Err("layout target snapshot differs from its sealed core declaration");
+        return Err("layout target snapshot changed its parameter list");
     }
     let [input] = boundary.structural_parameters.as_slice() else {
         return Err("layout target snapshot needs one shared target");
@@ -81,11 +103,18 @@ pub fn snapshot_fields(
     let record = module
         .structural_type(result.structural_type)
         .ok_or("layout target snapshot lost its result")?;
-    let StructuralTypeShape::Record { fields, .. } = &record.shape else {
+    let StructuralTypeShape::Record {
+        fields,
+        storage: terminal_psi::StructuralRecordStorage::Packed,
+    } = &record.shape
+    else {
         return Err("layout target snapshot result has no fields");
     };
     if text(record.declaration_identity) != Some("toolchain::LayoutTargetFacts")
         || fields.len() != 4
+        || fields.iter().any(|field| {
+            field.relevance != language_core::BindingRelevance::Relevant || field.storage.is_some()
+        })
         || !record.is_copyable()
         || !result.qualifications.is_empty()
     {
