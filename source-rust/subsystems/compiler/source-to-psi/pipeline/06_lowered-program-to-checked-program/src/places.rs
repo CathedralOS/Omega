@@ -661,12 +661,19 @@ enum Observations {
     All,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Initialization {
+    NotAsked,
+    Leaf,
+    WholeArray,
+}
+
 pub(super) struct Reaching {
     keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
     equations: Vec<ReachingEquation>,
     fallbacks: Vec<EntryFallback>,
     boundary: BoundaryDepth,
-    initialization_only: bool,
+    initialization: Initialization,
     observations: Observations,
     /// Only an actual selected dispatch payload may condition type provenance.
     /// Ordinary reads, value equations and initialization leave this absent.
@@ -699,22 +706,27 @@ impl Reaching {
             Supply::Direct(reached) => {
                 let boundary = match reached {
                     Reached::Cycle => BoundaryDepth::Cycle,
-                    Reached::Established(depth) if !self.initialization_only => {
+                    Reached::Established(depth)
+                        if self.initialization == Initialization::NotAsked =>
+                    {
                         BoundaryDepth::Established(depth)
                     }
                     _ => BoundaryDepth::Local,
                 };
                 let equation = &mut self.equations[destination];
-                equation.seed = equation.seed.merge(if self.initialization_only {
-                    reached.without_identity()
-                } else {
-                    reached
-                });
+                equation.seed =
+                    equation
+                        .seed
+                        .merge(if self.initialization != Initialization::NotAsked {
+                            reached.without_identity()
+                        } else {
+                            reached
+                        });
                 equation.seed_boundary = equation.seed_boundary.merge(boundary);
             }
             Supply::Boundary { value, depth } => {
                 let equation = &mut self.equations[destination];
-                if self.initialization_only {
+                if self.initialization != Initialization::NotAsked {
                     equation.seed = equation.seed.merge(Reached::Unknown);
                     equation.seed_boundary = equation.seed_boundary.merge(BoundaryDepth::Local);
                 } else {
@@ -1187,7 +1199,9 @@ impl<'a> Storage<'a> {
                 // A read through a provider's shared reference yields a fresh scalar.
                 // Its public permission identifies no address for a later read to observe.
                 if let Some(at) = storage.descriptor_position((block.id, before))
-                    && storage.provider_referent(references, &leaf, at, concerns)?.is_some()
+                    && storage
+                        .provider_referent(references, &leaf, at, concerns)?
+                        .is_some()
                 {
                     continue;
                 }
@@ -2254,13 +2268,24 @@ impl<'a> Storage<'a> {
 
     /// Every leaf at or beneath `place`, as lineages: each scalar, and each
     /// sum itself, whose discriminator is contents like any other.
-    fn leaves(&self, place: &Lineage, concerns: Construct) -> Checked<Vec<Lineage>> {
+    fn leaves(
+        &self,
+        place: &Lineage,
+        concerns: Construct,
+        mut established_array: impl FnMut(&Lineage) -> bool,
+    ) -> Checked<Vec<Lineage>> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
             Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
             Shape::Typed(structural_type) => {
-                self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
+                self.leaves_of(
+                    structural_type,
+                    &mut at,
+                    &mut found,
+                    concerns,
+                    &mut established_array,
+                )?;
             }
             Shape::Payload(case) => {
                 self.field_leaves(&case.fields, &mut at, &mut found, concerns)?
@@ -2275,6 +2300,7 @@ impl<'a> Storage<'a> {
         at: &mut Lineage,
         found: &mut Vec<Lineage>,
         concerns: Construct,
+        established_array: &mut impl FnMut(&Lineage) -> bool,
     ) -> Checked<()> {
         for field in fields {
             at.segments.push(Segment::Field(field.id));
@@ -2283,7 +2309,7 @@ impl<'a> Storage<'a> {
                 | StructuralFieldType::AtomicBoundedInteger(_)
                 | StructuralFieldType::Scalar(_) => found.push(at.clone()),
                 StructuralFieldType::Structural(nested) => {
-                    self.leaves_of(nested, at, found, concerns)?;
+                    self.leaves_of(nested, at, found, concerns, established_array)?;
                 }
                 ref stored if is_stored_view(stored) => found.push(at.clone()),
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
@@ -2299,6 +2325,7 @@ impl<'a> Storage<'a> {
         at: &mut Lineage,
         found: &mut Vec<Lineage>,
         concerns: Construct,
+        established_array: &mut impl FnMut(&Lineage) -> bool,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
             // References and opaque values each occupy one established
@@ -2326,14 +2353,25 @@ impl<'a> Storage<'a> {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
+                // Each element is inline and has no independent access or
+                // descriptor to resolve. One whole supply establishes them all.
+                if *length > 1
+                    && matches!(
+                        self.declaration(*element, concerns)?.shape,
+                        StructuralTypeShape::PrimitiveScalar(_)
+                    )
+                    && established_array(at)
+                {
+                    return Ok(());
+                }
                 for index in 0..*length {
                     at.segments.push(Segment::FixedIndex(index));
-                    self.leaves_of(*element, at, found, concerns)?;
+                    self.leaves_of(*element, at, found, concerns, established_array)?;
                     at.segments.pop();
                 }
             }
             StructuralTypeShape::Record { fields, .. } => {
-                self.field_leaves(fields, at, found, concerns)?;
+                self.field_leaves(fields, at, found, concerns, established_array)?;
             }
             // A sum is established when something was stored into it whole,
             // whatever its case: the sum's own place stands for its
@@ -2343,7 +2381,7 @@ impl<'a> Storage<'a> {
                 found.push(at.clone());
                 for case in cases {
                     at.segments.push(Segment::Case(case.id));
-                    self.field_leaves(&case.fields, at, found, concerns)?;
+                    self.field_leaves(&case.fields, at, found, concerns, established_array)?;
                     at.segments.pop();
                 }
             }
@@ -2855,6 +2893,19 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
+            if budget.initialization == Initialization::WholeArray {
+                // A partial transfer can introduce an unavailable element;
+                // a vacancy, unknown alias effect or non-array producer has
+                // no whole-array proof. Let the caller judge individual cells.
+                if !row.backing.definitely_contains(watched)
+                    || !matches!(
+                        row.stored,
+                        Stored::Moved(_) | Stored::Zeroed | Stored::Established
+                    )
+                {
+                    return Ok(Supply::Direct(Reached::Unestablished));
+                }
+            }
             if matches!(row.stored, Stored::UnknownPayloadWrite { .. }) {
                 return Ok(Supply::Direct(Reached::Unknown));
             }
@@ -3752,6 +3803,11 @@ impl<'a> Storage<'a> {
             return Ok(Supply::transfer(address).within(projection));
         }
         let address = budget.add_equation();
+        if budget.initialization == Initialization::WholeArray && resolved.single_place().is_none()
+        {
+            budget.add_supply(address, Supply::Direct(Reached::Unestablished));
+            return Ok(Supply::transfer(address));
+        }
         if let Some(key) = key {
             budget.keys.insert(key, address);
         }
@@ -3804,6 +3860,13 @@ impl<'a> Storage<'a> {
                     }
                     if row.position > up_to
                         || !asked.ended_by(resolved, row, &budget.crossed_entries)
+                        // Installing a scalar, zero or established value in
+                        // part of an already live array preserves initialization
+                        // of every other element. Such a write cannot prove
+                        // the whole; keep looking for an independent origin.
+                        || budget.initialization == Initialization::WholeArray
+                            && matches!(row.stored, Stored::Value(_) | Stored::Zeroed | Stored::Established)
+                            && !row.backing.definitely_contains(resolved)
                         || self.call_preserves_extent(references, asked, row, concerns)?
                     {
                         continue;
@@ -3812,7 +3875,7 @@ impl<'a> Storage<'a> {
                         last = Some((index, row));
                     }
                 }
-                if !budget.initialization_only
+                if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
                     && let Some(observations) = self.observations[index(block.get())].get(leaf)
@@ -3843,7 +3906,7 @@ impl<'a> Storage<'a> {
                     budget.add_supply(destination, supply);
                     continue;
                 }
-                if !budget.initialization_only
+                if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
                     && !budget.crossed_entries[index(block.get())]
@@ -4073,7 +4136,7 @@ impl<'a> Storage<'a> {
             equations: Vec::new(),
             fallbacks: Vec::new(),
             boundary: BoundaryDepth::Cycle,
-            initialization_only: false,
+            initialization: Initialization::NotAsked,
             observations: Observations::None,
             selected_payload_case: None,
             remaining: self.reaching_budget,
@@ -4103,7 +4166,7 @@ impl<'a> Storage<'a> {
         // Reads supply snapshots rather than initialize storage. Suppress
         // their observations and project away identity from the same solver.
         Reaching {
-            initialization_only: true,
+            initialization: Initialization::Leaf,
             ..self.budget()
         }
     }
@@ -4859,7 +4922,26 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
-            for leaf in self.leaves(place, concerns)? {
+            let leaves = self.leaves(place, concerns, |array| {
+                // Cleanup can vacate a projected region independently of the
+                // operation log. Its precise per-cell judgment remains valid.
+                if !self.cleanup_writes.is_empty() {
+                    return false;
+                }
+                let mut budget = self.initialization_budget();
+                budget.initialization = Initialization::WholeArray;
+                budget.used = Some(point);
+                self.reaching(
+                    references,
+                    tables,
+                    Asked::Contents(array),
+                    (block, up_to),
+                    &mut budget,
+                    concerns,
+                )
+                .is_ok_and(|reached| reached != Reached::Unestablished)
+            })?;
+            for leaf in leaves {
                 let mut budget = self.initialization_budget();
                 budget.used = Some(point);
                 if self.reaching(
@@ -6000,7 +6082,7 @@ impl<'a> Storage<'a> {
             if !overlap(used, watched) {
                 continue;
             }
-            for leaf in self.leaves(raw, touch.at)? {
+            for leaf in self.leaves(raw, touch.at, |_| false)? {
                 let leaf = self.backing_for_touch(references, &leaf, touch)?;
                 if overlap(&leaf, watched)
                     && self.open_at(references, tables, &leaf, window.opened_by, &[], touch)?
@@ -8474,9 +8556,9 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
 
     #[test]
     fn a_recaptured_index_cannot_identify_a_previous_iterations_cell() {
-        let input = storage_fixture(
-            include_str!("../tests/fixtures/ownership/run/recaptured_index/main.omg"),
-        );
+        let input = storage_fixture(include_str!(
+            "../tests/fixtures/ownership/run/recaptured_index/main.omg"
+        ));
         let module = &input.module;
         let mut compared = false;
         for machine in &module.machines {
