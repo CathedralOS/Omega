@@ -307,24 +307,12 @@ fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId
         .original_for_audit()
         .unwrap()
         .target_for_correspondence();
-    let optimized = target.optimized();
     let verify = |prepared: &PreparedExecutionPlan| {
-        let callable_roots = target
-            .lowering_facts()
-            .callable_invocation_roots(target.working_program_for_validation())
-            .unwrap();
         target_lowering::replay::verify_execution_plan(
             prepared,
-            target_lowering::replay::ExecutionPlanReplayInputs {
-                target: target.working_program_for_validation(),
-                abstract_plan: optimized.plan(),
-                unit: optimized.unit(),
-                origins: target.boundary_origins(),
-                installed_interrupts: target.lowering_facts().installed_interrupts(),
-                closed_module: target.lowering_facts().closed_module(),
-                callable_roots: &callable_roots,
-                pre_physical: optimized.pre_physical_manifest().identity,
-            },
+            target.working_program_for_validation(),
+            target.optimized(),
+            target.lowering_facts(),
         )
     };
     let published = target.execution_plan();

@@ -429,25 +429,22 @@ pub(crate) mod optimized {
             lowering_facts.module(),
         )
         .ok_or_else(custody)?;
-        let callable_roots =
-            lowering_facts
-                .callable_invocation_roots(program)
+        let callable_bindings = lowering_facts
+            .callable_bindings(program)
+            .map_err(|reason| {
+                LoweringError::Preparation(Box::new(
+                    crate::preparation::TargetOperationAuditError::CallableBindings { reason },
+                ))
+            })?;
+        let callable_invocations =
+            crate::preparation::PreparedCallableInvocations::new(unit, &callable_bindings)
                 .map_err(|reason| {
                     LoweringError::Preparation(Box::new(
-                        crate::preparation::TargetOperationAuditError::CallableInvocationRoots {
+                        crate::preparation::TargetOperationAuditError::CallableValueProvenance {
                             reason,
                         },
                     ))
                 })?;
-        let callable_invocations = crate::preparation::PreparedCallableInvocations::new(
-            unit,
-            &callable_roots,
-        )
-        .map_err(|reason| {
-            LoweringError::Preparation(Box::new(
-                crate::preparation::TargetOperationAuditError::CallableValueProvenance { reason },
-            ))
-        })?;
         crate::preparation::prepare_execution_plan(
             program,
             crate::preparation::PreparationEvidence {

@@ -13,7 +13,7 @@ pub use target_lowering::{LoweringError, OptimizedTargetLoweringRequest, lower_n
 pub mod replay {
     pub use crate::target_lowering::require_lowering_context;
     pub use crate::preparation::{
-        ExecutionPlanReplayInputs, TargetOperationAuditError, verify_execution_plan,
+        TargetOperationAuditError, verify_execution_plan,
         verify_target_operation_plan_with_closed_module,
     };
 }
