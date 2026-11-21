@@ -1,0 +1,57 @@
+{
+  "compiler_source": "14c8bf59d02e84a789ddca0345a52cfa8e4328c7",
+  "compiler_source_tree": "66cab06003d68956722d559137eee5c9d50de620",
+  "original_local_compiler_sha256": "aba6fa8addceec71b9da5050f17e12e4d53e3c7b900dd355ffee2700f81193b2",
+  "base_std_tree": "d7dea1841b906ed345949afc7b7fd9912161ac61",
+  "overlays": {
+    "source/library/std/filesystem.omg": {
+      "candidate_sha256": "0af89a091a09339adbb486580b21a4d4e3f91a39e8f87005b0a20a1aec7a13ba",
+      "preimage_sha256": "69366fcce85ea82265f212fee17bc5d9c435a3636311b7c795f436f1a9e03851"
+    },
+    "source/library/std/posix_filesystem_adapter.omg": {
+      "candidate_sha256": "6928dca804c919ac6d181e4d976e4b4399e404df09bf328d4bc4e784e0d952da",
+      "preimage_sha256": "d22e15ae902db3955a4ca355e01ed3e9cc1f5116e816b0c9bb3d6e1f9b4dda4a"
+    },
+    "source/library/std/targets/windows_x86_64/filesystem/copy.omg": {
+      "candidate_sha256": "95ed151bc51a0a0d90555e52ff3511aba68716ec36a721e1bc1a0372bf546c7b",
+      "preimage_sha256": "be465630a1947cf593499ef3fbbaead798d9ccf1c2edd5fa917ea414f0326101"
+    },
+    "source/library/std/targets/windows_x86_64/filesystem/directory.omg": {
+      "candidate_sha256": "0ac64cc41bf12716c992d4942dbef3125351b802ed51b2976b7d8272f3974f41",
+      "preimage_sha256": "cf8f608cd80f96e4f4552c346e88e9aea3c5c8ae26271e2ae7159e31264fdf4f"
+    },
+    "source/library/std/targets/windows_x86_64/filesystem/handles.omg": {
+      "candidate_sha256": "3edea8f5e6283118a10f8c143a2029de4e27292ba49248b7be11835c0a7b011e",
+      "preimage_sha256": "9ba7f5721c29ef998293a5cea13b15887f4703f4f6e9a5871b5cc21b46d75ea7"
+    },
+    "source/library/std/targets/windows_x86_64/filesystem/metadata.omg": {
+      "candidate_sha256": "3b106d741d09a3e736732c7ab21e8a5e13fd8842be9ebc2cbc1b0cc550a031c4",
+      "preimage_sha256": "a5500b378cbbf962d8a3809c28b22e224fe763eaef9d2cbe2c5fd12f412ee6dd"
+    },
+    "source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg": {
+      "candidate_sha256": "fe181b9083551f3eb48f3f1ef9c3079fd7dbd413086f80ba88ea60a319d178f9",
+      "preimage_sha256": "84b92008d45e6d0ae9d44f3399bc0f9a8024ef6d037b2a09e1f6e30f6b0a29ae"
+    },
+    "source/library/std/windows_filesystem_host.omg": {
+      "candidate_sha256": "edfa0e0187bd73f6e1b98f6e6c0290a522a4ff86239cdf4bde0c3d454f8d86ac",
+      "preimage_sha256": "f2af37efe19694d32fd574b5367098b727e8adb45b3a4080211e284fefd291dd"
+    }
+  },
+  "project_inputs": {
+    "main.omg": "ee1ae93bd704c8b367f4e8d1de3dff6d759591930d219a19608a6a811328a21a",
+    "build.omg": "4cec3cfcf0fd839c8f2e70eb1818d77c813cc895b718849834766a8056df6a18"
+  },
+  "build_relocation": {
+    "original_std_path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/worker-6/source/library/std",
+    "instruction": "Replace only this dependency location literal with the authenticated hosted candidate source/library/std absolute path. Preserve all four ProgramEntry bindings and record both original and relocated Build digests. main.omg must remain byte-identical."
+  },
+  "command": "OMEGA_LIBRARY_ROOT=<qualified-source>/source/library <authenticated-omega> run --both --build-input build.omg --build-input main.omg <project>/build.omg < /dev/null",
+  "working_directory": "Fresh writable project directory; no input file or portable_*.tmp needs pre-creation. The program creates and removes its own source and copy files.",
+  "host_prerequisites": [
+    "macOS arm64 host with normal writable temporary filesystem and the default std raw providers.",
+    "No external service, special filesystem privilege, symlink capability or extra dylib is needed.",
+    "Do not run packages update as a substitute: this exact test is the direct Build-root program."
+  ],
+  "required_result": "Native exit 0 and Psi exit 0, with successful process exit. Missing output/termination supplies no program verdict.",
+  "limits": "This original program exercises public transfers, positioned operations, bounded copy, metadata and invalid extents/offsets. The separately prepared directory-inclusive fixture is not substituted for it."
+}

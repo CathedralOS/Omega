@@ -1,0 +1,43 @@
+name: Execute the public filesystem program on macOS
+on:
+  push:
+    branches: [work/check-public-filesystem-macos]
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: macos-15
+    timeout-minutes: 240
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      RAYON_NUM_THREADS: '2'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          path: observation
+          sparse-checkout: .github/fs-observation
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          path: compiler
+          ref: 14c8bf59d02e84a789ddca0345a52cfa8e4328c7
+      - name: Identify the compiler's build tool
+        id: key
+        working-directory: compiler
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Build Omega at the recorded revision
+        working-directory: compiler
+        run: |
+          bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/bin/mbx" build --locked -p omega --bin omega
+      - name: Run both engines on the public filesystem program
+        run: python3 observation/.github/fs-observation/observe.py
