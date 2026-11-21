@@ -23,13 +23,13 @@ machine apply(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> 
 boundary trait ComputedRootWrite {
     machine write(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> i64
     requires visits == 0
-    reaches crashes none;
+    reaches none crashes none;
 }
 
 LinuxX86ComputedRoot satisfies ComputedRootWrite {
     machine write(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> i64
     requires $visits == 0
-    reaches {
+    reaches none {
         apply(chosen, other, visits)
     }
 }
@@ -37,7 +37,7 @@ LinuxX86ComputedRoot satisfies ComputedRootWrite {
 LinuxArmComputedRoot satisfies ComputedRootWrite {
     machine write(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> i64
     requires $visits == 0
-    reaches {
+    reaches none {
         apply(chosen, other, visits)
     }
 }
@@ -45,7 +45,7 @@ LinuxArmComputedRoot satisfies ComputedRootWrite {
 MacComputedRoot satisfies ComputedRootWrite {
     machine write(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> i64
     requires $visits == 0
-    reaches {
+    reaches none {
         apply(chosen, other, visits)
     }
 }
@@ -53,7 +53,7 @@ MacComputedRoot satisfies ComputedRootWrite {
 WindowsComputedRoot satisfies ComputedRootWrite {
     machine write(chosen: @mut [i64; 2], other: @mut [i64; 2], visits: @mut u64) -> i64
     requires $visits == 0
-    reaches {
+    reaches none {
         apply(chosen, other, visits)
     }
 }

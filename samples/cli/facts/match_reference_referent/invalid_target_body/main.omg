@@ -25,13 +25,13 @@ machine apply(chosen: @i64, spare: @i64) -> i64 {
 boundary trait SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
     requires chosen == 17
-    reaches crashes none;
+    reaches none crashes none;
 }
 
 LinuxX86Reference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
     requires $chosen == 17
-    reaches {
+    reaches none {
         apply(chosen, spare)
     }
 }
@@ -39,7 +39,7 @@ LinuxX86Reference satisfies SelectedReference {
 LinuxArmReference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
     requires $chosen == 17
-    reaches {
+    reaches none {
         apply(chosen, spare)
     }
 }
@@ -47,7 +47,7 @@ LinuxArmReference satisfies SelectedReference {
 MacReference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
     requires $chosen == 17
-    reaches {
+    reaches none {
         apply(chosen, spare)
     }
 }
@@ -55,7 +55,7 @@ MacReference satisfies SelectedReference {
 WindowsReference satisfies SelectedReference {
     machine read(chosen: @i64, spare: @i64) -> i64
     requires $chosen == 17
-    reaches {
+    reaches none {
         apply(chosen, spare)
     }
 }

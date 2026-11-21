@@ -50,7 +50,7 @@ machine select(choose: bool) -> dyn Source {
 public machine observe(value: u64, choose: bool) -> u64
 requires value == 100u64
 ensures result >= 100u64
-reaches
+reaches none
 {
     let selected: dyn Source = select(choose);
     Source::get(selected, value)

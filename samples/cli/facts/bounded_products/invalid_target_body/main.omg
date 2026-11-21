@@ -2,7 +2,7 @@
 // Invalid: the operand bound is removed, so the exact product may overflow u64.
 // Place: another target body. Every target body multiplies the bounded operands.
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

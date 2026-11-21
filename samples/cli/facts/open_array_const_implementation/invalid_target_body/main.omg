@@ -16,7 +16,7 @@ ensures result >= Base + 4
     selected::<([Base, Base + 4]), Selected<([Base, Base + 3])>>()
 }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

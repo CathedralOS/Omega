@@ -2,7 +2,7 @@
 // Expected exit: 0.
 const FLOOR: i64 = -1;
 domain i64::Nonnegative requires self >= 0 established by issue;
-boundary trait Query { machine read(input: i64) -> i64 reaches ensures result >= FLOOR crashes none; }
+boundary trait Query { machine read(input: i64) -> i64 reaches none ensures result >= FLOOR crashes none; }
 Actual satisfies Query {
     machine read(input: i64) -> i64 ensures result >= FLOOR {
         transition input >= FLOOR { true -> (input), _ -> (FLOOR) }
@@ -10,7 +10,7 @@ Actual satisfies Query {
 }
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {

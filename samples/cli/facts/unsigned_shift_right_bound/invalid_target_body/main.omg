@@ -3,7 +3,7 @@
 // Expected rejection: exact arithmetic in machine `shift_right_target` state `entry` terminal expression may overflow `u64`.
 
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

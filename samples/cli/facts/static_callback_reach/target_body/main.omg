@@ -47,11 +47,11 @@ terminates
 requires value <= 37
 ensures result <= 37
 { transition { _ -> Step(value) } }
-machine pure_observer() -> u64 reaches
+machine pure_observer() -> u64 reaches none
 ensures result <= 37
 { ordinary::<quiet>(37) }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {

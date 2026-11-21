@@ -8,7 +8,7 @@ fn retired_receiver_parameters_reject_in_every_signature_owner() {
             format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
             format!("trait Operation {{ machine step({parameter}); }}"),
             format!(
-                "boundary trait Operation {{ machine step({parameter}) reaches crashes none; }}"
+                "boundary trait Operation {{ machine step({parameter}) reaches none crashes none; }}"
             ),
             format!("machine run() {{ machine step({parameter}) {{}} }}"),
         ] {

@@ -87,7 +87,7 @@ machine check(first: Prepared<16>, second: Prepared<32>) crashes Trap {
 
 data Holder { first: Prepared<16>; second: Prepared<32>; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
@@ -104,17 +104,17 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedPair {
-    machine pair() -> Holder reaches invokes SelectedBodyCheck crashes Trap;
+    machine pair() -> Holder reaches none invokes SelectedBodyCheck crashes Trap;
 }
 X86Pair satisfies SelectedPair {
-    machine pair() -> Holder reaches invokes SelectedBodyCheck crashes Trap
+    machine pair() -> Holder reaches none invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
         Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } }
     }
 }
 ArmPair satisfies SelectedPair {
-    machine pair() -> Holder reaches invokes SelectedBodyCheck crashes Trap
+    machine pair() -> Holder reaches none invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
         Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } }

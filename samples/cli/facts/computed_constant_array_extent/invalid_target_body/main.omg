@@ -3,7 +3,7 @@ const SIZE: u64 = 1 + 0;
 const SOURCE: [u64; SIZE] = [3 + 0];
 const ALIAS: [u64; 1] = SOURCE;
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 
 X86BodyCheck satisfies SelectedBodyCheck {

@@ -8,7 +8,7 @@ crashes Trap value == false
 }
 public data Byte requires value >= 0 && value <= 1 { value: u8; }
 boundary trait SelectedBodyCheck {
-    machine require_tag(tag: u64) reaches crashes Trap;
+    machine require_tag(tag: u64) reaches none crashes Trap;
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
@@ -25,7 +25,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedForward {
-    machine forward(value: bool) -> bool reaches crashes Trap value == false;
+    machine forward(value: bool) -> bool reaches none crashes Trap value == false;
 }
 X86Forward satisfies SelectedForward {
     machine forward(value: bool) -> bool

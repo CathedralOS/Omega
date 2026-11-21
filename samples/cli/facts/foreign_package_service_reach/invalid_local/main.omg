@@ -11,7 +11,7 @@ machine demand(result: bool) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-machine start() reaches crashes Trap {
+machine start() reaches none crashes Trap {
     let lower: i32 = CharacterCase::upper(97);
     let digit: i32 = CharacterCase::upper(49);
     demand(lower == 65 && digit == 49);
