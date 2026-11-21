@@ -34,6 +34,7 @@ Windows import library tables, and x86-64 interrupt gate address assembly.
 pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
 mod aggregate_layout;
+mod borrowed_storage;
 mod boundary_application;
 mod boundary_values;
 mod callback_materializations;

@@ -13,7 +13,7 @@ fn compile(
     project: &Path,
     requested: Product,
 ) -> Result<CompletedProduct, Vec<diagnostics::Diagnostic>> {
-    let profile = TargetProfile::MacosArm64;
+    let profile = TargetProfile::host();
     let product = package_manager::project::open_product(
         &project.join("build.omg"),
         profile,
@@ -57,15 +57,16 @@ fn psi_admission_retains_the_native_borrowed_storage_layouts() {
     package_compilation::toolchain_library::configure(&library).unwrap();
     let build = r#"machine build(builder: @mut Build) {
     Build::application(builder, "checked_read_geometry");
-    Build::select_provider::<ReadCell, Reader>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::select_provider::<ReadCell, Reader>(builder, TARGET);
+    Build::bind(builder, TARGET\ProgramEntry, main);
 }
-"#;
+"#
+    .replace("TARGET", TargetProfile::host().target_name());
     let project = stage_project(
         "borrowed-layout",
         "data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
 public boundary trait ReadCell {
-    machine word(cell: @Cell) -> u32 reaches crashes none;
+    machine word(cell: @Cell) -> u32 reaches none crashes none;
 }
 Reader satisfies ReadCell {
     machine word(cell: @Cell) -> u32 { cell.word }
@@ -81,18 +82,37 @@ machine main() crashes Trap {
     machine bad() { crash Trap; }
 }
 ",
-        build,
+        &build,
     );
     let psi = compile(&project, Product::Runtime);
     let native = compile(&project, Product::Native);
 
-    let unbound = build.replace(
-        "    Build::select_provider::<ReadCell, Reader>(builder, macos_arm64);\n",
-        "",
-    );
+    let execution = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--both", "main.omg"])
+        .current_dir(&project)
+        .env("OMEGA_LIBRARY_ROOT", &library)
+        .output()
+        .expect("run the selected provider on both engines");
+
+    let unbound = build
+        .lines()
+        .filter(|line| !line.contains("Build::select_provider"))
+        .collect::<Vec<_>>()
+        .join("\n");
     std::fs::write(project.join("build.omg"), unbound).expect("staged missing provider");
     let refused = compile(&project, Product::Runtime);
     std::fs::remove_dir_all(&project).expect("clean staged project");
+
+    let report = String::from_utf8_lossy(&execution.stderr);
+    assert!(execution.status.success(), "{report}");
+    assert!(
+        report.lines().any(|line| line == "native exit 0"),
+        "{report}"
+    );
+    assert!(
+        report.lines().any(|line| line == "interp exit: 0"),
+        "{report}"
+    );
 
     let psi = psi.expect("admit the checked provider and its runtime geometry");
     let native = native.expect("realize the same admitted provider");

@@ -3,8 +3,6 @@
 pub(crate) mod foreign_adapters;
 
 use crate::driver::AdmittedRealization;
-use crate::driver::observations::NativePipelineObservation;
-use crate::driver::request::native_optimization_budget;
 use artifact_lowering::AdmittedNativeRealization;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
@@ -105,29 +103,17 @@ pub fn plan_root_provisions(
 pub(crate) fn prepare_terminal_runtime(
     realization: AdmittedRealization<'_>,
     target: target::NativeTarget,
-    selections: &optimization_core::PostTerminalOptimizationSelections,
-    observation: &NativePipelineObservation,
 ) -> Result<NativeRuntimePlan<object_file::ForeignAdapterObject>, Vec<Diagnostic>> {
     let AdmittedRealization {
         admitted: AdmittedNativeRealization { input, .. },
         runtime_provisions,
         ..
     } = realization;
-    let borrowed_storage_layouts = crate::driver::compile_body::plan_runtime_storage(
-        input,
-        target,
-        selections,
-        native_optimization_budget(),
-        observation,
-    )
-    .map_err(|error| match error {
-        crate::driver::compile_body::NativeBodyPlanningError::AbstractOptimization(error) => {
-            realization_error("canonical abstract optimization", error)
-        }
-        crate::driver::compile_body::NativeBodyPlanningError::Target(error) => {
-            realization_error("runtime borrowed storage layout", error)
-        }
-    })?;
+    let borrowed_storage_layouts = input
+        .into_optimization_input()
+        .into_lowering_facts()
+        .borrowed_storage_layouts(target)
+        .map_err(|error| realization_error("runtime borrowed storage layout", error))?;
     let provisions = runtime_provisions.ok_or_else(|| {
         vec![Diagnostic::error(
             "runtime admission requires a checked program entry",

@@ -364,11 +364,7 @@ pub fn verify_retained_target_operations(
         },
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-    let expected = target_lowering::replay::capture_runtime_borrowed_storage_layouts(
-        optimized,
-        current.lowering_facts(),
-        current.target(),
-    )
+    let expected = current.lowering_facts().borrowed_storage_layouts(current.target())
     .map_err(|error| {
         diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error:?}"))
     })?;
