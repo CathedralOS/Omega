@@ -788,10 +788,14 @@ mod machine {
                     | OperationKind::SelectMachine { .. }
                     | OperationKind::CallDynamic { .. }
                     | OperationKind::CallMachine { .. } => calls::lower(operation, machine),
-                    OperationKind::StorageAddress { source } => {
-                        let result = operation.result.scalar()
-                .filter(|result| matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address()))
-                .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                    OperationKind::StorageAddress { source } | OperationKind::StorageAlignment { source } => {
+                        let query = if matches!(operation.kind, OperationKind::StorageAddress { .. }) {
+                            terminal_psi::StorageLocationQuery::Address
+                        } else {
+                            terminal_psi::StorageLocationQuery::Alignment
+                        };
+                        let result = operation.result.scalar().filter(|result| query.admits_result(result.scalar_type))
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
                         if source.access != terminal_psi::StructuralAccess::SharedBorrow {
                             return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
                         }
@@ -819,7 +823,8 @@ mod machine {
                         {
                             return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
                         }
-                        Ok(AbstractOperation::StorageAddress {
+                        Ok(AbstractOperation::ObserveStorageLocation {
+                            query,
                             psi_operation: operation.id,
                             result: result.into(),
                             source: source.place,

@@ -1170,6 +1170,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         E::OwnedTemporary { value: base, .. }
         | E::Field { base, .. }
         | E::CollectionView { base, .. }
+        | E::LocationAlignment { place: base, .. }
         | E::CollectionMeasure { base, .. }
         | E::ByteSequencePredicate { base, .. }
         | E::Establish { operand: base, .. }

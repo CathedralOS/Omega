@@ -119,14 +119,14 @@ pub enum StructuralEffectCustody {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StructuralEffectAction {
-    EstablishNativeCodeLayout,
+pub enum StructuralEffectAction {    EstablishNativeCodeLayout,
     EstablishAccessReference,
     EstablishReference,
     ReleaseReference,
     EstablishPrimitiveLocal,
     ReadPrimitive,
     ExposeStorageAddress,
+    ObserveStorageAlignment,
     ObserveCaseMembership,
     StorePrimitive,
     StoreScalarField,
@@ -365,6 +365,7 @@ macro_rules! structural_effect_rows {
 
 structural_effect_rows! {
     StorageAddress => (Scalar, ExactAddressableReferent, ExposeStorageAddress, None, RequiresAndKeepsStructuralPlace),
+    StorageAlignment => (Scalar, ExactAddressableReferent, ObserveStorageAlignment, None, RequiresAndKeepsStructuralPlace),
     EstablishAccessReference => (Structural, ExactReferenceSource, EstablishAccessReference, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
@@ -444,6 +445,7 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::ReadPrimitive => OperationSemanticTag::PrimitiveScalarRead,
         StructuralEffectAction::ExposeStorageAddress => OperationSemanticTag::StorageAddress,
+        StructuralEffectAction::ObserveStorageAlignment => OperationSemanticTag::StorageAlignment,
         StructuralEffectAction::ObserveCaseMembership => {
             OperationSemanticTag::StructuralCaseMembership
         }
@@ -573,7 +575,7 @@ fn validate_structural_effect_schema(
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
             }
-            StructuralEffectAction::ExposeStorageAddress => {
+            StructuralEffectAction::ExposeStorageAddress | StructuralEffectAction::ObserveStorageAlignment => {
                 schema.result == StructuralEffectResultShape::Scalar
                     && schema.custody == StructuralEffectCustody::ExactAddressableReferent
                     && schema.external_effect == StructuralEffectExternalEffect::None

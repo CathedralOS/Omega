@@ -984,6 +984,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 138 | SelectMachine | descriptor id; the scalar result has the descriptor's callable contract type |
 | 139 | CallMachine | callee value id + callable contract id + counted scalar argument value ids + erased scalar terms + erased proof terms + structural arguments + claim transfers + requirement obligation ids + crash continuations |
 | 140 | DecomposeStructuralValue | structural argument naming the owned subject; unit result |
+| 141 | StorageAlignment | shared structural argument naming the observed location |
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces

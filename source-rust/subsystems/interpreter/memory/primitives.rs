@@ -6218,6 +6218,166 @@ pub(crate) mod storage_addresses {
             ))
         }
 
+        /// Query the selected allocation and its physical byte offset. An exposed
+        /// address is an identity token in Psi and carries no alignment bits.
+        fn location_alignment(
+            &self,
+            endpoint: PrimitiveStorageEndpoint,
+        ) -> Result<u64, TerminalInterpretError> {
+            use crate::boundary::values::StructuralFieldNamespace;
+            use crate::storage::provider_storage::value_image::geometry::ImageGeometry;
+            use terminal_psi::{StructuralPathSegment as Step, StructuralTypeShape as Shape};
+            let missing = || {
+                TerminalInterpretError::UnsupportedSemanticVariant(
+                    "location alignment needs the original selected storage geometry",
+                )
+            };
+            let types = self.structural_types();
+            let geometry = ImageGeometry::for_execution(self);
+            let alignment = |root, path: &[Step]| {
+                let (_, base) = geometry.layout(root)?;
+                geometry
+                    .region(root, path)
+                    .and_then(|region| region.alignment_at(base))
+                    .ok_or_else(missing)
+            };
+            let array_element = |root, ordinal: usize| {
+                let path = terminal_semantics::scalar_array_leaf_path(
+                    types.values(),
+                    root,
+                    u64::try_from(ordinal).map_err(|_| malformed())?,
+                )
+                .ok_or_else(missing)?;
+                alignment(root, &path)
+            };
+            let scalar_location =
+                |place: &StructuralRuntimePlace, field: Option<&StructuralScalarRuntimeField>| {
+                    let allocation = self
+                        .owned_allocation_at(place.opaque_identity, &place.path)?
+                        .ok_or_else(missing)?
+                        .value;
+                    let mut path = place
+                        .path
+                        .strip_prefix(allocation.path.as_slice())
+                        .ok_or(malformed())?
+                        .to_vec();
+                    if let Some(field) = field {
+                        let owner = terminal_semantics::runtime_structural_path_tip(
+                            types.values(),
+                            allocation.structural_type,
+                            &path,
+                        )
+                        .ok_or_else(missing)?;
+                        let fields = match (&owner.shape, field.namespace) {
+                            (
+                                terminal_psi::record_or_mixed_shape_pattern!(fields),
+                                StructuralFieldNamespace::Member,
+                            ) => fields,
+                            (
+                                Shape::Sum { cases } | Shape::Mixed { cases, .. },
+                                StructuralFieldNamespace::CasePayload,
+                            ) => {
+                                let tag = self.structural_cases.require(place)?;
+                                if tag.structural_type != owner.id {
+                                    return Err(malformed());
+                                }
+                                if !matches!(path.last(), Some(Step::Case(case)) if *case == tag.case)
+                                {
+                                    path.push(Step::Case(tag.case));
+                                }
+                                &terminal_psi::find_structural_case(cases, tag.case)
+                                    .ok_or(malformed())?
+                                    .fields
+                            }
+                            _ => return Err(malformed()),
+                        };
+                        let leaf = terminal_psi::live_field_by_id(fields, field.field)
+                            .ok_or(malformed())?;
+                        path.push(Step::Field(leaf.identity));
+                    }
+                    alignment(allocation.structural_type, &path)
+                };
+            match endpoint {
+                PrimitiveStorageEndpoint::Scalar(place) => scalar_location(&place, None),
+                PrimitiveStorageEndpoint::ScalarField(field) => {
+                    scalar_location(&field.parent, Some(&field))
+                }
+                PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
+                    array_element(home.scalar_array_frame().2, index)
+                }
+                PrimitiveStorageEndpoint::ArrayElement { array, index } => match array.home {
+                    ArrayStorageHome::Runtime => {
+                        let mut place = array.referent;
+                        place.path.push(Step::FixedIndex(
+                            u64::try_from(index).map_err(|_| malformed())?,
+                        ));
+                        scalar_location(&place, None)
+                    }
+                    ArrayStorageHome::Frame {
+                        structural_type, ..
+                    } => {
+                        let (start, end) = self.frame_byte_array_window(&array)?;
+                        let ordinal = start
+                            .checked_add(index)
+                            .filter(|ordinal| *ordinal < end)
+                            .ok_or(malformed())?;
+                        array_element(structural_type, ordinal)
+                    }
+                },
+                PrimitiveStorageEndpoint::ViewByte { bytes, index } if index < bytes.len() => Ok(1),
+                PrimitiveStorageEndpoint::RepresentationByte(byte) if byte.index < byte.view.len() => Ok(1),
+                PrimitiveStorageEndpoint::Projection {
+                    fragments, stored, ..
+                } => {
+                    let [fragment] = fragments.as_slice() else {
+                        return Err(missing());
+                    };
+                    self.location_alignment(
+                        fragment
+                            .contiguous_address_endpoint(stored)
+                            .ok_or_else(missing)?,
+                    )
+                }
+                PrimitiveStorageEndpoint::ViewByte { .. }
+                | PrimitiveStorageEndpoint::RepresentationByte(_) => Err(missing()),
+            }
+        }
+
+        pub(crate) fn execute_storage_alignment(
+            &mut self,
+            operation: &Operation,
+            source: &StructuralArgument,
+        ) -> Result<(), TerminalInterpretError> {
+            let result = operation.result.scalar().ok_or(malformed())?;
+            let ScalarType::Integer(integer) = result.scalar_type else {
+                return Err(malformed());
+            };
+            if !terminal_psi::StorageLocationQuery::Alignment.admits_result(result.scalar_type)
+                || source.access != terminal_psi::StructuralAccess::SharedBorrow
+            {
+                return Err(malformed());
+            }
+            let scalar = terminal_semantics::primitive_read_projection_type(
+                self.structural_types().values(),
+                self.live_structural_type(source.place)?,
+                &source.path,
+            );
+            let endpoint = self.storage_address_endpoint(source, scalar)?;
+            let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
+            let limit = geometry
+                .location_alignment_limit(self.live_structural_type(source.place)?, &source.path)
+                .ok_or(malformed())?;
+            let alignment = self.location_alignment(endpoint)?.min(limit);
+            self.values.insert(
+                result.id,
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(u128::from(alignment)),
+                },
+            )?;
+            Ok(())
+        }
+
         pub(crate) fn execute_storage_address(
             &mut self,
             operation: &Operation,

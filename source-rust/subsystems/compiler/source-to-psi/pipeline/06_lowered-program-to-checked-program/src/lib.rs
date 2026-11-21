@@ -1190,7 +1190,7 @@ fn fill_knowledge<'a>(
     }
     for block in &lowered.blocks {
         for operation in &block.operations {
-            if let Some(equation) = result_equation(module, id, operation, types)? {
+            if let Some(equation) = result_equation(module, lowered, operation, types)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -1660,20 +1660,33 @@ fn semantics_refusal(
 /// call).
 fn result_equation(
     module: &TerminalModule,
-    machine: MachineId,
+    lowered: &TerminalMachine,
     operation: &terminal_psi::Operation,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Option<Proposition>> {
-    if let Some(equation) =
-        terminal_semantics::scalar_application_read_equation(&module.scalars.scalar_applications, operation)
-            .map_err(|reason| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    machine,
-                    Construct::Operation(operation.id),
-                    reason,
-                )
-            })?
+    let machine = lowered.id;
+    let malformed = |reason| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Operation(operation.id),
+            reason,
+        )
+    };
+    if let Some(fact) = terminal_semantics::storage_alignment_fact(
+        &module.types.structural_types,
+        lowered,
+        operation,
+    )
+    .map_err(malformed)?
+    {
+        return Ok(Some(fact));
+    }
+    if let Some(equation) = terminal_semantics::scalar_application_read_equation(
+        &module.scalars.scalar_applications,
+        operation,
+    )
+    .map_err(malformed)?
     {
         return Ok(Some(equation));
     }

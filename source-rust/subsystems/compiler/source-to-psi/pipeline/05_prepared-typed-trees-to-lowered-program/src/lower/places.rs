@@ -1103,7 +1103,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Borrow { place, home, .. } => {
+        ExpressionKind::Borrow { place, home, .. } | ExpressionKind::LocationAlignment { place, home, .. } => {
             if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
                 let slot = match place.kind {
                     ExpressionKind::Slot(slot) => Some(slot),
@@ -2849,6 +2849,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::LocationAlignment { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ScalarApplication { .. }
@@ -4430,6 +4431,48 @@ impl<'a> Lowering<'a> {
             self.retire_homes(&[home], source)?;
         }
         Ok(Reached::Value(result))
+    }
+
+    pub(super) fn location_alignment(
+        &mut self,
+        place: &Expression,
+        first_element: Option<StructuralTypeId>,
+        count: ScalarType,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let (root, steps) = if let Some(element) = first_element {
+            let at = continuing!(self.located(place));
+            self.measured_view(&at, source)?;
+            let zero = Expression {
+                call_context: None,
+                source,
+                result: Some(ValueType::plain(count)),
+                kind: ExpressionKind::Integer(IntegerValue::Unsigned(0)),
+            };
+            let first = continuing!(self.index_step(at.record, element, &zero));
+            let mut path = at.path;
+            path.push(first);
+            (at.root, path)
+        } else {
+            let (root, steps, _, _) = continuing!(self.capture_place(place));
+            if let Some((view, _, _)) = self.element_view_projection(root, &steps)? {
+                self.measured_view(&view, source)?;
+            }
+            (root, steps)
+        };
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
+        let argument = StructuralArgument {
+            place: root,
+            path,
+            access: StructuralAccess::SharedBorrow,
+        };
+        self.emit(
+            operation,
+            Some(count),
+            OperationKind::StorageAlignment { source: argument },
+        )
+        .map(Reached::Value)
     }
 
     pub(super) fn measure_collection(

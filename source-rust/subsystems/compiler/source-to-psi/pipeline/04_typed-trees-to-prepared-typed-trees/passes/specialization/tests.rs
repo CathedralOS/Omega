@@ -2636,13 +2636,12 @@ fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
         query.arguments = HandleSpan::empty();
         query.machine_arguments = Box::new([]);
         query.authored_machine_application = arena::Handle::invalid();
-        query.layout_query = Some(DataLayoutQueryRequest {
+        query.layout_query = Some(DataLayoutQueryRequest::Type {
             kind,
             operand: StaticMachineArgument {
                 type_reference: parameter,
                 ..argument(source.relay.parameter, "T")
             },
-            nonempty_view: ExpressionHandle::invalid(),
         });
         let expression = program.expression_table.insert(ExpressionNode::Call(query));
         let body = returns(program, expression);
@@ -2668,18 +2667,20 @@ fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
         let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
         let copied_calls = calls(program, copied.machine);
         let query = copied_calls[0].layout_query.as_ref().unwrap();
-        assert_eq!(query.kind, kind);
-        assert_eq!(query.operand.symbol, source.byte);
+        let DataLayoutQueryRequest::Type { kind: copied_kind, operand } = query else {
+            panic!("the specialized query measures a type")
+        };
+        assert_eq!(*copied_kind, kind);
+        assert_eq!(operand.symbol, source.byte);
         assert_eq!(
-            named_symbol(program, query.operand.type_reference),
+            named_symbol(program, operand.type_reference),
             source.byte
         );
-        assert!(!query.nonempty_view.is_valid());
         let original_calls = calls(program, source.relay.machine);
-        let original = original_calls[0].layout_query.as_ref().unwrap();
-        assert_eq!(original.operand.symbol, source.relay.parameter);
+        let original = original_calls[0].layout_query.as_ref().unwrap().type_operand().unwrap();
+        assert_eq!(original.symbol, source.relay.parameter);
         assert_eq!(
-            named_symbol(program, original.operand.type_reference),
+            named_symbol(program, original.type_reference),
             source.relay.parameter
         );
     }

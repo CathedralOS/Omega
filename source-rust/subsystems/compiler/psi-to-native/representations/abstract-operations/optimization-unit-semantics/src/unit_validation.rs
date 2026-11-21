@@ -12158,8 +12158,8 @@ pub(crate) mod operation_contracts {
                     matches!(scalar(*committed), Some(ScalarType::Integer(integer)) if fixed(integer) && integer.bits() == Some(64) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                 }
                 O::ReleaseActivationClaim { .. } | O::MergeActivationClaim { .. } => true,
-                O::StorageAddress { result, .. } => {
-                    matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                O::ObserveStorageLocation { query, result, .. } => {
+                    query.admits_result(result.scalar_type)
                         && scalar(result.value) == Some(result.scalar_type)
                 }
                 O::ActivateTaskRegister {

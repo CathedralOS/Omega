@@ -67,8 +67,7 @@ pub struct ModuleInvocation<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractOperation {
-    EstablishActivationClaim {
+pub enum AbstractOperation {    EstablishActivationClaim {
         psi_operation: OperationId,
         result: OperationResult,
         bound: u64,
@@ -144,7 +143,8 @@ pub enum AbstractOperation {
         operation: terminal_psi::GlobalDescriptorTableOperation,
         source: StructuralArgument,
     },
-    StorageAddress {
+    ObserveStorageLocation {
+        query: terminal_psi::StorageLocationQuery,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -1011,7 +1011,7 @@ impl AbstractOperation {
             Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => vec![],
             Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
             Self::EliminateEmpty { path, .. }
-            | Self::StorageAddress { path, .. }
+            | Self::ObserveStorageLocation { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ReleaseReference { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
@@ -1135,7 +1135,7 @@ impl AbstractOperation {
             | Self::StructuralByteViewFieldStore { psi_operation, .. }
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }
-            | Self::StorageAddress { psi_operation, .. }
+            | Self::ObserveStorageLocation { psi_operation, .. }
             | Self::GlobalDescriptorTable { psi_operation, .. }
             | Self::ActivateTaskRegister { psi_operation, .. }
             | Self::ReadTaskRegister { psi_operation, .. }
@@ -1470,7 +1470,7 @@ macro_rules! boolean_not_or_equal_pair_pattern {
 #[macro_export]
 macro_rules! primitive_storage_observation_pattern {
     ($($fields:tt)*) => {
-        $crate::AbstractOperation::StorageAddress { $($fields)* }
+        $crate::AbstractOperation::ObserveStorageLocation { $($fields)* }
             | $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
             | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
     };
@@ -1635,7 +1635,7 @@ macro_rules! establish_set_quint_pattern {
 #[macro_export]
 macro_rules! scalar_storage_observation_pattern {
     ($($fields:tt)*) => {
-        $crate::AbstractOperation::StorageAddress { $($fields)* }
+        $crate::AbstractOperation::ObserveStorageLocation { $($fields)* }
             | $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
             | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
             | $crate::AbstractOperation::StructuralScalarFieldRead { $($fields)* }

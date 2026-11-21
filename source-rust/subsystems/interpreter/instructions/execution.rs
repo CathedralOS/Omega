@@ -3318,6 +3318,10 @@ pub(crate) mod execution {
                                             self.execute_native_code_layout(operation, machine)?;
                                             OperationFlow::Advance
                                         }
+                                        OperationKind::StorageAlignment { ref source } => {
+                                            self.execute_storage_alignment(operation, source)?;
+                                            OperationFlow::Advance
+                                        }
                                         OperationKind::StorageAddress { ref source } => {
                                             self.execute_storage_address(operation, source)?;
                                             OperationFlow::Advance

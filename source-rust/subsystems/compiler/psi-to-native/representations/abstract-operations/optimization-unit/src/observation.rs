@@ -366,7 +366,7 @@ fn operation_observations(
         | O::SplitActivationClaim { .. }
         | O::MergeActivationClaim { .. }
         | O::ReleaseActivationClaim { .. }
-        | O::StorageAddress { .. }
+        | O::ObserveStorageLocation { .. }
         | O::EstablishNativeCodeLayout { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }

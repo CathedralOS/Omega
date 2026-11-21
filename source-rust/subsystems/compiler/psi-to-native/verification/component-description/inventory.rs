@@ -205,6 +205,7 @@ pub fn derive_component_inventory(
                     | OperationKind::ReleaseActivationClaim { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::StorageAddress { .. }
+                    | OperationKind::StorageAlignment { .. }
                     | OperationKind::PrimitiveScalarRead { .. }
                     | OperationKind::AtomicFence { .. }
                     | OperationKind::AtomicAccess { .. }

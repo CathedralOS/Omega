@@ -551,6 +551,7 @@ pub(crate) mod operation_tags {
     pub(crate) const READ_SEGMENT_SELECTOR: u8 = 137;
 
     pub(crate) const DECOMPOSE_STRUCTURAL_VALUE: u8 = 140;
+    pub(crate) const STORAGE_ALIGNMENT: u8 = 141;
 }
 pub(crate) mod scalar_operations {
 
@@ -1538,6 +1539,7 @@ operation_wire! {
         READ_SCALAR_APPLICATION => ReadScalarApplication { application: Id },
         ESTABLISH_NATIVE_CODE_LAYOUT => EstablishNativeCodeLayout { machine: Id },
         STORAGE_ADDRESS => StorageAddress { source: Argument },
+        STORAGE_ALIGNMENT => StorageAlignment { source: Argument },
         ACTIVATE_TASK_REGISTER => ActivateTaskRegister { service: Id, entries: U16, gdt: Argument, task_state: Argument, selector: Id, scratch: Argument },
         READ_TASK_REGISTER => ReadTaskRegister { service: Id },
         RELOAD_SEGMENT_DESCRIPTORS => ReloadSegmentDescriptors { service: Id, entries: U16, kind: SegmentReloadKind, gdt: Argument, selector: Id, scratch: Argument },

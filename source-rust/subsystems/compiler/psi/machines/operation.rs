@@ -59,9 +59,33 @@ impl Operation {
     }
 }
 
+/// Two observations of the same captured storage path. Only address
+/// exposure yields an address that can participate in identity comparisons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StorageLocationQuery {
+    Address,
+    Alignment,
+}
+
+impl StorageLocationQuery {
+    pub fn admits_result(self, ty: semantic_vocabulary::ScalarType) -> bool {
+        use semantic_vocabulary::{IntegerSign, ScalarType};
+        let ScalarType::Integer(integer) = ty else {
+            return false;
+        };
+        match self {
+            Self::Address => integer.is_address(),
+            Self::Alignment => {
+                !integer.is_address()
+                    && integer.bits() == Some(64)
+                    && integer.sign() == IntegerSign::Unsigned
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OperationKind {
-    ActivateTaskRegister {
+pub enum OperationKind {    ActivateTaskRegister {
         service: ServiceId,
         entries: u16,
         gdt: StructuralArgument,
@@ -91,6 +115,11 @@ pub enum OperationKind {
         machine: MachineId,
     },
     StorageAddress {
+        source: StructuralArgument,
+    },
+    /// Observe the alignment of this live projected location without lending
+    /// the storage or loading the value at that location.
+    StorageAlignment {
         source: StructuralArgument,
     },
     GlobalDescriptorTable {

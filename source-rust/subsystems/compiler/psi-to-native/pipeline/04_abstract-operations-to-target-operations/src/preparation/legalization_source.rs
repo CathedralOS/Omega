@@ -1678,7 +1678,8 @@ pub(crate) mod scalar_graph {
                 unit: &crate::preparation::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let optimized = function_inputs.function();
-                let AbstractOperation::StorageAddress {
+                let AbstractOperation::ObserveStorageLocation {
+                    query,
                     psi_operation,
                     source,
                     path,
@@ -1687,8 +1688,7 @@ pub(crate) mod scalar_graph {
                 else {
                     unreachable!("dispatched storage address")
                 };
-                if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
-                {
+                if !query.admits_result(result.scalar_type) {
                     return Err(Error::custody());
                 }
                 let root =
@@ -1697,7 +1697,8 @@ pub(crate) mod scalar_graph {
                 let geometry =
                     storage_address_geometry(root, path, unit.geometry()).ok_or(Error::custody())?;
                 let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
-                Ok(LegalizedScalarInstructionKind::StorageAddress {
+                Ok(LegalizedScalarInstructionKind::ObserveStorageLocation {
+                    query: *query,
                     source: *source,
                     path: path.clone(),
                     indices,
@@ -2686,7 +2687,7 @@ pub(crate) mod scalar_graph {
                             node, function_inputs, unit,
                         )?
                     }
-                    AbstractOperation::StorageAddress { .. } => {
+                    AbstractOperation::ObserveStorageLocation { .. } => {
                         storage_instructions::project_storage_address(node, function_inputs, unit)?
                     }
                     AbstractOperation::BoundaryCall {

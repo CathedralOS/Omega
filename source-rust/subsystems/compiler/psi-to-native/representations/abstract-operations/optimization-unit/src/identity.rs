@@ -3444,7 +3444,7 @@ pub(crate) mod operation_encoding {
             | O::SplitActivationClaim { .. }
             | O::MergeActivationClaim { .. }
             | O::ReleaseActivationClaim { .. }
-            | O::StorageAddress { .. }
+            | O::ObserveStorageLocation { .. }
             | O::ByteSequenceSubslice { .. }
             | O::EstablishElementView { .. }
             | O::ElementViewSubslice { .. }
@@ -5030,13 +5030,15 @@ pub(crate) mod operation_encoding {
                     bytes.id(*machine);
                     encode_structural_operation_result(bytes, result);
                 }
-                O::StorageAddress {
+                O::ObserveStorageLocation {
+                    query,
                     psi_operation,
                     result,
                     source,
                     path,
                 } => {
                     tag!(bytes, 122, psi_operation);
+                    bytes.u8(match query { terminal_psi::StorageLocationQuery::Address => 0, terminal_psi::StorageLocationQuery::Alignment => 1 });
                     encode_abstract_result(bytes, *result);
                     bytes.id(*source);
                     bytes.slice(path, encode_structural_path_segment);

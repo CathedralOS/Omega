@@ -478,12 +478,14 @@ pub(crate) fn project(
             path: source.path.clone(),
             indices: indices(selectors)?,
         },
-        Operation::StorageAddress {
+        Operation::ObserveStorageLocation {
+            query,
             source,
             path,
             indices: selectors,
             ..
-        } => Kind::StorageAddress {
+        } => Kind::ObserveStorageLocation {
+            query: *query,
             source: *source,
             path: path.clone(),
             indices: indices(selectors)?,

@@ -32,6 +32,19 @@ pub struct ReferenceStorageRegion {
     pub array: Option<ReferenceArrayWindow>,
 }
 
+impl ReferenceStorageRegion {
+    /// A base divisible by `base_alignment` and shifted by `byte_offset`
+    /// retains the smaller of their powers of two. Offset zero keeps the
+    /// entire base guarantee, including for the first field of a record.
+    pub fn alignment_at(&self, base_alignment: u64) -> Option<u64> {
+        base_alignment.is_power_of_two().then(|| {
+            1u64 << base_alignment
+                .trailing_zeros()
+                .min(self.byte_offset.trailing_zeros())
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceArrayWindow {
     pub declaration: StructuralTypeId,
@@ -491,6 +504,65 @@ where
         )
     }
 
+    /// Limit an observation to the geometry of its declared storage region.
+    /// Following a pointer starts a new region. A slice's first element
+    /// belongs to its backing allocation; the descriptor layout says nothing
+    /// about that element's address. This limit alone proves no alignment.
+    pub fn location_alignment_limit(
+        &mut self,
+        mut region: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<u64> {
+        let mut start = 0;
+        for (position, segment) in path.iter().enumerate() {
+            if !matches!(
+                segment,
+                StructuralPathSegment::Referent
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. }
+            ) {
+                continue;
+            }
+            let parent = crate::runtime_structural_path_tip(
+                self.types.clone(),
+                region,
+                &path[start..position],
+            )?;
+            match (&parent.shape, segment) {
+                (
+                    StructuralTypeShape::Reference { referent, .. },
+                    StructuralPathSegment::Referent,
+                ) => region = *referent,
+                (
+                    StructuralTypeShape::ElementView { element, .. },
+                    StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. },
+                ) => region = *element,
+                (
+                    shape,
+                    StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. },
+                ) if shape.is_borrowed_byte_carrier() => return Some(1),
+                (_, StructuralPathSegment::Referent) => return None,
+                _ => continue,
+            }
+            start = position + 1;
+        }
+        let path = &path[start..];
+        let (_, base) = self.layout(region).ok()?;
+        let projected = self
+            .region(region, path)
+            .and_then(|region| region.alignment_at(base));
+        let leaf = match crate::primitive_read_projection_type(self.types.clone(), region, path) {
+            Some(scalar) => primitive_scalar_geometry(scalar, self.carriers).ok()?.1,
+            None => {
+                let leaf = crate::runtime_structural_path_tip(self.types.clone(), region, path)?;
+                self.layout(leaf.id).ok()?.1
+            }
+        };
+        Some(leaf.min(projected.unwrap_or(base)))
+    }
+
     pub fn source_compatible(
         &mut self,
         source: StructuralTypeId,
@@ -611,8 +683,7 @@ where
         };
         if region.byte_length != width
             || target_align == 0
-            || !source_align.is_multiple_of(target_align)
-            || !region.byte_offset.is_multiple_of(target_align)
+            || !region.alignment_at(source_align).is_some_and(|alignment| alignment.is_multiple_of(target_align))
         {
             return false;
         }
@@ -666,8 +737,7 @@ where
             return false;
         };
         target_align != 0
-            && source_align.is_multiple_of(target_align)
-            && region.byte_offset.is_multiple_of(target_align)
+            && region.alignment_at(source_align).is_some_and(|alignment| alignment.is_multiple_of(target_align))
             && region.byte_length == target_size
             && region
                 .byte_offset

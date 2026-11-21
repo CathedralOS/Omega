@@ -4593,6 +4593,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::CollectionView { base, .. }
+        | ExpressionKind::LocationAlignment { place: base, .. }
         | ExpressionKind::CollectionMeasure { base, .. }
         | ExpressionKind::ByteSequencePredicate { base, .. } => {
             spans(base, binder, out);

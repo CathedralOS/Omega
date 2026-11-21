@@ -40,6 +40,66 @@ pub fn scalar_application_read_equation(
     )))
 }
 
+/// Every observation returns a positive guarantee. A fresh inline allocation
+/// additionally proves the alignment shared by its base, offset and selected
+/// carrier when those measurements are already target independent. An
+/// arbitrary borrowed referent or representation view has no such premise.
+pub fn storage_alignment_fact(
+    types: &[StructuralTypeDeclaration],
+    machine: &terminal_psi::TerminalMachine,
+    operation: &Operation,
+) -> Result<Option<Proposition>, &'static str> {
+    let OperationKind::StorageAlignment { source } = &operation.kind else {
+        return Ok(None);
+    };
+    let result = operation
+        .result
+        .scalar_ref()
+        .filter(|result| {
+            terminal_psi::StorageLocationQuery::Alignment.admits_result(result.scalar_type)
+        })
+        .ok_or("storage alignment must return u64")?;
+    let ScalarType::Integer(integer) = result.scalar_type else {
+        return Err("storage alignment must return u64");
+    };
+    let declared_minimum = || {
+        let (producer, root) = machine.producing_operation(source.place)?;
+        if !matches!(
+            producer.kind,
+            OperationKind::EstablishPrimitiveLocal { .. }
+                | OperationKind::EstablishStructuralLocal {}
+                | OperationKind::EstablishZeroedStructural {}
+                | OperationKind::EstablishScalarArray { .. }
+                | OperationKind::EstablishStructuralArray { .. }
+                | OperationKind::EstablishRecord { .. }
+                | OperationKind::EstablishScalarCase { .. }
+                | OperationKind::EstablishStructuralCase { .. }
+        ) || !crate::projection_stays_in_inline_storage(types.iter(), root, &source.path)
+        {
+            return None;
+        }
+        let mut geometry = crate::ReferenceStorageGeometry::new(types.iter(), |id| {
+            Err(crate::StorageGeometryError::UnresolvedExtent(id))
+        });
+        // A cap is not a floor. Only a real contiguous region inside this
+        // fresh, aligned allocation establishes the base-and-offset guarantee.
+        let (_, base_alignment) = geometry.layout(root).ok()?;
+        let guarantee = geometry
+            .region(root, &source.path)?
+            .alignment_at(base_alignment)?;
+        Some(guarantee.min(geometry.location_alignment_limit(root, &source.path)?))
+    };
+    Ok(Some(Proposition::LessOrEqual(
+        ScalarTerm::Integer {
+            scalar_type: integer,
+            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                declared_minimum().unwrap_or(1),
+            )),
+        },
+        ScalarTerm::value(result.id, result.scalar_type),
+    )))
+}
+
 #[derive(Clone, Copy)]
 enum Target {
     Declaration(StructuralTypeId),

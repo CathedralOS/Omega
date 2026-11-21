@@ -61,7 +61,7 @@ pub fn requires_graph_storage_replay<'a>(
                 }
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
-                | AbstractOperation::StorageAddress { .. }
+                | AbstractOperation::ObserveStorageLocation { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { .. }
                 | AbstractOperation::StructuralScalarFieldRead { .. }

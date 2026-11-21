@@ -6704,7 +6704,7 @@ pub(crate) mod references {
                     live,
                 );
             }
-            O::StorageAddress { source, path, .. }
+            O::ObserveStorageLocation { source, path, .. }
             | O::PrimitiveScalarRead { source, path, .. }
                 if path.contains(&StructuralPathSegment::Referent) =>
             {

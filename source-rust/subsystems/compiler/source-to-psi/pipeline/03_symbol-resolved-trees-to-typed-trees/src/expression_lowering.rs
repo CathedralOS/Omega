@@ -2172,11 +2172,7 @@ pub(crate) mod expression {
                         && call.arguments.len() == 1
                         && call.machine_arguments.is_empty()
                     {
-                        return Ok(Some(typed::expression::DataLayoutQueryRequest {
-                            kind,
-                            operand: typed::expression::StaticMachineArgument::default(),
-                            nonempty_view: typed::expression::ExpressionHandle::invalid(),
-                        }));
+                        return Ok(Some(typed::expression::DataLayoutQueryRequest::LocationAlignment));
                     }
                     if !call.arguments.is_empty() {
                         return Err(Diagnostic::error(format!(
@@ -2233,10 +2229,9 @@ pub(crate) mod expression {
                             }
                         }
                     }
-                    Ok(Some(typed::expression::DataLayoutQueryRequest {
+                    Ok(Some(typed::expression::DataLayoutQueryRequest::Type {
                         kind,
                         operand: lowered,
-                        nonempty_view: typed::expression::ExpressionHandle::invalid(),
                     }))
                 }
 

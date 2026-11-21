@@ -116,6 +116,7 @@ impl WorkSchedule {
             | OperationKind::TrappingInteger { .. }
             | OperationKind::FloatResultPolicy { .. }
             | OperationKind::StorageAddress { .. }
+            | OperationKind::StorageAlignment { .. }
             | OperationKind::GlobalDescriptorTable { .. }
             | OperationKind::ActivateTaskRegister { .. }
             | OperationKind::ReadTaskRegister { .. }

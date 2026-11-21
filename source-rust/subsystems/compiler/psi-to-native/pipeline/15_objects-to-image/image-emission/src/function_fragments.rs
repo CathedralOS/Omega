@@ -12276,7 +12276,8 @@ mod source {
 
         pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> bool {
             match source {
-                AbstractOperation::StorageAddress {
+                AbstractOperation::ObserveStorageLocation {
+                    query,
                     psi_operation,
                     result,
                     source,
@@ -12287,13 +12288,14 @@ mod source {
                             .graph
                             .operations()
                             .filter_map(|operation| match operation {
-                                TargetUnitOperation::StorageAddress {
+                                TargetUnitOperation::ObserveStorageLocation {
+                                    query: retained_query,
                                     psi_operation: retained,
                                     result,
                                     source,
                                     path,
                                     indices,
-                                } if retained == psi_operation => {
+                                } if retained_query == query && retained == psi_operation => {
                                     Some((result, source, path, indices))
                                 }
                                 _ => None,

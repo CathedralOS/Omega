@@ -1906,7 +1906,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Float(_)
                 | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
-        | ExpressionKind::CollectionMeasure { .. }
+        | ExpressionKind::LocationAlignment { .. }
+            | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteSequencePredicate { .. }
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }

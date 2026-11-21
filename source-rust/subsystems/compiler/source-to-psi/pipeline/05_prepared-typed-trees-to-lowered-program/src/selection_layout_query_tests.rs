@@ -38,14 +38,13 @@ fn layout_queries_keep_the_operand_and_refuse_stale_or_missing_nominal_calls() {
             symbol: operand,
             name: Identifier::generated("Cell"),
         });
-        let query = DataLayoutQueryRequest {
+        let query = DataLayoutQueryRequest::Type {
             kind,
             operand: StaticMachineArgument {
                 symbol: operand,
                 type_reference: reference,
                 ..Default::default()
             },
-            nonempty_view: Default::default(),
         };
         let expression = typed
             .expression_table
@@ -115,7 +114,7 @@ fn layout_queries_keep_the_operand_and_refuse_stale_or_missing_nominal_calls() {
             unreachable!()
         };
         call.layout_query = Some(request);
-        call.layout_query.as_mut().unwrap().operand.symbol = SymbolHandle::from_parts(u32::MAX, 1);
+        call.layout_query.as_mut().unwrap().type_operand_mut().unwrap().symbol = SymbolHandle::from_parts(u32::MAX, 1);
         let refused = capture(&typed).unwrap_err();
         assert!(
             refused

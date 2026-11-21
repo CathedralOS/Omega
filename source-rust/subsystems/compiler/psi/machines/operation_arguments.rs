@@ -55,6 +55,7 @@ impl OperationKind {
             }
             Self::EstablishAccessReference { .. }
             | Self::StorageAddress { .. }
+            | Self::StorageAlignment { .. }
             | Self::GlobalDescriptorTable { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
