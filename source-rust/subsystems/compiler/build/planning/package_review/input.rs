@@ -1,9 +1,7 @@
 //! Owners retained only while deriving the policy of a checked occurrence.
 use diagnostics::Diagnostic;
 use source_compiler::publication::AcceptedTerminalSource;
-use source_compiler::representations::source_state::{
-    TypedTrees, source_subjects::rejoin_build_activation,
-};
+use source_compiler::representations::source_state::TypedTrees;
 
 pub(super) struct PolicySource<'a> {
     pub(super) declarations: &'a source_compiler::CheckedPackageDeclarations,
@@ -51,16 +49,9 @@ impl<'a> PolicySource<'a> {
         &self,
     ) -> Result<Option<symbols::SymbolHandle>, Vec<Diagnostic>> {
         self.build()
-            .selected_build_declaration
+            .executed_entry
             .as_ref()
-            .map(|declaration| {
-                rejoin_build_activation(
-                    self.typed(),
-                    declaration.source().package_identity,
-                    declaration,
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])
-            })
+            .map(|entry| entry.rejoin(self.typed()))
             .transpose()
     }
 }
