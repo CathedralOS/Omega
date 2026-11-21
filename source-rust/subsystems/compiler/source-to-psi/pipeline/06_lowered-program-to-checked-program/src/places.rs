@@ -6133,6 +6133,63 @@ fn extended(
     Ok(place)
 }
 
+/// Select a scalar in the receiving machine's storage. A runtime selector
+/// keeps its own SSA identity. An unevaluated logical expression cannot stand
+/// in for the selector captured by a storage operation.
+fn indexed_place(
+    storage: &Storage<'_>,
+    tables: &MachineTables,
+    mut actual: Lineage,
+    path: &[semantic_vocabulary::ScalarReadProjection],
+) -> Result<Lineage, crate::checking::Unbound> {
+    use crate::checking::Unbound;
+    use semantic_vocabulary::{IntegerValue, ScalarReadProjection};
+    for step in path {
+        let segment = match step {
+            ScalarReadProjection::Static(segment) => {
+                actual = extended(actual, std::slice::from_ref(segment))?;
+                continue;
+            }
+            ScalarReadProjection::Referent => Segment::Referent,
+            ScalarReadProjection::Extent => Segment::Extent,
+            ScalarReadProjection::Index(term) => {
+                let value = match term.as_ref() {
+                    ScalarTerm::Value { id, .. } => Some(*id),
+                    _ => None,
+                };
+                let literal = term.integer_value().or_else(|| {
+                    let value = value?;
+                    let row = tables.values.get(value)?;
+                    let ValueOrigin::Operation(id) = row.origin else {
+                        return None;
+                    };
+                    let op = storage.lowered.operation(id)?;
+                    let (ty, literal) = terminal_semantics::scalar_operation_literal(op, value)?;
+                    Some((ty.as_integer()?, literal))
+                });
+                if let Some((_, literal)) = literal {
+                    let position = match literal {
+                        IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+                        IntegerValue::Signed(value) => u64::try_from(value).ok(),
+                    }
+                    .ok_or(Unbound::Unproved(
+                        "contract selector is outside the collection index range",
+                    ))?;
+                    Segment::FixedIndex(position)
+                } else if let Some(selector) = value {
+                    Segment::RuntimeIndex { selector }
+                } else {
+                    return Err(Unbound::Unproved(
+                        "no captured storage selector names the indexed contract expression",
+                    ));
+                }
+            }
+        };
+        actual.segments.push(segment);
+    }
+    Ok(actual)
+}
+
 impl<'a> Held<'_, 'a> {
     fn at_place<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
         Held {
@@ -6516,6 +6573,31 @@ impl crate::checking::Bindings for AtEntry<'_, '_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::checking::Unbound> {
         self.observation(self.input_place(root, path)?, scalar_type)
+    }
+
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let actual = indexed_place(
+            self.storage,
+            self.tables,
+            self.input_place(root, &[])?,
+            path,
+        )?;
+        if self
+            .storage
+            .interned(self.tables, &actual, Construct::Machine)
+            .map_err(crate::checking::Unbound::Refused)?
+            .is_none()
+        {
+            return Err(crate::checking::Unbound::Unproved(
+                "no operation captures this indexed input at entry",
+            ));
+        }
+        self.observation(actual, ty)
     }
 
     fn extent(
@@ -7165,6 +7247,27 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
     ) -> Result<ScalarTerm, crate::checking::Unbound> {
         let actual = self.actual(root, path)?;
         self.held_at(&actual).observation(&actual, scalar_type)
+    }
+
+    fn structural_read(
+        &mut self,
+        root: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        let formal =
+            terminal_psi::StructuralParameterDeclaration::find_by_place(self.callee_formals, root)
+                .ok_or(crate::checking::Unbound::Unsupported(
+                    "indexed contract has no structural formal",
+                ))?;
+        let actual = self.readable_actual(formal)?;
+        if self.storage.projection_type(actual, self.concerns) != Some(formal.structural_type) {
+            return Err(crate::checking::Unbound::Unproved(
+                "indexed contract formal and actual need corresponding element projections",
+            ));
+        }
+        let leaf = indexed_place(self.storage, self.tables, actual.clone(), path)?;
+        self.held_at(&leaf).observation(&leaf, ty)
     }
 
     fn field_alternatives(

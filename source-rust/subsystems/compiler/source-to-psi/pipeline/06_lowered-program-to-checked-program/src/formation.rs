@@ -290,6 +290,11 @@ struct Root {
 enum Observation {
     Input(ValueId),
     Field(Version, usize, Vec<Segment>),
+    Indexed(
+        Version,
+        usize,
+        Vec<semantic_vocabulary::ScalarReadProjection>,
+    ),
     Extent(usize, Vec<Segment>),
     BytePredicate(
         Version,
@@ -359,6 +364,39 @@ impl Scope<'_, '_> {
         } else {
             Cow::Owned([self.subject_prefix.as_slice(), path].concat())
         }
+    }
+
+    fn descriptor_extent(
+        &mut self,
+        index: usize,
+        root: Root,
+        path: Vec<Segment>,
+        ty: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, BindingError> {
+        let selected = terminal_semantics::canonical_structural_path_tip(
+            self.module.types.structural_types.iter(),
+            root.ty,
+            &path,
+        )
+        .ok_or("contract extent has no exact declared descriptor")?;
+        // A borrowed byte view is a descriptor with a count, exactly as an
+        // element view is (byte_views.md, "Collection view establishment"):
+        // `out.len` of a `&mut [u8]` formal is that count.
+        if !matches!(
+            selected.shape,
+            terminal_psi::StructuralTypeShape::ElementView { .. }
+                | terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+        ) {
+            return Err("contract extent is not a borrowed view".into());
+        }
+        // Extents in this representation have no old-version tag. Do not
+        // identify a mutable descriptor's completion extent with its input.
+        if self.completion && (root.borrowed || path.contains(&Segment::Referent)) {
+            return Err("completion extent needs its exact storage version".into());
+        }
+        self.observe(Observation::Extent(index, path), ScalarType::Integer(ty))
     }
 
     fn observe(
@@ -593,6 +631,101 @@ impl ClauseBindings for Scope<'_, '_> {
         self.observe(Observation::Field(version, index, path.into_owned()), ty)
     }
 
+    fn structural_read(
+        &mut self,
+        place: PlaceId,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Result<ScalarTerm, BindingError> {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarReadProjection};
+        use terminal_psi::ArrayExtent;
+        let (root_index, root) = self.root(place)?;
+        let path = self
+            .subject_prefix
+            .iter()
+            .copied()
+            .map(ScalarReadProjection::from)
+            .chain(path.iter().cloned())
+            .collect::<Vec<_>>();
+        let mut indices = Vec::new();
+        let actual = terminal_semantics::structural_read_type_with_extents(
+            self.module.types.structural_types.iter(),
+            root.ty,
+            &path,
+            |position, extent| indices.push((position, extent)),
+        )
+        .ok_or("contract observation has no readable scalar at its indexed path")?;
+        if actual != ty {
+            return Err("indexed contract scalar differs from its declaration".into());
+        }
+        let count = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a carrier");
+        for (position, extent) in indices {
+            let index = match &path[position] {
+                ScalarReadProjection::Index(term) => term.as_ref().clone(),
+                ScalarReadProjection::Static(Segment::FixedIndex(index)) => ScalarTerm::Integer {
+                    scalar_type: count,
+                    value: IntegerValue::Unsigned(u128::from(*index)),
+                },
+                _ => return Err("contract collection selector is absent".into()),
+            };
+            let length = match extent {
+                Some(ArrayExtent::Literal(length)) => ScalarTerm::Integer {
+                    scalar_type: count,
+                    value: IntegerValue::Unsigned(u128::from(length)),
+                },
+                Some(ArrayExtent::Parameter { owner, value }) if owner == self.diagnostic => {
+                    let ty = self
+                        .inputs
+                        .iter()
+                        .find(|row| row.id == value)
+                        .ok_or("indexed contract extent has no declared input")?
+                        .scalar_type;
+                    self.value(value, ty)?
+                }
+                Some(ArrayExtent::Application(id)) => {
+                    let scalar_type = self
+                        .module
+                        .scalars
+                        .scalar_applications
+                        .declaration(id)
+                        .and_then(|application| application.scalar_type())
+                        .ok_or("indexed contract extent has no declared application")?;
+                    ScalarTerm::Application {
+                        application: id,
+                        scalar_type,
+                    }
+                }
+                Some(ArrayExtent::Parameter { .. }) => {
+                    return Err("indexed contract extent belongs to a different declaration".into());
+                }
+                None => {
+                    // Its current count, observed on the same descriptor, bounds a view.
+                    let descriptor = path[..position]
+                        .iter()
+                        .map(|part| match part {
+                            ScalarReadProjection::Static(segment) => Some(*segment),
+                            ScalarReadProjection::Referent => Some(Segment::Referent),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or("indexed descriptor needs its own extent observation")?;
+                    self.descriptor_extent(root_index, root, descriptor, count)?
+                }
+            };
+            self.prove(
+                &terminal_semantics::scalar_index_bound(index, length)
+                    .ok_or("contract index has no integer count bound")?,
+            )?;
+        }
+        let live = root.borrowed || path.contains(&ScalarReadProjection::Referent);
+        let version = if root.has_entry && (!self.completion || !live) {
+            Version::Entry
+        } else {
+            Version::Current
+        };
+        self.observe(Observation::Indexed(version, root_index, path), ty)
+    }
+
     fn extent(
         &mut self,
         place: PlaceId,
@@ -600,34 +733,8 @@ impl ClauseBindings for Scope<'_, '_> {
         ty: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, BindingError> {
         let (index, root) = self.root(place)?;
-        let path = self.subject_path(path);
-        let selected = terminal_semantics::canonical_structural_path_tip(
-            self.module.types.structural_types.iter(),
-            root.ty,
-            &path,
-        )
-        .ok_or("contract extent has no exact declared descriptor")?;
-        // A borrowed byte view is a descriptor with a count, exactly as an
-        // element view is (byte_views.md, "Collection view establishment"):
-        // `out.len` of a `&mut [u8]` formal is that count.
-        if !matches!(
-            selected.shape,
-            terminal_psi::StructuralTypeShape::ElementView { .. }
-                | terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                )
-        ) {
-            return Err("contract extent is not a borrowed view".into());
-        }
-        // Extents in this representation have no old-version tag. Do not
-        // identify a mutable descriptor's completion extent with its input.
-        if self.completion && (root.borrowed || path.contains(&Segment::Referent)) {
-            return Err("completion extent needs its exact storage version".into());
-        }
-        self.observe(
-            Observation::Extent(index, path.into_owned()),
-            ScalarType::Integer(ty),
-        )
+        let path = self.subject_path(path).into_owned();
+        self.descriptor_extent(index, root, path, ty)
     }
 
     fn byte_predicate(
@@ -744,8 +851,10 @@ fn owes(clauses: impl IntoIterator<Item = impl std::borrow::Borrow<Proposition>>
         clause.borrow().visit_scalar_terms(|term| {
             // A total byte observation still owes its exact carrier and path.
             // Every declaration entrance must form it, even under Falsehood.
-            owes |= matches!(term, ScalarTerm::ByteSequencePredicate { .. })
-                || !matches!(CanonicalScalarGoal::for_term(term), Ok(None));
+            owes |= matches!(
+                term,
+                ScalarTerm::ByteSequencePredicate { .. } | ScalarTerm::StructuralRead { .. }
+            ) || !matches!(CanonicalScalarGoal::for_term(term), Ok(None));
         });
     }
     owes
