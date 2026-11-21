@@ -93,6 +93,7 @@ struct Lower<'a> {
     /// The selected declaration decides whether this argument names a type
     /// or a value before either role is resolved.
     expects_type: bool,
+    selecting_operand: source_text::SourceSpan,
     /// Nodes read so far for this argument.
     nodes: usize,
 }
@@ -150,7 +151,7 @@ impl Lower<'_> {
     }
 
     /// The declaration a graph name stands for among this program's symbols.
-    fn symbol(&self, name: &ProductOperandName) -> Formed<SymbolHandle> {
+    fn symbol(&self, name: &ProductOperandName, path: &str) -> Formed<SymbolHandle> {
         let symbols = &self.program.symbols;
         if let Some(atom) = name.builtin_type {
             return symbols
@@ -169,14 +170,14 @@ impl Lower<'_> {
                 ));
             }
             return self.source.ok_or(unserved("a retained operand has no authored lookup scope"))?.declarations.resolve(
-                &name.text,
+                path,
                 name.source_span,
                 ProductOperandRole::Data,
             )
             .ok_or_else(|| {
                 Stop::Rejected(format!(
                     "static argument `{}` of this provider choice names no data type visible here",
-                    name.text
+                    path
                 ))
             });
         };
@@ -275,6 +276,7 @@ impl Lower<'_> {
             environment: None,
             helper: SymbolHandle::invalid(),
             expects_type: self.expects_type,
+            selecting_operand: self.selecting_operand,
             nodes: self.nodes,
         };
         actual.argument(binding.argument).map(Some)
@@ -297,30 +299,26 @@ impl Lower<'_> {
             return self.ty(operand.structural_type).map(Closed::Type);
         }
         let names = self.graph.names.span_or_empty(operand.path).to_vec();
-        let [name] = names.as_slice() else {
-            return Err(unserved("a qualified static argument"));
-        };
+        let name = names.last().ok_or(unserved("an empty static argument path"))?;
+        let path = names.iter().map(|part| part.text.as_str()).collect::<Vec<_>>().join("::");
         if !operand.application.is_valid() {
-            // Builtin type names cannot be shadowed by a value binder. Value
-            // arguments still resolve that binder through `supplied` below.
-            if self.expects_type
-                && let Some(symbol) = self.builtin_type(name)?
-            {
-                return Ok(Closed::Type(self.named(symbol, &name.text)));
-            }
-            // `true` and `false` are keywords, so neither is a binder.
-            if name.declaration.is_none() && name.builtin_type.is_none() {
-                match name.text.as_str() {
-                    "true" => return Ok(Closed::Boolean(true)),
-                    "false" => return Ok(Closed::Boolean(false)),
-                    _ => {}
+            if names.len() == 1 {
+                if self.expects_type && let Some(symbol) = self.builtin_type(name)? {
+                    return Ok(Closed::Type(self.named(symbol, name)));
+                }
+                if name.declaration.is_none() && name.builtin_type.is_none() {
+                    match name.text.as_str() {
+                        "true" => return Ok(Closed::Boolean(true)),
+                        "false" => return Ok(Closed::Boolean(false)),
+                        _ => {}
+                    }
+                }
+                if let Some(supplied) = self.supplied(name)? {
+                    return Ok(supplied);
                 }
             }
-            if let Some(supplied) = self.supplied(name)? {
-                return Ok(supplied);
-            }
-            let symbol = self.symbol(name)?;
-            return Ok(Closed::Type(self.named(symbol, &name.text)));
+            let symbol = self.symbol(name, &path)?;
+            return Ok(Closed::Type(self.named(symbol, name)));
         }
         // Applied data written as a path, `Holder<u64>`.
         let application = self.graph.applications.get(operand.application).clone();
@@ -329,13 +327,8 @@ impl Lower<'_> {
                 "a static argument applied at lifetimes or naming a member",
             ));
         }
-        let symbol = self.symbol(name)?;
-        let parameters = self
-            .program
-            .declaration_type_parameters(symbol)
-            .iter()
-            .map(|parameter| parameter.kind == TypeParameterKind::Type)
-            .collect::<Vec<_>>();
+        let symbol = self.symbol(name, &path)?;
+        let parameters = self.program.declaration_type_parameters(symbol).to_vec();
         let inputs = self
             .graph
             .static_arguments
@@ -350,46 +343,46 @@ impl Lower<'_> {
             )));
         }
         let mut arguments = Vec::new();
-        for (argument, expects_type) in inputs.into_iter().zip(parameters) {
-            let outer = std::mem::replace(&mut self.expects_type, expects_type);
+        for (argument, parameter) in inputs.into_iter().zip(&parameters) {
+            let outer = std::mem::replace(&mut self.expects_type, parameter.kind == TypeParameterKind::Type);
             let result = self.argument(argument);
             self.expects_type = outer;
-            let closed = result?;
-            arguments.push(self.reference(closed)?);
+            let argument = bound(self.program, parameter, result?)?;
+            arguments.push(self.program.static_operand_type_reference(&argument).map_err(unserved)?);
         }
-        Ok(Closed::Type(self.applied(symbol, &name.text, arguments)))
+        Ok(Closed::Type(self.applied(symbol, name, arguments)))
     }
 
-    fn named(&mut self, symbol: SymbolHandle, text: &str) -> TypeReferenceHandle {
-        self.program
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol,
-                name: Identifier::generated(text),
-            })
+    fn nominal(&mut self, node: TypeReferenceNode, symbol: SymbolHandle, name: &ProductOperandName) -> TypeReferenceHandle {
+        use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin};
+        let reference = self.program.type_reference_table.insert(node);
+        if self.program.symbols.get(symbol).kind == SymbolKind::Data {
+            self.program.type_reference_table.set_operand_origin(reference, TypeOperandOrigin::ProductInput(ProductTypeInput {
+                operand: self.selecting_operand,
+                occurrence: name.source_span,
+                declaration: symbol,
+            }));
+        }
+        reference
     }
 
-    fn applied(
-        &mut self,
-        symbol: SymbolHandle,
-        text: &str,
-        arguments: Vec<TypeReferenceHandle>,
-    ) -> TypeReferenceHandle {
-        let arguments = self
-            .program
-            .type_reference_table
-            .insert_type_reference_handles(arguments);
-        self.program
-            .type_reference_table
-            .insert(TypeReferenceNode::Generic {
-                base_symbol: symbol,
-                base_name: Identifier::generated(text),
-                lifetime_arguments: Vec::new(),
-                arguments,
-            })
+    fn named(&mut self, symbol: SymbolHandle, name: &ProductOperandName) -> TypeReferenceHandle {
+        self.nominal(TypeReferenceNode::Named {
+            symbol,
+            name: Identifier::generated(&name.text),
+        }, symbol, name)
     }
 
-    /// A closed argument as the type reference an application holds it by.
+    fn applied(&mut self, symbol: SymbolHandle, name: &ProductOperandName, arguments: Vec<TypeReferenceHandle>) -> TypeReferenceHandle {
+        let arguments = self.program.type_reference_table.insert_type_reference_handles(arguments);
+        self.nominal(TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            base_name: Identifier::generated(&name.text),
+            lifetime_arguments: Vec::new(),
+            arguments,
+        }, symbol, name)
+    }
+
     fn reference(&mut self, closed: Closed) -> Formed<TypeReferenceHandle> {
         match closed {
             Closed::Type(reference) => Ok(reference),
@@ -422,14 +415,14 @@ impl Lower<'_> {
             ProductOperandType::Named(name) => {
                 let name = self.graph.names.get(name).clone();
                 if let Some(symbol) = self.builtin_type(&name)? {
-                    return Ok(self.named(symbol, &name.text));
+                    return Ok(self.named(symbol, &name));
                 }
                 match self.supplied(&name)? {
                     Some(Closed::Type(reference)) => Ok(reference),
                     Some(other) => self.reference(other),
                     None => {
-                        let symbol = self.symbol(&name)?;
-                        Ok(self.named(symbol, &name.text))
+                        let symbol = self.symbol(&name, &name.text)?;
+                        Ok(self.named(symbol, &name))
                     }
                 }
             }
@@ -442,12 +435,12 @@ impl Lower<'_> {
                     return Err(unserved("a static type applied at lifetimes"));
                 }
                 let name = self.graph.names.get(name).clone();
-                let symbol = self.symbol(&name)?;
+                let symbol = self.symbol(&name, &name.text)?;
                 let mut lowered = Vec::new();
                 for argument in self.graph.type_arguments.span_or_empty(arguments).to_vec() {
                     lowered.push(self.ty(argument)?);
                 }
-                Ok(self.applied(symbol, &name.text, lowered))
+                Ok(self.applied(symbol, &name, lowered))
             }
             ProductOperandType::Array { element, length } => {
                 let length = match length {
@@ -701,6 +694,7 @@ pub(super) fn form(
                 author
             },
             expects_type: parameter.kind == TypeParameterKind::Type,
+            selecting_operand: operand.source_span,
             nodes: 0,
         };
         let argument = lower.argument(argument)?;
@@ -920,6 +914,7 @@ mod tests {
                 environment: None,
                 helper: SymbolHandle::invalid(),
                 expects_type: true,
+                selecting_operand: Default::default(),
                 nodes: 0,
             };
             match lower.argument(operand) {

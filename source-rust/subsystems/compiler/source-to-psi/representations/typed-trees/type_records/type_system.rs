@@ -2084,10 +2084,20 @@ pub mod types {
         pub reference: source_text::SourceSpan,
     }
 
+    /// A nominal data declaration selected inside one checked Build Product operand.
+    /// Copies of the resulting type retain its original selection.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
+    pub struct ProductTypeInput {
+        pub operand: source_text::SourceSpan,
+        pub occurrence: source_text::SourceSpan,
+        pub declaration: SymbolHandle,
+    }
+
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
     pub enum TypeOperandOrigin {
         #[default]
         Lexical,
+        ProductInput(ProductTypeInput),
         MachineParameter {
             instance: SymbolHandle,
             parameter: SymbolHandle,
