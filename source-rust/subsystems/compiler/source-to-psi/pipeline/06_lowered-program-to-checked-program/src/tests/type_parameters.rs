@@ -1666,6 +1666,48 @@ fn static_callback_dependencies_cannot_change_their_source_or_selection() {
 }
 
 #[test]
+fn a_runtime_callback_remains_finite_beside_an_open_static_requirement() {
+    let text = r#"
+        data Observe = machine(value: u64) -> u64 reaches none crashes none;
+        machine entry<machine Prepare>(f: Observe) -> u64
+        requires machine Prepare();
+        { Prepare(); f(47u64) }
+    "#;
+    let form = callback_form(text).expect("the runtime callback has an explicit finite contract");
+    assert_eq!(form.module.execution.callables.contracts.len(), 1);
+    assert!(
+        form.module.execution.callables.contracts[0]
+            .envelope
+            .service_reach
+            .is_empty()
+    );
+    assert!(
+        form.generic_callable_declarations
+            .iter()
+            .any(|row| !row.reach.parameters.is_empty())
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let finite = text.replace(
+        " -> u64\n        requires",
+        " -> u64 reaches none\n        requires",
+    );
+    let verdict = judge(callback_form(&finite)).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::FallBack(reason)
+        if reason.detail.contains("open abstract service reach cannot establish a finite caller ceiling")),
+        "the static callback still has open reach: {verdict:?}"
+    );
+    let omitted = text.replace("u64 reaches none crashes none;", "u64 crashes none;");
+    let refusal = callback_form(&omitted).unwrap_err();
+    assert!(
+        refusal.detail.contains("open service ceiling"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
 fn open_callback_reach_keeps_known_invocation_limits() {
     let text = CALLBACK_REACH
         .replace(
