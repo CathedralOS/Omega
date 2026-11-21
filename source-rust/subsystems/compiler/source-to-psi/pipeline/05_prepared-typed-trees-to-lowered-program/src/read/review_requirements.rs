@@ -11,7 +11,6 @@ use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
-use terminal_check_tables::contracts::CrashCeiling;
 use terminal_psi::{BoundaryLifetimeDependency, TerminalCallableTermination, TerminalModule};
 
 impl Program<'_> {
@@ -143,12 +142,6 @@ impl Program<'_> {
                 SourceInvocation::Service(id) => service(*id).map(RequirementInvocation::Service),
             })
             .collect::<Result<_, _>>()?;
-        let crash_is_open = match &signature.crashes {
-            CrashCeiling::Inferred => true,
-            CrashCeiling::DeclaredNone => false,
-            CrashCeiling::Authored(routes) if routes.is_empty() => false,
-            _ => return Err("public requirement review needs its complete crash routes".to_owned()),
-        };
         let terminates = match envelope.termination {
             TerminalCallableTermination::NotGuaranteed => false,
             TerminalCallableTermination::Terminates { ref premises } if premises.is_empty() => true,
@@ -255,7 +248,7 @@ impl Program<'_> {
             lifetime_parameter_count,
             service_reach,
             synchronous_invocations,
-            crash_is_open,
+            published_crash_routes: signature.declared_crash_routes().map(<[_]>::to_vec),
             returned_parameters,
             parameter_qualifications,
             suspends: envelope.suspends,

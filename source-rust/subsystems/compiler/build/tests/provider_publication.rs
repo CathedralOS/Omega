@@ -1252,6 +1252,95 @@ data LocalAlias = i64;
 }
 
 #[test]
+fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
+    use review_evidence::record::{
+        PackagePolicyCrashGuard, PackagePolicyCrashRoute, PackageReviewCrashCause,
+    };
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-scalar-lending",
+        false,
+    )
+    .unwrap();
+    let source = fixture_repository::root()
+        .join("samples/cli/support/fact_dependencies/scalar_lending_producer");
+    for file in ["build.omg", "main.omg"] {
+        std::fs::copy(source.join(file), temporary.path().join(file)).unwrap();
+    }
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&temporary.path().join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let reviewed = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let policy = &reviewed.policy;
+    policy
+        .validate_package_membership(|key| key == policy.package, Default::default())
+        .expect("elided reference regions must belong to the reviewed requirement");
+    for (service, causes, suspends) in [
+        (
+            "Lending",
+            vec![PackagePolicyCrashRoute {
+                cause: PackageReviewCrashCause::Trap,
+                alternative_guards: vec![PackagePolicyCrashGuard::Truth],
+            }],
+            true,
+        ),
+        ("Observation", vec![], false),
+    ] {
+        let declared = policy
+            .public_api
+            .traits
+            .iter()
+            .find(|item| item.identity.path == service)
+            .unwrap();
+        let [requirement] = declared.requirements.as_slice() else {
+            panic!("one requirement in {service}");
+        };
+        assert_eq!(
+            requirement.published_crash.as_deref(),
+            Some(causes.as_slice())
+        );
+        let callable = policy
+            .callables
+            .callables()
+            .iter()
+            .find(|item| item.identity() == &requirement.identity)
+            .unwrap();
+        assert_eq!(callable.checked_crash.published, causes);
+        assert_eq!(callable.declared_may_suspend, Some(suspends));
+        let selected = policy
+            .selected_providers
+            .plans
+            .iter()
+            .find(|plan| plan.schema_declaration == declared.identity)
+            .unwrap();
+        let [method] = selected.methods.as_slice() else {
+            panic!("one selected method in {service}");
+        };
+        assert_eq!(method.requirement, requirement.identity);
+        assert_eq!(method.may_suspend, suspends);
+    }
+    let mut narrowed = policy.clone();
+    let lending = narrowed
+        .public_api
+        .traits
+        .iter_mut()
+        .find(|service| service.identity.path == "Lending")
+        .unwrap();
+    lending.requirements[0].lifetime_parameter_count = 0;
+    assert_eq!(
+        narrowed
+            .validate_package_membership(|key| key == policy.package, Default::default())
+            .unwrap_err()
+            .error(),
+        review_evidence::encoding::PackagePolicyMembershipError::MalformedIdentity
+    );
+}
+
+#[test]
 fn review_and_deployment_publish_the_same_entryless_provider() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-entryless-provider",

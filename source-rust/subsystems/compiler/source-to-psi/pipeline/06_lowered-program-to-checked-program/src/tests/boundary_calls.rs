@@ -572,7 +572,7 @@ boundary machine + Operations::write(left: @mut Host, right: @mut Host) reaches 
 machine entry() {}
 "#,
     );
-    let program = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
+    let program = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
     let trees = program.trees();
     let requirement = trees
         .machines()
@@ -698,7 +698,7 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    crate::preparation::prepare_typed_trees(typed, &[]).unwrap()
+    crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap()
 }
 
 fn read_applied_boundary(
@@ -884,7 +884,7 @@ machine entry() -> u32 crashes none {
 }
 "#,
     );
-    let prepared = crate::preparation::prepare_typed_trees(source, &[]).unwrap();
+    let prepared = crate::preparation::prepare_typed_trees(source, &[], &[]).unwrap();
     let elaboration = read_applied_boundary(prepared.trees()).unwrap();
     let module = &elaboration.module;
     let [first, second] = module.interfaces.boundary_machines.as_slice() else {
@@ -965,7 +965,7 @@ boundary trait Pair {
 machine entry() -> u32 crashes none { 3 }
 "#,
     );
-    let mut program = crate::preparation::prepare_typed_trees(source, &[])
+    let mut program = crate::preparation::prepare_typed_trees(source, &[], &[])
         .unwrap()
         .into_inner();
     let pair = program
@@ -1095,7 +1095,7 @@ machine entry() -> u32 crashes none {{
 }}
 "#
     ));
-    crate::preparation::prepare_typed_trees(typed, &[]).unwrap()
+    crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap()
 }
 
 #[test]
@@ -1286,7 +1286,7 @@ machine entry() -> u32 crashes none {
 }
 "#,
     );
-    let prepared = crate::preparation::prepare_typed_trees(program, &[]).unwrap();
+    let prepared = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
     let trees = prepared.trees();
     let elaboration = read_applied_boundary(trees).unwrap();
     let module = &elaboration.module;
@@ -2469,7 +2469,7 @@ machine entry() -> u32 crashes none {{ relay::<Inline>() }}
     );
     // Use the actual specialization pass, retaining the exact source
     // parameter dispatch and selected realization it produces.
-    crate::preparation::prepare_typed_trees(read(&text), &[]).unwrap()
+    crate::preparation::prepare_typed_trees(read(&text), &[], &[]).unwrap()
 }
 
 fn inline_parameter_read(
@@ -3465,7 +3465,7 @@ fn generic_named_map_source_refuses_missing_foreign_or_rebound_applications() {
 #[test]
 fn generic_named_map_invokes_its_closed_own_telescope() {
     let prepared =
-        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[]).unwrap();
+        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[], &[]).unwrap();
     let verdicts = compilation_verdicts_of(&prepared);
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
 }
@@ -3766,7 +3766,7 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
 }
 
 fn prepare_named_map(text: &str) -> crate::preparation::PreparedTypedTrees {
-    crate::preparation::prepare_typed_trees(typed(text), &[]).unwrap()
+    crate::preparation::prepare_typed_trees(typed(text), &[], &[]).unwrap()
 }
 
 fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {

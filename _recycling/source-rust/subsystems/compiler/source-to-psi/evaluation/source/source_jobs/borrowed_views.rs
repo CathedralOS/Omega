@@ -294,6 +294,7 @@ machine run() -> i64 crashes none {
     let (portable, _) = crate::preparation::prepare_typed_trees(
         typed(source),
         &crate::preparation::PreparationRequest::settled(),
+        &[],
     )
     .expect("ordinary source preparation retains the public lifetime family");
     let entry = portable.realized_machine_named("run").unwrap().symbol;
@@ -443,6 +444,7 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
     let (source, _) = crate::preparation::prepare_typed_trees(
         typed(SOURCE),
         &crate::preparation::PreparationRequest::settled(),
+        &[],
     )
     .expect("same ordinary preparation pass prepares the real bodyless declarations");
     let relay = source.realized_machine_named("relay").unwrap().symbol;

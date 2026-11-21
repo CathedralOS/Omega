@@ -3232,62 +3232,22 @@ impl<'t> Program<'t> {
         if aq != eq || ar != er || values.is_empty() {
             return false;
         }
-        fn matches(
-            program: &Program<'_>,
-            caller: MachineId,
-            callee: MachineId,
-            actual: semantic_vocabulary::StructuralTypeId,
-            expected: semantic_vocabulary::StructuralTypeId,
-            const_formals: &[Option<semantic_vocabulary::ValueId>],
-            values: &[Expression],
-            slots: &[Slot],
-            depth: usize,
-        ) -> bool {
-            if actual == expected {
-                return true;
-            }
-            if depth > 128 {
-                return false;
-            }
-            let (Some(actual), Some(expected)) =
-                (program.records.get(actual), program.records.get(expected))
-            else {
-                return false;
-            };
-            let (
-                crate::lowering::StorageShape::FixedArray {
-                    element: ae,
-                    qualification: aq,
-                    length: al,
-                },
-                crate::lowering::StorageShape::FixedArray {
-                    element: ee,
-                    qualification: eq,
-                    length: el,
-                },
-            ) = (&actual.shape, &expected.shape)
-            else {
-                return false;
-            };
-            if aq != eq
-                || actual.multiplicity != expected.multiplicity
-                || !actual.requires.is_empty()
-                || !expected.requires.is_empty()
-                || actual.cleanup.is_some()
-                || expected.cleanup.is_some()
-            {
-                return false;
-            }
-            let length = if al == el {
-                true
-            } else if let terminal_psi::ArrayExtent::Parameter { owner, value } = el {
+        // Arguments append scalar consts in signature order. Match an extent
+        // to its supplied value through the same formal numbering as the contract.
+        let Some(signature) = self.signatures.get(callee) else {
+            return false;
+        };
+        let formals = signature.formal_values();
+        let Some(first_const) = formals.len().checked_sub(values.len()) else {
+            return false;
+        };
+        let const_formals = &formals[first_const..];
+        self.array_argument_storage_matches(actual, expected, |al, el| {
+            if let terminal_psi::ArrayExtent::Parameter { owner, value } = el {
                 if *owner != callee {
                     return false;
                 }
-                let Some(position) = const_formals
-                    .iter()
-                    .position(|formal| *formal == Some(*value))
-                else {
+                let Some(position) = const_formals.iter().position(|formal| *formal == Some(*value)) else {
                     return false;
                 };
                 match (al, values.get(position).map(|value| &value.kind)) {
@@ -3295,7 +3255,7 @@ impl<'t> Program<'t> {
                         terminal_psi::ArrayExtent::Parameter { owner, value },
                         Some(ExpressionKind::Slot(slot)),
                     ) if *owner == caller => slots.get(*slot).is_some_and(|slot| {
-                        program.const_scope.iter().any(|input| {
+                        self.const_scope.iter().any(|input| {
                             input.owner == caller
                                 && input.value == *value
                                 && input.symbol == slot.symbol
@@ -3311,40 +3271,8 @@ impl<'t> Program<'t> {
                 }
             } else {
                 false
-            };
-            length
-                && matches(
-                    program,
-                    caller,
-                    callee,
-                    *ae,
-                    *ee,
-                    const_formals,
-                    values,
-                    slots,
-                    depth + 1,
-                )
-        }
-        // Call arguments append scalar consts in signature order. Match an
-        // extent to its actual input using the same numbering as the contract.
-        let Some(signature) = self.signatures.get(callee) else {
-            return false;
-        };
-        let formals = signature.formal_values();
-        let Some(first_const) = formals.len().checked_sub(values.len()) else {
-            return false;
-        };
-        matches(
-            self,
-            caller,
-            callee,
-            actual,
-            expected,
-            &formals[first_const..],
-            values,
-            slots,
-            0,
-        )
+            }
+        })
     }
 
     /// Whether a value of this type lends observation only: a shared

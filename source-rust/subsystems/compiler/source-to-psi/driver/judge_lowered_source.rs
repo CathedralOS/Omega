@@ -18,6 +18,7 @@ use typed_trees_to_prepared_typed_trees as preparation;
 pub(crate) struct SettledSource {
     pub(crate) program: crate::source_state::TypedTrees,
     pub(crate) values: Vec<preparation::ValueInputs>,
+    pub(crate) selected_providers: Vec<symbols::SymbolHandle>,
     pub(crate) accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 
@@ -26,6 +27,7 @@ impl SettledSource {
         Self {
             program,
             values: Vec::new(),
+            selected_providers: Vec::new(),
             accounting: Default::default(),
         }
     }
@@ -33,7 +35,7 @@ impl SettledSource {
     pub(crate) fn freeze(
         self,
     ) -> Result<FrozenSource, prepare_typed_source::SourcePreparationFailure> {
-        match preparation::prepare_typed_trees(self.program, &self.values)
+        match preparation::prepare_typed_trees(self.program, &self.values, &self.selected_providers)
             .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))
         {
             Ok(program) => Ok(FrozenSource {
@@ -157,7 +159,7 @@ fn judge_authored_ieee(
         })
         .expect("the authored package entry")
         .symbol;
-    let prepared = preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
     judge_terminal_source(
         prepared,
         TerminalSourceCompilation {

@@ -856,7 +856,7 @@ mod tests {
             .find(|machine| machine.name.as_str() == "main")
             .unwrap()
             .symbol;
-        let frozen = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+        let frozen = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         crate::judge_fixture(
             frozen,
             Compilation {

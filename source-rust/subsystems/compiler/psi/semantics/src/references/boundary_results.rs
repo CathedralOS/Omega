@@ -13,56 +13,95 @@ use crate::descriptor_results::{
     DescriptorResultSlot, DescriptorSlotKind, DescriptorStoredOrigin,
 };
 
+/// Resolve a declared stored lifetime to the descriptor locations that carry it.
+/// An array family keeps every matching element's loan; the array's own
+/// storage can still end when the boundary call returns.
+pub fn boundary_lifetime_slots(
+    types: &[StructuralTypeDeclaration],
+    parameter: &StructuralParameterDeclaration,
+    path: &[StructuralPathSegment],
+) -> Result<Vec<crate::descriptor_lifetimes::DescriptorLocation>, &'static str> {
+    use crate::descriptor_lifetimes::{descriptor_location, descriptor_path};
+    use StructuralPathSegment::{AllElements, FixedIndex};
+
+    if !path.contains(&AllElements) {
+        let slot = descriptor_location(
+            types,
+            parameter.place,
+            parameter.structural_type,
+            path,
+            None,
+        )
+        .ok_or("provider lifetime input has no exact descriptor path")?;
+        return Ok(vec![slot]);
+    }
+    let slots = DescriptorSlotKind::BorrowedStorage
+        .slots(types, parameter.place, parameter.structural_type)
+        .ok_or("provider lifetime family has no complete descriptor inventory")?;
+    let mut matching = Vec::new();
+    for slot in slots {
+        let actual = descriptor_path(types, parameter.structural_type, &slot.path)
+            .ok_or("provider lifetime family has no exact descriptor path")?;
+        if actual.len() == path.len()
+            && path.iter().zip(&actual).all(|(pattern, segment)| {
+                pattern == segment || matches!((pattern, segment), (AllElements, FixedIndex(_)))
+            })
+        {
+            matching.push(slot);
+        }
+    }
+    if matching.is_empty() {
+        return Err("provider lifetime family has no matching descriptor");
+    }
+    Ok(matching)
+}
+
 pub(crate) fn provider_lifetime_debts(
     types: &[StructuralTypeDeclaration],
-    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    parameters: &[StructuralParameterDeclaration],
     dependencies: &[BoundaryLifetimeDependency],
 ) -> Result<Vec<DescriptorLifetimeDebt<DescriptorStoredOrigin>>, &'static str> {
-    dependencies
-        .iter()
-        .map(|dependency| {
-            let (origin, access) = match dependency {
-                BoundaryLifetimeDependency::Referent {
-                    argument_index,
-                    access,
-                } => (
-                    DescriptorStoredOrigin::Parameter {
-                        position: usize::try_from(*argument_index)
-                            .map_err(|_| "provider lifetime input exceeds host positions")?,
+    let mut debts = Vec::new();
+    for dependency in dependencies {
+        match dependency {
+            BoundaryLifetimeDependency::Referent {
+                argument_index,
+                access,
+            } => {
+                let position = usize::try_from(*argument_index)
+                    .map_err(|_| "provider lifetime input exceeds host positions")?;
+                debts.push(DescriptorLifetimeDebt {
+                    origin: DescriptorStoredOrigin::Parameter {
+                        position,
                         projection: crate::borrowed_storage::Projection::new(&[]),
                     },
-                    *access,
-                ),
-                BoundaryLifetimeDependency::Stored {
-                    argument_index,
-                    path,
-                    access,
-                } => {
-                    let position = usize::try_from(*argument_index)
-                        .map_err(|_| "provider lifetime input exceeds host positions")?;
-                    let parameter = parameters
-                        .get(position)
-                        .ok_or("provider lifetime input names no structural formal")?;
-                    let source = crate::descriptor_lifetimes::descriptor_location(
-                        types,
-                        parameter.place,
-                        parameter.structural_type,
-                        path,
-                        None,
-                    )
-                    .ok_or("provider lifetime input has no exact descriptor path")?;
-                    (
-                        DescriptorStoredOrigin::IncomingSlot {
+                    access: *access,
+                });
+            }
+            BoundaryLifetimeDependency::Stored {
+                argument_index,
+                path,
+                access,
+            } => {
+                let position = usize::try_from(*argument_index)
+                    .map_err(|_| "provider lifetime input exceeds host positions")?;
+                let formal = parameters
+                    .get(position)
+                    .filter(|formal| formal.position == *argument_index)
+                    .ok_or("provider lifetime input names no structural formal")?;
+                for slot in boundary_lifetime_slots(types, formal, path)? {
+                    debts.push(DescriptorLifetimeDebt {
+                        origin: DescriptorStoredOrigin::IncomingSlot {
                             position,
-                            path: source.path,
+                            path: slot.path,
                         },
-                        *access,
-                    )
+                        access: *access,
+                    });
                 }
-            };
-            Ok(DescriptorLifetimeDebt { origin, access })
-        })
-        .collect()
+            }
+        }
+    }
+    Ok(debts)
 }
 
 /// A checked realization must establish the published slot on normal return.
@@ -325,8 +364,8 @@ pub fn boundary_descriptor_access(
     parameter: &StructuralParameterDeclaration,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralAccess> {
-    let selected =
-        crate::runtime_structural_path_tip(types.iter(), parameter.structural_type, path)?;
+    let carrier = crate::qualification_path_carrier(types.iter(), parameter.structural_type, path)?;
+    let selected = terminal_psi::find_structural_type(types, carrier)?;
     let stored = !path.is_empty() || crate::borrowed_storage_parameter(parameter, types.iter());
     let declared = match selected.shape {
         StructuralTypeShape::Reference { access, .. } => Some(access),

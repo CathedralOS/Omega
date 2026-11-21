@@ -22,8 +22,9 @@ use diagnostics::Diagnostic;
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     values: &[ValueInputs],
+    selected_providers: &[symbols::SymbolHandle],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
-    passes::specialization::prepare(&mut program)?;
+    passes::specialization::prepare_with_providers(&mut program, selected_providers)?;
     program
         .settle_applied_service_lineage()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -44,7 +45,7 @@ pub fn prepare_typed_trees(
 /// ```
 /// use typed_trees::source_state::TypedTrees;
 /// use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
-/// let prepared = prepare_typed_trees(TypedTrees::default(), &[]).unwrap();
+/// let prepared = prepare_typed_trees(TypedTrees::default(), &[], &[]).unwrap();
 /// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
 /// ```
 ///
@@ -178,7 +179,7 @@ mod tests {
             retained.push((carrier, identity));
         }
         assert_ne!(retained[0].1, retained[1].1);
-        let prepared = prepare_typed_trees(program, &[]).unwrap();
+        let prepared = prepare_typed_trees(program, &[], &[]).unwrap();
         let prepared = prepared.trees();
         for (carrier, identity) in retained {
             let theory = prepared
@@ -208,7 +209,7 @@ mod tests {
     fn preparation_preserves_the_program_identity() {
         let program = TypedTrees::default();
         let identity = program.identity;
-        let frozen = prepare_typed_trees(program, &[]).unwrap();
+        let frozen = prepare_typed_trees(program, &[], &[]).unwrap();
         assert_eq!(frozen.trees().identity.get(), identity.get());
     }
 
@@ -221,7 +222,7 @@ mod tests {
             .mathematical_definitions
             .insert(crate::source_state::mathematical::MathematicalDefinition::default());
         let before = program.clone();
-        let frozen = prepare_typed_trees(program, &[]).unwrap();
+        let frozen = prepare_typed_trees(program, &[], &[]).unwrap();
         assert_eq!(frozen.into_inner(), before);
     }
 }

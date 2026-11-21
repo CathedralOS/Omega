@@ -181,7 +181,7 @@ fn only_a_reader_of_an_array_requests_its_extent() {
         let values =
             evaluate_const_arguments(&mut typed, request(&[entry]), None, None, &mut accounting)
                 .unwrap();
-        let prepared = prepare_typed_trees(typed.clone(), &values).unwrap();
+        let prepared = prepare_typed_trees(typed.clone(), &values, &[]).unwrap();
         assert_eq!(prepared.values().len(), usize::from(computes_extent));
         assert_eq!(
             prepared
@@ -202,7 +202,7 @@ fn only_a_reader_of_an_array_requests_its_extent() {
             assert_eq!(values[0].targets, TargetInputs::None);
             let other = typed_source("const WIDTH:u64 = 4u64; machine main() -> u64 { WIDTH }");
             assert!(
-                prepare_typed_trees(other, &values).unwrap_err()[0]
+                prepare_typed_trees(other, &values, &[]).unwrap_err()[0]
                     .message
                     .contains("another source program")
             );

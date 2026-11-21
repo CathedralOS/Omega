@@ -69,7 +69,8 @@ pub struct RequirementReviewMetadata {
     /// None is an open ceiling; Some(empty) is a closed empty ceiling.
     pub service_reach: Option<Vec<RequirementService>>,
     pub synchronous_invocations: Vec<RequirementInvocation>,
-    pub crash_is_open: bool,
+    /// None is open. A closed declaration owns all of its checked crash routes.
+    pub published_crash_routes: Option<Vec<terminal_psi::CrashRouteBucket>>,
     pub returned_parameters: Vec<u32>,
     pub parameter_qualifications: Vec<(u32, symbols::SymbolHandle)>,
     pub suspends: bool,

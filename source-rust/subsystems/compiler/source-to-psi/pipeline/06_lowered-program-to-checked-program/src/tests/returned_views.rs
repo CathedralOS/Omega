@@ -596,6 +596,15 @@ machine read(pair: @Pair) -> i32 { pair.left }
 machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
 "#;
 
+const DIRECT_PROVIDER_FIELD: &str = r#"
+data Pair { left: i32; right: i32; }
+boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
+machine entry() -> i32 reaches Source invokes Source {
+    let pair: @Pair = Source::cell();
+    pair.left
+}
+"#;
+
 const PROVIDER_NESTED_RECORD_REFERENCE: &str = r#"
 data Values { left: i32; right: i32; }
 data Pair { values: Values; other: i32; }
@@ -606,7 +615,11 @@ machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
 
 #[test]
 fn boundary_reference_completion_reads_inline_record_leaves() {
-    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+    for source in [
+        PROVIDER_RECORD_REFERENCE,
+        PROVIDER_NESTED_RECORD_REFERENCE,
+        DIRECT_PROVIDER_FIELD,
+    ] {
         let verdict = crate::checking::judge(elaborate(source));
         assert!(
             matches!(verdict, Ok(RouteVerdict::Accepted(_))),
@@ -742,7 +755,11 @@ fn provider_reference_value_is_unknown(source: &str) {
 
 #[test]
 fn boundary_reference_completion_keeps_record_values_unknown() {
-    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+    for source in [
+        PROVIDER_RECORD_REFERENCE,
+        PROVIDER_NESTED_RECORD_REFERENCE,
+        DIRECT_PROVIDER_FIELD,
+    ] {
         provider_reference_value_is_unknown(source);
     }
 }

@@ -213,6 +213,7 @@ boundary trait Source {{
 machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::take(@holder, 1) }}"
         )),
         &[],
+        &[],
     )
     .unwrap();
     let entry = super::boundary_calls::entry(typed.trees());
@@ -326,7 +327,7 @@ machine entry(left: @[u8], right: @[u8], count: @mut u64) {
             2,
             "the helper supplies both its type and callable arguments"
         );
-        let prepared = crate::preparation::prepare_typed_trees(typed, &[])
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[])
             .expect("ordinary preparation must retain the selected helper");
         let trees = prepared.trees();
         let template = trees
