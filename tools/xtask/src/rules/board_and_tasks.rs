@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{FACTS_ROOT, collect_files_with_ext, is_ident_byte};
 
@@ -87,29 +87,29 @@ pub(super) fn board_task_ids(boards: &[String]) -> BTreeSet<String> {
     ids
 }
 
-pub(super) fn citing_documents(root: &Path) -> BTreeMap<String, String> {
-    let mut paths = vec![root.join("AGENTS.md"), root.join("omega-rust/pipeline.md")];
-    collect_files_with_ext(&root.join(".agents/skills"), root, "md", &mut paths);
-    collect_files_with_ext(&root.join("wiki/spec"), root, "md", &mut paths);
-    if let Ok(entries) = fs::read_dir(root.join(FACTS_ROOT)) {
-        let mut fact_readmes: Vec<PathBuf> = entries
-            .filter_map(|e| e.ok().map(|e| e.path().join("README.md")))
-            .filter(|p| p.is_file())
-            .collect();
-        fact_readmes.sort();
-        paths.extend(fact_readmes);
+pub(super) fn citing_documents(root: &Path) -> Result<BTreeMap<String, String>, String> {
+    let mut paths = vec![root.join("AGENTS.md"), root.join(super::COMPILER_GUIDE)];
+    collect_files_with_ext(&root.join(".agents/skills"), root, "md", &mut paths)?;
+    collect_files_with_ext(&root.join("wiki/spec"), root, "md", &mut paths)?;
+    let read_error = |error| format!("{FACTS_ROOT}: cannot read fact folders: {error}");
+    for entry in fs::read_dir(root.join(FACTS_ROOT)).map_err(read_error)? {
+        let readme = entry.map_err(read_error)?.path().join("README.md");
+        if readme.is_file() {
+            paths.push(readme);
+        }
     }
     let mut docs = BTreeMap::new();
     for path in paths {
-        if path.is_file()
-            && let Ok(rel) = path.strip_prefix(root)
-            && let Ok(text) = fs::read_to_string(&path)
-        {
-            let key = rel.to_string_lossy().replace('\\', "/");
-            docs.insert(key, text);
-        }
+        let text =
+            fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let key = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        docs.insert(key, text);
     }
-    docs
+    Ok(docs)
 }
 
 pub(super) fn dangling_task_ids(

@@ -6,15 +6,29 @@ use std::path::{Path, PathBuf};
 
 use super::{collect_files_with_ext, is_ident_byte};
 
-const RUST_ROOT: &str = "omega-rust";
+const RUST_ROOT: &str = "source-rust";
 const READS_BASELINE: &str = "tools/ratchets/source_text_reads.txt";
 const STATUS_BASELINE: &str = "tools/ratchets/contract_status_phrases.txt";
-pub(super) const SEMANTIC_IDS: &str =
-    "omega-rust/psi/compilation/representations/semantic-vocabulary/src/identity.rs";
+pub(super) const SEMANTIC_RECORDS: &str =
+    "source-rust/subsystems/compiler/foundation/semantic-records/src";
 const DENSE_MAP_BASELINE: &str = "tools/ratchets/dense_id_maps.txt";
 const CACHE_STATE_BASELINE: &str = "tools/ratchets/cache_state.txt";
 const PLACE_TRANSPORT_BASELINE: &str = "tools/ratchets/place_transport.txt";
-const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
+// Source checking and the portable representations that carry facts into Psi.
+const PLACE_TRANSPORT_ROOTS: &[&str] = &[
+    "source-rust/subsystems/compiler/source-to-psi",
+    "source-rust/subsystems/compiler/foundation/declaration-identity",
+    "source-rust/subsystems/compiler/foundation/declaration-scope",
+    "source-rust/subsystems/compiler/foundation/language-core",
+    "source-rust/subsystems/compiler/foundation/numeric-literals",
+    "source-rust/subsystems/compiler/foundation/numerics",
+    "source-rust/subsystems/compiler/foundation/semantic-records",
+    "source-rust/subsystems/compiler/foundation/source-provenance",
+    "source-rust/subsystems/compiler/psi",
+    "source-rust/subsystems/compiler/psi-artifact",
+    "source-rust/subsystems/compiler/psi-execution-inputs",
+    "source-rust/subsystems/compiler/psi-semantics",
+];
 
 /*
     Source preparation and lowered-form checking own their mutable work explicitly.
@@ -24,8 +38,8 @@ const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
 */
 pub(super) const CHECKING_STATE_ROOTS: &[&str] = &[
     "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src",
-    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi/src",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program",
 ];
 const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
 
@@ -34,13 +48,9 @@ pub(super) fn checking_interior_state_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for dir in CHECKING_STATE_ROOTS {
         let configured = root.join(dir);
-        if let Err(error) = fs::read_dir(&configured) {
-            violations.push(format!(
-                "{dir}: interior-state scan could not read this root ({error})"
-            ));
-            continue;
+        if let Err(error) = collect_files_with_ext(&configured, root, "rs", &mut files) {
+            violations.push(error);
         }
-        collect_files_with_ext(&configured, root, "rs", &mut files);
     }
     for path in files {
         if path
@@ -49,7 +59,13 @@ pub(super) fn checking_interior_state_violations(root: &Path) -> Vec<String> {
         {
             continue;
         }
-        let text = fs::read_to_string(&path).unwrap_or_default();
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) => {
+                violations.push(format!("{}: {error}", path.display()));
+                continue;
+            }
+        };
         for token in CHECKING_STATE_FORBIDDEN {
             if text.contains(token) {
                 let rel = path
@@ -66,11 +82,12 @@ pub(super) fn checking_interior_state_violations(root: &Path) -> Vec<String> {
     violations
 }
 
-fn rust_files(root: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    collect_files_with_ext(&root.join(RUST_ROOT), root, "rs", &mut out);
-    out.sort();
-    out
+fn rust_files(root: &Path, directories: &[&str]) -> Result<Vec<PathBuf>, String> {
+    let mut files = Vec::new();
+    for directory in directories {
+        collect_files_with_ext(&root.join(directory), root, "rs", &mut files)?;
+    }
+    Ok(files)
 }
 
 fn is_test_filename(name: &str) -> bool {
@@ -79,8 +96,8 @@ fn is_test_filename(name: &str) -> bool {
         || name.ends_with("_tests.rs")
 }
 
-fn product_rust_files(root: &Path) -> Vec<PathBuf> {
-    rust_files(root)
+fn product_rust_files(root: &Path, directories: &[&str]) -> Result<Vec<PathBuf>, String> {
+    Ok(rust_files(root, directories)?
         .into_iter()
         .filter(|path| {
             let Ok(rel) = path.strip_prefix(root) else {
@@ -92,16 +109,13 @@ fn product_rust_files(root: &Path) -> Vec<PathBuf> {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             !has_test_dir && !is_test_filename(name)
         })
-        .collect()
+        .collect())
 }
 
-fn contract_files(root: &Path) -> Vec<PathBuf> {
-    let mut out = vec![root.join("omega-rust/pipeline.md")];
-    let mut spec = Vec::new();
-    collect_files_with_ext(&root.join("wiki/spec"), root, "md", &mut spec);
-    spec.sort();
-    out.extend(spec);
-    out
+fn contract_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut files = vec![root.join(super::COMPILER_GUIDE)];
+    collect_files_with_ext(&root.join("wiki/spec"), root, "md", &mut files)?;
+    Ok(files)
 }
 
 pub(super) fn read_baseline(text: &str) -> BTreeMap<String, usize> {
@@ -446,25 +460,24 @@ fn find_test_module(text: &str) -> Option<(usize, usize)> {
 }
 
 pub(super) fn semantic_id_names(root: &Path) -> Result<BTreeSet<String>, String> {
-    let text = fs::read_to_string(root.join(SEMANTIC_IDS))
-        .map_err(|error| format!("{SEMANTIC_IDS}: cannot read the dense-ID catalog: {error}"))?;
     let mut ids = BTreeSet::new();
-    let mut i = 0;
-    while let Some(rel) = text[i..].find("semantic_id!(") {
-        let after = i + rel + "semantic_id!(".len();
-        let rest = text[after..].trim_start();
-        let name: String = rest
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
-        if !name.is_empty() {
-            ids.insert(name);
+    for file in rust_files(root, &[SEMANTIC_RECORDS])? {
+        let text =
+            fs::read_to_string(&file).map_err(|error| format!("{}: {error}", file.display()))?;
+        for declaration in text.split("semantic_id!(").skip(1) {
+            let name: String = declaration
+                .trim_start()
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            if !name.is_empty() {
+                ids.insert(name);
+            }
         }
-        i = after;
     }
     if ids.is_empty() {
         return Err(format!(
-            "{SEMANTIC_IDS}: dense-ID catalog contains no semantic_id declarations"
+            "{SEMANTIC_RECORDS}: dense-ID catalog contains no semantic_id declarations"
         ));
     }
     Ok(ids)
@@ -822,8 +835,8 @@ pub(super) const RATCHET_SPECS: &[RatchetSpec] = &[
         header: &[
             "Functions named *overlap* or *rebase*, and struct or enum types named",
             "*Place*, *Path* or *Projection*, per non-test file under",
-            "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
-            "key, one overlap relation and one formal-to-actual map",
+            "the source compiler and its shared Psi representations. Counts may only fall:",
+            "facts travel on one place key, one overlap relation and one formal-to-actual map",
             "(https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md).",
         ],
         advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md).",
@@ -834,25 +847,17 @@ pub(super) fn compute_ratchet_counts(
     root: &Path,
     index: usize,
     semantic_ids: &BTreeSet<String>,
-) -> BTreeMap<String, usize> {
+) -> Result<BTreeMap<String, usize>, String> {
     let files = match index {
-        0 => rust_files(root),
-        1 => contract_files(root),
-        2 | 3 => product_rust_files(root),
-        4 => product_rust_files(root)
-            .into_iter()
-            .filter(|path| {
-                path.strip_prefix(root)
-                    .is_ok_and(|rel| rel.starts_with(PSI_COMPILATION_ROOT))
-            })
-            .collect(),
-        _ => Vec::new(),
+        0 => rust_files(root, &[RUST_ROOT])?,
+        1 => contract_files(root)?,
+        2 | 3 => product_rust_files(root, &[RUST_ROOT])?,
+        4 => product_rust_files(root, PLACE_TRANSPORT_ROOTS)?,
+        _ => return Err(format!("unknown count rule {index}")),
     };
     let mut counts = BTreeMap::new();
     for path in files {
-        let Ok(bytes) = fs::read(&path) else {
-            continue;
-        };
+        let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
         let text = String::from_utf8_lossy(&bytes);
         let c = match index {
             0 => count_source_reads(&text),
@@ -868,7 +873,7 @@ pub(super) fn compute_ratchet_counts(
             counts.insert(rel.to_string_lossy().replace('\\', "/"), c);
         }
     }
-    counts
+    Ok(counts)
 }
 
 pub(super) fn format_ratchet_file(spec: &RatchetSpec, counts: &BTreeMap<String, usize>) -> String {
