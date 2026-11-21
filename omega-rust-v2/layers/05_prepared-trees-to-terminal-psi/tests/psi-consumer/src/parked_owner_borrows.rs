@@ -269,6 +269,7 @@ pub fn parked_field_loans(
                 _ => None,
             })
             .ok_or("missing terminal call")?,
+        CallSite::Cleanup(_) => return Err("a cleanup invocation does not suspend"),
     };
     // A named loan leads through its defining borrow to the owned storage.
     let named_source = |descriptor: omega_psi::PlaceId| {

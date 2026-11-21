@@ -6,11 +6,14 @@
 //! | Control | Positive test using the same witness |
 //! | --- | --- |
 //! | swapped branch targets | `loans::branch_and_direct_call_retain_the_actual_returned_input` |
+//! | swapped runtime-dispatch arms | `runtime_callable::the_invocation_after_a_join_uses_the_arriving_descriptor` |
 //! | swapped equal-typed scalars | `member_calls::boundary_demand_preserves_the_requirement_and_authored_argument_interleave` |
 //! | restoration turned into replacement | `loans::exclusive_move_and_replacement_retain_both_exact_paths` |
 //! | residual cleanup redirected or dropped | `ownership::transferring_a_field_to_a_call_does_not_dispose_the_argument_twice` |
 //! | arm remainder disposed or arm transfer redirected before a join | `ownership::transferring_an_owned_match_result_uses_the_join_parameter` |
 //! | premise operator flipped, premised store redirected or displacement kept | `view_loans::an_authored_selector_premise_chooses_the_store_the_checker_must_justify` |
+//! | rank claim or back-edge actuals taken from the sibling predecessor | `ranking::each_back_edge_into_a_ranked_cycle_keeps_its_own_actuals_cleanup_and_claim` |
+//! | back-edge cleanup dropped, or copied onto its guard edge | `ranking::each_back_edge_into_a_ranked_cycle_keeps_its_own_actuals_cleanup_and_claim` |
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, LoweredPackage, MachineBody, OperationKind, StructuralStoreDisposition};
@@ -18,6 +21,8 @@ use psi_handoff_consumer::product_witness::{self, Witness};
 
 /// Sources copied verbatim from the positive tests named above.
 const BRANCH: &str = "data Cell{v:u8;} machine pick(a:@Cell,b:@Cell,c:bool)->@Cell {match c {true -> b,false -> a,}} machine relay(first:@Cell,second:@Cell,c:bool)->@Cell {pick(second,first,c)}";
+/// `the_invocation_after_a_join_uses_the_arriving_descriptor` with its `alias(..)` calls expanded.
+const DISPATCH: &str = "data Left = machine(x:u8)->u8 reaches none crashes none; data Right = machine(x:u8)->u8 reaches none crashes none; data Chosen = machine(x:u8)->u8 reaches none crashes none; machine storage(a:[u8;2])->[u8;2]{a} machine choose(flag:bool, left:Left, right:Right, n:u8)->u8 { let chosen:Chosen = match flag {false -> left, true -> right,}; chosen(n) }";
 const BOUNDARY: &str = "boundary trait Device { machine read(n:u8, bytes:@[u8], last:u8)->u8 reaches Device crashes none; machine other(n:u8,bytes:@[u8],last:u8)->u8 reaches Device crashes none; } machine run(n:u8,b:@[u8],last:u8)->u8 reaches Device { Device::read(last,b,n) }";
 const RESTORATION: &str = "data Cell {v:u8;} data Pair {left:Cell;right:Cell;} machine edit(p:@mut Pair) {let old=move p.left; p.left=move old;}";
 const PAIR: &str = "data Token { value:u8; } data Pair { left:Token; right:Token; }";
@@ -72,6 +77,34 @@ fn swapped_branch_targets_fail_the_returned_input_witness() {
     std::mem::swap(&mut when_true.target, &mut when_false.target);
     let pick = &*pick;
     rejects("branch-target/swapped", pick, product_witness::branch_returns_formals(pick, 1, 0));
+}
+
+/// Swapping the edges of the branch that selects the descriptor leaves every arm, the join
+/// and the call unchanged, so each value keeps its type and the call keeps `Chosen`'s contract.
+/// Only the witness's assignment of formals to edges sees that `flag` false now invokes `right`.
+#[test]
+fn swapped_dispatch_arms_fail_the_arriving_descriptor_witness() {
+    let mut package = sources::lower(&[("runtime_callable.omg", DISPATCH)]).unwrap();
+    let witness = |body: &MachineBody| product_witness::runtime_call_after_branch(body, 0, 2, 1, &[3]);
+    witness(body(&package, "choose")).expect("actual product");
+    let call = |body: &MachineBody| {
+        body.operations
+            .iter()
+            .find_map(|op| match &op.kind {
+                OperationKind::Call { callee, arguments, .. } => Some(format!("{callee:?} {arguments:?}")),
+                _ => None,
+            })
+            .expect("runtime call")
+    };
+    let before = call(body(&package, "choose"));
+    let choose = body_mut(&mut package, "choose");
+    let BlockTerminator::Conditional { when_true, when_false, .. } = &mut choose.blocks[0].terminator else {
+        panic!("flag selects the descriptor")
+    };
+    std::mem::swap(&mut when_true.target, &mut when_false.target);
+    let choose = &*choose;
+    assert_eq!(call(choose), before, "the corruption must leave the call and its contract unchanged");
+    rejects("runtime-dispatch/swapped-arms", choose, witness(choose));
 }
 
 #[test]
@@ -280,5 +313,100 @@ fn a_premised_element_store_fails_its_witness_without_the_clause_or_its_selected
         }
         let label = format!("premised-selector/{}/{corruption}", if source == EQUAL { "equal" } else { "distinct" });
         rejects(&label, &machine.body, witness(machine));
+    }
+}
+
+/// Copied verbatim from `ranking::RETURNING_CYCLE`: two back edges enter `count`
+/// with different actuals, and each completion of the activation disposes `lease`.
+const CYCLE: &str = r#"use omega\language\core;
+data Lease dropped by finish {mark:u8;}
+machine finish(l:Lease) {let Lease{mark as _}=l;}
+machine count(n:u64, m:u64, d:u64)->u64 crashes Trap d == 0 terminates by n {
+    let lease = Lease{mark:0};
+    transition {
+        n == 0 -> n /! d,
+        n < m -> count(n - 1, m, d),
+        _ -> count(m - 1, n, d),
+    }
+}
+"#;
+
+fn machine_id(package: &LoweredPackage, name: &str) -> omega_lowering::MachineId {
+    package.machines.iter().find(|m| m.declaration.path == name).unwrap_or_else(|| panic!("missing machine {name}")).id
+}
+
+/// Every edge stays claimed once; only which predecessor's actuals a claim uses changes.
+#[test]
+fn a_claim_or_actual_from_the_sibling_back_edge_fails_the_cycle_witness() {
+    for corruption in ["sibling-successor", "sibling-actuals"] {
+        let mut package = sources::lower(&[("cycle.omg", CYCLE)]).unwrap();
+        let count = machine_id(&package, "count");
+        product_witness::cycle_claims(&package, count).expect("actual product");
+        let machine = package.machines.iter_mut().find(|m| m.id == count).unwrap();
+        if corruption == "sibling-successor" {
+            let [first, second] = machine.contract.ranking.as_mut().unwrap().edges.as_mut_slice() else {
+                panic!("two back-edge claims")
+            };
+            std::mem::swap(&mut first.successor, &mut second.successor);
+        } else {
+            let [first, second]: [&mut Vec<CallArgument>; 2] = machine
+                .body
+                .blocks
+                .iter_mut()
+                .filter_map(|block| match &mut block.terminator {
+                    BlockTerminator::TerminalCall { arguments, .. } => Some(arguments),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .try_into()
+                .expect("two back edges");
+            std::mem::swap(first, second);
+        }
+        let package = &package;
+        let body = &package.machines.iter().find(|m| m.id == count).unwrap().body;
+        rejects(&format!("cycle-claim/{corruption}"), body, product_witness::cycle_claims(package, count));
+    }
+}
+
+/// The `n < m` back edge loses its cleanup, or its guard edge also disposes `lease`,
+/// so that path disposes it twice. Only the guard-edge rule rejects the second.
+#[test]
+fn a_back_edge_cleanup_dropped_or_copied_to_its_guard_fails_the_completion_witness() {
+    for corruption in ["omitted", "guard-edge"] {
+        let mut package = sources::lower(&[("cycle.omg", CYCLE)]).unwrap();
+        let finish = machine_id(&package, "finish");
+        let count = body_mut(&mut package, "count");
+        let lease = count
+            .operations
+            .iter()
+            .find_map(|op| match (&op.kind, op.result) {
+                (OperationKind::EstablishRecord { .. }, omega_lowering::OperationResult::Structural(place)) => Some(place),
+                _ => None,
+            })
+            .expect("the Lease local");
+        product_witness::completion_cleanup(count, lease, finish).expect("actual product");
+        let back_edge = count
+            .blocks
+            .iter()
+            .position(|block| matches!(block.terminator, BlockTerminator::TerminalCall { .. }))
+            .expect("the first back edge");
+        let BlockTerminator::TerminalCall { cleanup, .. } = &mut count.blocks[back_edge].terminator else {
+            unreachable!()
+        };
+        let actions = if corruption == "omitted" { std::mem::take(cleanup) } else { cleanup.clone() };
+        if corruption == "guard-edge" {
+            let target = count.blocks[back_edge].id;
+            let guard = count
+                .blocks
+                .iter_mut()
+                .find_map(|block| match &mut block.terminator {
+                    BlockTerminator::Conditional { when_true, .. } if when_true.target == target => Some(when_true),
+                    _ => None,
+                })
+                .expect("the n < m guard edge");
+            guard.cleanup = actions;
+        }
+        let count = &*count;
+        rejects(&format!("cycle-cleanup/{corruption}"), count, product_witness::completion_cleanup(count, lease, finish).map(drop));
     }
 }

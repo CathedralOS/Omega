@@ -21,6 +21,7 @@ mutable element-view length contract	checker-input	psi-output/mutable-element-le
 open width of a closed const-integer machine application	checker-input	psi-output/closed-width-sites|psi-output/closed-width-call|psi-output/closed-width-requirement|psi-output/closed-width-operation|psi-output/same-width-distinct-premises
 specialized field owner arguments	product	psi-output/specialized-field-extents
 recursive formation of const-indexed data	checker-input	psi-output/recursive-index-formation|psi-output/indexed-field-width
+returning an indexed shared field	checker-input	psi-output/returned-indexed-field-loan
 const binder on selected implementation	product	psi-output/selected-implementation-integer|psi-output/selected-implementation-integer-control
 refined evidence through a restricted trait alias	checker-input	psi-output/restricted-base-bound|psi-output/restricted-evidence-dispatch
 establishment evidence in executable construction	checker-input	psi-output/establish-positive-one|psi-output/establish-positive-zero
@@ -80,4 +81,10 @@ recursive relay of a boundary view at suspension	checker-input	psi-output/recurs
 restoration through a premised selector	checker-input	psi-output/premised-equal-selector-fill|psi-output/premised-distinct-selector-displacement
 scalar field operand of a record with a non-scalar field	product	psi-output/mixed-record-template-operand|psi-output/mixed-record-operand-carrier
 computed ranking subject	checker-input	psi-output/computed-rank-subject|psi-output/computed-rank-edge
+cleanup in a ranked component	checker-input	psi-output/ranked-cleanup-edge|psi-output/ranked-cleanup-actual
 add a tag and a predicate domain in one cast	checker-input	psi-output/mixed-cast-completion
+add an applied domain and a domain of the other origin in one cast	checker-input	psi-output/applied-cast-completion
+caller-chosen boundary view result at suspension	checker-input	psi-output/caller-chosen-boundary-view
+recursive relay of a caller-chosen boundary view at suspension	checker-input	psi-output/recursive-caller-chosen-boundary-view
+shared float view of a mutable scalar local	checker-input	psi-output/mutable-scalar-home-view
+borrowed scalar home live across a suspension	checker-input	psi-output/parked-scalar-home

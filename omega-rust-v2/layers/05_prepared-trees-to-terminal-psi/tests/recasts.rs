@@ -482,19 +482,9 @@ fn borrowed_scalar_formal_has_one_home_for_every_view() {
     assert!(pkg.machines[0].body.operations.is_empty(), "an unborrowed formal needs no home");
 }
 
-/// A mutable scalar local is rebound by each assignment, so it has no single
-/// home to lend; its borrow still refuses at the borrowed name. A value-level
-/// `as f32` is not a bit cast, and float arithmetic has no Psi operation yet.
-/// A home that is live across a suspending call also refuses there.
+/// A value-level `as f32` is not a bit cast, and float arithmetic has no Psi operation yet.
 #[test]
-fn float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic() {
-    let mutable = "machine build() { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; }";
-    sources::refuse(
-        &[("recast.omg", mutable)],
-        "recast.omg",
-        sources::span_within(mutable, "@bits as", "bits"),
-        "reference root has no structural place",
-    );
+fn float_views_do_not_admit_owned_bit_casts_or_float_arithmetic() {
     let owned = "machine build(bits:u32)->f32 { bits as f32 }";
     sources::refuse(
         &[("recast.omg", owned)],
@@ -509,12 +499,265 @@ fn float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic() 
         sources::unique_span(arithmetic, "$a + $b"),
         "typed integer operator has incompatible carriers",
     );
-    // Psi cannot yet park a primitive home, so a live one refuses at the suspension.
-    let parked = "machine step(n:u8)->u8 suspends {n} machine f(bits:u8)->u8 suspends { let v:@u8 = @bits; let a:u8 = suspend step(1u8); bits }";
-    sources::refuse(
-        &[("recast.omg", parked)],
-        "recast.omg",
-        sources::unique_span(parked, "step(1u8)"),
-        "suspension needs the exact backing and carry evidence of the live structural place",
+}
+
+fn last_body(pkg: &LoweredPackage) -> &omega_lowering::MachineBody {
+    &pkg.machines.last().unwrap().body
+}
+
+/// A borrowed `let mut` scalar gets one home, like an immutable one, and the
+/// home is writable. Each assignment stores into that home, so the view, the
+/// store and later reads all name the same storage. Whether a store may run
+/// while a view of the home is still read is the checker's verdict, so that
+/// program lowers with the store between the borrow and the read.
+#[test]
+fn a_borrowed_mutable_scalar_local_keeps_one_writable_home() {
+    use omega_lowering::ScalarLiteral;
+    use psi_handoff_consumer::{HomeEvent, primitive_homes};
+    // The original program: the mutable local's home is borrowed and recast.
+    let original = "machine build() { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; }";
+    let pkg = sources::lower(&[("recast.omg", original)]).unwrap();
+    let body = last_body(&pkg);
+    let [constant, home, borrow, recast] = body.operations.as_slice() else {
+        panic!("expected constant, home, borrow and recast: {:#?}", body.operations)
+    };
+    let (OperationResult::Scalar(one), OperationResult::Structural(home_place), OperationResult::Structural(descriptor)) =
+        (constant.result, home.result, borrow.result)
+    else {
+        panic!("a scalar initializer, a home and a descriptor")
+    };
+    assert_eq!(home.kind, OperationKind::EstablishPrimitiveLocal { value: one });
+    assert_eq!(body.mutable_homes, [home_place]);
+    assert!(
+        matches!(&borrow.kind, OperationKind::BorrowPlace { source, access: ReferenceAccess::Shared } if source.root == home_place && source.path.is_empty())
     );
+    assert!(matches!(recast.kind, OperationKind::ScalarBitRecast { source, .. } if source == descriptor));
+    let homes = primitive_homes(body).unwrap();
+    assert_eq!(homes.len(), 1);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/mutable-scalar-home-view",
+        assert_eq!(
+            (homes[0].mutable, homes[0].events.as_slice()),
+            (true, &[HomeEvent::Established(one), HomeEvent::Borrowed(ReferenceAccess::Shared)][..]),
+            "the writable home of 1u32 is lent once by a shared borrow"
+        ),
+    );
+
+    // An assignment after the view stores into the home; the return reads it.
+    let assigned = "machine build()->u32 { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; bits = 2u32; bits }";
+    let mut pkg = sources::lower(&[("recast.omg", assigned)]).unwrap();
+    let body = last_body(&pkg);
+    let [home] = primitive_homes(body).unwrap().try_into().unwrap();
+    let [
+        HomeEvent::Established(one),
+        HomeEvent::Borrowed(ReferenceAccess::Shared),
+        HomeEvent::Stored(two),
+        HomeEvent::Read(read),
+    ] = home.events[..]
+    else {
+        panic!("expected establish, borrow, store and read: {:?}", home.events)
+    };
+    let constant = |value: omega_lowering::ValueId| {
+        body.operations
+            .iter()
+            .find(|op| op.result == OperationResult::Scalar(value))
+            .map(|op| op.kind.clone())
+    };
+    assert_eq!(constant(one), Some(OperationKind::Constant(ScalarLiteral::Integer(1u32.into()))));
+    assert_eq!(constant(two), Some(OperationKind::Constant(ScalarLiteral::Integer(2u32.into()))));
+    let BlockTerminator::Return {
+        result: ReturnEdge::Scalar(returned),
+        ..
+    } = body.blocks[0].terminator
+    else {
+        panic!("scalar return")
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/mutable-scalar-home-store",
+        assert_eq!((home.mutable, returned), (true, read), "the return reads the home after the store, not the stored SSA value"),
+    );
+    // A Psi-only reader refuses the same store without write authority or outside the home.
+    let body = &mut pkg.machines[0].body;
+    let homes = std::mem::take(&mut body.mutable_homes);
+    assert_eq!(primitive_homes(body), Err("store into a home without write authority"));
+    body.mutable_homes = homes;
+    let store = body
+        .operations
+        .iter_mut()
+        .find(|op| matches!(op.kind, OperationKind::ProjectedScalarStore { .. }))
+        .unwrap();
+    let OperationKind::ProjectedScalarStore { destination, .. } = &mut store.kind else {
+        unreachable!()
+    };
+    destination.root = omega_lowering::PlaceId(destination.root.0.checked_add(1).unwrap());
+    assert_eq!(primitive_homes(body), Err("whole-primitive store outside a primitive home"));
+
+    // The view is still read after the store. Lowering keeps that order for the checker.
+    let live = "machine build()->f32 { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; bits = 2u32; $view }";
+    let pkg = sources::lower(&[("recast.omg", live)]).unwrap();
+    let body = last_body(&pkg);
+    let position = |found: &dyn Fn(&OperationKind) -> bool| body.operations.iter().position(|op| found(&op.kind)).unwrap();
+    let store = position(&|kind| matches!(kind, OperationKind::ProjectedScalarStore { destination, .. } if destination.path.is_empty()));
+    let recast = position(&|kind| matches!(kind, OperationKind::ScalarBitRecast { .. }));
+    let OperationResult::Structural(view) = body.operations[recast].result else {
+        panic!("view")
+    };
+    let read =
+        position(&|kind| matches!(kind, OperationKind::ProjectedScalarRead { source } if source.root == view && source.path == [PlaceProjection::Referent]));
+    assert!(recast < store && store < read, "{:#?}", body.operations);
+
+    // A mutable loan of the home writes through `Referent`; the later read observes the home.
+    let lent = "machine build()->u32 { let mut bits: u32 = 1u32; let r: @mut u32 = @mut bits; $r = 3u32; bits }";
+    let pkg = sources::lower(&[("recast.omg", lent)]).unwrap();
+    let body = last_body(&pkg);
+    let [home] = primitive_homes(body).unwrap().try_into().unwrap();
+    assert!(
+        matches!(
+            home.events[..],
+            [
+                HomeEvent::Established(_),
+                HomeEvent::Borrowed(ReferenceAccess::Mutable),
+                HomeEvent::Read(_)
+            ]
+        ),
+        "{:?}",
+        home.events
+    );
+    assert!(
+        body.operations
+            .iter()
+            .any(|op| matches!(&op.kind, OperationKind::ProjectedScalarStore { destination, .. } if destination.path == [PlaceProjection::Referent]))
+    );
+
+    // An unborrowed mutable local stays a rebound SSA value.
+    let unborrowed = "machine build()->u32 { let mut bits: u32 = 1u32; bits = 2u32; bits }";
+    let pkg = sources::lower(&[("recast.omg", unborrowed)]).unwrap();
+    let body = last_body(&pkg);
+    assert_eq!((primitive_homes(body).unwrap(), body.mutable_homes.as_slice()), (vec![], &[][..]));
+}
+
+/// A home live across a suspending call stays in the parked activation as
+/// caller storage: no owner row, no loan row, and no activation value copy.
+/// Its row says whether the callee, the continuation or both need it,
+/// directly or through a retained loan of the home.
+#[test]
+fn a_borrowed_scalar_home_stays_in_the_parked_activation() {
+    use omega_lowering::{MachineBody, PlaceId, RetainedHome, SuspensionSite};
+    fn caller(pkg: &LoweredPackage) -> &MachineBody {
+        &pkg.machines
+            .iter()
+            .find(|m| m.declaration.path == "f")
+            .unwrap()
+            .body
+    }
+    use psi_handoff_consumer::{ParkedHome, parked_homes};
+    let parked = |src: &str| -> (LoweredPackage, SuspensionSite) {
+        let pkg = sources::lower(&[("recast.omg", src)]).unwrap();
+        let [site] = caller(&pkg).suspension_sites.clone().try_into().unwrap();
+        (pkg, site)
+    };
+    // The original program: `v` is dead, but the continuation reads `bits` from its home.
+    let original = "machine step(n:u8)->u8 suspends {n} machine f(bits:u8)->u8 suspends { let v:@u8 = @bits; let a:u8 = suspend step(1u8); bits }";
+    let (mut pkg, mut site) = parked(original);
+    let body = caller(&pkg);
+    let home = body
+        .operations
+        .iter()
+        .find_map(|op| match (&op.kind, op.result) {
+            (OperationKind::EstablishPrimitiveLocal { .. }, OperationResult::Structural(p)) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    assert!(site.retained_loans.is_empty() && site.retained_owners.is_empty());
+    let expected = ParkedHome {
+        place: home,
+        formal: Some(0),
+        needed_by_callee: false,
+        needed_after_completion: true,
+        loans: vec![],
+    };
+    spec_corpus::observe_handoff!(
+        psi "psi-output/parked-scalar-home",
+        assert_eq!(parked_homes(body, &site), Ok(vec![expected.clone()]), "the continuation reads formal 0's home, which stays in the activation"),
+    );
+    // A Psi-only reader rejects a missing, understated or redirected row.
+    let row = site.retained_homes.pop().unwrap();
+    assert_eq!(parked_homes(body, &site), Err("a needed home has no row, or the rows are out of order"));
+    site.retained_homes.push(RetainedHome {
+        needed_after_completion: false,
+        needed_by_callee: true,
+        ..row.clone()
+    });
+    assert_eq!(parked_homes(body, &site), Err("home row needs disagree with the call and its continuation"));
+    site.retained_homes[0] = RetainedHome {
+        place: PlaceId(home.0.checked_add(1).unwrap()),
+        ..row.clone()
+    };
+    assert_eq!(parked_homes(body, &site), Err("a needed home has no row, or the rows are out of order"));
+    site.retained_homes[0] = row;
+    let body = pkg
+        .machines
+        .iter_mut()
+        .find(|m| m.declaration.path == "f")
+        .unwrap();
+    body.body.mutable_homes.push(home);
+    assert_eq!(
+        parked_homes(&body.body, &site),
+        Ok(vec![expected]),
+        "write authority does not change the parked row"
+    );
+
+    // Without the borrow there is no home: the formal parks as a scalar value.
+    let (pkg, site) = parked("machine step(n:u8)->u8 suspends {n} machine f(bits:u8)->u8 suspends { let a:u8 = suspend step(1u8); bits }");
+    let body = caller(&pkg);
+    let Parameter::Scalar(formal) = body.parameters[0] else {
+        panic!("scalar formal")
+    };
+    assert!(site.retained_homes.is_empty() && site.activation.iter().any(|value| value.value == formal));
+
+    let callees = "machine step(n:u8)->u8 suspends {n} machine g(x:@u8)->u8 suspends {$x} ";
+    for (src, by_callee, after, loans) in [
+        // The continuation reads the named loan; the loan keeps the home.
+        (
+            "machine f(bits:u8)->u8 suspends { let v:@u8 = @bits; let a:u8 = suspend step(1u8); $v }",
+            false,
+            true,
+            1,
+        ),
+        // A reborrow of that loan leads back to the same home.
+        (
+            "machine f(bits:u8)->u8 suspends { let v:@u8 = @bits; let w:@u8 = @$v; let a:u8 = suspend step(1u8); $w }",
+            false,
+            true,
+            1,
+        ),
+        // The callee borrows the home directly and the continuation reads it.
+        ("machine f(bits:u8)->u8 suspends { let a:u8 = suspend g(@bits); bits }", true, true, 0),
+        // A parked terminal call needs the home only while it is incomplete.
+        ("machine f(bits:u8)->u8 suspends { transition { _ -> suspend g(@bits), } }", true, false, 0),
+        // A mutable local's home, written before the call, is read after it.
+        (
+            "machine f()->u8 suspends { let mut b:u8 = 1u8; let v:@u8 = @b; b = 2u8; let a:u8 = suspend step(1u8); b }",
+            false,
+            true,
+            0,
+        ),
+    ] {
+        let (pkg, site) = parked(&format!("{callees}{src}"));
+        let body = caller(&pkg);
+        let [home] = parked_homes(body, &site).unwrap().try_into().unwrap();
+        assert_eq!(
+            (home.needed_by_callee, home.needed_after_completion, home.loans.len()),
+            (by_callee, after, loans),
+            "{src}"
+        );
+        assert_eq!(
+            home.loans,
+            site.retained_loans
+                .iter()
+                .map(|loan| loan.descriptor)
+                .collect::<Vec<_>>(),
+            "{src}"
+        );
+    }
 }

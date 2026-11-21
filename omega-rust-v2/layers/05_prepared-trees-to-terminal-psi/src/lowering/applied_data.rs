@@ -115,7 +115,7 @@ impl<'a> Application<'a> {
                         declaration: field.declaration.clone(),
                         site: field.site.clone(),
                         lifetime: None,
-                        carrier: types.stored_id_for(ty).map_err(|e| LoweringError::new(&field.site, e.to_string()))?,
+                        carrier: types.id_for(ty).map_err(|e| LoweringError::new(&field.site, e.to_string()))?,
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()

@@ -15,7 +15,7 @@ use crate::{
 };
 mod calls;
 mod comparisons;
-use calls::{Invocation, RankedTransfer};
+use calls::{Actuals, Invocation, RankedTransfer};
 use num_bigint::BigInt;
 use omega_prepared::{PreparedTrees, PreparedValue};
 use omega_resolved::Symbol;
@@ -307,20 +307,30 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
                 match &op.kind {
                     OperationKind::Call { callee, .. } => add(callee, site, Invocation::Ordinary(row, op))?,
                     OperationKind::StructuralStore { disposition: crate::StructuralStoreDisposition::Dispose(actions), .. } => {
-                        for action in actions {
-                            if let crate::CleanupAction::Invoke { target, .. } = action {
-                                add(&crate::CallTarget::Machine(*target), site, Invocation::Cleanup(site))?;
+                        for (action, row_action) in actions.iter().enumerate() {
+                            if let crate::CleanupAction::Invoke { target, .. } = row_action {
+                                let at = crate::CleanupSite {
+                                    list: crate::CleanupList::Store(op.id),
+                                    action,
+                                };
+                                add(&crate::CallTarget::Machine(*target), site, Invocation::Cleanup(row, at, site))?;
                             }
                         }
                     }
                     _ => {}
                 }
             }
+            // Each selected cleanup is its own invocation, named by its edge
+            // and its position in that edge's action list.
             let mut add_cleanups = |actions: &[crate::CleanupAction], id: crate::EdgeId| -> Result<(), LoweringError> {
                 let site = edge_site(&machine.body, id.get());
-                for action in actions {
-                    if let crate::CleanupAction::Invoke { target, .. } = action {
-                        add(&crate::CallTarget::Machine(*target), site, Invocation::Cleanup(site))?;
+                for (action, row_action) in actions.iter().enumerate() {
+                    if let crate::CleanupAction::Invoke { target, .. } = row_action {
+                        let at = crate::CleanupSite {
+                            list: crate::CleanupList::Edge(id),
+                            action,
+                        };
+                        add(&crate::CallTarget::Machine(*target), site, Invocation::Cleanup(row, at, site))?;
                     }
                 }
                 Ok(())
@@ -415,13 +425,20 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
             let mut claimed = Vec::new();
             let mut edges = Vec::new();
             for &(target, invocation) in calls[m].iter().filter(|&&(target, _)| component[target] == group) {
-                let RankedTransfer { block, call, forwarding_return, arguments, site: edge_site } = invocation.transfer(&machine.body, &package.types)?;
+                let RankedTransfer { block, call, forwarding_return, actuals, site: edge_site } = invocation.transfer(&machine.body, &package.types)?;
                 if claimed.contains(&call) {
                     return Err(LoweringError::new(edge_site, "ranked edge identity is not unique"));
                 }
                 claimed.push(call);
                 let callee_machine = &machines[target];
-                if arguments.len() != callee_machine.parameter_types.len() {
+                let formals = &callee_machine.parameter_types;
+                // A cleanup moves its one cleaned place into the target's only
+                // formal; that structural actual supplies no scalar rank input.
+                let agrees = match actuals {
+                    Actuals::Call(arguments) => arguments.len() == formals.len(),
+                    Actuals::Cleanup { ty } => formals.as_slice() == [ty],
+                };
+                if !agrees {
                     return Err(LoweringError::new(edge_site, "ranked edge arguments disagree with the target's formals"));
                 }
                 let successor = callee_machine
@@ -431,17 +448,20 @@ pub(crate) fn bind_component_edges(package: &mut LoweredPackage) -> Result<(), L
                     .map(|target_rank| {
                         target_rank
                             .rank
-                            .try_map(|formal| match arguments.get(formal) {
-                                Some(CallArgument::Scalar(value))
-                                    if machine
-                                        .body
-                                        .values
-                                        .get(value.index())
-                                        .is_some_and(|v| Some(&v.ty) == callee_machine.parameter_types.get(formal)) =>
-                                {
-                                    Some(*value)
-                                }
-                                _ => None,
+                            .try_map(|formal| match actuals {
+                                Actuals::Call(arguments) => match arguments.get(formal) {
+                                    Some(CallArgument::Scalar(value))
+                                        if machine
+                                            .body
+                                            .values
+                                            .get(value.index())
+                                            .is_some_and(|v| Some(&v.ty) == formals.get(formal)) =>
+                                    {
+                                        Some(*value)
+                                    }
+                                    _ => None,
+                                },
+                                Actuals::Cleanup { .. } => None,
                             })
                             .ok_or_else(|| LoweringError::new(edge_site, "ranked edge argument is not a scalar actual of the target rank"))
                     })

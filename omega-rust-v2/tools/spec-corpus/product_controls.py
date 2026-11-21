@@ -2,6 +2,7 @@
 TARGET = "tests/negative_controls.rs"
 CONTROLS = {
     "branch-target/swapped": "swapped_branch_targets_fail_the_returned_input_witness",
+    "runtime-dispatch/swapped-arms": "swapped_dispatch_arms_fail_the_arriving_descriptor_witness",
     "scalar-operand/swapped": "swapped_equal_typed_boundary_scalars_fail_the_operand_witness",
     **{f"restoration/{change}/{witness}": "restoration_turned_into_replacement_fails_the_vacancy_witness"
        for change in ("replace-unrestricted", "dispose-live") for witness in ("vacancy", "moved-place")},
@@ -12,6 +13,10 @@ CONTROLS = {
     **{f"premised-selector/{relation}/{change}": "a_premised_element_store_fails_its_witness_without_the_clause_or_its_selected_element"
        for relation, changes in (("equal", ("clause-operator", "store-through-vacated-selector")),
                                  ("distinct", ("clause-operator", "displaced-element-kept"))) for change in changes},
+    **{f"cycle-claim/{change}": "a_claim_or_actual_from_the_sibling_back_edge_fails_the_cycle_witness"
+       for change in ("sibling-successor", "sibling-actuals")},
+    **{f"cycle-cleanup/{change}": "a_back_edge_cleanup_dropped_or_copied_to_its_guard_fails_the_completion_witness"
+       for change in ("omitted", "guard-edge")},
 }
 
 

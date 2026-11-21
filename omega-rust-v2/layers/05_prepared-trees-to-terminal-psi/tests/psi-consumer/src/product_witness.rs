@@ -377,3 +377,173 @@ pub fn premised_sibling_displacement(
     }
     Ok(())
 }
+
+/// A runtime call after a Boolean branch invokes the descriptor that arrived at the join.
+/// The entry block branches on scalar formal `condition`. Each edge reaches an arm whose one
+/// operation refines that edge's stated formal into the call's contract and whose jump hands
+/// the result to the shared join. The join's only scalar parameter is the descriptor the
+/// runtime call invokes, and its arguments read `arguments`' scalar formals in order.
+/// Descriptor types are not compared, so swapping which formal each edge reaches is a
+/// disagreement even though every value keeps its type.
+pub fn runtime_call_after_branch(
+    body: &MachineBody,
+    condition: usize,
+    when_true: usize,
+    when_false: usize,
+    arguments: &[usize],
+) -> Witness {
+    use omega_psi::{CallTarget, OperationResult};
+    let calls: Vec<_> = body
+        .operations
+        .iter()
+        .enumerate()
+        .filter_map(|(index, op)| match &op.kind {
+            OperationKind::Call { callee, arguments, .. } => Some((index, callee, arguments)),
+            _ => None,
+        })
+        .collect();
+    let [(call, CallTarget::Runtime { descriptor, contract }, actuals)] = calls.as_slice() else {
+        return Err(format!("expected one runtime call, found {calls:?}"));
+    };
+    let expected = arguments
+        .iter()
+        .map(|&formal| scalar_formal(body, formal).map(CallArgument::Scalar))
+        .collect::<Result<Vec<_>, _>>()?;
+    if **actuals != expected {
+        return Err(format!("runtime call arguments {actuals:?}, expected formals {arguments:?}"));
+    }
+    let Some(BlockTerminator::Conditional {
+        condition: tested,
+        when_true: true_edge,
+        when_false: false_edge,
+    }) = body.blocks.first().map(|b| &b.terminator)
+    else {
+        return Err("entry block does not branch".into());
+    };
+    if *tested != scalar_formal(body, condition)? {
+        return Err(format!("entry branch tests {tested:?}, expected formal {condition}"));
+    }
+    let mut join = None;
+    for (arm, edge, formal) in [
+        ("true", true_edge, when_true),
+        ("false", false_edge, when_false),
+    ] {
+        let selected = scalar_formal(body, formal)?;
+        let block = body
+            .blocks
+            .get(edge.target.get() - 1)
+            .ok_or_else(|| format!("{arm} edge has no destination"))?;
+        let refined = match body.operations.get(block.operations.clone()) {
+            Some(
+                [omega_psi::PsiOperation {
+                    kind: OperationKind::RefineCallableDescriptor { source, contract: into },
+                    result: OperationResult::Scalar(refined),
+                    ..
+                }],
+            ) if *source == selected && into == contract => *refined,
+            other => return Err(format!("{arm} arm runs {other:?}, expected one refinement of formal {formal} into {contract:?}")),
+        };
+        let BlockTerminator::Jump(arrival) = &block.terminator else {
+            return Err(format!("{arm} arm ends with {:?}, expected a jump to the join", block.terminator));
+        };
+        if arrival.arguments != [refined] {
+            return Err(format!("{arm} arm passes {:?} to the join, expected its refinement {refined:?}", arrival.arguments));
+        }
+        if *join.get_or_insert(arrival.target) != arrival.target {
+            return Err("the arms reach different joins".into());
+        }
+    }
+    let join = &body.blocks[join.expect("two arms").get() - 1];
+    if join.scalar_parameters != [*descriptor] || !join.operations.contains(call) {
+        return Err(format!(
+            "the call in operation {call} invokes {descriptor:?}, expected the parameter {:?} of the join running {:?}",
+            join.scalar_parameters, join.operations
+        ));
+    }
+    Ok(())
+}
+
+/// Each rank claim of `machine`, re-derived from the transfer it names. The claimed
+/// block must hold that exact call into the claimed member, and substituting the
+/// member's entry rank with *that* call's actuals must give the claimed successor.
+/// Several back edges can enter one member with different actuals, so a claim moved
+/// to a sibling edge fails here even though every edge is still claimed once.
+/// Every in-component call or terminal transfer of the body must be claimed exactly once.
+pub fn cycle_claims(
+    package: &omega_psi::LoweredPackage,
+    machine: omega_psi::MachineId,
+) -> Witness {
+    use omega_psi::{CallSite, CallTarget};
+    let owner = package.machines.iter().find(|m| m.id == machine).ok_or("no such machine")?;
+    let ranking = owner.contract.ranking.as_ref().ok_or("the machine publishes no ranking witness")?;
+    let mut internal = Vec::new();
+    for block in &owner.body.blocks {
+        for op in &owner.body.operations[block.operations.clone()] {
+            if let OperationKind::Call { callee: CallTarget::Machine(target), .. } = &op.kind
+                && ranking.component.contains(target)
+            {
+                internal.push((block.id, CallSite::Operation(op.id), *target));
+            }
+        }
+        if let BlockTerminator::TerminalCall { id, callee: CallTarget::Machine(target), .. } = &block.terminator
+            && ranking.component.contains(target)
+        {
+            internal.push((block.id, CallSite::Edge(*id), *target));
+        }
+    }
+    let claimed: Vec<_> = ranking.edges.iter().map(|edge| (edge.block, edge.call, edge.target)).collect();
+    if claimed != internal {
+        return Err(format!("claims name {claimed:?}, but the body's in-component transfers are {internal:?}"));
+    }
+    for edge in &ranking.edges {
+        let derived = crate::successor_from_call(package, machine, edge)?;
+        if edge.successor.as_ref() != Some(&derived) {
+            return Err(format!(
+                "the claim on {:?} in block {:?} states successor {:?}, but that transfer's own actuals give {derived:?}",
+                edge.call, edge.block, edge.successor
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Where the cleanup of `root` runs in a body whose only owned local is established
+/// before its dispatch: each normal completion of the activation (a `Return` or a
+/// `TerminalCall`, including a transfer back into the cycle) invokes `target` on the
+/// whole root exactly once. A guard or join edge between blocks disposes nothing,
+/// and an external exit abandons the root without cleanup. Returns the completion
+/// edges that dispose it, in block order.
+pub fn completion_cleanup(
+    body: &MachineBody,
+    root: PlaceId,
+    target: omega_psi::MachineId,
+) -> Result<Vec<omega_psi::EdgeId>, String> {
+    let whole = |actions: &[CleanupAction]| {
+        matches!(actions, [CleanupAction::Invoke { place, target: t, .. }] if place.root == root && place.path.is_empty() && *t == target)
+    };
+    let mut disposing = Vec::new();
+    for block in &body.blocks {
+        match &block.terminator {
+            BlockTerminator::Return { id, cleanup, .. } | BlockTerminator::TerminalCall { id, cleanup, .. } => {
+                if !whole(cleanup) {
+                    return Err(format!("completion {id:?} in block {:?} runs {cleanup:?}, not one whole-root cleanup", block.id));
+                }
+                disposing.push(*id);
+            }
+            BlockTerminator::Conditional { when_true, when_false, .. } => {
+                for edge in [when_true, when_false] {
+                    if !edge.cleanup.is_empty() {
+                        return Err(format!("guard edge {:?} disposes {:?} before its arm completes", edge.id, edge.cleanup));
+                    }
+                }
+            }
+            BlockTerminator::Jump(edge) => {
+                if !edge.cleanup.is_empty() {
+                    return Err(format!("jump {:?} disposes {:?} before its arm completes", edge.id, edge.cleanup));
+                }
+            }
+            BlockTerminator::ExternalExit(_) => {}
+        }
+    }
+    Ok(disposing)
+}

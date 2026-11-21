@@ -136,7 +136,7 @@ impl Keys {
 
 mod field_reborrows;
 mod returned_views;
-use returned_views::{ReturnInputs, input_origins};
+use returned_views::{ReturnInputs, ViewSource, input_origins};
 use std::cell::LazyCell;
 
 struct Liveness<'a> {
@@ -146,7 +146,7 @@ struct Liveness<'a> {
     reads: Vec<Vec<usize>>,
     definitions: Vec<Vec<usize>>,
     at_entry: Vec<Vec<bool>>,
-    input_origins: std::cell::OnceCell<Vec<Option<Vec<usize>>>>,
+    input_origins: std::cell::OnceCell<Vec<Option<Vec<ViewSource<usize>>>>>,
 }
 impl<'a> Liveness<'a> {
     fn new(
@@ -295,6 +295,22 @@ impl<'a> Liveness<'a> {
         }
         live
     }
+    /// A primitive local's home, the activation storage that `EstablishPrimitiveLocal` reserved.
+    fn is_home(
+        &self,
+        place: PlaceId,
+    ) -> bool {
+        matches!(self.body.places[place.index()].origin, crate::PlaceOrigin::Operation(id)
+            if matches!(self.body.operations[id.index()].kind, OperationKind::EstablishPrimitiveLocal { .. }))
+    }
+    /// The home a borrowed place selects, directly or through named reborrows.
+    fn backing_home(
+        &self,
+        place: &crate::ProjectedPlace,
+    ) -> Option<PlaceId> {
+        let captured = super::loans::captured_place(self.body, place);
+        (captured.path.is_empty() && self.is_home(captured.root)).then_some(captured.root)
+    }
     /// A direct operand names its storage. A named reborrow reaches that same
     /// storage through its defining BorrowPlace. Loan permissions remain on
     /// the original operands; this lookup only identifies their live backing.
@@ -320,10 +336,12 @@ impl<'a> Liveness<'a> {
         // supplies one; the edge arguments identify which loan arrived.
         let incoming = match root.origin {
             crate::PlaceOrigin::Parameter => true,
+            // Only formals arrive as incoming loans; a provider result is not one.
             crate::PlaceOrigin::BlockParameter(_) => self
                 .input_origins
                 .get_or_init(|| input_origins(self.body, returns))[place.root.index()]
-            .is_some(),
+            .as_ref()
+            .is_some_and(|sources| sources.iter().all(|source| matches!(source, ViewSource::Input(_)))),
             _ => false,
         };
         if incoming
@@ -335,6 +353,10 @@ impl<'a> Liveness<'a> {
             // crosses a descriptor stored in that record: the stored loan,
             // not this incoming one, is the parent of what follows it.
             field_reborrows::check_backing(*referent, fields, types, self.data, site)?;
+            return Ok(true);
+        }
+        // The activation retains a borrowed home; `activation` publishes its row.
+        if self.backing_home(place).is_some() {
             return Ok(true);
         }
         if !matches!(types.get(root.ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
@@ -364,7 +386,7 @@ impl<'a> Liveness<'a> {
         owners: &[crate::RetainedOwner],
         types: &LoweringTypes,
         returns: &LazyCell<ReturnInputs<'members>, impl FnOnce() -> ReturnInputs<'members>>,
-    ) -> Result<(Vec<ActivationValue>, Vec<crate::RetainedLoan>), LoweringError> {
+    ) -> Result<(Vec<ActivationValue>, Vec<crate::RetainedLoan>, Vec<crate::RetainedHome>), LoweringError> {
         let mut held = vec![false; after.len()];
         let mut borrowed_root = vec![false; self.body.places.len()];
         for arg in args {
@@ -375,9 +397,16 @@ impl<'a> Liveness<'a> {
             self.keys.operand(arg, |key| held[key] = true);
         }
         let mut retained_loans = Vec::new();
+        // Whether the callee and the continuation need each home's storage.
+        let mut home_needs = vec![(false, false); self.body.places.len()];
         for (index, place) in self.body.places.iter().enumerate() {
             let key = self.keys.0 + index;
             if !held[key] && !after[key] {
+                continue;
+            }
+            if self.is_home(PlaceId(super::body::next_id(index))) {
+                let need = &mut home_needs[index];
+                *need = (need.0 | held[key], need.1 | after[key]);
                 continue;
             }
             if owners
@@ -395,7 +424,8 @@ impl<'a> Liveness<'a> {
             // At a join, retain the selected descriptor. The arriving edge
             // supplies its backing. Other arms need not remain live after it.
             // Traceability is not a carry verdict. A boundary result remains
-            // anchored at its producing call, with an input lifetime dependency.
+            // anchored at its producing call, with an input lifetime dependency
+            // or, for a caller-chosen lifetime, with only the provider's backing.
             let traceable = match place.origin {
                 crate::PlaceOrigin::Parameter => true,
                 crate::PlaceOrigin::Operation(id) if let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind => {
@@ -417,6 +447,14 @@ impl<'a> Liveness<'a> {
                     ));
                 }
             };
+            // A named loan of a home keeps that home in the activation.
+            if let crate::PlaceOrigin::Operation(id) = place.origin
+                && let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind
+                && let Some(home) = self.backing_home(source)
+            {
+                let need = &mut home_needs[home.index()];
+                *need = (need.0 | held[key], need.1 | after[key]);
+            }
             retained_loans.push(crate::RetainedLoan {
                 descriptor: PlaceId(super::body::next_id(index)),
                 ty: place.ty,
@@ -442,17 +480,32 @@ impl<'a> Liveness<'a> {
                 ty,
                 needed_by_callee: callee,
                 needed_after_completion: continuation,
-                carry: crate::Carry {
-                    allows_suspension: true,
-                    requires_same_cpu: false,
-                    requires_same_thread: false,
-                    requires_stable_address: false,
-                },
+                carry: PRIMITIVE_CARRY,
             });
         }
-        Ok((activation, retained_loans))
+        let retained_homes = home_needs
+            .iter()
+            .enumerate()
+            .filter(|(_, need)| need.0 || need.1)
+            .map(|(index, &(needed_by_callee, needed_after_completion))| crate::RetainedHome {
+                place: PlaceId(super::body::next_id(index)),
+                ty: self.body.places[index].ty,
+                carry: PRIMITIVE_CARRY,
+                needed_by_callee,
+                needed_after_completion,
+            })
+            .collect();
+        Ok((activation, retained_loans, retained_homes))
     }
 }
+
+/// A plain primitive scalar, as a value or in its home, places no carry restriction.
+const PRIMITIVE_CARRY: crate::Carry = crate::Carry {
+    allows_suspension: true,
+    requires_same_cpu: false,
+    requires_same_thread: false,
+    requires_stable_address: false,
+};
 
 /// Derive the crossing roster from the selected machine envelopes independently of
 /// the source acknowledgements. A parked call still holds its evaluated arguments.
@@ -519,7 +572,8 @@ fn plan<'members>(
             let mut after = vec![false; body.values.len() + body.places.len()];
             graph.keys.cleanup(cleanup, |key| after[key] = true);
             let retained_owners = owners.take(CallSite::Edge(*id));
-            let (activation, retained_loans) = graph.activation(&body.diagnostics.edges[id.get() - 1], arguments, &after, &retained_owners, types, returns)?;
+            let (activation, retained_loans, retained_homes) =
+                graph.activation(&body.diagnostics.edges[id.get() - 1], arguments, &after, &retained_owners, types, returns)?;
             crossings.push(SuspensionSite {
                 call: CallSite::Edge(*id),
                 callee: *callee,
@@ -527,6 +581,7 @@ fn plan<'members>(
                 activation,
                 retained_loans,
                 retained_owners,
+                retained_homes,
             });
         }
         let mut live = graph.before_terminator(block);
@@ -546,7 +601,7 @@ fn plan<'members>(
                     CompletionContinuation::Terminator(block.id)
                 };
                 let retained_owners = owners.take(CallSite::Operation(op.id));
-                let (activation, retained_loans) = graph.activation(site, arguments, &live, &retained_owners, types, returns)?;
+                let (activation, retained_loans, retained_homes) = graph.activation(site, arguments, &live, &retained_owners, types, returns)?;
                 crossings.push(SuspensionSite {
                     call: CallSite::Operation(op.id),
                     callee: *callee,
@@ -554,6 +609,7 @@ fn plan<'members>(
                     activation,
                     retained_loans,
                     retained_owners,
+                    retained_homes,
                 });
             }
             graph.add_reads(pos, &mut live);

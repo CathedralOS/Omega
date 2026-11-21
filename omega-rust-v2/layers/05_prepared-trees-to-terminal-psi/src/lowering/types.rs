@@ -31,7 +31,6 @@ pub enum TypeError {
     ZeroIntegerWidth { signed: bool },
     OpenIntegerWidth,
     OpenArrayExtent,
-    IndexedReferenceValue,
     NoResult,
     UnsupportedCarrier(String),
     MissingCarrier(TypeShape),
@@ -52,7 +51,6 @@ impl fmt::Display for TypeError {
             }
             Self::OpenIntegerWidth => output.write_str("integer width is still open after preparation"),
             Self::OpenArrayExtent => output.write_str("array extent is still open after preparation"),
-            Self::IndexedReferenceValue => output.write_str("a standalone indexed reference needs its checked backing"),
             Self::NoResult => output.write_str("an absent result has no runtime carrier"),
             Self::UnsupportedCarrier(carrier) => write!(output, "no Psi lowering for carrier {carrier}"),
             Self::MissingCarrier(shape) => write!(output, "carrier {shape:?} is absent from the Psi type table"),
@@ -163,14 +161,6 @@ impl LoweringTypes {
         &self,
         carrier: &ValueType,
     ) -> Result<TypeId, TypeError> {
-        // A field can name an indexed referent without requiring its layout.
-        // Do not promote that identity-only edge to a standalone descriptor:
-        // forwarding or dereferencing it needs its checked backing.
-        if shared_indexed_target(carrier).is_some() { return Err(TypeError::IndexedReferenceValue); }
-        self.stored_id_for(carrier)
-    }
-
-    pub(super) fn stored_id_for(&self, carrier: &ValueType) -> Result<TypeId, TypeError> {
         let mut lengths = Vec::new();
         let leaf = self.array_dimensions(carrier, &mut lengths)?;
         let mut id = self.id_for_shape(leaf)?;
@@ -277,6 +267,21 @@ impl LoweringTypes {
 
     pub(crate) fn domain_establishment(&self, declaration: &DeclarationId) -> Option<DomainEstablishment> {
         self.domain_establishments.get(declaration).copied()
+    }
+
+    /// The Psi atom of one scalar domain application, with the same closed arguments
+    /// the interned qualification set stores for it (`finish` checks their count).
+    pub(crate) fn domain_atom(
+        application: &DomainApplication,
+        site: &omega_typed::Site,
+    ) -> Result<omega_psi::DomainAtom, crate::LoweringError> {
+        let (_, arguments) = atom_keys(std::slice::from_ref(application))
+            .and_then(|mut keys| keys.pop())
+            .ok_or_else(|| crate::LoweringError::new(site, "scalar domain application requires closed integer or Boolean arguments"))?;
+        Ok(omega_psi::DomainAtom {
+            declaration: crate::identity::declaration(&application.declaration, site)?,
+            arguments: arguments.into_iter().map(Into::into).collect(),
+        })
     }
 
     fn id_for_shape(
@@ -459,7 +464,11 @@ pub(crate) fn nominal_reference(carrier: &ValueType) -> Option<(crate::Reference
 
 pub(crate) fn place_reference(carrier: &ValueType) -> Option<(crate::ReferenceAccess, &ValueType)> {
     let ValueType::Reference(access, inner) = carrier else { return None };
-    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() {
+    // A shared reference to a closed const-indexed application names its
+    // referent's identity without that referent's layout. It forms, forwards
+    // and reborrows like any shared place reference; only a step that needs
+    // the referent's schema refuses it.
+    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() && shared_indexed_target(carrier).is_none() {
         return None;
     }
     let access = match access {

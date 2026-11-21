@@ -14,6 +14,10 @@
 #[cfg(test)]
 extern crate self as omega_preparation;
 
+#[cfg(test)]
+#[path = "../tests/support/source_package.rs"]
+mod test_source_package;
+
 mod evaluation;
 mod invocation;
 mod preparation;

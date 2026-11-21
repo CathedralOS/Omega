@@ -81,6 +81,7 @@ fn a_parked_call_borrows_the_selected_field_without_transferring_its_owner() {
                         _ => None,
                     })
                     .expect("expected the terminal call"),
+                CallSite::Cleanup(_) => panic!("a cleanup invocation does not suspend"),
             };
             let CallArgument::Borrow { place, .. } = &mut arguments[1] else {
                 panic!("expected the loan actual");

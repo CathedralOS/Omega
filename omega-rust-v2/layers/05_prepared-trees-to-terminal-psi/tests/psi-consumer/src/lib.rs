@@ -199,6 +199,9 @@ pub use joined_loans::check_joined_loan;
 mod returned_view;
 pub use returned_view::{recursive_view_backings, returned_view_backing};
 
+mod parked_view_sources;
+pub use parked_view_sources::{ProviderInvocation, ViewSources, parked_view_sources};
+
 mod parked_handles;
 pub use parked_handles::check_parked_handles;
 
@@ -210,6 +213,9 @@ pub use parked_owner_borrows::{ParkedFieldLoan, ParkedLoanBacking, check_parked_
 
 mod parked_field_reborrows;
 pub use parked_field_reborrows::{ParkedFieldReborrow, parked_field_reborrow};
+
+mod returned_field_loans;
+pub use returned_field_loans::{ReturnedStoredLoan, returned_stored_loan};
 
 pub mod product_witness;
 
@@ -223,4 +229,7 @@ mod hooked_transfers;
 pub use hooked_transfers::{HookedFieldTransfer, hooked_field_transfers};
 
 mod ranking;
-pub use ranking::{entry_rank, successor_from_call};
+pub use ranking::{claimed_cleanup, entry_rank, successor_from_call};
+
+mod primitive_homes;
+pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};

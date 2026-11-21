@@ -185,6 +185,12 @@ fn select_place<'a>(
                     if usage == PlaceUse::Move
                         && current == file.ungroup(node)
                         && matches!(&o.kind,ObligationKind::RestoreBorrowed{place,..} if *place==file.node_id(current)) => {}
+                // A returned stored reference reborrows this place; the return
+                // edge carries that descriptor, as for a returned binding.
+                NodeSemantics::Obligation(o)
+                    if usage == PlaceUse::Original
+                        && current == file.ungroup(node)
+                        && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 _ => return Err(LoweringError::new(&site, "reference projection requires a typed original place")),
             }
         }

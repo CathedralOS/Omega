@@ -58,6 +58,27 @@ pub(super) fn descriptor(
             }
             Ok(Some(result))
         }
+        // Reading a stored shared reference copies no record storage. The value
+        // reborrows the referent through the stored descriptor, so that stored
+        // loan is the parent and the result points into the original backing,
+        // not into the record that holds it. A call operand lends the same place.
+        NodeKind::FieldAccess => {
+            // Reading a stored exclusive reference either moves it out of the
+            // field or reborrows it while suspending that field; neither is
+            // represented here yet.
+            if !matches!(crate::lowering::types::place_reference(reference), Some((crate::ReferenceAccess::Shared, _))) {
+                return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
+            }
+            if region.is_some() {
+                return Err(LoweringError::new(&site, "a stored reference returned at a declared region needs its binding"));
+            }
+            let Some(crate::CallArgument::Borrow { place: source, access: crate::ReferenceAccess::Shared }) =
+                references::reference_operand(expressions, node, reference, body, None)?
+            else {
+                return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
+            };
+            Ok(Some(body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access: crate::ReferenceAccess::Shared }, site)))
+        }
         _ => Ok(None),
     }
 }

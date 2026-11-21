@@ -1,16 +1,16 @@
 //! Read the domains a jump establishes from published Psi alone, applying the
 //! completion rules of `wiki/spec/terminal-psi/encoding.md` (scalar return origins).
 //! This reader checks the accounting; it proves no predicate.
-use omega_psi::{BlockTerminator, CompletionOrigin, DeclarationId, LoweredPackage, MachineBody, SuccessorEdge, TypeShape, ValueOrigin};
+use omega_psi::{BlockTerminator, CompletionOrigin, DomainAtom, LoweredPackage, MachineBody, SuccessorEdge, TypeShape, ValueOrigin};
 
-/// The domains the destination at `argument` gains on `edge`, in destination order,
-/// each with the origin its completion row names.
+/// The domain atoms the destination at `argument` gains on `edge`, in destination order,
+/// each with the origin its completion row names. An atom keeps its closed arguments.
 pub fn cast_completions<'a>(
     package: &'a LoweredPackage,
     body: &'a MachineBody,
     edge: &'a SuccessorEdge,
     argument: usize,
-) -> Result<Vec<(&'a DeclarationId, CompletionOrigin)>, &'static str> {
+) -> Result<Vec<(&'a DomainAtom, CompletionOrigin)>, &'static str> {
     let arrival = body
         .blocks
         .iter()
@@ -68,7 +68,7 @@ pub fn cast_completions<'a>(
         || rows
             .iter()
             .zip(&added)
-            .any(|(row, (declaration, _))| row.domain != **declaration)
+            .any(|(row, (declaration, arguments))| row.domain.declaration != **declaration || row.domain.arguments != *arguments)
     {
         return Err("completion rows do not name each added domain once in destination order");
     }
@@ -77,8 +77,11 @@ pub fn cast_completions<'a>(
         let domain = package
             .domains
             .iter()
-            .find(|domain| domain.declaration == row.domain)
+            .find(|domain| domain.declaration == row.domain.declaration)
             .ok_or("completion names an undeclared domain")?;
+        if row.domain.arguments.len() != domain.index_binders.len() {
+            return Err("a completion atom does not supply one argument per domain index");
+        }
         if !matches!(package.types.get(domain.carrier), Some(TypeShape::PrimitiveScalar(_))) {
             return Err("a vacuous or proved origin needs empty required memberships");
         }

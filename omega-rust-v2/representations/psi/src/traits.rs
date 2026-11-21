@@ -81,11 +81,25 @@ pub struct MemberCallSelection {
     pub static_arguments: Vec<crate::DeclarationTerm>,
     pub parameters: Vec<crate::ParameterType>,
     pub result: Option<TypeId>,
-    /// For a boundary view result with a represented input-relative lifetime,
-    /// index of the lifetime anchor in the ordered call operands. Not a claim
-    /// that the input contains the returned bytes or that a provider is admitted.
-    pub boundary_result_lifetime_input: Option<usize>,
+    /// How a boundary view result's lifetime relates to this call. `None` for
+    /// any other result, and for a boundary view whose input frontier this
+    /// lowering does not represent, such as an aggregate, a generic or several
+    /// views. A consumer must not read `None` as either variant.
+    pub boundary_result_lifetime: Option<BoundaryResultLifetime>,
     pub target: MemberRealization,
+}
+
+/// The published relation between a boundary view result and the call
+/// (`wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes`). In both
+/// cases the admitted provider establishes the bytes; neither variant claims
+/// that an input contains them or that a provider is admitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BoundaryResultLifetime {
+    /// The result lives as long as the ordered call operand at this index.
+    Input(usize),
+    /// No input carries a reference, so each caller chooses the lifetime and
+    /// the provider must back every choice. Nothing in the call anchors it.
+    CallerChosen,
 }
 #[derive(Debug, Eq, PartialEq)]
 pub enum MemberRealization {

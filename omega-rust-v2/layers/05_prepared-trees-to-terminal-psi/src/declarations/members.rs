@@ -234,7 +234,7 @@ impl Key {
 struct Plan {
     key: Key,
     signature: TypedSignature,
-    elided_view_input: Option<usize>,
+    view_lifetime: Option<crate::BoundaryResultLifetime>,
     implementation: Option<DeclarationId>,
     direction: Option<BoundaryDirection>,
 }
@@ -290,7 +290,8 @@ pub(crate) fn plan(
                 .get(&key.requirement)
                 .ok_or_else(|| LoweringError::new(&call.site, "member call needs its packaged requirement"))?;
             let file = trees[sig.node.file].resolved().file;
-            if file.generic_parameters(sig.node.node).count() != key.arguments.len() {
+            let binders = file.generic_parameters(sig.node.node).count();
+            if binders != key.arguments.len() {
                 return Err(LoweringError::new(&call.site, "member call needs one static argument per requirement binder"));
             }
             if key
@@ -311,7 +312,7 @@ pub(crate) fn plan(
                 key,
                 signature,
                 // Use the declaration, not a convenient shape after substitution.
-                elided_view_input: boundary_view_lifetime_input(sig),
+                view_lifetime: boundary_view_lifetime(sig, binders),
                 implementation,
                 direction,
             });
@@ -320,11 +321,17 @@ pub(crate) fn plan(
     Ok(MemberPlans(plans))
 }
 
-/// Elided shared-view result with exactly one reference in the declared input
-/// frontier. Do not treat a borrow-carrying aggregate as a scalar, or an
+/// Elided shared-view result: exactly one reference in the declared input
+/// frontier relates the result to that input. With only primitive scalar
+/// inputs and no binders, each caller chooses the lifetime
+/// (`wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes`). Do not
+/// treat a borrow-carrying aggregate or a generic input as a scalar, or an
 /// explicit result lifetime as elision. More general relations need their
-/// own path/lifetime correspondence.
-fn boundary_view_lifetime_input(sig: &TypedSignature) -> Option<usize> {
+/// own path/lifetime correspondence and publish no relation.
+fn boundary_view_lifetime(
+    sig: &TypedSignature,
+    binders: usize,
+) -> Option<crate::BoundaryResultLifetime> {
     use crate::lowering::types::{is_shared_byte_view, is_shared_element_view, scalar_carrier};
     let shared_view = |ty| is_shared_byte_view(ty) || is_shared_element_view(ty);
     if !shared_view(&sig.result) {
@@ -340,7 +347,12 @@ fn boundary_view_lifetime_input(sig: &TypedSignature) -> Option<usize> {
         }
         anchor = Some(position);
     }
-    anchor
+    match anchor {
+        Some(position) => Some(crate::BoundaryResultLifetime::Input(position)),
+        // A binder may name the result lifetime; this lowering does not read it.
+        None if binders == 0 => Some(crate::BoundaryResultLifetime::CallerChosen),
+        None => None,
+    }
 }
 
 impl MemberPlans {
@@ -463,8 +475,8 @@ impl MemberPlans {
                 result: (sig.result != ValueType::NoResult)
                     .then(|| id_for(&sig.result))
                     .transpose()?,
-                boundary_result_lifetime_input: match target {
-                    MemberRealization::Boundary { .. } => p.elided_view_input,
+                boundary_result_lifetime: match target {
+                    MemberRealization::Boundary { .. } => p.view_lifetime,
                     _ => None,
                 },
                 target,

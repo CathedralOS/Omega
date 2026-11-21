@@ -651,11 +651,6 @@ fn a_predicate_completion_cannot_stand_in_for_other_origins_or_required_membersh
         // A vacuous origin needs empty required memberships, and a tag child requires its parent.
         ("domain u8::P requires true; domain u8::T; domain u8::T::C; machine make(x:u8)->u8 { let q = x as +P +T +T::C; q as -P -T -T::C }",
          "x as +P +T +T::C", "vacuous completion does not support a domain requiring parent membership"),
-        // A completion names a declaration, so neither origin can carry an application's index.
-        ("domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; domain u8::P requires true; machine make(x:u8)->u8 in Five & P {x as +Five +P}",
-         "x as +Five +P", "a completion with mixed origins does not support an applied domain"),
-        ("domain<const N:u8> u8::Above<N> requires self > N; domain u8::Five = u8::Above<5>; domain u8::Tag; machine make(x:u8)->u8 in Five & Tag {x as +Five +Tag}",
-         "x as +Five +Tag", "a completion with mixed origins does not support an applied domain"),
     ] {
         sources::refuse(&[("limit.omg", source)], "limit.omg", sources::unique_span(source, cast), message);
     }
@@ -663,7 +658,7 @@ fn a_predicate_completion_cannot_stand_in_for_other_origins_or_required_membersh
 
 #[test]
 fn predicate_cast_requests_completion_and_binds_the_arrival_invariant() {
-    use omega_psi::{BlockTerminator, CompletionOrigin, DomainCompletion, Parameter, ReturnEdge, ScalarDomainInvariant};
+    use omega_psi::{BlockTerminator, CompletionOrigin, DomainAtom, DomainCompletion, Parameter, ReturnEdge, ScalarDomainInvariant};
     let original = "domain u8::Positive requires self > 0u8; machine f(x:u8)->u8 in Positive {x as +Positive}";
     let twin = "domain u8::Positive requires self > 0u8; domain u8::Other requires self > 0u8; machine f(x:u8,y:u8)->u8 in Other {y as +Other}";
     for (text, cast, path, slot) in [(original, "x as +Positive", "u8::Positive", 0), (twin, "y as +Other", "u8::Other", 1)] {
@@ -694,10 +689,11 @@ fn predicate_cast_requests_completion_and_binds_the_arrival_invariant() {
         let Some(TypeShape::QualifiedScalar { domains, .. }) = pkg.types.get(body.values[dest.index()].ty) else { panic!("lost result domain") };
         assert_eq!(pkg.types.domain_set(*domains).unwrap(), std::slice::from_ref(&domain.declaration));
         assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == dest));
+        let atom = DomainAtom { declaration: domain.declaration.clone(), arguments: vec![] };
         spec_corpus::observe_handoff!(psi "psi-output/predicate-cast-completion", assert_eq!(
             (edge.target, edge.arguments.as_slice(), edge.domain_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
-            (arrival.id, &[input][..], &[DomainCompletion { argument_index: 0, domain: domain.declaration.clone(), origin: CompletionOrigin::Proved }][..],
-             &[ScalarDomainInvariant { subject: dest, domain: domain.declaration.clone() }][..])
+            (arrival.id, &[input][..], &[DomainCompletion { argument_index: 0, domain: atom.clone(), origin: CompletionOrigin::Proved }][..],
+             &[ScalarDomainInvariant { subject: dest, domain: atom }][..])
         ));
     }
 }
@@ -706,7 +702,7 @@ fn predicate_cast_requests_completion_and_binds_the_arrival_invariant() {
 /// with its own origin. `requires true` is a predicate, so `P` is proved, not vacuous.
 #[test]
 fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
-    use omega_psi::{BlockTerminator, CompletionOrigin, DomainCompletion, QualificationDirection, ScalarDomainInvariant, ScalarQualificationChange};
+    use omega_psi::{BlockTerminator, CompletionOrigin, DomainAtom, DomainCompletion, QualificationDirection, ScalarDomainInvariant, ScalarQualificationChange};
     let original = "domain u8::P requires true; domain u8::Tag; machine make(x:u8)->u8 { let q = x as +P +Tag; q as -P -Tag }";
     let entries = original.replace("x as +P +Tag; q as -P -Tag", "x as +Tag +P; q as -Tag -P");
     let declarations = original.replace("domain u8::P requires true; domain u8::Tag;", "domain u8::Tag; domain u8::P requires true;");
@@ -747,14 +743,15 @@ fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
         let BlockTerminator::Jump(erase) = &arrival.terminator else { panic!("missing erasure") };
         assert_eq!(erase.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Erase }]);
         assert!(erase.domain_completions.is_empty());
-        let row = |d: &omega_psi::LoweredDomain, origin| DomainCompletion { argument_index: 0, domain: d.declaration.clone(), origin };
+        let atom = |d: &omega_psi::LoweredDomain| DomainAtom { declaration: d.declaration.clone(), arguments: vec![] };
+        let row = |d, origin| DomainCompletion { argument_index: 0, domain: atom(d), origin };
         spec_corpus::observe_handoff!(psi "psi-output/mixed-cast-completion", assert_eq!(
             (edge.scalar_qualification_changes.as_slice(), edge.domain_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
             (&[][..], &[row(p, CompletionOrigin::Proved), row(tag, CompletionOrigin::Vacuous)][..],
-             &[ScalarDomainInvariant { subject: dest, domain: p.declaration.clone() }][..])
+             &[ScalarDomainInvariant { subject: dest, domain: atom(p) }][..])
         ));
         assert_eq!(psi_handoff_consumer::cast_completions(&pkg, body, edge, 0),
-                   Ok(vec![(&p.declaration, CompletionOrigin::Proved), (&tag.declaration, CompletionOrigin::Vacuous)]));
+                   Ok(vec![(&atom(p), CompletionOrigin::Proved), (&atom(tag), CompletionOrigin::Vacuous)]));
     }
 
     // The consumer refuses each Psi that misstates one origin, row or arrival obligation.
@@ -788,7 +785,7 @@ fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
         let pkg = sources::lower(&[("limit.omg", &text)]).unwrap();
         let body = &pkg.machines[0].body;
         let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else { panic!("missing cast") };
-        let read = psi_handoff_consumer::cast_completions(&pkg, body, edge, 0).map(|r| r.into_iter().map(|(d, o)| (d.path.as_str(), o)).collect::<Vec<_>>());
+        let read = psi_handoff_consumer::cast_completions(&pkg, body, edge, 0).map(|r| r.into_iter().map(|(d, o)| (d.declaration.path.as_str(), o)).collect::<Vec<_>>());
         match rows {
             Some(rows) => assert_eq!(read, Ok(rows)),
             None => {
@@ -807,4 +804,86 @@ fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
         assert_eq!((error.file.as_str(), error.span.slice(text.as_bytes())), ("limit.omg", Some(cast.as_bytes())));
         assert!(error.message.ends_with(found), "{error:?}");
     }
+}
+
+/// The original applied-domain casts. `Five` expands to one applied atom, and each
+/// completion row and proved invariant names that exact atom with its closed argument,
+/// beside the unapplied domain of the other origin. `+Five` alone keeps the argument too.
+#[test]
+fn an_applied_domain_completion_keeps_its_closed_arguments_beside_the_other_origin() {
+    use omega_psi::{BlockTerminator, CompletionOrigin, DeclarationTerm, DomainAtom, DomainCompletion, QualificationDirection, ScalarDomainInvariant, ScalarQualificationChange};
+    use CompletionOrigin::{Proved, Vacuous};
+    let byte = ScalarType::Integer { signed: false, width: 8 };
+    let tag_original = "domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; domain u8::P requires true; machine make(x:u8)->u8 in Five & P {x as +Five +P}";
+    let predicate_original = "domain<const N:u8> u8::Above<N> requires self > N; domain u8::Five = u8::Above<5>; domain u8::Tag; machine make(x:u8)->u8 in Five & Tag {x as +Five +Tag}";
+    let alone = "domain<const N:u8> u8::Above<N> requires self > N; domain u8::Five = u8::Above<5>; machine make(x:u8)->u8 in Five {x as +Five}";
+    type Row = (&'static str, Option<u8>, CompletionOrigin);
+    let cases: [(String, &str, Vec<Row>); 5] = [
+        (tag_original.to_owned(), "x as +Five +P", vec![("u8::Bound", Some(5), Vacuous), ("u8::P", None, Proved)]),
+        (tag_original.replace("Bound<5>", "Bound<6>"), "x as +Five +P", vec![("u8::Bound", Some(6), Vacuous), ("u8::P", None, Proved)]),
+        (predicate_original.to_owned(), "x as +Five +Tag", vec![("u8::Above", Some(5), Proved), ("u8::Tag", None, Vacuous)]),
+        (predicate_original.replace("Above<5>", "Above<6>"), "x as +Five +Tag", vec![("u8::Above", Some(6), Proved), ("u8::Tag", None, Vacuous)]),
+        (alone.to_owned(), "x as +Five", vec![("u8::Above", Some(5), Proved)]),
+    ];
+    for (text, cast, expected) in cases {
+        let files = [("limit.omg", text.as_str())];
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let mut debts: Vec<_> = prepared.typed().obligations.iter().filter_map(|o| match &o.kind {
+            omega_typed::ObligationKind::EstablishDomain(d) => Some((o.site.span.slice(text.as_bytes()), d.declaration.path.as_str(), d.arguments.len())),
+            _ => None,
+        }).collect();
+        debts.sort();
+        let mut owed: Vec<_> = expected.iter().map(|&(path, n, _)| (Some(cast.as_bytes()), path, usize::from(n.is_some()))).collect();
+        owed.sort();
+        assert_eq!(debts, owed);
+        let pkg = sources::lower_prepared(&prepared, &files).unwrap();
+        drop(prepared);
+        let atom = |(path, n, _): &Row| DomainAtom {
+            declaration: pkg.domains.iter().find(|d| d.declaration.path == *path).unwrap().declaration.clone(),
+            arguments: n.iter().map(|&v| DeclarationTerm::StaticInteger { carrier: byte, value: v.into() }).collect(),
+        };
+        let rows: Vec<_> = expected.iter().map(|row| DomainCompletion { argument_index: 0, domain: atom(row), origin: row.2 }).collect();
+        let body = &pkg.machines[0].body;
+        let [entry, arrival] = body.blocks.as_slice() else { panic!("expected one completion") };
+        let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("missing cast completion") };
+        assert_eq!(body.diagnostics.edges[edge.id.get() - 1].span.slice(text.as_bytes()), Some(cast.as_bytes()));
+        let [dest] = arrival.scalar_parameters[..] else { panic!("expected one destination") };
+        let invariants: Vec<_> = expected.iter().filter(|row| row.2 == Proved).map(|row| ScalarDomainInvariant { subject: dest, domain: atom(row) }).collect();
+        spec_corpus::observe_handoff!(psi "psi-output/applied-cast-completion", assert_eq!(
+            (edge.scalar_qualification_changes.as_slice(), edge.domain_completions.as_slice(), arrival.scalar_domain_invariants.as_slice()),
+            (&[][..], rows.as_slice(), invariants.as_slice())
+        ));
+        let read: Vec<_> = expected.iter().map(|row| (atom(row), row.2)).collect();
+        assert_eq!(psi_handoff_consumer::cast_completions(&pkg, body, edge, 0),
+                   Ok(read.iter().map(|(a, o)| (a, *o)).collect::<Vec<_>>()));
+    }
+
+    // The consumer refuses a row or invariant whose argument differs from the destination atom.
+    type Mutation = fn(&mut omega_psi::SuccessorEdge, &mut Vec<ScalarDomainInvariant>);
+    fn six(carrier: ScalarType) -> Vec<omega_psi::DeclarationTerm> {
+        vec![omega_psi::DeclarationTerm::StaticInteger { carrier, value: 6.into() }]
+    }
+    let mutations: [(Mutation, &str); 3] = [
+        (|e, _| e.domain_completions[0].domain.arguments = six(ScalarType::Integer { signed: false, width: 8 }),
+         "completion rows do not name each added domain once in destination order"),
+        (|e, _| e.domain_completions[0].domain.arguments.clear(), "completion rows do not name each added domain once in destination order"),
+        (|_, i| i[0].domain.arguments = six(ScalarType::Integer { signed: false, width: 8 }), "the arrival invariants differ from the proved completions"),
+    ];
+    for (mutate, expected) in mutations {
+        let mut pkg = sources::lower(&[("limit.omg", predicate_original)]).unwrap();
+        let (entry, rest) = pkg.machines[0].body.blocks.split_first_mut().unwrap();
+        let BlockTerminator::Jump(edge) = &mut entry.terminator else { panic!("missing cast completion") };
+        mutate(edge, &mut rest[0].scalar_domain_invariants);
+        let body = &pkg.machines[0].body;
+        let BlockTerminator::Jump(edge) = &body.blocks[0].terminator else { unreachable!() };
+        assert_eq!(psi_handoff_consumer::cast_completions(&pkg, body, edge, 0), Err(expected));
+    }
+
+    // The applied tag alone is still an ordinary Add, which names no completion.
+    let tag_alone = "domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; machine make(x:u8)->u8 in Five {x as +Five}";
+    let pkg = sources::lower(&[("limit.omg", tag_alone)]).unwrap();
+    let BlockTerminator::Jump(edge) = &pkg.machines[0].body.blocks[0].terminator else { panic!("missing cast") };
+    assert_eq!(edge.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Add }]);
+    assert!(edge.domain_completions.is_empty());
 }

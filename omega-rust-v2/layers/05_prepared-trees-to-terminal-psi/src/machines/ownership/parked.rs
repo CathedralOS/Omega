@@ -17,10 +17,20 @@ impl OwnedCrossings {
         self.sites.sort_unstable_by_key(|(call, _)| Self::key(*call));
     }
 
-    fn key(call: crate::CallSite) -> (bool, usize) {
+    /// A total order over every call coordinate; only calls and terminal
+    /// edges park, so cleanup sites never match a recorded crossing.
+    fn key(call: crate::CallSite) -> (u8, usize, usize) {
         match call {
-            crate::CallSite::Operation(id) => (false, id.index()),
-            crate::CallSite::Edge(id) => (true, id.get() - 1),
+            crate::CallSite::Operation(id) => (0, id.index(), 0),
+            crate::CallSite::Edge(id) => (1, id.get() - 1, 0),
+            crate::CallSite::Cleanup(crate::CleanupSite {
+                list: crate::CleanupList::Edge(id),
+                action,
+            }) => (2, id.get() - 1, action),
+            crate::CallSite::Cleanup(crate::CleanupSite {
+                list: crate::CleanupList::Store(id),
+                action,
+            }) => (3, id.index(), action),
         }
     }
 

@@ -38,7 +38,8 @@ PREPARATION_CONSUMERS = {
                                            "The public preparation round accepts such facts, but only L4 test code can construct one today. "
                                            "No L5 test observes those dependencies in Psi from the same prepared package.", None),
     "A bounded preparation compares": ("outside pipeline", "Preparation publishes the grant and certified maxima on PreparedTrees::resource_receipt(). "
-                                       "Neither the L5 contract nor lowering reads that receipt.", None),
+                                       "Neither the L5 contract nor lowering reads that receipt. Its reader is L7 publication, which retains the ceiling "
+                                       "in published builds; Psi has no row to carry it there. The bound comes from the L6 checker; only L4 tests build one today.", None),
 }
 # Why a product entry has no consumer comparison in this run. None of these is evidence.
 CONSUMER_SCOPES = {

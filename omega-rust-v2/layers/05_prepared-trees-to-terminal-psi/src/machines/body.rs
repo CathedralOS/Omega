@@ -142,7 +142,7 @@ fn emit_body(
         directly_borrowed_binders(resolved, file, body)
     };
     for (&binder, slot) in binders.iter().zip(expressions.bindings.iter_mut()) {
-        slot.1 = home_borrowed_scalar(prepared, file, types, &borrowed, binder, slot.1, &mut block);
+        slot.1 = home_borrowed_scalar(file, types, &borrowed, binder, slot.1, &mut block);
     }
     if assembly {
         super::assembly::machine(&expressions, declaration, &mut block, &mut flow, result_type)?;
@@ -192,9 +192,10 @@ fn emit_body(
                 check_container(tree, statement)?;
                 let carrier = binding_carrier(tree, *binder)?;
                 let value = expressions.bind_local(*initializer, carrier, &mut block, &mut flow)?;
-                let value = home_borrowed_scalar(prepared, file, types, &borrowed, *binder, value, &mut block);
-                if let OperationResult::Structural(home) = value
-                    && crate::lowering::types::contains_nominal_value(carrier)
+                let homed = home_borrowed_scalar(file, types, &borrowed, *binder, value, &mut block);
+                // A record home, or a primitive home established just now for a borrow.
+                if let OperationResult::Structural(home) = homed
+                    && (crate::lowering::types::contains_nominal_value(carrier) || homed != value)
                     && prepared
                         .typed()
                         .mutable_bindings
@@ -202,7 +203,7 @@ fn emit_body(
                 {
                     block.mutable_homes.push(home);
                 }
-                expressions.bindings.push((*binder, value));
+                expressions.bindings.push((*binder, homed));
             }
             (NodeKind::Let, [pattern, initializer]) if file.nodes[*pattern].kind == NodeKind::RecordPattern => {
                 check_container(tree, statement)?;
@@ -258,6 +259,30 @@ fn emit_body(
                     .iter_mut()
                     .rfind(|(binder, _)| binder == binder_node)
                     .ok_or_else(|| unsupported_node(file, place, "assignment has no local value"))?;
+                // A borrowed mutable primitive keeps one home: the assignment
+                // stores into it, so earlier loans and later reads see the same
+                // storage. An unborrowed one stays an SSA value that is rebound.
+                if let OperationResult::Structural(home) = slot.1
+                    && matches!(block.places[home.index()].origin, crate::PlaceOrigin::Operation(id)
+                        if matches!(block.operations[id.index()].kind, crate::OperationKind::EstablishPrimitiveLocal { .. }))
+                {
+                    let OperationResult::Scalar(value) = value else {
+                        return Err(unsupported_node(file, place, "primitive home assignment needs a scalar value"));
+                    };
+                    if !block.mutable_homes.contains(&home) {
+                        return Err(unsupported_node(file, place, "assignment requires a writable local"));
+                    }
+                    use super::expressions::{EmitOperation, OperationOutput};
+                    block.push_operation(
+                        OperationOutput::Unit,
+                        crate::OperationKind::ProjectedScalarStore {
+                            destination: crate::ProjectedPlace { root: home, path: vec![] },
+                            value,
+                        },
+                        site_at(file, place),
+                    );
+                    continue;
+                }
                 slot.1 = value;
             }
             (NodeKind::AsmBlock, _) => super::assembly::inline(&expressions, statement, &mut block, &mut flow)?,
@@ -360,13 +385,12 @@ fn directly_borrowed_binders(
     binders
 }
 
-/// A borrowed scalar needs addressable storage, so an immutable primitive
-/// local or formal that `@name` borrows gets one home for its original value.
-/// Every view of it borrows that home, and later reads observe the home.
-/// A mutable scalar local stays an SSA value: its assignments rebind the
-/// value, so it has no single home to lend and its borrow still refuses.
+/// A borrowed scalar needs addressable storage, so a primitive local or formal
+/// that `@name` borrows gets one home for its original value. Every view of it
+/// borrows that home, and later reads observe the home. A mutable local's
+/// assignments store into the same home. A qualified local is not homed, so
+/// its borrow still refuses.
 fn home_borrowed_scalar(
-    prepared: &PreparedTrees<'_>,
     file: &IndexedSource<'_>,
     types: &LoweringTypes,
     borrowed: &[usize],
@@ -378,13 +402,7 @@ fn home_borrowed_scalar(
         return value;
     };
     let ty = body.values[initializer.index()].ty;
-    if borrowed.binary_search(&binder).is_err()
-        || !matches!(types.get(ty), Some(crate::TypeShape::PrimitiveScalar(_)))
-        || prepared
-            .typed()
-            .mutable_bindings
-            .contains(&file.node_id(binder))
-    {
+    if borrowed.binary_search(&binder).is_err() || !matches!(types.get(ty), Some(crate::TypeShape::PrimitiveScalar(_))) {
         return value;
     }
     use super::expressions::{EmitOperation, OperationOutput};

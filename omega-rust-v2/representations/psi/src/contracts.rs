@@ -4,6 +4,25 @@ use num_bigint::BigInt;
 pub enum CallSite {
     Operation(OperationId),
     Edge(EdgeId),
+    /// A selected nominal cleanup runs as an invocation of its own.
+    Cleanup(CleanupSite),
+}
+
+/// One `CleanupAction::Invoke`, named as Terminal Psi names it: the list that
+/// carries it and its zero-based position in that list. The invocation's only
+/// actual is the action's cleaned place, moved into the target's one formal.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CleanupSite {
+    pub list: CleanupList,
+    pub action: usize,
+}
+
+/// Where a cleanup-action list lives: on a return, successor or terminal-call
+/// edge, or on a `StructuralStore` whose disposition disposes the old value.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum CleanupList {
+    Edge(EdgeId),
+    Store(OperationId),
 }
 
 /// The producing call and the zero-based position of a requirement in its

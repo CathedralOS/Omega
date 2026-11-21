@@ -77,11 +77,13 @@ pub struct CaseSelection {
 }
 
 /// On this jump, the fresh destination parameter at `argument_index` gains `domain`,
-/// which its argument lacks. `origin` is that membership's scalar return origin.
+/// which its argument lacks. `domain` is the exact atom of the destination type,
+/// with its ordered closed arguments, so `Above<5>` and `Above<6>` are different rows.
+/// `origin` is that membership's scalar return origin.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DomainCompletion {
     pub argument_index: usize,
-    pub domain: crate::DeclarationId,
+    pub domain: crate::DomainAtom,
     pub origin: CompletionOrigin,
 }
 
@@ -95,12 +97,13 @@ pub enum CompletionOrigin {
     Proved,
 }
 
-/// The named domain's complete `requires` list with `self` bound to this block parameter.
+/// The named domain's complete `requires` list with `self` bound to this block parameter
+/// and each index binder bound to the atom's closed argument in head order.
 /// Refers to the owned declaration; no formula, including a called predicate, is re-selected.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScalarDomainInvariant {
     pub subject: ValueId,
-    pub domain: crate::DeclarationId,
+    pub domain: crate::DomainAtom,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -238,7 +238,9 @@ pub enum OperationKind {
         field: crate::DeclarationId,
         value: ValueId,
     },
-    /// Replace the scalar in original storage reached through an exclusive loan.
+    /// Replace the scalar in the original storage this place selects: storage
+    /// reached through an exclusive loan, or, at an empty path, a primitive
+    /// home listed in `MachineBody::mutable_homes`.
     ProjectedScalarStore {
         destination: ProjectedPlace,
         value: ValueId,
@@ -264,9 +266,11 @@ pub enum OperationKind {
     },
     /// Home an initialized primitive local so it can be borrowed. The result
     /// is an unrestricted, unqualified, claim-free place of the value's exact
-    /// primitive type; every shared view of the local borrows this one home.
+    /// primitive type; every loan of the local borrows this one home.
     /// Later reads of the local are `PrimitiveScalarRead`s of the home, not
-    /// equality with `value`.
+    /// equality with `value`. A mutable local's home is in
+    /// `MachineBody::mutable_homes`, and each assignment is a
+    /// `ProjectedScalarStore` into it at an empty path.
     EstablishPrimitiveLocal {
         value: ValueId,
     },
@@ -392,7 +396,8 @@ pub struct MachineBody {
     pub blocks: Vec<crate::BranchBlock>,
     pub operations: Vec<PsiOperation>,
     pub parameters: Vec<Parameter>,
-    /// Owned homes whose source binding permits mutation.
+    /// Owned record homes and primitive local homes whose source binding
+    /// permits mutation.
     pub mutable_homes: Vec<PlaceId>,
     pub places: Vec<Place>,
     pub values: Vec<Value>,

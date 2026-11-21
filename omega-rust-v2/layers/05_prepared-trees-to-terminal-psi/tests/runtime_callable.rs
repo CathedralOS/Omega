@@ -447,52 +447,25 @@ fn the_invocation_after_a_join_uses_the_arriving_descriptor() {
     );
     let package = lower(&source);
     let choose = machine(&package, "choose");
-    let [(target, arguments)] = calls(choose)
+    let [(target, _)] = calls(choose)
         .try_into()
         .unwrap_or_else(|_| panic!("one runtime invocation"));
     let CallTarget::Runtime { descriptor, contract } = *target else {
         panic!("lost runtime selection")
     };
     assert_eq!(contract, contract_at(&package, declared(&source, 2)));
-    assert_eq!(arguments, [CallArgument::Scalar(scalar_parameter(choose, 3))]);
     let joined = &choose.body.values[descriptor.index()];
-    let omega_lowering::ValueOrigin::BlockParameter(block) = joined.origin else {
-        panic!("invocation selected a branch representative")
-    };
     assert!(
-        choose.body.blocks[block.get() - 1]
-            .scalar_parameters
-            .contains(&descriptor)
+        matches!(joined.origin, omega_lowering::ValueOrigin::BlockParameter(_)),
+        "invocation selected a branch representative"
     );
     assert_eq!(contract_of(&package, joined.ty), contract);
-    let omega_lowering::BlockTerminator::Conditional {
-        condition,
-        when_true,
-        when_false,
-    } = &choose.body.blocks[0].terminator
-    else {
-        panic!("expected flag to select the descriptor");
-    };
-    assert_eq!(*condition, scalar_parameter(choose, 0));
-    assert_eq!(choose.body.blocks[block.get() - 1].scalar_parameters, [descriptor]);
-    for (edge, expected) in [
-        (when_false, scalar_parameter(choose, 1)),
-        (when_true, scalar_parameter(choose, 2)),
-    ] {
-        let arm = &choose.body.blocks[edge.target.get() - 1];
-        let [refinement] = &choose.body.operations[arm.operations.clone()] else {
-            panic!("one refinement per arm")
-        };
-        assert!(
-            matches!(&refinement.kind, OperationKind::RefineCallableDescriptor { source, contract: destination }
-            if *source == expected && *destination == contract)
-        );
-        let omega_lowering::BlockTerminator::Jump(arrival) = &arm.terminator else {
-            panic!("expected join arrival")
-        };
-        assert_eq!(arrival.target, block);
-        assert!(matches!(arrival.arguments.as_slice(), [selected] if refinement.result == OperationResult::Scalar(*selected)));
-    }
+    // `flag` false reaches the arm refining `left`, true the arm refining `right`; the call reads `n`.
+    // `negative_controls.rs` swaps the branch targets and requires this witness to reject them.
+    spec_corpus::observe_handoff!(psi "psi-output/runtime-dispatch-arriving-descriptor", assert_eq!(
+        psi_handoff_consumer::product_witness::runtime_call_after_branch(&choose.body, 0, 2, 1, &[3]),
+        Ok(())
+    ));
     assert!(matches!(
         package
             .types

@@ -194,6 +194,7 @@ fn parked_borrow(package: &LoweredPackage) -> (&SuspensionSite, &CallArgument) {
                 _ => None,
             })
             .expect("expected terminal call"),
+        CallSite::Cleanup(_) => panic!("a cleanup invocation does not suspend"),
     };
     let [argument] = arguments.as_slice() else {
         panic!("expected one direct borrowed argument")

@@ -72,14 +72,15 @@ pub(super) struct ScalarCast<'a> {
 
 pub(super) enum ScalarChange {
     Ordinary(QualificationDirection),
-    /// Every added domain once, in destination order, with its own origin.
-    Completion(Vec<(omega_psi::DeclarationId, omega_psi::CompletionOrigin)>),
+    /// Every added domain atom once, in destination order, with its own origin.
+    Completion(Vec<(omega_psi::DomainAtom, omega_psi::CompletionOrigin)>),
 }
 
 /// L3 has resolved each named domain and accounted for the written entries.
 /// Psi can encode a strict addition or erasure on one same-carrier edge.
 /// An ordinary addition introduces only predicate-free tags, so an addition
 /// that includes a predicate names every added domain with its origin instead.
+/// Each row keeps the application's closed arguments, so `Above<5>` owes `self > 5`.
 pub(super) fn scalar_cast<'a>(
     operation: &'a TypedOperation,
     obligations: &[&TypingObligation],
@@ -131,16 +132,7 @@ pub(super) fn scalar_cast<'a>(
                         Some(_) => omega_psi::CompletionOrigin::Vacuous,
                         None => return Err(error("cast completion requires a local domain declaration")),
                     };
-                    completions.push((crate::identity::declaration(&atom.declaration, &operation.site)?, origin));
-                }
-                // A completion names a declaration without its application arguments. Until it
-                // carries them, a cast that mixes origins refuses every applied domain.
-                if completions
-                    .iter()
-                    .any(|(_, origin)| *origin == omega_psi::CompletionOrigin::Vacuous)
-                    && added.iter().any(|atom| !atom.arguments.is_empty())
-                {
-                    return Err(error("a completion with mixed origins does not support an applied domain"));
+                    completions.push((LoweringTypes::domain_atom(atom, &operation.site)?, origin));
                 }
                 Some(ScalarChange::Completion(completions))
             }

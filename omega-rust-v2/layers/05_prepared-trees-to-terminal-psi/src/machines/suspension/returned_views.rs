@@ -1,15 +1,28 @@
 //! Which input loans must remain traceable for a completed shared-view result?
 //! A local return can forward a descriptor. A boundary completion instead
-//! establishes its own result with an input-related validity interval. These
+//! establishes its own result: with an input-related validity interval, or
+//! with a lifetime each caller chooses and no input dependency at all. These
 //! sets are dependencies, not spatial provenance. Psi retains the producing
 //! call and its applied contract, not a replacement descriptor from this set.
 use crate::{
-    BlockTerminator, CallArgument, CallTarget, LoweredMachine, LoweringTypes, MachineBody, OperationKind, OperationResult, Parameter, PlaceId, ReturnEdge,
-    SuccessorEdge, TypeShape,
+    BlockTerminator, BoundaryResultLifetime, CallArgument, CallTarget, LoweredMachine, LoweringTypes, MachineBody, OperationKind, OperationResult, Parameter,
+    PlaceId, ReturnEdge, SuccessorEdge, TypeShape,
 };
 
+/// One possible source of a returned view. `Input` is an incoming formal slot
+/// or the place an actual names. `Provider` is a boundary completion whose
+/// lifetime each caller chooses: the admitted provider establishes its bytes,
+/// and no input carries its lifetime
+/// (`wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes`). Psi
+/// still names the exact invocation through the producing call.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum ViewSource<T> {
+    Input(T),
+    Provider,
+}
+
 pub(super) struct ReturnInputs<'a> {
-    slots: Vec<Option<Vec<usize>>>,
+    slots: Vec<Option<Vec<ViewSource<usize>>>>,
     members: &'a [crate::MemberCallSelection],
 }
 
@@ -75,14 +88,16 @@ impl<'a> ReturnInputs<'a> {
     /// because the summary is the thing being computed. The elided result
     /// relation instead makes every formal of the result's view type a possible
     /// source (`wiki/spec/language/lifetimes.md#returned-views`). Start each
-    /// unresolved view-returning machine from those formals and keep only the
-    /// ones its normal returns reach through the current summaries. The sets
-    /// only shrink, so the loop stops. The final sets agree with every return
-    /// edge: a completed call's result reaches its normal return through a
-    /// finite chain of calls, and each call in that chain maps the actuals at
-    /// its callee's set back into its caller's set. Any return that still
-    /// cannot be followed, such as a boundary result without a recorded
-    /// lifetime input, leaves the summary absent.
+    /// unresolved view-returning machine from those formals, possibly none, and
+    /// keep only the ones its normal returns reach through the current
+    /// summaries. The formal sets only shrink. A provider source joins a set
+    /// once a return reaches a caller-chosen boundary result and is never
+    /// removed, because no formal maps to it. So the loop stops. The final sets
+    /// agree with every return edge: a completed call's result reaches its
+    /// normal return through a finite chain of calls, and each call in that
+    /// chain maps the actuals at its callee's set back into its caller's set.
+    /// Any return that still cannot be followed, such as a boundary result
+    /// whose input frontier has no published relation, leaves the summary absent.
     fn narrow_recursive(
         &mut self,
         machines: &[LoweredMachine],
@@ -98,13 +113,10 @@ impl<'a> ReturnInputs<'a> {
                 continue;
             }
             let body = &machine.body;
-            let formals: Vec<usize> = (body.parameters.iter().enumerate())
+            let formals = (body.parameters.iter().enumerate())
                 .filter(|(_, parameter)| matches!(parameter, Parameter::Structural(p) if body.places[p.index()].ty == result))
-                .map(|(slot, _)| slot)
+                .map(|(slot, _)| ViewSource::Input(slot))
                 .collect();
-            if formals.is_empty() {
-                continue;
-            }
             self.slots[index] = Some(formals);
             open[index] = true;
             pending.push(index);
@@ -143,24 +155,34 @@ impl<'a> ReturnInputs<'a> {
         }
     }
 
+    /// The possible sources of a call's view result, as the actuals they name.
     fn actuals(
         &self,
         target: CallTarget,
         arguments: &[CallArgument],
-    ) -> Option<Vec<PlaceId>> {
-        let slots: &[usize] = if let CallTarget::Member(slot) = target
+    ) -> Option<Vec<ViewSource<PlaceId>>> {
+        let anchor;
+        let slots: &[ViewSource<usize>] = if let CallTarget::Member(slot) = target
             && let member = self.members.get(slot)?
             && matches!(member.target, crate::MemberRealization::Boundary { .. })
         {
-            std::slice::from_ref(member.boundary_result_lifetime_input.as_ref()?)
+            anchor = match member.boundary_result_lifetime? {
+                BoundaryResultLifetime::Input(position) => ViewSource::Input(position),
+                BoundaryResultLifetime::CallerChosen => ViewSource::Provider,
+            };
+            std::slice::from_ref(&anchor)
         } else {
             let id = self.local_machine(target)?;
             self.slots[(id.get() - 1) as usize].as_deref()?
         };
-        slots.iter()
-            .map(|&slot| match arguments.get(slot)? {
-                CallArgument::CopyWhole(input) => Some(*input),
-                _ => None,
+        slots
+            .iter()
+            .map(|&source| match source {
+                ViewSource::Input(slot) => match arguments.get(slot)? {
+                    CallArgument::CopyWhole(input) => Some(ViewSource::Input(*input)),
+                    _ => None,
+                },
+                ViewSource::Provider => Some(ViewSource::Provider),
             })
             .collect()
     }
@@ -168,7 +190,7 @@ impl<'a> ReturnInputs<'a> {
     fn normal_returns(
         &self,
         body: &MachineBody,
-    ) -> Option<Vec<usize>> {
+    ) -> Option<Vec<ViewSource<usize>>> {
         let origins = input_origins(body, self);
         let mut slots = Vec::new();
         for block in &body.blocks {
@@ -179,7 +201,10 @@ impl<'a> ReturnInputs<'a> {
                 } => slots.extend(origins[source.index()].as_ref()?),
                 BlockTerminator::TerminalCall { callee, arguments, .. } => {
                     for actual in self.actuals(*callee, arguments)? {
-                        slots.extend(origins[actual.index()].as_ref()?);
+                        match actual {
+                            ViewSource::Input(actual) => slots.extend(origins[actual.index()].as_ref()?),
+                            ViewSource::Provider => slots.push(ViewSource::Provider),
+                        }
                     }
                 }
                 BlockTerminator::Return { .. } => return None,
@@ -193,13 +218,15 @@ impl<'a> ReturnInputs<'a> {
 }
 
 /// Each edge supplies one possible source of the destination. A call supplies
-/// only the actuals on which its selected result's lifetime depends.
+/// only the actuals on which its selected result's lifetime depends, and a
+/// provider source when the result may be a caller-chosen boundary view.
 pub(super) fn input_origins(
     body: &MachineBody,
     returns: &ReturnInputs<'_>,
-) -> Vec<Option<Vec<usize>>> {
+) -> Vec<Option<Vec<ViewSource<usize>>>> {
     let mut awaiting = vec![0usize; body.places.len()];
     let mut destinations = vec![Vec::new(); body.places.len()];
+    let mut provided = vec![false; body.places.len()];
     let mut arrival = |target: PlaceId, source: Option<PlaceId>| {
         awaiting[target.index()] += 1;
         if let Some(source) = source {
@@ -211,7 +238,10 @@ pub(super) fn input_origins(
             && let Some(sources) = returns.actuals(*callee, arguments)
         {
             for source in sources {
-                arrival(result, Some(source));
+                match source {
+                    ViewSource::Input(source) => arrival(result, Some(source)),
+                    ViewSource::Provider => provided[result.index()] = true,
+                }
             }
         }
     }
@@ -241,12 +271,21 @@ pub(super) fn input_origins(
         }
     }
     let mut origins = vec![None; body.places.len()];
-    let mut candidates = vec![Vec::new(); body.places.len()];
+    let mut candidates: Vec<Vec<ViewSource<usize>>> = (provided.iter())
+        .map(|&provided| if provided { vec![ViewSource::Provider] } else { Vec::new() })
+        .collect();
     let mut ready = Vec::new();
     for (slot, param) in body.parameters.iter().enumerate() {
         if let Parameter::Structural(source) = param {
-            origins[source.index()] = Some(vec![slot]);
+            origins[source.index()] = Some(vec![ViewSource::Input(slot)]);
             ready.push(source.index());
+        }
+    }
+    // A result whose only sources are caller-chosen boundary views awaits no input.
+    for (index, provided) in provided.into_iter().enumerate() {
+        if provided && awaiting[index] == 0 {
+            origins[index] = Some(std::mem::take(&mut candidates[index]));
+            ready.push(index);
         }
     }
     while let Some(source) = ready.pop() {

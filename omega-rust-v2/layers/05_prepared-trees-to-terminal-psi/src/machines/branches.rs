@@ -151,7 +151,8 @@ impl BlockFlow {
                 edge.domain_completions.extend(domains.into_iter().map(|(domain, origin)| crate::DomainCompletion { argument_index: 0, domain, origin }));
             }
         }
-        // Only a proved origin owes a predicate; the arrival binds it to the fresh parameter.
+        // Only a proved origin owes a predicate; the arrival binds it, with the atom's
+        // arguments, to the fresh parameter.
         let proved: Vec<_> = edge.domain_completions.iter().filter(|c| c.origin == crate::CompletionOrigin::Proved).map(|c| c.domain.clone()).collect();
         self.close(body, BlockTerminator::Jump(edge));
         let subject = self.open_scalar_join(body, target, target_type);

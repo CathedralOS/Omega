@@ -1,8 +1,7 @@
 use super::tests::{ADMISSION, WORD, assert_refused, binds, frozen, prepare_pass, range_in, typed};
 use super::*;
 
-#[path = "../../../../tests/support/source_package.rs"]
-mod source_package;
+use crate::test_source_package::source_package;
 
 const SOURCE: &str = "
 let positive(n:u64):bool = n > 0u64;
@@ -220,7 +219,7 @@ fn proof_inputs_replay_the_exact_layout_and_specialized_call() {
         ..layout.clone()
     };
     let other = TargetSemantics::new(identity, [other_layout], []).unwrap();
-    let package = source_package::source_package([("main.omg", source)]);
+    let package = source_package([("main.omg", source)]);
     let round = PreparationRound::begin(&package, &[], Some(&capsule)).unwrap();
     let progress = round.typing();
     let omega_typer::TypingProgress::Complete(trees) = progress else {

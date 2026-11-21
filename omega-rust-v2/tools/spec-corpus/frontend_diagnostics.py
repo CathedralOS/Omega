@@ -25,6 +25,7 @@ CLI_CASES = {
     "unavailable_target_for_a_required_extent": ("L4", "preparation (target input)"),
     "a_carry_annotated_alias_stops_at_its_attributes": ("L5", "lowering"),
     "a_transparent_alias_cannot_change_its_targets_multiplicity": ("L3", "typer"),
+    "a_transparent_alias_cannot_change_its_targets_carry": ("L3", "typer"),
     "a_crashing_helper_cannot_supply_a_total_predicate_application": ("L5", "lowering"),
 }
 # Each stop must carry the controls that separate it from its neighbouring layer.

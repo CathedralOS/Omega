@@ -743,14 +743,79 @@ fn recursive_formation_carries_the_next_application_not_an_unfolded_layout() {
     }
 }
 
-/// Knowing the closed referent identity is not authority to return its loan.
+/// Returning `x.next` from an owned `Link<3>` returns a loan into the storage
+/// that `x.next` already borrows, not a borrow of `x` itself. Psi forms the
+/// result by reborrowing through the stored `@Link<4>`. That stored loan is the
+/// parent, and the public result type is the very row of the `Link::next`
+/// field, naming `Link<4>` without its layout. The plain `Node`/`Leaf` twin
+/// uses the same mechanism. A Psi-only reader recovers the formal, field and
+/// referent. Without the crossing it refuses, because the result would then
+/// point into `x`'s own carrier storage. L6 judges the lifetime relation.
 #[test]
-fn a_recursive_field_descriptor_still_needs_backing_to_escape() {
+fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
+    use omega_psi::{DataArgument, PlaceOrigin, PlaceProjection, ReferenceAccess, ReturnEdge, ScalarType, TypeShape};
+    use psi_handoff_consumer::{ReturnedStoredLoan, returned_stored_loan};
     let file = "load_next.omg";
-    let reader = "machine read(x:Link<3>)->@Link<4>{x.next}";
-    let source = format!("data Link<const N:u64>{{next:@Link<N+1>;value:u<N>;}} {reader}");
-    sources::refuse(&[(file, &source)], file, sources::unique_span(&source, reader),
-        "a standalone indexed reference needs its checked backing");
+    let source = "data Link<const N:u64>{next:@Link<N+1>;value:u<N>;} machine read(x:Link<3>)->@Link<4>{x.next}";
+    let (obligations, psi) = lower(file, source);
+    let mut psi = psi.unwrap_or_else(|error| panic!("the original program must lower: {error:?}"));
+    // The typer's return obligation sits at the field read that forms the loan.
+    let returned: Vec<_> = obligations.iter().filter(|o| matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine.path == "read")).collect();
+    let [returned] = returned.as_slice() else { panic!("one ReturnBorrow: {obligations:?}") };
+    assert_eq!(spelled(&returned.site, file, source), "x.next");
+    let carrier = ScalarType::Integer { signed: false, width: 64 };
+    let [link] = psi.data.as_slice() else { panic!("one closed Link schema") };
+    let next = link.fields.iter().find(|f| f.declaration.path == "Link::next").expect("Link::next");
+    let read = psi.machines.iter().find(|m| m.declaration.path == "read").expect("read");
+    assert_eq!(read.parameter_types, [link.carrier]);
+    assert_eq!(read.result_type, Some(next.carrier));
+    let Some(TypeShape::IndexedSharedReference(id)) = psi.types.get(next.carrier) else { panic!("indexed shared result") };
+    assert_eq!(psi.types.indexed_referent(*id), Some((&link.declaration, [DataArgument::Integer { carrier, value: 4.into() }].as_slice())));
+    let (body, borrow) = operation_spelled(&psi, "read", source, "x.next");
+    let [omega_lowering::Parameter::Structural(formal)] = body.parameters[..] else { panic!("one owned formal") };
+    let expected = omega_lowering::ProjectedPlace {
+        root: formal,
+        path: vec![PlaceProjection::Field(next.declaration.clone()), PlaceProjection::Referent],
+    };
+    assert_eq!(borrow.kind, OperationKind::BorrowPlace { source: expected, access: ReferenceAccess::Shared });
+    let omega_lowering::OperationResult::Structural(descriptor) = borrow.result else { panic!("a descriptor place") };
+    assert_eq!((body.places[descriptor.index()].ty, body.places[descriptor.index()].origin), (next.carrier, PlaceOrigin::Operation(borrow.id)));
+    let [block] = body.blocks.as_slice() else { panic!("one block") };
+    assert!(matches!(&block.terminator, omega_lowering::BlockTerminator::Return { result: ReturnEdge::Structural { source, .. }, .. } if *source == descriptor));
+    spec_corpus::observe_handoff!(psi "psi-output/returned-indexed-field-loan", assert_eq!(
+        returned_stored_loan(&psi, "read"),
+        Ok(ReturnedStoredLoan {
+            formal: 0,
+            fields: vec!["Link::next".into()],
+            referent: "Link".into(),
+            arguments: vec![DataArgument::Integer { carrier, value: 4.into() }],
+        })
+    ));
+
+    // The plain record is the same read with a materialized referent schema.
+    let plain = "data Leaf{v:u8;} data Node{next:@Leaf;} machine read(x:Node)->@Leaf{x.next}";
+    let (_, twin) = lower(file, plain);
+    let twin = twin.unwrap_or_else(|error| panic!("the plain twin must lower: {error:?}"));
+    assert_eq!(
+        returned_stored_loan(&twin, "read"),
+        Ok(ReturnedStoredLoan { formal: 0, fields: vec!["Node::next".into()], referent: "Leaf".into(), arguments: vec![] })
+    );
+
+    // Dropping the crossing would borrow the field slot inside x.
+    let read = psi.machines.iter_mut().find(|m| m.declaration.path == "read").unwrap();
+    let OperationKind::BorrowPlace { source, .. } = &mut read.body.operations[0].kind else { unreachable!() };
+    assert_eq!(source.path.pop(), Some(PlaceProjection::Referent));
+    assert_eq!(returned_stored_loan(&psi, "read"), Err("the borrow must cross the stored descriptor, not select the record's own field"));
+}
+
+/// The same read of a stored `@mut Leaf` either moves the reference out of the
+/// field or reborrows it while suspending that field. Neither is lowered yet,
+/// so lowering refuses at the read instead of forming a shared borrow.
+#[test]
+fn reading_a_stored_exclusive_reference_still_needs_its_move_or_reborrow() {
+    let file = "load_next.omg";
+    let source = "data Leaf{v:u8;} data Node{next:@mut Leaf;} machine read(x:Node)->@mut Leaf{x.next}";
+    sources::refuse(&[(file, source)], file, sources::unique_span(source, "x.next"), "a stored reference read needs its shared field place");
 }
 
 #[test]

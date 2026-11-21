@@ -350,9 +350,27 @@ fn alias_assertion_survives_structural_and_generic_expansion() {
     }])));
 }
 
+/// The original case: `u64` demands nothing, so an alias that forbids suspension
+/// and pins the CPU would change `u64` itself. Typing refuses it before lowering.
+#[test]
+fn alias_carry_cannot_add_a_demand_to_its_expansion() {
+    let source = "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;";
+    let resolved = sources::resolve(&[("alias.omg", source)]);
+    let error = omega_preparation::prepare_source_package(&resolved).unwrap_err();
+    assert_eq!(error.message, "a transparent alias cannot change its target's carry");
+    assert_eq!(error.file, "alias.omg");
+    let attribute = "carry(suspension:forbidden,cpu:same,thread:any,address:movable,)";
+    assert_eq!(error.span.slice(source.as_bytes()), Some(attribute.as_bytes()));
+    let control = lower(&[("alias.omg", "// alias\r\ndata Alias [copy] = u64;")]).unwrap();
+    let [alias] = control.aliases.as_slice() else { panic!("one alias") };
+    assert_eq!((alias.asserted_multiplicity, &alias.target), (Some(Multiplicity::Copy), &AliasTarget::Builtin("u64".into())));
+}
+
+/// A list equal to `u64`'s derived carry adds no demand. Whether an alias may
+/// author it at all is an open spec question, so lowering still stops there.
 #[test]
 fn alias_with_carry_stops_at_its_attributes() {
-    let source = "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;";
+    let source = "// alias\r\ndata Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;";
     let files = [("alias.omg", source)];
     let resolved = sources::resolve(&files);
     let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
@@ -362,14 +380,14 @@ fn alias_with_carry_stops_at_its_attributes() {
     let properties = &typed.type_alias_properties[id];
     assert_eq!(properties.multiplicity, Multiplicity::Copy);
     assert_eq!(properties.carry, Some(omega_typed::Carry {
-        allows_suspension: false, requires_same_cpu: true, requires_same_thread: false, requires_stable_address: false,
+        allows_suspension: true, requires_same_cpu: false, requires_same_thread: false, requires_stable_address: false,
     }));
     assert!(typed.data_properties.iter().all(|(nominal, _)| nominal != id));
     sources::refuse_prepared(
         &prepared,
         &files,
         "alias.omg",
-        sources::unique_span(source, "[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]"),
+        sources::unique_span(source, "[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]"),
         "transparent alias carry policy requires a checked relation to its expansion",
     );
 }

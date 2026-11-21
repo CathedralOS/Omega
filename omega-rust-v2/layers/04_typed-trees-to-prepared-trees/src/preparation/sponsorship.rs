@@ -217,4 +217,214 @@ mod tests {
             )
         );
     }
+
+    const COUNTDOWN: &str = "machine count(n:u64)->u64 terminates by n {
+            match n == 0u64 {true -> 7u64, false -> count(n - 1u64),}
+        } const VALUE:u64=count(3u64);";
+
+    // Stands in for the checker's output, which is the only other constructor.
+    fn checked<'input, 'text>(
+        source: &'input SourcePackage<'text>,
+        slots: &'input [BoundarySlot],
+        target: Option<&'input TargetSemantics>,
+        subject: &[u8],
+        (work_schedule, maximum_work, maximum_live_cells): (u32, u64, u64),
+    ) -> CheckedPreparationBound<'input, 'text> {
+        CheckedPreparationBound {
+            source,
+            slots,
+            target,
+            resources: CertifiedResources {
+                checked_subject: Arc::from(subject),
+                work_schedule,
+                maximum_work,
+                maximum_live_cells,
+            },
+        }
+    }
+
+    fn outcome(result: Result<PreparedTrees<'_>, SponsoredPreparationError>) -> String {
+        match result {
+            Ok(prepared) => format!("frozen {:?}", prepared.constant(&prepared.typed().constants[0].declaration)),
+            Err(SponsoredPreparationError::Preparation(failure)) => format!("evaluated, then refused: {:?}", failure.reason()),
+            Err(error) => format!("refused before evaluation: {error}"),
+        }
+    }
+
+    /// Without the checked rank, evaluating the countdown refuses with
+    /// `CyclicInvocation`. A resource or subject refusal on the same bytes
+    /// therefore shows that admission read that input before evaluation.
+    #[test]
+    fn admission_reads_each_input_before_evaluating_the_countdown() {
+        let source = resolve(COUNTDOWN);
+        let other_source = resolve(
+            "machine count(n:u64)->u64 terminates by n {
+            match n == 0u64 {true -> 7u64, false -> count(n - 1u64),}
+        } const VALUE:u64=count(4u64);",
+        );
+        let slot = [BoundarySlot {
+            requirement: omega_typer::RequirementSlot {
+                declaration: source.declarations[0].clone(),
+                trait_arguments: vec![],
+            },
+            arguments: vec![],
+            direction: omega_typed::SlotDirection::EnvironmentToProgram,
+        }];
+        let identity = |realization: &[u8]| crate::TargetIdentity {
+            profile: "windows_x86_64".into(),
+            semantics_version: 1,
+            realization: Arc::from(realization),
+        };
+        let target = TargetSemantics::new(identity(b"sponsored target"), [], []).unwrap();
+        let other_target = TargetSemantics::new(identity(b"other target"), [], []).unwrap();
+        let grant = PreparationGrant {
+            work_budget: 1000,
+            peak_live_cells: 100,
+        };
+        let fits = (1, 1000, 100);
+        let subject = b"checked-countdown-three".as_slice();
+        let run =
+            |bound: Option<&CheckedPreparationBound<'_, '_>>, target, grant| outcome(prepare_source_package_under_grant(&source, &[], target, grant, bound));
+        let exact = checked(&source, &[], None, subject, fits);
+        let on_target = checked(&source, &[], Some(&target), subject, fits);
+        let outcomes = [
+            run(Some(&exact), None, grant),
+            run(Some(&on_target), Some(&target), grant),
+            run(Some(&exact), None, PreparationGrant { work_budget: 999, ..grant }),
+            run(Some(&exact), None, PreparationGrant { peak_live_cells: 99, ..grant }),
+            run(Some(&checked(&source, &[], None, subject, (2, 1000, 100))), None, grant),
+            run(Some(&checked(&other_source, &[], None, subject, fits)), None, grant),
+            run(Some(&checked(&source, &slot, None, subject, fits)), None, grant),
+            run(Some(&on_target), None, grant),
+            run(Some(&on_target), Some(&other_target), grant),
+            run(None, None, grant),
+        ];
+        let cyclic = "evaluated, then refused: Some(CyclicInvocation)";
+        let different = "refused before evaluation: the checked resource bound belongs to different preparation inputs";
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/before-evaluation",
+            assert_eq!(
+                outcomes.each_ref().map(String::as_str),
+                [
+                    cyclic,
+                    cyclic,
+                    "refused before evaluation: preparation requires a work ceiling of 1000, exceeding the grant of 999",
+                    "refused before evaluation: preparation requires a live-cell ceiling of 100, exceeding the grant of 99",
+                    "refused before evaluation: unsupported Psi work schedule 2",
+                    different,
+                    different,
+                    different,
+                    different,
+                    "refused before evaluation: bounded preparation needs a checked resource bound",
+                ]
+            )
+        );
+        // A refused admission returns no round, so no checked evidence can be evaluated.
+        let short = PreparationGrant { work_budget: 999, ..grant };
+        assert!(matches!(
+            crate::PreparationRound::begin_under_grant(&source, &[], None, short, Some(&exact)),
+            Err(SponsoredPreparationError::InsufficientWork { required: 1000, granted: 999 })
+        ));
+        let round = crate::PreparationRound::begin_under_grant(&source, &[], None, grant, Some(&exact)).unwrap();
+        let omega_typer::TypingProgress::Complete(trees) = round.typing() else {
+            panic!("the result type is already closed")
+        };
+        let evaluated = round
+            .evaluate(crate::invocation::termination::tests::countdown_evidence(trees))
+            .unwrap();
+        let crate::PreparationStep::Finished(crate::PreparationProgress::Complete(prepared)) = round.advance(evaluated).unwrap() else {
+            panic!("the admitted countdown freezes its result");
+        };
+        assert_eq!(prepared.integer_constant(&prepared.typed().constants[0].declaration), Some(&7.into()));
+    }
+
+    /// A later reader gets each value from its own input: the grant from the
+    /// root, the subject, schedule and maxima from the checker. Each run differs
+    /// from the first in one input, and the receipt differs in that field only.
+    #[test]
+    fn the_receipt_keeps_the_grant_apart_from_each_certified_maximum() {
+        let source = resolve("const VALUE:u8 = 7u8;");
+        type Fields = (u64, u64, Vec<u8>, u32, u64, u64);
+        let read = |receipt: &PreparationResourceReceipt| -> Fields {
+            let PreparationResourceReceipt {
+                grant: PreparationGrant { work_budget, peak_live_cells },
+                bound:
+                    CertifiedResources {
+                        checked_subject,
+                        work_schedule,
+                        maximum_work,
+                        maximum_live_cells,
+                    },
+            } = receipt;
+            (
+                *work_budget,
+                *peak_live_cells,
+                checked_subject.to_vec(),
+                *work_schedule,
+                *maximum_work,
+                *maximum_live_cells,
+            )
+        };
+        let run = |(work_budget, peak_live_cells): (u64, u64), subject: &[u8], maxima: (u32, u64, u64)| {
+            let bound = checked(&source, &[], None, subject, maxima);
+            let prepared = prepare_source_package_under_grant(&source, &[], None, PreparationGrant { work_budget, peak_live_cells }, Some(&bound)).unwrap();
+            assert_eq!(prepared.integer_constant(&prepared.typed().constants[0].declaration), Some(&7.into()));
+            read(
+                prepared
+                    .resource_receipt()
+                    .expect("a sponsored package keeps its receipt"),
+            )
+        };
+        let seven = b"literal-seven".as_slice();
+        let receipts = [
+            run((20, 6), seven, (1, 16, 4)),
+            run((21, 6), seven, (1, 16, 4)),
+            run((20, 7), seven, (1, 16, 4)),
+            run((20, 6), b"literal-seven-other", (1, 16, 4)),
+            run((20, 6), seven, (1, 15, 4)),
+            run((20, 6), seven, (1, 16, 3)),
+        ];
+        let other = b"literal-seven-other".to_vec();
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/fields",
+            assert_eq!(
+                receipts,
+                [
+                    (20, 6, seven.to_vec(), 1, 16, 4),
+                    (21, 6, seven.to_vec(), 1, 16, 4),
+                    (20, 7, seven.to_vec(), 1, 16, 4),
+                    (20, 6, other, 1, 16, 4),
+                    (20, 6, seven.to_vec(), 1, 15, 4),
+                    (20, 6, seven.to_vec(), 1, 16, 3),
+                ]
+            )
+        );
+        let unsponsored = crate::prepare_source_package(&source).unwrap();
+        assert_eq!(unsponsored.resource_receipt(), None);
+    }
+
+    /// The width `N` is evaluated in a first round and typing resumes. The
+    /// grant admitted at entry still covers, and is kept through, that round.
+    #[test]
+    fn one_admission_covers_a_resumed_typing_round() {
+        let source = resolve("const N:u64=M; const M:u64=4; machine take(x:[u8; N])->[u8;4]{x}");
+        let grant = PreparationGrant {
+            work_budget: 64,
+            peak_live_cells: 8,
+        };
+        let bound = checked(&source, &[], None, b"width-four", (1, 32, 8));
+        let round = crate::PreparationRound::begin_under_grant(&source, &[], None, grant, Some(&bound)).unwrap();
+        assert!(matches!(round.typing(), omega_typer::TypingProgress::Pending(_)));
+        let prepared = prepare_source_package_under_grant(&source, &[], None, grant, Some(&bound)).unwrap();
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/resumed-round",
+            assert_eq!(
+                prepared.resource_receipt(),
+                Some(&PreparationResourceReceipt {
+                    grant,
+                    bound: bound.resources.clone()
+                })
+            )
+        );
+    }
 }

@@ -28,7 +28,8 @@ pub struct ActivationValue {
 /// parameter through the arriving edge, or a completed call through its
 /// selected callee’s normal return. At a boundary member result, the producing
 /// invocation identifies the requirement whose provider must establish the
-/// returned backing. Its lifetime-related input does not establish containment.
+/// returned backing. Its lifetime-related input does not establish containment,
+/// and a caller-chosen result has no such input.
 /// A named local borrow leads through its defining BorrowPlace to its backing.
 /// A direct borrow from an owner is identified by its argument position, access
 /// and projected place on the linked call. The retained owner row of its root
@@ -87,6 +88,21 @@ pub struct RetainedOwner {
     pub embedded_loans: Vec<EmbeddedLoan>,
 }
 
+/// A primitive local's `EstablishPrimitiveLocal` home that stays in the parked
+/// activation because the callee or the continuation needs its storage:
+/// directly, as a borrowed call operand, or as the backing of a retained loan
+/// whose defining `BorrowPlace` starts at this home. The home is caller
+/// storage with no ownership claim and no cleanup, so it has no owner row.
+/// A mutable local's home is also in `MachineBody::mutable_homes`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RetainedHome {
+    pub place: crate::PlaceId,
+    pub ty: TypeId,
+    pub carry: crate::Carry,
+    pub needed_by_callee: bool,
+    pub needed_after_completion: bool,
+}
+
 /// The result belongs to normal completion. The parked activation contains only
 /// incoming arguments and previously established values needed upon completion.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -97,4 +113,5 @@ pub struct SuspensionSite {
     pub activation: Vec<ActivationValue>,
     pub retained_loans: Vec<RetainedLoan>,
     pub retained_owners: Vec<RetainedOwner>,
+    pub retained_homes: Vec<RetainedHome>,
 }

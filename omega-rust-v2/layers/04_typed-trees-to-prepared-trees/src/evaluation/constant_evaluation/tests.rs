@@ -1,12 +1,11 @@
 use super::*;
 
-#[path = "../../../tests/support/source_package.rs"]
-mod source_package;
+use crate::test_source_package::source_package;
 
 #[test]
 fn internal_publication_guard_refuses_256_and_publishes_255_for_u8() {
     let source = "const BYTE:u8=255u8;";
-    let package = source_package::source_package([("main.omg", source)]);
+    let package = source_package([("main.omg", source)]);
     let trees = omega_typer::type_source_package(&package).unwrap();
     let [byte] = trees.constants.as_slice() else { panic!("expected one typed constant") };
     let mut evaluator = ConstantEvaluation::new(&trees, &[]);

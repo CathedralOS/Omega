@@ -40,7 +40,7 @@ pub fn lifetime_actual(pkg: &LoweredPackage, body: &MachineBody, result: PlaceId
     assert_eq!(selection.target, MemberRealization::Boundary { direction: None });
     assert_eq!(selection.result, Some(body.places[result.index()].ty));
     assert_eq!(selection.parameters, view.parameter_types);
-    let anchor = selection.boundary_result_lifetime_input.expect("input-related result lifetime");
+    let Some(BoundaryResultLifetime::Input(anchor)) = selection.boundary_result_lifetime else { panic!("input-related result lifetime") };
     let CallArgument::CopyWhole(actual) = actuals[anchor] else { panic!("expected lifetime anchor") };
     assert_ne!(actual, result);
     (anchor, actual)

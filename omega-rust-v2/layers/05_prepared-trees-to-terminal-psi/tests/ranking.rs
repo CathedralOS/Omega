@@ -1002,6 +1002,54 @@ fn a_constant_distance_limit_is_the_same_value_on_the_recursive_edge() {
     assert_eq!(edge.comparison, RankComparison::Pending);
 }
 
+/// Every cleanup invocation of `target` in `caller`, in body order: its block,
+/// list and ordinal and the whole local it cleans. Found from the body alone.
+fn cleanup_invocations(
+    caller: &LoweredMachine,
+    target: &LoweredMachine,
+) -> Vec<(omega_lowering::BlockId, omega_lowering::CleanupSite, omega_lowering::PlaceId)> {
+    use omega_lowering::{CleanupAction, CleanupList, CleanupSite};
+    let mut found = Vec::new();
+    let mut scan = |block: &omega_lowering::BranchBlock, list: CleanupList, actions: &[CleanupAction]| {
+        for (action, row) in actions.iter().enumerate() {
+            if let CleanupAction::Invoke { place, ty, target: invoked } = row
+                && *invoked == target.id
+            {
+                assert!(place.path.is_empty() && *ty == target.parameter_types[0]);
+                found.push((block.id, CleanupSite { list, action }, place.root));
+            }
+        }
+    };
+    for block in &caller.body.blocks {
+        for op in &caller.body.operations[block.operations.clone()] {
+            if let OperationKind::StructuralStore { disposition: omega_lowering::StructuralStoreDisposition::Dispose(actions), .. } = &op.kind {
+                scan(block, CleanupList::Store(op.id), actions);
+            }
+        }
+        match &block.terminator {
+            BlockTerminator::Return { id, cleanup, .. } | BlockTerminator::TerminalCall { id, cleanup, .. } => scan(block, CleanupList::Edge(*id), cleanup),
+            BlockTerminator::Jump(edge) => scan(block, CleanupList::Edge(edge.id), &edge.cleanup),
+            BlockTerminator::Conditional { when_true, when_false, .. } => {
+                scan(block, CleanupList::Edge(when_true.id), &when_true.cleanup);
+                scan(block, CleanupList::Edge(when_false.id), &when_false.cleanup);
+            }
+            BlockTerminator::ExternalExit(_) => {}
+        }
+    }
+    found
+}
+
+/// The place the only record establishment in `machine` creates.
+fn established_record(machine: &LoweredMachine) -> omega_lowering::PlaceId {
+    let mut found = machine.body.operations.iter().filter_map(|op| match (&op.kind, op.result) {
+        (OperationKind::EstablishRecord { .. }, OperationResult::Structural(place)) => Some(place),
+        _ => None,
+    });
+    let place = found.next().expect("the Lease establishment");
+    assert!(found.next().is_none());
+    place
+}
+
 #[test]
 fn selected_cleanup_participates_in_the_recursive_component() {
     let source = "data Lease dropped by finish {mark:u8;}
@@ -1018,46 +1066,235 @@ fn selected_cleanup_participates_in_the_recursive_component() {
     assert!(input.calls.iter().any(|c| c.caller.as_ref() == Some(&cleanup.machine)
         && c.machine == witness.machine
         && c.site.span.slice(source.as_bytes()) == Some(b"again(3)".as_slice())));
-    // finish needs no rank of its own to stay in the component. The claim on
-    // again's return edge stops instead: its cleanup invocation is not a
-    // supported ranked transfer.
-    sources::refuse_prepared(
-        &prepared,
-        &files,
-        "ranking.omg",
-        sources::unique_span(source, "{ let lease=Lease {mark:0}; }"),
-        "ranked recursion needs a terminal call or a non-suspending direct scalar call",
-    );
 
-    // Removing the promise, not the cleanup, exposes both edges of the cycle.
-    // Starting at again(3) reaches exactly again(3) after the handoff to finish.
-    let package = lower(&source.replace(" terminates by n", "")).unwrap();
+    // again's return runs finish on its Lease, and finish calls again(3): the
+    // cycle can repeat rank 3, so the checker must refuse the promise. L5
+    // publishes the cleanup as again's in-component edge so the checker can.
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
     let again = machine(&package, "again");
     let finish = machine(&package, "finish");
-    let invokes_finish = |again: &LoweredMachine, finish: &LoweredMachine| {
-        again.body.blocks.iter().any(|block| matches!(&block.terminator,
-            BlockTerminator::Return { cleanup, .. } if matches!(cleanup.as_slice(),
-                [omega_lowering::CleanupAction::Invoke { target, ty, place }] if *target == finish.id
-                    && *ty == finish.parameter_types[0] && place.path.is_empty())))
-    };
-    assert!(invokes_finish(again, finish));
-    // A selected cleanup takes only its subject by value, so finish has no
-    // scalar formal that could map it into again's u64 rank.
-    assert!(matches!(finish.body.parameters.as_slice(), [Parameter::Structural(_)]));
-    let literal = finish.body.operations.iter().find(|op| op.kind == OperationKind::Constant(omega_lowering::ScalarLiteral::Integer(3.into())));
-    let OperationResult::Scalar(three) = literal.expect("the rank at re-entry").result else {
-        panic!("expected a scalar argument")
-    };
+    let [(block, at, lease)] = cleanup_invocations(again, finish)[..] else { panic!("one cleanup of again's Lease") };
+    assert_eq!(lease, established_record(again));
+    assert!(matches!(at.list, omega_lowering::CleanupList::Edge(id)
+        if matches!(&again.body.blocks[block.get() - 1].terminator, BlockTerminator::Return { id: edge, .. } if *edge == id)));
+    // finish has no rank of its own but stays in the component; its call back
+    // to again stays in its body for the checker to follow.
+    assert!(finish.contract.ranking.is_none());
+    let rank = ranking(again);
+    spec_corpus::observe_handoff!(psi "psi-output/ranked-cleanup-edge", assert_eq!(
+        (&rank.component, rank.edges.as_slice()),
+        (&vec![again.id, finish.id], [omega_lowering::RankedEdge {
+            block, call: CallSite::Cleanup(at), forwarding_return: None, target: finish.id, successor: None, comparison: RankComparison::Pending,
+        }].as_slice())
+    ));
+    let three = finish.body.operations.iter().find(|op| op.kind == OperationKind::Constant(omega_lowering::ScalarLiteral::Integer(3.into())));
+    let OperationResult::Scalar(three) = three.expect("the rank at re-entry").result else { panic!("expected a scalar argument") };
     assert!(finish.body.operations.iter().any(|op| matches!(&op.kind,
         OperationKind::Call { callee: omega_lowering::CallTarget::Machine(target), arguments, .. }
             if *target == again.id && arguments.as_slice() == [CallArgument::Scalar(three)])));
+    // The independent consumer reads the invocation back from the published
+    // body by list and ordinal: the cleaned place is again's own Lease, moved
+    // whole into finish's one formal, and there is no target rank to substitute.
+    let [edge] = rank.edges.as_slice() else { unreachable!() };
+    let (place, ty, invoked) = psi_handoff_consumer::claimed_cleanup(again, edge).unwrap();
+    spec_corpus::observe_handoff!(psi "psi-output/ranked-cleanup-actual", assert_eq!(
+        ((place.root, place.path.as_slice(), ty, invoked), psi_handoff_consumer::successor_from_call(&package, again.id, edge)),
+        ((lease, [].as_slice(), finish.parameter_types[0], finish.id), Err("the target publishes no rank".to_string()))
+    ));
+    assert!(matches!(finish.body.parameters.as_slice(), [Parameter::Structural(_)]));
+
+    // Removing the promise, not the cleanup, leaves the same cleanup in the
+    // body with no ranking to claim it.
+    let package = lower(&source.replace(" terminates by n", "")).unwrap();
+    let (again, finish) = (machine(&package, "again"), machine(&package, "finish"));
+    assert_eq!(cleanup_invocations(again, finish).len(), 1);
+    assert!(again.contract.ranking.is_none());
 
     // The lawful twin keeps the same cleanup edge; only the call back to again
     // is gone. That edge now leaves the component, so it owes no rank claim.
-    let ordinary = source.replace("again(3);", "");
-    let package = lower(&ordinary).unwrap();
-    let caller = machine(&package, "again");
-    assert!(invokes_finish(caller, machine(&package, "finish")));
+    let package = lower(&source.replace("again(3);", "")).unwrap();
+    let (caller, finish) = (machine(&package, "again"), machine(&package, "finish"));
+    assert_eq!(cleanup_invocations(caller, finish).len(), 1);
     assert_eq!(ranking(caller).component, vec![caller.id]);
     assert!(ranking(caller).edges.is_empty());
+}
+
+#[test]
+fn a_ranked_cleanup_claim_names_its_list_ordinal_and_constant_target_rank() {
+    use omega_lowering::{CleanupList, RankedEdge};
+    let claim = |block, at, target, successor| RankedEdge {
+        block, call: CallSite::Cleanup(at), forwarding_return: None, target, successor, comparison: RankComparison::Pending,
+    };
+    // A ranked cleanup target: its constant rank is the successor, and the
+    // consumer derives the same constant from the published invocation.
+    let source = "const Z:u64 = 0;
+data Lease dropped by finish {mark:u8;}
+        machine again(n:u64)->u64 terminates by n { let lease=Lease {mark:0}; n }
+        machine finish(x:Lease) terminates by Z { let Lease {mark as _}=x; let r=again(3); }";
+    let package = lower(source).unwrap();
+    let (again, finish) = (machine(&package, "again"), machine(&package, "finish"));
+    let [(block, at, _)] = cleanup_invocations(again, finish)[..] else { panic!("one cleanup") };
+    let zero = RankExpression::Operand(RankOperand::Constant(0.into()));
+    let call = finish.body.operations.iter().find(|op| matches!(&op.kind,
+        OperationKind::Call { callee: omega_lowering::CallTarget::Machine(target), .. } if *target == again.id)).unwrap();
+    let OperationKind::Call { arguments, .. } = &call.kind else { unreachable!() };
+    let [CallArgument::Scalar(three)] = arguments.as_slice() else { panic!("one scalar actual") };
+    let back = finish.body.blocks.iter().find(|b| b.operations.contains(&call.id.index())).unwrap();
+    spec_corpus::observe_handoff!(psi "psi-output/ranked-cleanup-target-rank", assert_eq!(
+        (ranking(again).edges.as_slice(), ranking(finish).edges.as_slice(), psi_handoff_consumer::successor_from_call(&package, again.id, &ranking(again).edges[0])),
+        ([claim(block, at, finish.id, Some(zero.clone()))].as_slice(),
+         [RankedEdge { block: back.id, call: CallSite::Operation(call.id), forwarding_return: None, target: again.id,
+             successor: Some(RankExpression::Operand(RankOperand::Input(*three))), comparison: RankComparison::Pending }].as_slice(),
+         Ok(zero))
+    ));
+
+    // A disposing store carries its own list. Replacing the Lease runs finish
+    // on the old value at the store; the return then cleans the new one.
+    let source = "data Lease dropped by finish {mark:u8;}
+        machine again(n:u64) terminates by n { let mut lease=Lease {mark:0}; lease=Lease {mark:1}; }
+        machine finish(x:Lease) { let Lease {mark as _}=x; again(3); }";
+    let package = lower(source).unwrap();
+    let (again, finish) = (machine(&package, "again"), machine(&package, "finish"));
+    let found = cleanup_invocations(again, finish);
+    let [(store_block, store, _), (return_block, ret, _)] = found[..] else { panic!("store and return cleanups: {found:?}") };
+    assert!(matches!(store.list, CleanupList::Store(_)) && matches!(ret.list, CleanupList::Edge(_)));
+    assert_eq!(ranking(again).edges, [claim(store_block, store, finish.id, None), claim(return_block, ret, finish.id, None)]);
+    for edge in &ranking(again).edges {
+        assert_eq!(psi_handoff_consumer::claimed_cleanup(again, edge).unwrap().2, finish.id);
+    }
+
+    // On a terminal call edge the cleanup runs before the transfer, and its
+    // claim comes first; the transfer keeps its own strict claim.
+    let source = "data Lease dropped by finish {mark:u8;}
+        machine again(n:u64)->u64 terminates by n { let lease=Lease {mark:0}; transition {_ -> again(n - 1),} }
+        machine finish(x:Lease) { let Lease {mark as _}=x; let r=again(3); }";
+    let package = lower(source).unwrap();
+    let (again, finish) = (machine(&package, "again"), machine(&package, "finish"));
+    let [(block, at, _)] = cleanup_invocations(again, finish)[..] else { panic!("one cleanup") };
+    let (transfer_block, edge, _) = terminal_call(again, again);
+    assert_eq!((block, at.list, at.action), (transfer_block, CleanupList::Edge(edge), 0));
+    let next = operation_result(again, IntegerPrimitive::Subtract, formal(again, 0));
+    assert_eq!(ranking(again).edges, [
+        claim(block, at, finish.id, None),
+        RankedEdge { block, call: CallSite::Edge(edge), forwarding_return: None, target: again.id,
+            successor: Some(RankExpression::Operand(RankOperand::Input(next))), comparison: RankComparison::Strict },
+    ]);
+}
+
+/// A ranked cycle that owns a `Lease`: two back edges enter `count` with
+/// different actuals, and the first arm leaves the cycle. Here that arm returns
+/// the result of a trapping division. Bytes equal `sources/returning.omg`.
+const RETURNING_CYCLE: &str = r#"use omega\language\core;
+data Lease dropped by finish {mark:u8;}
+machine finish(l:Lease) {let Lease{mark as _}=l;}
+machine count(n:u64, m:u64, d:u64)->u64 crashes Trap d == 0 terminates by n {
+    let lease = Lease{mark:0};
+    transition {
+        n == 0 -> n /! d,
+        n < m -> count(n - 1, m, d),
+        _ -> count(m - 1, n, d),
+    }
+}
+"#;
+
+/// The twin: the leaving arm exits the process. The back edges are unchanged.
+const EXITING_CYCLE: &str = r#"use omega\language\core;
+data Lease dropped by finish {mark:u8;}
+machine finish(l:Lease) {let Lease{mark as _}=l;}
+machine count(n:u64, m:u64, code:i32)->core\Never reaches core\ProcessExit terminates by n {
+    let lease = Lease{mark:0};
+    transition {
+        n == 0 -> core\ProcessExit::exit_process(code),
+        n < m -> count(n - 1, m, code),
+        _ -> count(m - 1, n, code),
+    }
+}
+"#;
+
+/// The conditional of a block, and both successor targets.
+fn branch(body: &omega_lowering::MachineBody, block: omega_lowering::BlockId) -> (ValueId, omega_lowering::BlockId, omega_lowering::BlockId) {
+    let BlockTerminator::Conditional { condition, when_true, when_false } = &body.blocks[block.get() - 1].terminator else {
+        panic!("expected a guard at {block:?}")
+    };
+    (*condition, when_true.target, when_false.target)
+}
+
+#[test]
+fn each_back_edge_into_a_ranked_cycle_keeps_its_own_actuals_cleanup_and_claim() {
+    for (source, exits) in [(RETURNING_CYCLE, false), (EXITING_CYCLE, true)] {
+        let files = [("cycle.omg", source)];
+        let resolved = sources::resolve(&files);
+        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+        let typed = prepared.typed();
+        let [witness] = typed.ranking_witnesses.as_slice() else { panic!("count's rank") };
+        assert_eq!(witness.machine.path, "count");
+        // L3 types both back edges as calls of count, each with its own first actual.
+        let actuals: Vec<_> = typed.calls.iter().filter(|c| c.caller.as_ref() == Some(&witness.machine) && c.machine == witness.machine)
+            .map(|c| c.operands[0].site.span.slice(source.as_bytes())).collect();
+        assert_eq!(actuals, [Some(b"n - 1".as_slice()), Some(b"m - 1".as_slice())]);
+        let [cleanup] = typed.cleanups.as_slice() else { panic!("Lease's cleanup selection") };
+        assert_eq!((cleanup.owner.path.as_str(), cleanup.machine.path.as_str()), ("Lease", "finish"));
+        let package = sources::lower_prepared(&prepared, &files).unwrap();
+        drop(prepared);
+        drop(resolved);
+        let count = machine(&package, "count");
+        let finish = machine(&package, "finish");
+        let (n, m, third) = (formal(count, 0), formal(count, 1), formal(count, 2));
+        let body = &count.body;
+        let lease = body.operations.iter().find_map(|op| match (&op.kind, op.result) {
+            (OperationKind::EstablishRecord { .. }, OperationResult::Structural(place)) => Some(place),
+            _ => None,
+        }).expect("the Lease local");
+
+        // Follow the guards from the entry, independently of the claims.
+        let (leaving_guard, leaving, rest) = branch(body, body.blocks[0].id);
+        assert_eq!(leaving_guard, operation_result(count, IntegerPrimitive::Equal, n));
+        let (descending_guard, down_block, swap_block) = branch(body, rest);
+        assert_eq!(descending_guard, operation_result(count, IntegerPrimitive::LessThan, n));
+        let (down, swap) = (operation_result(count, IntegerPrimitive::Subtract, n), operation_result(count, IntegerPrimitive::Subtract, m));
+        let back_edge = |block: omega_lowering::BlockId| {
+            let BlockTerminator::TerminalCall { id, callee, arguments, .. } = &body.blocks[block.get() - 1].terminator else {
+                panic!("expected a back edge at {block:?}")
+            };
+            assert_eq!(*callee, omega_lowering::CallTarget::Machine(count.id));
+            (*id, arguments.clone())
+        };
+        let (down_edge, down_actuals) = back_edge(down_block);
+        let (swap_edge, swap_actuals) = back_edge(swap_block);
+        // Both predecessors enter the same member; only their actuals tell them apart.
+        assert_eq!(down_actuals, [CallArgument::Scalar(down), CallArgument::Scalar(m), CallArgument::Scalar(third)]);
+        assert_eq!(swap_actuals, [CallArgument::Scalar(swap), CallArgument::Scalar(n), CallArgument::Scalar(third)]);
+
+        // The `n < m` guard selects descent. On the other edge `m - 1 < n` also
+        // needs `m >= 1`, the subtraction's own obligation, so L6 decides the role.
+        let claims: Vec<_> = ranking(count).edges.iter()
+            .map(|e| (e.block, e.call, e.forwarding_return, e.target, e.successor.clone(), e.comparison)).collect();
+        spec_corpus::observe_handoff!(psi "psi-output/cycle-predecessor-claims", assert_eq!(claims, [
+            (down_block, CallSite::Edge(down_edge), None, count.id, Some(RankExpression::Operand(RankOperand::Input(down))), RankComparison::Strict),
+            (swap_block, CallSite::Edge(swap_edge), None, count.id, Some(RankExpression::Operand(RankOperand::Input(swap))), RankComparison::Pending),
+        ]));
+        psi_handoff_consumer::product_witness::cycle_claims(&package, count.id).unwrap();
+
+        // Cleanup belongs to each completion of the activation, never to a guard edge.
+        let disposing = psi_handoff_consumer::product_witness::completion_cleanup(body, lease, finish.id).unwrap();
+        let leaving = &body.blocks[leaving.get() - 1];
+        if exits {
+            let BlockTerminator::ExternalExit(exit) = &leaving.terminator else { panic!("the leaving arm exits") };
+            assert_eq!(psi_handoff_consumer::external_exits(body), [exit]);
+            assert_eq!(exit.arguments, [CallArgument::Scalar(third)]);
+            spec_corpus::observe_handoff!(psi "psi-output/cycle-exit-cleanup", assert_eq!(disposing, [down_edge, swap_edge]));
+        } else {
+            let BlockTerminator::Return { id, result: omega_lowering::ReturnEdge::Scalar(returned), .. } = leaving.terminator else {
+                panic!("the leaving arm returns")
+            };
+            // The division traps inside the returning block, before its cleanup-bearing edge.
+            let ops = &body.operations[leaving.operations.clone()];
+            let division = ops.iter().position(|op| matches!(op.kind,
+                OperationKind::TrappingInteger { primitive: omega_lowering::TrappingIntegerPrimitive::Divide, left, right } if (left, right) == (n, third)));
+            assert_eq!(division, Some(ops.len() - 1));
+            assert_eq!(ops[ops.len() - 1].result, OperationResult::Scalar(returned));
+            assert_eq!(count.contract.crash_routes.len(), 1);
+            spec_corpus::observe_handoff!(psi "psi-output/cycle-return-cleanup", assert_eq!(disposing, [id, down_edge, swap_edge]));
+        }
+    }
 }

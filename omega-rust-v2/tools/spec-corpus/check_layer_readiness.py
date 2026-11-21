@@ -616,7 +616,7 @@ def summarize(report):
     lines.extend(lowering_cli.summary(report))
     controls = report["product_controls"]
     lines += ["", f"Psi corruption checks rejected {sum(row['verified'] for row in controls.values())} "
-              f"of {len(controls)} registered changes to branch targets, call operands, restoration or residual cleanup. "
+              f"of {len(controls)} registered changes to branch targets, runtime-dispatch arms, call operands, restoration, residual cleanup, join arrivals or premised element stores. "
               "Each check first accepts the real product. The evidence JSON records why it rejected each changed product."]
     if report["measurement_errors"]:
         lines += ["", "## Incomplete measurements", "", *["- " + error for error in report["measurement_errors"]]]
