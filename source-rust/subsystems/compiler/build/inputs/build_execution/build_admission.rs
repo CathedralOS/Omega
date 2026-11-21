@@ -53,10 +53,11 @@ pub fn select_build_machine(
 }
 
 pub fn admit_build_machine(
-    prepared: &source_compiler::publication::AcceptedTerminalSource,
+    invocation: source_compiler::CheckedBuildInvocation,
     machine_symbol: SymbolHandle,
     filesystem_scope: &mut BuildMachineFilesystemScope,
-) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
+) -> Result<(SelectedBuildMachine, source_compiler::PreparedBuildInvocation), Vec<Diagnostic>> {
+    let prepared = invocation.accepted();
     let typed = prepared.source();
     let elaboration = &prepared.closure().elaboration();
     if !prepared.is_invocation()
@@ -87,18 +88,20 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
-    // Host authority is bounded by the boundary calls of the accepted
-    // module: each must be an operation of a compiler-owned Build protocol,
-    // which is exactly the calls publication gives a host row.
-    let protocols = prepared.build_protocol_use()?;
+    let preparation_allows_return = typed
+        .roots
+        .partial_build_entry
+        .map(|_| typed.roots.partial_build_can_return);
+    let initial_build = value_admission.initial_value(typed, machine, filesystem_scope);
+
+    let publication = invocation.prepare_publication()?;
+    let protocols = publication.build_protocol_use();
     if protocols.reaches_outside {
         return Err(vec![Diagnostic::error(format!(
             "`{machine_name}` reaches a boundary outside the compiler-owned Build protocols"
         ))]);
     }
     let filesystem_reachable = protocols.filesystem;
-
-    let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 
     let execution_mode = if !filesystem_reachable {
         BuildMachineExecutionMode::Pure
@@ -109,15 +112,16 @@ pub fn admit_build_machine(
             filesystem_metadata_layout: FilesystemMetadataLayout::default(),
         }
     };
-    Ok(SelectedBuildMachine {
+    let machine = SelectedBuildMachine {
         receiver,
-        preparation_allows_return: typed.roots.partial_build_entry.map(|_| typed.roots.partial_build_can_return),
+        preparation_allows_return,
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,
         value_admission,
         filesystem_reachable,
         execution_mode,
-        initial_build: zero_build,
-    })
+        initial_build,
+    };
+    Ok((machine, publication))
 }

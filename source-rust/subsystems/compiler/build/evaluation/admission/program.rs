@@ -63,8 +63,9 @@ pub(crate) fn admit_build_program(
         )]);
     }
     let mut filesystem_scope = filesystem_scope.clone();
-    let machine = admit_build_machine(prepared, machine_symbol, &mut filesystem_scope)?;
-    let (prepared, produced) = invocation.publish()?;
+    let (machine, publication) =
+        admit_build_machine(invocation, machine_symbol, &mut filesystem_scope)?;
+    let (prepared, produced) = publication.publish()?;
     let build_authority = package_inputs
         .map(|inputs| inputs.declaration_selection_authority(DependencyPurpose::Build));
     let product_authority = package_inputs

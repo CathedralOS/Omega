@@ -32,6 +32,14 @@ pub struct PreparedTerminalPublication {
 }
 
 impl PreparedTerminalPublication {
+    /// The Build program’s host requirements, derived from its prepared calls.
+    pub fn build_protocol_use(&self) -> crate::production::BuildProtocolUse {
+        crate::production::BuildProtocolUse {
+            reaches_outside: self.companions.unowned != 0,
+            filesystem: !self.companions.filesystem.is_empty(),
+        }
+    }
+
     pub fn publish(
         self,
         applications: &[crate::production::TerminalApplicationCustody<'_>],
@@ -301,20 +309,6 @@ impl AcceptedTerminalSource {
     ) -> Result<crate::production::ProducedTerminalProgram, Vec<Diagnostic>> {
         self.prepare_publication(custody.invocation_sources)?
             .publish(custody.applications, timings)
-    }
-
-    /// What this accepted Build program asks of its host, read from the
-    /// same rows `produce` publishes.
-    pub fn build_protocol_use(
-        &self,
-    ) -> Result<crate::production::BuildProtocolUse, Vec<Diagnostic>> {
-        let companions =
-            crate::production::build_companions::produce(self, &self.closure.elaboration().module)
-                .map_err(|diagnostic| vec![diagnostic])?;
-        Ok(crate::production::BuildProtocolUse {
-            reaches_outside: companions.unowned != 0,
-            filesystem: !companions.filesystem.is_empty(),
-        })
     }
 
     /// The constants the declarations of this accepted module name, each
