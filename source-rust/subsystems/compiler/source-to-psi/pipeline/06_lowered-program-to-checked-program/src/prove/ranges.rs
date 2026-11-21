@@ -491,6 +491,9 @@ impl Prover<'_> {
                 ) else {
                     continue;
                 };
+                if limit.integer_value().is_some() {
+                    return Some(to_limit);
+                }
                 if let Some(cap) = self
                     .evidence(&limit, Direction::Upper)
                     .ok()
