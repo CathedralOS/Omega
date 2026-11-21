@@ -1730,17 +1730,22 @@ impl<'machine> MachineScalarIndex<'machine> {
         })
     }
 
+    pub(crate) fn block_parameter(
+        &self,
+        value: semantic_vocabulary::ValueId,
+    ) -> Option<(semantic_vocabulary::BlockId, usize)> {
+        let start = self.parameters.partition_point(|(id, ..)| *id < value);
+        let (_, owner, ordinal, _) = *self.parameters.get(start).filter(|(id, ..)| *id == value)?;
+        (owner != self.machine.entry).then_some((owner, ordinal))
+    }
+
     /// Every predecessor must bind this block parameter. Machine entry inputs
     /// and case payloads have no list of forwarded scalar values.
     pub fn incoming_values(
         &self,
         value: semantic_vocabulary::ValueId,
     ) -> Option<Vec<(&'machine terminal_psi::Block, semantic_vocabulary::ValueId)>> {
-        let start = self.parameters.partition_point(|(id, ..)| *id < value);
-        let (_, owner, ordinal, _) = *self.parameters.get(start).filter(|(id, ..)| *id == value)?;
-        if owner == self.machine.entry {
-            return None;
-        }
+        let (owner, ordinal) = self.block_parameter(value)?;
         let start = self
             .incoming
             .partition_point(|(target, ..)| *target < owner);
