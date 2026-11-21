@@ -320,6 +320,7 @@ impl PreparedBuildExecution {
         crate::TerminalBuildHost::new(
             self.execution_purpose,
             Arc::clone(&self.produced),
+            Arc::clone(&self.accepted),
             Arc::clone(&self.providers),
             &self.account,
             Arc::clone(&self.machine),
@@ -330,7 +331,7 @@ impl PreparedBuildExecution {
             self.unbound_acquisition.clone(),
             carried.filesystem.take(),
         )
-        .and_then(|host| host.resume(carried, &predecessor, &self.accepted))
+        .and_then(|host| host.resume(carried, &predecessor))
         .map_err(|reason| {
             let mut diagnostics = self.refuse(&reason);
             if let Some(owner) = self.accepted.closure().elaboration().machines.get(machine)
@@ -356,6 +357,7 @@ impl PreparedBuildExecution {
         crate::TerminalBuildHost::new(
             self.execution_purpose,
             Arc::clone(&self.produced),
+            Arc::clone(&self.accepted),
             Arc::clone(&self.providers),
             &self.account,
             Arc::clone(&self.machine),

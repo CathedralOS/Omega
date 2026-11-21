@@ -88,7 +88,10 @@ fn a_required_output_the_host_never_issued_is_refused_on_loan() {
     );
     assert!(!compiled);
     assert!(
-        stderr.contains("Build filesystem value was not issued by this activation"),
+        stderr.contains("Build filesystem value was not issued by this activation")
+            && stderr.contains("build.omg:5:")
+            && !stderr.contains("ExecutionSite")
+            && !stderr.contains("EffectRejected"),
         "{stderr}"
     );
 }

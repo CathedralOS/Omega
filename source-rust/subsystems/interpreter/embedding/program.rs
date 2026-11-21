@@ -2210,6 +2210,43 @@ pub(crate) mod instance {
             )
         }
 
+        /// Active calls, from the immediate caller out to the entry. A no-return
+        /// call keeps its edge; cleanup has no authored call operation.
+        pub fn caller_sites(
+            &self,
+        ) -> impl Iterator<Item = (semantic_vocabulary::MachineId, terminal_psi::CallSite)> + '_
+        {
+            use crate::engine::execution::SuspendedCallResult;
+            use terminal_psi::CallSite;
+
+            self.execution.iter().flat_map(|frame| {
+                frame.call_stack.iter().rev().filter_map(|caller| {
+                    let site = match caller.result {
+                        SuspendedCallResult::NoNormal { edge, .. }
+                        | SuspendedCallResult::ExternalCompletion { edge, .. } => {
+                            CallSite::Edge(edge)
+                        }
+                        SuspendedCallResult::OwnedCleanups { .. } => return None,
+                        SuspendedCallResult::Scalar(_)
+                        | SuspendedCallResult::Unit
+                        | SuspendedCallResult::Structural { .. } => {
+                            let index = caller.next_operation.checked_sub(1)?;
+                            let operation = self
+                                .program
+                                .module()
+                                .machine(caller.current_machine)?
+                                .block(&caller.current)?
+                                .operations
+                                .get(index)?;
+                            operation.declared_invocation()?;
+                            CallSite::Operation(operation.id)
+                        }
+                    };
+                    Some((caller.current_machine, site))
+                })
+            })
+        }
+
         pub fn completed_call_path_index(&self) -> Option<usize> {
             self.completed_entry_call.map(|(index, _)| index)
         }
