@@ -247,8 +247,8 @@ fn evaluate_application(
         requirement_symbol,
         &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
     )?;
-    // The receipt owns the body in the accepted invocation, which can be
-    // a capture. The plan belongs to the source that declared the policy.
+    // The accepted call can use a captured body. Store the policy declaration
+    // that the captured body implements in the published layout.
     let accepted = entry.accepted_source();
     let (selected, member, _) = accepted
         .named_conformance_call_member(entry.call())?

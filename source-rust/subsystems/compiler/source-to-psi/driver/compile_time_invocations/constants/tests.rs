@@ -101,6 +101,15 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
         validate_constant_evaluations(&typed, &Default::default()).unwrap_err(),
         "constant result has no accepted invocation receipt"
     );
+    let original = Arc::downgrade(accounting.constant_input(receipt).unwrap().unwrap());
+    let mut retry = SourceCompletionAccounting::default();
+    retry.append(accounting.clone());
+    accounting.release_constant_inputs();
+    accounting.validate_charges().unwrap();
+    validate_constant_evaluations(&typed, &retry).unwrap();
+    retry.release_constant_inputs();
+    assert_eq!(original.strong_count(), 0);
+    retry.validate_charges().unwrap();
 }
 
 #[test]
@@ -414,11 +423,68 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
         let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
             panic!("expected the actual invocation receipt: {refusal}");
         };
-        assert!(std::ptr::eq(receipt.program(), produced.as_ref()));
+        receipt.require_program(&produced).unwrap();
         assert!(
             matches!(receipt.outcome(), PureTerminalEvaluationOutcome::Failed { reason } if *reason == refusal)
         );
         assert!(receipt.usage().total_units() > 0);
         accounting.validate_charges().unwrap();
     }
+}
+
+#[test]
+fn completed_invocations_release_the_generated_caller_and_program() {
+    use crate::compile_time_invocations::{InvocationTarget, PreparedBuildMachineProgram};
+    use build_time_values::BuildTimeValue;
+
+    let typed = typed_source("machine compute(value: u32) -> u32 crashes none { value }");
+    let symbol = typed.realized_machine_named("compute").unwrap().symbol;
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let mut accounting = SourceCompletionAccounting::default();
+    let mut owners = Vec::new();
+    let target = InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    };
+    for number in 0..16 {
+        let value = BuildTimeValue::Int(number);
+        let entry = prepared
+            .entry(symbol, symbol, std::slice::from_ref(&value))
+            .unwrap();
+        let program = Arc::new(entry.produce_invocation().unwrap());
+        owners.push((
+            Arc::downgrade(entry.accepted().source()),
+            Arc::downgrade(&program),
+        ));
+        if let Some(PureEvaluationRecord::Invocation(previous)) = accounting.receipts().last() {
+            let refusal = previous
+                .require_site(&entry.source_invocation_inputs())
+                .unwrap_err();
+            assert_eq!(
+                refusal,
+                "evaluation receipt belongs to another source invocation"
+            );
+        }
+        let returned = entry
+            .invoke_with_observations(program, target, &mut accounting, &[], |value, _| Ok(value))
+            .unwrap();
+        assert_eq!(returned, value);
+    }
+    assert_eq!(accounting.receipts().len(), owners.len());
+    accounting.validate_charges().unwrap();
+    let callers = owners
+        .iter()
+        .filter(|(source, _)| source.strong_count() != 0)
+        .count();
+    let programs = owners
+        .iter()
+        .filter(|(_, code)| code.strong_count() != 0)
+        .count();
+    assert_eq!(
+        (callers, programs),
+        (0, 0),
+        "objects retained after completing 16 calls"
+    );
 }

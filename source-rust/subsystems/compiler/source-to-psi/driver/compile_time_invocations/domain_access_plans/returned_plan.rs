@@ -123,14 +123,16 @@ fn is_type_schema(
 // decoding retains that derivation instead of rerunning source construction.
 #[cfg(test)]
 fn query_schema(
+    entry: &crate::compile_time_invocations::PreparedBuildMachineEntry,
     query: &PureTerminalEvaluationReceipt,
 ) -> Result<(SemanticSchemaGraph, symbols::SymbolHandle), String> {
+    query.require_site(&entry.source_invocation_inputs())?;
     query.validate_charge()?;
     if !query.arguments().is_empty() {
         return Err("semantic schema query has unexpected runtime arguments".into());
     }
-    let source = query.source();
-    let call = query.call()?;
+    let source = entry.accepted_source();
+    let call = entry.call();
     let declaration = source
         .machine_by_symbol(call.target_symbol)
         .or_else(|| source.machine_holding_state(call.target_symbol))
@@ -171,7 +173,7 @@ fn query_schema(
         operand.type_reference,
     )?;
     if source.symbols.builtin_type_atom(subject).is_none() {
-        let mut correspondence = query.program().source_records().iter().filter(|row| {
+        let mut correspondence = entry.accepted().source_records().iter().filter(|row| {
             row.application
                 .as_ref()
                 .is_some_and(|application| application.reference == operand.type_reference)
@@ -439,31 +441,35 @@ fn active<'v>(fields: &'v Fields, name: &str, count: &str) -> Result<&'v [BuildT
 /// invocation and selected application before any consumer may use the result.
 #[cfg(test)]
 pub(crate) fn normalize(
+    query_entry: &crate::compile_time_invocations::PreparedBuildMachineEntry,
     query: &PureTerminalEvaluationReceipt,
+    plan_entry: &crate::compile_time_invocations::PreparedBuildMachineEntry,
     plan: &PureTerminalEvaluationReceipt,
 ) -> Result<AccessPlan, String> {
     if plan.admission().target() != query.admission().target() {
         return Err("semantic plan and query belong to different invocation targets".into());
     }
-    let (graph, owner) = query_schema(query)?;
+    let (graph, owner) = query_schema(query_entry, query)?;
     let revision = crate::source_state::reflection::construction::schema_subject_revision(
-        query.source(),
+        query_entry.accepted_source(),
         owner,
     )?;
-    normalize_for_schema(plan, graph, materialized(query)?, &revision)
+    normalize_for_schema(plan_entry, plan, graph, materialized(query)?, &revision)
 }
 
 /// The query or domain request owner supplies the schema it actually passed.
 /// Reuse that completed graph and the invocation's own bound argument/result;
 /// normalization does not reconstruct source or grant operation authority.
 pub(super) fn normalize_for_schema(
+    plan_entry: &crate::compile_time_invocations::PreparedBuildMachineEntry,
     plan: &PureTerminalEvaluationReceipt,
     graph: SemanticSchemaGraph,
     schema_value: &BuildTimeValue,
     revision: &[u8],
 ) -> Result<AccessPlan, String> {
+    plan.require_site(&plan_entry.source_invocation_inputs())?;
     plan.validate_charge()?;
-    let source = plan.source();
+    let source = plan_entry.accepted_source();
     // The accepted caller declares the actual completed output. Describing
     // that output does not choose a public requirement or authorize its body.
     let caller = source
@@ -486,7 +492,7 @@ pub(super) fn normalize_for_schema(
     }
     let arguments = source
         .expression_table
-        .expression_handles(plan.call()?.arguments);
+        .expression_handles(plan_entry.call().arguments);
     if arguments.len() != plan.arguments().len() {
         return Err("semantic plan lost its complete actual argument roster".into());
     }

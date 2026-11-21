@@ -856,14 +856,13 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         "describe_requirement",
     ] {
         let (author, expression) = query_call(&typed, name);
-        let value = prepared
-            .entry_call(author, expression, &[])
-            .unwrap()
+        let entry = prepared.entry_call(author, expression, &[]).unwrap();
+        let value = entry
             .invoke_recorded(target(&facts), &mut accounting)
             .unwrap_or_else(|error| panic!("actual {name}: {error}"));
-        descriptions.push((value, last_receipt(&accounting)));
+        descriptions.push((value, entry, last_receipt(&accounting)));
     }
-    let (schema, query) = &descriptions[0];
+    let (schema, query_entry, query) = &descriptions[0];
     let builder = typed
         .realized_machine_named("construct_observed_plan")
         .unwrap()
@@ -873,13 +872,12 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         descriptions[1].0.clone(),
         descriptions[2].0.clone(),
     ];
-    let produced = prepared
-        .entry(builder, builder, &arguments)
-        .unwrap()
+    let builder = prepared.entry(builder, builder, &arguments).unwrap();
+    let produced = builder
         .invoke_recorded(target(&facts), &mut accounting)
         .expect("nonempty plan is constructed and returned through ordinary checked source");
     let result = last_receipt(&accounting);
-    let normalized = super::returned_plan::normalize(query, &result)
+    let normalized = super::returned_plan::normalize(query_entry, query, &builder, &result)
         .expect("exact query and result correspondence");
     // Domain snapshots retain this same complete result, including borrowed
     // function descriptions and the schema's original query visibility.
@@ -984,12 +982,15 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         };
         *field_mut(field_mut(&mut entries[0], "field"), component) =
             BuildTimeValue::Text(b"foreign".to_vec());
-        prepared
+        let entry = prepared
             .entry(transport, transport, &[schema.clone(), altered])
-            .unwrap()
+            .unwrap();
+        entry
             .invoke_recorded(target(&facts), &mut accounting)
             .unwrap();
-        let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
+        let error =
+            super::returned_plan::normalize(query_entry, query, &entry, &last_receipt(&accounting))
+                .unwrap_err();
         assert!(error.contains(reason), "{error}");
     }
     let mut altered = produced.clone();
@@ -1003,12 +1004,15 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         unreachable!()
     };
     *variant = "Requirement".into();
-    prepared
+    let entry = prepared
         .entry(transport, transport, &[schema.clone(), altered])
-        .unwrap()
+        .unwrap();
+    entry
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
-    let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
+    let error =
+        super::returned_plan::normalize(query_entry, query, &entry, &last_receipt(&accounting))
+            .unwrap_err();
     assert!(
         error.contains("callable description is not bound to the actual source"),
         "{error}"
@@ -1018,12 +1022,15 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .realized_machine_named("construct_lookalike")
         .unwrap()
         .symbol;
-    prepared
+    let entry = prepared
         .entry(lookalike, lookalike, std::slice::from_ref(schema))
-        .unwrap()
+        .unwrap();
+    entry
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
-    let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
+    let error =
+        super::returned_plan::normalize(query_entry, query, &entry, &last_receipt(&accounting))
+            .unwrap_err();
     assert!(
         error.contains("not the genuine core AccessPlan declaration"),
         "{error}"
