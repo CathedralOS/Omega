@@ -1342,7 +1342,7 @@ fn fill_knowledge<'a>(
             references,
             tables,
             &row.actuals,
-            (contract.structural_parameters, contract.result),
+            &call,
             operation,
             Construct::Invocation(invocation),
         )?;
@@ -2237,7 +2237,7 @@ fn stated_goal<'a>(
                     references,
                     tables,
                     &row.actuals,
-                    formals,
+                    call.structural_inputs(),
                     site,
                     concerns,
                 )?),

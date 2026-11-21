@@ -1451,7 +1451,10 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
+        (callee_formals, extent_owner): (
+            &'s [terminal_psi::StructuralParameterDeclaration],
+            Option<MachineId>,
+        ),
         site: InvocationSite,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
@@ -1487,6 +1490,7 @@ impl<'a> Storage<'a> {
             scalars: crate::checking::scalar_actuals(actuals),
             places,
             callee_formals,
+            extent_owner,
             block,
             up_to: before,
             concerns,
@@ -1558,6 +1562,7 @@ impl<'a> Storage<'a> {
                 scalars: Vec::new(),
                 places,
                 callee_formals: formals,
+                extent_owner: None,
                 block,
                 up_to,
                 concerns,
@@ -1574,10 +1579,7 @@ impl<'a> Storage<'a> {
         references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        (formals, result): (
-            &'s [terminal_psi::StructuralParameterDeclaration],
-            crate::checking::call_contracts::ResultFormal,
-        ),
+        call: &crate::checking::call_contracts::Invocation<'s>,
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
@@ -1585,10 +1587,11 @@ impl<'a> Storage<'a> {
             references,
             tables,
             actuals,
-            formals,
+            call.structural_inputs(),
             InvocationSite::Operation(site),
             concerns,
         )?;
+        let result = call.contract.result;
         let operation = self.operation(site, concerns)?;
         use crate::checking::call_contracts::ResultFormal;
         let (structural, scalar) = match (result, &operation.result) {
@@ -6733,6 +6736,7 @@ pub(crate) struct AtCall<'s, 'a> {
     /// The record actuals, in the callee's structural lane order.
     places: Vec<Lineage>,
     callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
+    extent_owner: Option<MachineId>,
     block: BlockId,
     up_to: usize,
     concerns: Construct,
@@ -7305,7 +7309,23 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
                     "indexed contract has no structural formal",
                 ))?;
         let actual = self.readable_actual(formal)?;
-        if self.storage.projection_type(actual, self.concerns) != Some(formal.structural_type) {
+        let actual_type = self.storage.projection_type(actual, self.concerns);
+        if actual_type != Some(formal.structural_type)
+            && !actual_type
+                .zip(self.extent_owner)
+                .is_some_and(|(actual_type, owner)| {
+                    self.storage.module.machine(owner).is_some_and(|callee| {
+                        terminal_semantics::calls::const_array_argument_matches(
+                            self.storage.module,
+                            self.storage.lowered,
+                            callee,
+                            &self.scalars,
+                            actual_type,
+                            formal.structural_type,
+                        )
+                    })
+                })
+        {
             return Err(crate::checking::Unbound::Unproved(
                 "indexed contract formal and actual need corresponding element projections",
             ));
