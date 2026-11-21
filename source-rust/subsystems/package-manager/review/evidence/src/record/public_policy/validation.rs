@@ -31,6 +31,19 @@ impl PackagePolicyPublicApi {
         roots(&self.propositions, package, |value| &value.identity)?;
         roots(&self.consts, package, |value| &value.identity)?;
         roots(&self.data, package, |value| &value.identity)?;
+        if let Some(aliases) = &self.type_aliases {
+            roots(aliases, package, |alias| &alias.identity)?;
+            for alias in aliases {
+                let scope = scope(&alias.type_parameters, alias.lifetime_parameter_count);
+                signatures::parameters(&scope, 0)?;
+                signatures::evidence_parameters(
+                    &alias.type_parameters,
+                    &alias.conformance_bounds,
+                    &scope,
+                )?;
+                value_type(&alias.expansion)?;
+            }
+        }
         ordered_by(&self.operators, |a, b| a.coordinate.cmp(&b.coordinate))?;
         for value in &self.operators {
             root(&value.coordinate.identity, package)?;
@@ -137,6 +150,7 @@ mod constant_dependency_tests {
             propositions: Vec::new(),
             operators: Vec::new(),
             data: Vec::new(),
+            type_aliases: None,
             consts: vec![PackageReviewConstShape {
                 identity: PackageReviewNominalIdentity {
                     owner: PackageReviewNominalOwner::Package(package),

@@ -31,6 +31,21 @@ use crate::record::PackageReviewDataKind;
 use crate::record::PackageReviewDomainClassification;
 use crate::record::PackageReviewDomainSemanticRole;
 
+pub(in crate::encoding::encode) fn type_alias(
+    encoder: &mut Encoder,
+    alias: &crate::record::PackagePolicyTypeAlias,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.field_by("identity", &alias.identity, encode_nominal)?;
+    encoder.usize_field("lifetime_parameter_count", alias.lifetime_parameter_count)?;
+    encoder.sequence_field("type_parameters", &alias.type_parameters, type_parameter)?;
+    encoder.sequence_field(
+        "conformance_bounds",
+        &alias.conformance_bounds,
+        encode_conformance_bound,
+    )?;
+    encoder.field_by("expansion", &alias.expansion, encode_type_identity)
+}
+
 pub(in crate::encoding::encode) fn trait_shape(
     encoder: &mut Encoder,
     shape: &PackagePolicyTraitShape,
@@ -230,9 +245,7 @@ pub(in crate::encoding::encode) fn data_shape(
     encoder.field("supply", |encoder| {
         match shape.supply {
             language_core::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
-            language_core::DataSupplyMode::BoundaryOpaque => {
-                encoder.tag("boundary_opaque", 1)
-            }
+            language_core::DataSupplyMode::BoundaryOpaque => encoder.tag("boundary_opaque", 1),
         };
         Ok(())
     })?;

@@ -54,7 +54,8 @@ pub(in crate::record) use public_policy::validation;
 pub use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyMachineParameterContract, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+    PackagePolicyTraitShape, PackagePolicyTypeAlias, PackagePolicyTypeParameter,
+    PackagePolicyTypeParameterKind,
 };
 pub(crate) use public_policy::{
     PackagePolicyMachineParameterSignature, PackagePolicyOperatorShape,

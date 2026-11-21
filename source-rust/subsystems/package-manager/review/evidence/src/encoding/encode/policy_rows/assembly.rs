@@ -25,6 +25,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         api.consts.len(),
         api.operators.len(),
         api.data.len(),
+        api.type_aliases.as_deref().map_or(0, <[_]>::len),
         policy.callables.callables.len(),
         policy.terminal_permissions.services.len(),
         representation.declarations.len(),

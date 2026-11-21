@@ -22,16 +22,16 @@ pub(super) fn project(
         consts,
         operators,
         data,
+        type_aliases: _,
     } = api;
-    // The new provider grant format did not change public trait rows.
-    let baseline_schema = baseline_schema.min(crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS);
+    let trait_schema = baseline_schema.min(crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS);
     for value in traits {
         builder.push_versioned(
-            (PackagePolicyRowKind::PublicTrait, baseline_schema),
+            (PackagePolicyRowKind::PublicTrait, trait_schema),
             false,
             false,
             |encoder| encode_nominal(encoder, &value.identity),
-            |encoder| encode::trait_shape(encoder, value, baseline_schema),
+            |encoder| encode::trait_shape(encoder, value, trait_schema),
         )?;
     }
     for value in conformances {
@@ -86,6 +86,23 @@ pub(super) fn project(
             false,
             |encoder| encode_nominal(encoder, &value.identity),
             |encoder| encode::data_shape(encoder, value),
+        )?;
+    }
+    for alias in api
+        .type_aliases_for_version(baseline_schema)
+        .map_err(PackageReviewEncodingError::new)?
+        .into_iter()
+        .flatten()
+    {
+        builder.push_versioned(
+            (
+                PackagePolicyRowKind::PublicTypeAlias,
+                crate::encoding::BASELINE_WITH_TYPE_ALIASES,
+            ),
+            false,
+            false,
+            |encoder| encode_nominal(encoder, &alias.identity),
+            |encoder| encode::type_alias(encoder, alias),
         )?;
     }
     Ok(())

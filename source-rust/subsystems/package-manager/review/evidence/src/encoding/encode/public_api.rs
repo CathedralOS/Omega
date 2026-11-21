@@ -27,5 +27,12 @@ pub(in crate::encoding) fn public_api(
         encoder.sequence(&api.consts, super::values::declarations::encode_const_shape)
     })?;
     encoder.sequence_field("operators", &api.operators, declarations::operator_shape)?;
-    encoder.sequence_field("data", &api.data, declarations::data_shape)
+    encoder.sequence_field("data", &api.data, declarations::data_shape)?;
+    if let Some(aliases) = api
+        .type_aliases_for_version(baseline_schema)
+        .map_err(PackageReviewEncodingError::new)?
+    {
+        encoder.sequence_field("type_aliases", aliases, declarations::type_alias)?;
+    }
+    Ok(())
 }

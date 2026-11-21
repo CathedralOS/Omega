@@ -34,11 +34,13 @@ fn policy(positions: Option<Vec<u32>>) -> PackagePolicyBaseline {
         BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
     };
     requirement.structural_parameter_positions = positions;
+    let mut public_api = api(shape);
+    public_api.type_aliases = (schema_version == PACKAGE_POLICY_BASELINE_VERSION).then(Vec::new);
     PackagePolicyBaseline {
         schema_version,
         package,
         target,
-        public_api: api(shape),
+        public_api,
         callables: PackagePolicyCallables {
             package,
             target,
@@ -164,6 +166,7 @@ fn older_reviews_can_only_make_claims_that_do_not_need_the_missing_positions() {
     let old_rows = rows(&old);
     let mut current = old.clone();
     current.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    current.public_api.type_aliases = Some(Vec::new());
     current.public_api.traits[0].requirements[0].structural_parameter_positions = Some(vec![1, 3]);
     for row in rows(&current) {
         let previous = old_rows
@@ -184,4 +187,64 @@ fn older_reviews_can_only_make_claims_that_do_not_need_the_missing_positions() {
             Err(PackagePolicyRecoveryError::InvalidValue)
         );
     }
+}
+
+#[test]
+fn adding_an_alias_keeps_existing_trait_and_consent_rows_identical() {
+    let mut previous = policy(Some(vec![1, 3]));
+    previous.schema_version = crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS;
+    previous.public_api.type_aliases = None;
+    assert_eq!(recover(&previous), Ok(previous.clone()));
+    previous.schema_version = crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS;
+    assert_eq!(recover(&previous), Ok(previous.clone()));
+    let mut current = previous.clone();
+    current.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    current.public_api.type_aliases = Some(vec![PackagePolicyTypeAlias {
+        identity: identity("Word"),
+        lifetime_parameter_count: 0,
+        type_parameters: Vec::new(),
+        conformance_bounds: Vec::new(),
+        expansion: type_identity(U64),
+    }]);
+    assert_eq!(recover(&current), Ok(current.clone()));
+    let rows = |policy: &PackagePolicyBaseline| {
+        policy
+            .canonical_rows_with_limits(Default::default())
+            .unwrap()
+            .0
+    };
+    let mut before = rows(&previous);
+    let after = rows(&current);
+    let alias = after
+        .iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::PublicTypeAlias)
+        .unwrap();
+    assert!(alias.canonical_text().contains("Word"));
+    let mut narrowed = current.clone();
+    narrowed.public_api.type_aliases.as_mut().unwrap()[0].expansion =
+        type_identity(&U64.replace("u64", "u32"));
+    let changed = rows(&narrowed)
+        .into_iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::PublicTypeAlias)
+        .unwrap();
+    assert_eq!(alias.key_bytes(), changed.key_bytes());
+    assert_ne!(alias.canonical_bytes(), changed.canonical_bytes());
+    assert!(!alias.initial_requires_decision());
+    before.push(alias.clone());
+    before.sort_by(|left, right| {
+        (left.kind(), left.key_bytes()).cmp(&(right.kind(), right.key_bytes()))
+    });
+    assert_eq!(after, before);
+    assert_eq!(
+        previous
+            .acceptance_rows_with_limits(Default::default())
+            .unwrap()
+            .0,
+        current
+            .acceptance_rows_with_limits(Default::default())
+            .unwrap()
+            .0
+    );
+    current.schema_version = crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS;
+    assert!(current.canonical_bytes().is_err());
 }
