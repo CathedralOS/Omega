@@ -2,7 +2,7 @@
 use super::binding_validation::matches_owner;
 use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
-use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::package::callable_policy::validation::service_set;
 use crate::record::validation::{ordered, ordered_by};
 use application_identity::type_identity::normalize_requirement_lifetime_partition;
 use std::cmp::Ordering;
@@ -17,6 +17,7 @@ impl PackagePolicyProviderPlan {
                     .cmp(&other.provider_type_declaration)
             })
             .then_with(|| self.schema_declaration.cmp(&other.schema_declaration))
+            .then_with(|| self.schema_application.cmp(&other.schema_application))
             .then_with(|| self.target.cmp(&other.target))
     }
 }
@@ -26,6 +27,13 @@ impl PackagePolicySelectedProviders {
         ordered_by(&self.plans, PackagePolicyProviderPlan::compare_canonical)?;
         for plan in &self.plans {
             plan.schema_declaration.validate_resolved()?;
+            if let Some(application) = &plan.schema_application
+                && !plan
+                    .schema_declaration
+                    .matches_applied_trait_declaration(&application.canonical)
+            {
+                return Err("provider plan has another service's receiver application");
+            }
             if plan.plan_name.is_empty()
                 || (plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
                     && !(plan.provider_type_declaration.is_none()
@@ -43,10 +51,15 @@ impl PackagePolicySelectedProviders {
             }
             ordered(&plan.grants)?;
             for grant in &plan.grants {
-                if let crate::record::PackageReviewProviderGrantSelectorKind::ProviderApplication(application) = grant
-                    && (plan.provider_type_declaration.is_none() || application.as_ref().is_some_and(String::is_empty))
+                if let crate::record::PackageReviewProviderGrantSelectorKind::ProviderApplication(
+                    application,
+                ) = grant
+                    && (plan.provider_type_declaration.is_none()
+                        || application.as_ref().is_some_and(String::is_empty))
                 {
-                    return Err("a provider application grant needs its provider declaration and complete arguments");
+                    return Err(
+                        "a provider application grant needs its provider declaration and complete arguments",
+                    );
                 }
             }
             super::validate_service_methods(&plan.methods, &plan.schema_declaration, self.target)?;
@@ -117,7 +130,7 @@ impl PackagePolicySelectedProviders {
                 }
                 if let Some(reach) = &row.installation_reach {
                     for declarations in [&reach.upper_bound, &reach.resolved] {
-                        nominal_set(declarations)?;
+                        service_set(declarations)?;
                     }
                     if reach
                         .resolved

@@ -60,7 +60,7 @@ mod publication;
 use publication::PreparedProgram;
 pub use publication::{
     DesignatedOperands, RequirementInvocation, RequirementReview, RequirementReviewMetadata,
-    SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
+    RequirementService, SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
 };
 mod canonical;
 #[cfg(any(test, feature = "test-support"))]

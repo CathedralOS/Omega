@@ -2,6 +2,7 @@
 
 use super::super::identity::nominal;
 use super::Error;
+use crate::encoding::recovery::policy::identity::service;
 use crate::encoding::recovery::policy::reader::Reader;
 use crate::record::PackagePolicySemanticDependency;
 use crate::record::PackagePolicySemanticDependencyConsumer;
@@ -16,7 +17,7 @@ pub(in crate::encoding::recovery) fn dangerous_authority(
 ) -> Result<PackageReviewDangerousAuthority, Error> {
     Ok(PackageReviewDangerousAuthority {
         class: authority_class(reader)?,
-        service: nominal(reader)?,
+        service: service(reader)?,
     })
 }
 
@@ -26,7 +27,7 @@ pub(in crate::encoding::recovery) fn slack(
     Ok(PackageReviewDangerousAuthoritySlack {
         class: authority_class(reader)?,
         callable: nominal(reader)?,
-        service: nominal(reader)?,
+        service: service(reader)?,
     })
 }
 

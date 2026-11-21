@@ -7,6 +7,7 @@ use super::super::{
 };
 use super::Builder;
 use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyRepresentation;
 use crate::record::PackagePolicyRepresentationAvailability;
 use crate::record::PackagePolicyRepresentationDemand;
@@ -35,9 +36,9 @@ pub(super) fn terminal(
             PackagePolicyRowKind::TerminalService,
             false,
             false,
-            |encoder| encode_nominal(encoder, service),
+            |encoder| encode_service(encoder, service),
             |encoder| {
-                encoder.field("service", |encoder| encode_nominal(encoder, service))?;
+                encoder.field("service", |encoder| encode_service(encoder, service))?;
                 encoder.field("static_parameters", |encoder| {
                     encoder.sequence(static_parameters, public_api::type_parameter)
                 })?;
@@ -56,7 +57,7 @@ pub(super) fn terminal(
 
 pub(super) fn terminal_permission(
     builder: &mut Builder,
-    service: &crate::record::PackageReviewNominalIdentity,
+    service: &crate::record::PackageReviewServiceIdentity,
     permission: &crate::record::PackagePolicyTerminalPermission,
 ) -> Result<(), PackageReviewEncodingError> {
     builder.push(
@@ -64,11 +65,11 @@ pub(super) fn terminal_permission(
         true,
         false,
         |encoder| {
-            encode_nominal(encoder, service)?;
+            encode_service(encoder, service)?;
             encode_nominal(encoder, &permission.requirement)
         },
         |encoder| {
-            encoder.field("service", |encoder| encode_nominal(encoder, service))?;
+            encoder.field("service", |encoder| encode_service(encoder, service))?;
             encoder.field_by("permission", permission, terminal_permissions::permission)
         },
     )

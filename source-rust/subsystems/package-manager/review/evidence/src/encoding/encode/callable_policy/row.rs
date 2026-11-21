@@ -12,6 +12,7 @@ use crate::encoding::encode::values::declarations::{
 use crate::encoding::encode::values::effects::encode_installation_reach;
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::encoding::encode::values::identity::encode_nominal;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::encode::values::identity::encode_supply;
 use crate::encoding::encode::values::identity::encode_target_context;
 use crate::record::PackagePolicyCallable;
@@ -107,12 +108,12 @@ pub(in crate::encoding) fn encode_callable(
     encoder.field("declared_service_reach", |encoder| {
         encoder.option(
             callable.declared_service_reach.as_deref(),
-            |encoder, row| encoder.sequence(row, encode_nominal),
+            |encoder, row| encoder.sequence(row, encode_service),
         )
     })?;
     encoder.field("service_reach_dependency", |encoder| {
         encoder.field("concrete", |encoder| {
-            encoder.sequence(&callable.service_reach_dependency.concrete, encode_nominal)
+            encoder.sequence(&callable.service_reach_dependency.concrete, encode_service)
         })?;
         encoder.field("parameters", |encoder| {
             encoder.sequence(
@@ -129,8 +130,8 @@ pub(in crate::encoding) fn encode_callable(
             PackageReviewCheckedServiceReach::NoCheckedBody => encoder.tag("no_checked_body", 0),
             PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } => {
                 encoder.tag("checked_body", 1);
-                encoder.sequence_field("realized", realized, encode_nominal)?;
-                encoder.sequence_field("concrete", concrete, encode_nominal)?;
+                encoder.sequence_field("realized", realized, encode_service)?;
+                encoder.sequence_field("concrete", concrete, encode_service)?;
             }
         }
         Ok(())

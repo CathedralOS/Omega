@@ -11,6 +11,7 @@ use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewPropositionApplication;
 use crate::record::PackageReviewPropositionParameterApplication;
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -65,7 +66,7 @@ impl PackageReviewCallableContract {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewSynchronousInvocation {
     Parameter(u32),
-    Service(PackageReviewNominalIdentity),
+    Service(PackageReviewServiceIdentity),
 }
 
 impl PackageReviewSynchronousInvocation {
@@ -76,7 +77,7 @@ impl PackageReviewSynchronousInvocation {
         }
     }
 
-    pub const fn service(&self) -> Option<&PackageReviewNominalIdentity> {
+    pub const fn service(&self) -> Option<&PackageReviewServiceIdentity> {
         match self {
             Self::Parameter(_) => None,
             Self::Service(service) => Some(service),

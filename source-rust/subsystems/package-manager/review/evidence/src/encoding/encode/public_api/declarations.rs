@@ -22,6 +22,7 @@ use super::signatures::{encode_callable_behavior_tail, encode_callable_shape};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::public_api::Encoder;
 use crate::encoding::encode::public_api::type_parameter;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyConformanceShape;
 use crate::record::PackagePolicyDataShape;
 use crate::record::PackagePolicyDomainShape;

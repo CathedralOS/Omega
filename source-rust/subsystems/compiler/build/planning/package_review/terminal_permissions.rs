@@ -9,12 +9,12 @@ use compiler::SelectedProviderResult;
 use diagnostics::Diagnostic;
 use provider_acceptance::AcceptedSemanticBinding;
 use provider_plans::{ServiceMethod, ServiceSchema};
+use review_evidence::record::PackageReviewTypeIdentity;
 use review_evidence::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
     PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
     PackageReviewSignatureParameter, PackageReviewSynchronousInvocation,
 };
-use review_evidence::record::PackageReviewTypeIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::signature::StateSignature;
 use std::collections::BTreeMap;
@@ -69,11 +69,12 @@ pub(super) fn project(
     let mut services = BTreeMap::new();
     for binding in grants {
         let (symbol, schema) = semantic_bindings::checked_service(input, selected, binding)?;
-        let service = input.nominal(symbol)?;
+        let receiver = input.schema_effect_scope(symbol, &schema)?;
+        let service = input.effect_identity(&receiver)?;
         let (existing_schema, reviewed) = match services.entry(service.clone()) {
             std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::btree_map::Entry::Vacant(entry) => {
-                let declared = project_service(input, selected, target, symbol, &schema)?;
+                let declared = project_service(input, selected, target, &receiver, &schema)?;
                 entry.insert((schema.clone(), declared))
             }
         };
@@ -146,19 +147,19 @@ fn permission_requirement<'a>(
         .ok_or_else(|| unavailable("the explicit receiver permission's requirement"))
 }
 
-fn project_service(
-    input: &PolicySource<'_>,
+fn project_service<'a>(
+    input: &PolicySource<'a>,
     selected: &SelectedProviderResult,
     target: TargetProfile,
-    symbol: symbols::SymbolHandle,
+    receiver: &source_compiler::representations::source_state::trait_definition::AppliedTraitScope<
+        'a,
+    >,
     schema: &ServiceSchema,
 ) -> Result<PackagePolicyTerminalService, Vec<Diagnostic>> {
     let source = input.typed();
-    let slot = source
-        .trait_definition_by_symbol(symbol)
-        .filter(|slot| slot.is_boundary)
-        .ok_or_else(|| unavailable("a checked boundary service for receiver permissions"))?;
-    let service = input.nominal(symbol)?;
+    let slot = receiver.declaration;
+    let symbol = slot.symbol;
+    let service = input.effect_identity(receiver)?;
     let mut signatures = BTreeMap::new();
     for signature in source.trait_machine_signatures(slot) {
         let identity = source.trait_requirement_callable_identity_text(slot, signature);
@@ -203,7 +204,7 @@ fn project_service(
                 "the same checked signature for every permission-service method",
             ));
         }
-        let authority = service_authority(input, signature, method)?;
+        let authority = service_authority(input, receiver, signature, method)?;
         let scope = service_scope.method(input, signature.symbol)?;
         let reviewed_signature = declaration_signature(
             input,
@@ -216,7 +217,7 @@ fn project_service(
             method,
             schema,
             requirement,
-            service.clone(),
+            service.declaration.clone(),
             reviewed_signature,
             authority,
         );
@@ -269,8 +270,11 @@ fn project_service(
 
 /// A receiver may have no executable call or bodyless form for a foreign service.
 /// Its accepted binding still names the complete checked service declaration.
-fn service_authority(
-    input: &PolicySource<'_>,
+fn service_authority<'a>(
+    input: &PolicySource<'a>,
+    receiver: &source_compiler::representations::source_state::trait_definition::AppliedTraitScope<
+        'a,
+    >,
     signature: &StateSignature,
     method: &ServiceMethod,
 ) -> Result<PackagePolicyServiceAuthority, Vec<Diagnostic>> {
@@ -284,20 +288,26 @@ fn service_authority(
             "the checked progress contract of a permission-service method",
         ));
     }
-    let mut reach = source
+    let mut reach = Vec::new();
+    for &id in source
         .service_reach_rows
         .services(signature.service_reach_row)
-        .iter()
-        .map(|&id| {
-            let service = source.service_reaches.definition(id).ok_or_else(|| {
-                unavailable("the exact service declaration named by a boundary method")
-            })?;
-            if service.application.is_some() {
-                return Err(unavailable("an applied service identity in package review"));
-            }
-            input.nominal(service.symbol)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    {
+        let mut members = Vec::new();
+        source
+            .service_effect_scope(id, Some(receiver))
+            .map_err(unavailable)?
+            .try_visit(source, &mut |scope| {
+                if scope.declaration.is_boundary {
+                    members.push(scope.clone());
+                }
+                Ok(())
+            })
+            .map_err(unavailable)?;
+        for member in members {
+            reach.push(input.effect_identity(&member)?);
+        }
+    }
     reach.sort_unstable();
     reach.dedup();
     let mut synchronous = invocations::declared_signature_invocations(source, signature)
@@ -307,11 +317,13 @@ fn service_authority(
             InvocationTarget::Parameter(position) => {
                 Ok(PackageReviewSynchronousInvocation::Parameter(position))
             }
-            InvocationTarget::AppliedService(_) => Err(unavailable(
-                "an applied synchronous service identity in package review",
-            )),
             InvocationTarget::Service(service) => input
-                .nominal(service)
+                .unapplied_service(service)
+                .map(PackageReviewSynchronousInvocation::Service),
+            InvocationTarget::AppliedService(id) => source
+                .service_effect_scope(id, Some(receiver))
+                .map_err(unavailable)
+                .and_then(|scope| input.effect_identity(&scope))
                 .map(PackageReviewSynchronousInvocation::Service),
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -348,8 +360,8 @@ fn declaration_signature(
         schema_lifetime_parameter_count: lifetime_parameter_count,
         schema_lifetime_arguments: (0..lifetime_parameter_count).collect(),
         application_lifetime_parameter_count: 0,
-        requirement_arguments: Vec::new(),
-        requirement_lifetime_arguments: Vec::new(),
+        requirement_arguments: schema_arguments.to_vec(),
+        requirement_lifetime_arguments: (0..lifetime_parameter_count).collect(),
         requirement_lifetime_parameter_count: signature
             .lifetime_parameters
             .len()

@@ -1,5 +1,6 @@
 // Typed callable recovery under one bounded policy reader.
 
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,
     PackagePolicyCallables, PackagePolicyServiceReachDependency, PackageReviewCallableSupply,
@@ -27,7 +28,7 @@ impl PackagePolicyCallables {
         CALLABLE_POLICY_MAGIC,
         PACKAGE_CALLABLE_POLICY_VERSION,
         policy,
-        validate,
+        validate, also crate::encoding::CALLABLE_POLICY_WITH_NOMINAL_SERVICES,
     );
 }
 
@@ -75,22 +76,22 @@ pub(in crate::encoding::recovery) fn callable(
             })
         })?,
         contracts: reader.sequence(4, callable_contract)?,
-        declared_service_reach: reader.option(|reader| reader.sequence(41, nominal))?,
+        declared_service_reach: reader.option(|reader| reader.sequence(41, service))?,
         service_reach_dependency: PackagePolicyServiceReachDependency {
-            concrete: reader.sequence(41, nominal)?,
+            concrete: reader.sequence(41, service)?,
             parameters: reader.sequence(4, |reader| reader.u32())?,
         },
         checked_service_reach: super::tag!(reader => {
             0 => PackageReviewCheckedServiceReach::NoCheckedBody,
             1 => PackageReviewCheckedServiceReach::CheckedBody {
-                realized: reader.sequence(41, nominal)?,
-                concrete: reader.sequence(41, nominal)?,
+                realized: reader.sequence(41, service)?,
+                concrete: reader.sequence(41, service)?,
             },
         }),
         unresolved_installation_reaches: reader.sequence(49, |reader| {
             Ok(PackageReviewInstallationReach {
                 requirement: nominal(reader)?,
-                upper_bound: reader.sequence(41, nominal)?,
+                upper_bound: reader.sequence(41, service)?,
             })
         })?,
         declared_synchronous_invocations: reader

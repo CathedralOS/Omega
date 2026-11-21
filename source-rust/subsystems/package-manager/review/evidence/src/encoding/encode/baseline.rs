@@ -1,5 +1,6 @@
 // Canonical wire framing and resource budget for the composed package policy baseline.
 
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::{
     PackagePolicyBaseline, PackagePolicySemanticDependency,
     PackagePolicySemanticDependencyConsumer, PackageReviewSemanticDependencyExposure,
@@ -45,6 +46,8 @@ pub(in crate::encoding) fn policy(
     encoder: &mut Encoder,
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
+    encoder.applied_services =
+        value.schema_version >= crate::encoding::BASELINE_WITH_APPLIED_SERVICES;
     encoder.package_identity_field("package", value.package)?;
     encoder.string_field("target", value.target.identity().as_str())?;
     encoder.field("public_api", |encoder| {
@@ -96,7 +99,7 @@ pub(in crate::encoding) fn policy(
         encoder.sequence(&value.assumed_bindings, |encoder, row| encoder.string(row))
     })?;
     encoder.field("service_audits", |encoder| {
-        encoder.sequence(&value.service_audits, encode_nominal)
+        encoder.sequence(&value.service_audits, encode_service)
     })?;
     encoder.sequence_field(
         "component_assumptions",

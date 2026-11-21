@@ -21,22 +21,32 @@ pub(super) struct ProviderChoice {
     pub method_count: usize,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct ChoiceKey<'a> {
+    pub provider_package: Option<PackageKeyIdentity>,
+    pub provider_identity: &'a str,
+    pub service_package: Option<PackageKeyIdentity>,
+    pub service_declaration: &'a str,
+    pub service_application: Option<&'a str>,
+}
+
 impl ProviderChoice {
-    pub fn key(
-        &self,
-    ) -> (
-        Option<PackageKeyIdentity>,
-        &str,
-        Option<PackageKeyIdentity>,
-        &str,
-    ) {
-        (
-            self.package,
-            &self.provider,
-            self.schema.declaration.trait_package_identity,
-            self.schema
-                .identity_text(self.schema.declaration.trait_name),
-        )
+    pub fn key(&self) -> ChoiceKey<'_> {
+        let schema = &self.schema.declaration;
+        ChoiceKey {
+            provider_package: self.package,
+            provider_identity: &self.provider,
+            service_package: schema.trait_package_identity,
+            service_declaration: schema.identity_text(schema.trait_name),
+            service_application: schema
+                .receiver_applications
+                .first()
+                .filter(|root| {
+                    !root.argument_identities.is_empty()
+                        || !root.lifetime_argument_identities.is_empty()
+                })
+                .and_then(|_| schema.root_application_identity()),
+        }
     }
 }
 

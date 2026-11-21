@@ -283,6 +283,25 @@ impl PartialEq for ServiceSurface {
 impl Eq for ServiceSurface {}
 
 impl ServiceSurface {
+    /// The exact declaring receivers of this method in the selected surface.
+    pub fn declaring_receivers<'a>(
+        &'a self,
+        method: &'a ServiceMethod,
+    ) -> impl Iterator<Item = &'a ServiceReceiverApplication> {
+        let requirement = self.identity_text(method.requirement_identity);
+        self.receiver_applications
+            .iter()
+            .filter(move |application| {
+                self.identity_text(application.trait_name) == method.requirement_owner
+                    && application.trait_package_identity
+                        == method.requirement_owner_package_identity
+                    && application
+                        .requirement_identities
+                        .iter()
+                        .any(|identity| self.identity_text(*identity) == requirement)
+            })
+    }
+
     pub fn matches_receiving_application(
         &self,
         requirement: &str,
@@ -295,17 +314,7 @@ impl ServiceSurface {
         else {
             return false;
         };
-        let views = || {
-            self.receiver_applications.iter().filter(|application| {
-                self.identity_text(application.trait_name) == method.requirement_owner
-                    && application.trait_package_identity
-                        == method.requirement_owner_package_identity
-                    && application
-                        .requirement_identities
-                        .iter()
-                        .any(|identity| self.identity_text(*identity) == requirement)
-            })
-        };
+        let views = || self.declaring_receivers(method);
         if !self.receiver_applications.is_empty() && views().next().is_none() {
             return false;
         }

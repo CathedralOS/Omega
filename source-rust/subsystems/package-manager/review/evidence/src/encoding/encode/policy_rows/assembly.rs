@@ -6,6 +6,7 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::policy_rows::components;
 use crate::encoding::encode::policy_rows::declarations;
 use crate::encoding::encode::policy_rows::rejected;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;
@@ -161,8 +162,8 @@ pub(super) fn project(
             PackagePolicyRowKind::ServiceAudit,
             true,
             true,
-            |encoder| encode_nominal(encoder, service),
-            |encoder| encode_nominal(encoder, service),
+            |encoder| encode_service(encoder, service),
+            |encoder| encode_service(encoder, service),
         )?;
     }
     component_assumptions_rows(builder, component_assumptions)?;
@@ -199,7 +200,10 @@ pub(super) fn project(
         crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
     };
     builder.push_versioned(
-        (PackagePolicyRowKind::SelectedProviderAssociation, provider_schema),
+        (
+            PackagePolicyRowKind::SelectedProviderAssociation,
+            provider_schema,
+        ),
         false,
         false,
         |_| Ok(()),

@@ -1,6 +1,7 @@
 // Canonical encoding for semantic dependency tags, dangerous authority classes, and slack rows.
 
 use crate::encoding::encode::values::identity::encode_nominal;
+use crate::encoding::encode::values::identity::encode_service;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::{
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
@@ -37,7 +38,7 @@ pub(crate) fn encode_dangerous_authority(
     authority: &PackageReviewDangerousAuthority,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("class", authority.class, encode_authority_class)?;
-    encoder.field_by("service", &authority.service, encode_nominal)
+    encoder.field_by("service", &authority.service, encode_service)
 }
 
 pub(crate) fn encode_dangerous_authority_slack(
@@ -46,5 +47,5 @@ pub(crate) fn encode_dangerous_authority_slack(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("class", slack.class, encode_authority_class)?;
     encoder.field_by("callable", &slack.callable, encode_nominal)?;
-    encoder.field("service", |encoder| encode_nominal(encoder, &slack.service))
+    encoder.field("service", |encoder| encode_service(encoder, &slack.service))
 }

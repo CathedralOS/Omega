@@ -11,6 +11,7 @@ use super::super::{
     signatures::conformance_bound,
 };
 use super::signatures::type_parameter;
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackageReviewBorrowOrigin, PackageReviewParameterQualification,
@@ -54,7 +55,7 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         },
         contracts: reader.sequence(4, callable_contract)?,
         published_crash: reader.option(|reader| reader.sequence(9, crash_route))?,
-        service_reach: reader.option(|reader| reader.sequence(41, nominal))?,
+        service_reach: reader.option(|reader| reader.sequence(41, service))?,
         service_reach_is_installation_bound: reader.boolean()?,
         synchronous_invocations: reader.sequence(5, synchronous_invocation)?,
         suspends: reader.boolean()?,

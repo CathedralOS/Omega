@@ -7,6 +7,7 @@ use super::{
     reader::Reader,
     selected_providers::service_method,
 };
+use crate::encoding::recovery::policy::identity::service;
 use crate::encoding::{
     PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION, TERMINAL_PERMISSION_POLICY_MAGIC,
 };
@@ -20,7 +21,7 @@ impl PackagePolicyTerminalPermissions {
         TERMINAL_PERMISSION_POLICY_MAGIC,
         PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
         policy,
-        validate,
+        validate, also crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES,
     );
 }
 
@@ -32,7 +33,7 @@ pub(in crate::encoding::recovery) fn policy(
         target: super::selected_providers::target(reader)?,
         services: reader.sequence(69, |reader| {
             Ok(PackagePolicyTerminalService {
-                service: nominal(reader)?,
+                service: service(reader)?,
                 static_parameters: reader.sequence(3, type_parameter)?,
                 lifetime_parameter_count: reader.u32()?,
                 methods: reader.sequence(1, service_method)?,

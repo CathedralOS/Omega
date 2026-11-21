@@ -10,6 +10,7 @@
 // the reachable checked machine closure without exposing private helper
 // identities.
 
+use crate::record::PackageReviewServiceIdentity;
 mod conformances;
 mod getters;
 mod reach_dependency;
@@ -66,7 +67,7 @@ pub struct PackagePolicyCallable {
     pub operator_realizations: Vec<PackageReviewOperatorRealization>,
     pub requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
     pub contracts: Vec<PackageReviewCallableContract>,
-    pub declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
+    pub declared_service_reach: Option<Vec<PackageReviewServiceIdentity>>,
     pub service_reach_dependency: PackagePolicyServiceReachDependency,
     pub checked_service_reach: PackageReviewCheckedServiceReach,
     pub unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,

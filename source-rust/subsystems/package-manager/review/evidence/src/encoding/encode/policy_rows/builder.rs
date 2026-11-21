@@ -148,6 +148,13 @@ impl Builder {
             &value,
         )?;
         let (binary_length, text_length, remaining) = measure.row_metrics()?;
+        // Only a row that writes an application changes its format. A stable
+        // finding key still identifies the same declaration if its ceiling changes.
+        let baseline_schema = if measure.encoded_applied_service {
+            crate::encoding::BASELINE_WITH_APPLIED_SERVICES
+        } else {
+            baseline_schema
+        };
         self.charge_elements(remaining);
         self.charge_bytes(
             binary_length

@@ -9,6 +9,8 @@ mod scalars;
 pub(in crate::encoding) mod text;
 
 pub(crate) struct Encoder<'text> {
+    pub(in crate::encoding) applied_services: bool,
+    pub(in crate::encoding) encoded_applied_service: bool,
     output: Vec<u8>,
     text: Option<text::Writer<'text>>,
     membership: Option<&'text mut dyn super::membership::Observer>,
@@ -26,6 +28,8 @@ pub(crate) struct Encoder<'text> {
 impl<'text> Encoder<'text> {
     pub(crate) fn bounded(maximum_bytes: usize) -> Self {
         Self {
+            applied_services: true,
+            encoded_applied_service: false,
             output: Vec::new(),
             text: None,
             membership: None,
@@ -56,11 +60,27 @@ impl<'text> Encoder<'text> {
         row: &T,
         policy: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        Self::versioned_policy_bytes(magic, version, version, row, policy)
+    }
+
+    /// Select the oldest exact format for the contents in the same encoder pass.
+    pub(crate) fn versioned_policy_bytes<T>(
+        magic: &[u8],
+        nominal_version: u16,
+        applied_version: u16,
+        row: &T,
+        policy: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<Vec<u8>, PackageReviewEncodingError> {
         let mut encoder = Self::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(magic);
-        encoder.u16(version);
+        encoder.u16(nominal_version);
         policy(&mut encoder, row)?;
-        encoder.finish()
+        let has_applied_service = encoder.encoded_applied_service;
+        let mut bytes = encoder.finish()?;
+        if has_applied_service {
+            bytes[magic.len()..magic.len() + 2].copy_from_slice(&applied_version.to_le_bytes());
+        }
+        Ok(bytes)
     }
 
     pub(super) fn policy_preallocated(

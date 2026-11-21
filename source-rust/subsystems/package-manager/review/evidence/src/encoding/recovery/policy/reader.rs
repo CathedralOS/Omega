@@ -4,6 +4,7 @@
 use super::{Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage};
 
 pub(in crate::encoding::recovery) struct Reader<'a> {
+    pub(super) applied_services: bool,
     remaining: &'a [u8],
     limits: PackagePolicyRecoveryLimits,
     remaining_elements: usize,
@@ -21,6 +22,7 @@ impl<'a> Reader<'a> {
             return Err(Error::InputTooLarge);
         }
         Ok(Self {
+            applied_services: true,
             remaining: bytes,
             remaining_elements: limits.maximum_sequence_elements,
             remaining_owned_bytes: limits.maximum_owned_bytes,

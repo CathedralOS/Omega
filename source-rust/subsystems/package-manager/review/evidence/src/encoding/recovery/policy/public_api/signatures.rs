@@ -9,6 +9,7 @@ use super::super::{
     reader::Reader,
     signatures::data_properties,
 };
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
     PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
@@ -69,7 +70,7 @@ pub(in crate::encoding::recovery) fn machine_signature(
         return_type: reader.option(type_identity)?,
         contracts: reader.sequence(4, callable_contract)?,
         published_crash: reader.sequence(9, crash_route)?,
-        service_reach: reader.sequence(41, nominal)?,
+        service_reach: reader.sequence(41, service)?,
         service_reach_is_installation_bound: reader.boolean()?,
         synchronous_invocations: reader.sequence(5, synchronous_invocation)?,
         suspends: reader.boolean()?,
