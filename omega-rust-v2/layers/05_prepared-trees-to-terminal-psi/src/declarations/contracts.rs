@@ -139,18 +139,12 @@ pub(crate) fn lower_predicate(
             }
             let formals = &file.nodes[params].children;
             let scope = match owner {
-                ClauseOwner::Theorem(_, bounds, Some(slot)) => {
-                    let locals = bounds
-                        .get(slot)
-                        .and_then(|bound| file.child(bound.node, NodeKind::Params))
-                        .ok_or_else(|| unsupported("mathematical hypothesis lacks its own formals"))?;
-                    super::mathematics::TermScope::Hypothesis {
-                        theorem: formals,
-                        local: &file.nodes[locals].children,
-                        slot,
-                        result: hypothesis_result.map(|(_, ty)| ty),
-                    }
-                }
+                ClauseOwner::Theorem(_, bounds, Some(slot)) => super::mathematics::TermScope::Hypothesis {
+                    theorem: formals,
+                    bounds,
+                    slot,
+                    result: hypothesis_result.map(|(_, ty)| ty),
+                },
                 _ => super::mathematics::TermScope::Parameters(formals),
             };
             let term = super::mathematics::lower_term(tree, node, scope, guarantee.filter(|_| node == root).map(|sig| &sig.machine))?;

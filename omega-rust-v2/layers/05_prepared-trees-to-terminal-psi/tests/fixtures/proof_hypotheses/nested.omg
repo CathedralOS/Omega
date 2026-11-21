@@ -1,0 +1,15 @@
+boundary let trusted(value:u8):core\Strict<0>;
+machine theorem<machine Peer,machine Top>(x:u8)
+    requires machine Top(floor:u8)
+        requires machine Middle(x:u8)
+            requires machine Leaf(z:u8)
+                requires trusted(floor)
+                ensures z > x;
+            ensures x > floor
+            ensures Leaf::ensures(x);
+        ensures floor > x;
+    requires machine Peer(y:u8) ensures y > 0;
+    requires x != 0 {}
+machine lemma(y:u8) requires y != 0 ensures y > 0 {}
+machine other(y:u8) requires y != 0 ensures y > 1 {}
+machine run(x:u8) requires x != 0 { theorem::<lemma,other>(x); }

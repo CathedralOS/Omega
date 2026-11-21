@@ -487,3 +487,45 @@ fn a_hypothesis_without_a_matching_theorem_binder_stops_at_its_name() {
         [HypothesisParameter { hypothesis: 0, index: 0 }, Integer(0.into()), Apply(GreaterThan)]
     );
 }
+
+#[test]
+fn nested_hypotheses_bind_lexical_subjects_and_take_evidence_only_at_the_roots() {
+    let source = include_str!("fixtures/proof_hypotheses/nested.omg");
+    let files = [("proof.omg", source)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let mut package = sources::lower_prepared(&prepared, &files).unwrap();
+    let [theorem] = package.theorems.as_slice() else { panic!("expected one proof-only theorem") };
+    assert_eq!(theorem.hypotheses.len(), 4);
+    // Locate each published row by its typed declaration. Its position is the
+    // identity used by other Psi rows; generic binders have a separate order.
+    let position = |name: &str| {
+        let declaration = prepared.typed().logical_hypotheses.iter().find(|row| row.name == name).unwrap();
+        theorem.hypotheses.iter().position(|row| row.site == declaration.site).unwrap()
+    };
+    let (top, middle, leaf, peer) = (position("Top"), position("Middle"), position("Leaf"), position("Peer"));
+    let row = |index: usize| &theorem.hypotheses[index];
+    assert_eq!((row(top).parent, row(middle).parent, row(leaf).parent, row(peer).parent), (None, Some(top), Some(middle), None));
+    assert_eq!(theorem.binders, [TheoremBinder::Hypothesis(peer), TheoremBinder::Hypothesis(top)]);
+    // Middle.x shadows theorem.x. Leaf captures Middle.x and Top.floor,
+    // while Top's own clause still refers to the formal of the theorem.
+    let parameter = |hypothesis| HypothesisParameter { hypothesis, index: 0 };
+    assert_eq!(row(leaf).conclusions[0].predicate, [parameter(leaf), parameter(middle), Apply(GreaterThan)]);
+    assert_eq!(row(middle).conclusions[0].predicate, [parameter(middle), parameter(top), Apply(GreaterThan)]);
+    assert_eq!(row(middle).conclusions[1].predicate, [parameter(middle), HypothesisGuarantee { hypothesis: leaf, operand_count: 1 }]);
+    assert_eq!(row(top).conclusions[0].predicate, [parameter(top), Formal(0), Apply(GreaterThan)]);
+    let [MathematicalTerm(term)] = row(leaf).premises[0].predicate.as_slice() else { panic!("expected a strict premise") };
+    assert_eq!(term[1], MathematicalStep::HypothesisParameter { hypothesis: top, index: 0 });
+
+    let run = package.machines.iter().position(|m| m.declaration.path == "run").unwrap();
+    let citations = psi_handoff_consumer::theorem_citations(&package, &package.machines[run].body).unwrap();
+    let [citation] = citations.as_slice() else { panic!("expected one erased theorem citation") };
+    let evidence: Vec<_> = citation.evidence.iter().map(|(index, machine)| (*index, machine.declaration.path.as_str())).collect();
+    assert_eq!(evidence, [(peer, "lemma"), (top, "other")]);
+    assert!(!package.machines.iter().any(|m| m.declaration == theorem.declaration));
+
+    // The nested premise belongs to its parent. Even a valid machine citation
+    // at this argument cannot turn it into a separately supplied theorem binder.
+    package.theorems[0].binders[1] = TheoremBinder::Hypothesis(leaf);
+    assert!(psi_handoff_consumer::theorem_citations(&package, &package.machines[run].body).is_none());
+}

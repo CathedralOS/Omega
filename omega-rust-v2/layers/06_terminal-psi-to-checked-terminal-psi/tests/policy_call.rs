@@ -7,6 +7,7 @@ use omega_resolver::{ParsedSource, StageSource};
 
 const OPEN: &str = include_str!("../../04_typed-trees-to-prepared-trees/tests/fixtures/access_policy/selected.omg");
 const EMPTY: &str = include_str!("../../05_prepared-trees-to-terminal-psi/tests/fixtures/policy_templates/only_empty.omg");
+const ZEROED: &str = include_str!("../../05_prepared-trees-to-terminal-psi/tests/fixtures/policy_templates/dotdot.omg");
 
 fn selected(text: &str) -> SelectedPolicyDefinition {
     let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
@@ -47,6 +48,7 @@ fn selected_source_cases_supply_different_constructor_arguments() {
     for (source, case, routes, call_index) in [
         (OPEN, "Unrestricted", None, 1),
         (EMPTY, "Only", Some("Only::routes"), 2),
+        (ZEROED, "Only", Some("Only::routes"), 1),
     ] {
         let selection = selected(source);
         let checked = check_selected_policy_call(&selection, &constructor).unwrap();
@@ -59,6 +61,96 @@ fn selected_source_cases_supply_different_constructor_arguments() {
             routes.map(|name| format!(r"language\core\Issuance::{name}"))
         );
         assert_eq!(checked.schema_loan(), call_index..=call_index);
+    }
+}
+
+#[test]
+fn zeroed_routes_require_the_selected_case_field_and_its_exact_applied_type() {
+    let (unit, id) = toolchain();
+    let constructor = check_record_constructor(&unit, &id).unwrap();
+    let open = selected(OPEN);
+    let TemplateStep::Construct(unrestricted) = &open.plan.body[0] else {
+        unreachable!()
+    };
+    let check_mutation = |mutate: &dyn Fn(&mut omega_psi::TemplateConstruct)| {
+        let mut selection = selected(ZEROED);
+        let TemplateStep::Construct(issuance) = &mut selection.plan.body[0] else {
+            unreachable!()
+        };
+        mutate(issuance);
+        check_selected_policy_call(&selection, &constructor).unwrap_err()
+    };
+    let invalid_payload = "unsupported issuance payload or incorrect field ownership";
+    assert_eq!(
+        check_mutation(&|issuance| issuance.declaration = unrestricted.declaration.clone()),
+        invalid_payload
+    );
+    assert_eq!(
+        check_mutation(&|issuance| {
+            let [(field, _)] = issuance.fields.as_mut_slice() else { unreachable!() };
+            std::sync::Arc::make_mut(&mut field.name).package = "impostor".into();
+        }),
+        invalid_payload
+    );
+    assert_eq!(
+        check_mutation(&|issuance| {
+            let [(_, TemplateOperand::Zero(ty))] = issuance.fields.as_mut_slice() else {
+                unreachable!()
+            };
+            let TypeExpressionStep::GenericParameter { index, .. } = &mut ty.0[0] else {
+                unreachable!()
+            };
+            *index += 1;
+        }),
+        invalid_payload
+    );
+}
+
+#[test]
+fn matching_zeroed_field_types_still_require_a_slice_of_declared_elements() {
+    type TypeMutation = fn(&mut omega_psi::TypeExpression);
+    let mutations: [(TypeMutation, &str); 2] = [
+        (
+            |ty| {
+                assert_eq!(ty.0.pop(), Some(TypeExpressionStep::Slice));
+            },
+            "unsupported issuance payload or incorrect field ownership",
+        ),
+        (
+            |ty| {
+                let [
+                    _,
+                    TypeExpressionStep::Named { declaration, .. },
+                    TypeExpressionStep::Slice,
+                ] = ty.0.as_mut_slice()
+                else {
+                    unreachable!()
+                };
+                std::sync::Arc::make_mut(&mut declaration.name).package = "impostor".into();
+            },
+            "constructor requires one matching data declaration",
+        ),
+    ];
+    for (mutate, expected) in mutations {
+        let (mut unit, id) = toolchain();
+        let mut selection = selected(ZEROED);
+        let TemplateStep::Construct(issuance) = &mut selection.plan.body[0] else {
+            unreachable!()
+        };
+        let [(field, TemplateOperand::Zero(ty))] = issuance.fields.as_mut_slice() else {
+            unreachable!()
+        };
+        let declared = unit
+            .data_templates
+            .iter_mut()
+            .flat_map(|data| &mut data.cases)
+            .flat_map(|case| &mut case.fields)
+            .find(|schema| &schema.declaration == field)
+            .unwrap();
+        mutate(ty);
+        mutate(&mut declared.ty);
+        let constructor = check_record_constructor(&unit, &id).unwrap();
+        assert_eq!(check_selected_policy_call(&selection, &constructor).unwrap_err(), expected);
     }
 }
 

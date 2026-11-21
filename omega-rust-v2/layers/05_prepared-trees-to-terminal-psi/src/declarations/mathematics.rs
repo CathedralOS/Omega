@@ -114,7 +114,7 @@ pub(super) enum TermScope<'a> {
     Parameters(&'a [usize]),
     Hypothesis {
         theorem: &'a [usize],
-        local: &'a [usize],
+        bounds: &'a [super::hypotheses::Bound<'a>],
         slot: usize,
         /// Only in a conclusion over a mathematical result.
         result: Option<&'a ValueType>,
@@ -308,16 +308,16 @@ pub(super) fn lower_term(
             }
             (NodeKind::PathExpression, children, None, None) if dependencies.is_empty() && (children.is_empty() || is_callee) => {
                 let step = match resolved.symbol(node) {
-                    Some(Symbol::Binding { binder_node, .. }) => match &scope {
+                    Some(Symbol::Binding { binder_node, span, .. }) => match &scope {
                         TermScope::Parameters(parameters) => MathematicalStep::Parameter(
                             parameters
                                 .iter()
                                 .position(|p| p == binder_node)
                                 .ok_or_else(|| error("mathematical term refers to an unsupported binding"))?,
                         ),
-                        TermScope::Hypothesis { theorem, local, slot, .. } => {
-                            if let Some(index) = local.iter().position(|p| p == binder_node) {
-                                MathematicalStep::HypothesisParameter { hypothesis: *slot, index }
+                        TermScope::Hypothesis { theorem, bounds, slot, .. } => {
+                            if let Some((hypothesis, index, _)) = super::hypotheses::scoped_parameter(bounds, Some(*slot), span) {
+                                MathematicalStep::HypothesisParameter { hypothesis, index }
                             } else {
                                 MathematicalStep::Parameter(
                                     theorem

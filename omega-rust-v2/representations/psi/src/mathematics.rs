@@ -27,6 +27,7 @@ pub struct LogicalTheorem {
     /// The ordered generic telescope.
     pub binders: Vec<TheoremBinder>,
     pub parameters: Vec<TypeExpression>,
+    /// Only roots are supplied at a citation. A nested row is a premise of its parent.
     pub hypotheses: Vec<LogicalHypothesis>,
     pub requires: Vec<ContractClause>,
     pub ensures: Vec<ContractClause>,
@@ -155,6 +156,9 @@ pub enum TheoremBinder {
 /// Clauses name its parameters with `PredicateStep::HypothesisParameter`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LogicalHypothesis {
+    /// Index of the enclosing hypothesis in the theorem's table. Its parameters
+    /// and those of every ancestor are in scope here. A root has no parent.
+    pub parent: Option<usize>,
     pub site: Site,
     pub parameters: Vec<TypeExpression>,
     /// Optional mathematical result of this premise, never a machine return slot.
