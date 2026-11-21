@@ -100,6 +100,8 @@ impl Expectation {
 }
 
 pub const MISSING_IMPORT: &str = "L2\tmain.omg:4:30\tunresolved name A";
+/// The historical sample imports `m\a` by its filename. A filename names no namespace component.
+pub const FILE_IMPORT: &str = "L2\tm/b.omg:1:5\tunavailable import m\\a";
 
 #[derive(Clone, Copy)]
 pub enum Check {
@@ -269,7 +271,7 @@ pub const CASES: &[Case] = &[
         files: IMPORTS,
         main_override: None,
         configuration: FREESTANDING,
-        expectation: Expectation::TrackCompatibility(Check::NestedField),
+        expectation: Expectation::MustRefuse(FILE_IMPORT),
     },
     Case {
         id: "direct-imports-v2",

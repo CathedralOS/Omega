@@ -1215,6 +1215,54 @@ fn package_local_declaration_identity_survives_a_filename_change() {
     assert!(before.definitions().eq(after.definitions()));
 }
 
+/// `m/b.omg` of the historical `direct_file_imports` sample, byte for byte.
+const IMPORTS_FILE_A: &str = "use m\\a;\n\npublic data B { value: A; }\n";
+
+/// A filename is not a namespace component, so `use m\a` cannot name the file `m/a.omg`.
+/// The historical `direct_file_imports` sample spells its imports that way.
+#[test]
+fn an_import_names_a_declaration_not_the_file_that_declares_it() {
+    let a = ("app", "m/a.omg", "public data A { value: i32; }");
+    let b = ("app", "m/b.omg", "public data B { value: A; }");
+    let main = "use m\\B; use m\\A; machine result(item: B, inner: A) {}";
+    let stage = run(&[a, b, ("app", "main.omg", main)], &[]).unwrap();
+    // A sibling in `m/` sees `A` without an import, and `main.omg` selects both by declaration name.
+    assert_eq!(selected(&stage, "m/b.omg", b.2, "A"), ["app\\m\\A"]);
+    for (spelling, expected) in [("m\\B", "app\\m\\B"), ("m\\A", "app\\m\\A")] {
+        assert_eq!(selected(&stage, "main.omg", main, spelling), [expected]);
+    }
+
+    let error = run(&[a, ("app", "m/b.omg", IMPORTS_FILE_A), ("app", "main.omg", main)], &[]).unwrap_err();
+    assert_refusal(
+        &error,
+        NameErrorKind::UnavailableImport,
+        "app",
+        "m/b.omg",
+        span_of(IMPORTS_FILE_A, "m\\a"),
+        "unavailable import m\\a",
+    );
+    let by_file = "use m\\b; machine result(item: B) {}";
+    let error = run(&[a, b, ("app", "main.omg", by_file)], &[]).unwrap_err();
+    assert_refusal(
+        &error,
+        NameErrorKind::UnavailableImport,
+        "app",
+        "main.omg",
+        span_of(by_file, "m\\b"),
+        "unavailable import m\\b",
+    );
+
+    // The same import succeeds once `m` declares something named `a`.
+    let named = ("app", "m/a.omg", "public data A { value: i32; } public machine a() {}");
+    let files = [
+        named,
+        ("app", "m/b.omg", IMPORTS_FILE_A),
+        ("app", "main.omg", main),
+    ];
+    let stage = run(&files, &[]).unwrap();
+    assert_eq!(selected(&stage, "m/b.omg", IMPORTS_FILE_A, "m\\a"), ["app\\m\\a"]);
+}
+
 #[test]
 fn qualified_members_keep_the_application_on_the_owner_segment() {
     let text = "data Packet<const N: u32> { data Header {} } const Size: u32 = 8; machine parse(h: Packet<Size>::Header) {}";
