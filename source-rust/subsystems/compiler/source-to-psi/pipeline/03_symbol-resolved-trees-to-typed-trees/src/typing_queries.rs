@@ -451,25 +451,6 @@ pub(crate) fn declared_callable_value_type(
             if !program.symbols.symbols().nodes().is_valid(binder) {
                 return Err(crate::typing::unavailable_judgment("contract value binder"));
             }
-            let static_value = if program.symbols.get(binder).kind == SymbolKind::TypeParameter {
-                program
-                    .declaration_type_parameters(owner)
-                    .iter()
-                    .find_map(|parameter| {
-                        use crate::source_state::data::TypeParameterKind;
-                        match parameter.kind {
-                            TypeParameterKind::Const { type_reference }
-                            | TypeParameterKind::Value { type_reference }
-                                if parameter.symbol == binder =>
-                            {
-                                Some(type_reference)
-                            }
-                            _ => None,
-                        }
-                    })
-            } else {
-                None
-            };
             let mut declarations = states
                 .into_iter()
                 .flatten()
@@ -482,8 +463,7 @@ pub(crate) fn declared_callable_value_type(
                         .iter()
                         .filter(move |parameter| parameter.symbol == binder)
                         .map(|parameter| parameter.type_reference)
-                }))
-                .chain(static_value);
+                }));
             let reference = declarations
                 .next()
                 .ok_or_else(|| crate::typing::unavailable_judgment("contract value declaration"))?;
