@@ -111,6 +111,9 @@ impl Program<'_> {
                 .service_reaches
                 .definition(id)
                 .ok_or("public requirement lost the declaration of its checked service")?;
+            if definition.application.is_some() {
+                return Err("public requirement review cannot encode an applied service identity");
+            }
             self.typed
                 .trait_definition_by_symbol(definition.symbol)
                 .filter(|declaration| declaration.is_boundary)
