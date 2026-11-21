@@ -559,7 +559,11 @@ fn incoming_location(
             ));
         }
     };
-    Ok(StructuralSourceLocation::IncomingBorrowedPointer { location })
+    Ok(if opaque_pointer.is_some() {
+        StructuralSourceLocation::IncomingOpaquePointer { location }
+    } else {
+        StructuralSourceLocation::IncomingBorrowedPointer { location }
+    })
 }
 
 fn indirect_pointer_supports_copy(pointer: &IndirectPointerLocation) -> bool {
@@ -590,7 +594,7 @@ mod incoming_tests {
                 byte_size: 8,
             }],
         };
-        let source = StructuralSourceLocation::IncomingBorrowedPointer {
+        let source = StructuralSourceLocation::IncomingOpaquePointer {
             location: IndirectPointerLocation::Register(register),
         };
         let opaque = terminal_psi::StructuralTypeShape::Opaque;

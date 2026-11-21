@@ -20298,18 +20298,23 @@ mod structural {
                     _ => Err(invalid()),
                 };
             }
+            let (location, opaque) = match location {
+                StructuralSourceLocation::IncomingBorrowedPointer { location } => (location, false),
+                StructuralSourceLocation::IncomingOpaquePointer { location } => (location, true),
+                _ => return Err(invalid()),
+            };
             let scalar_descriptor =
                 placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;
-            if !(placement.shape.class == calling_conventions::ValueClass::BorrowedReference
-                || scalar_descriptor
-                    && placement.shape
-                        == calling_conventions::ValueShape::borrowed_scalar_reference())
-            {
+            let correct_shape = if opaque {
+                placement.shape == calling_conventions::ValueShape::integer(8, 8)
+            } else {
+                placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+                    || (scalar_descriptor
+                        && placement.shape == calling_conventions::ValueShape::borrowed_scalar_reference())
+            };
+            if !correct_shape {
                 return Err(invalid());
             }
-            let StructuralSourceLocation::IncomingBorrowedPointer { location } = location else {
-                return Err(invalid());
-            };
             match (placement.locations.as_slice(), location) {
                 (
                     [
@@ -20345,7 +20350,7 @@ mod structural {
                         },
                     ],
                     actual,
-                ) if *pointer == actual
+                ) if !opaque && *pointer == actual
                     && *byte_size == placement.shape.byte_size
                     && *alignment == placement.shape.alignment
                     && match pointer {
@@ -20530,6 +20535,21 @@ mod structural {
 
             fn borrowed(location: IndirectPointerLocation) -> StructuralSourceLocation {
                 StructuralSourceLocation::IncomingBorrowedPointer { location }
+            }
+
+            #[test]
+            fn opaque_home_replay_requires_its_exact_pointer_and_frame_evidence() {
+                let register = MachineRegister::X86Rdx;
+                let incoming = IndirectPointerLocation::Register(register);
+                let opaque = StructuralSourceLocation::IncomingOpaquePointer { location: incoming };
+                let mut placement = ValuePlacement {
+                    shape: ValueShape::integer(8, 8),
+                    locations: vec![ValueLocation::Register { register, value_byte_offset: 0, byte_size: 8 }],
+                };
+                assert!(validate_incoming_location(StructuralAccess::SharedBorrow, &placement, opaque).is_ok());
+                assert!(validate_incoming_location(StructuralAccess::SharedBorrow, &placement, borrowed(incoming)).is_err());
+                placement.shape = ValueShape::borrowed_reference(16, 8);
+                assert!(validate_incoming_location(StructuralAccess::SharedBorrow, &placement, opaque).is_err());
             }
 
             #[test]
