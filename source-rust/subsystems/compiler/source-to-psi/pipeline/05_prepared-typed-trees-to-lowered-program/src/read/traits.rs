@@ -806,7 +806,7 @@ impl<'program> Program<'program> {
                     .push(super::FixedContract::Interface(machine));
                 SourceImplementation::Machine(machine)
             };
-            let scope = self.applied_scope(context, &application, required)?;
+            let scope = self.applied_scope(context, &application)?;
             let signature = self.static_requirement_signature(
                 context,
                 required,
@@ -932,34 +932,23 @@ impl<'program> Program<'program> {
         &mut self,
         context: MachineId,
         application: &AppliedTraitScope<'_>,
-        signature: &StateSignature,
     ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
         let typed = self.typed;
         let outer = std::mem::take(&mut self.scope);
-        let view = application.type_reference(typed, signature.return_type);
-        let result = (|| {
-            for (parameter, _) in &application.substitutions {
-                let actual = view.parameter_argument(typed, *parameter).ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "trait substitution lost its exact supplying frame",
-                    )
-                })?;
-                let value = self.value_type(context, actual.reference)?;
-                if let Some((_, previous)) = self
-                    .scope
-                    .iter_mut()
-                    .find(|(symbol, _)| symbol == parameter)
-                {
-                    *previous = value;
-                } else {
-                    self.scope.push((*parameter, value));
-                }
-            }
-            Ok(self.scope.clone())
-        })();
+        // A non-generic conformance supplies its receiver arguments together,
+        // independently of which parameters its chosen method uses.
+        let scope = typed
+            .trait_type_parameters(application.declaration)
+            .iter()
+            .filter(|binder| binder.kind == crate::source_state::data::TypeParameterKind::Type)
+            .map(|binder| {
+                let actual = application.parameter_argument(typed, binder.symbol);
+                self.value_type(context, actual)
+                    .map(|value| (binder.symbol, value))
+            })
+            .collect();
         self.scope = outer;
-        result
+        scope
     }
 }
 
