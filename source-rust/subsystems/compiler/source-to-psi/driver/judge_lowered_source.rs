@@ -183,7 +183,7 @@ impl SourcePublication {
 fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x46; 32]).unwrap();
     let library = crate::test_support::fixture_repository::root().join("source/library");
-    let judge = |body: &str| {
+    let judge = |body: &str, entry: &str| {
         // Both implementations compute the same result at the sole call.
         // Only the first establishes observe's guarantee for every input.
         let source = r"
@@ -201,7 +201,7 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
             &library, &source, package,
         )
         .unwrap();
-        let entry = typed.realized_machine_named("main").unwrap().symbol;
+        let entry = typed.realized_machine_named(entry).unwrap().symbol;
         let prepared = preparation::prepare_typed_trees(typed, &[]).unwrap();
         judge_terminal_source(
             prepared,
@@ -219,11 +219,21 @@ fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
             terminal_codec::TerminalPublication::Invocation,
         )
     };
-    judge("value").unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
-    let refused = judge("2.0f32").err().expect("false wrapper guarantee");
+    judge("value", "main").unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
+    let refused = judge("2.0f32", "main")
+        .err()
+        .expect("false wrapper guarantee");
     assert!(
         diagnostics::join_messages(&refused)
             .contains("float meaning wrapper does not establish its result identity"),
         "{refused:?}"
+    );
+    // The same valid declaration cannot be chosen as an executable entry.
+    let runtime = judge("value", "observe")
+        .err()
+        .expect("runtime proof result");
+    assert!(
+        diagnostics::join_messages(&runtime).contains("proof-only FloatMeaning has no runtime ABI"),
+        "{runtime:?}"
     );
 }

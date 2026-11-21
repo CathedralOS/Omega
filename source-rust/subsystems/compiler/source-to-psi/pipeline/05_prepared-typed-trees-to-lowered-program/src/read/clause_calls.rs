@@ -18,8 +18,10 @@ argument terms.
 Only a machine whose meaning is exactly one body expression the clause reader
 itself accepts is unfolded, so the call adds no operation a clause could not
 already state. The callee must be closed (no type parameters or static
-arguments), take plain by-value scalar parameters, declare no contracts or
-effects, and end in a single value expression. A callee with `requires`
+arguments), take plain by-value scalar parameters and end in a single value
+expression. Scalar helpers declare no contracts. Proof-only IEEE views may
+declare result guarantees that their checked body establishes for every
+input (`float_meaning`). A callee with `requires`
 would owe them at the call, which this reader does not yet discharge, so it
 is refused, as is any recursion through unfolding. Anything else stays
 refused at the clause that calls it.
