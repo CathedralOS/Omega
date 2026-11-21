@@ -96,6 +96,18 @@ pub(super) enum ResultTerm {
     Absent(&'static str),
 }
 
+/// A supplied value or checked literal already forms. More complex terms
+/// need their formation obligations retained with the owning proposition.
+pub(super) fn needs_call_argument_formation(term: &ScalarTerm) -> bool {
+    !matches!(
+        term,
+        ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_)
+    )
+}
+
 impl Program<'_> {
     /// An applied body keeps its declaration's clause trees. Both a whole
     /// scalar result and a projected result must name that exact owner.
@@ -376,15 +388,7 @@ impl Program<'_> {
         let mut pending = bound
             .into_iter()
             .map(|(_, term)| term)
-            .filter(|term| {
-                !matches!(
-                    term,
-                    ScalarTerm::Value { .. }
-                        | ScalarTerm::Boolean(_)
-                        | ScalarTerm::Integer { .. }
-                        | ScalarTerm::IeeeFloatLiteral(_)
-                )
-            })
+            .filter(needs_call_argument_formation)
             .peekable();
         if pending.peek().is_none() {
             return Ok(());

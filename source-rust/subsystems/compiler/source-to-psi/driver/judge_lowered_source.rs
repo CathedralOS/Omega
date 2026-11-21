@@ -178,3 +178,52 @@ impl SourcePublication {
         checked_program_to_psi::SourcePublication::from_judgment(judgment, optimizations).map(Self)
     }
 }
+
+#[test]
+fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x46; 32]).unwrap();
+    let library = crate::test_support::fixture_repository::root().join("source/library");
+    let judge = |body: &str| {
+        // Both implementations compute the same result at the sole call.
+        // Only the first establishes observe's guarantee for every input.
+        let source = r"
+            use omega\language\core\FloatMeaning;
+            use omega\language\core\F32::meaning;
+            machine observe(value: f32) -> FloatMeaning
+            ensures core\Identity::<FloatMeaning>(result, F32::meaning(value))
+            { F32::meaning(WRAPPER_BODY) }
+            machine main(value: f32) -> f32
+            ensures core\Identity::<FloatMeaning>(observe(2.0f32), F32::meaning(2.0f32))
+            { value }
+        "
+        .replace("WRAPPER_BODY", body);
+        let typed = crate::test_support::schema_customer_source::actual_library_source(
+            &library, &source, package,
+        )
+        .unwrap();
+        let entry = typed.realized_machine_named("main").unwrap().symbol;
+        let prepared = preparation::prepare_typed_trees(typed, &[]).unwrap();
+        judge_terminal_source(
+            prepared,
+            TerminalSourceCompilation {
+                entries: &[entry],
+                subjects: &[Some(package)],
+                purpose: source_provenance::DependencyScope::Product,
+                declaration_metadata: &[],
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    judge("value").unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
+    let refused = judge("2.0f32").err().expect("false wrapper guarantee");
+    assert!(
+        diagnostics::join_messages(&refused)
+            .contains("float meaning wrapper does not establish its result identity"),
+        "{refused:?}"
+    );
+}
