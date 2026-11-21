@@ -3392,7 +3392,7 @@
       "kind": "producer",
       "meaning": "Admit selected native supply, verify source body correspondence and installation reach, then retain the entry nomination for the exact module and profile.",
       "producer": "03 native program planning",
-      "signature": "454007acf5e8f3bf835db1a5b3ab484b5f7e7965b8cac72be2f0beff625fdb48"
+      "signature": "187ca5a66c66c52506e7224e991c37d2ac57770c0785601bdf054d40f000d26e"
     },
     {
       "consumers": [
@@ -3412,9 +3412,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/execution.rs",
       "item": "function:selected_boundary_implementations#1",
       "kind": "checker",
-      "meaning": "Reconstruct and check the targetâ€™s actual checked implementations, including duplicate or competing boundary choices.",
+      "meaning": "Reconstruct locally executed checked bindings from fused provider plans; independently imported requirements keep their separately admitted calls.",
       "producer": "target-bound program planning",
-      "signature": "9c2e67bbb3d51ca164a231094162eaae7c93dfcf392d861e93ea83e609a0508f"
+      "signature": "5cfecdd135a34bbd2b3327b5d5a1c5743d4ef868deaa3e8e752d7ead8cb6e515"
     },
     {
       "consumers": [

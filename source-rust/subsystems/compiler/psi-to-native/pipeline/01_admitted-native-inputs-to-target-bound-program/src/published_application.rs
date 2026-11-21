@@ -39,7 +39,6 @@ fn prepare_published_application<Publisher>(
     let profile = execution
         .target_profile()
         .ok_or_else(|| refuse("saved Psi native selection has no deployment target".into()))?;
-    let declarations = realization.provider_declarations();
     let selection = PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = publication
         .entry_schema_custody(selection.schema_declaration())
@@ -51,7 +50,7 @@ fn prepare_published_application<Publisher>(
             .find(|binding| binding.role() == role)
     });
     let entry = selection.settle_calling_plans(requester, binding, inputs.package_permissions)?;
-    let calls = crate::execution::selected_boundary_implementations(module, declarations)?
+    let calls = crate::execution::selected_boundary_implementations(module, realization)?
         .into_iter()
         .map(|body| (body.boundary, body.machine));
     let root = module

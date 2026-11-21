@@ -86,8 +86,7 @@ pub fn plan_target_execution(
         module, logical, inputs,
     ))
     .map_err(Supply)?;
-    let selected = selected_boundary_implementations(module, realization.provider_declarations())
-        .map_err(Admission)?;
+    let selected = selected_boundary_implementations(module, &realization).map_err(Admission)?;
     if selected
         .windows(2)
         .any(|pair| pair[0].boundary == pair[1].boundary)
@@ -107,13 +106,21 @@ pub fn plan_target_execution(
     SelectedExecution::from_realization(module, Some(target), realization).map_err(Admission)
 }
 
-/// Resolve the checked rows of the selected provider declarations against this module.
+/// Resolve executable checked bodies supplied by this compilation. Independent calls
+/// reach the imported requirement, whose actual implementation belongs to its supplier.
 pub(super) fn selected_boundary_implementations(
     module: &terminal_psi::TerminalModule,
-    declarations: &[provider_plans::ProviderPlan],
+    realization: &crate::SelectedProviderRealization,
 ) -> Result<Vec<CallableBoundaryImplementation>, Vec<Diagnostic>> {
     let mut bindings = Vec::new();
-    for declaration in declarations {
+    for (declaration, mode) in realization
+        .provider_declarations()
+        .iter()
+        .zip(realization.composition_modes())
+    {
+        if mode == semantic_vocabulary::source_selections::CompositionMode::Independent {
+            continue;
+        }
         if !declaration.rows.iter().any(|row| {
             matches!(
                 row.binding,
