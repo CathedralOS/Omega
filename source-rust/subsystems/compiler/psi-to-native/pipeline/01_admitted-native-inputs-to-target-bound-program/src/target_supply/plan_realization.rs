@@ -25,7 +25,8 @@ pub struct TargetSupplyExecutionInputs {
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    pub terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
+    pub terminal_authority_permissions:
+        Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -164,31 +165,58 @@ fn checked_plan(
     let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
     attach_calling(&mut schema_value, &choice.target, calling)?;
     let mut identities = ProviderIdentityTable::default();
-    let rows = schema
-        .surface
-        .methods
-        .iter()
-        .zip(&logical.rows)
-        .map(|(method, row)| ProviderPlanRow {
+    let mut rows = Vec::with_capacity(logical.rows.len());
+    let mut row_realizations = Vec::with_capacity(logical.rows.len());
+    let mut row_executions = Vec::with_capacity(logical.rows.len());
+    for (method, row) in schema.surface.methods.iter().zip(&logical.rows) {
+        let (binding, declaration, execution) = match &row.realization {
+            terminal_semantics::logical_providers::LogicalRealization::Checked(_) => (
+                ProviderBinding::CheckedAdapter {
+                    machine_identity: identities.intern(&row.machine),
+                    machine_package_identity: row.machine_package,
+                },
+                None,
+                None,
+            ),
+            terminal_semantics::logical_providers::LogicalRealization::External(position) => {
+                let supply = module
+                    .interfaces
+                    .external_providers
+                    .get(*position)
+                    .ok_or("logical provider lost its checked external supply")?;
+                let execution =
+                    provider_correspondence::external_providers::canonical_external_execution(
+                        supply,
+                        &choice.target,
+                    )?
+                    .ok_or("selected external provider has no canonical execution")?;
+                (
+                    ProviderBinding::CompilerIntrinsic {
+                        machine: row.machine.clone(),
+                    },
+                    Some(text(module, supply.realization.machine.identity())?.to_owned()),
+                    Some(execution),
+                )
+            }
+        };
+        rows.push(ProviderPlanRow {
             method: method.name.clone(),
             requirement_identity: identities.intern(&row.requirement),
             declared_requirement_identity: identities.intern(&row.requirement),
             calling_signature: None,
             requirement_lifetime_partition: Vec::new(),
             admitted_same_stack_bytes: 0,
-            binding: ProviderBinding::CheckedAdapter {
-                machine_identity: identities.intern(&row.machine),
-                machine_package_identity: row.machine_package,
-            },
-        })
-        .collect::<Vec<_>>();
+            binding,
+        });
+        row_realizations.push(declaration);
+        row_executions.push(execution);
+    }
     let provider_application = choice
         .provider_application
         .map(|identity| text(module, identity))
         .transpose()?
         .map(|identity| identities.intern(identity))
         .unwrap_or_default();
-    let count = rows.len();
     let plan = ProviderPlan {
         name: crate::satisfies_plan_name(
             &choice.target,
@@ -197,7 +225,7 @@ fn checked_plan(
         ),
         provider_type: provider.to_owned(),
         provider_declaration: Some(owner.to_owned()),
-        row_numeric_realizations: vec![None; count],
+        row_numeric_realizations: row_realizations,
         provider_application,
         provider_type_package_identity: choice.provider_package,
         target: choice.target.clone(),
@@ -214,7 +242,7 @@ fn checked_plan(
         schema_declaration: choice.schema_declaration,
         schema_application: choice.schema_application,
         declaration: plan,
-        row_executions: vec![None; count],
+        row_executions,
     })
 }
 

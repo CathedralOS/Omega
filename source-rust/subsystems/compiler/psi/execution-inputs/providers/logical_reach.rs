@@ -140,7 +140,13 @@ pub fn close_providers(
                 continue;
             }
             for row in &provider.rows {
-                for &position in &row.candidate_positions {
+                let terminal_semantics::logical_providers::LogicalRealization::Checked(positions) =
+                    &row.realization
+                else {
+                    // Sealed physical operations have no Omega body to traverse.
+                    continue;
+                };
+                for &position in positions {
                     let candidate = &module.interfaces.provider_candidates[position];
                     next.push(CallableBoundaryImplementation {
                         boundary: candidate.boundary,

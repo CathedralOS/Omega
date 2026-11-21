@@ -1,6 +1,8 @@
 //! Cross-target provider authority on the public source and saved-Psi paths.
 #[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
+#[path = "provider_publication/fixed_image.rs"]
+mod fixed_image;
 #[path = "provider_publication/provider_grants.rs"]
 mod provider_grants;
 
