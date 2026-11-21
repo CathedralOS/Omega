@@ -88,8 +88,14 @@ fn applied_service_rejects_a_const_from_the_wrong_integer_carrier() {
 fn applied_service_invocation_preserves_a_lexically_shadowing_parameter() {
     // An explicit application cannot turn a callback parameter into a service grant.
     let errors = crate::try_resolve_fixture(
-        "boundary trait Sensor<const Id: u64> {} machine shadow(Sensor: machine()) invokes Sensor<17u64> {}",
-    ).err().expect("arguments on the shadowing callback");
+        r#"
+        boundary trait Sensor<const Id: u64> {}
+        data Callback = machine() reaches none crashes none;
+        machine shadow(Sensor: Callback) invokes Sensor<17u64> {}
+        "#,
+    )
+    .err()
+    .expect("arguments on the shadowing callback");
     assert!(
         errors
             .iter()
