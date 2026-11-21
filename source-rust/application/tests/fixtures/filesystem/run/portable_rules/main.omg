@@ -72,7 +72,7 @@ machine main(context: @mut Main) reaches ProcessExit + DirectoryEnumeration + Fi
         }
     }
     machine intact_len(context: @mut Main, meta: Metadata) {
-        transition meta.len == 5 { true -> block oversized_read_all(context), _ -> done(5) }
+        transition meta.length == 5 { true -> block oversized_read_all(context), _ -> done(5) }
     }
     machine oversized_read_all(context: @mut Main) {
         let mut buffer: [u8; 4];
