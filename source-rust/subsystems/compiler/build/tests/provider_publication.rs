@@ -973,7 +973,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
             .unwrap();
         let reach = callable.declared_service_reach.as_deref().unwrap();
         assert_eq!(reach.len(), 1);
-        assert_eq!(reach[0].path, "ProcessOutput");
+        assert_eq!(reach[0].path(), "ProcessOutput");
         assert_eq!(
             checked.policy.dangerous_capabilities.len(),
             usize::from(critical)
@@ -1111,12 +1111,13 @@ public boundary trait TimeHost {
             .iter()
             .any(|callable| callable.identity() == frequency)
     );
+    assert!(service.service.application.is_none());
     let host = checked
         .policy
         .public_api
         .traits
         .iter()
-        .find(|item| item.identity == service.service)
+        .find(|item| item.identity == service.service.declaration)
         .unwrap();
     assert!(
         host.requirements

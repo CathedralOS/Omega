@@ -77,8 +77,7 @@ impl Program<'_> {
         machine: Option<MachineId>,
     ) -> Result<RequirementReviewMetadata, String> {
         let (owner, source) = definition;
-        if !owner.type_parameters.is_empty()
-            || !owner.lifetime_parameters.is_empty()
+        if !owner.lifetime_parameters.is_empty()
             || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()
             || !source.native_callback_parameters.is_empty()
