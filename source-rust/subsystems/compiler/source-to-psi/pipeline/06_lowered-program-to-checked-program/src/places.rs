@@ -8986,7 +8986,17 @@ machine entry(plan: @mutable Plan, index: u64) -> u64 requires index < 2 {
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
-        storage.graph = &cyclic_graph;
+        let storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &cyclic_graph,
+            &unseeded,
+            &types,
+            &mut references,
+        )
+        .expect("the unseeded graph has its own incoming bindings");
         for mut cycle in [storage.budget(), storage.initialization_budget()] {
             assert_eq!(
                 storage
