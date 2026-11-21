@@ -1135,6 +1135,24 @@ invokes ObjectiveC
         "{missing:?}"
     );
 
+    // The callee asks for a shared loan, but a write through the caller's
+    // mutable input invalidates its original value.
+    let overwritten = source
+        .replace(
+            "entry<const Count: u64>(title: @[u8;",
+            "entry<const Count: u64>(title: @mut [u8;",
+        )
+        .replace(
+            "    ObjectiveC::send_byte_string::<Count>",
+            "    title[Count - 1] = 1u8;\n    ObjectiveC::send_byte_string::<Count>",
+        );
+    let stale = check(&overwritten);
+    assert!(
+        matches!(stale, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{stale:?}"
+    );
+
     let unrelated = source
         .replace(
             "entry<const Count: u64>",

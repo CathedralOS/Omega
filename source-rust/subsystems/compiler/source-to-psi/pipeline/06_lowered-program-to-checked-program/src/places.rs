@@ -6818,6 +6818,56 @@ impl<'a> AtCall<'_, 'a> {
         }
     }
 
+    /// An inline cell of a shared caller input retains its entry contents.
+    /// A clause may name that cell even if no operation captures its index.
+    fn shared_input_read(
+        &self,
+        actual: &Lineage,
+        path: &[semantic_vocabulary::ScalarReadProjection],
+        ty: ScalarType,
+    ) -> Option<ScalarTerm> {
+        use semantic_vocabulary::ScalarReadProjection as Projection;
+        let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &self.storage.lowered.structural_parameters,
+            actual.root,
+        )?;
+        if input.access != StructuralAccess::SharedBorrow
+            || path
+                .iter()
+                .any(|step| matches!(step, Projection::Referent | Projection::Extent))
+        {
+            return None;
+        }
+        let mut rebased = Vec::with_capacity(actual.segments.len() + path.len());
+        for segment in &actual.segments {
+            rebased.push(match *segment {
+                Segment::Field(field) => {
+                    Projection::from(CanonicalStructuralPathSegment::Field(field))
+                }
+                Segment::Case(case) => Projection::from(CanonicalStructuralPathSegment::Case(case)),
+                Segment::FixedIndex(index) => {
+                    Projection::from(CanonicalStructuralPathSegment::FixedIndex(index))
+                }
+                Segment::RuntimeIndex { selector } => Projection::Index(Box::new(
+                    ScalarTerm::value(selector, self.tables.values.get(selector)?.scalar_type),
+                )),
+                _ => return None,
+            });
+        }
+        rebased.extend_from_slice(path);
+        let mut fixed_storage = true;
+        let actual_type = terminal_semantics::structural_read_type_with_extents(
+            self.storage.types.iter(),
+            input.structural_type,
+            &rebased,
+            |_, extent| fixed_storage &= extent.is_some(),
+        )?;
+        if actual_type != ty || !fixed_storage {
+            return None;
+        }
+        ScalarTerm::structural_read(actual.root, rebased, ty).ok()
+    }
+
     /// Find the source named by the operation that established this actual.
     /// This only nominates a formal path. Its current contents are still
     /// checked at the actual, so copies do not carry facts across overwrites.
@@ -7308,8 +7358,8 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
                 .ok_or(crate::checking::Unbound::Unsupported(
                     "indexed contract has no structural formal",
                 ))?;
-        let actual = self.readable_actual(formal)?;
-        let actual_type = self.storage.projection_type(actual, self.concerns);
+        let actual = self.readable_actual(formal)?.clone();
+        let actual_type = self.storage.projection_type(&actual, self.concerns);
         if actual_type != Some(formal.structural_type)
             && !actual_type
                 .zip(self.extent_owner)
@@ -7330,8 +7380,14 @@ impl crate::checking::Bindings for AtCall<'_, '_> {
                 "indexed contract formal and actual need corresponding element projections",
             ));
         }
-        let leaf = indexed_place(self.storage, self.tables, actual.clone(), path)?;
-        self.held_at(&leaf).observation(&leaf, ty)
+        let observed = indexed_place(self.storage, self.tables, actual.clone(), path)
+            .and_then(|leaf| self.held_at(&leaf).observation(&leaf, ty));
+        match observed {
+            Err(error @ crate::checking::Unbound::Unproved(_)) => {
+                self.shared_input_read(&actual, path, ty).ok_or(error)
+            }
+            other => other,
+        }
     }
 
     fn field_alternatives(
