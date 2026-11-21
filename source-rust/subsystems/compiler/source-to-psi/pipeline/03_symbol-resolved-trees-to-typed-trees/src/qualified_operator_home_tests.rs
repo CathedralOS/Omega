@@ -1012,7 +1012,7 @@ fn named_constants_select_operators_with_their_declared_type() {
         ("units/domains.omg", DOMAIN),
         ("operator.omg", &declaration),
         (
-            "readings.omg",
+            "readings/values.omg",
             r"use units;
               machine read() -> u32 in Distance { 4u32 as +Distance }
               public const SAMPLE: u32 in Distance = read();",
