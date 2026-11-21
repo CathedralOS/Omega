@@ -23,7 +23,10 @@ pub(crate) use candidate::{
     CandidateReview, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
     PackageSourceBindings, review_resolved_packages,
 };
-pub use candidate::{CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError};
+pub use candidate::{
+    CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError,
+    PackageSourceVerificationPhase,
+};
 pub(crate) use compare::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
