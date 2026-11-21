@@ -835,12 +835,13 @@ impl<'a> PolicySource<'a> {
             ExpressionNode::Call(call) if call.layout_query.is_some() => {
                 use language_core::data_layout_queries::DataLayoutQueryKind;
                 use review_evidence::record::PackageReviewLayoutQueryKind;
-                let query = call.layout_query.as_ref().expect("matched a layout query");
-                let operand = &query.operand;
+                use source_compiler::representations::source_state::expression::DataLayoutQueryRequest;
+                let Some(DataLayoutQueryRequest::Type { kind, operand }) = &call.layout_query else {
+                    return Err(unavailable("the fixed type operand of a public layout observation"));
+                };
                 if !operand.type_reference.is_valid()
                     || operand.const_literal.is_some()
                     || operand.evidence_projection.is_some()
-                    || query.nonempty_view.is_valid()
                     || call.receiver.is_valid()
                     || !call.arguments.is_empty()
                 {
@@ -849,7 +850,7 @@ impl<'a> PolicySource<'a> {
                     ));
                 }
                 Expression::LayoutQuery {
-                    kind: match query.kind {
+                    kind: match kind {
                         DataLayoutQueryKind::Size => PackageReviewLayoutQueryKind::Size,
                         DataLayoutQueryKind::Alignment => PackageReviewLayoutQueryKind::Alignment,
                     },

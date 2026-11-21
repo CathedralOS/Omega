@@ -1028,7 +1028,7 @@ impl<'a> Storage<'a> {
                 if produced.is_some()
                     || crate::checking::result_equation(
                         self.module,
-                        self.machine,
+                        self.lowered,
                         operation,
                         value_types,
                     )?

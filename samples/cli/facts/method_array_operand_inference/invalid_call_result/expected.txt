@@ -1,1 +1,1 @@
-argument `bytes` for state `last` expects `&[u8; 4]`
+expects an array with 4 elements but the supplied array has 3
