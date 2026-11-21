@@ -41,8 +41,9 @@ The parameter example calls the machine it receives. The forwarding and nested
 machine examples pass it to another machine before calling it. The named
 constant example subtracts `TARGET` from the result. The match example selects a
 machine in each branch and calls the result after the branches meet. Each invalid
-example passes 39 where the callable requires 40. The Build-selected example still
-uses the older syntax.
+example passes 39 where the callable requires 40. In the Build-selected example,
+`HostedCombine::probe` forwards each callback to `invoke_selected`. The caller
+checks that the two callbacks wrote 60 and 40 to its two output variables.
 
 ## Places and controls
 
@@ -56,7 +57,7 @@ uses the older syntax.
 | const_name | [program](const_name/main.omg) | [reject](invalid_const_name/main.omg) | [reject](const_name/controls/uninitialized_selector/main.omg) |
 | other_state | [program](other_state/main.omg) | [reject](invalid_other_state/main.omg) | [reject](other_state/controls/uninitialized_selector/main.omg) |
 | other_machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) | [reject](other_machine/controls/uninitialized_selector/main.omg) |
-| target_body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) | [reject](target_body/controls/uninitialized_selector/main.omg) |
+| target_body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) | — |
 
 The [root](main.omg) uses the local production. Every positive binds all four
 required hosted targets and expects exit 0. The target place also retains the
