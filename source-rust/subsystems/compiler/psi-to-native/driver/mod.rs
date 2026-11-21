@@ -79,26 +79,16 @@ fn produce(
     let proposal = retained.native_realization_proposal();
     let optimizations = proposal.post_terminal_optimizations().selections();
     let exports = image::components::bind(proposal, &execution, request.suppliers)?;
-    let mut calls = image::components::emit(
-        proposal,
-        &request.terminal_authority_policy,
-        &request.terminal_authority_permission_policy,
-        request.scalar_receipts,
-        request.retain_native_stage_inputs,
-        &exports,
-    )?;
-    let component_originals = calls
-        .iter_mut()
-        .filter_map(|call| {
-            call.originals
-                .take()
-                .map(|inputs| (*call.product.locator().slot_commitment(), inputs))
-        })
-        .collect();
-    let component_products = calls
-        .iter()
-        .map(|call| std::sync::Arc::clone(&call.product))
-        .collect();
+    let mut components = image::components::Emission {
+        suppliers: request.suppliers,
+        authority: &request.terminal_authority_policy,
+        permissions: &request.terminal_authority_permission_policy,
+        scalar_receipts: request.scalar_receipts,
+        retain_stage_inputs: request.retain_native_stage_inputs,
+        products: Vec::new(),
+        originals: Vec::new(),
+    };
+    let calls = image::components::emit(&mut components, proposal, &exports)?;
     let observation =
         NativePipelineObservation::new(proposal.target_profile(), NativePipelineUnit::Application);
     observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
@@ -133,7 +123,7 @@ fn produce(
         })?;
         let provisions = provisions.map_adapters(runtime::foreign_adapters::compile);
         observation.complete();
-        return Ok(Produced::Runtime(provisions, component_products));
+        return Ok(Produced::Runtime(provisions, components.products));
     }
     let planning = image::plan_callables::NativeProgramPlanningRequest {
         proposal,
@@ -152,9 +142,9 @@ fn produce(
         &observation,
     )?;
     observation.enter(NativePipelineStage::ImageEmission);
-    image.components = component_products;
+    image.components = components.products;
     let stage_replay = stage_replay
-        .with_components(component_originals)
+        .with_components(components.originals)
         .map_err(|why| vec![why])?;
     let image = image.emit()?;
     observation.complete();

@@ -16,13 +16,20 @@ impl<'host> HostContext<'host> {
     pub fn prepare_component<'artifact>(
         &self,
         component: &'artifact published_runtime_input::RuntimeComponent,
+        provisions: &'artifact published_runtime_input::RuntimeExecutionProvisions,
         x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
         memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
     ) -> Result<
         terminal_interpreter::TerminalComponentBinding<'host, 'artifact>,
         TerminalRuntimeError,
     > {
-        crate::execution::components::prepare(component, self, x86_flags, memory_ordering)
+        crate::execution::components::prepare(
+            component,
+            provisions,
+            self,
+            x86_flags,
+            memory_ordering,
+        )
     }
 
     pub fn output(&self) -> Result<(Vec<u8>, Vec<u8>), TerminalRuntimeError> {

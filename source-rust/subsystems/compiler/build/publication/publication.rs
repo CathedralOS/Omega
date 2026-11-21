@@ -175,7 +175,7 @@ fn publish_flat_native_files<'file>(
     let mut staged = Vec::with_capacity(components.len().saturating_mul(2) + 2);
     let mut paths = Vec::with_capacity(components.len());
     let mut export_index = String::from("omega-native-components-v1\n");
-    for component in components {
+    for (index, component) in components.iter().enumerate() {
         if component.locator().target().native_target() != target {
             return Err("component file target differs from its selected process root".into());
         }
@@ -183,6 +183,17 @@ fn publish_flat_native_files<'file>(
         component
             .verify_contents(component.image().image().contents())
             .map_err(str::to_owned)?;
+        paths.push(path.clone());
+        // Two receivers can bind the same export. Each retains its own receipt for one file.
+        if let Some(previous) = components[..index]
+            .iter()
+            .find(|other| other.locator() == component.locator())
+        {
+            if previous.description() != component.description() {
+                return Err("receivers disagree on a shared component publication".into());
+            }
+            continue;
+        }
         staged.push(stage_exact_bytes(
             &path,
             component.image().image().contents(),
@@ -203,7 +214,6 @@ fn publish_flat_native_files<'file>(
             component.locator().image_filename(),
             component.locator().export_symbol(),
         ));
-        paths.push(path);
     }
     staged.push(stage_exact_bytes(
         &directory.join("omega-components.tsv"),

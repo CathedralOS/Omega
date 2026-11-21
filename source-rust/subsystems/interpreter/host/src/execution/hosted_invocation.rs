@@ -18,11 +18,11 @@ pub(super) fn execute_installed(
     let request = host.into_request();
     let component_products = request
         .provisions
-        .map(|provisions| provisions.component_products())
+        .map(|provisions| provisions.root_components())
         .transpose()
         .map_err(TerminalRuntimeError::InvalidProvision)?
         .unwrap_or_default();
-    for component in component_products {
+    for component in &component_products {
         installation = installation
             .with_component_provider(component.selection())
             .map_err(TerminalRuntimeError::Requirements)?;
@@ -106,8 +106,17 @@ pub(super) fn execute_installed(
         &imports,
     )?;
     for component in component_products {
-        let binding =
-            host.prepare_component(component, request.x86_flags, request.memory_ordering)?;
+        let provisions = request
+            .provisions
+            .ok_or(TerminalRuntimeError::InvalidProvision(
+                "component has no receiving runtime provisions",
+            ))?;
+        let binding = host.prepare_component(
+            component,
+            provisions,
+            request.x86_flags,
+            request.memory_ordering,
+        )?;
         instance
             .bind_component(binding)
             .map_err(TerminalRuntimeError::ComponentBinding)?;

@@ -240,38 +240,7 @@ impl<A> TerminalRuntimeProvisions<A> {
             return Err("component runtime provisions name another actual root artifact or target");
         }
         self.validate_component_product_roster()?;
-        for import in &object.object().layout.normalized_imports {
-            let NormalizedImportLocator::Component(locator) = &import.locator else {
-                continue;
-            };
-            let mut products = self
-                .components
-                .iter()
-                .filter(|product| product.locator() == locator);
-            if products.next().is_none() || products.next().is_some() {
-                return Err(
-                    "actual component root import has no unique exact retained image/resource product",
-                );
-            }
-        }
-        for call in object.foreign_calls() {
-            if !matches!(
-                &call.binding.mechanism,
-                target_vocabulary::NormalizedForeignCallMechanism::Component { .. }
-            ) {
-                continue;
-            }
-            if !self.host().iter().any(|provision| {
-                matches!(&provision.realization,
-                    target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                        if binding == &call.binding)
-            }) {
-                return Err(
-                    "actual component root call differs from its complete runtime ABI, provider or same-stack settlement",
-                );
-            }
-        }
-        Ok(())
+        validate_component_imports(object, self.host(), &self.components)
     }
 
     pub fn validate_component_product_roster(&self) -> Result<(), &'static str> {
@@ -286,8 +255,56 @@ impl<A> TerminalRuntimeProvisions<A> {
             components
                 .iter()
                 .map(|component| component.runtime_record().as_ref()),
-        )
+        )?;
+        for product in components {
+            validate_component_imports(
+                product.image().body(),
+                product.runtime().host_provisions().host(),
+                components,
+            )?;
+        }
+        Ok(())
     }
+}
+
+/// Every physical import must rejoin the exact receiving artifact and its admitted call.
+fn validate_component_imports(
+    object: &image_emission::ObjectArtifact,
+    host: &[TerminalRuntimeHostProvision],
+    components: &[Arc<crate::NativeComponentProduct>],
+) -> Result<(), &'static str> {
+    for import in &object.object().layout.normalized_imports {
+        let NormalizedImportLocator::Component(locator) = &import.locator else {
+            continue;
+        };
+        let mut products = components.iter().filter(|product| {
+            product.locator() == locator
+                && product.selection().receiver().semantic() == object.psi()
+        });
+        if products.next().is_none() || products.next().is_some() {
+            return Err(
+                "actual component root import has no unique exact retained image/resource product",
+            );
+        }
+    }
+    for call in object.foreign_calls() {
+        if !matches!(
+            &call.binding.mechanism,
+            target_vocabulary::NormalizedForeignCallMechanism::Component { .. }
+        ) {
+            continue;
+        }
+        if !host.iter().any(|provision| {
+            matches!(&provision.realization,
+                    target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                        if binding == &call.binding)
+        }) {
+            return Err(
+                "actual component root call differs from its complete runtime ABI, provider or same-stack settlement",
+            );
+        }
+    }
+    Ok(())
 }
 
 impl TerminalRuntimeProvisions {

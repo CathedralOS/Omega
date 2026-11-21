@@ -11,6 +11,7 @@ use crate::source::source_snapshot;
 use build_declarations::DependencyPurpose;
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 use semantic_vocabulary::PackageKeyIdentity;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use terminal_psi::TerminalPsiIdentity;
@@ -150,6 +151,8 @@ impl PackageDependencyBinding {
 pub struct IndependentComponentDescription {
     package: PackageKeyIdentity,
     expected_subject: TerminalPsiIdentity,
+    /// Independent selections of this package's checked Product for the same target.
+    independent_suppliers: BTreeSet<PackageKeyIdentity>,
     description: Arc<[u8]>,
 }
 
@@ -157,11 +160,13 @@ impl IndependentComponentDescription {
     pub fn new(
         package: PackageKeyIdentity,
         expected_subject: TerminalPsiIdentity,
+        independent_suppliers: BTreeSet<PackageKeyIdentity>,
         description: Vec<u8>,
     ) -> Self {
         Self {
             package,
             expected_subject,
+            independent_suppliers,
             description: Arc::from(description),
         }
     }
@@ -172,6 +177,10 @@ impl IndependentComponentDescription {
 
     pub const fn expected_subject(&self) -> TerminalPsiIdentity {
         self.expected_subject
+    }
+
+    pub fn independent_suppliers(&self) -> &BTreeSet<PackageKeyIdentity> {
+        &self.independent_suppliers
     }
 
     pub fn description(&self) -> &[u8] {

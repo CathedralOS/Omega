@@ -11,6 +11,7 @@ use terminal_interpreter::{
 
 pub(super) fn prepare<'host, 'artifact>(
     component: &'artifact published_runtime_input::RuntimeComponent,
+    provisions: &'artifact published_runtime_input::RuntimeExecutionProvisions,
     context: &host_imports::HostContext<'host>,
     x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
@@ -34,19 +35,20 @@ pub(super) fn prepare<'host, 'artifact>(
         admit_target_layouts(artifact, &target_machines, &facts).map_err(|error| {
             TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
         })?;
+    let children = provisions
+        .component_dependencies(component)
+        .map_err(TerminalRuntimeError::InvalidProvision)?;
     let mut host_boundaries = host_imports::HostBoundarySelections::default();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,
             target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
                 if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
         {
-            return Err(TerminalRuntimeError::InvalidProvision(
-                "nested component execution requires its own retained installed product roster",
-            ));
+            continue;
         }
         host_boundaries.add(&program, provision);
     }
-    let supplies = program
+    let mut supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             native_code_layouts: None,
             x86_flags,
@@ -64,6 +66,11 @@ pub(super) fn prepare<'host, 'artifact>(
             target_layouts: Some(&target_layouts),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
+    for child in &children {
+        supplies = supplies
+            .with_component_provider(child.selection())
+            .map_err(TerminalRuntimeError::Requirements)?;
+    }
     let mut binding = TerminalComponentBinding::new(
         component.selection().clone(),
         program.clone(),
@@ -73,6 +80,12 @@ pub(super) fn prepare<'host, 'artifact>(
             .map(std::borrow::Cow::Borrowed),
     )
     .map_err(TerminalRuntimeError::ComponentBinding)?;
+    for child in children {
+        let dependency = prepare(child, provisions, context, x86_flags, memory_ordering)?;
+        binding
+            .bind_component(dependency)
+            .map_err(TerminalRuntimeError::ComponentBinding)?;
+    }
     let imports = binding.unbound_imports().collect::<Vec<_>>();
     host_imports::bind(
         &program,

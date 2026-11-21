@@ -82,12 +82,50 @@ pub(crate) fn bind<'a>(
     Ok(exports)
 }
 
+/// Physical images and optional replay inputs from all reached exports in this construction.
+pub(crate) struct Emission<'request> {
+    pub suppliers: &'request VerifiedSuppliers,
+    pub authority: &'request provider_admission::TerminalAuthorityPolicy,
+    pub permissions: &'request Option<provider_admission::TerminalAuthorityPermissionPolicy>,
+    pub scalar_receipts: &'request mut Vec<native_scalar_inputs::EvaluationReceipt>,
+    pub retain_stage_inputs: bool,
+    pub products: Vec<Arc<native_artifact::NativeComponentProduct>>,
+    pub originals: Vec<(
+        [u8; 32],
+        Box<published_object_verification::RetainedPhysicalInputs>,
+    )>,
+}
+
+impl Emission<'_> {
+    fn record(
+        &mut self,
+        product: &Arc<native_artifact::NativeComponentProduct>,
+        originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let slot = *product.locator().slot_commitment();
+        let previous = self
+            .products
+            .iter()
+            .find(|other| *other.locator().slot_commitment() == slot);
+        if previous.is_some_and(|other| {
+            other.locator() != product.locator() || other.description() != product.description()
+        }) {
+            return Err(realization_error(
+                "component emission",
+                "a shared export has inconsistent physical products",
+            ));
+        }
+        if let Some(originals) = originals {
+            self.originals.push((slot, originals));
+        }
+        self.products.push(Arc::clone(product));
+        Ok(())
+    }
+}
+
 pub(crate) fn emit<'a>(
+    emission: &mut Emission<'_>,
     receiver: &TerminalNativeRealizationProposal,
-    authority: &provider_admission::TerminalAuthorityPolicy,
-    receiving_permissions: &Option<provider_admission::TerminalAuthorityPermissionPolicy>,
-    scalar_receipts: &mut Vec<native_scalar_inputs::EvaluationReceipt>,
-    retain_stage_inputs: bool,
     exports: &'a [Export<'a>],
 ) -> Result<Vec<ComponentCall<'a>>, Vec<Diagnostic>> {
     let mut calls = Vec::new();
@@ -104,6 +142,21 @@ pub(crate) fn emit<'a>(
                 &receiver.boundary_applications().calling,
             )
             .map_err(|why| vec![Diagnostic::error(why)])?;
+        // A diamond can reach the same receiving slot and provider export more than once.
+        // Rejoin its checked occurrence before compiling any of its children again.
+        if let Some(product) = emission.products.iter().find(|product| {
+            product.selection() == call.selection()
+                && product.application() == call.application()
+                && product.artifact().manifest().identity() == artifact.manifest().identity()
+        }) {
+            calls.push(ComponentCall::join(
+                Arc::clone(product),
+                call,
+                export.plan,
+                receiver.providers().selection.identities(),
+            )?);
+            continue;
+        }
         let execution = provider_realization::native_execution::prepare_program(
             proposal,
             retained.authorization(),
@@ -112,7 +165,7 @@ pub(crate) fn emit<'a>(
             artifact,
             proposal,
             execution.scope().reach().scalar_application_demand(),
-            scalar_receipts,
+            emission.scalar_receipts,
         )?;
         let selected = proposal.post_terminal_optimizations().selections();
         let (abstract_input, prepared) = artifact_lowering::lower_native_root(
@@ -127,9 +180,12 @@ pub(crate) fn emit<'a>(
                 .as_ref()
                 .map(|completed| artifact_lowering::NativeScalarApplications { completed }),
         )?;
-        let settlements = prepared.program_settlements();
+        let dependencies = bind(proposal, &execution, emission.suppliers)?;
+        let children = emit(emission, proposal, &dependencies)?;
+        let mut settlements = prepared.program_settlements();
+        settlements.extend(children.iter().map(ComponentCall::settlement));
         let admission =
-            prepared.admission_request(&settlements, authority, receiving_permissions, &[]);
+            prepared.admission_request(&settlements, emission.authority, emission.permissions, &[]);
         let admitted = artifact_lowering::admit_prepared_native_realization(
             abstract_input,
             artifact,
@@ -141,7 +197,7 @@ pub(crate) fn emit<'a>(
             selected,
             crate::driver::request::native_optimization_budget(),
             artifact,
-            retain_stage_inputs,
+            emission.retain_stage_inputs,
         )?;
         let physical =
             super::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
@@ -194,13 +250,14 @@ pub(crate) fn emit<'a>(
             execution.selection(),
         )
         .map_err(|why| vec![Diagnostic::error(why)])?;
-        calls.push(ComponentCall::join(
+        let joined = ComponentCall::join(
             Arc::new(product),
             call,
             export.plan,
             receiver.providers().selection.identities(),
-            object.stage_originals,
-        )?);
+        )?;
+        emission.record(&joined.product, object.stage_originals)?;
+        calls.push(joined);
     }
     Ok(calls)
 }

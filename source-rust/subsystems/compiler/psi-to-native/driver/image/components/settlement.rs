@@ -13,7 +13,6 @@ use wire::digest_encoder::DomainDigestEncoder;
 #[derive(Debug)]
 pub(crate) struct ComponentCall<'input> {
     pub product: Arc<native_artifact::NativeComponentProduct>,
-    pub originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     call: AdmittedNativeComponentCall<'input>,
     plan: &'input provider_plans::ProviderPlan,
     same_stack: provider_stack_contribution::AdmittedSameStackContribution,
@@ -26,7 +25,6 @@ impl<'input> ComponentCall<'input> {
         call: AdmittedNativeComponentCall<'input>,
         plan: &'input provider_plans::ProviderPlan,
         identities: &terminal_psi::TerminalIdentityTable,
-        originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let invalid = |message: &str| vec![Diagnostic::error(message)];
         let application = call.application();
@@ -96,7 +94,6 @@ impl<'input> ComponentCall<'input> {
         product.validate_same_stack(&same_stack).map_err(invalid)?;
         Ok(Self {
             product,
-            originals,
             call,
             plan,
             same_stack,

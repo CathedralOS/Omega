@@ -502,6 +502,17 @@ impl PackageCompilationInputs {
                 );
                 continue;
             }
+            if !description.independent_suppliers().is_empty() {
+                let dependencies = self.product_dependencies_of(package);
+                for supplier in description.independent_suppliers() {
+                    if *supplier == package || !dependencies.contains(supplier) {
+                        errors.push(PackageCompilationInputError::ForeignComponentSupplier {
+                            package,
+                            supplier: *supplier,
+                        });
+                    }
+                }
+            }
             if attached.insert(package, description).is_some() {
                 errors.push(
                     PackageCompilationInputError::DuplicateIndependentComponentDescription {

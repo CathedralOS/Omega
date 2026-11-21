@@ -151,8 +151,29 @@ impl RuntimeExecutionProvisions {
         Self { plan, components }
     }
 
-    pub fn component_products(&self) -> Result<&[Arc<RuntimeComponent>], &'static str> {
-        self.components.as_deref().map_err(|reason| *reason)
+    pub fn root_components(&self) -> Result<Vec<&RuntimeComponent>, &'static str> {
+        self.selected_components(self.plan.identity(), self.plan.host())
+    }
+
+    pub fn component_dependencies(
+        &self,
+        component: &RuntimeComponent,
+    ) -> Result<Vec<&RuntimeComponent>, &'static str> {
+        let runtime = component.runtime();
+        self.selected_components(runtime.identity(), runtime.host_provisions().host())
+    }
+
+    fn selected_components(
+        &self,
+        receiver: TerminalPsiIdentity,
+        host: &[TerminalRuntimeHostProvision],
+    ) -> Result<Vec<&RuntimeComponent>, &'static str> {
+        let products = self.components.as_deref().map_err(|reason| *reason)?;
+        let indices = component_indices(receiver, host, products.iter().map(AsRef::as_ref))?;
+        Ok(indices
+            .into_iter()
+            .map(|index| products[index].as_ref())
+            .collect())
     }
     pub fn entry(&self) -> MachineId {
         self.plan.entry()
@@ -194,8 +215,45 @@ pub fn validate_component_roster<'a, A>(
     plan: &NativeRuntimePlan<A>,
     components: impl Iterator<Item = &'a RuntimeComponent> + Clone,
 ) -> Result<(), &'static str> {
-    let mut expected = 0;
-    for provision in plan.host() {
+    let products: Vec<_> = components.collect();
+    let root = component_indices(plan.identity(), plan.host(), products.iter().copied())?;
+    let mut pending: Vec<_> = root.into_iter().map(|index| (index, false)).collect();
+    let mut checked = vec![false; products.len()];
+    let mut active = vec![false; products.len()];
+    while let Some((index, returning)) = pending.pop() {
+        if returning {
+            active[index] = false;
+            checked[index] = true;
+            continue;
+        }
+        if checked[index] {
+            continue;
+        }
+        if std::mem::replace(&mut active[index], true) {
+            return Err("component runtime roster has a cyclic supplier dependency");
+        }
+        let runtime = products[index].runtime();
+        let children = component_indices(
+            runtime.identity(),
+            runtime.host_provisions().host(),
+            products.iter().copied(),
+        )?;
+        pending.push((index, true));
+        pending.extend(children.into_iter().map(|child| (child, false)));
+    }
+    if checked.contains(&false) {
+        return Err("component runtime roster contains an unconsumed or duplicated image");
+    }
+    Ok(())
+}
+
+fn component_indices<'a>(
+    receiver: TerminalPsiIdentity,
+    host: &[TerminalRuntimeHostProvision],
+    components: impl Iterator<Item = &'a RuntimeComponent> + Clone,
+) -> Result<Vec<usize>, &'static str> {
+    let mut selected = Vec::new();
+    for provision in host {
         let target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding) =
             &provision.realization
         else {
@@ -211,10 +269,9 @@ pub fn validate_component_roster<'a, A>(
         else {
             continue;
         };
-        expected += 1;
-        let mut matches = components.clone().filter(|component| {
+        let mut matches = components.clone().enumerate().filter(|(_, component)| {
             component.selection().receiver()
-                == &terminal_codec::TerminalExecutionIdentity::portable(plan.identity())
+                == &terminal_codec::TerminalExecutionIdentity::portable(receiver)
                 && component.selection().receiving_boundary() == provision.boundary
                 && component.selection().provider() == *provider
                 && component.selection().candidate() == *candidate
@@ -222,7 +279,7 @@ pub fn validate_component_roster<'a, A>(
                 && component.application.commitment == *application_commitment
                 && component.application.plan.plan() == &binding.boundary_entry_plan
         });
-        let component = matches.next().ok_or(
+        let (index, component) = matches.next().ok_or(
             "component runtime roster does not exactly cover an admitted independent native call",
         )?;
         if matches.next().is_some() {
@@ -231,9 +288,10 @@ pub fn validate_component_roster<'a, A>(
             );
         }
         component.validate_same_stack(same_stack_contribution)?;
+        if selected.contains(&index) {
+            return Err("duplicate independent call in the receiving runtime provisions");
+        }
+        selected.push(index);
     }
-    if expected != components.count() {
-        return Err("component runtime roster contains an unconsumed or duplicated image");
-    }
-    Ok(())
+    Ok(selected)
 }

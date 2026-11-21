@@ -123,20 +123,37 @@ impl NativeStageReplay {
         mut components: Vec<([u8; 32], Box<RetainedPhysicalInputs>)>,
     ) -> Result<Self, diagnostics::Diagnostic> {
         components.sort_unstable_by_key(|(slot, _)| *slot);
-        if components.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-            return Err(diagnostics::Diagnostic::error(
-                "duplicate component slot in native stage replay",
-            ));
+        for (index, (slot, original)) in components.iter().enumerate() {
+            if components[..index]
+                .iter()
+                .rev()
+                .take_while(|(other, _)| other == slot)
+                .any(|(_, other)| {
+                    std::sync::Arc::ptr_eq(&original.encoding.encoding, &other.encoding.encoding)
+                })
+            {
+                return Err(diagnostics::Diagnostic::error(
+                    "duplicate component object in native stage replay",
+                ));
+            }
         }
         self.components = components;
         Ok(self)
     }
 
-    pub fn component(&self, slot: &[u8; 32]) -> Option<&RetainedPhysicalInputs> {
-        self.components
-            .binary_search_by_key(slot, |(key, _)| *key)
-            .ok()
-            .map(|index| self.components[index].1.as_ref())
+    /// The same physical export can be reached through two receivers. An audit
+    /// follows the retained encoding from this particular object construction.
+    pub fn component(
+        &self,
+        slot: &[u8; 32],
+        object: &ObjectArtifact,
+    ) -> Option<&RetainedPhysicalInputs> {
+        let start = self.components.partition_point(|(key, _)| key < slot);
+        self.components[start..]
+            .iter()
+            .take_while(|(key, _)| key == slot)
+            .find(|(_, inputs)| inputs.check_object(object).is_ok())
+            .map(|(_, inputs)| inputs.as_ref())
     }
 
     fn check_bodies(

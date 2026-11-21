@@ -73,10 +73,10 @@ machine main() reaches Reading crashes Trap {
         String::from_utf8_lossy(&review.stdout),
         String::from_utf8_lossy(&review.stderr)
     );
-    require_native_supplier(&consumer, &output);
+    require_native_suppliers(&consumer, &output, 1);
 }
 
-fn require_native_supplier(consumer: &Path, output: &Path) {
+fn require_native_suppliers(consumer: &Path, output: &Path, expected: usize) {
     let build = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["--target", "linux_x86_64", "--build-dir"])
         .arg(output)
@@ -93,10 +93,11 @@ fn require_native_supplier(consumer: &Path, output: &Path) {
         .map(|entry| entry.unwrap().path())
         .filter(|path| path.extension().is_some_and(|ext| ext == "so"))
         .collect();
-    let [component] = components.as_slice() else {
-        panic!("expected one published supplier alongside the executable: {components:?}");
-    };
-    assert!(component.with_extension("so.component").is_file());
+    assert_eq!(
+        components.len(),
+        expected,
+        "published suppliers: {components:?}"
+    );
     let executable = output.join("omega-program");
     let run = || {
         Command::new(&executable)
@@ -110,27 +111,81 @@ fn require_native_supplier(consumer: &Path, output: &Path) {
         "{}",
         String::from_utf8_lossy(&first.stderr)
     );
-    let missing = component.with_extension("withheld");
-    fs::rename(component, &missing).unwrap();
-    let refused = run();
-    assert!(
-        !refused.status.success(),
-        "the consumer ran with its required supplier missing"
-    );
-    assert!(
-        String::from_utf8_lossy(&refused.stderr)
-            .contains(component.file_name().unwrap().to_str().unwrap())
-    );
-    fs::rename(missing, component).unwrap();
+    for component in &components {
+        assert!(component.with_extension("so.component").is_file());
+        let missing = component.with_extension("withheld");
+        fs::rename(component, &missing).unwrap();
+        let refused = run();
+        assert!(
+            !refused.status.success(),
+            "the consumer ran with its required supplier missing"
+        );
+        assert!(
+            String::from_utf8_lossy(&refused.stderr)
+                .contains(component.file_name().unwrap().to_str().unwrap())
+        );
+        fs::rename(missing, component).unwrap();
+    }
 }
 
 #[test]
 fn a_fused_dependency_can_select_its_own_independent_supplier() {
     let scratch = TemporaryDirectory::create("nested-component", false).unwrap();
     let root = scratch.path();
+    nested_sources(root, "Fused");
+    require_native_suppliers(&root.join("application"), &root.join("out"), 1);
+}
+
+#[test]
+fn independent_packages_can_call_an_independently_compiled_supplier() {
+    let scratch = TemporaryDirectory::create("nested-independent-supplier", false).unwrap();
+    let root = scratch.path();
+    nested_sources(root, "Independent");
+    let consumer = root.join("application");
+    let build = consumer.join("build.omg");
+    let review = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "packages",
+            "update",
+            "--offline",
+            "--target",
+            "linux_x86_64",
+            "--dangerously-accept-all",
+            "--project",
+        ])
+        .arg(&consumer)
+        .output()
+        .unwrap();
+    assert!(
+        review.status.success(),
+        "{}",
+        String::from_utf8_lossy(&review.stderr)
+    );
+    require_native_suppliers(&consumer, &root.join("out"), 2);
+    let interpreted = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--engine", "psi", "--target", "linux_x86_64"])
+        .arg(build)
+        .output()
+        .unwrap();
+    assert!(
+        interpreted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&interpreted.stderr)
+    );
+}
+
+fn nested_sources(root: &Path, mode: &str) {
     for package in ["leaf", "supplier", "application"] {
         fs::create_dir(root.join(package)).unwrap();
     }
+    let root_build = format!(
+        r#"machine build(builder: @mut Build) {{
+    Build::application(builder, "reader");
+    let number: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "../supplier" }}));
+    Build::select_provider::<numbers\Reading, numbers\Sensor>(builder, linux_x86_64, CompositionMode::{mode});
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+}}"#
+    );
     let sources = [
         (
             "leaf/build.omg",
@@ -165,15 +220,7 @@ public Sensor satisfies Reading {
     machine value(input: u64) -> u64 reaches Measure { Measure::pass(input) }
 }"#,
         ),
-        (
-            "application/build.omg",
-            r#"machine build(builder: @mut Build) {
-    Build::application(builder, "reader");
-    let number: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../supplier" }));
-    Build::select_provider::<numbers\Reading, numbers\Sensor>(builder, linux_x86_64, CompositionMode::Fused);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-}"#,
-        ),
+        ("application/build.omg", root_build.as_str()),
         (
             "application/main.omg",
             r#"use numbers\Reading;
@@ -187,5 +234,4 @@ machine main() crashes Trap {
     for (path, source) in sources {
         fs::write(root.join(path), source).unwrap();
     }
-    require_native_supplier(&root.join("application"), &root.join("out"));
 }

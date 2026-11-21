@@ -88,6 +88,10 @@ pub enum PackageCompilationInputError {
     ForeignIndependentComponentDescription {
         package: PackageKeyIdentity,
     },
+    ForeignComponentSupplier {
+        package: PackageKeyIdentity,
+        supplier: PackageKeyIdentity,
+    },
     DuplicateIndependentComponentDescription {
         package: PackageKeyIdentity,
     },
@@ -247,6 +251,12 @@ impl fmt::Display for PackageCompilationInputError {
                 formatter,
                 "component description names foreign package {}",
                 display_identity(*package)
+            ),
+            Self::ForeignComponentSupplier { package, supplier } => write!(
+                formatter,
+                "component {} claims a supplier {} outside its own Product dependencies",
+                display_identity(*package),
+                display_identity(*supplier)
             ),
             Self::DuplicateIndependentComponentDescription { package } => write!(
                 formatter,
