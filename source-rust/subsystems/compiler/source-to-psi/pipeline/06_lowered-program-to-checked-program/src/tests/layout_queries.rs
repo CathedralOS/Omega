@@ -219,39 +219,43 @@ fn layout_call_requirements_apply_only_on_their_incoming_path() {
     use numerics::scalar_predicates::ScalarValue;
     use terminal_psi::ScalarRangeObservation;
 
-    let text = r#"
+    let source = r#"
 machine use_layout() requires size_of::<u32>() == 8u64 {}
 machine main() {
-    transition size_of::<u32>() == 4u64 {
+    transition SELECT {
         true -> done(),
         false -> use_layout()
     }
     machine done() requires true {}
 }
 "#;
-    let typed = super::boundary_calls::typed(text);
-    let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-    let Ok(RouteVerdict::Accepted(closure)) =
-        super::entryless::judged_typed_result(prepared.trees(), false)
-    else {
-        panic!("the portable call must preserve its deployment prerequisite");
-    };
-    let module = &closure.elaboration.module;
-    let conditions = module
-        .machines
-        .iter()
-        .flat_map(|machine| terminal_semantics::layout_call_conditions(module, machine).unwrap())
-        .map(|(_, condition)| condition)
-        .collect::<Vec<_>>();
-    let [condition] = conditions.as_slice() else {
-        panic!("expected one layout prerequisite");
-    };
-    for (size, permitted) in [(4, true), (8, true), (16, false)] {
-        let checked = condition.evaluate(&mut |value| {
-            matches!(value, ScalarRangeObservation::Application(_))
-                .then(|| ScalarValue::Integer(bignum::BigInt::from_u64(size)))
-        });
-        assert_eq!(checked, Some(ScalarValue::Boolean(permitted)));
+    for (guard, permitted) in [
+        ("size_of::<u32>() == 4u64", [true, true, false, false]),
+        ("size_of::<u32>() <= 16u64 && size_of::<u32>() != 16u64", [true, true, false, false]),
+        ("size_of::<u32>() == 4u64 || size_of::<u32>() == 16u64", [true, true, true, false]),
+    ] {
+        let typed = super::boundary_calls::typed(&source.replace("SELECT", guard));
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let Ok(RouteVerdict::Accepted(closure)) =
+            super::entryless::judged_typed_result(prepared.trees(), false)
+        else {
+            panic!("the portable call must preserve its deployment prerequisite");
+        };
+        let module = &closure.elaboration.module;
+        let conditions = module
+            .machines
+            .iter()
+            .flat_map(|machine| terminal_semantics::layout_call_conditions(module, machine).unwrap())
+            .map(|(_, condition)| condition)
+            .collect::<Vec<_>>();
+        assert!(!conditions.is_empty(), "a target prerequisite must remain");
+        for (size, permitted) in [4, 8, 16, 32].into_iter().zip(permitted) {
+            let checked = conditions.iter().all(|condition| condition.evaluate(&mut |value| {
+                matches!(value, ScalarRangeObservation::Application(_))
+                    .then(|| ScalarValue::Integer(bignum::BigInt::from_u64(size)))
+            }) == Some(ScalarValue::Boolean(true)));
+            assert_eq!(checked, permitted, "{guard} at size {size}");
+        }
     }
 }
 

@@ -19,6 +19,16 @@ struct Test {
     cut: Point,
 }
 
+enum Guard {
+    Constant(bool),
+    Comparison(Test),
+    Parameter {
+        value: ValueId,
+        at: Point,
+        positive: bool,
+    },
+}
+
 pub(super) struct Branch {
     entered: BlockId,
     condition: ValueId,
@@ -102,13 +112,16 @@ impl GroundRange<'_, '_> {
         positive: bool,
         depth: usize,
     ) -> Option<()> {
-        let Test {
+        let Guard::Comparison(Test {
             left,
             right,
             comparison,
             positive,
             cut,
-        } = self.comparison(condition, at, positive, depth)?;
+        }) = self.guard(condition, at, positive, depth)?
+        else {
+            return None;
+        };
         if !positive {
             self.steps
                 .push(Step::Observation(ScalarRangeObservation::Literal(
@@ -127,32 +140,45 @@ impl GroundRange<'_, '_> {
         }
         Some(())
     }
-    fn comparison(
+
+    fn guard(
         &mut self,
         condition: ValueId,
         at: Point,
         positive: bool,
         depth: usize,
-    ) -> Option<Test> {
+    ) -> Option<Guard> {
         self.visit(depth)?;
+        if self.index.definition_sites(condition).next().is_none() {
+            return Some(Guard::Parameter {
+                value: condition,
+                at,
+                positive,
+            });
+        }
         let (source, position) = self.definition(condition, at)?;
         let operation = &source.operations[position];
         let cut = (source.id, position);
         let (left, right, comparison, positive) = match operation.kind {
+            OperationKind::BooleanConstant { value } => {
+                return Some(Guard::Constant(value == positive));
+            }
             OperationKind::BooleanNot { operand } => {
-                return self.comparison(operand, cut, !positive, depth + 1);
+                return self.guard(operand, cut, !positive, depth + 1);
             }
             OperationKind::BooleanEqual { left, right } => {
                 for (tested, constant) in [(left, right), (right, left)] {
                     if let Some((owner, pos)) = self.definition(constant, cut)
                         && let OperationKind::BooleanConstant { value } = owner.operations[pos].kind
                     {
-                        return self.comparison(tested, cut, value == positive, depth + 1);
+                        return self.guard(tested, cut, value == positive, depth + 1);
                     }
                 }
                 return None;
             }
-            OperationKind::IntegerEqual { left, right } => (left, right, Comparison::Equal, positive),
+            OperationKind::IntegerEqual { left, right } => {
+                (left, right, Comparison::Equal, positive)
+            }
             OperationKind::IntegerLessThan { left, right } => {
                 (left, right, Comparison::Less, positive)
             }
@@ -161,13 +187,13 @@ impl GroundRange<'_, '_> {
             }
             _ => return None,
         };
-        Some(Test {
+        Some(Guard::Comparison(Test {
             left,
             right,
             comparison,
             positive,
             cut,
-        })
+        }))
     }
 
     /// Only exact target operands can name a Boolean deployment guard. A
@@ -182,30 +208,95 @@ impl GroundRange<'_, '_> {
                 continue;
             }
             self.remaining = 4096;
-            let Some(test) = self.comparison(branch.condition, branch.at, branch.when_true, 0)
-            else {
-                continue;
-            };
-            let Some(left) = self.exact_operand(test.left, test.cut) else {
-                continue;
-            };
-            let Some(right) = self.exact_operand(test.right, test.cut) else {
-                continue;
-            };
-            let predicate = match test.comparison {
-                Comparison::Equal => Proposition::Equal(left, right),
-                Comparison::Less => Proposition::LessThan(left, right),
-            };
-            guards.push(if test.positive {
-                predicate
-            } else {
-                Proposition::Implication {
-                    premise: Box::new(predicate),
-                    conclusion: Box::new(Proposition::Falsehood),
-                }
-            });
+            if let Some(predicate) =
+                self.predicate(branch.condition, branch.at, branch.when_true, branches, 0)
+            {
+                guards.push(predicate);
+            }
         }
         guards
+    }
+
+    fn predicate(
+        &mut self,
+        condition: ValueId,
+        at: Point,
+        positive: bool,
+        branches: &[Branch],
+        depth: usize,
+    ) -> Option<Proposition> {
+        match self.guard(condition, at, positive, depth)? {
+            Guard::Constant(true) => Some(Proposition::Truth),
+            Guard::Constant(false) => Some(Proposition::Falsehood),
+            Guard::Comparison(test) => {
+                let left = self.exact_operand(test.left, test.cut)?;
+                let right = self.exact_operand(test.right, test.cut)?;
+                let predicate = match test.comparison {
+                    Comparison::Equal => Proposition::Equal(left, right),
+                    Comparison::Less => Proposition::LessThan(left, right),
+                };
+                Some(if test.positive {
+                    predicate
+                } else {
+                    Proposition::Implication {
+                        premise: Box::new(predicate),
+                        conclusion: Box::new(Proposition::Falsehood),
+                    }
+                })
+            }
+            Guard::Parameter {
+                value,
+                at,
+                positive,
+            } => {
+                // A joined Boolean must have come along one of its incoming
+                // edges. Keep each incoming value paired with the conditions
+                // on the path that supplied it. Losing an alternative would
+                // allow a reachable call to escape its prerequisite.
+                let (owner, _) = self.index.block_parameter(value)?;
+                let arrivals = self.index.incoming_values(value)?;
+                if arrivals.is_empty() || !self.tree()?.dominates(owner, at.0) {
+                    return None;
+                }
+                let mut alternatives = Vec::new();
+                for (source, argument) in arrivals {
+                    let cut = (source.id, source.operations.len());
+                    let mut terms =
+                        vec![self.predicate(argument, cut, positive, branches, depth + 1)?];
+                    if let Terminator::Conditional {
+                        condition,
+                        when_true,
+                        when_false,
+                    } = &source.terminator
+                        && when_true.target != when_false.target
+                        && let Some(selected) = self.predicate(
+                            *condition,
+                            cut,
+                            when_true.target == owner,
+                            branches,
+                            depth + 1,
+                        )
+                    {
+                        terms.push(selected);
+                    }
+                    for branch in branches {
+                        if self.tree()?.dominates(branch.entered, source.id)
+                            && let Some(selected) = self.predicate(
+                                branch.condition,
+                                branch.at,
+                                branch.when_true,
+                                branches,
+                                depth + 1,
+                            )
+                        {
+                            terms.push(selected);
+                        }
+                    }
+                    alternatives.push(Proposition::Conjunction(terms));
+                }
+                Some(Proposition::Disjunction(alternatives))
+            }
+        }
     }
 
     fn exact_operand(&mut self, id: ValueId, cut: Point) -> Option<ScalarTerm> {
