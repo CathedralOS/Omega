@@ -113,7 +113,7 @@ crashes Trap
     }
 
     machine shape(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
-        let same: bool = same_parameters(resolver, sources, syntax, earlier, handle);
+        let same: bool = same_parameters(resolver, syntax, earlier, handle);
         transition same {
             true -> repeated(),
             _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)

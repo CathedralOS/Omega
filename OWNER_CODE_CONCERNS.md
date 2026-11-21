@@ -223,14 +223,6 @@ framework or a list of unimplemented features.
 - Cost: A program using the same portable call encounters different limits. Set a common contract or reconcile the adapters, then remove the corresponding `known` rows. Plain read and write have no such rows today.
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
 
-### The Omega-written compiler binds static arguments by kind instead of position
-
-- Category: One idea, several implementations
-- Where: [Omega argument selection](source/subsystems/compiler/source_to_psi/pipeline/symbol_resolved_trees_to_typed_trees/calls.omg#L337), [Rust positional binding](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L1324), [argument position rule](wiki/spec/language/generics.md#L387).
-- Saw: Omega’s `bind_static_arguments` partitions actual arguments by kind and takes the next argument of the matching kind for each formal. Rust zips the supplied prefix with the declared formals. In the historical `pick<T, machine K>` example, an actual naming a machine can skip `T` in the Omega binder. The original example uses retired binder syntax.
-- Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
-- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
-
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
 
 ### Build still validates retired hardware settings
@@ -248,11 +240,3 @@ framework or a list of unimplemented features.
 - Saw: The locked workspace graph at `da492310be6` has 37 direct normal dependents of `terminal-semantics`. Target vocabulary uses its structural paths and consumes callable analysis results. The original cache-only edit rebuilt 64 packages in 14m17s.
 - Cost: A private storage-analysis change invalidates consumers of small lookup functions in the same crate. Separate the lookup-only edges, keep the full analysis dependency where it is used, and remeasure the original Console edit/build/run loop. The optimizer still depends on storage analysis through the structural-storage and Psi wire crates. Check those imports before splitting the next dependency.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
-
-### Omega-written resolution compares integer type arguments by spelling
-
-- Category: Re-deriving
-- Where: [machine signature literals](source/subsystems/compiler/source_to_psi/pipeline/syntax_trees_to_symbol_resolved_trees/machine_signatures.omg#L495), [domain literals](source/subsystems/compiler/source_to_psi/pipeline/syntax_trees_to_symbol_resolved_trees/domains.omg#L367), [typed static integers](source/subsystems/compiler/source_to_psi/pipeline/symbol_resolved_trees_to_typed_trees/references.omg#L313).
-- Saw: Two resolution queries use `spans_equal` on the source bytes of literal type arguments, so `4` and `0x4` differ there. Each syntax literal already names its decoded integer. Typing uses that value and validity when it constructs a `StaticInteger`.
-- Cost: Resolution and typing can disagree about the same array length or type application. Compare the decoded values and preserve the refusal for an invalid literal.
-- Reported: 2026-11-16, Claude Code, while moving integer literal decoding into the lexer
