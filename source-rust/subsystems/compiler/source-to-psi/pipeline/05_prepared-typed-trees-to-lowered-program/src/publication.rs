@@ -48,6 +48,8 @@ pub struct SourceFormCorrespondence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementReviewMetadata {
     pub parameter_types: Vec<String>,
+    /// Source parameter positions in the order used by borrow origins and qualifications.
+    pub structural_parameter_positions: Vec<u32>,
     pub result_type: Option<String>,
     pub lifetime_parameter_count: usize,
     /// None is an open ceiling; Some(empty) is a closed empty ceiling.

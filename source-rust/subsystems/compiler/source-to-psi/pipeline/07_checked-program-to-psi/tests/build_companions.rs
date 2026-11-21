@@ -1474,3 +1474,28 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
 
 #[path = "../../../../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
+
+#[test]
+fn public_requirement_borrows_keep_their_source_parameter_positions() {
+    let source = typed(
+        r#"
+public trait ReadValues {
+    machine pick<'a, 'b>(count: u64, first: @'a u64, flag: bool, second: @'b u64) -> @'b u64;
+}
+machine build() {}
+"#,
+    );
+    let owner = source
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "ReadValues")
+        .unwrap();
+    let declaration = source.trait_machine_signatures(owner)[0].symbol;
+    let accepted = accepted_frontier(source, terminal_codec::TerminalPublication::Portable)
+        .expect("compile the public trait");
+    let review = accepted
+        .requirement_review(declaration)
+        .expect("read its checked requirement");
+    assert_eq!(review.structural_parameter_positions, [1, 3]);
+    assert_eq!(review.returned_parameters, [1]);
+}

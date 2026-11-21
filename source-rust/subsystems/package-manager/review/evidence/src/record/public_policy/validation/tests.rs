@@ -93,6 +93,7 @@ fn objective_c(count_binder: u32) -> PackagePolicyTraitShape {
                 is_const: false,
                 is_mutable: false,
             }],
+            structural_parameter_positions: Some(vec![0]),
             return_type: Some(type_identity(U64)),
             contracts: vec![
                 requires(Operator::Greater, count(), integer("0")),
@@ -138,3 +139,5 @@ fn a_trait_has_no_implicit_subject_binder_before_its_statics() {
         Err("contract generic binder escapes its static telescope")
     );
 }
+
+mod structural_parameters;

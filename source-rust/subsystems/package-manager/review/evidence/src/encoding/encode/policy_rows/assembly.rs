@@ -124,6 +124,7 @@ pub(super) fn project(
     policy: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
     let PackagePolicyBaseline {
+        schema_version,
         package,
         target,
         public_api,
@@ -153,7 +154,7 @@ pub(super) fn project(
         },
     )?;
     assumed(builder, assumed_bindings)?;
-    declarations::project(builder, public_api)?;
+    declarations::project(builder, public_api, *schema_version)?;
     for service in service_audits {
         builder.push(
             PackagePolicyRowKind::ServiceAudit,

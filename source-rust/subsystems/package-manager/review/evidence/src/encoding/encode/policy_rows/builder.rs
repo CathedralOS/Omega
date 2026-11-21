@@ -1,6 +1,6 @@
 // Bounded row builder and canonical acceptance row framing (`frame_row`) for package policy rows.
 
-use crate::encoding::PACKAGE_POLICY_BASELINE_VERSION;
+use crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS;
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::policy_rows::Encoder;
 use crate::encoding::encode::policy_rows::rejected;
@@ -78,6 +78,25 @@ impl Builder {
         key: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
         value: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<(), PackageReviewEncodingError> {
+        // Version 38 changed only public traits. Grants and all other rows
+        // retain the framing used by existing package locks.
+        self.push_versioned(
+            (kind, BASELINE_WITHOUT_STRUCTURAL_PARAMETERS),
+            initial,
+            audit,
+            key,
+            value,
+        )
+    }
+
+    pub(super) fn push_versioned(
+        &mut self,
+        (kind, baseline_schema): (PackagePolicyRowKind, u16),
+        initial: bool,
+        audit: bool,
+        key: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+        value: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<(), PackageReviewEncodingError> {
         if self.acceptance_only && !initial {
             return Ok(());
         }
@@ -123,7 +142,7 @@ impl Builder {
             &mut measure,
             self.package,
             self.target,
-            kind,
+            (kind, baseline_schema),
             initial,
             audit,
             &value,
@@ -145,7 +164,7 @@ impl Builder {
             &mut output,
             self.package,
             self.target,
-            kind,
+            (kind, baseline_schema),
             initial,
             audit,
             &value,
@@ -197,14 +216,14 @@ pub(super) fn frame_row(
     encoder: &mut Encoder,
     package: PackageKeyIdentity,
     target: target::TargetProfile,
-    kind: PackagePolicyRowKind,
+    (kind, baseline_schema): (PackagePolicyRowKind, u16),
     initial: bool,
     audit: bool,
     value: &impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.fixed_bytes_field("binary_format", b"OMEGA-PACKAGE-POLICY-ROW\0")?;
     encoder.u16_field("row_schema", PACKAGE_POLICY_ROW_VERSION)?;
-    encoder.u16_field("baseline_schema", PACKAGE_POLICY_BASELINE_VERSION)?;
+    encoder.u16_field("baseline_schema", baseline_schema)?;
     encoder.package_identity_field("package", package)?;
     encoder.string_field("target", target.identity().as_str())?;
     encoder.tag_field("kind", kind.as_str(), kind.canonical_tag())?;

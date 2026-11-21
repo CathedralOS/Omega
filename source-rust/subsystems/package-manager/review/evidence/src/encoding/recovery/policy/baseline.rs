@@ -11,7 +11,10 @@ use super::{
     identity::package, public_api, reader::Reader, representation, selected_providers,
     terminal_permissions,
 };
-use crate::encoding::{PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION};
+use crate::encoding::{
+    BASELINE_WITHOUT_STRUCTURAL_PARAMETERS, PACKAGE_POLICY_BASELINE_MAGIC,
+    PACKAGE_POLICY_BASELINE_VERSION,
+};
 use crate::record::PackagePolicyNativeBinding;
 
 impl PackagePolicyBaseline {
@@ -28,13 +31,18 @@ impl PackagePolicyBaseline {
     ) -> Result<(Self, PackagePolicyRecoveryUsage), Error> {
         let mut reader = Reader::new(bytes, limits)?;
         reader.literal(PACKAGE_POLICY_BASELINE_MAGIC)?;
-        if reader.u16()? != PACKAGE_POLICY_BASELINE_VERSION {
+        let schema_version = reader.u16()?;
+        if !matches!(
+            schema_version,
+            BASELINE_WITHOUT_STRUCTURAL_PARAMETERS | PACKAGE_POLICY_BASELINE_VERSION
+        ) {
             return Err(Error::UnsupportedVersion);
         }
         let policy = Self {
+            schema_version,
             package: package(&mut reader)?,
             target: selected_providers::target(&mut reader)?,
-            public_api: public_api::public_api(&mut reader)?,
+            public_api: public_api::public_api(&mut reader, schema_version)?,
             callables: callable_policy::policy(&mut reader)?,
             selected_providers: selected_providers::policy(&mut reader)?,
             terminal_permissions: terminal_permissions::policy(&mut reader)?,

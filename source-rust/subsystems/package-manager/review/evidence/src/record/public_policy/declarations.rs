@@ -31,6 +31,8 @@ pub struct PackagePolicyTraitRequirement {
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) conformance_bounds: Vec<crate::record::PackageReviewConformanceBound>,
     pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
+    /// Entry i names the source formal for structural parameter i. Version 37 omitted this list.
+    pub(crate) structural_parameter_positions: Option<Vec<u32>>,
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     /// None is open; Some(empty) is an explicit empty ceiling.

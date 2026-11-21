@@ -14,8 +14,7 @@ use super::{
     selected_providers, terminal_permissions, values,
 };
 use crate::encoding::{
-    PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackagePolicyRecoveryLimits,
-    PackageReviewEncodingError,
+    PACKAGE_POLICY_BASELINE_MAGIC, PackagePolicyRecoveryLimits, PackageReviewEncodingError,
 };
 use declarations::encode_dangerous_authority;
 use declarations::encode_dangerous_authority_slack;
@@ -38,7 +37,7 @@ pub(in crate::encoding) fn framed_policy(
     value: &PackagePolicyBaseline,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.fixed_bytes_field("binary_format", PACKAGE_POLICY_BASELINE_MAGIC)?;
-    encoder.u16_field("baseline_schema", PACKAGE_POLICY_BASELINE_VERSION)?;
+    encoder.u16_field("baseline_schema", value.schema_version)?;
     encoder.record("package_policy", |encoder| policy(encoder, value))
 }
 
@@ -48,7 +47,9 @@ pub(in crate::encoding) fn policy(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", value.package)?;
     encoder.string_field("target", value.target.identity().as_str())?;
-    encoder.field_by("public_api", &value.public_api, public_api::public_api)?;
+    encoder.field("public_api", |encoder| {
+        public_api::public_api(encoder, &value.public_api, value.schema_version)
+    })?;
     encoder.field_by("callables", &value.callables, callable_policy::policy)?;
     encoder.field_by(
         "selected_providers",

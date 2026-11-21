@@ -33,6 +33,7 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyBaseline {
+    pub(crate) schema_version: u16,
     pub(crate) package: PackageKeyIdentity,
     pub(crate) target: TargetProfile,
     pub(crate) public_api: PackagePolicyPublicApi,

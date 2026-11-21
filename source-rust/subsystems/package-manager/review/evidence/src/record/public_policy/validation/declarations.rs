@@ -72,14 +72,33 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
         if requirement.service_reach_is_installation_bound && requirement.service_reach.is_none() {
             return Err("an installation-bound public requirement has no declared service ceiling");
         }
+        let positions = requirement
+            .structural_parameter_positions()
+            .unwrap_or_default();
+        ordered(positions)?;
+        if positions
+            .last()
+            .is_some_and(|&position| position as usize >= requirement.parameters.len())
+        {
+            return Err("structural parameter names an unknown source parameter");
+        }
         ordered(&requirement.returned_borrow_origins)?;
         for origin in &requirement.returned_borrow_origins {
+            if origin
+                .parameter_index()
+                .is_some_and(|index| index as usize >= positions.len())
+            {
+                return Err("returned borrow names an unknown structural parameter");
+            }
             if let Some(carrier) = origin.invocation_carrier() {
                 value_type(carrier)?;
             }
         }
         ordered(&requirement.parameter_qualification_preconditions)?;
         for qualification in &requirement.parameter_qualification_preconditions {
+            if qualification.structural_index() as usize >= positions.len() {
+                return Err("qualification names an unknown structural parameter");
+            }
             qualification.domain().validate_resolved()?;
         }
     }

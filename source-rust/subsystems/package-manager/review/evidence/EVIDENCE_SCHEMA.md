@@ -16,6 +16,14 @@ compiler-derived risk acceptances and decisions, trusting whoever lands it.
 Compiler proof/reach checks and native artifact validation are independent of
 installation.
 
+Whole-package baseline version 38 adds `structural_parameter_positions` after
+the return type of each public trait requirement. It is a sequence of `u32`
+source positions, indexed from zero. Both returned-parameter borrows and
+parameter domain qualifications index this sequence. Version 37 omitted it.
+Its public trait rows keep their original bytes when they contain no index
+that needs the list. Public trait rows from version 38 name that version in
+their header. All other row kinds keep their version 37 framing.
+
 The separate external-supply policy component uses
 `OMEGA-EXTERNAL-SUPPLY-POLICY` version 7, at most 4 MiB. It keeps the
 complete callable and requirement coordinates, all eight binding alternatives,

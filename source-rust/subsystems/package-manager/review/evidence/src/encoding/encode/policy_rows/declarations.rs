@@ -12,6 +12,7 @@ use crate::record::PackagePolicyRowKind;
 pub(super) fn project(
     builder: &mut Builder,
     api: &PackagePolicyPublicApi,
+    baseline_schema: u16,
 ) -> Result<(), PackageReviewEncodingError> {
     let PackagePolicyPublicApi {
         traits,
@@ -23,12 +24,12 @@ pub(super) fn project(
         data,
     } = api;
     for value in traits {
-        builder.push(
-            PackagePolicyRowKind::PublicTrait,
+        builder.push_versioned(
+            (PackagePolicyRowKind::PublicTrait, baseline_schema),
             false,
             false,
             |encoder| encode_nominal(encoder, &value.identity),
-            |encoder| encode::trait_shape(encoder, value),
+            |encoder| encode::trait_shape(encoder, value, baseline_schema),
         )?;
     }
     for value in conformances {
