@@ -31,7 +31,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
   - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
-  - Prove `jp = j + 1` stays below the array length in [bubble sort](samples/cli/algorithms/bubble_sort), and prove the arithmetic in `blue_put`'s inferred requirement total in [Dutch flag](samples/cli/algorithms/dutch_flag). Run their existing oracles.
   - Check the linked repositories and both compilers against the same declaration model. Preserve the original execution results of migrated programs.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete [scalar range contracts](wiki/spec/language/domains.md#declaration-and-membership).

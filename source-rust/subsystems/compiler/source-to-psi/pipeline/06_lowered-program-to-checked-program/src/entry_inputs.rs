@@ -38,6 +38,7 @@ use crate::checking::{
 };
 
 mod inferred_calls;
+mod recursive;
 mod integer_cases;
 pub(super) use inferred_calls::InferredCalls;
 
@@ -55,31 +56,7 @@ pub(crate) fn infer(
         return Ok(());
     }
     let sites = CallSites::new(elaboration)?;
-    // Internal tail calls are block arrivals after frame reuse. Discover their
-    // conditions without a recursive hypothesis, then publish them as ordinary
-    // entry requirements and head predicates. Every real arrival must prove
-    // them, including the entry transfer of each separately callable member.
-    let mut loop_inputs = elaboration.tables.machines.map(|_, _| Vec::new());
-    for caller in elaboration.tables.machines.keys() {
-        describe_calls(
-            scope,
-            caller,
-            &sites,
-            true,
-            &mut loop_inputs,
-            unreached,
-            inhabitation,
-            activity,
-        )?;
-    }
-    for (callee, arrivals) in loop_inputs.iter() {
-        if !arrivals.is_empty() {
-            let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
-            if predicate != Proposition::Truth {
-                scope.require(callee, predicate, &sites, activity)?;
-            }
-        }
-    }
+    let loop_inputs = recursive::infer(scope, &sites, unreached, inhabitation, activity)?;
     let elaboration = scope.source();
     let mut waiting = sites.incoming.map(|_, callers| callers.len());
     let mut bodies = elaboration.tables.machines.map(|_, _| true);
@@ -112,7 +89,7 @@ pub(crate) fn infer(
             scope,
             id,
             &sites,
-            false,
+            None,
             &mut incoming,
             unreached,
             inhabitation,
@@ -134,7 +111,7 @@ fn describe_calls(
     scope: &crate::checking::ReplayScope<'_>,
     id: MachineId,
     sites: &CallSites,
-    transfers: bool,
+    mut transfers: Option<&mut recursive::Transfers>,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::checking::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -144,13 +121,14 @@ fn describe_calls(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let outgoing = terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)?;
-    let edges = if transfers {
+    let edges = if transfers.is_some() {
         terminal_check_tables::row(&sites.transfers, id, id, Construct::Machine)?.as_slice()
     } else {
         &[][..]
     };
+    let recursive = transfers.is_some();
     let includes_call = |index: usize| {
-        !transfers
+        !recursive
             || sites
                 .heads
                 .get(sites.arrivals[index].callee)
@@ -215,6 +193,51 @@ fn describe_calls(
         activity,
         &mut references,
     )?;
+    // Identify what each member's inputs hold at its physical head, before
+    // inspecting the outgoing transfers in this copy of the component.
+    let mut heads = Vec::new();
+    if !edges.is_empty() {
+        let sources = terminal_check_tables::row(&elaboration.sources, id, id, Construct::Machine)?;
+        for &(head, owner) in &sources.heads {
+            let block = lowered
+                .blocks
+                .get((head.get() - 1) as usize)
+                .filter(|block| block.id == head)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Block(head),
+                        "recursive transfer names no member head",
+                    )
+                })?;
+            let machine = terminal_machine(&elaboration.module.machines, owner, id)?;
+            let arguments: Vec<_> = block
+                .structural_parameters
+                .iter()
+                .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
+                .collect();
+            let mut fields = storage.at_join(
+                &mut references,
+                &tables,
+                &machine.structural_parameters,
+                &arguments,
+                &[],
+                ProgramPoint::BlockEntry(head),
+                Construct::Block(head),
+            )?;
+            let names = machine
+                .parameters
+                .iter()
+                .zip(&block.parameters)
+                .map(|(formal, actual)| {
+                    (ScalarTerm::value(formal.id, formal.scalar_type), actual.id)
+                })
+                .chain(fields.observations().field_crossings())
+                .collect::<Vec<_>>();
+            heads.push((head, owner, names));
+        }
+    }
     for &(edge, callee) in edges {
         let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
         let target = terminal_machine(&elaboration.module.machines, callee, id)?;
@@ -236,24 +259,41 @@ fn describe_calls(
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
             .chain(fields.observations().field_crossings())
             .collect::<Vec<_>>();
-        let predicate = describe(
-            &known,
-            &prepared.context,
-            &crossing,
-            &mut InputBindings {
-                actuals,
-                target,
-                denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
-                known: &known,
-                context: &prepared.context,
-                fields: fields.observations(),
-                equal: None,
-            },
-        );
-        incoming
-            .get_mut(callee)
-            .expect("callee was indexed")
-            .push(predicate);
+        let mut bindings = InputBindings {
+            actuals,
+            target,
+            denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
+            known: &known,
+            context: &prepared.context,
+            fields: fields.observations(),
+            equal: None,
+        };
+        let predicate = describe(&known, &prepared.context, &crossing, &mut bindings);
+        let arrivals = incoming.get_mut(callee).expect("callee was indexed");
+        if let Some(transfers) = transfers.as_deref_mut() {
+            let mut source = None;
+            for (head, owner, names) in &heads {
+                let head = ProgramPoint::BlockEntry(*head);
+                if prepared.graph.dominates(head, point)?
+                    && match source {
+                        Some((previous, _, _)) => prepared.graph.dominates(previous, head)?,
+                        None => true,
+                    }
+                {
+                    source = Some((head, *owner, names));
+                }
+            }
+            if let Some((_, owner, names)) = source {
+                let mut preserved = Vec::new();
+                for (name, value) in names {
+                    if let Ok(next) = bindings.value(*value, name.scalar_type()) {
+                        preserved.push((name.clone(), next));
+                    }
+                }
+                transfers.insert(owner, callee, arrivals.len(), preserved);
+            }
+        }
+        arrivals.push(predicate);
     }
     for &index in outgoing {
         if !includes_call(index) {
@@ -1259,6 +1299,9 @@ pub(super) fn require(
     let Some(predicate) = formed(elaboration, callee, predicate, activity)? else {
         return Ok(());
     };
+    // Formation can retain a subset of the proposed conjunction. Publish its
+    // wire order even when proof search grouped candidates in structural order.
+    let predicate = canonical(predicate, callee)?;
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,

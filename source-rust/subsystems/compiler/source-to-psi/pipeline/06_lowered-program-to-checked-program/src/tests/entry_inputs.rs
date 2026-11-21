@@ -707,47 +707,99 @@ machine entry() crashes Trap {
 
 #[test]
 fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() {
-    for (name, write, contract, alternative, accepted) in [
+    let advance = "input.index + 1";
+    for (name, intermediate_write, write, contract, alternative, next_index, accepted) in [
         (
             "guarded_index_cycle",
+            None,
             "input.mask = 1u32 as +Wrapping;",
             "",
             "0u32",
+            advance,
             true,
         ),
         (
             "replaced_index_cycle",
+            None,
             "input.index = 3u32 as +Wrapping;",
             "",
             "0u32",
+            advance,
             false,
         ),
         (
             "unbounded_index_cycle",
+            None,
             "input.mask = 1u32 as +Wrapping;",
             "requires true",
             "0u32",
+            advance,
             false,
         ),
         (
             "unguarded_arrival_cycle",
+            None,
             "input.mask = 1u32 as +Wrapping;",
             "",
             "block fetch(input)",
+            advance,
+            false,
+        ),
+        (
+            "guard_survives_two_more_transfers",
+            Some("input.mask = 1u32 as +Wrapping;"),
+            "",
+            "",
+            "0u32",
+            advance,
+            true,
+        ),
+        (
+            "reset_on_the_backedge_after_the_guarded_read",
+            Some("input.mask = 1u32 as +Wrapping;"),
+            "",
+            "",
+            "0u32",
+            "0u32 as +Wrapping",
+            true,
+        ),
+        (
+            "a_write_between_transfers_invalidates_the_guard",
+            Some("input.index = 3u32 as +Wrapping;"),
+            "",
+            "",
+            "0u32",
+            advance,
             false,
         ),
     ] {
+        let (successor, intermediate) = match intermediate_write {
+            None => ("fetch", String::new()),
+            Some(write) => (
+                "relay",
+                format!(
+                    "machine relay(input: @mut Input) -> u32 {{
+                    {write}
+                    transition {{ _ -> block handoff(input) }}
+                 }}
+                 machine handoff(input: @mut Input) -> u32 {{
+                    transition {{ _ -> block fetch(input) }}
+                 }}"
+                ),
+            ),
+        };
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
             public machine entry(input: @mut Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
                 machine test(input: @mut Input) -> u32 {{
-                    transition input.index < 3u32 {{ true -> block fetch(input), _ -> {alternative} }}
+                    transition input.index < 3u32 {{ true -> block {successor}(input), _ -> {alternative} }}
                 }}
+                {intermediate}
                 machine fetch(input: @mut Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
-                    input.index = input.index + 1;
+                    input.index = {next_index};
                     transition found == 0u32 {{ true -> 0u32, _ -> block test(input) }}
                 }}
             }}"
