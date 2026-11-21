@@ -383,11 +383,11 @@ impl Lower<'_> {
         if self.program.symbols.get(symbol).kind == SymbolKind::Data {
             self.program.type_reference_table.set_operand_origin(
                 reference,
-                TypeOperandOrigin::ProductInput(ProductTypeInput {
+                TypeOperandOrigin::ProductInput(std::sync::Arc::new(ProductTypeInput {
                     operand: self.selecting_operand,
                     occurrence: name.source_span,
                     declaration: symbol,
-                }),
+                })),
             );
         }
         reference

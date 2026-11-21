@@ -3350,7 +3350,7 @@ fn visit_type_name(
 ) {
     match program.type_reference_table.operand_origin(reference) {
         crate::source_state::types::TypeOperandOrigin::ProductInput(input) => {
-            retained.product_type_input(input, symbol)
+            retained.product_type_input(*input, symbol)
         }
         _ => visit_symbol(retained, symbol),
     }

@@ -415,7 +415,7 @@ fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput
                     && names.contains(&input.occurrence)
                     && typed.type_reference_symbol(reference) == input.declaration
                 {
-                    inputs.insert(input);
+                    inputs.insert(*input);
                 }
             }
         }
@@ -1550,6 +1550,55 @@ mod tests {
             });
         }
         (typed, a, b, selected)
+    }
+
+    #[test]
+    fn a_marked_product_type_without_a_selecting_operand_is_refused() {
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("build")),
+                (SymbolKind::Data, SymbolNameRef::Static("Role")),
+            ],
+        );
+        let owner = children.handle_at(0);
+        let role = children.handle_at(1);
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let reference = typed.type_reference_table.insert(
+            crate::source_state::types::TypeReferenceNode::Named {
+                symbol: role,
+                name: Identifier::generated("Role"),
+            },
+        );
+        typed.push_machine(Machine {
+            symbol: owner,
+            attached_data_application: reference,
+            ..Default::default()
+        });
+        let admitted = DeclarationSelection::from_symbols([owner]);
+        let completed = CompletedOperators::default();
+        let lexical = capture(&typed, &admitted, &completed, &[]).unwrap();
+        assert!(lexical.dependencies.iter().any(|row| row.target == role));
+        typed.type_reference_table.set_operand_origin(
+            reference,
+            TypeOperandOrigin::ProductInput(Arc::new(ProductTypeInput {
+                operand: Default::default(),
+                occurrence: Default::default(),
+                declaration: role,
+            })),
+        );
+        let refused = capture(&typed, &admitted, &completed, &[]).unwrap_err();
+        assert!(
+            refused
+                .to_string()
+                .contains("does not match its selected operand"),
+            "{refused}"
+        );
     }
 
     #[test]
